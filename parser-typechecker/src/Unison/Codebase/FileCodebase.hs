@@ -18,86 +18,69 @@ module Unison.Codebase.FileCodebase
 
 import Unison.Prelude
 
-import           UnliftIO                       ( MonadUnliftIO )
-import           UnliftIO.Exception             ( catchIO )
-import           UnliftIO.Concurrent            ( forkIO
-                                                , killThread
-                                                )
-import           UnliftIO.STM                   ( atomically )
-import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
-import qualified Data.Text.IO                  as TextIO
-import           UnliftIO.Directory             ( createDirectoryIfMissing
-                                                , doesDirectoryExist
-                                                )
-import           System.FilePath                ( takeFileName
-                                                )
-import           System.Directory               ( getHomeDirectory
-                                                , canonicalizePath
-                                                )
-import           System.Environment             ( getProgName )
-import           System.Exit                    ( exitFailure, exitSuccess )
-import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                ( Codebase(Codebase)
-                                                , BuiltinAnnotation
-                                                , CodebasePath
-                                                )
-import           Unison.Codebase.Branch         ( Branch )
-import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Reflog        as Reflog
-import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1
-                                               as V1
-import qualified Unison.Codebase.Watch         as Watch
-import           Unison.Parser                  (Ann() )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import qualified Unison.Util.TQueue            as TQueue
-import           Unison.Var                     ( Var )
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Cache             as Cache
-import qualified Unison.Util.Pretty            as P
-import qualified Unison.PrettyTerminal         as PT
-import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Codebase.FileCodebase.Common as Common
+import Control.Concurrent (forkIO, killThread)
+import Control.Exception.Safe (MonadCatch, catchIO)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import System.Directory (canonicalizePath, getHomeDirectory)
+import System.Environment (getProgName)
+import System.Exit (exitFailure, exitSuccess)
+import System.FilePath (takeFileName)
+import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.FileCodebase.Common
-  ( Err(CantParseBranchHead)
-  , codebaseExists
-  ---
-  , branchHeadDir
-  , dependentsDir
-  , reflogPath
-  , typeIndexDir
-  , typeMentionsIndexDir
-  , watchesDir
-  ---
-  , componentIdFromString
-  , hashFromFilePath
-  , referentIdFromString
-  , decodeFileName
-  , formatAnn
-  , getRootBranch
-  , getDecl
-  , getTerm
-  , getTypeOfTerm
-  , getWatch
-  , putDecl
-  , putTerm
-  , putRootBranch
-  , putWatch
-  ---
-  , branchFromFiles
-  , branchHashesByPrefix
-  , termReferencesByPrefix
-  , termReferentsByPrefix
-  , typeReferencesByPrefix
-  ---
-  , failWith
-  , listDirectory
+  ( Err (CantParseBranchHead),
+    branchFromFiles,
+    branchHashesByPrefix,
+    branchHeadDir,
+    codebaseExists,
+    componentIdFromString,
+    decodeFileName,
+    dependentsDir,
+    failWith,
+    formatAnn,
+    getDecl,
+    getRootBranch,
+    getTerm,
+    getTypeOfTerm,
+    getWatch,
+    hashFromFilePath,
+    listDirectory,
+    putDecl,
+    putRootBranch,
+    putTerm,
+    putWatch,
+    referentIdFromString,
+    reflogPath,
+    termReferencesByPrefix,
+    termReferentsByPrefix,
+    typeIndexDir,
+    typeMentionsIndexDir,
+    typeReferencesByPrefix,
+    watchesDir,
   )
-
+import qualified Unison.Codebase.FileCodebase.Common as Common
 import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
+import qualified Unison.Codebase.Reflog as Reflog
+import qualified Unison.Codebase.Serialization as S
+import qualified Unison.Codebase.Serialization.V1 as V1
+import qualified Unison.Codebase.Watch as Watch
+import Unison.Parser (Ann ())
+import qualified Unison.PrettyTerminal as PT
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Cache as Cache
+import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.TQueue as TQueue
+import Unison.Var (Var)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import UnliftIO.STM (atomically)
 
 initCodebaseAndExit :: Maybe FilePath -> IO ()
 initCodebaseAndExit mdir = do
@@ -159,7 +142,8 @@ getCodebaseDir = maybe getHomeDirectory pure
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
-   . MonadUnliftIO m
+   . MonadIO m
+  => MonadCatch m
   => Var v
   => BuiltinAnnotation a
   => Branch.Cache m -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
@@ -167,7 +151,8 @@ codebase1 = codebase1' Sync.syncToDirectory
 
 codebase1'
   :: forall m v a
-   . MonadUnliftIO m
+   . MonadIO m
+  => MonadCatch m
   => Var v
   => BuiltinAnnotation a
   => Common.SyncToDir m v a -> Branch.Cache m -> S.Format v -> S.Format a -> CodebasePath -> m (Codebase m v a)
@@ -242,8 +227,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
         (do contents <- TextIO.readFile (reflogPath path)
             let lines = Text.lines contents
             let entries = parseEntry <$> lines
-            pure entries) `catchIO`
-      const (pure [])
+            pure entries) `catchIO` const (pure [])
       where
         parseEntry t = fromMaybe (err t) (Reflog.fromText t)
         err t = error $
@@ -259,13 +243,13 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
 branchHeadUpdates
-  :: MonadUnliftIO m => CodebasePath -> m (m (), m (Set Branch.Hash))
+  :: MonadIO m => CodebasePath -> m (IO (), IO (Set Branch.Hash))
 branchHeadUpdates root = do
   branchHeadChanges      <- TQueue.newIO
   (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
 --  -- add .ubf file changes to intermediate queue
   watcher1               <-
-    forkIO
+    liftIO . forkIO
     $ forever
     $ do
       -- Q: what does watcher return on a file deletion?
