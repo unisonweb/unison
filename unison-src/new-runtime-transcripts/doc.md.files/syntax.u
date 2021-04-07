@@ -63,6 +63,25 @@ Numbered lists can be nested as well, and combined with bulleted lists:
 
 }}
 
+evaluation = {{
+
+## Evaluation 
+
+Expressions can be evaluated inline, for instance @eval{1 + 1}.
+
+Blocks of code can be evaluated as well, for instance:
+
+```
+id x = x
+
+id (sq 10)
+``` 
+
+}}
+
+sq x = x Nat.* x
+
+--- todo
 ---
 
 doc.guide = {{
@@ -72,36 +91,6 @@ doc.guide = {{
 {{ basicFormatting }}
 
 {{ lists }}
-
-## Evaluation 
-
-'''
-Expressions can be evaluated inline, for instance @eval{1 + 1}.
-'''
-
-Renders as:
-
-Expressions can be evaluated inline, for instance @eval{1 + 1}.
-
-Blocks of code can be evaluated as well, for instance:
-
-'''
-```
-id x = x
-
-id 99
-``` 
-'''
-
-Renders as:
-
-```
-id x = x
-
-id 99
-``` 
-
-}} --- todo
 
 ## Including Unison source code
 

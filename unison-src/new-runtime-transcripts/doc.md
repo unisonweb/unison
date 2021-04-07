@@ -45,4 +45,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 .> display basicFormatting
 .> view lists
 .> display lists
+.> view evaluation
+.> display evaluation
 ```

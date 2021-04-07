@@ -64,14 +64,18 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     ⍟ These new definitions are ok to `add`:
     
       basicFormatting : Doc2
+      evaluation      : Doc2
       lists           : Doc2
+      sq              : Nat -> Nat
 
 .> add
 
   ⍟ I've added these definitions:
   
     basicFormatting : Doc2
+    evaluation      : Doc2
     lists           : Doc2
+    sq              : Nat -> Nat
 
 .> view basicFormatting
 
@@ -213,5 +217,39 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
          * In this nested list.
       2. Take shower.
       3. Get dressed.
+
+.> view evaluation
+
+  evaluation : Doc2
+  evaluation =
+    use Nat +
+    {{
+    # Evaluation
+    
+      Expressions can be evaluated inline, for instance
+      {{ docEval (_ -> 1 + 1) }}.
+      
+      Blocks of code can be evaluated as well, for instance:
+      
+      {{
+      docEvalBlock
+        (_ ->
+          id x = x
+          id (sq 10))
+      }}
+    }}
+
+.> display evaluation
+
+  # Evaluation
+  
+    Expressions can be evaluated inline, for instance `2`.
+  
+    Blocks of code can be evaluated as well, for instance:
+  
+        id x = x
+        id (sq 10)
+        ⧨
+        100
 
 ```

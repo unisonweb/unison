@@ -50,6 +50,9 @@ import qualified Unison.ConstructorType as CT
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
+prettyBlock :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
+prettyBlock env = PP.syntaxToColor . pretty0 env emptyBlockAc . printAnnotate env
+
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
   PP.render width $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
@@ -667,6 +670,9 @@ isBlank _ = False
 
 emptyAc :: AmbientContext
 emptyAc = ac (-1) Normal Map.empty MaybeDoc
+
+emptyBlockAc :: AmbientContext
+emptyBlockAc = ac (-1) Block Map.empty MaybeDoc
 
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
 ac prec bc im doc = AmbientContext prec bc NonInfix im doc

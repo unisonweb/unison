@@ -66,7 +66,7 @@ displayTerm pped terms typeOf eval types = \case
       P.wrap $ "Sadly, I don't know the error, but you can evaluate"
             <> "the above expression in a scratch file to see it."
       ]
-    src tm = TP.pretty (PPE.suffixifiedPPE pped) tm
+    src tm = TP.prettyBlock (PPE.suffixifiedPPE pped) tm
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
