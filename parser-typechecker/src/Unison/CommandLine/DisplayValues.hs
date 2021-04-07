@@ -124,7 +124,9 @@ displayPretty pped terms typeOf eval types tm = go tm
         let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
         pure $ maybe missing DO.UserObject tm
       in Map.fromList <$> traverse go tms
-    pure . P.indentN 4 $ OutputMessages.displayDefinitions' pped typeMap termMap
+    -- in docs, we use suffixed names everywhere
+    let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }
+    pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
 
   goSpecial = \case
 
@@ -157,7 +159,8 @@ displayPretty pped terms typeOf eval types tm = go tm
     -- Signature [Doc2.Term]
     DD.Doc2SpecialFormSignature (Term.List' tms) ->
       let referents = [ r | DD.Doc2Term (toReferent -> Just r) <- toList tms ]
-      in P.indentN 2 . P.sep "\n\n" <$> traverse goSignature referents
+          go r = P.indentN 4 <$> goSignature r
+      in P.group . P.sep "\n\n" <$> traverse go referents
 
     -- SignatureInline Doc2.Term
     DD.Doc2SpecialFormSignatureInline (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
@@ -198,11 +201,11 @@ displayPretty pped terms typeOf eval types tm = go tm
     _ -> Nothing
 
   goSignature r = typeOf r >>= \case
-    Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
+    Nothing -> pure $ termName (PPE.suffixifiedPPE pped) r
     Just typ -> pure . P.group $
       TypePrinter.prettySignatures
         (PPE.suffixifiedPPE pped)
-        [(PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
+        [(PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
 
   goColor c = case c of
     DD.AnsiColorBlack -> P.black

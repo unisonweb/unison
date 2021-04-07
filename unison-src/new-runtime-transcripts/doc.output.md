@@ -302,24 +302,33 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
            {{ docExample 1 '(x -> sqr x) }}.
     }}
 
+.> view Optional sqr
+
+  type builtin.Optional a = None | Some a
+  
+  sqr : Nat -> Nat
+  sqr x =
+    use Nat *
+    x * x
+
 .> display includingSource
 
   # Including Unison source code
   
     Unison definitions can be included in docs. For instance:
   
-         type   builtin.Optional   a  =  None  |  Some a  
-           
-           sqr x =
+        type Optional a = None | Some a
+        
+        sqr x =
           use Nat *
           x * x
   
     Some rendering targets (like HTML) also support folded
     source:
   
-         type   builtin.Optional   a  =  None  |  Some a  
-           
-           sqr x =
+        type Optional a = None | Some a
+        
+        sqr x =
           use Nat *
           x * x
   
@@ -327,9 +336,9 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     `sqr : Nat -> Nat`, or you can include one or more
     signatures as a block:
   
-       sqr : Nat -> Nat  
-         
-         builtin.Nat.pow : Nat -> Nat -> Nat
+        sqr : Nat -> Nat
+    
+        Nat.pow : Nat -> Nat -> Nat
   
     # Inline snippets
     
