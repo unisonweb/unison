@@ -296,6 +296,7 @@ pretty0
 
     t -> l "error: " <> l (show t)
  where
+  specialCases term _go | Just p <- prettyDoc2 n a term = p
   specialCases term go = case (term, binaryOpsPred) of
     (DD.Doc, _) | doc == MaybeDoc ->
       if isDocLiteral term
@@ -1208,28 +1209,42 @@ prettyDoc2
   => PrettyPrintEnv
   -> AmbientContext
   -> Term3 v PrintAnnotation
-  -> Pretty SyntaxText
+  -> Maybe (Pretty SyntaxText)
 prettyDoc2 ppe ac tm = case tm of
   -- these patterns can introduce a {{ .. }} block
-  (toDocUntitledSection ppe -> Just _) -> brace $ go 1 tm
-  (toDocSection ppe -> Just _) -> brace $ go 1 tm
-  (toDocParagraph ppe -> Just _) -> brace $ go 1 tm
-  _ -> pretty0 ppe ac tm
+  (toDocUntitledSection ppe -> Just _) -> Just . brace $ go 1 tm
+  (toDocSection ppe -> Just _) -> Just . brace $ go 1 tm
+  (toDocParagraph ppe -> Just _) -> Just . brace $ go 1 tm
+  _ -> Nothing
   where
     brace p = fmt S.DocDelimiter "{{" <> PP.softbreak <> p <> PP.softbreak <> fmt S.DocDelimiter "}}"
     bail tm = brace (pretty0 ppe ac tm)
     go :: Int -> Term3 v PrintAnnotation -> Pretty SyntaxText
     go hdr = \case
+      (toDocTransclude ppe -> Just d) ->
+        bail d
       (toDocUntitledSection ppe -> Just ds) ->
         sepBlankline ds
       (toDocSection ppe -> Just (title, ds)) ->
         PP.lines [ PP.text (Text.replicate hdr "#") <> " " <> rec title
                  , ""
-                 , sepBlankline ds ]
+                 , PP.indentN (hdr + 1) $ intercalateMap "\n\n" (go (hdr + 1)) ds ]
       (toDocParagraph ppe -> Just ds) ->
         PP.wrap (mconcat (rec <$> ds))
+      (toDocBulletedList ppe -> Just ds) ->
+        PP.lines (item <$> ds)
+        where item d = "* " <> (PP.indentAfterNewline "  " $ rec d)
+      (toDocNumberedList ppe -> Just (n, ds)) ->
+        PP.column2 (item <$> (zip [n..] ds))
+        where item (n,d) = (PP.group (PP.shown n <> "."), rec d)
       (toDocWord ppe -> Just t) ->
         PP.text t
+      (toDocCode ppe -> Just d) ->
+        PP.group ("''" <> rec d <> "''")
+      (toDocVerbatim ppe -> Just txt) ->
+        PP.group ("'''\n" <> PP.text txt <> "\n''")
+      (toDocJoin ppe -> Just ds) ->
+        foldMap rec ds
       (toDocItalic ppe -> Just d) ->
         PP.group $ "*" <> rec d <> "*"
       (toDocBold ppe -> Just d) ->
@@ -1239,16 +1254,17 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocGroup ppe -> Just d) ->
         PP.group $ rec d
       (toDocColumn ppe -> Just ds) ->
-        PP.lines $ rec <$> ds
+        PP.lines (rec <$> ds)
       (toDocNamedLink ppe -> Just (name,target)) ->
-        "[" <> rec name <> "](" <> rec target <> ")"
-      (toDocLink ppe -> Just e) -> case e of
+        PP.group $ "[" <> rec name <> "](" <> rec target <> ")"
+      (toDocLink ppe -> Just e) -> PP.group $ case e of
         Left r ->  "{type " <> tyName r <> "}"
         Right r -> "{" <> tmName r <> "}"
       tm -> bail tm
       where
-        tyName r = styleHashQualified'' (fmt $ S.Reference r) (PrettyPrintEnv.typeName ppe r)
-        tmName r = styleHashQualified'' (fmt $ S.Referent r) (PrettyPrintEnv.termName ppe r)
+        im = imports ac
+        tyName r = styleHashQualified'' (fmt $ S.Reference r) . elideFQN im $ PrettyPrintEnv.typeName ppe r
+        tmName r = styleHashQualified'' (fmt $ S.Referent r) . elideFQN im $ PrettyPrintEnv.termName ppe r
         rec = go hdr
         sepBlankline = intercalateMap "\n\n" rec
 

@@ -300,20 +300,15 @@ lexemes' eof = P.optional space >> do
     body = join <$> P.many (sectionElem <* CP.space)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
     paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
-    oneLineParagraph = wrap "syntax.docParagraph" $
-      (join <$> P.some (leaf <* nonNewlineSpaces))
-
-    reserved pos word =
-      isPrefixOf "}}" word ||
-      (column pos == 1 && isPrefixOf "#" word)
+    reserved word =
+      isPrefixOf "}}" word || all (== '#') word
 
     wordy ok = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
       let end = P.lookAhead $ void docClose
                           <|> void (CP.satisfy isSpace)
                           <|> void (CP.satisfy (not . ok))
-      pos <- pos
       word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
-      guard (not $ reserved pos word)
+      guard (not $ reserved word)
       pure word
 
     leafy ok = groupy ok gs
@@ -480,7 +475,7 @@ lexemes' eof = P.optional space >> do
         Just _ -> pure ()
       pure spaces
       where
-        ok s = length [ ch | ch <- s, ch == '\n' ] < 2
+        ok s = length [ () | '\n' <- s ] < 2
 
     spaced p = P.some (p <* P.optional sp)
     leafies close = wrap "syntax.docParagraph" $ join <$> spaced (leafy close)
@@ -490,7 +485,7 @@ lexemes' eof = P.optional space >> do
     bulletedList = wrap "syntax.docBulletedList" $ join <$> P.sepBy1 bullet listSep
     numberedList = wrap "syntax.docNumberedList" $ join <$> P.sepBy1 numberedItem listSep
 
-    listSep = P.try $ newline *> P.lookAhead (bulletedStart <|> numberedStart)
+    listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (bulletedStart <|> numberedStart)
 
     bulletedStart = P.try $ do
       r <- listItemStart' $ [] <$ CP.satisfy bulletChar
@@ -512,10 +507,31 @@ lexemes' eof = P.optional space >> do
         num :: Word -> Lexeme
         num n = Numeric (show n)
 
+    listItemParagraph = wrap "syntax.docParagraph" $ do
+      col <- column <$> pos
+      join <$> P.some (leaf <* sep col)
+      where
+        -- Trickiness here to support hard line breaks inside of
+        -- a bulleted list, so for instance this parses as expected:
+        --
+        --   * uno dos
+        --     tres quatro
+        --   * alice bob
+        --     carol dave eve
+        sep col = do
+          _ <- nonNewlineSpaces
+          _ <- P.optional . P.try $
+            newline *>
+            nonNewlineSpaces *> do
+              col2 <- column <$> pos
+              guard $ col2 >= col
+              (P.notFollowedBy $ numberedStart <|> bulletedStart)
+          pure ()
+
     numberedItem = P.label msg $ do
       (col,s) <- numberedStart
       pure s <+> (wrap "syntax.docColumn" $ do
-        p <- nonNewlineSpaces *> oneLineParagraph
+        p <- nonNewlineSpaces *> listItemParagraph
         subList <-
           local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
         pure (p <> fromMaybe [] subList))
@@ -524,7 +540,7 @@ lexemes' eof = P.optional space >> do
 
     bullet = wrap "syntax.docColumn" . P.label "bullet (examples: * item1, - item2)" $ do
       (col,_) <- bulletedStart
-      p <- nonNewlineSpaces *> oneLineParagraph
+      p <- nonNewlineSpaces *> listItemParagraph
       subList <- local (\e -> e { parentListColumn = col })
                        (P.optional $ listSep *> list)
       pure (p <> fromMaybe [] subList)

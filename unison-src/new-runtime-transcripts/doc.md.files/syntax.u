@@ -1,87 +1,51 @@
 
 basicFormatting = {{
-
-# Basic formatting
-
-  Paragraphs are separated by one or more blanklines. 
-  There's syntax for __bold__ **text**, *italics* _text_, 
-  ~~strikethrough~~ text, and ''monospaced text''.
-
-  Also [external links](https://unisonweb.org) and 
-  links to a term like {Some} or types like {type Optional}
-  and [named links to terms or types]({type List}).
-
-## Escaping formatting
-
-   You can use ''{{ .. }}'' to escape out to regular Unison syntax
-   for instance {{ docWord "__not bold__" }}.
-
-   If you have some inline text you want to leave unparsed and have it render 
-   in a monospace font, surround it in two single quotes: ''__some bold text__''
-
-## Sections and subsections
-     
-   Sections consist of section titles followed by zero or more paragraphs 
-   or other section elements (such as subsections). Sections can be empty.
+  # Basic formatting
+  
+    Paragraphs are separated by one or more blanklines.
+    
+    Text can be __bold__, *italicized*, ~~strikethrough~~, or
+    ''monospaced''.
+    
+    You can link to Unison terms, types, and external URLs:
+    
+    * [An external url](https://unisonweb.org)
+    * {Some} is a term link; {type Optional} is a type link
+    * [A named type link]({type Optional}) and [a named term link]({Some}).
+      Term links are handy for linking to other documents!
+    
+    ## Escaping formatting
+    
+       If you have some inline text you want to leave unparsed
+       and have it render in a monospace font, surround it in
+       two single quotes, like so: ''__some bold text__''
+    
+       If you don't want the monospace rendering, you can 
+       use ''{{ .. }}'' to escape out to regular Unison syntax,
+       for instance {{ docWord "__not bold__" }}.
+       
+    ## Sections and subsections
+    
+       Sections consist of section titles followed by zero or
+       more paragraphs or other section elements (such as
+       subsections). Sections can be empty.
 }}
 
+lists = {{
 
-doc.guide = {{
+# Lists
 
-# Unison documentation format
-
-{{ basicFormatting }}
-
-## Sections and subsections
-
-'''
-# Section title! 
-
-## Subsection title 
-
-* Item 1
-* Item 2
-
-## An empty subsection!
-
-### Subsection 2.1
-
-Some deeply nested content in subsection 2.1
-'''
-
-Sections start with a title, then zero or more documents, separated by blanklines. Sections whose title starts with ''##'' are subsections of sections whose title starts with one ''#''. Sections may be nested arbitrarily.
-
-## Lists
-
-### Bulleted lists
+## Bulleted lists
 
 Bulleted lists can use ''+'', ''-'', or ''*'' for the bullets. They can be nested, to any depth:
 
-'''
-+ A
-+ B
-+ C
-  - C1
-  * C2
-'''
-
-Renders as:
-
 + A
 + B
 + C
   - C1
   * C2
 
-### Numbered lists
-
-'''
-1. A
-2. B
-3. C
-'''
-
-Renders as:
+## Numbered lists
 
 1. A
 2. B
@@ -89,33 +53,25 @@ Renders as:
 
 The first number of the list determines the starting number in the rendered output. The other numbers are ignored:
 
-'''
-10. A
-99. B
-102. C
-'''
-
-Renders as:
-
-10. A
-99. B
-102. C
-
 Numbered lists can be nested as well, and combined with bulleted lists:
 
-'''
 1. Wake up.
   + What am I doing here?
   + In this nested list. 
 2. Take shower.  
 3. Get dressed.
-'''
 
-1. Wake up.
-  + What am I doing here?
-  + In this nested list. 
-2. Take shower.  
-3. Get dressed.
+}}
+
+---
+
+doc.guide = {{
+
+# Unison documentation format
+
+{{ basicFormatting }}
+
+{{ lists }}
 
 ## Evaluation 
 

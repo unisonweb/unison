@@ -42,11 +42,11 @@ You can preview what docs will look like when rendered to the console using the 
 ```ucm
 .> display d1
 
-  Hello there Alice !
+  Hello there Alice!
 
 .> docs ImportantConstant
 
-  An important constant, equal to 42
+  An important constant, equal to `42`
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
@@ -63,125 +63,155 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
     ⍟ These new definitions are ok to `add`:
     
-      doc.guide : Doc2
+      basicFormatting : Doc2
+      lists           : Doc2
 
 .> add
 
   ⍟ I've added these definitions:
   
-    doc.guide : Doc2
+    basicFormatting : Doc2
+    lists           : Doc2
 
-.> display doc.guide
+.> view basicFormatting
 
-  # Unison documentation format
-  
+  basicFormatting : Doc2
+  basicFormatting =
+    {{
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
-      There's syntax for bold, italics, and strikethrough text:
-    
-      ``` raw _italics_ or *italics* **bold text** or __moar
-      bold text__ ~~striken text~~ ''some code'' [The Unison
-      website](https://unisonweb.org) A link to a term: {Some}.
-      [A named link to the ''List'' type]({type List}). ```
-    
-      Renders as:
-    
-      * italics * or * italics *
-    
-      * * boldtext * * or moarboldtext
-    
-      ~~ strickentext ~~
-    
-      ` some code `
-    
-      The Unison website
-    
-      A link to a term:
-      Right (Term.Term (Any (_ _eta -> Some _eta))) . A link to
-      a type List .
-    
-      # Escaping formatting
       
-        If you want the text.
+      Text can be __bold__, *italicized*, ~~strikethrough~~, or
+      ''monospaced''.
       
-        ``` raw {{ syntax.doc.word "__not bold__"}} ```
+      You can link to Unison terms, types, and external URLs:
       
-        Renders as:
+      * [An external url](https://unisonweb.org)
+      * {Some} is a term link; {type Optional} is a type link
+      * [A named type link]({type Optional}) and
+        [a named term link]({Some}). Term links are handy for
+        linking to other documents!
       
-        __not bold__
+      ## Escaping formatting
       
-        If you have some inline text you want to leave unparsed
-        and have it render in a monospace font, do:
+         If you have some inline text you want to leave unparsed
+         and have it render in a monospace font, surround it in
+         two single quotes, like so: ''__some bold text__''
+         
+         If you don't want the monospace rendering, you can use
+         ''{{ .. }}'' to escape out to regular Unison syntax,
+         for instance {{ docWord "__not bold__" }}.
       
-        ``` raw An example of bold text syntax: ''__some bold
-        text__'' ```
+      ## Sections and subsections
       
-        Renders as:
-      
-        An example of bold text syntax: ` __some bold text__ `
+         Sections consist of section titles followed by zero or
+         more paragraphs or other section elements (such as
+         subsections). Sections can be empty.
+    }}
+
+.> display basicFormatting
+
+  # Basic formatting
+  
+    Paragraphs are separated by one or more blanklines.
+  
+    Text can be bold, *italicized*, ~~strikethrough~~, or
+    `monospaced`.
+  
+    You can link to Unison terms, types, and external URLs:
+  
+    * An external url
+    * Some is a term link; Optional is a type link
+    * A named type link and a named term link. Term links are
+      handy for linking to other documents!
+  
+    # Escaping formatting
+    
+      If you have some inline text you want to leave unparsed
+      and have it render in a monospace font, surround it in two
+      single quotes, like so: `__some bold text__`
+    
+      If you don't want the monospace rendering, you can use
+      `{{ .. }}` to escape out to regular Unison syntax, for
+      instance __not bold__.
   
     # Sections and subsections
     
-      ``` raw # Section title! Sections consist of section
-      titles followed by zero or more paragraphs or other
-      section elements (such as subsections). ## Subsection
-      title * Item 1 * Item 2 ## An empty subsection! ###
-      Subsection 2.1 Some deeply nested content in subsection
-      2.1 ```
-    
-      Sections start with a title, then zero or more documents,
-      separated by blanklines. Sections whose title starts with
-      ` ## ` are subsections of sections whose title starts with
-      one `#`. Sections may be nested arbitrarily.
-  
+      Sections consist of section titles followed by zero or
+      more paragraphs or other section elements (such as
+      subsections). Sections can be empty.
+
+.> view lists
+
+  lists : Doc2
+  lists =
+    {{
     # Lists
     
-      # Bulleted lists
+      ## Bulleted lists
       
-        Bulleted lists can use `+`, `-`, or ` * ` for the
-        bullets. They can be nested, to any depth:
+         Bulleted lists can use ''+'', ''-'', or ''*'' for the
+         bullets. They can be nested, to any depth:
+         
+         * A
+         * B
+         * C
+           * C1
+           * C2
       
-        ``` raw + A + B + C - C1 * C2 ```
+      ## Numbered lists
       
-        Renders as:
-      
-        * A
-        * B
-        * C* C1
-          * C2
+         1. A
+         2. B
+         3. C
+         
+         The first number of the list determines the starting
+         number in the rendered output. The other numbers are
+         ignored:
+         
+         Numbered lists can be nested as well, and combined with
+         bulleted lists:
+         
+         1. Wake up.
+            * What am I doing here?
+            * In this nested list.
+         2. Take shower.
+         3. Get dressed.
+    }}
+
+.> display lists
+
+  # Lists
+  
+    # Bulleted lists
     
-      # Numbered lists
-      
-        ``` raw 1. A 2. B 3. C ```
-      
-        Renders as:
-      
-        1. A
-        2. B
-        3. C
-      
-        The first number of the list determines the starting
-        number in the rendered output. The other numbers are
-        ignored:
-      
-        ``` raw 10. A 99. B 102. C ```
-      
-        Renders as:
-      
-        10. A
-        11. B
-        12. C
-      
-        Numbered lists can be nested as well, and combined with
-        bulleted lists:
-      
-        ``` raw 1. Wake up. + What am I doing here? + In this
-        nested list. 2. Take shower. 3. Get dressed. ```
-      
-        1. Wake up.* What am I doing here?
-           * In this nested list.
-        2. Take shower.
-        3. Get dressed.
+      Bulleted lists can use `+`, `-`, or `*` for the bullets.
+      They can be nested, to any depth:
+    
+      * A
+      * B
+      * C
+        * C1
+        * C2
+  
+    # Numbered lists
+    
+      1. A
+      2. B
+      3. C
+    
+      The first number of the list determines the starting
+      number in the rendered output. The other numbers are
+      ignored:
+    
+      Numbered lists can be nested as well, and combined with
+      bulleted lists:
+    
+      1. Wake up.
+         * What am I doing here?
+         * In this nested list.
+      2. Take shower.
+      3. Get dressed.
 
 ```
