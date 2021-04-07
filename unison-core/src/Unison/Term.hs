@@ -941,7 +941,7 @@ betaNormalForm e = e
 -- x -> f x => f
 etaNormalForm :: Ord v => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
-  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
     where
       step (LamNamed' v (App' f (Var' v'))) | v == v' = f
       step tm = tm

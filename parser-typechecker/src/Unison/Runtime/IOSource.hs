@@ -166,7 +166,7 @@ pattern Doc2SpecialFormEmbedInline any <- Term.App' (Term.Constructor' Doc2Speci
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
-pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamsNamedOpt' vs body))
+pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ (Term.LamsNamedOpt' vs body)))
 
 -- pulls out `body` in `Doc2.Term (Any 'body)`
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))

@@ -13,8 +13,7 @@ basicFormatting = {{
     * {Some} is a term link; {type Optional} is a type link
     * [A named type link]({type Optional}) and [a named term link]({Some}).
       Term links are handy for linking to other documents!
-    * An example with embedded links: ``sqr x``
-    
+
     ## Escaping formatting
     
        If you have some inline text you want to leave unparsed
@@ -82,6 +81,35 @@ id (sqr 10)
 
 sqr x = x Nat.* x
 
+includingSource = {{
+
+# Including Unison source code
+
+Unison definitions can be included in docs. For instance:
+
+@source{type Optional, sqr}
+
+Some rendering targets (like HTML) also support folded source:
+
+@foldedSource{type Optional, sqr}
+
+You can also include just a signature, inline, with @signature{sqr},
+or you can include one or more signatures as a block:
+
+@signatures{sqr, Nat.pow}
+
+## Inline snippets
+
+You can include typechecked code snippets inline, for instance:
+
+* {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2'' 
+  says to ignore the first two arguments when rendering. 
+  In richer renderers, the ''sqr'' link will be clickable.
+* If your snippet expression is just a single function application, 
+  you can put it in double backticks, like so: ``sqr x``. This is 
+  equivalent to {{ docExample 1 '(x -> sqr x) }}.
+}}
+
 --- todo
 ---
 
@@ -93,35 +121,9 @@ doc.guide = {{
 
 {{ lists }}
 
-## Including Unison source code
+{{ evaluation }}
 
-'''
-@source{ type Optional, id }
-'''
-
-Renders as:
-
-@source{ type Optional, id }
-
-You can also render just the signatures of a collection of terms: 
-
-'''
-@signatures{ id, Some, None }
-'''
-
-Renders as:
-
-@signatures{ id, Some, None }
-
-You can reference a signature inline, like so 
-
-'''
-An inline signature @signature{id}.
-'''
-
-Renders as:
-
-An inline signature @signature{id}.
+{{ includingSource }}
 
 ## Including other documents
 

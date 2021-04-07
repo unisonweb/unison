@@ -65,6 +65,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     
       basicFormatting : Doc2
       evaluation      : Doc2
+      includingSource : Doc2
       lists           : Doc2
       sqr             : Nat -> Nat
 
@@ -74,6 +75,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
     basicFormatting : Doc2
     evaluation      : Doc2
+    includingSource : Doc2
     lists           : Doc2
     sqr             : Nat -> Nat
 
@@ -96,7 +98,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       * [A named type link]({type Optional}) and
         [a named term link]({Some}). Term links are handy for
         linking to other documents!
-      * An example with embedded links: ``sqr x``
       
       ## Escaping formatting
       
@@ -130,7 +131,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     * Some is a term link; Optional is a type link
     * A named type link and a named term link. Term links are
       handy for linking to other documents!
-    * An example with embedded links: `sqr x`
   
     # Escaping formatting
     
@@ -251,5 +251,96 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
         id (sqr 10)
         ⧨
         100
+
+.> view includingSource
+
+  includingSource : Doc2
+  includingSource =
+    use Nat +
+    {{
+    # Including Unison source code
+    
+      Unison definitions can be included in docs. For instance:
+      
+      {{
+      docSource
+        [ docSourceElement
+          (docEmbedTypeLink typeLink Optional) [],
+          docSourceElement (docEmbedTermLink (_ -> sqr)) [] ] }}
+      
+      Some rendering targets (like HTML) also support folded
+      source:
+      
+      {{
+      docFoldedSource
+        [ docSourceElement
+          (docEmbedTypeLink typeLink Optional) [],
+          docSourceElement (docEmbedTermLink (_ -> sqr)) [] ] }}
+      
+      You can also include just a signature, inline, with
+      {{
+      docSignatureInline (docEmbedSignatureLink (_ -> sqr))
+      }}, or you can include one or more signatures as a block:
+      
+      {{
+      docSignature
+        [ docEmbedSignatureLink (_ -> sqr),
+          docEmbedSignatureLink (_ -> Nat.pow) ] }}
+      
+      ## Inline snippets
+      
+         You can include typechecked code snippets inline, for
+         instance:
+         
+         * {{ docExample 2 '(f x -> f x + sqr 1) }} - the ''2''
+           says to ignore the first two arguments when
+           rendering. In richer renderers, the ''sqr'' link will
+           be clickable.
+         * If your snippet expression is just a single function
+           application, you can put it in double backticks, like
+           so: ``x -> sqr x``. This is equivalent to
+           {{ docExample 1 '(x -> sqr x) }}.
+    }}
+
+.> display includingSource
+
+  # Including Unison source code
+  
+    Unison definitions can be included in docs. For instance:
+  
+         type   builtin.Optional   a  =  None  |  Some a  
+           
+           sqr x =
+          use Nat *
+          x * x
+  
+    Some rendering targets (like HTML) also support folded
+    source:
+  
+         type   builtin.Optional   a  =  None  |  Some a  
+           
+           sqr x =
+          use Nat *
+          x * x
+  
+    You can also include just a signature, inline, with
+    `sqr : Nat -> Nat`, or you can include one or more
+    signatures as a block:
+  
+       sqr : Nat -> Nat  
+         
+         builtin.Nat.pow : Nat -> Nat -> Nat
+  
+    # Inline snippets
+    
+      You can include typechecked code snippets inline, for
+      instance:
+    
+      * `f x Nat.+ sqr 1` - the `2` says to ignore the first two
+        arguments when rendering. In richer renderers, the `sqr`
+        link will be clickable.
+      * If your snippet expression is just a single function
+        application, you can put it in double backticks, like
+        so: `sqr x`. This is equivalent to `sqr x`.
 
 ```

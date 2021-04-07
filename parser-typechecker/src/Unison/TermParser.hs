@@ -480,10 +480,10 @@ doc2Block =
       "syntax.docExample" -> (term <* closeBlock) <&> \case
         tm@(Term.Apps' _ xs) ->
           let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
-              n = Term.nat (ann tm) (1 + fromIntegral (length fvs))
+              n = Term.nat (ann tm) (fromIntegral (length fvs))
               lam = addDelay $ Term.lam' (ann tm) fvs tm
           in  Term.apps' f [n, lam]
-        tm -> Term.apps' f [Term.nat (ann tm) 1, addDelay tm]
+        tm -> Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
       "syntax.docTransclude" -> evalLike id
       "syntax.docEvalInline" -> evalLike addDelay
       "syntax.docEval" -> do
