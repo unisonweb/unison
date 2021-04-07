@@ -147,26 +147,26 @@ doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.Specia
 doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
 doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
 doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
-doc2SpecialFormInlineSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineSignature"
+doc2SpecialFormSignatureInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.SignatureInline"
 doc2SpecialFormEvalId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Eval"
-doc2SpecialFormInlineEvalId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineEval"
+doc2SpecialFormEvalInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.EvalInline"
 doc2SpecialFormEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Embed"
-doc2SpecialFormInlineEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.InlineEmbed"
+doc2SpecialFormEmbedInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.EmbedInline"
 
 pattern Doc2SpecialFormSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSourceId -> True)) tm
 pattern Doc2SpecialFormFoldedSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormFoldedSourceId -> True)) tm
 pattern Doc2SpecialFormExample n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleId -> True)) [Term.Nat' n, tm]
 pattern Doc2SpecialFormLink tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormLinkId -> True)) tm
 pattern Doc2SpecialFormSignature tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureId -> True)) tm
-pattern Doc2SpecialFormInlineSignature tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormInlineSignatureId -> True)) tm
+pattern Doc2SpecialFormSignatureInline tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureInlineId -> True)) tm
 pattern Doc2SpecialFormEval tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEvalId -> True)) tm
-pattern Doc2SpecialFormInlineEval tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormInlineEvalId -> True)) tm
+pattern Doc2SpecialFormEvalInline tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEvalInlineId -> True)) tm
 pattern Doc2SpecialFormEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEmbedId -> True)) any
-pattern Doc2SpecialFormInlineEmbed any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormInlineEmbedId -> True)) any
+pattern Doc2SpecialFormEmbedInline any <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormEmbedInlineId -> True)) any
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
-pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ (Term.LamsNamedOpt' vs body)))
+pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamsNamedOpt' vs body))
 
 -- pulls out `body` in `Doc2.Term (Any 'body)`
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
@@ -681,14 +681,18 @@ unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
   = Source [(Either Link.Type Doc2.Term, [Doc2.Term])]
   -- like Source, but starts out folded
   | FoldedSource [(Either Link.Type Doc2.Term, [Doc2.Term])]
+  -- In `Example n expr`, `n` is the number of lambda parameters
+  -- that should be elided during display. It should always be >= 1.
+  -- Ex: `Example 3 '(x y -> foo x y)` should render as `foo x y`.
+  -- Ex: `Example 1 '(1 + 1)` should render as `42`.
   | Example Nat Doc2.Term
   | Link (Either Link.Type Doc2.Term)
   | Signature [Doc2.Term]
-  | InlineSignature Doc2.Term
+  | SignatureInline Doc2.Term
   | Eval Doc2.Term
-  | InlineEval Doc2.Term
+  | EvalInline Doc2.Term
   | Embed Any
-  | InlineEmbed Any
+  | EmbedInline Any
 
 unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   = Word Text
@@ -854,8 +858,7 @@ syntax.docEmbedTypeLink typ =
 syntax.docSource t = Special (Source t)
 syntax.docFoldedSource t = Special (FoldedSource t)
 syntax.docSignature ts = Special (Signature ts)
-syntax.docInlineSignature t = Special (InlineSignature t)
-syntax.docInlineEval e = Special (InlineEval (Doc2.term e))
+syntax.docSignatureInline t = Special (SignatureInline t)
 syntax.docSourceElement link annotations =
   guid = "e56ece7785c34c1cc9a441b11da81cfa98d05985"
   (link, annotations)
@@ -871,8 +874,8 @@ syntax.docEmbedSignatureLink tm =
 syntax.docCode c = Code c
 syntax.docCodeBlock typ c = CodeBlock typ (docWord c)
 syntax.docVerbatim c = CodeBlock "raw" c
-syntax.docEvalBlock d = Special (Eval (Doc2.term d))
-syntax.docEval a = Special (InlineEval (Doc2.term a))
+syntax.docEval d = Special (Eval (Doc2.term d))
+syntax.docEvalInline a = Special (EvalInline (Doc2.term a))
 syntax.docExample n a = Special (Example n (Doc2.term a))
 syntax.docLink t = Special (Link t)
 syntax.docTransclude d =

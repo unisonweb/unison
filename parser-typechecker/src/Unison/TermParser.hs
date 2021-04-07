@@ -478,16 +478,16 @@ doc2Block =
         r <- typeLink'
         closeBlock $> Term.apps' f [Term.typeLink (ann r) (L.payload r)]
       "syntax.docExample" -> (term <* closeBlock) <&> \case
-        tm@(Term.Apps' f xs) ->
+        tm@(Term.Apps' _ xs) ->
           let fvs = List.Extra.nubOrd $ concatMap (toList . Term.freeVars) xs
               n = Term.nat (ann tm) (1 + fromIntegral (length fvs))
               lam = addDelay $ Term.lam' (ann tm) fvs tm
           in  Term.apps' f [n, lam]
         tm -> Term.apps' f [Term.nat (ann tm) 1, addDelay tm]
       "syntax.docTransclude" -> evalLike id
-      "syntax.docInlineEval" -> evalLike addDelay
-      "syntax.docEvalBlock" -> do
-        tm <- block' False "syntax.docEvalBlock" (pure (void t)) closeBlock
+      "syntax.docEvalInline" -> evalLike addDelay
+      "syntax.docEval" -> do
+        tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
       _ -> regular
 

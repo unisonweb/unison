@@ -319,7 +319,7 @@ lexemes' eof = P.optional space >> do
 
     leaf = leafy (const True)
 
-    atDoc = src <|> eval <|> signature <|> inlineSignature
+    atDoc = src <|> evalInline <|> signature <|> signatureInline
       where
         comma = lit "," <* CP.space
         src = src' "syntax.docSource" "@source" <|>
@@ -342,12 +342,12 @@ lexemes' eof = P.optional space >> do
           s <- join <$> P.sepBy1 signatureLink comma
           _ <- lit "}"
           pure s
-        inlineSignature = wrap "syntax.docInlineSignature" $ do
+        signatureInline = wrap "syntax.docSignatureInline" $ do
           _ <- lit "@signature" *> (lit " {" <|> lit "{") *> CP.space
           s <- signatureLink
           _ <- lit "}"
           pure s
-        eval = wrap "syntax.docInlineEval" $ do
+        evalInline = wrap "syntax.docEvalInline" $ do
           _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
           let inlineEvalClose  = [] <$ lit "}"
           s <- lexemes' inlineEvalClose
@@ -422,14 +422,14 @@ lexemes' eof = P.optional space >> do
       P.label "block eval (syntax: a fenced code block)" $
       unison <|> other
       where
-        unison = wrap "syntax.docEvalBlock" $ do
+        unison = wrap "syntax.docEval" $ do
           -- commit after seeing that ``` is on its own line
           fence <- P.try $ do
             fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
             b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
             fence <$ guard b
           CP.space *>
-            local (\env -> env { inLayout = True, opening = Just "docEvalBlock" })
+            local (\env -> env { inLayout = True, opening = Just "docEval" })
                   (lexemes' ([] <$ lit fence))
 
         other = wrap "syntax.docCodeBlock" $ do

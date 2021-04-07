@@ -13,6 +13,7 @@ basicFormatting = {{
     * {Some} is a term link; {type Optional} is a type link
     * [A named type link]({type Optional}) and [a named term link]({Some}).
       Term links are handy for linking to other documents!
+    * An example with embedded links: ``sqr x``
     
     ## Escaping formatting
     
@@ -74,12 +75,12 @@ Blocks of code can be evaluated as well, for instance:
 ```
 id x = x
 
-id (sq 10)
+id (sqr 10)
 ``` 
 
 }}
 
-sq x = x Nat.* x
+sqr x = x Nat.* x
 
 --- todo
 ---

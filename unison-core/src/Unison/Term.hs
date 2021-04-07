@@ -940,9 +940,22 @@ betaNormalForm e = e
 
 -- x -> f x => f
 etaNormalForm :: Ord v => Term0 v -> Term0 v
-etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
-etaNormalForm t@(LamNamed' v body) = lam (ABT.annotation t) v (etaNormalForm body)
-etaNormalForm t = t
+etaNormalForm tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+    where
+      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step tm = tm
+  _ -> tm
+
+-- x -> f x => f as long as `x` is a variable of type `Var.Eta`
+etaReduceEtaVars :: Var v => Term0 v -> Term0 v
+etaReduceEtaVars tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+    where
+      ok v v' = v == v' && Var.typeOf v == Var.Eta
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      step tm = tm
+  _ -> tm
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables

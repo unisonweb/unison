@@ -1266,6 +1266,14 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocLink ppe -> Just e) -> PP.group $ case e of
         Left r ->  "{type " <> tyName r <> "}"
         Right r -> "{" <> tmName r <> "}"
+      (toDocEval ppe -> Just tm) ->
+        PP.lines ["```", pretty0 ppe ac tm, "```"]
+      (toDocEvalInline ppe -> Just tm) ->
+        "@eval{" <> pretty0 ppe ac tm <> "}"
+      (toDocExample ppe -> Just tm) ->
+        PP.group $ "``" <> pretty0 ppe ac tm <> "``"
+      -- todo : source, foldedSource, signature, inlineSignature
+      -- todo : emit fewer gratuitous columns, maybe a wrapIfMany combinator
       tm -> bail tm
       where
         im = imports ac
@@ -1309,24 +1317,35 @@ toDocCode ppe (App' (Ref' r) doc)
   | nameEndsWith ppe ".docCode" r = Just doc
 toDocCode _ _ = Nothing
 
+toDocCodeBlock :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Text, Term3 v PrintAnnotation)
+toDocCodeBlock ppe (Apps' (Ref' r) [Text' typ, doc])
+  | nameEndsWith ppe ".docCodeBlock" r = Just (typ, doc)
+toDocCodeBlock _ _ = Nothing
+
 toDocVerbatim :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Text
 toDocVerbatim ppe (App' (Ref' r) (Text' txt))
   | nameEndsWith ppe ".docVerbatim" r = Just txt
 toDocVerbatim _ _ = Nothing
 
-toDocEvalBlock :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEvalBlock ppe (App' (Ref' r) (Delay' tm))
-  | nameEndsWith ppe ".docEvalBlock" r = Just tm
-toDocEvalBlock _ _ = Nothing
+toDocEval :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEval ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docEval" r = Just tm
+toDocEval _ _ = Nothing
 
-toDocInlineEval :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocInlineEval ppe (App' (Ref' r) (Delay' tm))
-  | nameEndsWith ppe ".docInlineEval" r = Just tm
-toDocInlineEval _ _ = Nothing
+toDocEvalInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocEvalInline ppe (App' (Ref' r) (Delay' tm))
+  | nameEndsWith ppe ".docEvalInline" r = Just tm
+toDocEvalInline _ _ = Nothing
 
 toDocExample :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocExample ppe (Apps' (Ref' r) [Nat' n, Delay' l@(LamsNamed' vs tm)])
-  | nameEndsWith ppe ".docExample" r = Just (lam' (ABT.annotation l) (drop (fromIntegral n) vs) tm)
+toDocExample ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
+  | nameEndsWith ppe ".docExample" r
+  , ABT.freeVars l == mempty
+  , ok tm
+  = Just (lam' (ABT.annotation l) (drop (fromIntegral n) vs) tm)
+  where
+    ok (Apps' f _) = ABT.freeVars f == mempty
+    ok tm = ABT.freeVars tm == mempty
 toDocExample _ _ = Nothing
 
 toDocTransclude :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
@@ -1382,10 +1401,10 @@ toDocFoldedSource ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docFoldedSource" r = Just (toList tms)
 toDocFoldedSource _ _ = Nothing
 
-toDocInlineSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocInlineSignature ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm))
-  | nameEndsWith ppe ".docInlineSignature" r = Just tm
-toDocInlineSignature _ _ = Nothing
+toDocSignatureInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocSignatureInline ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm))
+  | nameEndsWith ppe ".docSignatureInline" r = Just tm
+toDocSignatureInline _ _ = Nothing
 
 toDocEmbedSignatureLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' tm))

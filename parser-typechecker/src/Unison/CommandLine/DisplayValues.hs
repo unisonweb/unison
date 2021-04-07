@@ -159,8 +159,8 @@ displayPretty pped terms typeOf eval types tm = go tm
       let referents = [ r | DD.Doc2Term (toReferent -> Just r) <- toList tms ]
       in P.indentN 2 . P.sep "\n\n" <$> traverse goSignature referents
 
-    -- InlineSignature Doc2.Term
-    DD.Doc2SpecialFormInlineSignature (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
+    -- SignatureInline Doc2.Term
+    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
       Just r -> goSignature r
       _ -> displayTerm pped terms typeOf eval types tm
 
@@ -174,8 +174,8 @@ displayPretty pped terms typeOf eval types tm = go tm
         p2 <- displayTerm pped terms typeOf eval types result
         pure . P.indentN 4 $ P.lines [p1, "⧨", P.green p2]
 
-    -- InlineEval Doc2.Term
-    DD.Doc2SpecialFormInlineEval (DD.Doc2Term tm) -> eval tm >>= \case
+    -- EvalInline Doc2.Term
+    DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> eval tm >>= \case
       Nothing -> pure . P.backticked . P.red $ "🆘  An error occurred during evaluation"
       Just result -> P.backticked <$> displayTerm pped terms typeOf eval types result
 
@@ -184,8 +184,8 @@ displayPretty pped terms typeOf eval types tm = go tm
       displayTerm pped terms typeOf eval types any <&> \p ->
         P.indentN 2 $ "\n" <> "{{ embed {{" <> p <> "}} }}" <> "\n"
 
-    -- InlineEmbed Any
-    DD.Doc2SpecialFormInlineEmbed any ->
+    -- EmbedInline Any
+    DD.Doc2SpecialFormEmbedInline any ->
       displayTerm pped terms typeOf eval types any <&> \p ->
         "{{ embed {{" <> p <> "}} }}"
 
