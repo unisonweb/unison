@@ -9,7 +9,7 @@ Unison documentation is written in Unison and has some neat features:
 * The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.
 * Docs may contain Unison code which is parsed and typechecked to ensure validity. No more out of date examples that don't compile or assume a bunch of implicit context!
 * Embeded examples are live and can show the results of evaluation. This uses the same evaluation cache as Unison's scratch files, allowing Unison docs to function like well-commented spreadsheets or notebooks.
-* Docs links to other definitions are typechecked to ensure they point to valid defintions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
+* Links to other definitions are typechecked to ensure they point to valid defintions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
 * Docs can be included in other docs and you can assemble documentation programmatically, using Unison code.
 * There's a powerful textual syntax for all of the above, which we'll introduce next.
 
@@ -38,9 +38,21 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
 ## Syntax guide
 
+First, we'll load the `syntax.u` file which has examples of all the syntax:
+
 ```ucm
 .> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
+```
+
+```ucm:hide
 .> add
+```
+
+Now we can review different portions of the guide.
+we'll show both the pretty-printed source using `view`
+and the rendered output using `display`:
+
+```ucm
 .> view basicFormatting
 .> display basicFormatting
 .> view lists
@@ -54,3 +66,11 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 .> view otherElements
 .> display otherElements
 ```
+
+Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`:
+
+```ucm
+.> view doc.guide
+```
+
+🌻 THE END

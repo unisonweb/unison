@@ -2,9 +2,8 @@
 basicFormatting = {{
   # Basic formatting
   
-    Paragraphs are separated by one or more blanklines. Sections consist of
-    section titles followed by zero or more paragraphs or other section
-    elements (such as subsections). Sections can be empty.
+    Paragraphs are separated by one or more blanklines. Sections
+    have a title and 0 or more paragraphs or other section elements.
     
     Text can be __bold__, *italicized*, ~~strikethrough~~, or
     ''monospaced''.
@@ -30,7 +29,7 @@ lists = {{
 
 ## Bulleted lists
 
-Bulleted lists can use ''+'', ''-'', or ''*'' for the bullets. They can be nested, to any depth:
+Bulleted lists can use ''+'', ''-'', or ''*'' for the bullets (though the choice will be normalized away by the pretty-printer). They can be nested, to any depth:
 
 + A
 + B
@@ -45,6 +44,10 @@ Bulleted lists can use ''+'', ''-'', or ''*'' for the bullets. They can be neste
 3. C
 
 The first number of the list determines the starting number in the rendered output. The other numbers are ignored:
+
+10. A
+22. B
+23. C
 
 Numbered lists can be nested as well, and combined with bulleted lists:
 
@@ -82,14 +85,14 @@ Unison definitions can be included in docs. For instance:
 
 @source{type Optional, sqr}
 
-Some rendering targets (like HTML) also support folded source:
+Some rendering targets also support folded source:
 
 @foldedSource{type Optional, sqr}
 
 You can also include just a signature, inline, with @signature{sqr},
 or you can include one or more signatures as a block:
 
-@signatures{sqr, Nat.pow}
+@signatures{sqr, Nat.+}
 
 ## Inline snippets
 
@@ -140,7 +143,7 @@ syntax to call these functions directly.
 
     @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
 
-This is an aside.{{ docAside {{ Some extra detail that doesn't belong in main text. }} }}  
+This is an aside. {{ docAside {{ Some extra detail that doesn't belong in main text. }} }}  
 
 {{ docCallout None {{ This is an important callout, with no icon. }} }}
 
@@ -169,7 +172,7 @@ This is an aside.{{ docAside {{ Some extra detail that doesn't belong in main te
 
 doc.guide = {{
 
-# Unison documentation format
+# Unison computable documentation
 
 {{ basicFormatting }}
 
@@ -180,6 +183,8 @@ doc.guide = {{
 {{ includingSource }}
 
 {{ nonUnisonCodeBlocks }}
+
+{{ otherElements }}
 
 }}
 

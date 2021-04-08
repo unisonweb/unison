@@ -5,7 +5,7 @@ Unison documentation is written in Unison and has some neat features:
 * The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.
 * Docs may contain Unison code which is parsed and typechecked to ensure validity. No more out of date examples that don't compile or assume a bunch of implicit context!
 * Embeded examples are live and can show the results of evaluation. This uses the same evaluation cache as Unison's scratch files, allowing Unison docs to function like well-commented spreadsheets or notebooks.
-* Docs links to other definitions are typechecked to ensure they point to valid defintions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
+* Links to other definitions are typechecked to ensure they point to valid defintions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
 * Docs can be included in other docs and you can assemble documentation programmatically, using Unison code.
 * There's a powerful textual syntax for all of the above, which we'll introduce next.
 
@@ -53,6 +53,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
 ## Syntax guide
 
+First, we'll load the `syntax.u` file which has examples of all the syntax:
+
 ```ucm
 .> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
 
@@ -72,19 +74,12 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       otherElements       : Doc2
       sqr                 : Nat -> Nat
 
-.> add
+```
+Now we can review different portions of the guide.
+we'll show both the pretty-printed source using `view`
+and the rendered output using `display`:
 
-  ⍟ I've added these definitions:
-  
-    basicFormatting     : Doc2
-    doc.guide           : Doc2
-    evaluation          : Doc2
-    includingSource     : Doc2
-    lists               : Doc2
-    nonUnisonCodeBlocks : Doc2
-    otherElements       : Doc2
-    sqr                 : Nat -> Nat
-
+```ucm
 .> view basicFormatting
 
   basicFormatting : Doc2
@@ -93,9 +88,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
-      Sections consist of section titles followed by zero or
-      more paragraphs or other section elements (such as
-      subsections). Sections can be empty.
+      Sections have a title and 0 or more paragraphs or other
+      section elements.
       
       Text can be __bold__, *italicized*, ~~strikethrough~~, or
       ''monospaced''.
@@ -121,9 +115,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   # Basic formatting
   
     Paragraphs are separated by one or more blanklines. Sections
-    consist of section titles followed by zero or more
-    paragraphs or other section elements (such as subsections).
-    Sections can be empty.
+    have a title and 0 or more paragraphs or other section
+    elements.
   
     Text can be bold, *italicized*, ~~strikethrough~~, or
     `monospaced`.
@@ -152,7 +145,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       ## Bulleted lists
       
          Bulleted lists can use ''+'', ''-'', or ''*'' for the
-         bullets. They can be nested, to any depth:
+         bullets (though the choice will be normalized away by
+         the pretty-printer). They can be nested, to any depth:
          
          * A
          * B
@@ -170,6 +164,10 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
          number in the rendered output. The other numbers are
          ignored:
          
+         10. A
+         11. B
+         12. C
+         
          Numbered lists can be nested as well, and combined with
          bulleted lists:
          
@@ -186,8 +184,9 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
     # Bulleted lists
     
-      Bulleted lists can use `+`, `-`, or `*` for the bullets.
-      They can be nested, to any depth:
+      Bulleted lists can use `+`, `-`, or `*` for the bullets
+      (though the choice will be normalized away by the
+      pretty-printer). They can be nested, to any depth:
     
       * A
       * B
@@ -204,6 +203,10 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       The first number of the list determines the starting
       number in the rendered output. The other numbers are
       ignored:
+    
+      10. A
+      11. B
+      12. C
     
       Numbered lists can be nested as well, and combined with
       bulleted lists:
@@ -258,8 +261,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       
           @source{type Optional, sqr}
       
-      Some rendering targets (like HTML) also support folded
-      source:
+      Some rendering targets also support folded source:
       
           @foldedSource{type Optional, sqr}
       
@@ -267,7 +269,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       @signature{sqr}, or you can include one or more signatures
       as a block:
       
-          @signatures{sqr, Nat.pow}
+          @signatures{sqr, +}
       
       ## Inline snippets
       
@@ -296,8 +298,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
           use Nat *
           x * x
   
-    Some rendering targets (like HTML) also support folded
-    source:
+    Some rendering targets also support folded source:
   
         type Optional a = None | Some a
         
@@ -311,7 +312,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
         sqr : Nat -> Nat
     
-        Nat.pow : Nat -> Nat -> Nat
+        Nat.+ : Nat -> Nat -> Nat
   
     # Inline snippets
     
@@ -398,8 +399,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     
         @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
     
-    This is an
-    aside.{{
+    This is an aside. {{
     docAside
       {{ Some extra detail that doesn't belong in main text. }}
     }}
@@ -449,8 +449,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
       docTable : [[Doc2]] -> Doc2
   
-  This is an
-  aside.(Some extra detail that doesn't belong in main text.)
+  This is an aside. (
+  Some extra detail that doesn't belong in main text. )
   
     | This is an important callout, with no icon.
   
@@ -470,3 +470,26 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   Some text   More text   Zounds!
 
 ```
+Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`:
+
+```ucm
+.> view doc.guide
+
+  doc.guide : Doc2
+  doc.guide =
+    {{ # Unison computable documentation
+    
+      {{ basicFormatting }}
+      
+      {{ lists }}
+      
+      {{ evaluation }}
+      
+      {{ includingSource }}
+      
+      {{ nonUnisonCodeBlocks }}
+      
+      {{ otherElements }} }}
+
+```
+🌻 THE END

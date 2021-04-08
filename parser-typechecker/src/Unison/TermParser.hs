@@ -393,10 +393,10 @@ termLeaf =
 --     syntax.docParagraph [syntax.docWord "goodbye"]
 --   ]
 --
--- Where `syntax.doc{elements,paragraph,...}` are all ordinary term variables
--- that will be looked up in the environment like anything else. This means that
--- the documentation syntax can have its meaning changed by overriding what functions
--- the names `syntax.doc*` correspond to.
+-- Where `syntax.doc{Paragraph, UntitledSection,...}` are all ordinary term
+-- variables that will be looked up in the environment like anything else. This
+-- means that the documentation syntax can have its meaning changed by
+-- overriding what functions the names `syntax.doc*` correspond to.
 doc2Block :: forall v . Var v => TermP v
 doc2Block =
   P.lookAhead (openBlockWith "syntax.docUntitledSection") *> elem
@@ -469,10 +469,10 @@ doc2Block =
       "syntax.docSection" -> sectionLike
       -- @source{ type Blah, foo, type Bar }
       "syntax.docEmbedTermLink" -> do
-        tm <- addDelay <$> hashQualifiedPrefixTerm
+        tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
         closeBlock $> Term.apps' f [tm]
       "syntax.docEmbedSignatureLink" -> do
-        tm <- addDelay <$> hashQualifiedPrefixTerm
+        tm <- addDelay <$> (hashQualifiedPrefixTerm <|> hashQualifiedInfixTerm)
         closeBlock $> Term.apps' f [tm]
       "syntax.docEmbedTypeLink" -> do
         r <- typeLink'
