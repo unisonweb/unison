@@ -486,7 +486,7 @@ simpleProgress = Sync.Progress need done error allDone
   where
     -- ignore need
     need e = liftIO $ putStrLn $ "need " ++ show e
-    need _ = pure ()
+    -- need _ = pure ()
     done e = do
       liftIO $ putStrLn $ "done " ++ show e
 

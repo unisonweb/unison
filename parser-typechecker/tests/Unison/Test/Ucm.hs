@@ -30,7 +30,9 @@ data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 
-newtype Transcript = Transcript {unTranscript :: Text} deriving (IsString) via Text
+newtype Transcript = Transcript {unTranscript :: Text}
+  deriving Show
+  deriving (IsString) via Text
 
 type TranscriptOutput = String
 
@@ -54,6 +56,7 @@ upgradeCodebase = \case
 
 runTranscript :: Codebase -> Runtime -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) rt transcript = do
+  traceM $ show transcript
   -- this configFile ought to be optional
   configFile <- do
     tmpDir <-
@@ -68,7 +71,7 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
       Right x -> pure x
   -- parse and run the transcript
   output <-
-    flip (either err) (TR.parse "transcript" (stripMargin $ unTranscript transcript)) $ \stanzas ->
+    flip (either err) (TR.parse "transcript" ({-stripMargin $-} unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
         TR.run
           (case rt of Runtime1 -> Just False; Runtime2 -> Just True)
