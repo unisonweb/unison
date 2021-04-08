@@ -886,6 +886,10 @@ syntax.docBulletedList = BulletedList
 syntax.docNumberedList = NumberedList
 syntax.docSection = Section
 syntax.docTable = Doc2.Table
+syntax.docBlockquote = Blockquote
+syntax.docCallout = Callout
+syntax.docAside = Aside
+syntax.docTooltip = Tooltip
 
 unique[e25bc44d251ae0301517ad0bd02cbd294161dc89] type ConsoleText
   = Plain Text
@@ -940,13 +944,18 @@ syntax.docFormatConsole d =
     Style _ d -> go d
     Anchor _ d -> go d
     Blockquote d -> Pretty.indent (lit "> ") (go d)
-    Blankline -> lit "\n\n"
-    Linebreak -> lit "\n"
+    Blankline -> Pretty.group (lit "\n\n")
+    Linebreak -> Pretty.group (lit "\n")
     SectionBreak -> lit "܍"
     Tooltip inner _ -> go inner
-    Aside d -> Pretty.indent (lit "  | ") (go d)
-    Callout None d -> go (Aside d)
-    Callout (Some icon) d -> go (Aside (Section icon [d]))
+    Aside d -> map (Foreground BrightBlack) (lit "(" <> go d <> lit ")")
+    Callout None d -> Pretty.indent (lit "  | ") (go d)
+    Callout (Some icon) d ->
+      Pretty.sepBy nl [
+        Pretty.indent (lit "  | ") (go icon),
+        lit "",
+        go d
+      ]
     Table rows -> Pretty.table (List.map (List.map go) rows)
     Folded _ summary details -> go summary <> go details
     Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))

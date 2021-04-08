@@ -2,7 +2,9 @@
 basicFormatting = {{
   # Basic formatting
   
-    Paragraphs are separated by one or more blanklines.
+    Paragraphs are separated by one or more blanklines. Sections consist of
+    section titles followed by zero or more paragraphs or other section
+    elements (such as subsections). Sections can be empty.
     
     Text can be __bold__, *italicized*, ~~strikethrough~~, or
     ''monospaced''.
@@ -14,21 +16,12 @@ basicFormatting = {{
     * [A named type link]({type Optional}) and [a named term link]({Some}).
       Term links are handy for linking to other documents!
 
-    ## Escaping formatting
-    
-       If you have some inline text you want to leave unparsed
-       and have it render in a monospace font, surround it in
-       two single quotes, like so: ''__some bold text__''
-    
-       If you don't want the monospace rendering, you can 
-       use ''{{ .. }}'' to escape out to regular Unison syntax,
-       for instance {{ docWord "__not bold__" }}.
-       
-    ## Sections and subsections
-    
-       Sections consist of section titles followed by zero or
-       more paragraphs or other section elements (such as
-       subsections). Sections can be empty.
+    You can use ''{{ .. }}'' to escape out to regular 
+    Unison syntax, for instance {{ docWord "__not bold__" }}.
+    This is useful for creating documents programmatically
+    or just including other documents.
+
+    *Next up:* {lists}
 }}
 
 lists = {{
@@ -110,63 +103,22 @@ You can include typechecked code snippets inline, for instance:
   equivalent to {{ docExample 1 '(x -> sqr x) }}.
 }}
 
---- todo
----
+nonUnisonCodeBlocks = {{
 
-doc.guide = {{
+## Non-Unison code blocks 
 
-# Unison documentation format
-
-{{ basicFormatting }}
-
-{{ lists }}
-
-{{ evaluation }}
-
-{{ includingSource }}
-
-## Including other documents
+Use three or more single quotes to start a block with no syntax highlighting:
 
 '''
-"And what is the use of a book," thought {{name}}, "without pictures or conversations?"
-
-* [The documentation]({{baseUrl}}/docs)
+   _____     _             
+  |  |  |___|_|___ ___ ___ 
+  |  |  |   | |_ -| . |   |
+  |_____|_|_|_|___|___|_|_|
+  
 '''
 
-"And what is the use of a book," thought {{name}}, "without pictures or conversations?"
-
-## Non-unison code blocks 
-
-A code block with no syntax highlighting starts with at least two {{ code (word "'") }} characters, and is terminated by the same number of {{ code (word "'") }} characters. 
-
-''''
-'''
-Not formatted. Rendered as a code block with no syntax highlighting.
-'''
-''''
-
-Renders as:
-
-'''
-Not formatted. Rendered as a code block with no syntax highlighting.
-'''
-
-You can use triple (or greater) backticks plus a language name for blocks with syntax highlighting.
-
-'''
-``` Haskell
--- A fenced code block which isn't parsed by Unison
-reverse = foldl (flip (:)) []
-```
-
-``` Scala
-// A fenced code block which isn't parsed by Unison
-def reverse[A](xs: List[A]) = 
-  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
-```
-'''
-
-Renders as:
+You can use three or more backticks plus a language name for blocks with
+syntax highlighting:
 
 ``` Haskell
 -- A fenced code block which isn't parsed by Unison
@@ -180,6 +132,51 @@ def reverse[A](xs: List[A]) =
 ```
 }}
 
-name = {{Alice}}
-baseUrl = {{ https://unisonweb.org }}
+otherElements = {{
+
+There are also asides, callouts, tables, tooltips, and more.
+These don't currently have special syntax; just use the ''{{ }}''
+syntax to call these functions directly.
+
+    @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
+
+This is an aside.{{ docAside {{ Some extra detail that doesn't belong in main text. }} }}  
+
+{{ docCallout None {{ This is an important callout, with no icon. }} }}
+
+{{ docCallout (Some {{🌻}}) {{ 
+     This is an important callout, with an icon. The text wraps
+     onto multiple lines. 
+   }} 
+}}
+
+{{ 
+  docBlockquote {{
+    “And what is the use of a book," thought Alice, "without pictures or conversation?”
+
+    *Lewis Carroll, Alice's Adventures in Wonderland* }} 
+}}
+
+{{ docTooltip {{Hover over me}} {{Extra detail}} }} 
+
+{{ docTable [ [{{a}}, {{b}}, {{c}}]
+            , [{{Some text}}, {{More text}}, {{ {sqr} }}] ] }} 
+
+}}
+
+doc.guide = {{
+
+# Unison documentation format
+
+{{ basicFormatting }}
+
+{{ lists }}
+
+{{ evaluation }}
+
+{{ includingSource }}
+
+{{ nonUnisonCodeBlocks }}
+
+}}
 

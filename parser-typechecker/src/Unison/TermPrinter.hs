@@ -1247,8 +1247,6 @@ prettyDoc2 ppe ac tm = case tm of
         PP.text t
       (toDocCode ppe -> Just d) ->
         PP.group ("''" <> rec d <> "''")
-      (toDocVerbatim ppe -> Just txt) ->
-        PP.group ("'''\n" <> PP.text txt <> "\n''")
       (toDocJoin ppe -> Just ds) ->
         foldMap rec ds
       (toDocItalic ppe -> Just d) ->
@@ -1272,7 +1270,26 @@ prettyDoc2 ppe ac tm = case tm of
         "@eval{" <> pretty0 ppe ac tm <> "}"
       (toDocExample ppe -> Just tm) ->
         PP.group $ "``" <> pretty0 ppe ac tm <> "``"
-      -- todo : source, foldedSource, signature, inlineSignature
+      (toDocSource ppe -> Just es) ->
+        PP.group $ "    @source{" <> intercalateMap ", " go es <> "}"
+        where go (Left r, _anns) = "type " <> tyName r
+              go (Right r, _anns) = tmName r
+      (toDocFoldedSource ppe -> Just es) ->
+        PP.group $ "    @foldedSource{" <> intercalateMap ", " go es <> "}"
+        where go (Left r, _anns) = "type " <> tyName r
+              go (Right r, _anns) = tmName r
+      (toDocSignatureInline ppe -> Just tm) ->
+        PP.group $ "@signature{" <> tmName tm <> "}"
+      (toDocSignature ppe -> Just tms) ->
+        PP.group $ "    @signatures{" <> intercalateMap ", " tmName tms <> "}"
+      (toDocCodeBlock ppe -> Just (typ, txt)) -> PP.group $
+        PP.lines [ "``` " <> PP.text typ
+                 , PP.group $ PP.text txt
+                 , "```" ]
+      (toDocVerbatim ppe -> Just txt) -> PP.group $
+        PP.lines [ "'''"
+                 , PP.group $ PP.text txt
+                 , "'''" ]
       -- todo : emit fewer gratuitous columns, maybe a wrapIfMany combinator
       tm -> bail tm
       where
@@ -1317,13 +1334,13 @@ toDocCode ppe (App' (Ref' r) doc)
   | nameEndsWith ppe ".docCode" r = Just doc
 toDocCode _ _ = Nothing
 
-toDocCodeBlock :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Text, Term3 v PrintAnnotation)
-toDocCodeBlock ppe (Apps' (Ref' r) [Text' typ, doc])
-  | nameEndsWith ppe ".docCodeBlock" r = Just (typ, doc)
+toDocCodeBlock :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Text, Text)
+toDocCodeBlock ppe (Apps' (Ref' r) [Text' typ, Text' txt])
+  | nameEndsWith ppe ".docCodeBlock" r = Just (typ, txt)
 toDocCodeBlock _ _ = Nothing
 
 toDocVerbatim :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Text
-toDocVerbatim ppe (App' (Ref' r) (Text' txt))
+toDocVerbatim ppe (App' (Ref' r) (toDocWord ppe -> Just txt))
   | nameEndsWith ppe ".docVerbatim" r = Just txt
 toDocVerbatim _ _ = Nothing
 
@@ -1391,23 +1408,42 @@ toDocEmbedTypeLink ppe (App' (Ref' r) (TypeLink' typeref))
   | nameEndsWith ppe ".docEmbedTypeLink" r = Just typeref
 toDocEmbedTypeLink _ _ = Nothing
 
-toDocSource :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
-toDocSource ppe (App' (Ref' r) (List' tms))
-  | nameEndsWith ppe ".docSource" r = Just (toList tms)
-toDocSource _ _ = Nothing
+toDocSourceAnnotations :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Referent]
+toDocSourceAnnotations _ppe _tm = Just [] -- todo fetch annotations
 
-toDocFoldedSource :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]
-toDocFoldedSource ppe (App' (Ref' r) (List' tms))
-  | nameEndsWith ppe ".docFoldedSource" r = Just (toList tms)
-toDocFoldedSource _ _ = Nothing
+toDocSourceElement :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Either Reference Referent, [Referent])
+toDocSourceElement ppe (Apps' (Ref' r) [tm, toDocSourceAnnotations ppe -> Just annotations])
+  | nameEndsWith ppe ".docSourceElement" r =
+      (,annotations) <$> ok tm
+      where
+        ok tm = (Right <$> toDocEmbedTermLink ppe tm) <|>
+                (Left <$> toDocEmbedTypeLink ppe tm)
+toDocSourceElement _ _ = Nothing
 
-toDocSignatureInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocSource' :: Ord v
+            => Text
+            -> PrettyPrintEnv
+            -> Term3 v PrintAnnotation
+            -> Maybe [(Either Reference Referent, [Referent])]
+toDocSource' suffix ppe (App' (Ref' r) (List' tms))
+  | nameEndsWith ppe suffix r =
+    case [ tm | Just tm <- toDocSourceElement ppe <$> toList tms ] of
+      tms' | length tms' == length tms -> Just tms'
+      _ -> Nothing
+toDocSource' _ _ _ = Nothing
+
+toDocSource, toDocFoldedSource :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation
+                               -> Maybe [(Either Reference Referent, [Referent])]
+toDocSource = toDocSource' ".docSource"
+toDocFoldedSource = toDocSource' ".docFoldedSource"
+
+toDocSignatureInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
 toDocSignatureInline ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm))
   | nameEndsWith ppe ".docSignatureInline" r = Just tm
 toDocSignatureInline _ _ = Nothing
 
-toDocEmbedSignatureLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' tm))
+toDocEmbedSignatureLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
+toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
   | nameEndsWith ppe ".docEmbedSignatureLink" r = Just tm
 toDocEmbedSignatureLink _ _ = Nothing
 
@@ -1427,11 +1463,9 @@ toDocEmbedAnnotations _ _ = Nothing
 toDocSignature :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Referent]
 toDocSignature ppe (App' (Ref' r) (List' tms))
   | nameEndsWith ppe ".docSignature" r =
-    case [ tm | Just tm <- ok <$> toList tms ] of
+    case [ tm | Just tm <- toDocEmbedSignatureLink ppe <$> toList tms ] of
       tms' | length tms' == length tms -> Just tms'
       _ -> Nothing
-    where
-      ok tm = toDocEmbedTermLink ppe tm
 toDocSignature _ _ = Nothing
 
 toDocBulletedList :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe [Term3 v PrintAnnotation]

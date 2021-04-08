@@ -63,21 +63,25 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
     ⍟ These new definitions are ok to `add`:
     
-      basicFormatting : Doc2
-      evaluation      : Doc2
-      includingSource : Doc2
-      lists           : Doc2
-      sqr             : Nat -> Nat
+      basicFormatting     : Doc2
+      doc.guide           : Doc2
+      evaluation          : Doc2
+      includingSource     : Doc2
+      lists               : Doc2
+      nonUnisonCodeBlocks : Doc2
+      sqr                 : Nat -> Nat
 
 .> add
 
   ⍟ I've added these definitions:
   
-    basicFormatting : Doc2
-    evaluation      : Doc2
-    includingSource : Doc2
-    lists           : Doc2
-    sqr             : Nat -> Nat
+    basicFormatting     : Doc2
+    doc.guide           : Doc2
+    evaluation          : Doc2
+    includingSource     : Doc2
+    lists               : Doc2
+    nonUnisonCodeBlocks : Doc2
+    sqr                 : Nat -> Nat
 
 .> view basicFormatting
 
@@ -87,6 +91,9 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     # Basic formatting
     
       Paragraphs are separated by one or more blanklines.
+      Sections consist of section titles followed by zero or
+      more paragraphs or other section elements (such as
+      subsections). Sections can be empty.
       
       Text can be __bold__, *italicized*, ~~strikethrough~~, or
       ''monospaced''.
@@ -99,28 +106,22 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
         [a named term link]({Some}). Term links are handy for
         linking to other documents!
       
-      ## Escaping formatting
+      You can use ''{{ .. }}'' to escape out to regular Unison
+      syntax, for instance {{ docWord "__not bold__" }}. This is
+      useful for creating documents programmatically or just
+      including other documents.
       
-         If you have some inline text you want to leave unparsed
-         and have it render in a monospace font, surround it in
-         two single quotes, like so: ''__some bold text__''
-         
-         If you don't want the monospace rendering, you can use
-         ''{{ .. }}'' to escape out to regular Unison syntax,
-         for instance {{ docWord "__not bold__" }}.
-      
-      ## Sections and subsections
-      
-         Sections consist of section titles followed by zero or
-         more paragraphs or other section elements (such as
-         subsections). Sections can be empty.
+      *Next up:* {lists}
     }}
 
 .> display basicFormatting
 
   # Basic formatting
   
-    Paragraphs are separated by one or more blanklines.
+    Paragraphs are separated by one or more blanklines. Sections
+    consist of section titles followed by zero or more
+    paragraphs or other section elements (such as subsections).
+    Sections can be empty.
   
     Text can be bold, *italicized*, ~~strikethrough~~, or
     `monospaced`.
@@ -132,21 +133,12 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     * A named type link and a named term link. Term links are
       handy for linking to other documents!
   
-    # Escaping formatting
-    
-      If you have some inline text you want to leave unparsed
-      and have it render in a monospace font, surround it in two
-      single quotes, like so: `__some bold text__`
-    
-      If you don't want the monospace rendering, you can use
-      `{{ .. }}` to escape out to regular Unison syntax, for
-      instance __not bold__.
+    You can use `{{ .. }}` to escape out to regular Unison
+    syntax, for instance __not bold__. This is useful for
+    creating documents programmatically or just including other
+    documents.
   
-    # Sections and subsections
-    
-      Sections consist of section titles followed by zero or
-      more paragraphs or other section elements (such as
-      subsections). Sections can be empty.
+    *Next up:* lists
 
 .> view lists
 
@@ -262,30 +254,18 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     
       Unison definitions can be included in docs. For instance:
       
-      {{
-      docSource
-        [ docSourceElement
-          (docEmbedTypeLink typeLink Optional) [],
-          docSourceElement (docEmbedTermLink (_ -> sqr)) [] ] }}
+          @source{type Optional, sqr}
       
       Some rendering targets (like HTML) also support folded
       source:
       
-      {{
-      docFoldedSource
-        [ docSourceElement
-          (docEmbedTypeLink typeLink Optional) [],
-          docSourceElement (docEmbedTermLink (_ -> sqr)) [] ] }}
+          @foldedSource{type Optional, sqr}
       
       You can also include just a signature, inline, with
-      {{
-      docSignatureInline (docEmbedSignatureLink (_ -> sqr))
-      }}, or you can include one or more signatures as a block:
+      @signature{sqr}, or you can include one or more signatures
+      as a block:
       
-      {{
-      docSignature
-        [ docEmbedSignatureLink (_ -> sqr),
-          docEmbedSignatureLink (_ -> Nat.pow) ] }}
+          @signatures{sqr, Nat.pow}
       
       ## Inline snippets
       
@@ -301,15 +281,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
            so: ``x -> sqr x``. This is equivalent to
            {{ docExample 1 '(x -> sqr x) }}.
     }}
-
-.> view Optional sqr
-
-  type builtin.Optional a = None | Some a
-  
-  sqr : Nat -> Nat
-  sqr x =
-    use Nat *
-    x * x
 
 .> display includingSource
 
@@ -351,5 +322,69 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       * If your snippet expression is just a single function
         application, you can put it in double backticks, like
         so: `sqr x`. This is equivalent to `sqr x`.
+
+.> view nonUnisonCodeBlocks
+
+  nonUnisonCodeBlocks : Doc2
+  nonUnisonCodeBlocks =
+    {{
+    # Non-Unison code blocks
+    
+      A code block with no syntax highlighting starts with at
+      least two single quotes and is terminated by the same
+      number of single quotes. For example:
+      
+      '''
+         _____     _             
+        |  |  |___|_|___ ___ ___ 
+        |  |  |   | |_ -| . |   |
+        |_____|_|_|_|___|___|_|_|
+        
+      '''
+      
+      You can use triple (or greater) backticks plus a language
+      name for blocks with syntax highlighting.
+      
+      ``` Haskell
+      -- A fenced code block which isn't parsed by Unison
+      reverse = foldl (flip (:)) []
+      ```
+      
+      ``` Scala
+      // A fenced code block which isn't parsed by Unison
+      def reverse[A](xs: List[A]) = 
+        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+      ```
+    }}
+
+.> display nonUnisonCodeBlocks
+
+  # Non-Unison code blocks
+  
+    A code block with no syntax highlighting starts with at
+    least two single quotes and is terminated by the same number
+    of single quotes. For example:
+  
+    ``` raw
+       _____     _             
+      |  |  |___|_|___ ___ ___ 
+      |  |  |   | |_ -| . |   |
+      |_____|_|_|_|___|___|_|_|
+      
+    ```
+  
+    You can use triple (or greater) backticks plus a language
+    name for blocks with syntax highlighting.
+  
+    ``` Haskell
+    -- A fenced code block which isn't parsed by Unison
+    reverse = foldl (flip (:)) []
+    ```
+  
+    ``` Scala
+    // A fenced code block which isn't parsed by Unison
+    def reverse[A](xs: List[A]) = 
+      xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+    ```
 
 ```

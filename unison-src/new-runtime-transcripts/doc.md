@@ -49,4 +49,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 .> display evaluation
 .> view includingSource
 .> display includingSource
+.> view nonUnisonCodeBlocks
+.> display nonUnisonCodeBlocks
 ```
