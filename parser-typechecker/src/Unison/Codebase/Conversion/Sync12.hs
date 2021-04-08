@@ -502,10 +502,10 @@ simpleProgress :: MonadState (ProgressState m) n => MonadIO n => Sync.Progress n
 simpleProgress = Sync.Progress need done error allDone
   where
     -- ignore need
-    need e = liftIO $ putStrLn $ "need " ++ show e
-    -- need _ = pure ()
+    -- need e = liftIO $ putStrLn $ "need " ++ show e
+    need _ = pure ()
     done e = do
-      liftIO $ putStrLn $ "done " ++ show e
+      -- liftIO $ putStrLn $ "done " ++ show e
 
       case e of
         C {} -> _1 . doneBranches += 1
@@ -515,7 +515,7 @@ simpleProgress = Sync.Progress need done error allDone
       printProgress
 
     error e = do
-      liftIO $ putStrLn $ "error " ++ show e
+      -- liftIO $ putStrLn $ "error " ++ show e
       case e of
         C {} -> _2 . errorBranches += 1
         T {} -> _2 . errorTerms += 1
