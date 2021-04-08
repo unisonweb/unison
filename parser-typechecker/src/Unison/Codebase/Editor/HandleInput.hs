@@ -2833,6 +2833,7 @@ executePPE
 executePPE unisonFile =
   prettyPrintEnv =<< displayNames unisonFile
 
+-- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames :: (Var v, Monad m)
   => TypecheckedUnisonFile v a
   -> Action' m v Names
