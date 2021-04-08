@@ -1,7 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Unison.Builtin.Decls where
 
@@ -70,7 +69,7 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
+okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId :: ConstructorId
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
