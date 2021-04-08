@@ -11,7 +11,7 @@ Unison documentation is written in Unison and has some neat features:
 
 ## Introduction
 
-Documentation blocks start with `{{` and end with a matching `}}`. You can introduce doc blocks anywhere you'd use an expression, and you can also have anonymous documentation blocks immediately before a top-level term (and soon, types as well).
+Documentation blocks start with `{{` and end with a matching `}}`. You can introduce doc blocks anywhere you'd use an expression, and you can also have anonymous documentation blocks immediately before a top-level term or type.
 
 ```unison
 name = {{Alice}}
@@ -19,6 +19,9 @@ d1 = {{ Hello there {{name}}! }}
 
 {{ An important constant, equal to @eval{ImportantConstant} }}
 ImportantConstant = 41 + 1
+
+{{ The 7 days of the week. }}
+unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
 ```ucm
@@ -29,13 +32,15 @@ ImportantConstant = 41 + 1
   
     ⍟ These new definitions are ok to `add`:
     
+      unique type DayOfWeek
+      DayOfWeek.doc         : Doc2
       ImportantConstant     : Nat
       ImportantConstant.doc : Doc2
       d1                    : Doc2
       name                  : Doc2
 
 ```
-Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ blah }}`.
+Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
 
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
@@ -47,6 +52,10 @@ You can preview what docs will look like when rendered to the console using the 
 .> docs ImportantConstant
 
   An important constant, equal to `42`
+
+.> docs DayOfWeek
+
+  The 7 days of the week.
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.

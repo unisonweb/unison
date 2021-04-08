@@ -60,7 +60,7 @@ data ParsingEnv =
              , parentSection :: Int -- 1 means we are inside a # Heading 1
              , parentListColumn :: Int -- 4 means we are inside a list starting
                                        -- at the fourth column
-             }
+             } deriving Show
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
 
@@ -290,12 +290,32 @@ lexemes' eof = P.optional space >> do
   doc2 :: P [Token Lexeme]
   doc2 = do
     let start = token'' ignore (lit "{{")
-    P.lookAhead start <+> (wrap "syntax.docUntitledSection" $ do
-      _ <- start <* CP.space
-      r <- local (\env -> env { inLayout = False }) (body <* lit "}}")
-      pure r)
-    <+> token' ignore (pure ())
+    startToks <- start <* CP.space
+    env0 <- S.get
+    docToks0 <- wrap "syntax.docUntitledSection" $
+      local (\env -> env { inLayout = False }) (body <* lit "}}")
+    let docToks = startToks <> docToks0
+    endToks <- token' ignore (pure ())
+    -- Hack to allow anonymous doc blocks before type decls
+    --   {{ Some docs }}             Foo.doc = {{ Some docs }}
+    --   ability Foo where      =>   ability Foo where
+    tn <- subsequentTypeName
+    pure $ case (tn, docToks) of
+      (Just tname, ht:_) | isTopLevel ->
+          startToks
+          <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+          <> docToks0
+          <> [Close <$ last docToks]
+          <> endToks
+        where
+          isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
+      _ -> docToks <> endToks
     where
+    subsequentTypeName = P.lookAhead . P.optional $ do
+      let lit' s = lit s <* sp
+      _ <- P.optional (lit' "unique") *> (lit' "type" <|> lit' "ability")
+      name <- P.takeWhile1P Nothing wordyIdChar
+      pure name
     ignore _ _ _ = []
     body = join <$> P.many (sectionElem <* CP.space)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
@@ -933,57 +953,17 @@ stanzas = go [] where
     Semi _ -> reverse (t : acc) : go [] ts
     _      -> go (t:acc) ts
 
--- Moves type and effect declarations to the front of the token stream
+-- Moves type and ability declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder = join . sortWith f . stanzas
--- reorder = join . sortWith f . wrangle . debug . stanzas
-  where
-    -- debug s | traceShow (fmap (fmap payload) <$> s) False = undefined
-    -- debug s = s
-    -- {{ some docs }}
-    -- type Foo
-    --
-    --   Becomes
-    --
-    -- Foo.doc = {{ some docs }}
-    -- type Foo
-    --
-    {-
-    wrangle :: [[T (Token Lexeme)]] -> [[T (Token Lexeme)]]
-    wrangle [] = []
-    wrangle ((h1:t1):(h2@(symbolName -> Just name)):t) =
-      if payload (headToken h1) == Open "syntax.doc" then
-        let p = [ doc name <$ headToken h1, Open "=" <$ headToken h1 ]
-        in (consPreorder p h1 : t1) : h2 : wrangle t
-      else (h1:t1) : wrangle (h2:t)
-      where
-        doc (WordyId w _sh) = WordyId (w <> ".doc") Nothing
-        doc a = a
-        consPreorder :: [a] -> T a -> T a
-        consPreorder = go where
-          go [] t = t
-          go (h:hs) (L a) = go hs (T h [L a] [])
-          go (h:hs) (T root mid trail) = go hs (T h (L root : mid) trail)
-
-    wrangle (h:t) = h : wrangle t
-
-    symbolName :: [T (Token Lexeme)] -> Maybe Lexeme
-    symbolName ts = go (map payload . join $ toList <$> ts) where
-      go (Open "type" : h : _) = Just h
-      go (Open "ability" : h : _) = Just h
-      go (Open "unique" : Reserved _braceL : _guid : _braceR : _typ : h : _) = Just h
-      go (Open "unique" : _typ : h : _) = Just h
-      go _ = Nothing
-    -}
-
-    f [] = 3 :: Int
-    f (t0 : _) = case payload $ headToken t0 of
-      Open "type" -> 1
-      Open "unique" -> 1
-      Open "ability" -> 1
-      Reserved "use" -> 0
-      _ -> 3 :: Int
+reorder = join . sortWith f . stanzas where
+  f [] = 3 :: Int
+  f (t0 : _) = case payload $ headToken t0 of
+    Open "type" -> 1
+    Open "unique" -> 1
+    Open "ability" -> 1
+    Reserved "use" -> 0
+    _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
