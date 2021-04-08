@@ -943,19 +943,20 @@ syntax.docFormatConsole d =
     Doc2.Bold d -> map ConsoleText.Bold (go d)
     Style _ d -> go d
     Anchor _ d -> go d
-    Blockquote d -> Pretty.indent (lit "> ") (go d)
+    Blockquote d -> Pretty.group (Pretty.indent (lit "> ") (go d))
     Blankline -> Pretty.group (lit "\n\n")
     Linebreak -> Pretty.group (lit "\n")
     SectionBreak -> lit "܍"
     Tooltip inner _ -> go inner
     Aside d -> map (Foreground BrightBlack) (lit "(" <> go d <> lit ")")
-    Callout None d -> Pretty.indent (lit "  | ") (go d)
+    Callout None d -> Pretty.group (Pretty.indent (lit "  | ") (go d))
     Callout (Some icon) d ->
-      Pretty.sepBy nl [
-        Pretty.indent (lit "  | ") (go icon),
-        lit "",
-        go d
-      ]
+      Pretty.group (Pretty.indent (lit "  | ") (
+        Pretty.sepBy nl [
+          map ConsoleText.Bold (go icon),
+          lit "",
+          go d
+        ]))
     Table rows -> Pretty.table (List.map (List.map go) rows)
     Folded _ summary details -> go summary <> go details
     Paragraph ds -> Pretty.wrap (Pretty.join (List.map go ds))

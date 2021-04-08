@@ -51,4 +51,6 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 .> display includingSource
 .> view nonUnisonCodeBlocks
 .> display nonUnisonCodeBlocks
+.> view otherElements
+.> display otherElements
 ```

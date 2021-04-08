@@ -69,6 +69,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       includingSource     : Doc2
       lists               : Doc2
       nonUnisonCodeBlocks : Doc2
+      otherElements       : Doc2
       sqr                 : Nat -> Nat
 
 .> add
@@ -81,6 +82,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     includingSource     : Doc2
     lists               : Doc2
     nonUnisonCodeBlocks : Doc2
+    otherElements       : Doc2
     sqr                 : Nat -> Nat
 
 .> view basicFormatting
@@ -330,9 +332,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     {{
     # Non-Unison code blocks
     
-      A code block with no syntax highlighting starts with at
-      least two single quotes and is terminated by the same
-      number of single quotes. For example:
+      Use three or more single quotes to start a block with no
+      syntax highlighting:
       
       '''
          _____     _             
@@ -342,8 +343,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
         
       '''
       
-      You can use triple (or greater) backticks plus a language
-      name for blocks with syntax highlighting.
+      You can use three or more backticks plus a language name
+      for blocks with syntax highlighting:
       
       ``` Haskell
       -- A fenced code block which isn't parsed by Unison
@@ -361,9 +362,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 
   # Non-Unison code blocks
   
-    A code block with no syntax highlighting starts with at
-    least two single quotes and is terminated by the same number
-    of single quotes. For example:
+    Use three or more single quotes to start a block with no
+    syntax highlighting:
   
     ``` raw
        _____     _             
@@ -373,8 +373,8 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
       
     ```
   
-    You can use triple (or greater) backticks plus a language
-    name for blocks with syntax highlighting.
+    You can use three or more backticks plus a language name for
+    blocks with syntax highlighting:
   
     ``` Haskell
     -- A fenced code block which isn't parsed by Unison
@@ -386,5 +386,83 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     def reverse[A](xs: List[A]) = 
       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
     ```
+
+.> view otherElements
+
+  otherElements : Doc2
+  otherElements =
+    {{
+    There are also asides, callouts, tables, tooltips, and more.
+    These don't currently have special syntax; just use the
+    ''{{ }}'' syntax to call these functions directly.
+    
+        @signatures{docAside, docCallout, docBlockquote, docTooltip, docTable}
+    
+    This is an
+    aside.{{
+    docAside
+      {{ Some extra detail that doesn't belong in main text. }}
+    }}
+    
+    {{
+    docCallout
+      None {{ This is an important callout, with no icon. }} }}
+    
+    {{
+    docCallout
+      (Some {{ 🌻 }})
+      {{
+      This is an important callout, with an icon. The text wraps
+      onto multiple lines.
+      }} }}
+    
+    {{
+    docBlockquote
+      {{
+      "And what is the use of a book," thought Alice, "without
+      pictures or conversation?"
+      
+      *Lewis Carroll, Alice's Adventures in Wonderland*
+      }} }}
+    
+    {{ docTooltip {{ Hover over me }} {{ Extra detail }} }}
+    
+    {{ docWord "todo" }}
+    }}
+
+.> display otherElements
+
+  There are also asides, callouts, tables, tooltips, and more.
+  These don't currently have special syntax; just use the
+  `{{ }}` syntax to call these functions directly.
+  
+      docAside : Doc2 -> Doc2
+  
+      docCallout : Optional Doc2 -> Doc2 -> Doc2
+  
+      docBlockquote : Doc2 -> Doc2
+  
+      docTooltip : Doc2 -> Doc2 -> Doc2
+  
+      docTable : [[Doc2]] -> Doc2
+  
+  This is an
+  aside.(Some extra detail that doesn't belong in main text.)
+  
+    | This is an important callout, with no icon.
+  
+    | 🌻
+    | 
+    | This is an important callout, with an icon. The text wraps
+    | onto multiple lines.
+  
+  > "And what is the use of a book," thought Alice, "without
+  > pictures or conversation?"
+  > 
+  > *Lewis Carroll, Alice's Adventures in Wonderland*
+  
+  Hover over me
+  
+  todo
 
 ```

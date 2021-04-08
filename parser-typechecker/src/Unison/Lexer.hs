@@ -301,10 +301,12 @@ lexemes' eof = P.optional space >> do
     sectionElem = section <|> fencedBlock <|> list <|> paragraph
     paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
     reserved word =
-      isPrefixOf "}}" word || all (== '#') word
+      isPrefixOf "}}" word ||
+      all (== '#') word
 
     wordy ok = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
       let end = P.lookAhead $ void docClose
+                          <|> void docOpen
                           <|> void (CP.satisfy isSpace)
                           <|> void (CP.satisfy (not . ok))
       word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end

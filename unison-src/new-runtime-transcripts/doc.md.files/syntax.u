@@ -152,15 +152,18 @@ This is an aside.{{ docAside {{ Some extra detail that doesn't belong in main te
 
 {{ 
   docBlockquote {{
-    “And what is the use of a book," thought Alice, "without pictures or conversation?”
+    "And what is the use of a book," thought Alice, "without pictures or conversation?"
 
     *Lewis Carroll, Alice's Adventures in Wonderland* }} 
 }}
 
 {{ docTooltip {{Hover over me}} {{Extra detail}} }} 
 
-{{ docTable [ [{{a}}, {{b}}, {{c}}]
-            , [{{Some text}}, {{More text}}, {{ {sqr} }}] ] }} 
+{{ docWord "todo"
+--  docTable 
+--    [ [{{a}}, {{b}}, {{c}}]
+--    , [{{Some text}}, {{More text}}, {{ {sqr} }}] ] 
+}} 
 
 }}
 
