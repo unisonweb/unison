@@ -26,6 +26,7 @@ typeAlias = scope "typeAlias" do
     c2 <- Ucm.upgradeCodebase c1
     Ucm.runTranscript c2 Ucm.Runtime1 [iTrim|
 ```unison
+x : Nat
 x = 3
 ```
     |]
@@ -36,7 +37,7 @@ topLevelTerm = scope "topLevelTerm" $ do
   void $ io do
     c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
     Ucm.runTranscript c1 Ucm.Runtime1 [iTrim|
-```unison
+```unison:hide
 y = 3
 ```
 ```ucm
@@ -75,7 +76,7 @@ unique type a.b.C = C Nat
 .> find
 ```
 ```unison
-> a.b.C 3
+> a.b.C.C 3
 ```
     |]
   ok
@@ -85,18 +86,23 @@ accessPatch = scope "accessPatch" do
   void $ io do
     c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
     Ucm.runTranscript c1 Ucm.Runtime1 [iTrim|
-```unison
+```ucm
+.> alias.type ##Nat builtin.Nat
+```
+```unison:hide
 unique type A = A Nat
 foo = A.A 3
 ```
 ```ucm
+.> debug.file
 .> add
 ```
-```unison
+```unison:hide
 unique type A = A Nat Nat
 foo = A.A 3 3
 ```
 ```ucm
+.> debug.file
 .> update
 ```
 ```ucm
@@ -110,6 +116,11 @@ foo = A.A 3 3
 ```
     |]
   ok
+
+-- #00k3c9bp6m A
+-- #6v94dtbfk1 foo
+-- #d3bn4dqp1a A'
+-- #p3a21bjjl4 foo'
 
 accessHistory :: Test ()
 accessHistory = scope "history" do

@@ -26,6 +26,7 @@ import Control.Natural (type (~>))
 import Data.Bifoldable (bitraverse_)
 import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
+import Data.Functor (($>))
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -33,6 +34,7 @@ import Data.Maybe (catMaybes)
 import qualified Data.Set as Set
 import Data.Traversable (for)
 import Database.SQLite.Simple (Connection)
+import Debug.Trace (traceM)
 import U.Codebase.Sqlite.DbId (Generation)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
@@ -65,7 +67,9 @@ import qualified Unison.Type as Type
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
-import Data.Functor (($>))
+
+debug :: Bool
+debug = False
 
 data Env m a = Env
   { srcCodebase :: Codebase m Symbol a,
@@ -98,16 +102,19 @@ data TermStatus
   | TermMissing
   | TermMissingType
   | TermMissingDependencies
+  deriving Show
 
 data DeclStatus
   = DeclOk
   | DeclMissing
   | DeclMissingDependencies
+  deriving Show
 
 data PatchStatus
   = PatchOk
   | PatchMissing
   | PatchReplaced Branch.EditHash
+  deriving Show
 
 data Status m = Status
   { _branchStatus :: Map Branch.Hash (BranchStatus m),
@@ -208,16 +215,24 @@ getPatchStatus :: S m n => Hash -> n (Maybe PatchStatus)
 getPatchStatus h = use (patchStatus . at h)
 
 setTermStatus :: S m n => Hash -> TermStatus -> n ()
-setTermStatus h s = termStatus . at h .= Just s
+setTermStatus h s = do
+  when debug (traceM $ "setTermStatus " ++ take 10 (show h) ++ " " ++ show s)
+  termStatus . at h .= Just s
 
 setDeclStatus :: S m n => Hash -> DeclStatus -> n ()
-setDeclStatus h s = declStatus . at h .= Just s
+setDeclStatus h s = do
+  when debug (traceM $ "setDeclStatus " ++ take 10 (show h) ++ " " ++ show s)
+  declStatus . at h .= Just s
 
 setPatchStatus :: S m n => Hash -> PatchStatus -> n ()
-setPatchStatus h s = patchStatus . at h .= Just s
+setPatchStatus h s = do
+  when debug (traceM $ "setPatchStatus " ++ take 10 (show h) ++ " " ++ show s)
+  patchStatus . at h .= Just s
 
 setBranchStatus :: forall m n. S m n => Branch.Hash -> BranchStatus m -> n ()
-setBranchStatus h s = branchStatus . at h .= Just s
+setBranchStatus h s = do
+  when debug (traceM $ "setBranchStatus " ++ take 10 (show h) ++ " " ++ show s)
+  branchStatus . at h .= Just s
 
 checkTermComponent ::
   forall m n a.
@@ -246,6 +261,7 @@ checkTermComponent t h n = do
                   Nothing -> Validate.dispute . Set.singleton $ D h' n'
             checkTerm = \case
               Reference.Builtin {} -> pure ()
+              Reference.DerivedId (Reference.Id h' _ _) | h == h' -> pure ()
               Reference.DerivedId (Reference.Id h' _ n') ->
                 getTermStatus h' >>= \case
                   Just TermOk -> pure ()
@@ -272,6 +288,7 @@ checkDeclComponent t h n = do
         let deps = DD.declDependencies decl
             checkDecl = \case
               Reference.Builtin {} -> pure ()
+              Reference.DerivedId (Reference.Id h' _ _) | h == h' -> pure ()
               Reference.DerivedId (Reference.Id h' _ n') ->
                 getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
@@ -408,9 +425,9 @@ validateTypeReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTypeReference = \case
   Reference.Builtin {} -> pure True
   Reference.DerivedId (Reference.Id h _i n) ->
-    getTermStatus h >>= \case
-      Nothing -> Validate.refute . Set.singleton $ T h n
-      Just TermOk -> pure True
+    getDeclStatus h >>= \case
+      Nothing -> Validate.refute . Set.singleton $ D h n
+      Just DeclOk -> pure True
       Just _ -> pure False
 
 filterTypeNames :: (S m n, V m n) => Relation Reference.Reference NameSegment -> n (Relation Reference.Reference NameSegment)
@@ -531,10 +548,10 @@ simpleProgress = Sync.Progress need done error allDone
     printProgress = do
       (DoneCount b t d p, ErrorCount b' t' d' p', _) <- State.get
       let ways :: [Maybe String] =
-            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ "errors)")),
-              Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " branches" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ "errors)")),
-              Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " branches" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ "errors)")),
-              Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " branches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ "errors)"))
+            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ " errors)")),
+              Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " terms" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ " errors)")),
+              Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
+              Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
             ]
       liftIO . putStr $ "\rSynced " ++ List.intercalate "," (catMaybes ways)
 

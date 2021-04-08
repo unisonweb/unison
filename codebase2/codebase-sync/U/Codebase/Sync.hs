@@ -7,7 +7,12 @@
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sync where
 
+import Control.Monad (when)
 import Data.Foldable (traverse_)
+import Debug.Trace (traceM)
+
+debug :: Bool
+debug = False
 
 data TrySyncResult h = Missing [h] | Done | PreviouslyDone | NonFatalError
   deriving Show
@@ -27,11 +32,13 @@ data Progress m h = Progress
 transformProgress :: (forall a. m a -> n a) -> Progress m h -> Progress n h
 transformProgress f (Progress a b c d) = Progress (f . a) (f . b) (f . c) (f d)
 
-sync :: forall m h. Monad m => Sync m h -> Progress m h -> [h] -> m ()
+-- the Show constraint is just for debugging
+sync :: forall m h. (Monad m, Show h) => Sync m h -> Progress m h -> [h] -> m ()
 sync Sync {..} Progress {..} roots = go roots
   where
     go :: [h] -> m ()
-    go (h : hs) =
+    go (h : hs) = do
+      when debug (traceM $ "Sync.sync.go " ++ (show $ h : hs))
       trySync h >>= \case
         Missing deps -> traverse_ need deps >> go (deps ++ h : hs)
         Done -> done h >> go hs

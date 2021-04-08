@@ -11,17 +11,17 @@ module Unison.Test.Ucm
   )
 where
 
+import Control.Monad (when)
 import qualified Data.Text as Text
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
-import U.Util.Text (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
-import Unison.Prelude
+import Unison.Prelude (IsString, Text, traceM)
 import qualified Unison.Util.Pretty as P
 
 data Runtime = Runtime1 | Runtime2
@@ -35,6 +35,8 @@ newtype Transcript = Transcript {unTranscript :: Text}
   deriving (IsString) via Text
 
 type TranscriptOutput = String
+debugTranscriptOutput :: Bool
+debugTranscriptOutput = False
 
 initCodebase :: CodebaseFormat -> IO Codebase
 initCodebase fmt = do
@@ -80,4 +82,5 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
           stanzas
           codebase
   closeCodebase
+  when debugTranscriptOutput $ traceM output
   pure output
