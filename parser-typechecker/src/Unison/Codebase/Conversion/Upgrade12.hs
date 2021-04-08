@@ -29,8 +29,6 @@ upgradeCodebase root = do
   either (liftIO . CT.putPrettyLn) pure =<< runExceptT do
     (cleanupSrc, srcCB) <- ExceptT $ Codebase.openCodebase FC.init root
     (cleanupDest, destCB) <- ExceptT $ Codebase.createCodebase SC.init root
-    -- todo: not have to propagate this stuff, because ucm knows about it intrinsically?
-    lift $ Codebase.installUcmDependencies destCB
     destDB <- SC.unsafeGetConnection root
     let env = Sync12.Env srcCB destCB destDB
     let initialState = (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)

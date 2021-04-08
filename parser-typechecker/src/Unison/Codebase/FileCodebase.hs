@@ -17,9 +17,7 @@ import Control.Exception.Safe (MonadCatch, catchIO)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import System.Directory (canonicalizePath, getHomeDirectory)
-import System.Environment (getProgName)
-import System.Exit (exitFailure, exitSuccess)
+import System.Directory (canonicalizePath)
 import System.FilePath (takeFileName)
 import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
 import qualified Unison.Codebase as Codebase
@@ -27,17 +25,10 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Extra ((||^))
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
-import System.Directory (canonicalizePath)
-import System.FilePath (takeFileName, (</>))
+import System.FilePath ((</>))
 import qualified U.Util.Cache as Cache
-import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase
-import Unison.Codebase.Branch (Branch, headHash)
-import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch (headHash)
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus)
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
 import Unison.Codebase.FileCodebase.Common
@@ -98,8 +89,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as TQueue
 import Unison.Util.Timing (time)
 import Unison.Var (Var)
-import UnliftIO (MonadUnliftIO)
-import Control.Concurrent (forkIO, killThread)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.STM (atomically)
 
@@ -128,7 +117,7 @@ createCodebase dir = ifM
   (pure $ Left Codebase.CreateCodebaseAlreadyExists)
   (do
     codebase <- codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
-    Codebase.installUcmDependencies codebase
+    Codebase.putRootBranch codebase Branch.empty
     pure $ Right (pure (), codebase))
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`

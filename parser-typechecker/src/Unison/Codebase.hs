@@ -136,7 +136,6 @@ installUcmDependencies c = do
                                      [Builtin.builtinTermsSrc Parser.Intrinsic]
                                      mempty)
   addDefsToCodebase c uf
-  putRootBranch c (Branch.one Branch.empty0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.

@@ -4,10 +4,12 @@
 
 module Unison.Test.Ucm
   ( initCodebase,
+    deleteCodebase,
     runTranscript,
     upgradeCodebase,
     CodebaseFormat (..),
     Runtime (..),
+    Transcript (..),
   )
 where
 
@@ -24,6 +26,8 @@ import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (IsString, Text, traceM)
 import qualified Unison.Util.Pretty as P
 import U.Util.Text (stripMargin)
+import System.Directory (removeDirectoryRecursive)
+import qualified Unison.Codebase as Codebase
 
 data Runtime = Runtime1 | Runtime2
 
@@ -32,7 +36,7 @@ data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 
 newtype Transcript = Transcript {unTranscript :: Text}
-  deriving (IsString, Show) via Text
+  deriving (IsString, Show, Semigroup) via Text
 
 type TranscriptOutput = String
 
@@ -49,6 +53,9 @@ initCodebase fmt = do
     Left e -> fail $ P.toANSI 80 e
     Right {} -> pure ()
   pure $ Codebase tmp fmt
+
+deleteCodebase :: Codebase -> IO ()
+deleteCodebase (Codebase path _) = removeDirectoryRecursive path
 
 upgradeCodebase :: Codebase -> IO Codebase
 upgradeCodebase = \case
@@ -71,6 +78,7 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
     Codebase.Init.openCodebase cbInit codebasePath >>= \case
       Left e -> fail $ P.toANSI 80 e
       Right x -> pure x
+  Codebase.installUcmDependencies codebase
   -- parse and run the transcript
   output <-
     flip (either err) (TR.parse "transcript" (stripMargin $ unTranscript transcript)) $ \stanzas ->

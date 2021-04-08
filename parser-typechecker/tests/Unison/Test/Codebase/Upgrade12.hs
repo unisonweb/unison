@@ -4,11 +4,11 @@
 
 module Unison.Test.Codebase.Upgrade12 (test) where
 
+import Data.Functor (void)
 import Data.String.Here.Interpolated (i)
-import EasyTest (Test, scope, tests, io, ok)
+import EasyTest (Test, io, ok, scope, tests)
 import Shellmet ()
 import qualified Unison.Test.Ucm as Ucm
-import Data.Functor (void)
 
 test :: Test ()
 test = scope "codebase.upgrade12" $
@@ -21,15 +21,17 @@ typeAlias = scope "typeAlias" do
     Ucm.runTranscript c1 Ucm.Runtime1 [i|
         ```ucm
         .> alias.type ##Nat builtin.Nat
+        .> history
+        .> history builtin
         ```
       |]
     c2 <- Ucm.upgradeCodebase c1
     Ucm.runTranscript c2 Ucm.Runtime1 [i|
-      ```unison
-      x : Nat
-      x = 3
-      ```
-    |]
+        ```unison
+        x : Nat
+        x = 3
+        ```
+      |]
   ok
 
 topLevelTerm :: Test ()
