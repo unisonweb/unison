@@ -188,14 +188,13 @@ renderTypeError e env src = case e of
           <> " has to be"
 
   ExistentialMismatch {..} -> mconcat
-    [ Pr.wrap $ mconcat
-        [ preamble
-        , " "
-        , "Here, one is "
-        , style Type1 (renderType' env expectedType)
-        , " and another is "
-        , style Type2 (renderType' env foundType)
-        , ":"]
+    [ Pr.lines
+        [ Pr.wrap preamble
+        , ""
+        , "Here, one   is:  " <> style Type1 (renderType' env expectedType)
+        , "and another is:  " <> style Type2 (renderType' env foundType)
+        , ""
+        ]
     , Pr.lineSkip
     , showSourceMaybes src [mismatchSiteS, expectedLocS]
     , fromOverHere' src
@@ -255,13 +254,12 @@ renderTypeError e env src = case e of
          solvedVars' = filter showVar solvedVars
        in
          mconcat [ Pr.lines
-           [ Pr.wrap $
-              "The " <> ordinal argNum <> " argument to the function " <>
-              Pr.backticked (style ErrorSite (renderTerm env f)) <> "has type"
-           , ""
-           , style Type2 (renderType' env foundType)
-           , "\n    but I was expecting\n"
-           , style Type1 (renderType' env expectedType)
+           [  Pr.wrap $
+                "The " <> ordinal argNum <> " argument to " <>
+                Pr.backticked (style ErrorSite (renderTerm env f)),
+              "",
+              "          has type:  " <> style Type2 (renderType' env foundType),
+              "    but I expected:  " <> style Type1 (renderType' env expectedType)
            , ""
            , showSourceMaybes src
              [ (, Type1) <$> rangeForAnnotated expectedType
@@ -326,11 +324,10 @@ renderTypeError e env src = case e of
            , debugSummary note
            ]
   Mismatch {..} -> mconcat
-    [ "I found a value of type "
-    , style Type1 (renderType' env foundLeaf)
-    , " where I expected to find one of type "
-    , style Type2 (renderType' env expectedLeaf)
-    , ":\n\n"
+    [ Pr.lines [
+        "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
+        "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf) ]
+    , "\n\n"
     , showSourceMaybes
       src
       [ -- these are overwriting the colored ranges for some reason?
