@@ -153,6 +153,9 @@ stanza = watchExpression <|> unexpectedAction <|> binding
 
   -- binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
   binding = do
+    -- this logic converts
+    --   {{ A doc }}  to   foo.doc = {{ A doc }}
+    --   foo = 42          foo = 42
     doc <- P.optional (TermParser.doc2Block <* semi)
     binding@((_,v), _) <- TermParser.binding
     pure $ case doc of

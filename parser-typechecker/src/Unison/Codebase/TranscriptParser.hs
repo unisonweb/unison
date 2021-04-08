@@ -227,6 +227,12 @@ run newRt dir configFile stanzas codebase branchCache = do
           Just uf ->
             return (LoadSuccess uf)
           Nothing ->
+            -- This lets transcripts use the `load` command, as in:
+            --
+            -- .> load someFile.u
+            --
+            -- Important for Unison syntax that can't be embedded in
+            -- transcripts (like docs, which use ``` in their syntax).
             let f = LoadSuccess <$> readUtf8 (Text.unpack name)
             in f <|> pure InvalidSourceNameError
 
