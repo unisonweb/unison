@@ -1,12 +1,7 @@
 module U.Util.String where
 
-import Data.Maybe (fromMaybe)
-import Safe.Foldable (minimumMay)
+import qualified Data.Text as Text
+import qualified U.Util.Text as Text
 
 stripMargin :: String -> String
-stripMargin str =
-  let stripLen =
-        fromMaybe 0 . minimumMay
-          . map (length . fst . span (== ' '))
-          $ lines str
-   in unlines . map (drop stripLen) $ lines str
+stripMargin = Text.unpack . Text.stripMargin . Text.pack

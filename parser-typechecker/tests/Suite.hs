@@ -69,7 +69,7 @@ test rt = tests
   , Typechecker.test
   , UriParser.test
   , Context.test
-  -- , Git.test
+  , Git.test
   , Upgrade12.test
   , GitSimple.test
   , TestIO.test

@@ -23,6 +23,7 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (IsString, Text, traceM)
 import qualified Unison.Util.Pretty as P
+import U.Util.Text (stripMargin)
 
 data Runtime = Runtime1 | Runtime2
 
@@ -31,10 +32,10 @@ data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 
 newtype Transcript = Transcript {unTranscript :: Text}
-  deriving Show
-  deriving (IsString) via Text
+  deriving (IsString, Show) via Text
 
 type TranscriptOutput = String
+
 debugTranscriptOutput :: Bool
 debugTranscriptOutput = False
 
@@ -58,7 +59,6 @@ upgradeCodebase = \case
 
 runTranscript :: Codebase -> Runtime -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) rt transcript = do
-  traceM $ show transcript
   -- this configFile ought to be optional
   configFile <- do
     tmpDir <-
@@ -73,7 +73,7 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
       Right x -> pure x
   -- parse and run the transcript
   output <-
-    flip (either err) (TR.parse "transcript" ({-stripMargin $-} unTranscript transcript)) $ \stanzas ->
+    flip (either err) (TR.parse "transcript" (stripMargin $ unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
         TR.run
           (case rt of Runtime1 -> Just False; Runtime2 -> Just True)

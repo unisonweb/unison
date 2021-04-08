@@ -1,13 +1,14 @@
 {-# Language OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
 
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Test.Git where
 
 import EasyTest
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
 import qualified Data.Sequence as Seq
-import Data.String.Here (iTrim)
+import Data.String.Here (i)
 import Unison.Prelude
 import qualified Data.Text as Text
 import qualified System.IO.Temp as Temp
@@ -57,20 +58,20 @@ syncComplete = scope "syncComplete" $ do
 
   (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```unison
-pushComplete.a.x = 3
-pushComplete.b.c.y = x + 1
-```
-```ucm
-.> add
-.> history pushComplete.b
-```
-|]
+  runTranscript_ tmp codebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```unison
+    pushComplete.a.x = 3
+    pushComplete.b.c.y = x + 1
+    ```
+    ```ucm
+    .> add
+    .> history pushComplete.b
+    ```
+    |]
 
   -- sync pushComplete.b to targetDir
   -- observe that pushComplete.b.c and x exist
@@ -118,7 +119,7 @@ syncTestResults = scope "syncTestResults" $ do
   targetDir <- io $ Temp.createTempDirectory tmp "target"
   (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase [iTrim|
+  runTranscript_ tmp codebase [i|
 ```ucm
 .> builtins.merge
 ```
@@ -181,26 +182,26 @@ testPull = scope "pull" $ do
   io $ "git" ["init", "--bare", "--initial-branch=master", Text.pack repo]
 
   -- run author/push transcript
-  runTranscript_ tmp authorCodebase [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```unison
-unique type outside.A = A Nat
-unique type outside.B = B Nat Nat
-outside.c = 3
-outside.d = 4
+  runTranscript_ tmp authorCodebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```unison
+    unique type outside.A = A Nat
+    unique type outside.B = B Nat Nat
+    outside.c = 3
+    outside.d = 4
 
-unique type inside.X = X outside.A
-inside.y = c + c
-```
-```ucm
-.myLib> debug.file
-.myLib> add
-.myLib> push ${repo}
-```
-|]
+    unique type inside.X = X outside.A
+    inside.y = c + c
+    ```
+    ```ucm
+    .myLib> debug.file
+    .myLib> add
+    .myLib> push ${repo}
+    ```
+  |]
 
   -- check out the resulting repo so we can inspect it
   io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
@@ -210,14 +211,14 @@ inside.y = c + c
       scope (makeTitle path) $ io (doesFileExist $ tmp </> "repo" </> path) >>= expect
 
   -- run user/pull transcript
-  runTranscript_ tmp userCodebase [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```ucm
-.yourLib> pull ${repo}:.inside
-```
+  runTranscript_ tmp userCodebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```ucm
+    .yourLib> pull ${repo}:.inside
+    ```
   |]
 
   -- inspect user codebase
@@ -302,7 +303,7 @@ initCodebase tmpDir name = do
 
 -- run a transcript on an existing codebase
 runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m ()
-runTranscript_ tmpDir c transcript = do
+runTranscript_ tmpDir c (stripMargin -> transcript) = do
   let configFile = tmpDir </> ".unisonConfig"
   -- transcript runner wants a "current directory" for I guess writing scratch files?
   let cwd = tmpDir </> "cwd"
@@ -356,7 +357,7 @@ testPush = scope "push" $ do
     removeDirectoryRecursive tmp
 
   where
-  setupTranscript = stripMargin [iTrim|
+  setupTranscript = [i|
     ```ucm
     .> builtins.merge
     ```
@@ -395,7 +396,7 @@ testPush = scope "push" $ do
     ```
   |]
 
-  pushTranscript repo = stripMargin [iTrim|
+  pushTranscript repo = [i|
     ```ucm
     .foo.inside> push ${repo}
     ```
