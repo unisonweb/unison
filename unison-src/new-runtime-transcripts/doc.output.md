@@ -427,7 +427,10 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
     
     {{ docTooltip {{ Hover over me }} {{ Extra detail }} }}
     
-    {{ docWord "todo" }}
+    {{
+    docTable
+      [ [{{ a }}, {{ b }}, {{ c }}],
+        [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
     }}
 
 .> display otherElements
@@ -463,6 +466,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
   
   Hover over me
   
-  todo
+  a           b           c
+  Some text   More text   Zounds!
 
 ```

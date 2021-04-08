@@ -6,7 +6,6 @@ module Unison.CommandLine.DisplayValues where
 
 import Unison.Prelude
 
-import Data.Foldable (foldrM)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
@@ -94,10 +93,10 @@ displayPretty pped terms typeOf eval types tm = go tm
       pure $ initial <> P.indentAfterNewline afterNl p
     DD.PrettyAppend _ ps -> mconcat . toList <$> traverse go ps
     DD.PrettyTable _ rows ->
-      let f :: Term v () -> [[Pretty]] -> m [[Pretty]]
-          f (Term.List' (toList -> row)) rows = (:) <$> traverse go row <*> pure rows
-          f _row rows = pure rows
-      in  P.table <$> foldrM f [] rows
+      P.group . P.table <$> traverse goRow (toList rows)
+      where
+        goRow (Term.List' row) = traverse go (toList row)
+        goRow _ = pure []
     tm -> displayTerm pped terms typeOf eval types tm
 
   goSrc es = do

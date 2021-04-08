@@ -159,10 +159,10 @@ This is an aside.{{ docAside {{ Some extra detail that doesn't belong in main te
 
 {{ docTooltip {{Hover over me}} {{Extra detail}} }} 
 
-{{ docWord "todo"
---  docTable 
---    [ [{{a}}, {{b}}, {{c}}]
---    , [{{Some text}}, {{More text}}, {{ {sqr} }}] ] 
+{{ 
+  docTable 
+    [ [{{a}}, {{b}}, {{c}}]
+    , [{{Some text}}, {{More text}}, {{ Zounds! }}] ] 
 }} 
 
 }}

@@ -191,7 +191,7 @@ pattern PrettyLit ann tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((=
 pattern PrettyWrap ann tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyWrapId -> True)) [ann, tm]
 pattern PrettyIndent ann i0 i1 tm <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyIndentId -> True)) [ann, i0, i1, tm]
 pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyOrElseId -> True)) [ann, p1, p2]
-pattern PrettyTable ann rows <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyOrElseId -> True)) [ann, Term.List' rows]
+pattern PrettyTable ann rows <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyTableId -> True)) [ann, Term.List' rows]
 pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' PrettyAnnotatedRef ((==) prettyAppendId -> True)) [ann, Term.List' tms]
 
 pattern PrettyRef <- ((== prettyRef) -> True)
