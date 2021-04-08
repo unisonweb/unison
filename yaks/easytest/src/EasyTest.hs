@@ -9,6 +9,8 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
+import Control.Monad.Catch (MonadCatch, MonadThrow(throwM))
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
@@ -403,6 +405,13 @@ instance Monad Test where
 
 instance MonadFail Test where
   fail = crash
+
+instance MonadThrow Test where
+  throwM = Test . throwM
+
+instance MonadCatch Test where
+  catch (Test m) f =
+    Test $ Catch.catch m (\e -> case f e of Test m' -> m')
 
 instance Functor Test where
   fmap = liftM
