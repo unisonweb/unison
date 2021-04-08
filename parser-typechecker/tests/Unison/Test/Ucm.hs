@@ -11,7 +11,6 @@ module Unison.Test.Ucm
   )
 where
 
-import Control.Monad.Catch (MonadCatch)
 import qualified Data.Text as Text
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
@@ -35,42 +34,40 @@ newtype Transcript = Transcript {unTranscript :: Text} deriving (IsString) via T
 
 type TranscriptOutput = String
 
-initCodebase :: (MonadIO m, MonadCatch m) => CodebaseFormat -> m Codebase
+initCodebase :: CodebaseFormat -> IO Codebase
 initCodebase fmt = do
   let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
   tmp <-
-    liftIO $
-      Temp.getCanonicalTemporaryDirectory
-        >>= flip Temp.createTempDirectory ("ucm-test")
+    Temp.getCanonicalTemporaryDirectory
+      >>= flip Temp.createTempDirectory ("ucm-test")
   Codebase.Init.createCodebase cbInit tmp >>= \case
-    Left e -> error $ P.toANSI 80 e
+    Left e -> fail $ P.toANSI 80 e
     Right {} -> pure ()
   pure $ Codebase tmp fmt
 
-upgradeCodebase :: (MonadIO m, MonadCatch m) => Codebase -> m Codebase
+upgradeCodebase :: Codebase -> IO Codebase
 upgradeCodebase = \case
-  c@(Codebase _ CodebaseFormat2) -> error $ show c ++ " already in V2 format."
+  c@(Codebase _ CodebaseFormat2) -> fail $ show c ++ " already in V2 format."
   Codebase path CodebaseFormat1 -> do
     Upgrade12.upgradeCodebase path
     pure $ Codebase path CodebaseFormat2
 
-runTranscript :: (Monad m, MonadIO m, MonadCatch m) => Codebase -> Runtime -> Transcript -> m TranscriptOutput
+runTranscript :: Codebase -> Runtime -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) rt transcript = do
   -- this configFile ought to be optional
   configFile <- do
     tmpDir <-
-      liftIO $
-        Temp.getCanonicalTemporaryDirectory
-          >>= flip Temp.createTempDirectory ("ucm-test")
+      Temp.getCanonicalTemporaryDirectory
+        >>= flip Temp.createTempDirectory ("ucm-test")
     pure $ tmpDir </> ".unisonConfig"
-  let err err = error $ "Parse error: \n" <> show err
+  let err err = fail $ "Parse error: \n" <> show err
       cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
-  (cleanup, codebase) <-
-    liftIO (Codebase.Init.createCodebase cbInit codebasePath) >>= \case
-      Left e -> error $ P.toANSI 80 e
+  (closeCodebase, codebase) <-
+    Codebase.Init.openCodebase cbInit codebasePath >>= \case
+      Left e -> fail $ P.toANSI 80 e
       Right x -> pure x
   -- parse and run the transcript
-  output <- liftIO $
+  output <-
     flip (either err) (TR.parse "transcript" (stripMargin $ unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
         TR.run
@@ -79,5 +76,5 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
           configFile
           stanzas
           codebase
-  liftIO cleanup
+  closeCodebase
   pure output

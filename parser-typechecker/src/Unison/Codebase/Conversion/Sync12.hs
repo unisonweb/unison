@@ -65,6 +65,7 @@ import qualified Unison.Type as Type
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
+import Data.Functor (($>))
 
 data Env m a = Env
   { srcCodebase :: Codebase m Symbol a,
@@ -138,9 +139,9 @@ trySync ::
 trySync t _gc e = do
   Env _ dest _ <- Reader.ask
   case e of
-    C h mc ->
-      (t $ Codebase.branchExists dest h) >>= \case
-        True -> pure Sync.PreviouslyDone
+    C h mc -> do
+      t (Codebase.branchExists dest h) >>= \case
+        True -> setBranchStatus h BranchOk $> Sync.PreviouslyDone
         False -> do
           c <- t mc
           runValidateT @_ @n (repairBranch c) >>= \case
@@ -370,16 +371,16 @@ filterBranchTermStar :: (S m n, V m n) => Metadata.Star Referent NameSegment -> 
 filterBranchTermStar (Star3 _refs names _mdType md) = do
   names' <- filterTermNames names
   let refs' = Relation.dom names'
-  let mdType' = error "Can I get away with not populating the mdType column?"
   mdTypeValues' <- filterMetadata $ Relation.restrictDom refs' md
+  let mdType' = Relation.mapRan fst mdTypeValues'
   pure $ Star3 refs' names' mdType' mdTypeValues'
 
 filterBranchTypeStar :: (S m n, V m n) => Metadata.Star Reference.Reference NameSegment -> n (Metadata.Star Reference.Reference NameSegment)
 filterBranchTypeStar (Star3 _refs names _mdType md) = do
   names' <- filterTypeNames names
   let refs' = Relation.dom names'
-  let mdType' = error "Can I get away with not populating the mdType column?"
   mdTypeValues' <- filterMetadata $ Relation.restrictDom refs' md
+  let mdType' = Relation.mapRan fst mdTypeValues'
   pure $ Star3 refs' names mdType' mdTypeValues'
 
 filterMetadata :: (S m n, V m n, Ord r) => Relation r (Metadata.Type, Metadata.Value) -> n (Relation r (Metadata.Type, Metadata.Value))
@@ -568,7 +569,7 @@ instance Ord (Entity m) where
 data BranchStatus'
   = BranchOk'
   | BranchReplaced' Branch.Hash
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 toBranchStatus' :: BranchStatus m -> BranchStatus'
 toBranchStatus' = \case
@@ -580,3 +581,6 @@ instance Eq (BranchStatus m) where
 
 instance Ord (BranchStatus m) where
   x `compare` y = toBranchStatus' x `compare` toBranchStatus' y
+
+instance Show (BranchStatus m) where
+  show = show . toBranchStatus'

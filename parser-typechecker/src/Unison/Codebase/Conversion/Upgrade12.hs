@@ -29,6 +29,8 @@ upgradeCodebase root = do
   either (liftIO . CT.putPrettyLn) pure =<< runExceptT do
     (cleanupSrc, srcCB) <- ExceptT $ Codebase.openCodebase FC.init root
     (cleanupDest, destCB) <- ExceptT $ Codebase.createCodebase SC.init root
+    -- todo: not have to propagate this stuff, because ucm knows about it intrinsically?
+    lift $ Codebase.installUcmDependencies destCB
     destDB <- SC.unsafeGetConnection root
     let env = Sync12.Env srcCB destCB destDB
     let initialState = (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)
@@ -42,6 +44,10 @@ upgradeCodebase root = do
         (Sync.transformSync (lensStateT Lens._3) sync)
         Sync12.simpleProgress
         [rootEntity]
+    case rootEntity of
+      Sync12.C _h mc -> lift $ Codebase.putRootBranch destCB =<< Branch <$> mc
+      _ -> error "The root wasn't a causal?"
+
     lift cleanupSrc
     lift cleanupDest
     pure ()
