@@ -553,7 +553,7 @@ simpleProgress = Sync.Progress need done error allDone
               Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
             ]
-      liftIO . putStr $ "\rSynced " ++ List.intercalate "," (catMaybes ways)
+      liftIO . putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways)
 
 
 instance Show (Entity m) where
