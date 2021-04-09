@@ -63,7 +63,7 @@ instance ToParam (QueryParam "relativeTo" HashQualifiedName) where
   toParam _ = DocQueryParam
     "relativeTo"
     [".", ".base", "foo.bar"]
-    ("The namespace relative to which the `names` parameter is to be resolved. "
+    ("The namespace relative to which names will be resolved and displayed. "
     <> "If left absent, the root namespace will be used."
     )
     Normal
