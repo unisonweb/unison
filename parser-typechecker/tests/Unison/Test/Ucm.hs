@@ -9,25 +9,26 @@ module Unison.Test.Ucm
     upgradeCodebase,
     CodebaseFormat (..),
     Runtime (..),
-    Transcript (..),
+    Transcript,
+    unTranscript,
   )
 where
 
 import Control.Monad (when)
 import qualified Data.Text as Text
+import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
+import U.Util.String (stripMargin)
 import Unison.Codebase (CodebasePath)
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
-import Unison.Prelude (IsString, Text, traceM)
+import Unison.Prelude (traceM)
 import qualified Unison.Util.Pretty as P
-import U.Util.Text (stripMargin)
-import System.Directory (removeDirectoryRecursive)
-import qualified Unison.Codebase as Codebase
 
 data Runtime = Runtime1 | Runtime2
 
@@ -35,8 +36,11 @@ data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 
-newtype Transcript = Transcript {unTranscript :: Text}
-  deriving (IsString, Show, Semigroup) via Text
+-- newtype Transcript = Transcript {unTranscript :: Text}
+--   deriving (IsString, Show, Semigroup) via Text
+type Transcript = String
+unTranscript :: a -> a
+unTranscript = id
 
 type TranscriptOutput = String
 
@@ -81,7 +85,7 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
   Codebase.installUcmDependencies codebase
   -- parse and run the transcript
   output <-
-    flip (either err) (TR.parse "transcript" (stripMargin $ unTranscript transcript)) $ \stanzas ->
+    flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
         TR.run
           (case rt of Runtime1 -> Just False; Runtime2 -> Just True)
