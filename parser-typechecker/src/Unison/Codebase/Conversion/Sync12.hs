@@ -67,6 +67,8 @@ import qualified Unison.Type as Type
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
+import System.IO (stdout)
+import System.IO.Extra (hFlush)
 
 debug :: Bool
 debug = False
@@ -553,7 +555,9 @@ simpleProgress = Sync.Progress need done error allDone
               Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
             ]
-      liftIO . putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways)
+      liftIO do
+        putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways)
+        hFlush stdout
 
 
 instance Show (Entity m) where
