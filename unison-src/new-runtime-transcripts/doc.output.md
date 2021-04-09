@@ -492,7 +492,7 @@ and the rendered output using `display`:
   Some text   More text   Zounds!
 
 ```
-Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`:
+Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
 ```ucm
 .> view doc.guide
@@ -512,6 +512,180 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       {{ nonUnisonCodeBlocks }}
       
       {{ otherElements }} }}
+
+.> display doc.guide
+
+  # Unison computable documentation
+  
+    # Basic formatting
+    
+      Paragraphs are separated by one or more blanklines.
+      Sections have a title and 0 or more paragraphs or other
+      section elements.
+    
+      Text can be bold, *italicized*, ~~strikethrough~~, or
+      `monospaced`.
+    
+      You can link to Unison terms, types, and external URLs:
+    
+      * An external url
+      * Some is a term link; Optional is a type link
+      * A named type link and a named term link. Term links are
+        handy for linking to other documents!
+    
+      You can use `{{ .. }}` to escape out to regular Unison
+      syntax, for instance __not bold__. This is useful for
+      creating documents programmatically or just including
+      other documents.
+    
+      *Next up:* lists
+  
+    # Lists
+    
+      # Bulleted lists
+      
+        Bulleted lists can use `+`, `-`, or `*` for the bullets
+        (though the choice will be normalized away by the
+        pretty-printer). They can be nested, to any depth:
+      
+        * A
+        * B
+        * C
+          * C1
+          * C2
+    
+      # Numbered lists
+      
+        1. A
+        2. B
+        3. C
+      
+        The first number of the list determines the starting
+        number in the rendered output. The other numbers are
+        ignored:
+      
+        10. A
+        11. B
+        12. C
+      
+        Numbered lists can be nested as well, and combined with
+        bulleted lists:
+      
+        1. Wake up.
+           * What am I doing here?
+           * In this nested list.
+        2. Take shower.
+        3. Get dressed.
+  
+    # Evaluation
+    
+      Expressions can be evaluated inline, for instance `2`.
+    
+      Blocks of code can be evaluated as well, for instance:
+    
+          id x = x
+          id (sqr 10)
+          ⧨
+          100
+  
+    # Including Unison source code
+    
+      Unison definitions can be included in docs. For instance:
+    
+          type Optional a = None | Some a
+          
+          sqr x =
+            use Nat *
+            x * x
+    
+      Some rendering targets also support folded source:
+    
+          type Optional a = None | Some a
+          
+          sqr x =
+            use Nat *
+            x * x
+    
+      You can also include just a signature, inline, with
+      `sqr : Nat -> Nat`, or you can include one or more
+      signatures as a block:
+    
+          sqr : Nat -> Nat
+      
+          Nat.+ : Nat -> Nat -> Nat
+    
+      # Inline snippets
+      
+        You can include typechecked code snippets inline, for
+        instance:
+      
+        * `f x Nat.+ sqr 1` - the `2` says to ignore the first
+          two arguments when rendering. In richer renderers, the
+          `sqr` link will be clickable.
+        * If your snippet expression is just a single function
+          application, you can put it in double backticks, like
+          so: `sqr x`. This is equivalent to `sqr x`.
+  
+    # Non-Unison code blocks
+    
+      Use three or more single quotes to start a block with no
+      syntax highlighting:
+    
+      ``` raw
+         _____     _             
+        |  |  |___|_|___ ___ ___ 
+        |  |  |   | |_ -| . |   |
+        |_____|_|_|_|___|___|_|_|
+        
+      ```
+    
+      You can use three or more backticks plus a language name
+      for blocks with syntax highlighting:
+    
+      ``` Haskell
+      -- A fenced code block which isn't parsed by Unison
+      reverse = foldl (flip (:)) []
+      ```
+    
+      ``` Scala
+      // A fenced code block which isn't parsed by Unison
+      def reverse[A](xs: List[A]) = 
+        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+      ```
+  
+    There are also asides, callouts, tables, tooltips, and more.
+    These don't currently have special syntax; just use the
+    `{{ }}` syntax to call these functions directly.
+    
+        docAside : Doc2 -> Doc2
+    
+        docCallout : Optional Doc2 -> Doc2 -> Doc2
+    
+        docBlockquote : Doc2 -> Doc2
+    
+        docTooltip : Doc2 -> Doc2 -> Doc2
+    
+        docTable : [[Doc2]] -> Doc2
+    
+    This is an aside. (
+    Some extra detail that doesn't belong in main text. )
+    
+      | This is an important callout, with no icon.
+    
+      | 🌻
+      | 
+      | This is an important callout, with an icon. The text
+      | wraps onto multiple lines.
+    
+    > "And what is the use of a book," thought Alice, "without
+    > pictures or conversation?"
+    > 
+    > *Lewis Carroll, Alice's Adventures in Wonderland*
+    
+    Hover over me
+    
+    a           b           c
+    Some text   More text   Zounds!
 
 ```
 🌻 THE END

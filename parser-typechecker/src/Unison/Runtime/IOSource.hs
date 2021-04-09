@@ -963,7 +963,7 @@ syntax.docFormatConsole d =
     BulletedList ds ->
       item d = Pretty.indent' (lit "* ") (lit "  ") (go d)
       items = List.map item ds
-      Pretty.sepBy nl items
+      Pretty.group (Pretty.sepBy nl items)
     NumberedList n ds ->
       dot = ". "
       w = Text.size (Nat.toText (n + List.size ds)) + size dot
@@ -973,12 +973,15 @@ syntax.docFormatConsole d =
       item n d = Pretty.indent' (num n) indent (go d)
       items n acc = cases [] -> acc
                           d +: ds -> items (n+1) (acc :+ item n d) ds
-      Pretty.sepBy nl (items n [] ds)
+      Pretty.group (Pretty.sepBy nl (items n [] ds))
     Section title ds ->
-      t = Pretty.indent' (lit "# ") (lit "  ") (go (Doc2.Bold title))
-      subs = List.map (d -> Pretty.indent (lit "  ") (go d)) ds
-      Pretty.sepBy (nl <> nl) (t +: subs)
-    UntitledSection ds -> Pretty.sepBy (nl <> nl) (List.map go ds)
+      ggo d = Pretty.group (go d)
+      t = Pretty.indent' (lit "# ") (lit "  ") (ggo (Doc2.Bold title))
+      subs = List.map (d -> Pretty.indent (lit "  ") (ggo d)) ds
+      Pretty.group (Pretty.sepBy (nl <> nl) (t +: subs))
+    UntitledSection ds ->
+      ggo d = Pretty.group (go d)
+      Pretty.group (Pretty.sepBy (nl <> nl) (List.map ggo ds))
     Join ds -> Pretty.join (List.map go ds)
     Column ds -> Pretty.sepBy nl (List.map go ds)
     Group d -> Pretty.group (go d)

@@ -75,10 +75,11 @@ and the rendered output using `display`:
 .> display otherElements
 ```
 
-Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`:
+Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
 ```ucm
 .> view doc.guide
+.> display doc.guide
 ```
 
 🌻 THE END
