@@ -24,6 +24,7 @@ type CodebasePath = FilePath
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: String -> FilePath
 encodeFileName = let
+  go ('.' : rem) = "$dot$" <> go rem
   go ('$' : rem) = "$$" <> go rem
   go (c : rem) | elem @[] c "/\\:*?\"<>|" || not (Char.isPrint c && Char.isAscii c)
                  = "$x" <> encodeHex [c] <> "$" <> go rem
@@ -32,10 +33,7 @@ encodeFileName = let
   encodeHex :: String -> String
   encodeHex = Text.unpack . Text.toUpper . ByteString.encodeBase16 .
               encodeUtf8 . Text.pack
-  in \case
-    "." -> "$dot$"
-    ".." -> "$dotdot$"
-    t -> go t
+  in go
 
 tempGitDir :: MonadIO m => Text -> m FilePath
 tempGitDir url =
