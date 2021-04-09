@@ -1084,9 +1084,13 @@ loop = do
           lift case out of
             [] -> codebaseByName
             [(_name, ref, _tm)] -> do
-              let names = basicPrettyPrintNames0
-              doDisplay ConsoleLocation (Names3.Names names mempty)
-                                        (Term.ref() ref)
+              len <- eval BranchHashLength
+              let names = Names3.Names basicPrettyPrintNames0 mempty
+              let tm = Term.ref External ref
+              tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+              case tm of
+                Left e -> respond (EvaluationFailure e)
+                Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
             out -> do
               numberedArgs .= fmap (HQ.toString . view _1) out
               respond $ ListOfLinks ppe out

@@ -163,7 +163,22 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
 ```ucm
 .> docs builtin.List.take
 
-  docs.List.take
+  `builtin.List.take n xs` returns the first `n` elements of `xs`.
+  (No need to add line breaks manually. The display command will
+  do wrapping of text for you.  Indent any lines where you don't
+  want it to do this.)
+  
+  ## Examples:
+  
+    List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+    🔽
+    ex1 = []
+  
+  
+    List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+    🔽
+    ex2 = [1, 2]
+  
 
 ```
 Note that if we view the source of the documentation, the various references are *not* expanded.
