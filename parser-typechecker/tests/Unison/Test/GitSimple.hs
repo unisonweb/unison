@@ -14,8 +14,11 @@ import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
 import Data.String.Here.Interpolated (i)
 
+-- keep it off for CI, since the random temp dirs it generates show up in the
+-- output, which causes the test output to change, and the "no change" check
+-- to fail
 writeTranscriptOutput :: Bool
-writeTranscriptOutput = True
+writeTranscriptOutput = False
 
 test :: Test ()
 test = scope "git-simple" . tests $
