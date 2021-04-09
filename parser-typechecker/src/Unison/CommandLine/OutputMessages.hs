@@ -18,7 +18,7 @@ import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Server.SearchResult' as SR'
-import Unison.Server.Backend (ShallowListEntry(..))
+import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..))
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
@@ -541,10 +541,10 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry _r hq ot _ ->
+      ShallowTermEntry (TermEntry _r hq ot _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
-      ShallowTypeEntry r hq _ ->
+      ShallowTypeEntry (TypeEntry r hq _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns _ count ->

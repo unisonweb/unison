@@ -24,7 +24,7 @@ import           Unison.Prelude
 -- TODO: Don't import backend
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.QueryResult
-import Unison.Server.Backend (ShallowListEntry(..))
+import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..))
 import qualified Unison.Codebase.MainTerm as MainTerm
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -1156,8 +1156,8 @@ loop = do
               entryToHQString :: ShallowListEntry v Ann -> String
               entryToHQString e =
                 fixup $ case e of
-                  ShallowTypeEntry _ hq _    -> HQ'.toString hq
-                  ShallowTermEntry _ hq _ _  -> HQ'.toString hq
+                  ShallowTypeEntry (TypeEntry _ hq _)    -> HQ'.toString hq
+                  ShallowTermEntry (TermEntry _ hq _ _)  -> HQ'.toString hq
                   ShallowBranchEntry ns _ _  -> NameSegment.toString ns
                   ShallowPatchEntry ns       -> NameSegment.toString ns
                where

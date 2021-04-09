@@ -24,7 +24,7 @@ import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
@@ -80,24 +80,18 @@ import Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 
-data TermTag = Doc | Test
-  deriving (Eq, Ord, Show, Generic)
-
-data TypeTag = Ability | Data
-  deriving (Eq, Ord, Show, Generic)
-
 data ShallowListEntry v a
-  = ShallowTermEntry Referent HQ'.HQSegment (Maybe (Type v a)) (Maybe TermTag)
-  | ShallowTypeEntry Reference HQ'.HQSegment TypeTag
-  -- The integer here represents the number of children
-  | ShallowBranchEntry NameSegment ShortBranchHash Int
+  = ShallowTermEntry (TermEntry v a)
+  | ShallowTypeEntry TypeEntry
+  | -- The integer here represents the number of children
+    ShallowBranchEntry NameSegment ShortBranchHash Int
   | ShallowPatchEntry NameSegment
   deriving (Eq, Ord, Show, Generic)
 
 listEntryName :: ShallowListEntry v a -> Text
 listEntryName = \case
-  ShallowTermEntry _ s _ _ -> HQ'.toText s
-  ShallowTypeEntry   _ s _ -> HQ'.toText s
+  ShallowTermEntry (TermEntry _ s _ _) -> HQ'.toText s
+  ShallowTypeEntry (TypeEntry _ s _) -> HQ'.toText s
   ShallowBranchEntry n _ _ -> NameSegment.toText n
   ShallowPatchEntry n      -> NameSegment.toText n
 
@@ -173,29 +167,30 @@ getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
 getRootBranch =
   ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
 
-data UnisonRef
-  = TypeRef UnisonHash
-  | TermRef UnisonHash
+data TermEntry v a
+  = TermEntry Referent HQ'.HQSegment (Maybe (Type v a)) (Maybe TermTag)
   deriving (Eq, Ord, Show, Generic)
 
-unisonRefToText :: UnisonRef -> Text
-unisonRefToText = \case
-  TypeRef r -> r
-  TermRef r -> r
+data TypeEntry = TypeEntry Reference HQ'.HQSegment TypeTag
+  deriving (Eq, Ord, Show, Generic)
+
+data FoundRef = FoundTermRef Referent
+              | FoundTypeRef Reference
+  deriving (Eq, Ord, Show, Generic)
 
 fuzzyFind
   :: Monad m
   => Path
   -> Branch m
   -> String
-  -> [(FZF.Alignment, UnisonName, [UnisonRef])]
+  -> [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind path branch query =
-  fmap (fmap mkRef . toList) . (over _2 Name.toText) <$> fzfNames
+  fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+    .   (over _2 Name.toText)
+    <$> fzfNames
  where
   fzfNames   = Names.fuzzyFind (words query) printNames
   printNames = basicPrettyPrintNames0 branch path
-  mkRef (Left  r) = TermRef $ Referent.toText r
-  mkRef (Right r) = TypeRef $ Reference.toText r
 
 -- List the immediate children of a namespace
 findShallow
@@ -210,6 +205,60 @@ findShallow codebase path' = do
   case mayb of
     Nothing -> pure []
     Just b  -> findShallowInBranch codebase b
+
+termListEntry
+  :: Monad m
+  => Var v
+  => Codebase m v Ann
+  -> Branch0 m
+  -> Referent
+  -> HQ'.HQSegment
+  -> Backend m (TermEntry v Ann)
+termListEntry codebase b0 r n = do
+  ot <- lift $ loadReferentType codebase r
+  -- A term is a doc if its type conforms to the `Doc` type.
+  let isDoc = case ot of
+        Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
+        Nothing -> False
+      -- A term is a test if it has a link of type `IsTest`.
+      isTest =
+        Metadata.hasMetadataWithType r (Decls.isTestRef) $ Branch._terms b0
+      tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+  pure $ TermEntry r n ot tag
+
+typeListEntry
+  :: Monad m
+  => Var v
+  => Codebase m v Ann
+  -> Reference
+  -> HQ'.HQSegment
+  -> Backend m TypeEntry
+typeListEntry codebase r n = do
+  -- The tag indicates whether the type is a data declaration or an ability.
+  tag <- case Reference.toId r of
+    Just r -> do
+      decl <- lift $ Codebase.getTypeDeclaration codebase r
+      pure $ case decl of
+        Just (Left _) -> Ability
+        _             -> Data
+    _ -> pure Data
+  pure $ TypeEntry r n tag
+
+termEntryToNamedTerm
+  :: Var v => PPE.PrettyPrintEnv -> Maybe Int -> TermEntry v a -> NamedTerm
+termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
+  { termName = HQ'.toText name
+  , termHash = Referent.toText r
+  , termType = formatType ppe (mayDefault typeWidth) <$> mayType
+  , termTag  = tag
+  }
+
+typeEntryToNamedType :: TypeEntry -> NamedType
+typeEntryToNamedType (TypeEntry r name tag) = NamedType
+  { typeName = HQ'.toText name
+  , typeHash = Reference.toText r
+  , typeTag  = tag
+  }
 
 findShallowInBranch
   :: (Monad m, Var v)
@@ -232,27 +281,10 @@ findShallowInBranch codebase b = do
         (R.size . Branch.deepTerms $ Branch.head b)
           + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
-  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) -> do
-    ot <- lift $ loadReferentType codebase r
-    -- A term is a doc if its type conforms to the `Doc` type.
-    let isDoc = case ot of
-          Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
-          Nothing -> False
-        -- A term is a test if it has a link of type `IsTest`.
-        isTest =
-          Metadata.hasMetadataWithType r (Decls.isTestRef) $ Branch._terms b0
-        tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
-    pure $ ShallowTermEntry r (hqTerm b0 ns r) ot tag
-  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0) $ \(r, ns) -> do
-    -- The tag indicates whether the type is a data declaration or an ability.
-    tag <- case Reference.toId r of
-      Just r -> do
-        decl <- lift $ Codebase.getTypeDeclaration codebase r
-        pure $ case decl of
-          Just (Left _) -> Ability
-          _             -> Data
-      _ -> pure Data
-    pure $ ShallowTypeEntry r (hqType b0 ns r) tag
+  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
+    ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
+  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0)
+    $ \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let
     branchEntries =
       [ ShallowBranchEntry ns
