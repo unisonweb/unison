@@ -24,7 +24,11 @@ d1 = {{ Hello there {{name}}! }}
 {{ An important constant, equal to @eval{ImportantConstant} }}
 ImportantConstant = 41 + 1
 
-{{ The 7 days of the week. }}
+{{
+The 7 days of the week, defined as:
+
+  @source{type DayOfWeek}
+}}
 unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 

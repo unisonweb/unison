@@ -20,7 +20,11 @@ d1 = {{ Hello there {{name}}! }}
 {{ An important constant, equal to @eval{ImportantConstant} }}
 ImportantConstant = 41 + 1
 
-{{ The 7 days of the week. }}
+{{
+The 7 days of the week, defined as:
+
+  @source{type DayOfWeek}
+}}
 unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
@@ -55,7 +59,16 @@ You can preview what docs will look like when rendered to the console using the 
 
 .> docs DayOfWeek
 
-  The 7 days of the week.
+  The 7 days of the week, defined as:
+  
+      unique type DayOfWeek
+        = Sun
+        | Mon
+        | Tue
+        | Wed
+        | Thu
+        | Fri
+        | Sat
 
 ```
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.

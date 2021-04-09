@@ -1843,6 +1843,8 @@ resolveHQToLabeledDependencies = \case
 doDisplay :: Var v => OutputLocation -> Names -> Term v () -> Action' m v ()
 doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
+  tf <- use latestTypecheckedFile
+  let (tms, typs) = maybe mempty UF.indexByReference tf
   latestFile' <- use latestFile
   let
     loc = case outputLoc of
@@ -1852,11 +1854,17 @@ doDisplay outputLoc names tm = do
     useCache = True
     evalTerm tm = fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
       Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
-    loadTerm (Reference.DerivedId r) = fmap (fmap Term.unannotate) . eval $ LoadTerm r
+    loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
+      Nothing -> fmap (fmap Term.unannotate) . eval $ LoadTerm r
+      Just (tm,_) -> pure (Just $ Term.unannotate tm)
     loadTerm _ = pure Nothing
-    loadDecl (Reference.DerivedId r) = fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
+    loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
+      Nothing -> fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
+      Just decl -> pure (Just $ DD.amap (const ()) decl)
     loadDecl _ = pure Nothing
-    loadTypeOfTerm' = fmap (fmap void) . loadTypeOfTerm
+    loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
+        | Just (_,ty) <- Map.lookup r tms = pure $ Just (void ty)
+    loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm $ r
   rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
 
