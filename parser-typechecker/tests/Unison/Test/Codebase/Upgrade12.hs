@@ -63,10 +63,17 @@ test = scope "codebase.upgrade12" $ tests [
           y = 3
           ```
           ```ucm
+          .> debug.file
           .> add
           .> link doc y
+          .> history
           ```
         |]
+        -- 8bbb doc
+        -- mps7 y
+        -- ttjf post-link
+        -- 988m pre-link
+        -- 7asf empty
       Ucm.runTranscript c1 Ucm.Runtime1 [i|
         ```ucm
         .> links y

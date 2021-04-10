@@ -458,7 +458,7 @@ getTypeReferenceForReferent r =
   FROM find_type_index
   WHERE term_referent_object_id = ?
     AND term_referent_component_index = ?
-    AND term_referent_constructor_index = ?
+    AND term_referent_constructor_index IS ?
 |]
 
 -- todo: error if no results
