@@ -503,12 +503,14 @@ type ProgressState m = (DoneCount, ErrorCount, Status m)
 simpleProgress :: MonadState (ProgressState m) n => MonadIO n => Sync.Progress n (Entity m)
 simpleProgress = Sync.Progress need done error allDone
   where
+    newlines = True
+    logEntities = True
     -- ignore need
-    -- need e = liftIO $ putStrLn $ "need " ++ show e
-    need _ = pure ()
-    done e = do
-      -- liftIO $ putStrLn $ "done " ++ show e
+    need e =
+      when logEntities $ liftIO $ putStrLn $ "need " ++ show e
 
+    done e = do
+      when logEntities $ liftIO $ putStrLn $ "done " ++ show e
       case e of
         C {} -> _1 . doneBranches += 1
         T {} -> _1 . doneTerms += 1
@@ -517,7 +519,7 @@ simpleProgress = Sync.Progress need done error allDone
       printProgress
 
     error e = do
-      -- liftIO $ putStrLn $ "error " ++ show e
+      when logEntities $ liftIO $ putStrLn $ "error " ++ show e
       case e of
         C {} -> _2 . errorBranches += 1
         T {} -> _2 . errorTerms += 1
@@ -528,7 +530,7 @@ simpleProgress = Sync.Progress need done error allDone
     allDone :: MonadState (DoneCount, ErrorCount, Status m) n => MonadIO n => n ()
     allDone = do
       Status branches terms decls patches <- Lens.use Lens._3
-      liftIO $ putStr "Finished."
+      liftIO $ putStrLn "Finished."
       Foldable.for_ (Map.toList decls) \(h, s) -> case s of
         DeclOk -> pure ()
         DeclMissing -> liftIO . putStrLn $ "I couldn't find the decl " ++ show h ++ ", so I filtered it out of the sync."
@@ -556,7 +558,7 @@ simpleProgress = Sync.Progress need done error allDone
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
             ]
       liftIO do
-        putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways)
+        putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways) ++ Monoid.whenM newlines "\n"
         hFlush stdout
 
 

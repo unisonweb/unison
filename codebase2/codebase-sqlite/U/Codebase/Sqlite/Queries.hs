@@ -94,7 +94,7 @@ noExcept a =
     Right a -> pure a
     Left e -> error $ "unexpected error: " ++ show e
 
-orError :: MonadError Integrity m => Integrity -> Maybe b -> m b
+orError :: Err m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure
 
 type TypeHashReference = Reference' TextId HashId
