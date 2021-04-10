@@ -503,8 +503,8 @@ type ProgressState m = (DoneCount, ErrorCount, Status m)
 simpleProgress :: MonadState (ProgressState m) n => MonadIO n => Sync.Progress n (Entity m)
 simpleProgress = Sync.Progress need done error allDone
   where
-    newlines = True
-    logEntities = True
+    newlines = False
+    logEntities = False
     -- ignore need
     need e =
       when logEntities $ liftIO $ putStrLn $ "need " ++ show e
