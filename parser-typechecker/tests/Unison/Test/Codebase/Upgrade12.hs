@@ -95,6 +95,7 @@ test = scope "codebase.upgrade12" $ tests [
           doc = "Nat means natural number"
           ```
           ```ucm
+          .> add
           .> alias.type ##Nat Nat
           .> link doc Nat
           ```
