@@ -66,6 +66,7 @@ test = scope "codebase.upgrade12" $ tests [
           .> debug.file
           .> add
           .> link doc y
+          .> links y
           .> history
           ```
         |]
@@ -103,7 +104,7 @@ test = scope "codebase.upgrade12" $ tests [
       c2 <- Ucm.upgradeCodebase c1
       Ucm.runTranscript c2 Ucm.Runtime1 [i|
         ```ucm
-        .> docs y
+        .> links Nat
         ```
       |]
     ok,
