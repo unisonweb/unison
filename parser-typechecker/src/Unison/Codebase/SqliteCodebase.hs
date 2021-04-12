@@ -10,7 +10,7 @@ module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsa
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, when, (>=>))
+import Control.Monad (filterM, when, (>=>), unless)
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM, (||^))
@@ -24,7 +24,7 @@ import Data.Bifunctor (Bifunctor (bimap, first), second)
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), traverse_, for_)
-import Data.Functor (void)
+import Data.Functor (void, (<&>))
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -815,6 +815,7 @@ emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right m
 syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
 syncProgress = Sync.Progress need done warn allDone
   where
+    quiet = False
     maxTrackedHashCount = 1024 * 1024
     size :: SyncProgressState -> Int
     size = \case
@@ -824,7 +825,7 @@ syncProgress = Sync.Progress need done warn allDone
 
     need, done, warn :: (MonadState SyncProgressState m, MonadIO m) => Sync22.Entity -> m ()
     need h = do
-      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
+      unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing Left {} Left {} -> pure ()
         SyncProgressState (Just need) (Right done) (Right warn) ->
@@ -835,27 +836,27 @@ syncProgress = Sync.Progress need done warn allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done) (Right warn)
         SyncProgressState _ _ _ -> undefined
-      State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
 
     done h = do
-      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
+      unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing (Left done) warn ->
           State.put $ SyncProgressState Nothing (Left (done + 1)) warn
         SyncProgressState (Just need) (Right done) warn ->
           State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done) warn
         SyncProgressState _ _ _ -> undefined
-      State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
 
     warn h = do
-      Monad.whenM (fmap (> 0) $ State.gets size) $ liftIO $ putStr "\n"
+      unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
       State.get >>= \case
         SyncProgressState Nothing done (Left warn) ->
           State.put $ SyncProgressState Nothing done (Left $ warn + 1)
         SyncProgressState (Just need) done (Right warn) ->
           State.put $ SyncProgressState (Just $ Set.delete h need) done (Right $ Set.insert h warn)
         SyncProgressState _ _ _ -> undefined
-      State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
 
     allDone =
       State.get >>= liftIO . putStr . renderState ("Done syncing ")
