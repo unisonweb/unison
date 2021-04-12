@@ -245,7 +245,7 @@ typeListEntry codebase r n = do
   pure $ TypeEntry r n tag
 
 termEntryToNamedTerm
-  :: Var v => PPE.PrettyPrintEnv -> Maybe Int -> TermEntry v a -> NamedTerm
+  :: Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
 termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
   { termName = HQ'.toText name
   , termHash = Referent.toText r
@@ -660,7 +660,7 @@ definitionsBySuffixes relativeTo branch codebase query = do
 termsToSyntax
   :: Var v
   => Ord a
-  => Int
+  => Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (Term v a))
   -> Map Reference.Reference (DisplayObject SyntaxText)
@@ -677,7 +677,7 @@ termsToSyntax width ppe0 terms =
 typesToSyntax
   :: Var v
   => Ord a
-  => Int
+  => Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (DD.Decl v a))
   -> Map Reference.Reference (DisplayObject SyntaxText)

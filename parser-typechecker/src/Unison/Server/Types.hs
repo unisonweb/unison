@@ -23,7 +23,7 @@ import           Unison.Name                    ( Name )
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash(..) )
-import           Unison.Util.Pretty             ( Width
+import           Unison.Util.Pretty             ( Width(..)
                                                 , render
                                                 )
 import           Unison.Var                     ( Var )
@@ -49,6 +49,9 @@ deriving instance ToSchema Name
 
 deriving via Text instance FromHttpApiData ShortBranchHash
 deriving instance ToParamSchema ShortBranchHash
+
+deriving via Int instance FromHttpApiData Width
+deriving instance ToParamSchema Width
 
 instance ToJSON a => ToJSON (DisplayObject a) where
    toEncoding = genericToEncoding defaultOptions

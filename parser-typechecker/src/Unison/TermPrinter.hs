@@ -39,7 +39,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
-import           Unison.Util.Pretty             ( Pretty, ColorText )
+import           Unison.Util.Pretty             ( Pretty, ColorText, Width )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.Builtin.Decls          as DD
@@ -49,7 +49,7 @@ import qualified Unison.ConstructorType as CT
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Term v a -> ColorText
+pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
   PP.render width $ PP.syntaxToColor $ pretty0 n emptyAc (printAnnotate n t)
 pretty' Nothing n t =
@@ -525,7 +525,7 @@ prettyBinding n = prettyBinding0 n $ ac (-1) Block Map.empty MaybeDoc
 
 prettyBinding'
   :: Var v
-  => Int
+  => Width
   -> PrettyPrintEnv
   -> HQ.HashQualified Name
   -> Term v a

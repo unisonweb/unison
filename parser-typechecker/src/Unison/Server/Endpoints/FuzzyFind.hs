@@ -57,8 +57,8 @@ import Unison.NameSegment
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
          :> QueryParam "relativeTo" HashQualifiedName
-         :> QueryParam "renderWidth" Width
          :> QueryParam "limit" Int
+         :> QueryParam "renderWidth" Width
          :> QueryParam "query" String
          :> Get '[JSON] [(FZF.Alignment, FoundResult)]
 
