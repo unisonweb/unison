@@ -672,41 +672,64 @@ io.bracket acquire release what = io.rethrow (io.IO.bracket_ acquire release wha
   --            x -> x
   --   handle k in c
 
+-- A newtype used when embedding term references in a Doc2
 unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Term = Term Any
 
+-- ex: Doc2.term 'List.map
 Doc2.term : 'a -> Doc2.Term
 Doc2.term a = Doc2.Term.Term (Any a)
 
 unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
+  -- @source{type Optional, List.map @ note1 note2} OR
+  -- The notes are ignored currently, but will later be used to produce
+  -- rich annotated source code with tooltips, highlights and whatnot.
   = Source [(Either Link.Type Doc2.Term, [Doc2.Term])]
-  -- like Source, but starts out folded
+  -- like Source, but the code starts out folded
   | FoldedSource [(Either Link.Type Doc2.Term, [Doc2.Term])]
   -- In `Example n expr`, `n` is the number of lambda parameters
-  -- that should be elided during display. It should always be >= 1.
-  -- Ex: `Example 3 '(x y -> foo x y)` should render as `foo x y`.
-  -- Ex: `Example 1 '(1 + 1)` should render as `42`.
+  -- that should be elided during display.
+  -- Ex: `Example 2 '(x y -> foo x y)` should render as `foo x y`.
+  -- Ex: `Example 0 '(1 + 1)` should render as `42`.
   | Example Nat Doc2.Term
+  -- {type Optional} or {List.map}
   | Link (Either Link.Type Doc2.Term)
+  -- @signatures{List.map, List.filter, List.foldLeft}
   | Signature [Doc2.Term]
+  -- @signature{List.map}
   | SignatureInline Doc2.Term
+  -- ```
+  -- id x = x
+  -- id 42 + 1
+  -- ```
   | Eval Doc2.Term
+  -- @eval{1 + 1}
   | EvalInline Doc2.Term
+  -- For extensions like a `Diagram` or `Animation` type.
+  -- Renderers will be best effort for these; not all
+  -- renderers will support all extensions
   | Embed Any
   | EmbedInline Any
 
 unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
+  -- Just raw text embedded in a doc. Will be unbroken.
   = Word Text
+  -- Inline monospace, as in ''some monospace code''.
   | Code Doc2
+  -- Block monospace with syntax highlighting.
+  -- ''' blocks are parsed as ``` raw
   | CodeBlock Text Doc2
   | Bold Doc2
   | Italic Doc2
   | Strikethrough Doc2
-  -- style "myclass" mydoc
+  -- Can be used to affect HTML rendering
   | Style Text Doc2
+  -- Create a named anchor point which can be used in links
+  -- as in HTML: <h2><a id="section1">Section 1 Title</a></h2>
   | Anchor Text Doc2
   | Blockquote Doc2
   | Blankline
   | Linebreak
+  -- For longer sections, this inserts a doodad or thingamajig
   | SectionBreak
   -- Tooltip inner tooltipContent
   | Tooltip Doc2 Doc2
@@ -717,22 +740,45 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   -- Table rows
   | Table [[Doc2]]
   -- Folded isFolded summary details
+  -- If folded, only summary is shown, otherwise
+  -- summary is followed by details. Some renderers
+  -- will present this as a toggle or clickable elipses
   | Folded Boolean Doc2 Doc2
+  -- Documents separated by spaces and wrapped to available width
   | Paragraph [Doc2]
   | BulletedList [Doc2]
+  -- NumberedList startingNumber listElements
   | NumberedList Nat [Doc2]
+  -- Section title subelements
   | Section Doc2 [Doc2]
+  -- [our website](https://unisonweb.org) or [blah]({type MyType})
   | NamedLink Doc2 Doc2
-  -- image alt text link caption
+  -- image alt-text link caption
   | Image Doc2 Doc2 (Optional Doc2)
   | Special Doc2.SpecialForm
+  -- Concatenation of docs
   | Join [Doc2]
+  -- A section with no title but otherwise laid out the same
   | UntitledSection [Doc2]
+  -- A list of documents that should start on separate lines;
+  -- this is used for nested lists, for instance
+  -- * A
+  --   * A.1
+  --   * A.2
+  -- * B
+  --   * B.1
+  --   * B.2
+  -- Is modeled as:
+  --   BulletedList [ Column [A, BulletedList [A.1, A.2]]
+  --                , Column [B, BulletedList [B.1, B.2]]
   | Column [Doc2]
-  -- Avoid inserting line breaks if possible in grouped docs
+  -- Sometimes useful in paragraph text to avoid line breaks in
+  -- awkward places
   | Group Doc2
 
 unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
+  -- See more detailed comments below on Pretty smart constructors, like
+  -- Pretty.orElse, Pretty.group, etc
   = Empty
   | Group w (Pretty.Annotated w txt)
   | Lit w txt
