@@ -188,7 +188,7 @@ isArrow _ = False
 --vectorOf :: Ord v => a -> Type v a -> Type v
 --vectorOf a t = vector `app` t
 
-ref :: Ord v => a -> Reference -> Type v a
+ref :: forall v a. Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
 refId :: Ord v => a -> Reference.Id -> Type v a

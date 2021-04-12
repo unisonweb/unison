@@ -465,7 +465,7 @@ var = ABT.annotatedVar
 var' :: Var v => Text -> Term0' vt v
 var' = var() . Var.named
 
-ref :: Ord v => a -> Reference -> Term2 vt at ap v a
+ref :: forall v a vt at ap. Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
 refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a

@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -535,66 +537,76 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
   -- We might like to make sure that the user search terms get used as
   -- the names in the pretty-printer, but the current implementation
   -- doesn't.
-  let
-    printNames = getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
-    parseNames = getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
-    ppe        = PPE.fromNamesDecl hqLength printNames
-    width      = mayDefault renderWidth
-    termFqns :: Map Reference (Set Text)
-    termFqns = Map.mapWithKey f terms
-     where
-      f k _ =
-        R.lookupRan (Referent.Ref' k)
-          . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-          . R.mapDom Name.toText
-          . Names.terms
-          $ currentNames parseNames
-    typeFqns :: Map Reference (Set Text)
-    typeFqns = Map.mapWithKey f types
-     where
-      f k _ =
-        R.lookupRan k
-          . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-          . R.mapDom Name.toText
-          . Names.types
-          $ currentNames parseNames
-    flatten = Set.toList . fromMaybe Set.empty
-    mkTermDefinition r tm = mk =<< lift (Codebase.getTypeOfTerm codebase r)
-     where
-      mk Nothing = throwError $ MissingSignatureForTerm r
-      mk (Just typeSig) =
-        pure
-          . TermDefinition
-              (flatten $ Map.lookup r termFqns)
-              ( Text.pack
-              . Pretty.render width
-              . fmap SyntaxText.toPlain
-              . TermPrinter.pretty0 @v (PPE.suffixifiedPPE ppe)
-                                       TermPrinter.emptyAc
-              $ Term.ref mempty r
-              )
-              (fmap mungeSyntaxText tm)
-          $ prettyType width ppe typeSig
-    mkTypeDefinition r tp =
-      TypeDefinition
-          (flatten $ Map.lookup r typeFqns)
-          ( Text.pack
-          . Pretty.render width
-          . fmap SyntaxText.toPlain
-          . TypePrinter.pretty0 @v (PPE.suffixifiedPPE ppe) mempty (-1)
-          $ Type.ref () r
-          )
-        $ fmap mungeSyntaxText tp
-    typeDefinitions =
-      Map.mapWithKey mkTypeDefinition $ typesToSyntax width ppe types
+  let printNames =
+        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+      parseNames =
+        getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
+      ppe   = PPE.fromNamesDecl hqLength printNames
+      width = mayDefault renderWidth
+      termFqns :: Map Reference (Set Text)
+      termFqns = Map.mapWithKey f terms
+       where
+        f k _ =
+          R.lookupRan (Referent.Ref' k)
+            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+            . R.mapDom Name.toText
+            . Names.terms
+            $ currentNames parseNames
+      typeFqns :: Map Reference (Set Text)
+      typeFqns = Map.mapWithKey f types
+       where
+        f k _ =
+          R.lookupRan k
+            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+            . R.mapDom Name.toText
+            . Names.types
+            $ currentNames parseNames
+      flatten = Set.toList . fromMaybe Set.empty
+      mkTermDefinition r tm = mk =<< lift (Codebase.getTypeOfTerm codebase r)
+       where
+        mk Nothing = throwError $ MissingSignatureForTerm r
+        mk (Just typeSig) =
+          pure
+            . TermDefinition
+                (flatten $ Map.lookup r termFqns)
+                (bestNameForTerm @v (PPE.suffixifiedPPE ppe)
+                                    width
+                                    (Referent.Ref r)
+                )
+                (fmap mungeSyntaxText tm)
+            $ prettyType width ppe typeSig
+      mkTypeDefinition r tp =
+        TypeDefinition (flatten $ Map.lookup r typeFqns)
+                       (bestNameForType @v (PPE.suffixifiedPPE ppe) width r)
+          $ fmap mungeSyntaxText tp
+      typeDefinitions =
+        Map.mapWithKey mkTypeDefinition $ typesToSyntax width ppe types
   termDefinitions <- Map.traverseWithKey mkTermDefinition
     $ termsToSyntax width ppe terms
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
       renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
-      renderedMisses = fmap HQ.toText misses
+      renderedMisses       = fmap HQ.toText misses
   pure $ DefinitionDisplayResults renderedDisplayTerms
                                   renderedDisplayTypes
                                   renderedMisses
+
+bestNameForTerm
+  :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
+bestNameForTerm ppe width =
+  Text.pack
+    . Pretty.render width
+    . fmap SyntaxText.toPlain
+    . TermPrinter.pretty0 @v ppe TermPrinter.emptyAc
+    . Term.fromReferent mempty
+
+bestNameForType
+  :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Reference -> Text
+bestNameForType ppe width =
+  Text.pack
+    . Pretty.render width
+    . fmap SyntaxText.toPlain
+    . TypePrinter.pretty0 @v ppe mempty (-1)
+    . Type.ref ()
 
 resolveBranchHash
   :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)

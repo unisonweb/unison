@@ -15,7 +15,7 @@ import qualified Unison.Test.Common as Common
 -- Check also that re-parsing the pretty-printed code gives us the same ABT.
 -- (Skip that latter check if rtt is false.)
 -- Note that this does not verify the position of the PrettyPrint Break elements.
-tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
+tc_diff_rtt :: Bool -> String -> String -> PP.Width -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_type = Common.t s
        get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
@@ -52,7 +52,7 @@ tc :: String -> Test ()
 tc s = tc_diff s s
 
 -- Use renderBroken to render the output to some maximum width.
-tc_breaks :: String -> Int -> String -> Test ()
+tc_breaks :: String -> PP.Width -> String -> Test ()
 tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()

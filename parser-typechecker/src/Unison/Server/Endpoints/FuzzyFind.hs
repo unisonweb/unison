@@ -36,14 +36,18 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.HashQualified'         as HQ'
+import qualified Unison.HashQualified          as HQ
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Server.Backend         as Backend
 import           Unison.Server.Errors           ( backendError
                                                 , badNamespace
                                                 )
-import           Unison.Server.Types            ( HashQualifiedName
+import           Unison.Server.Types            ( mayDefault
+                                                , HashQualifiedName
                                                 , NamedTerm
                                                 , NamedType
+                                                , DefinitionDisplayResults(..)
+                                                , TypeDefinition(..)
                                                 )
 import           Unison.Util.Pretty             ( Width )
 import           Unison.Var                     ( Var )
@@ -53,6 +57,10 @@ import qualified Data.Text                     as Text
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.Codebase.Branch as Branch
 import Unison.NameSegment
+import           Unison.Server.Syntax           ( SyntaxText )
+import qualified Unison.Reference              as Reference
+import qualified Data.Map                      as Map
+import Unison.Codebase.Editor.DisplayObject
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
@@ -92,9 +100,26 @@ deriving instance ToSchema FZF.Alignment
 deriving instance ToSchema FZF.Result
 deriving instance ToSchema FZF.ResultSegment
 
+data FoundTerm = FoundTerm
+  { bestTermName :: HashQualifiedName
+  , namedTerm :: NamedTerm
+  } deriving (Generic, Show)
+
+data FoundType = FoundType
+  { bestFoundTypeName :: HashQualifiedName
+  , typeDef :: DisplayObject SyntaxText
+  , namedType :: NamedType
+  } deriving (Generic, Show)
+
+instance ToJSON FoundType
+deriving instance ToSchema FoundType
+
+instance ToJSON FoundTerm
+deriving instance ToSchema FoundTerm
+
 data FoundResult
-  = FoundTerm NamedTerm
-  | FoundType NamedType
+  = FoundTermResult FoundTerm
+  | FoundTypeResult FoundType
   deriving (Generic, Show)
 
 instance ToJSON FoundResult
@@ -105,7 +130,7 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind
-  :: Var v
+  :: forall v. Var v
   => Codebase IO v Ann
   -> Maybe SBH.ShortBranchHash
   -> Maybe HashQualifiedName
@@ -122,24 +147,44 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query = do
   ea         <- liftIO . runExceptT $ do
     root   <- traverse (Backend.expandShortBranchHash codebase) mayRoot
     branch <- Backend.resolveBranchHash root codebase
- --HQ.unsafeFromText . Backend.unisonRefToText <
     let b0 = Branch.head branch
         alignments =
           take (fromMaybe 10 limit)
             . sortBy (compare `on` (Down . FZF.score . (view _1)))
             $ Backend.fuzzyFind rel branch (fromMaybe "" query)
         ppe = Backend.basicSuffixifiedNames hashLength branch rel
-    join <$> traverse (loadEntry ppe b0) alignments
+    join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
   errFromEither backendError ea
  where
-  loadEntry ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) = traverse
+  loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) = traverse
     (\case
       Backend.FoundTermRef r ->
-        (\te -> (a, FoundTerm $ Backend.termEntryToNamedTerm ppe typeWidth te))
+        (\te ->
+            ( a
+            , FoundTermResult
+              . FoundTerm (Backend.bestNameForTerm @v ppe (mayDefault typeWidth) r)
+              $ Backend.termEntryToNamedTerm ppe typeWidth te
+            )
+          )
           <$> Backend.termListEntry codebase b0 r n
-      Backend.FoundTypeRef r ->
-        (\te -> (a, FoundType $ Backend.typeEntryToNamedType te))
-          <$> Backend.typeListEntry codebase r n
+      Backend.FoundTypeRef r -> do
+        te                              <- Backend.typeListEntry codebase r n
+        DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
+          rel
+          root
+          typeWidth
+          codebase
+          [HQ.HashOnly $ Reference.toShortHash r]
+        let
+          t  = Map.lookup (Reference.toText r) ts
+          td = case t of
+            Just t -> t
+            Nothing ->
+              TypeDefinition mempty mempty
+                . MissingObject
+                $ Reference.toShortHash r
+          namedType = Backend.typeEntryToNamedType te
+        pure ( a, FoundTypeResult $ FoundType (bestTypeName td) (typeDefinition td) namedType)
     )
     refs
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p

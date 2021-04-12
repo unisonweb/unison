@@ -145,7 +145,7 @@ data DocLiteralContext
 -}
 
 pretty0
-  :: Var v
+  :: forall v. Var v
   => PrettyPrintEnv
   -> AmbientContext
   -> Term3 v PrintAnnotation
