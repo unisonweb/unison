@@ -23,7 +23,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), traverse_)
+import Data.Foldable (Foldable (toList), traverse_, for_)
 import Data.Functor (void)
 import qualified Data.List as List
 import Data.Map (Map)
@@ -119,7 +119,6 @@ createCodebaseOrError dir = do
                   $ map (Bifunctor.bimap P.string P.string) schema
            in Codebase1.CreateCodebaseOther $ prettyError schema
   Either.mapLeft convertError <$> createCodebaseOrError' dir
-  where
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
@@ -242,6 +241,11 @@ sqliteCodebase root = do
   conn <- unsafeGetConnection root
   runReaderT Q.checkForMissingSchema conn >>= \case
     [] -> do
+      --
+      rootBranchCache <- newTVarIO Nothing
+      -- The v1 codebase interface has operations to read and write individual definitions
+      -- whereas the v2 codebase writes them as complete components.  These two fields buffer
+      -- the individual definitions until a complete component has been written.
       termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
       declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
       let getTerm :: MonadIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
@@ -419,13 +423,21 @@ sqliteCodebase root = do
                     tryFlushDeclBuffer h
                 )
 
-          getRootBranch :: MonadIO m => m (Either Codebase1.GetRootBranchError (Branch m))
-          getRootBranch =
-            fmap (Either.mapLeft err)
-              . runExceptT
-              . flip runReaderT conn
-              . fmap (Branch.transform (runDB conn))
-              $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
+          getRootBranch :: MonadIO m => TVar (Maybe (Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
+          getRootBranch rootBranchCache =
+            readTVarIO rootBranchCache >>= \case
+              Nothing -> do
+                b <- fmap (Either.mapLeft err)
+                  . runExceptT
+                  . flip runReaderT conn
+                  . fmap (Branch.transform (runDB conn))
+                  $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
+                for_ b (atomically . writeTVar rootBranchCache . Just)
+                pure b
+              Just b -> do
+                -- todo: check to see if root namespace hash has been externally modified
+                -- and load it if necessary. But for now, we just return what's present in the cache.
+                pure (Right b)
             where
               err :: Ops.Error -> Codebase1.GetRootBranchError
               err = \case
@@ -438,13 +450,16 @@ sqliteCodebase root = do
                   Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
                 e -> error $ show e
 
-          putRootBranch :: MonadIO m => Branch m -> m ()
-          putRootBranch branch1 =
+          putRootBranch :: MonadIO m => TVar (Maybe (Branch m)) -> Branch m -> m ()
+          putRootBranch rootBranchCache branch1 = do
+            -- todo: check to see if root namespace hash has been externally modified
+            -- and do something (merge?) it if necessary. But for now, we just overwrite it.
             runDB conn
               . void
               . Ops.saveRootBranch
               . Cv.causalbranch1to2
               $ Branch.transform (lift . lift) branch1
+            atomically $ writeTVar rootBranchCache (Just branch1)
 
           rootBranchUpdates :: MonadIO m => m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates = pure (cleanup, liftIO newRootsDiscovered)
@@ -746,8 +761,8 @@ sqliteCodebase root = do
             getTypeDeclaration
             putTerm
             putTypeDeclaration
-            getRootBranch
-            putRootBranch
+            (getRootBranch rootBranchCache)
+            (putRootBranch rootBranchCache)
             rootBranchUpdates
             getBranchForHash
             putBranch
