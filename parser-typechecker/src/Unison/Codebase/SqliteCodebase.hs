@@ -23,7 +23,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), traverse_, for_)
+import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, (<&>))
 import qualified Data.List as List
 import Data.Map (Map)
@@ -427,11 +427,12 @@ sqliteCodebase root = do
           getRootBranch rootBranchCache =
             readTVarIO rootBranchCache >>= \case
               Nothing -> do
-                b <- fmap (Either.mapLeft err)
-                  . runExceptT
-                  . flip runReaderT conn
-                  . fmap (Branch.transform (runDB conn))
-                  $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
+                b <-
+                  fmap (Either.mapLeft err)
+                    . runExceptT
+                    . flip runReaderT conn
+                    . fmap (Branch.transform (runDB conn))
+                    $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
                 for_ b (atomically . writeTVar rootBranchCache . Just)
                 pure b
               Just b -> do
@@ -971,5 +972,5 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
                   ++ "from supplying the git treeish `"
                   ++ Text.unpack gitbranch
                   ++ "`!"
-          -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+              -- gitIn remotePath ["push", "--quiet", url, gitbranch]
           pure True
