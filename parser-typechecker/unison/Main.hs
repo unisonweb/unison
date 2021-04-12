@@ -226,19 +226,19 @@ upgradeCodebase mcodepath =
 prepareTranscriptDir :: Codebase.Init IO Symbol Ann -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir cbInit inFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
-  unless inFork $ do
-    PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    _ <- Codebase.openNewUcmCodebaseOrExit cbInit tmp
-    pure()
 
-  when inFork $ Codebase.getCodebaseOrExit cbInit mcodepath >> do
+  if inFork then
+    Codebase.getCodebaseOrExit cbInit mcodepath >> do
     path <- Codebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
       P.indentN 2 (P.string path)
       ]
     Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
-
+  else do
+    PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+    void $ Codebase.openNewUcmCodebaseOrExit cbInit tmp
+  traceM $ "Copying codebase to " ++ tmp
   pure tmp
 
 runTranscripts'

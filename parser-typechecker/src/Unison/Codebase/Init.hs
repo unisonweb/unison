@@ -27,7 +27,7 @@ data Init m v a = Init
     -- | create a new codebase
     createCodebase' :: CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
-    -- give the path to the "actual" files; e.g. what a forked transcript should clone
+    -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
 

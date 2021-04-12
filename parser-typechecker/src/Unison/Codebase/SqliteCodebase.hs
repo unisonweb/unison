@@ -101,7 +101,7 @@ debug = False
 debugProcessBranches = False
 
 init :: HasCallStack => MonadIO m => Codebase.Init m Symbol Ann
-init = Codebase.Init getCodebaseOrError createCodebaseOrError (</> codebasePath)
+init = Codebase.Init getCodebaseOrError createCodebaseOrError (</> ".unison" </> "v2")
 
 createCodebaseOrError ::
   MonadIO m =>
