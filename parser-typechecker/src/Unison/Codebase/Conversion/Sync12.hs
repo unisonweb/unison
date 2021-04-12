@@ -157,11 +157,15 @@ trySync t _gc e = do
             Left deps -> pure . Sync.Missing $ Foldable.toList deps
             Right c' -> do
               let h' = Causal.currentHash c'
-              if h == h'
-                then setBranchStatus @m @n h BranchOk
-                else setBranchStatus h (BranchReplaced h' c')
               t $ Codebase.putBranch dest (Branch.Branch c')
-              pure Sync.Done
+              if h == h'
+                then do
+                  setBranchStatus @m @n h BranchOk
+                  pure Sync.Done
+                else do
+                  setBranchStatus h (BranchReplaced h' c')
+                  pure Sync.NonFatalError
+
     T h n ->
       getTermStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
@@ -552,7 +556,7 @@ simpleProgress = Sync.Progress need done error allDone
     printProgress = do
       (DoneCount b t d p, ErrorCount b' t' d' p', _) <- State.get
       let ways :: [Maybe String] =
-            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ " errors)")),
+            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (+" ++ show b' ++ " repaired)")),
               Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " terms" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ " errors)")),
               Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
