@@ -17,11 +17,6 @@ import qualified System.Posix.Signals as Sig
 import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
-import Control.Lens (Lens', (&))
-import qualified Control.Lens as Lens
-import qualified Control.Monad.Reader as Reader
-import Control.Monad.State (StateT (StateT, runStateT))
-import qualified Control.Monad.State as State
 import Data.ByteString.Char8 (unpack)
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
@@ -36,12 +31,8 @@ import qualified System.IO.Temp as Temp
 import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
-import qualified U.Codebase.Sync as Sync
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.Conversion.Sync12 as Sync12
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
