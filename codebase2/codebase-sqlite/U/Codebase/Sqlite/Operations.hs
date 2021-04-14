@@ -14,9 +14,10 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus (mzero), join, when, (<=<))
+import Control.Monad (MonadPlus (mzero), join, when, (<=<), unless)
 import Control.Monad.Except (ExceptT, MonadError, runExceptT)
 import qualified Control.Monad.Except as Except
+import qualified Control.Monad.Extra as Monad
 import Control.Monad.State (MonadState, StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -120,7 +121,6 @@ import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 import qualified U.Util.Type as TypeUtil
-import Control.Monad.Extra (ifM)
 
 -- * Error handling
 
@@ -904,35 +904,27 @@ saveRootBranch c = do
 saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
-  -- check if we can skip the whole thing, by checking if there are causal parents for hc
-  chId <- liftQ (Q.saveCausalHash hc)
-  parentCausalHashIds <-
-    liftQ (Q.loadCausalParents chId) >>= \case
-      [] -> do
-        -- no parents means hc maybe hasn't been saved previously,
-        -- so try to save each parent (recursively) before continuing to save hc
-        for (Map.toList parents) $ \(causalHash, mcausal) -> do
-          -- check if we can short circuit the parent before loading it,
-          -- by checking if there are causal parents associated with hc
-          parentChId <- liftQ (Q.saveCausalHash causalHash)
-          -- test if the parent has been saved previously:
-          ifM (liftQ . Q.isCausalHash $ Db.unCausalHashId parentChId)
-            (pure parentChId)
-            (do mcausal >>= fmap snd . saveBranch)
-      parentCausalHashIds -> pure parentCausalHashIds
 
-  boId <-
-    liftQ (Q.loadBranchObjectIdByCausalHashId chId) >>= \case
-      Just boId -> pure boId
-      Nothing -> do
-        bhId <- liftQ (Q.saveBranchHash he)
-        (li, lBranch) <- c2lBranch =<< me
-        boId <- saveBranchObject bhId li lBranch
-        liftQ (Q.saveCausal chId bhId)
-        -- save the link between child and parents
-        liftQ (Q.saveCausalParents chId parentCausalHashIds)
-        pure boId
-
+  (chId, bhId) <- flip Monad.fromMaybeM (liftQ $ Q.loadCausalByCausalHash hc) do
+    -- if not exist, create these
+    chId <- liftQ (Q.saveCausalHash hc)
+    bhId <- liftQ (Q.saveBranchHash he)
+    liftQ (Q.saveCausal chId bhId)
+    -- save the link between child and parents
+    parentCausalHashIds <-
+      -- so try to save each parent (recursively) before continuing to save hc
+      for (Map.toList parents) $ \(parentHash, mcausal) ->
+        -- check if we can short circuit the parent before loading it,
+        -- by checking if there are causal parents associated with hc
+        (flip Monad.fromMaybeM)
+          (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
+          (mcausal >>= fmap snd . saveBranch)
+    unless (null parentCausalHashIds) $
+      liftQ (Q.saveCausalParents chId parentCausalHashIds)
+    pure (chId, bhId)
+  boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
+    (li, lBranch) <- c2lBranch =<< me
+    saveBranchObject bhId li lBranch
   pure (boId, chId)
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)

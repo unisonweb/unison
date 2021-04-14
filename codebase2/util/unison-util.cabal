@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1ac1d0a054ed3772371a8196b4e0c33ae78a59ad5bcfc0961648f71c3d137ae6
+-- hash: eb553f8d44e26dc6e4cf34d13fe54b626164d7c5c60146b417e27d6ece43c03f
 
 name:           unison-util
 version:        0.0.0
@@ -18,6 +18,7 @@ source-repository head
 
 library
   exposed-modules:
+      U.Util.Alternative
       U.Util.Base32Hex
       U.Util.Cache
       U.Util.Components

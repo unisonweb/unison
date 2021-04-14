@@ -30,7 +30,7 @@ import Data.Functor ((<&>))
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
-import Data.Maybe (fromJust, isJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
@@ -48,10 +48,11 @@ import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WatchKind
+import qualified U.Util.Alternative as Alternative
 import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
-import UnliftIO (MonadUnliftIO, throwIO, try, withRunInIO, tryAny)
+import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 
 -- * types
 
@@ -169,8 +170,15 @@ saveBranchHash :: DB m => BranchHash -> m BranchHashId
 saveBranchHash = fmap BranchHashId . saveHashHash . unBranchHash
 
 loadCausalHashIdByCausalHash :: DB m => CausalHash -> m (Maybe CausalHashId)
-loadCausalHashIdByCausalHash =
-  (fmap . fmap) CausalHashId . loadHashIdByHash . unCausalHash
+loadCausalHashIdByCausalHash ch = runMaybeT do
+  hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
+  Alternative.whenM (isCausalHash hId) (CausalHashId hId)
+
+loadCausalByCausalHash :: DB m => CausalHash -> m (Maybe (CausalHashId, BranchHashId))
+loadCausalByCausalHash ch = runMaybeT do
+  hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
+  bhId <- MaybeT $ loadMaybeCausalValueHashId hId
+  pure (CausalHashId hId, bhId)
 
 expectHashIdByHash :: EDB m => Hash -> m HashId
 expectHashIdByHash h = loadHashIdByHash h >>= orError (UnknownHash h)
@@ -330,9 +338,10 @@ loadMaybeCausalValueHashId id =
 |]
 
 isCausalHash :: DB m => HashId -> m Bool
-isCausalHash = fmap isJust . loadMaybeCausalValueHashId
+isCausalHash = queryOne . queryAtom sql . Only where sql = [here|
+    SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
+  |]
 
--- todo: do a join here
 loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
 loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id) where sql = [here|
   SELECT object_id FROM hash_object
