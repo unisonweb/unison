@@ -224,7 +224,7 @@ termListEntry codebase b0 r n = do
         Nothing -> False
       -- A term is a test if it has a link of type `IsTest`.
       isTest =
-        Metadata.hasMetadataWithType r (Decls.isTestRef) $ Branch._terms b0
+        Metadata.hasMetadataWithType' r (Decls.isTestRef) $ Branch.deepTermMetadata b0
       tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
   pure $ TermEntry r n ot tag
 
