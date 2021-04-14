@@ -44,7 +44,7 @@ extra-deps:
 - binary-0.8.8.0
 - parsec-3.1.14.0
 - Cabal-3.2.1.0
-- fuzzyfind-2.1.0
+- fuzzyfind-2.2.0
 
 ghc-options:
  # All packages
