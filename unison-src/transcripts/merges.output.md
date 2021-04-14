@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #7nrjt5udro
+  ⊙ #dr7j21cpqp
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #js1k2kt6sg
+  ⊙ #0ct10skh45
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #vo41gk2trr
+  ⊙ #8sknads6vj
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #llp0l646ob
+  ⊙ #hb8qfqt9ai
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #tjb9j25vp8
+  ⊙ #73mdo6cqdj
   
     + Adds / updates:
     
       x
   
-  ⊙ #cagreovqu2
+  ⊙ #q1npn63eti
   
     + Adds / updates:
     
@@ -162,20 +162,20 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Bytes.toBase16 builtin.Bytes.toBase32
       builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
       builtin.Bytes.toList builtin.Char builtin.Char.fromNat
-      builtin.Char.toNat builtin.Code builtin.Code.cache_
-      builtin.Code.dependencies builtin.Code.deserialize
-      builtin.Code.isMissing builtin.Code.lookup
-      builtin.Code.serialize builtin.Debug.watch builtin.Doc
-      builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
-      builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
-      builtin.Either builtin.Either.Left builtin.Either.Right
-      builtin.Float builtin.Float.* builtin.Float.+
-      builtin.Float.- builtin.Float./ builtin.Float.abs
-      builtin.Float.acos builtin.Float.acosh builtin.Float.asin
-      builtin.Float.asinh builtin.Float.atan builtin.Float.atan2
-      builtin.Float.atanh builtin.Float.ceiling
-      builtin.Float.cos builtin.Float.cosh builtin.Float.eq
-      builtin.Float.exp builtin.Float.floor
+      builtin.Char.toNat builtin.Char.toText builtin.Code
+      builtin.Code.cache_ builtin.Code.dependencies
+      builtin.Code.deserialize builtin.Code.isMissing
+      builtin.Code.lookup builtin.Code.serialize
+      builtin.Debug.watch builtin.Doc builtin.Doc.Blob
+      builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
+      builtin.Doc.Signature builtin.Doc.Source builtin.Either
+      builtin.Either.Left builtin.Either.Right builtin.Float
+      builtin.Float.* builtin.Float.+ builtin.Float.-
+      builtin.Float./ builtin.Float.abs builtin.Float.acos
+      builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
+      builtin.Float.atan builtin.Float.atan2 builtin.Float.atanh
+      builtin.Float.ceiling builtin.Float.cos builtin.Float.cosh
+      builtin.Float.eq builtin.Float.exp builtin.Float.floor
       builtin.Float.fromText builtin.Float.gt builtin.Float.gteq
       builtin.Float.log builtin.Float.logBase builtin.Float.lt
       builtin.Float.lteq builtin.Float.max builtin.Float.min
@@ -217,9 +217,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.SeqView.VEmpty builtin.Test.Result
       builtin.Test.Result.Fail builtin.Test.Result.Ok
       builtin.Text builtin.Text.!= builtin.Text.++
-      builtin.Text.alignCenterWith builtin.Text.alignLeftWith
-      builtin.Text.alignRightWith builtin.Text.drop
-      builtin.Text.empty builtin.Text.eq
+      builtin.Text.drop builtin.Text.empty builtin.Text.eq
       builtin.Text.fromCharList builtin.Text.fromUtf8.impl
       builtin.Text.gt builtin.Text.gteq builtin.Text.lt
       builtin.Text.lteq builtin.Text.repeat builtin.Text.size

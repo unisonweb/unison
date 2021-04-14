@@ -957,6 +957,18 @@ List.map f as =
     h +: t -> go (acc :+ f h) t
   go [] as
 
+Text.alignRightWith : Nat -> Char -> Text -> Text
+Text.alignRightWith w padChar txt =
+  rem = drop w (Text.size txt)
+  if rem == 0 then txt
+  else Text.repeat rem (Char.toText padChar) Text.++ txt
+
+Text.alignLeftWith : Nat -> Char -> Text -> Text
+Text.alignLeftWith w padChar txt =
+  rem = drop w (Text.size txt)
+  if rem == 0 then txt
+  else txt Text.++ Text.repeat rem (Char.toText padChar)
+
 Either.mapRight : (a -> b) -> Either e a -> Either e b
 Either.mapRight f = cases
   Right a -> Right (f a)

@@ -1004,6 +1004,19 @@ boxToBool = inBx arg result
   where
     (arg, result) = fresh2
 
+-- Nat -> c
+-- Works for an type that's packed into a word, just
+-- pass `wordDirect Ty.natRef`, `wordDirect Ty.floatRef`
+-- etc
+wordDirect :: Reference -> ForeignOp
+wordDirect wordType instr
+  = ([BX],)
+  . TAbss [b1]
+  . unbox b1 wordType ub1
+  $ TFOp instr [ub1]
+  where
+  (b1,ub1) = fresh2
+
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
@@ -1016,20 +1029,6 @@ wordBoxDirect wordType instr
   $ TFOp instr [ub1,b2]
   where
   (b1,b2,ub1) = fresh3
-
--- Nat -> Char -> a -> c
--- Works for any types that are packed into a word, not just `Nat`.
--- Example: wordWordBoxDirect Ty.natRef Ty.charRef
---          wordWordBoxDirect Ty.floatRef Ty.natRef
-wordWordBoxDirect :: Reference -> Reference -> ForeignOp
-wordWordBoxDirect wordType1 wordType2 instr
-  = ([BX,BX,BX],)
-  . TAbss [b1,b2,b3]
-  . unbox b1 wordType1 ub1
-  . unbox b2 wordType2 ub2
-  $ TFOp instr [ub1,ub2,b3]
-  where
-  (b1,b2,b3,ub1,ub2) = fresh5
 
 -- a -> b -> c
 boxBoxDirect :: ForeignOp
@@ -1498,20 +1497,11 @@ declareForeigns = do
   declareForeign "MVar.tryRead.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
+  declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
+    \(ch :: Char) -> pure (Text.singleton ch)
+
   declareForeign "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
     \(n :: Word64, txt :: Text) -> pure (Text.replicate (fromIntegral n) txt)
-
-  declareForeign "Text.alignLeftWith" (wordWordBoxDirect Ty.natRef Ty.charRef) . mkForeign $
-    \(n :: Word64, padChar :: Char, txt :: Text) ->
-      pure (Text.justifyLeft (fromIntegral n) padChar txt)
-
-  declareForeign "Text.alignRightWith" (wordWordBoxDirect Ty.natRef Ty.charRef) . mkForeign $
-    \(n :: Word64, padChar :: Char, txt :: Text) ->
-      pure (Text.justifyRight (fromIntegral n) padChar txt)
-
-  declareForeign "Text.alignCenterWith" (wordWordBoxDirect Ty.natRef Ty.charRef) . mkForeign $
-    \(n :: Word64, padChar :: Char, txt :: Text) ->
-      pure (Text.center (fromIntegral n) padChar txt)
 
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8

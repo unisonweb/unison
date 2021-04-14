@@ -167,8 +167,6 @@ test> Text.tests.repeat =
 
 test> Text.tests.alignment =
       checks [
-        Text.alignCenterWith 11 ?- "o" == "-----o-----",
-        Text.alignCenterWith 11 ?\s "a" == "     a     ",
         Text.alignLeftWith 5 ?\s "a" == "a    ",
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
