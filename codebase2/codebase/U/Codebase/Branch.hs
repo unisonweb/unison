@@ -33,7 +33,7 @@ data Patch = Patch
   }
 
 instance Show (Branch m) where
-  show b = "Branch { terms = " ++ show (fmap Map.keys (terms b)) ++ 
+  show b = "Branch { terms = " ++ show (fmap Map.keys (terms b)) ++
           ", types = " ++ show (fmap Map.keys (types b)) ++
           ", patches = " ++ show (fmap fst (patches b)) ++
           ", children = " ++ show (Map.keys (children b))

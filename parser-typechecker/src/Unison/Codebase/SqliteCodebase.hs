@@ -148,7 +148,13 @@ createCodebaseOrError' path = do
         Control.Exception.bracket
           (unsafeGetConnection path)
           Sqlite.close
-          (runReaderT Q.createSchema)
+          (runReaderT do
+            Q.createSchema
+            runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
+              Left e -> error $ show e
+              Right () -> pure ()
+            )
+
       fmap (Either.mapLeft CreateCodebaseMissingSchema) (sqliteCodebase path)
 
 -- get the codebase in dir

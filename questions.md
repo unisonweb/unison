@@ -22,9 +22,16 @@ next steps:
   - [ ] to get updates notifications, we could watch the sqlite file itself for changes, and check
   png
 - [x] consider using `causal` table to detect if a causal exists, instead of causal_parent?
+- [x] no root found, for new codebase?
+      .> ls
+
+        ❗️
+
+        I couldn't find the codebase root!
+
 - [ ] set-root-branch being called inappropriately on `pull`
 
-- [ ] weird error message?
+- [ ] weird error message when codebase doesn't exist
     C:\Users\arya\unison>stack exec unison
     unison.EXE: SQLite3 returned ErrorCan'tOpen while attempting to perform open "C:\\Users\\arya\\.unison\\v2\\unison.sqlite3": unable to open database file
 
