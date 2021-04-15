@@ -189,6 +189,10 @@ instance Annotated a => Annotated (ABT.Term f v a) where
 instance Annotated a => Annotated (Pattern a) where
   ann = ann . Pattern.loc
 
+instance Annotated a => Annotated [a] where
+  ann [] = mempty
+  ann (h:t) = foldl' (\acc a -> acc <> ann a) (ann h) t
+
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 
@@ -393,6 +397,9 @@ sepBy sep pb = P.sepBy pb sep
 sepBy1 :: Ord v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
+sepEndBy :: Ord v => P v a -> P v b -> P v [b]
+sepEndBy sep pb = P.sepEndBy pb sep
+
 character :: Ord v => P v (L.Token Char)
 character = queryToken getChar
   where getChar (L.Character c) = Just c
@@ -414,12 +421,14 @@ tupleOrParenthesized p unit pair = do
     go as s e  = foldr pair (unit (ann s <> ann e)) as
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
-seq f p = f' <$> reserved "[" <*> elements <*> trailing
+seq f p = f' <$> leading <*> elements <*> trailing
   where
     f' open elems close = f (ann open <> ann close) elems
-    trailing = optional semi *> reserved "]"
-    sep = P.try $ optional semi *> reserved "," <* optional semi
-    elements = sepBy sep p
+    redundant = P.skipMany (P.eitherP (reserved ",") semi)
+    leading = reserved "[" <* redundant
+    trailing = redundant *> reserved "]"
+    sep = P.try $ optional semi *> reserved "," <* redundant
+    elements = sepEndBy sep p
 
 chainr1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where

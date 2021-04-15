@@ -188,14 +188,13 @@ renderTypeError e env src = case e of
           <> " has to be"
 
   ExistentialMismatch {..} -> mconcat
-    [ Pr.wrap $ mconcat
-        [ preamble
-        , " "
-        , "Here, one is "
-        , style Type1 (renderType' env expectedType)
-        , " and another is "
-        , style Type2 (renderType' env foundType)
-        , ":"]
+    [ Pr.lines
+        [ Pr.wrap preamble
+        , ""
+        , "Here, one   is:  " <> style Type1 (renderType' env expectedType)
+        , "and another is:  " <> style Type2 (renderType' env foundType)
+        , ""
+        ]
     , Pr.lineSkip
     , showSourceMaybes src [mismatchSiteS, expectedLocS]
     , fromOverHere' src
@@ -254,39 +253,33 @@ renderTypeError e env src = case e of
          showVar (v, _t) = Set.member v fteFreeVars
          solvedVars' = filter showVar solvedVars
        in
-         mconcat
-           [ "The "
-           , ordinal argNum
-           , " argument to the function "
-           , style ErrorSite (renderTerm env f)
-           , " is "
-           , style Type2 (renderType' env foundType)
-           , ", but I was expecting "
-           , style Type1 (renderType' env expectedType)
-           , ":\n\n"
+         mconcat [ Pr.lines
+           [  Pr.wrap $
+                "The " <> ordinal argNum <> " argument to " <>
+                Pr.backticked (style ErrorSite (renderTerm env f)),
+              "",
+              "          has type:  " <> style Type2 (renderType' env foundType),
+              "    but I expected:  " <> style Type1 (renderType' env expectedType)
+           , ""
            , showSourceMaybes src
              [ (, Type1) <$> rangeForAnnotated expectedType
              , (, Type2) <$> rangeForAnnotated foundType
              , (, Type2) <$> rangeForAnnotated arg
-             , (, ErrorSite) <$> rangeForAnnotated f ]
+             , (, ErrorSite) <$> rangeForAnnotated f ] ]
            , intLiteralSyntaxTip arg expectedType
          -- todo: factor this out and use in ExistentialMismatch and any other
          --       "recursive subtypes" situations
            , case leafs of
              Nothing                        -> mempty
-             Just (foundLeaf, expectedLeaf) -> mconcat
-               [ "\n"
-               , "More specifically, I found "
-               , style Type2 (renderType' env foundLeaf)
-               , " where I was expecting "
-               , style Type1 (renderType' env expectedLeaf)
-               , ":\n\n"
-               , showSourceMaybes
-                 src
+             Just (foundLeaf, expectedLeaf) -> Pr.lines
+               [ "" , "The mismatch is because these types differ:\n"
+               , Pr.indentN 2 $ style Type2 (renderType' env foundLeaf)
+               , Pr.indentN 2 $ style Type1 (renderType' env expectedLeaf)
+               , ""
+               ] <> showSourceMaybes src
                  [ (, Type1) <$> rangeForAnnotated expectedLeaf
                  , (, Type2) <$> rangeForAnnotated foundLeaf
                  ]
-               ]
            , case solvedVars' of
              _ : _ ->
                let
@@ -331,11 +324,10 @@ renderTypeError e env src = case e of
            , debugSummary note
            ]
   Mismatch {..} -> mconcat
-    [ "I found a value of type "
-    , style Type1 (renderType' env foundLeaf)
-    , " where I expected to find one of type "
-    , style Type2 (renderType' env expectedLeaf)
-    , ":\n\n"
+    [ Pr.lines [
+        "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
+        "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf) ]
+    , "\n\n"
     , showSourceMaybes
       src
       [ -- these are overwriting the colored ranges for some reason?

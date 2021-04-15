@@ -137,6 +137,34 @@ test> Nat.tests.conversions =
         ]
 ```
 
+## `Text` functions
+
+```unison
+test> Text.tests.takeDropAppend =
+      checks [
+        "yabba" ++ "dabba" == "yabbadabba",
+        Text.take 0 "yabba" == "",
+        Text.take 2 "yabba" == "ya",
+        Text.take 99 "yabba" == "yabba",
+        Text.drop 0 "yabba" == "yabba",
+        Text.drop 2 "yabba" == "bba",
+        Text.drop 99 "yabba" == ""
+        ]
+
+test> Text.tests.repeat =
+      checks [
+        Text.repeat 4 "o" == "oooo",
+        Text.repeat 0 "o" == ""
+      ]
+
+test> Text.tests.alignment =
+      checks [
+        Text.alignLeftWith 5 ?\s "a" == "a    ",
+        Text.alignRightWith 5 ?_ "ababa" == "ababa",
+        Text.alignRightWith 5 ?_ "ab" == "___ab"
+      ]
+```
+
 ## `Any` functions
 
 ```unison
@@ -182,16 +210,19 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
   Cached test results (`help testcache` to learn more)
   
-  ◉ Any.test1                Passed
-  ◉ Any.test2                Passed
-  ◉ Int.tests.arithmetic     Passed
-  ◉ Int.tests.bitTwiddling   Passed
-  ◉ Int.tests.conversions    Passed
-  ◉ Nat.tests.arithmetic     Passed
-  ◉ Nat.tests.bitTwiddling   Passed
-  ◉ Nat.tests.conversions    Passed
+  ◉ Any.test1                   Passed
+  ◉ Any.test2                   Passed
+  ◉ Int.tests.arithmetic        Passed
+  ◉ Int.tests.bitTwiddling      Passed
+  ◉ Int.tests.conversions       Passed
+  ◉ Nat.tests.arithmetic        Passed
+  ◉ Nat.tests.bitTwiddling      Passed
+  ◉ Nat.tests.conversions       Passed
+  ◉ Text.tests.alignment        Passed
+  ◉ Text.tests.repeat           Passed
+  ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 8 test(s) passing
+  ✅ 11 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

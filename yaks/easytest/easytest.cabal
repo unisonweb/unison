@@ -58,6 +58,7 @@ library
   build-depends:
     async                     >= 2.1.1,
     base                      >= 4.3,
+    exceptions,
     mtl                       >= 2.0.1,
     containers                >= 0.4.0,
     stm                       >= 2.4,

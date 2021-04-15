@@ -436,6 +436,15 @@ pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+
+pattern Delay' body <- (unDelay -> Just body)
+unDelay :: Ord v => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay tm = case ABT.out tm of
+  ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
+    |  Set.notMember v (ABT.freeVars body)
+    -> Just body
+  _ -> Nothing
+
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
@@ -467,6 +476,14 @@ var' = var() . Var.named
 
 ref :: forall v a vt at ap. Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
+
+pattern Referent' r <- (unReferent -> Just r)
+
+unReferent :: Term2 vt at ap v a -> Maybe Referent
+unReferent (Ref' r) = Just $ Referent.Ref r
+unReferent (Constructor' r cid) = Just $ Referent.Con r cid CT.Data
+unReferent (Request' r cid) = Just $ Referent.Con r cid CT.Effect
+unReferent _ = Nothing
 
 refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
 refId a = ref a . Reference.DerivedId
@@ -576,6 +593,10 @@ ann a e t = ABT.tm' a (Ann e t)
 -- arya: are we sure we want the two annotations to be the same?
 lam :: Ord v => a -> v -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
+
+delay :: Var v => a -> Term2 vt at ap v a -> Term2 vt at ap v a
+delay a body =
+  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
 
 lam' :: Ord v => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
@@ -918,9 +939,23 @@ betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f)
 betaNormalForm e = e
 
 -- x -> f x => f
-etaNormalForm :: Eq v => Term0 v -> Term0 v
-etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
-etaNormalForm t = t
+etaNormalForm :: Ord v => Term0 v -> Term0 v
+etaNormalForm tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
+    where
+      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step tm = tm
+  _ -> tm
+
+-- x -> f x => f as long as `x` is a variable of type `Var.Eta`
+etaReduceEtaVars :: Var v => Term0 v -> Term0 v
+etaReduceEtaVars tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+    where
+      ok v v' = v == v' && Var.typeOf v == Var.Eta
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      step tm = tm
+  _ -> tm
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables

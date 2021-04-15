@@ -80,6 +80,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
+import Unison.Blank (nameb)
 import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
@@ -242,7 +243,7 @@ isStructured _ = True
 close :: (Var v, Monoid a) => Set v -> Term v a -> Term v a
 close keep tm = ABT.visitPure (enclose keep close) tm
 
-type FloatM v a r = State (Set v, [(v, Term v a)]) r
+type FloatM v a r = State (Set v, [(v, Term v a)], [(v, Term v a)]) r
 
 freshFloat :: Var v => Set v -> v -> v
 freshFloat avoid (Var.freshIn avoid -> v0)
@@ -262,15 +263,15 @@ letFloater
   -> [(v, Term v a)] -> Term v a
   -> FloatM v a (Term v a)
 letFloater rec vbs e = do
-  cvs <- gets fst
+  cvs <- gets (\(vs,_,_) -> vs)
   let shadows = [ (v, freshFloat cvs v)
                 | (v, _) <- vbs, Set.member v cvs ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn.fst) vbs
-  modify (first $ (<>shvs))
+  modify (\(cvs, ctx, dcmp) -> (cvs<>shvs, ctx, dcmp))
   fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
-  modify (second (++ fvbs))
+  modify (\(vs,ctx,dcmp) -> (vs, ctx ++ fvbs, dcmp))
   pure $ ABT.changeVars shadowMap e
   where
   rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
@@ -278,35 +279,52 @@ letFloater rec vbs e = do
 
 lamFloater
   :: (Var v, Monoid a)
-  => Maybe v -> a -> [v] -> Term v a -> FloatM v a v
-lamFloater mv a vs bd
-  = state $ \(cvs, ctx) ->
+  => Bool -> Term v a -> Maybe v -> a -> [v] -> Term v a -> FloatM v a v
+lamFloater closed tm mv a vs bd
+  = state $ \(cvs, ctx, dcmp) ->
       let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
-       in (v, (Set.insert v cvs, ctx <> [(v, lam' a vs bd)]))
+       in (v, ( Set.insert v cvs
+              , ctx <> [(v, lam' a vs bd)]
+              , floatDecomp closed v tm dcmp))
+
+floatDecomp
+  :: Bool -> v -> Term v a -> [(v, Term v a)] -> [(v, Term v a)]
+floatDecomp True  v b dcmp = (v, b) : dcmp
+floatDecomp False _ _ dcmp = dcmp
 
 floater
   :: (Var v, Monoid a)
-  => (Term v a -> FloatM v a (Term v a))
-  -> Term v a -> Maybe (FloatM v a (Term v a))
-floater rec (LetRecNamed' vbs e) = Just $ letFloater rec vbs e >>= rec
-floater rec (Let1Named' v b e)
+  => Bool
+  -> (Term v a -> FloatM v a (Term v a))
+  -> Term v a
+  -> Maybe (FloatM v a (Term v a))
+floater top rec (LetRecNamed' vbs e)
+  = Just $ letFloater rec vbs e >>= \case
+      lm@(LamsNamed' vs bd) | top -> lam' a vs <$> rec bd
+        where a = ABT.annotation lm
+      tm -> rec tm
+floater _   rec (Let1Named' v b e)
   | LamsNamed' vs bd <- b
   = Just $ rec bd
-       >>= lamFloater (Just v) a vs
+       >>= lamFloater (null $ ABT.freeVars b) b (Just v) a vs
        >>= \lv -> rec $ ABT.changeVars (Map.singleton v lv) e
   where a = ABT.annotation b
-floater rec tm@(LamsNamed' vs bd) = Just $ do
-  bd <- rec bd
-  lv <- lamFloater Nothing a vs bd
-  pure $ var a lv
-  where a = ABT.annotation tm
-floater _ _ = Nothing
 
-float :: (Var v, Monoid a) => Term v a -> Term v a
-float tm = case runState (go tm) (Set.empty, []) of
-  (bd, (_, ctx)) -> letRec' True ctx bd
+floater top rec tm@(LamsNamed' vs bd)
+  | top = Just $ lam' a vs <$> rec bd
+  | otherwise = Just $ do
+    bd <- rec bd
+    lv <- lamFloater (null $ ABT.freeVars tm) tm Nothing a vs bd
+    pure $ var a lv
+  where a = ABT.annotation tm
+floater _ _ _ = Nothing
+
+float :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
+float tm = case runState go0 (Set.empty, [], []) of
+  (bd, (_, ctx, dcmp)) -> (letRec' True ctx bd, dcmp)
   where
-  go = ABT.visit $ floater go
+  go0 = fromMaybe (go tm) (floater True go tm)
+  go = ABT.visit $ floater False go
   -- tm | LetRecNamedTop' _ vbs e <- tm0
   --    , (pre, rec, post) <- reduceCycle vbs
   --    = let1' False pre . letRec' False rec . let1' False post $ e
@@ -317,7 +335,7 @@ deannotate = ABT.visitPure $ \case
   Ann' c _ -> Just $ deannotate c
   _ -> Nothing
 
-lamLift :: (Var v, Monoid a) => Term v a -> Term v a
+lamLift :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
 lamLift = float . close Set.empty . deannotate
 
 saturate
@@ -1116,10 +1134,10 @@ anfBlock (Match' scrut cas) = do
     AccumSeqSplit en n mdf bd -> do
         i <- fresh
         r <- fresh
-        t <- fresh
+        n <- fresh
         pure ( sctx <> cx <> directed [lit i, split i r]
              , pure . TMatch r . MatchSum $ mapFromList
-             [ (0, ([], df t))
+             [ (0, ([], df n))
              , (1, ([BX,BX], bd))
              ])
       where
@@ -1127,10 +1145,10 @@ anfBlock (Match' scrut cas) = do
          | otherwise = SPLR
       lit i = ST1 Direct i UN (TLit . N $ fromIntegral n)
       split i r = ST1 Direct r UN (TPrm op [i,v])
-      df t
+      df n
         = fromMaybe
-            ( TLet Direct t BX (TLit (T "non-exhaustive split"))
-            $ TPrm EROR [t])
+            ( TLet Direct n BX (TLit (T "pattern match failure"))
+            $ TPrm EROR [n, v])
             mdf
     AccumEmpty -> pure (sctx <> cx, pure $ TMatch v MatchEmpty)
 anfBlock (Let1Named' v b e)
@@ -1156,10 +1174,15 @@ anfBlock (Lit' l) = do
   pure ( directed [ST1 Direct lv UN $ TLit l]
        , pure $ TCon (litRef l) 0 [lv])
 anfBlock (Ref' r) = pure (mempty, (Indirect (), TCom r []))
-anfBlock (Blank' _) = do
+anfBlock (Blank' b) = do
+  nm <- fresh
   ev <- fresh
-  pure ( pure [ST1 Direct ev BX (TLit (T "Blank"))]
-       , pure $ TPrm EROR [ev])
+  pure ( pure [ ST1 Direct nm BX (TLit (T name))
+              , ST1 Direct ev BX (TLit (T $ Text.pack msg))]
+       , pure $ TPrm EROR [nm, ev])
+  where
+  name = "blank expression"
+  msg = fromMaybe "blank expression" $ nameb b
 anfBlock (TermLink' r) = pure (mempty, pure . TLit $ LM r)
 anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms

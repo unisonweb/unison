@@ -164,7 +164,7 @@ f x = h zap x
 fVal : Value
 fVal = Value.value f
 
-fDeps : [Term]
+fDeps : [Link.Term]
 fDeps = Value.dependencies fVal
 
 fSer : Bytes
@@ -209,7 +209,7 @@ tests =
     
       ability Zap
       f      : Nat ->{Zap} Nat
-      fDeps  : [Term]
+      fDeps  : [Link.Term]
       fSer   : Bytes
       fVal   : Value
       h      : Three Nat Nat Nat -> Nat -> Nat
@@ -229,7 +229,7 @@ to actual show that the serialization works.
   
     ability Zap
     f      : Nat ->{Zap} Nat
-    fDeps  : [Term]
+    fDeps  : [Link.Term]
     fSer   : Bytes
     fVal   : Value
     h      : Three Nat Nat Nat -> Nat -> Nat
