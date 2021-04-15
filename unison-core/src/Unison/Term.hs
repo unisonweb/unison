@@ -474,7 +474,7 @@ var = ABT.annotatedVar
 var' :: Var v => Text -> Term0' vt v
 var' = var() . Var.named
 
-ref :: forall v a vt at ap. Ord v => a -> Reference -> Term2 vt at ap v a
+ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
 pattern Referent' r <- (unReferent -> Just r)
