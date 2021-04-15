@@ -696,10 +696,10 @@ sqliteCodebase root = do
             SyncMode ->
             Branch m ->
             m ()
-          syncToDirectory' progress srcPath destPath _mode newRoot = do
+          syncToDirectory' progress srcPath destPath _mode b = do
             result <- runExceptT do
               initSchemaIfNotExist destPath
-              syncEnv@(Sync22.Env srcConn destConn _) <-
+              syncEnv@(Sync22.Env srcConn _ _) <-
                 Sync22.Env
                   <$> unsafeGetConnection srcPath
                   <*> unsafeGetConnection destPath
@@ -766,16 +766,8 @@ sqliteCodebase root = do
                         processBranches sync progress src dest rest
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
-                  newRootHash = Branch.headHash newRoot
-                  newRootHash2 = Cv.causalHash1to2 newRootHash
-              se $ processBranches sync progress' src dest [B newRootHash (pure newRoot)]
-              -- set the root namespace
-              flip runReaderT destConn $ do
-                chId <-
-                  (Q.loadCausalHashIdByCausalHash newRootHash2) >>= \case
-                    Nothing -> Except.throwError $ SyncEphemeral.DisappearingBranch newRootHash2
-                    Just chId -> pure chId
-                Q.setNamespaceRoot chId
+                  bHash = Branch.headHash b
+              se $ processBranches sync progress' src dest [B bHash (pure b)]
               lift closeSrc
               lift closeDest
             pure $ Validation.valueOr (error . show) result
@@ -985,10 +977,21 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
     (stageAndPush remotePath)
     (throwError $ GitError.PushDestinationHasNewStuff repo)
   where
+    -- | this will bomb if `h` is not a causal in the codebase
+    setRepoRoot :: MonadIO m => CodebasePath -> Branch.Hash -> m ()
+    setRepoRoot root h = do
+      conn <- unsafeGetConnection root
+      let h2 = Cv.causalHash1to2 h
+          err = error "Called SqliteCodebase.setNamespaceRoot on unknown causal hash"
+      flip runReaderT conn $ do
+        chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
+        Q.setNamespaceRoot chId
+
     stageAndPush remotePath = do
       let repoString = Text.unpack $ printRepo repo
-      withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
+      withStatus ("Staging files for upload to " ++ repoString ++ " ...") do
         lift (syncToDirectory remotePath syncMode branch)
+        setRepoRoot remotePath (Branch.headHash branch)
       -- push staging area to remote
       withStatus ("Uploading to " ++ repoString ++ " ...") $
         unlessM

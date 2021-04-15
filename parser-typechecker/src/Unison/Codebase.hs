@@ -80,11 +80,9 @@ data Codebase m v a =
            , patchExists        :: Branch.EditHash -> m Bool
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
-           -- This copies all the dependencies of `b` from the specified
-           -- FileCodebase into this Codebase, and sets our root branch to `b`
+           -- This copies all the dependencies of `b` from the specified Codebase into this one
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from the this Codebase
-           -- into the specified FileCodebase, and sets its _head to `b`
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
            , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (Branch m, CodebasePath))
            , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())

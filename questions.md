@@ -28,9 +28,7 @@ next steps:
         ❗️
 
         I couldn't find the codebase root!
-
-- [ ] set-root-branch being called inappropriately on `pull`
-
+- [x] set-root-branch being called inappropriately on `pull`
 - [ ] weird error message when codebase doesn't exist
     C:\Users\arya\unison>stack exec unison
     unison.EXE: SQLite3 returned ErrorCan'tOpen while attempting to perform open "C:\\Users\\arya\\.unison\\v2\\unison.sqlite3": unable to open database file
