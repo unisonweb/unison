@@ -26,7 +26,7 @@ import qualified Unison.Server.Backend as Backend
 import Unison.Server.QueryResult
 import Unison.Server.Backend (ShallowListEntry(..))
 import qualified Unison.Codebase.MainTerm as MainTerm
-import Unison.Codebase.Editor.Command
+import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.DisplayObject
@@ -73,6 +73,7 @@ import qualified Unison.Server.SearchResult'  as SR'
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Codebase.SyncMode      as SyncMode
 import qualified Unison.Builtin.Decls          as DD
+import qualified Unison.Runtime.IOSource       as DD
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -89,6 +90,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
 import qualified Unison.ShortHash as SH
+import           Unison.Term                    (Term)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -278,7 +280,8 @@ loop = do
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
           Just (Left errNames) -> do
-            ppe <- prettyPrintEnv =<< makeShadowedPrintNamesFromHQ hqs errNames
+            ns <- makeShadowedPrintNamesFromHQ hqs errNames
+            ppe <- prettyPrintEnv (Names3.suffixify ns)
             let tes = [ err | Result.TypeError err <- toList notes ]
                 cbs = [ bug
                       | Result.CompilerBug (Result.TypecheckerBug bug)
@@ -291,10 +294,9 @@ loop = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies unisonFile)
-                      (UF.typecheckedToNames0 unisonFile)
-          ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
+          names <- displayNames unisonFile
+          pped <- prettyPrintEnvDecl names
+          let ppe = PPE.suffixifiedPPE pped
           eval . Notify $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
@@ -509,9 +511,7 @@ loop = do
           -- Say something
           success
         previewResponse sourceName sr uf = do
-          names <- makeShadowedPrintNamesFromLabeled
-                      (UF.termSignatureExternalLabeledDependencies uf)
-                      (UF.typecheckedToNames0 uf)
+          names <- displayNames uf
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
@@ -630,6 +630,37 @@ loop = do
               diffHelper (Branch.head root') (Branch.head root'') >>=
                 respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
             else handleFailedDelete failed failedDependents
+
+        displayI outputLoc hq = do
+          uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
+          case uf of
+            Nothing -> do
+              let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
+                  -- use suffixed names for resolving the argument to display
+                  parseNames = Names3.suffixify parseNames0
+                  results = Names3.lookupHQTerm hq parseNames
+              if Set.null results then
+                respond $ SearchTermsNotFound [hq]
+              else if Set.size results > 1 then
+                respond $ TermAmbiguous hq results
+              -- ... but use the unsuffixed names for display
+              else do
+                let tm = Term.fromReferent External $ Set.findMin results
+                pped <- prettyPrintEnvDecl parseNames0
+                tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+                case tm of
+                  Left e -> respond (EvaluationFailure e)
+                  Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
+            Just (toDisplay, unisonFile) -> do
+              ppe <- executePPE unisonFile
+              unlessError' EvaluationFailure do
+                evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+                case Command.lookupEvalResult toDisplay evalResult of
+                  Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
+                  Just tm -> lift do
+                    ns <- displayNames unisonFile
+                    doDisplay outputLoc ns tm
+
       in case input of
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
@@ -1026,15 +1057,51 @@ loop = do
           numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
-      DocsI src -> unlessError do
-        (ppe, out) <- getLinks input src (Left $ Set.singleton DD.docRef)
-        lift case out of
-          [(_name, ref, _tm)] -> do
-            let names = basicPrettyPrintNames0
-            doDisplay ConsoleLocation (Names3.Names names mempty) (Referent.Ref ref)
-          out -> do
-            numberedArgs .= fmap (HQ.toString . view _1) out
-            respond $ ListOfLinks ppe out
+      DocsI src -> fileByName where
+        {- Given `docs foo`, we look for docs in 3 places, in this order:
+           (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
+           (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
+           (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
+        -}
+        hq :: HQ.HashQualified Name
+        hq = let
+          hq' :: HQ'.HashQualified Name
+          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+          in Name.convert hq'
+
+        dotDoc :: HQ.HashQualified Name
+        dotDoc = hq <&> \n -> Name.joinDot n "doc"
+
+        fileByName = do
+          ns <- maybe mempty UF.typecheckedToNames0 <$> use latestTypecheckedFile
+          fnames <- pure $ Names3.Names ns mempty
+          case Names3.lookupHQTerm dotDoc fnames of
+            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
+            _ -> codebaseByMetadata
+
+        codebaseByMetadata = unlessError do
+          (ppe, out) <- getLinks input src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
+          lift case out of
+            [] -> codebaseByName
+            [(_name, ref, _tm)] -> do
+              len <- eval BranchHashLength
+              let names = Names3.Names basicPrettyPrintNames0 mempty
+              let tm = Term.ref External ref
+              tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+              case tm of
+                Left e -> respond (EvaluationFailure e)
+                Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
+            out -> do
+              numberedArgs .= fmap (HQ.toString . view _1) out
+              respond $ ListOfLinks ppe out
+
+        codebaseByName = do
+          parseNames <- Names3.suffixify0 <$> basicParseNames0
+          case Names3.lookupHQTerm dotDoc (Names3.Names parseNames mempty) of
+            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
+              | Set.size s == 0 -> respond $ ListOfLinks mempty []
+              | otherwise       -> -- todo: return a list of links here too
+                respond $ ListOfLinks mempty []
 
       CreateAuthorI authorNameSegment authorFullName -> do
         initialBranch <- getAt currentPath'
@@ -1097,17 +1164,7 @@ loop = do
       DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
-      DisplayI outputLoc hq -> do
-        let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
-            -- use suffixed names for resolving the argument to display
-            parseNames = Names3.suffixify parseNames0
-            results = Names3.lookupHQTerm hq parseNames
-        if Set.null results then
-          respond $ SearchTermsNotFound [hq]
-        else if Set.size results > 1 then
-          respond $ TermAmbiguous hq results
-        -- ... but use the unsuffixed names for display
-        else doDisplay outputLoc parseNames0 (Set.findMin results)
+      DisplayI outputLoc hq -> displayI outputLoc hq
 
       ShowDefinitionI outputLoc query -> do
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
@@ -1334,10 +1391,7 @@ loop = do
             stepAtNoSync ( Path.unabsolute currentPath'
                    , doSlurpAdds adds uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<<
-            makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
-              (UF.typecheckedToNames0 uf)
+          ppe <- prettyPrintEnvDecl =<< displayNames uf
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           addDefaultMetadata adds
           syncRoot
@@ -1440,10 +1494,7 @@ loop = do
                , pure . doSlurpAdds addsAndUpdates uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<<
-            makeShadowedPrintNamesFromLabeled
-              (UF.termSignatureExternalLabeledDependencies uf)
-              (UF.typecheckedToNames0 uf)
+          ppe <- prettyPrintEnvDecl =<< displayNames uf
           respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
           -- propagatePatch prints TodoOutput
           void $ propagatePatchNoSync (updatePatch ye'ol'Patch) currentPath'
@@ -1496,10 +1547,12 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
-                    tm' <- eval $ Evaluate1 ppe tm
+                    --                          v don't cache; test cache populated below
+                    tm' <- eval $ Evaluate1 ppe False tm
                     case tm' of
                       Left e -> respond (EvaluationFailure e) $> []
                       Right tm' -> do
+                        -- After evaluation, cache the result of the test
                         eval $ PutWatch UF.TestWatch rid tm'
                         respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
                         pure [(r, tm')]
@@ -1573,7 +1626,8 @@ loop = do
                    Just typ | Typechecker.isSubtype testType typ -> do
                      let a = ABT.annotation tm
                          tm = DD.forceTerm a a (Term.ref a ref) in do
-                         tm' <- eval $ Evaluate1 ppe tm
+                         --                          v Don't cache IO tests
+                         tm' <- eval $ Evaluate1 ppe False tm
                          case tm' of
                            Left e -> respond (EvaluationFailure e)
                            Right tm' ->
@@ -1793,23 +1847,32 @@ resolveHQToLabeledDependencies = \case
     types <- eval $ TypeReferencesByShortHash sh
     pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: Var v => OutputLocation -> Names -> Referent -> Action' m v ()
-doDisplay outputLoc names r = do
-  let tm = Term.fromReferent External r
+doDisplay :: Var v => OutputLocation -> Names -> Term v () -> Action' m v ()
+doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
+  tf <- use latestTypecheckedFile
+  let (tms, typs) = maybe mempty UF.indexByReference tf
   latestFile' <- use latestFile
   let
     loc = case outputLoc of
       ConsoleLocation    -> Nothing
       FileLocation path  -> Just path
       LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-    evalTerm r = fmap ErrorUtil.hush . eval $
-      Evaluate1 (PPE.suffixifiedPPE ppe) (Term.ref External r)
-    loadTerm (Reference.DerivedId r) = eval $ LoadTerm r
+    useCache = True
+    evalTerm tm = fmap ErrorUtil.hush . fmap (fmap Term.unannotate) . eval $
+      Evaluate1 (PPE.suffixifiedPPE ppe) useCache (Term.amap (const External) tm)
+    loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
+      Nothing -> fmap (fmap Term.unannotate) . eval $ LoadTerm r
+      Just (tm,_) -> pure (Just $ Term.unannotate tm)
     loadTerm _ = pure Nothing
-    loadDecl (Reference.DerivedId r) = eval $ LoadType r
+    loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
+      Nothing -> fmap (fmap $ DD.amap (const ())) . eval $ LoadType r
+      Just decl -> pure (Just $ DD.amap (const ()) decl)
     loadDecl _ = pure Nothing
-  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm evalTerm loadDecl tm
+    loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
+        | Just (_,ty) <- Map.lookup r tms = pure $ Just (void ty)
+    loadTypeOfTerm' r = fmap (fmap void) . loadTypeOfTerm $ r
+  rendered <- DisplayValues.displayTerm ppe loadTerm loadTypeOfTerm' evalTerm loadDecl tm
   respond $ DisplayRendered loc rendered
 
 getLinks :: (Var v, Monad m)
@@ -2710,6 +2773,31 @@ data AddRunMainResult v
   | TermHasBadType (Type v Ann)
   | RunMainSuccess (TypecheckedUnisonFile  v Ann)
 
+-- Adds a watch expression of the given name to the file, if
+-- it would resolve to a TLD in the file. Returns the freshened
+-- variable name and the new typechecked file.
+--
+-- Otherwise, returns `Nothing`.
+addWatch
+  :: (Monad m, Var v)
+  => String
+  -> Maybe (TypecheckedUnisonFile v Ann)
+  -> Action' m v (Maybe (v, TypecheckedUnisonFile v Ann))
+addWatch _watchName Nothing = pure Nothing
+addWatch watchName (Just uf) = do
+  let components = join $ UF.topLevelComponents uf
+  let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
+  case mainComponent of
+    [(v, tm, ty)] -> pure . pure $ let
+      v2 = Var.freshIn (Set.fromList [v]) v
+      a = ABT.annotation tm
+      in (v2, UF.typecheckedUnisonFile
+           (UF.dataDeclarationsId' uf)
+           (UF.effectDeclarationsId' uf)
+           (UF.topLevelComponents' uf)
+           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])]))
+    _ -> addWatch watchName Nothing
+
 -- Given a typechecked file with a main function called `mainName`
 -- of the type `'{IO} ()`, adds an extra binding which
 -- forces the `main` function.
@@ -2758,11 +2846,17 @@ executePPE
   => TypecheckedUnisonFile v a
   -> Action' m v PPE.PrettyPrintEnv
 executePPE unisonFile =
+  prettyPrintEnv =<< displayNames unisonFile
+
+-- Produce a `Names` needed to display all the hashes used in the given file.
+displayNames :: (Var v, Monad m)
+  => TypecheckedUnisonFile v a
+  -> Action' m v Names
+displayNames unisonFile =
   -- voodoo
-  prettyPrintEnv =<<
-    makeShadowedPrintNamesFromLabeled
-      (UF.termSignatureExternalLabeledDependencies unisonFile)
-      (UF.typecheckedToNames0 unisonFile)
+  makeShadowedPrintNamesFromLabeled
+    (UF.termSignatureExternalLabeledDependencies unisonFile)
+    (UF.typecheckedToNames0 unisonFile)
 
 diffHelper :: Monad m
   => Branch0 m

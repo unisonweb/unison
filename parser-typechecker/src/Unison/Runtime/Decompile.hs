@@ -31,6 +31,7 @@ import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
 
 import qualified Unison.Util.Bytes as By
+import qualified Unison.Term as Term
 
 import Unsafe.Coerce -- for Int -> Double
 
@@ -56,7 +57,7 @@ decompile topTerms (DataC rf ct [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
 decompile topTerms (PApV (CIx _ rt k) [] bs)
   | Just t <- topTerms rt k
-  = substitute t <$> traverse (decompile topTerms) bs
+  = Term.etaReduceEtaVars . substitute t <$> traverse (decompile topTerms) bs
   | k > 0
   = err "cannot decompile an application to a local recusive binding"
   | otherwise

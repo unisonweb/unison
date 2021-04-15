@@ -8,6 +8,7 @@ module Unison.Util.Pretty (
    align,
    align',
    alternations,
+   background,
    backticked,
    backticked',
    boxForkLeft,
@@ -50,6 +51,7 @@ module Unison.Util.Pretty (
    indentN,
    indentNonEmptyN,
    indentNAfterNewline,
+   invert,
    isMultiLine,
    leftPad,
    lines,
@@ -88,6 +90,7 @@ module Unison.Util.Pretty (
    string,
    surroundCommas,
    syntaxToColor,
+   table,
    text,
    toANSI,
    toAnsiUnbroken,
@@ -97,6 +100,7 @@ module Unison.Util.Pretty (
    underline,
    withSyntax,
    wrap,
+   wrap',
    wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
@@ -114,6 +118,7 @@ import           Data.Char                      ( isSpace )
 import           Data.List                      ( intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
+import qualified Unison.Util.AnnotatedText     as AT
 import qualified Unison.Util.ColorText         as CT
 import qualified Unison.Util.SyntaxText        as ST
 import           Unison.Util.Monoid             ( intercalateMap )
@@ -195,8 +200,8 @@ wrapString s = wrap (lit $ fromString s)
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
 paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
-wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-wrap p = wrapImpl (toLeaves [p]) where
+wrap' :: IsString s => (s -> [Pretty s]) -> Pretty s -> Pretty s
+wrap' wordify p = wrapImpl (toLeaves [p]) where
   toLeaves [] = []
   toLeaves (hd:tl) = case out hd of
     Empty -> toLeaves tl
@@ -205,6 +210,10 @@ wrap p = wrapImpl (toLeaves [p]) where
     OrElse a _ -> toLeaves (a:tl)
     Wrap _ -> hd : toLeaves tl
     Append hds -> toLeaves (toList hds ++ tl)
+
+wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrap = wrap' wordify
+  where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
@@ -517,6 +526,20 @@ excerptColumn2 max cols = case max of
   _                    -> column2 cols
   where len = length cols
 
+table :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> Pretty s
+table rows = lines (table' rows)
+
+table' :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> [Pretty s]
+table' [] = mempty
+table' rows = case maximum (Prelude.length <$> rows) of
+  1 -> rows >>= \case
+    [] -> [mempty]
+    hd : _ -> [hd]
+  _ -> let
+    colHd = [ h | (h:_) <- rows ]
+    colTl = [ t | (_:t) <- rows ]
+    in align (colHd `zip` (("  " <>) <$> table' colTl))
+
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 = column2sep ""
@@ -773,6 +796,18 @@ hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
 underline = map CT.underline
+
+-- invert the foreground and background colors
+invert :: Pretty CT.ColorText -> Pretty CT.ColorText
+invert = map CT.invert
+
+-- set the background color, ex: `background hiBlue`, `background yellow`
+background :: (Pretty CT.ColorText -> Pretty CT.ColorText) -> Pretty CT.ColorText -> Pretty CT.ColorText
+background f p =
+  -- hack: discover the color of `f` by calling it on a dummy string
+  case f (Pretty mempty (Lit "-")) of
+    Pretty _ (Lit (AT.AnnotatedText (toList -> [AT.Segment _ (Just c)]))) -> map (CT.background c) p
+    _ -> p
 
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText

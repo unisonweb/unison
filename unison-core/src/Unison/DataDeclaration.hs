@@ -411,3 +411,8 @@ hashDecls decls = do
       hash3 (_, _, typ) = ABT.hash typ :: Hash
   decls' <- fmap sortCtors <$> traverse (bindNames mempty typeNames0) decls'
   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
+
+amap :: (a -> a2) -> Decl v a -> Decl v a2
+amap f (Left e) = Left (f <$> e)
+amap f (Right d) = Right (f <$> d)
+

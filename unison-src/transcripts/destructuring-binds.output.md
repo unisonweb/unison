@@ -95,7 +95,7 @@ ex4 =
   
       2 |   (a,b) = (a Nat.+ b, 19)
   
-  Whatever it is, it has a type that conforms to builtin.Nat.
+  Whatever it is, it has a type that conforms to Nat.
   
 
 ```
