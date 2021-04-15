@@ -384,6 +384,14 @@ loadCausalParents h = queryAtoms sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
+newtype DataVersion = DataVersion Int
+  deriving (Eq, Ord, Show)
+  deriving FromField via Int
+dataVersion :: DB m => m DataVersion
+dataVersion = queryOne . fmap (fmap fromOnly) . fmap headMay $ query_ [here|
+    PRAGMA data_version
+  |]
+
 loadNamespaceRoot :: EDB m => m CausalHashId
 loadNamespaceRoot = queryAtoms sql () >>= \case
   [] -> throwError NoNamespaceRoot

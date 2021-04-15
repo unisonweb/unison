@@ -241,7 +241,6 @@ sqliteCodebase root = do
   conn <- unsafeGetConnection root
   runReaderT Q.checkForMissingSchema conn >>= \case
     [] -> do
-      --
       rootBranchCache <- newTVarIO Nothing
       -- The v1 codebase interface has operations to read and write individual definitions
       -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -423,23 +422,27 @@ sqliteCodebase root = do
                     tryFlushDeclBuffer h
                 )
 
-          getRootBranch :: MonadIO m => TVar (Maybe (Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
+          getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
           getRootBranch rootBranchCache =
             readTVarIO rootBranchCache >>= \case
-              Nothing -> do
-                b <-
-                  fmap (Either.mapLeft err)
+              Nothing -> forceReload
+              Just (v, b) -> do
+                -- check to see if root namespace hash has been externally modified
+                -- and reload it if necessary
+                v' <- runDB conn Ops.dataVersion
+                if v == v' then pure (Right b) else do
+                  newRootHash <- runDB conn Ops.loadRootCausalHash
+                  if Branch.headHash b == Cv.hash2to1 newRootHash then pure (Right b) else forceReload
+            where
+              forceReload = do
+                b <- fmap (Either.mapLeft err)
                     . runExceptT
                     . flip runReaderT conn
                     . fmap (Branch.transform (runDB conn))
                     $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
-                for_ b (atomically . writeTVar rootBranchCache . Just)
+                v <- runDB conn Ops.dataVersion
+                for_ b (atomically . writeTVar rootBranchCache . Just . (v,))
                 pure b
-              Just b -> do
-                -- todo: check to see if root namespace hash has been externally modified
-                -- and load it if necessary. But for now, we just return what's present in the cache.
-                pure (Right b)
-            where
               err :: Ops.Error -> Codebase1.GetRootBranchError
               err = \case
                 Ops.DatabaseIntegrityError Q.NoNamespaceRoot ->
@@ -451,7 +454,7 @@ sqliteCodebase root = do
                   Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
                 e -> error $ show e
 
-          putRootBranch :: MonadIO m => TVar (Maybe (Branch m)) -> Branch m -> m ()
+          putRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> Branch m -> m ()
           putRootBranch rootBranchCache branch1 = do
             -- todo: check to see if root namespace hash has been externally modified
             -- and do something (merge?) it if necessary. But for now, we just overwrite it.
@@ -460,7 +463,7 @@ sqliteCodebase root = do
               . Ops.saveRootBranch
               . Cv.causalbranch1to2
               $ Branch.transform (lift . lift) branch1
-            atomically $ writeTVar rootBranchCache (Just branch1)
+            atomically $ modifyTVar rootBranchCache (fmap . second $ const branch1)
 
           rootBranchUpdates :: MonadIO m => m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates = pure (cleanup, liftIO newRootsDiscovered)

@@ -16,10 +16,50 @@ next steps:
   - [x] `SqliteCodebase.syncToDirectory`
     - [ ] do I need to initialize a sqlite codebase in the destination?
 - [ ] Managing external edit events?
-  - [ ] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
+  - [x] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
   - https://www.sqlite.org/pragma.html#pragma_data_version
-  - https://user-images.githubusercontent.com/538571/111105100-8f0b4a80-8528-11eb-95f6-12bb906f315e.png
-- [ ] consider using `causal` table to detect if a causal exists, instead of causal_parent?
+  - https://user-images.githubusercontent.com/538571/111105100-8f0b4a80-8528-11eb-95f6-12bb906f315e.
+  - [ ] to get updates notifications, we could watch the sqlite file itself for changes, and check
+  png
+- [x] consider using `causal` table to detect if a causal exists, instead of causal_parent?
+- [ ] set-root-branch being called inappropriately on `pull`
+
+- [ ] weird error message?
+    C:\Users\arya\unison>stack exec unison
+    unison.EXE: SQLite3 returned ErrorCan'tOpen while attempting to perform open "C:\\Users\\arya\\.unison\\v2\\unison.sqlite3": unable to open database file
+
+- [ ] UnknownHashId (HashId 2179)
+    arya@jrrr unison % stack exec unison -- -codebase /tmp/getbase3 init
+    Initializing a new codebase in: /private/tmp/getbase3
+    arya@jrrr unison % stack exec unison -- -codebase /tmp/getbase3
+
+    .> pull https://github.com/aryairani/base-v2 ._base
+      Importing downloaded files into local codebase...
+    unison: DatabaseIntegrityError (UnknownHashId (HashId 2179))
+    CallStack (from HasCallStack):
+      error, called at src/Unison/Codebase/SqliteCodebase.hs:802:29 in unison-parser-typechecker-0.0.0-HGDWpz1IYHwGxjjnh5rX1K:Unison.Codebase.SqliteCodebase
+    arya@jrrr unison % stack exec unison -- -codebase /tmp/getbase3
+
+    .> pull https://github.com/aryairani/base-v2 ._base
+
+      Nothing changed as a result of the merge.
+
+
+      😶
+
+      ._base was already up-to-date with https://github.com/aryairani/base-v2.
+
+    .> ls
+
+      1. releases/ (2438 definitions)
+      2. series/   (1219 definitions)
+      3. trunk/    (1652 definitions)
+
+    .> history
+
+      Note: The most recent namespace hash is immediately below this message.
+
+      ⊙ #agu597jbfn
 
 
 what even are these:
