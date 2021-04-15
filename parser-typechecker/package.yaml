@@ -141,6 +141,7 @@ library:
     - data-default
     - directory
     - either
+    - fuzzyfind
     - guid
     - data-memocombinators
     - edit-distance

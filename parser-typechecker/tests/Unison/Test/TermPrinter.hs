@@ -27,7 +27,7 @@ getNames = PPE.fromNames Common.hqLength Unison.Builtin.names
 -- Check also that re-parsing the pretty-printed code gives us the same ABT.
 -- (Skip that latter check if rtt is false.)
 -- Note that this does not verify the position of the PrettyPrint Break elements.
-tcDiffRtt :: Bool -> String -> String -> Int -> Test ()
+tcDiffRtt :: Bool -> String -> String -> PP.Width -> Test ()
 tcDiffRtt rtt s expected width
   = let
       inputTerm = tm s :: Term Symbol Ann
@@ -66,13 +66,13 @@ tc :: String -> Test ()
 tc s = tcDiff s s
 
 -- Use renderBroken to render the output to some maximum width.
-tcBreaksDiff :: Int -> String -> String -> Test ()
+tcBreaksDiff :: PP.Width -> String -> String -> Test ()
 tcBreaksDiff width s expected = tcDiffRtt True s expected width
 
-tcBreaks :: Int -> String -> Test ()
+tcBreaks :: PP.Width -> String -> Test ()
 tcBreaks width s = tcDiffRtt True s s width
 
-tcBinding :: Int -> String -> Maybe String -> String -> String -> Test ()
+tcBinding :: PP.Width -> String -> Maybe String -> String -> String -> Test ()
 tcBinding width v mtp tm expected
   = let
       baseTerm =

@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -105,7 +107,7 @@ module Unison.Util.Pretty (
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
    border,
-   Width,
+   Width(..),
    -- * Exported for testing
    delta,
    Delta,
@@ -127,7 +129,9 @@ import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 import Control.Monad.Identity (runIdentity, Identity(..))
 
-type Width = Int
+newtype Width = Width {widthToInt :: Int}
+  deriving (Eq, Ord, Show, Generic, Num, Bounded)
+
 type ColorText = CT.ColorText
 
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) } deriving Eq
@@ -391,7 +395,7 @@ surroundCommas start stop fs =
     <> spaceIfBreak
     <> intercalateMap ("," <> softbreak <> align) id fs
     <> stop
-  where align = spacesIfBreak (preferredWidth start + 1)
+  where align = spacesIfBreak (widthToInt $ preferredWidth start + 1)
 
 sepSpaced :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepSpaced between = sep (between <> softbreak)
@@ -496,13 +500,13 @@ numberedColumn2Header num ps = numberedHeader (maybe mempty num) (align $ toList
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
 
-leftPad, rightPad :: IsString s => Int -> Pretty s -> Pretty s
+leftPad, rightPad :: IsString s => Width -> Pretty s -> Pretty s
 leftPad n p =
   let rem = n - preferredWidth p
-  in  if rem > 0 then fromString (replicate rem ' ') <> p else p
+  in  if rem > 0 then fromString (replicate (widthToInt rem) ' ') <> p else p
 rightPad n p =
   let rem = n - preferredWidth p
-  in  if rem > 0 then p <> fromString (replicate rem ' ') else p
+  in  if rem > 0 then p <> fromString (replicate (widthToInt rem) ' ') else p
 
 excerptColumn2Headed
   :: (LL.ListLike s Char, IsString s)
@@ -612,12 +616,14 @@ column3sep sep rows = let
   abc = group <$> align [(a,sep <> bc) | ((a,_,_),bc) <- rows `zip` bc ]
   in lines abc
 
-wrapColumn2 ::
-  (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
+wrapColumn2
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 wrapColumn2 rows = lines (align rows) where
-  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
-    in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
-       | (l, r) <- rows]
+  align rows =
+    let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
+    in  [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
+        | (l, r) <- rows
+        ]
 
 align
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
@@ -645,8 +651,7 @@ align' rows = alignedRows
   col0Width = foldl' max 0 [ preferredWidth col1 | (col1, Just _) <- rows ] + 1
   alignedRows =
     [ case col1 of
-        Just s  ->
-          (rightPad col0Width col0, indentNAfterNewline col0Width s)
+        Just s  -> (rightPad col0Width col0, indentNAfterNewline col0Width s)
         Nothing -> (col0, mempty)
     | (col0, col1) <- rows
     ]
@@ -697,15 +702,17 @@ indent :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indent by p = by <> indentAfterNewline by p
 
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentN by = indent (fromString $ replicate by ' ')
+indentN by = indent (fromString $ replicate (widthToInt by) ' ')
 
-indentNonEmptyN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentNonEmptyN _ (out -> Empty) = mempty
-indentNonEmptyN by p = indentN by p
+indentNonEmptyN
+  :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNonEmptyN _  (out -> Empty) = mempty
+indentNonEmptyN by p              = indentN by p
 
 indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
+indentNAfterNewline by =
+  indentAfterNewline (fromString $ replicate (widthToInt by) ' ')
 
 indentAfterNewline
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
@@ -819,7 +826,7 @@ plural f p = case length f of
     's' : _ -> "es"
     _ -> "s"
 
-border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
+border :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 border n p = "\n" <> indentN n p <> "\n"
 
 callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s

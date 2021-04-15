@@ -13,7 +13,7 @@ import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
 import           Unison.Type
-import           Unison.Util.Pretty    (ColorText, Pretty)
+import           Unison.Util.Pretty    (ColorText, Pretty, Width)
 import           Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.SyntaxText as S
 import           Unison.Util.SyntaxText (SyntaxText)
@@ -25,9 +25,11 @@ import qualified Unison.Builtin.Decls as DD
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Type v a -> String
-pretty' (Just width) n t = toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
-pretty' Nothing      n t = toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
+pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
+pretty' (Just width) n t =
+  toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
+pretty' Nothing n t =
+  toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
 
 {- Explanation of precedence handling
 

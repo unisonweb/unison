@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2e2ed6fd71e1577534326f1856abc09e370c160c02bcab3902feee2e2bd8f8e
+-- hash: 3356e1ce77d4b4994ed6bdc4110bda88d7cdce1a2385a15f89e8d9edf162e4ea
 
 name:           unison-core
 version:        0.0.0
@@ -73,6 +73,7 @@ library
     , cryptonite
     , either
     , extra
+    , fuzzyfind
     , lens
     , memory
     , mtl

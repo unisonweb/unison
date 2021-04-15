@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 46d272236a5552cc0c59266cd704199831fab3f8e474ab92338f0322bb019d3f
+-- hash: 26cd32e792c7cce84c43a71156c58cbf0053505a80762d095736979b231055da
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -113,6 +113,7 @@ library
       Unison.Runtime.Vector
       Unison.Server.Backend
       Unison.Server.CodebaseServer
+      Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.ListNamespace
       Unison.Server.Errors
@@ -193,6 +194,7 @@ library
     , fingertree
     , free
     , fsnotify
+    , fuzzyfind
     , generic-monoid
     , guid
     , hashable
