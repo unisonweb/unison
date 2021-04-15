@@ -82,7 +82,7 @@ data Codebase m v a =
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            -- This copies all the dependencies of `b` from the specified Codebase into this one
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
-           -- This copies all the dependencies of `b` from the this Codebase
+           -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
            , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (Branch m, CodebasePath))
            , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
