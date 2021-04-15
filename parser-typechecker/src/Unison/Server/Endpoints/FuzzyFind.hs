@@ -101,7 +101,7 @@ deriving instance ToSchema FZF.Result
 deriving instance ToSchema FZF.ResultSegment
 
 data FoundTerm = FoundTerm
-  { bestTermName :: HashQualifiedName
+  { bestFoundTermName :: HashQualifiedName
   , namedTerm :: NamedTerm
   } deriving (Generic, Show)
 
