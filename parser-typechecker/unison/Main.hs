@@ -229,7 +229,6 @@ prepareTranscriptDir cbInit inFork mcodepath = do
   else do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
     void $ Codebase.openNewUcmCodebaseOrExit cbInit tmp
-  traceM $ "Copying codebase to " ++ tmp
   pure tmp
 
 runTranscripts'
