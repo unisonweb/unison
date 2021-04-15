@@ -1547,10 +1547,12 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' . SH.take hqLength . Reference.toShortHash $ Reference.DerivedId rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe (n,total) r tm
+                    --                          v don't cache; test cache populated below
                     tm' <- eval $ Evaluate1 ppe False tm
                     case tm' of
                       Left e -> respond (EvaluationFailure e) $> []
                       Right tm' -> do
+                        -- After evaluation, cache the result of the test
                         eval $ PutWatch UF.TestWatch rid tm'
                         respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
                         pure [(r, tm')]
@@ -1624,6 +1626,7 @@ loop = do
                    Just typ | Typechecker.isSubtype testType typ -> do
                      let a = ABT.annotation tm
                          tm = DD.forceTerm a a (Term.ref a ref) in do
+                         --                          v Don't cache IO tests
                          tm' <- eval $ Evaluate1 ppe False tm
                          case tm' of
                            Left e -> respond (EvaluationFailure e)
