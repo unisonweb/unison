@@ -10,7 +10,7 @@ module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsa
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, when, (>=>), unless)
+import Control.Monad (filterM, when, (>=>), unless, forever)
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM, (||^))
@@ -95,13 +95,22 @@ import Unison.Util.Timing (time)
 import UnliftIO (MonadIO, catchIO, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
+import qualified Unison.Util.TQueue as TQueue
+import qualified Unison.Codebase.Watch as Watch
+import UnliftIO.Concurrent (forkIO, killThread)
 
 debug, debugProcessBranches :: Bool
 debug = False
 debugProcessBranches = False
 
+codebasePath :: FilePath
+codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
+
+v2dir :: FilePath -> FilePath
+v2dir root = root </> ".unison" </> "v2"
+
 init :: HasCallStack => MonadIO m => Codebase.Init m Symbol Ann
-init = Codebase.Init getCodebaseOrError createCodebaseOrError (</> ".unison" </> "v2")
+init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 
 createCodebaseOrError ::
   MonadIO m =>
@@ -141,9 +150,6 @@ createCodebaseOrError' path = do
           Sqlite.close
           (runReaderT Q.createSchema)
       fmap (Either.mapLeft CreateCodebaseMissingSchema) (sqliteCodebase path)
-
-codebasePath :: FilePath
-codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 
 -- get the codebase in dir
 getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
@@ -432,7 +438,7 @@ sqliteCodebase root = do
                 v' <- runDB conn Ops.dataVersion
                 if v == v' then pure (Right b) else do
                   newRootHash <- runDB conn Ops.loadRootCausalHash
-                  if Branch.headHash b == Cv.hash2to1 newRootHash then pure (Right b) else forceReload
+                  if Branch.headHash b == Cv.branchHash2to1 newRootHash then pure (Right b) else forceReload
             where
               forceReload = do
                 b <- fmap (Either.mapLeft err)
@@ -465,8 +471,39 @@ sqliteCodebase root = do
               $ Branch.transform (lift . lift) branch1
             atomically $ modifyTVar rootBranchCache (fmap . second $ const branch1)
 
-          rootBranchUpdates :: MonadIO m => m (IO (), IO (Set Branch.Hash))
-          rootBranchUpdates = pure (cleanup, liftIO newRootsDiscovered)
+          rootBranchUpdates :: MonadIO m => TVar (Maybe (Q.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
+          rootBranchUpdates rootBranchCache = do
+            branchHeadChanges      <- TQueue.newIO
+            (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
+            watcher1               <-
+              liftIO . forkIO
+              $ forever
+              $ do
+                  -- void ignores the name and time of the changed file,
+                  -- and assume 'unison.sqlite3' has changed
+                  (filename, time) <- watcher
+                  traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
+                  readTVarIO rootBranchCache >>= \case
+                    Nothing -> pure ()
+                    Just (v, _) -> do
+                      -- this use of `conn` in a separate thread may be problematic.
+                      -- hopefully sqlite will produce an obvious error message if it is.
+                      v' <- runDB conn Ops.dataVersion
+                      if v /= v' then
+                        atomically
+                          . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
+                      else pure ()
+
+                  -- case hashFromFilePath filePath of
+                  --   Nothing -> failWith $ CantParseBranchHead filePath
+                  --   Just h ->
+                  --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+            -- smooth out intermediate queue
+            pure
+              ( cancelWatch >> killThread watcher1
+              , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+              )
+            pure (cleanup, liftIO newRootsDiscovered)
             where
               newRootsDiscovered = do
                 Control.Concurrent.threadDelay maxBound -- hold off on returning
@@ -767,7 +804,7 @@ sqliteCodebase root = do
             putTypeDeclaration
             (getRootBranch rootBranchCache)
             (putRootBranch rootBranchCache)
-            rootBranchUpdates
+            (rootBranchUpdates rootBranchCache)
             getBranchForHash
             putBranch
             isCausalHash

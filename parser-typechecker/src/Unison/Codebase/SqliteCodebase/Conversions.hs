@@ -296,6 +296,9 @@ hash1to2 (V1.Hash bs) = V2.Hash.Hash (SBS.toShort bs)
 branchHash1to2 :: V1.Branch.Hash -> V2.CausalHash
 branchHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
 
+branchHash2to1 :: V2.CausalHash -> V1.Branch.Hash
+branchHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
+
 patchHash1to2 :: V1.Branch.EditHash -> V2.PatchHash
 patchHash1to2 = V2.PatchHash . hash1to2
 
