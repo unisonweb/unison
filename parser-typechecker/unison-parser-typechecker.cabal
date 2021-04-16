@@ -106,8 +106,6 @@ library
       Unison.Runtime.Machine
       Unison.Runtime.MCode
       Unison.Runtime.Pattern
-      Unison.Runtime.Rt1
-      Unison.Runtime.Rt1IO
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
