@@ -292,7 +292,7 @@ launch
   -> [Either Input.Event Input.Input]
   -> IO ()
 launch dir config code branchCache inputs = do
-  CommandLine.main dir defaultBaseLib initialPath config inputs RTI.startRuntime code branchCache Version.gitDescribe
+  CommandLine.main dir defaultBaseLib initialPath config inputs code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
