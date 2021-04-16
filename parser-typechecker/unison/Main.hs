@@ -28,12 +28,9 @@ import           Unison.Codebase.Execute        ( execute )
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import           Unison.Codebase.FileCodebase.Common ( codebasePath )
 import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
-import           Unison.Codebase.Runtime        ( Runtime )
 import           Unison.CommandLine             ( watchConfig )
 import qualified Unison.CommandLine.Main       as CommandLine
-import qualified Unison.Runtime.Rt1IO          as Rt1
 import qualified Unison.Runtime.Interface      as RTI
-import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Util.Cache             as Cache
 import qualified Unison.Server.CodebaseServer as Server
@@ -145,12 +142,9 @@ main = do
   -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
   -- rather than just deciding on whether to use the supplied path or
   -- the home directory here and throwing away that bit of information
-  let (mcodepath, restargs0) = case args of
+  let (mcodepath, restargs) = case args of
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
-      (mNewRun, restargs) = case restargs0 of
-           "--new-runtime" : rest -> (Just True, rest)
-           _ -> (Nothing, restargs0)
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config@(config_, _cancelConfig) <-
@@ -165,14 +159,14 @@ main = do
         PT.putPrettyLn . P.string $ "I've started a codebase API server at "
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
           <> show port <> "?" <> URI.encode (unpack token)
-        launch currentDir mNewRun config theCodebase branchCache []
+        launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      runtime <- join . getStartRuntime mNewRun $ fst config
+      runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
@@ -181,7 +175,7 @@ main = do
         Right contents -> do
           theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir mNewRun config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
@@ -190,7 +184,7 @@ main = do
           theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
-            currentDir mNewRun config theCodebase branchCache
+            currentDir config theCodebase branchCache
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' ->
       case args' of
@@ -290,22 +284,15 @@ runTranscripts branchCache inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-getStartRuntime :: Maybe Bool -> Config -> IO (IO (Runtime Symbol))
-getStartRuntime newRun config = do
-  b <- maybe (Config.lookupDefault False config "new-runtime") pure newRun
-  pure $ if b then RTI.startRuntime else pure Rt1.runtime
-
 launch
   :: FilePath
-  -> Maybe Bool
   -> (Config, IO ())
   -> _
   -> Branch.Cache IO
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir newRun config code branchCache inputs = do
-  startRuntime <- getStartRuntime newRun $ fst config
-  CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code branchCache Version.gitDescribe
+launch dir config code branchCache inputs = do
+  CommandLine.main dir defaultBaseLib initialPath config inputs RTI.startRuntime code branchCache Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
