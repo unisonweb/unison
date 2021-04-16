@@ -37,7 +37,7 @@ testHandleOps =
   let myFile = workdir </> "handleOps.txt"
       resultFile = workdir </> "handleOps.result"
       expectedText = "Good Job!" :: Text.Text
-  runTranscript_ False workdir codebase cache [iTrim|
+  runTranscript_ workdir codebase cache [iTrim|
 ```ucm:hide
 .> builtins.mergeio
 ```
@@ -88,13 +88,12 @@ initCodebase branchCache tmpDir name = do
 -- run a transcript on an existing codebase
 runTranscript_
   :: MonadIO m
-  => Bool
-  -> FilePath
+  => FilePath
   -> Codebase IO Symbol Ann
   -> Branch.Cache IO
   -> String
   -> m ()
-runTranscript_ newRt tmpDir c branchCache transcript = do
+runTranscript_ tmpDir c branchCache transcript = do
   let configFile = tmpDir </> ".unisonConfig"
   let cwd = tmpDir </> "cwd"
   let err err = error $ "Parse error: \n" <> show err
@@ -102,7 +101,7 @@ runTranscript_ newRt tmpDir c branchCache transcript = do
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
     void . liftIO $
-      TR.run (Just newRt) cwd configFile stanzas c branchCache
+      TR.run cwd configFile stanzas c branchCache
         >>= traceM . Text.unpack
 
 withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> Test ()) -> Test ()
