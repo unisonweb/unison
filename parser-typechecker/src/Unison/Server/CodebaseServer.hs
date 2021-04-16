@@ -10,6 +10,7 @@ import           Data.Aeson                     ( )
 import qualified Data.ByteString.Lazy          as Lazy
 import qualified Data.ByteString               as Strict
 import qualified Data.ByteString.Char8         as C8
+import           Data.Monoid                    ( Endo(..), appEndo )
 import           Data.OpenApi                   ( URL(..)
                                                 , Info(..)
                                                 , License(..)
@@ -156,14 +157,11 @@ start codebase k = do
   token    <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
-  let settings =
-        (case envPort of
-            Just p  -> setPort p
-            Nothing -> id
-          )
-          $ case envHost of
-              Just p -> setHost (fromString p) defaultSettings
-              _      -> defaultSettings
+  let settings = appEndo
+        (  foldMap (Endo . setPort)              envPort
+        <> foldMap (Endo . setHost . fromString) envHost
+        )
+        defaultSettings
       a = app codebase token
   withApplicationSettings settings (pure a) (k token)
 
