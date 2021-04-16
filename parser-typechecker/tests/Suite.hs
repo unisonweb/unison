@@ -38,8 +38,8 @@ import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 import qualified Unison.Test.Git as Git
 
-test :: Bool -> Test ()
-test rt = tests
+test :: Test ()
+test = tests
   [ Cache.test
   , Lexer.test
   , Term.test
@@ -48,7 +48,7 @@ test rt = tests
   , Type.test
   , TypeError.test
   , TypePrinter.test
-  , UnisonSources.test rt
+  , UnisonSources.test
   , FileParser.test
   , DataDeclaration.test
   , Range.test
@@ -76,12 +76,9 @@ test rt = tests
 
 main :: IO ()
 main = do
-  args0 <- getArgs
-  let (rt, args)
-        | "--new-runtime":rest <- args0 = (True, rest)
-        | otherwise = (False, args0)
+  args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of
-    [] -> runOnly "" (test rt)
-    [prefix] -> runOnly prefix (test rt)
-    [seed, prefix] -> rerunOnly (read seed) prefix (test rt)
+    [] -> runOnly "" test
+    [prefix] -> runOnly prefix test
+    [seed, prefix] -> rerunOnly (read seed) prefix test
