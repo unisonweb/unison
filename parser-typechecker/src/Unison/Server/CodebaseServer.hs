@@ -23,7 +23,6 @@ import           Network.Wai                    ( responseLBS
                                                 , queryString
                                                 )
 import           Network.Wai.Handler.Warp       ( withApplicationSettings
-                                                , runSettings
                                                 , defaultSettings
                                                 , Port
                                                 , setPort
@@ -152,23 +151,21 @@ start
   :: Var v => Codebase IO v Ann -> (Strict.ByteString -> Port -> IO ()) -> IO ()
 start codebase k = do
   envToken <- lookupEnv "UCM_TOKEN"
-  envHost <- lookupEnv "UCM_HOST"
-  envPort <- (readMaybe =<<) <$> lookupEnv "UCM_PORT"
-  token <- case envToken of
+  envHost  <- lookupEnv "UCM_HOST"
+  envPort  <- (readMaybe =<<) <$> lookupEnv "UCM_PORT"
+  token    <- case envToken of
     Just t -> return $ C8.pack t
-    _ -> genToken
-
-  let settings = case envHost of
-        Just p -> setHost (fromString p) defaultSettings
-        _ -> defaultSettings
+    _      -> genToken
+  let settings =
+        (case envPort of
+            Just p  -> setPort p
+            Nothing -> id
+          )
+          $ case envHost of
+              Just p -> setHost (fromString p) defaultSettings
+              _      -> defaultSettings
       a = app codebase token
-
-  case envPort of
-    Just p -> do
-      (k token p)
-      runSettings (setPort p settings) a
-    Nothing ->
-      withApplicationSettings settings (pure a) (k token)
+  withApplicationSettings settings (pure a) (k token)
 
 server :: Var v => Codebase IO v Ann -> Server DocAPI
 server codebase _ =
