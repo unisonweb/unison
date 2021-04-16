@@ -194,12 +194,12 @@ main = do
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache False True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts branchCache False True mcodepath transcripts
+      _                              -> runTranscripts branchCache False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun branchCache True True mcodepath transcripts
-      _                              -> runTranscripts mNewRun branchCache True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
+      _                              -> runTranscripts branchCache True False mcodepath args'
     _ -> do
       PT.putPrettyLn (usage progName)
       Exit.exitWith (Exit.ExitFailure 1)
@@ -223,13 +223,12 @@ prepareTranscriptDir branchCache inFork mcodepath = do
   pure tmp
 
 runTranscripts'
-  :: Maybe Bool
-  -> Branch.Cache IO
+  :: Branch.Cache IO
   -> Maybe FilePath
   -> FilePath
   -> [String]
   -> IO Bool
-runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
+runTranscripts' branchCache mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   theCodebase <- FileCodebase.getCodebaseOrExit branchCache $ Just transcriptDir
   case args of
@@ -245,7 +244,7 @@ runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase branchCache
+              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase branchCache
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
@@ -261,18 +260,17 @@ runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
       pure False
 
 runTranscripts
-  :: Maybe Bool
-  -> Branch.Cache IO
+  :: Branch.Cache IO
   -> Bool
   -> Bool
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts mNewRun branchCache inFork keepTemp mcodepath args = do
+runTranscripts branchCache inFork keepTemp mcodepath args = do
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir branchCache inFork mcodepath
   completed <-
-    runTranscripts' mNewRun branchCache (Just transcriptDir) transcriptDir args
+    runTranscripts' branchCache (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
