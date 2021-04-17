@@ -16,7 +16,6 @@ import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
 import qualified Unison.Test.Lexer as Lexer
-import qualified Unison.Test.IO as TestIO
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Referent as Referent
 import qualified Unison.Test.Term as Term
@@ -67,7 +66,6 @@ test = tests
   , UriParser.test
   , Context.test
   , Git.test
-  , TestIO.test
   , Name.test
   , VersionParser.test
   , Pretty.test
