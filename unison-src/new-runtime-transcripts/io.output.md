@@ -55,7 +55,7 @@ testCreateRename _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testCreateRename : '{io2.IO} [Result]
+      testCreateRename : '{IO} [Result]
 
 ```
 ```ucm
@@ -63,7 +63,7 @@ testCreateRename _ =
 
   ⍟ I've added these definitions:
   
-    testCreateRename : '{io2.IO} [Result]
+    testCreateRename : '{IO} [Result]
 
 .> io.test testCreateRename
 
@@ -110,7 +110,7 @@ testOpenClose _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testOpenClose : '{io2.IO} [Result]
+      testOpenClose : '{IO} [Result]
 
 ```
 ```ucm
@@ -118,7 +118,7 @@ testOpenClose _ =
 
   ⍟ I've added these definitions:
   
-    testOpenClose : '{io2.IO} [Result]
+    testOpenClose : '{IO} [Result]
 
 .> io.test testOpenClose
 
@@ -199,8 +199,8 @@ testAppend _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testAppend : '{io2.IO} [Result]
-      testSeek   : '{io2.IO} [Result]
+      testAppend : '{IO} [Result]
+      testSeek   : '{IO} [Result]
 
 ```
 ```ucm
@@ -208,8 +208,8 @@ testAppend _ =
 
   ⍟ I've added these definitions:
   
-    testAppend : '{io2.IO} [Result]
-    testSeek   : '{io2.IO} [Result]
+    testAppend : '{IO} [Result]
+    testSeek   : '{IO} [Result]
 
 .> io.test testSeek
 
@@ -256,7 +256,7 @@ testSystemTime _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testSystemTime : '{io2.IO} [Result]
+      testSystemTime : '{IO} [Result]
 
 ```
 ```ucm
@@ -264,7 +264,7 @@ testSystemTime _ =
 
   ⍟ I've added these definitions:
   
-    testSystemTime : '{io2.IO} [Result]
+    testSystemTime : '{IO} [Result]
 
 .> io.test testSystemTime
 

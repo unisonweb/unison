@@ -35,16 +35,10 @@ body k out v =
   
     ⍟ These new definitions are ok to `add`:
     
-      body  : Nat
-              -> TVar (Optional Nat)
-              -> TVar Nat
-              ->{io2.IO} ()
+      body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
-      inc   : TVar Nat ->{io2.IO} Nat
-      loop  : '{io2.IO} Nat
-              ->{io2.IO} Nat
-              ->{io2.IO} Nat
-              ->{io2.IO} Nat
+      inc   : TVar Nat ->{IO} Nat
+      loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
 
 ```
 ```ucm
@@ -52,13 +46,10 @@ body k out v =
 
   ⍟ I've added these definitions:
   
-    body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{io2.IO} ()
+    body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
     count : Nat -> ()
-    inc   : TVar Nat ->{io2.IO} Nat
-    loop  : '{io2.IO} Nat
-            ->{io2.IO} Nat
-            ->{io2.IO} Nat
-            ->{io2.IO} Nat
+    inc   : TVar Nat ->{IO} Nat
+    loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
 
 ```
 Test case.
@@ -106,8 +97,8 @@ tests = '(map spawn nats)
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]
-      spawn   : Nat ->{io2.IO} Result
-      tests   : '{io2.IO} [Result]
+      spawn   : Nat ->{IO} Result
+      tests   : '{IO} [Result]
 
 ```
 ```ucm
@@ -117,8 +108,8 @@ tests = '(map spawn nats)
   
     display : Nat -> Nat -> Nat -> Text
     nats    : [Nat]
-    spawn   : Nat ->{io2.IO} Result
-    tests   : '{io2.IO} [Result]
+    spawn   : Nat ->{IO} Result
+    tests   : '{IO} [Result]
 
 .> io.test tests
 

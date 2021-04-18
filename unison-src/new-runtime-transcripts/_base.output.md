@@ -47,7 +47,7 @@ testAutoClean _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testAutoClean : '{io2.IO} [Result]
+      testAutoClean : '{IO} [Result]
 
 ```
 ```ucm
@@ -55,7 +55,7 @@ testAutoClean _ =
 
   ⍟ I've added these definitions:
   
-    testAutoClean : '{io2.IO} [Result]
+    testAutoClean : '{IO} [Result]
 
 .> io.test testAutoClean
 
