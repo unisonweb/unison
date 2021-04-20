@@ -30,7 +30,7 @@ If these instructions don't work for you or are incomplete, please file an issue
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform.  (Hint: `brew update && brew install stack`)
 
 ```sh
-$ git clone https://github.com/unisonweb/unison.git
+$ git clone --recursive https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # we'll want to know this version if you run into trouble
 $ stack build && stack exec tests && stack exec unison
