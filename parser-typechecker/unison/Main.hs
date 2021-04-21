@@ -161,42 +161,38 @@ main = do
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case restargs of
     [] -> do
-      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
       Server.start theCodebase $ \token port -> do
         PT.putPrettyLn . P.string $ "I've started a codebase API server at "
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
           <> show port <> "?" <> URI.encode (unpack token)
       launch currentDir mNewRun config theCodebase []
-      closeCodebase
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
     "run" : [mainName] -> do
-      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
       runtime <- join . getStartRuntime mNewRun $ fst config
       execute theCodebase runtime mainName
-      closeCodebase
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+          theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir mNewRun config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-          closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+          theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir mNewRun config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-          closeCodebase
     "transcript" : args' ->
       case args' of
       "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit False True mcodepath transcripts
@@ -253,9 +249,8 @@ runTranscripts' mNewRun cbInit mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
+              theCodebase <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
               mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase
-              closeCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)

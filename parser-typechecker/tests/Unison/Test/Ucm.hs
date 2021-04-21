@@ -78,7 +78,7 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
     pure $ tmpDir </> ".unisonConfig"
   let err err = fail $ "Parse error: \n" <> show err
       cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
-  (closeCodebase, codebase) <-
+  codebase <-
     Codebase.Init.openCodebase cbInit codebasePath >>= \case
       Left e -> fail $ P.toANSI 80 e
       Right x -> pure x
@@ -93,6 +93,5 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
           configFile
           stanzas
           codebase
-  closeCodebase
   when debugTranscriptOutput $ traceM output
   pure output

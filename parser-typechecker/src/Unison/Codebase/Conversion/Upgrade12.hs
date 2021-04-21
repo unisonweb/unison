@@ -27,8 +27,8 @@ import UnliftIO (MonadIO, liftIO)
 upgradeCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m ()
 upgradeCodebase root = do
   either (liftIO . CT.putPrettyLn) pure =<< runExceptT do
-    (cleanupSrc, srcCB) <- ExceptT $ Codebase.openCodebase FC.init root
-    (cleanupDest, destCB) <- ExceptT $ Codebase.createCodebase SC.init root
+    srcCB <- ExceptT $ Codebase.openCodebase FC.init root
+    destCB <- ExceptT $ Codebase.createCodebase SC.init root
     destDB <- SC.unsafeGetConnection root
     let env = Sync12.Env srcCB destCB destDB
     let initialState = (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)
@@ -45,9 +45,6 @@ upgradeCodebase root = do
     case rootEntity of
       Sync12.C _h mc -> lift $ Codebase.putRootBranch destCB =<< Branch <$> mc
       _ -> error "The root wasn't a causal?"
-
-    lift cleanupSrc
-    lift cleanupDest
     pure ()
 
   where

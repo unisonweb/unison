@@ -56,7 +56,7 @@ syncComplete = scope "syncComplete" $ do
     observe title expectation files = scope title . for_ files $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
 
-  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
+  (_, codebase) <- io $ initCodebase tmp "codebase"
 
   runTranscript_ tmp codebase [i|
     ```ucm:hide
@@ -100,9 +100,7 @@ syncComplete = scope "syncComplete" $ do
   observe "complete" expect files
 
   -- if we haven't crashed, clean up!
-  io do
-    cleanup
-    removeDirectoryRecursive tmp
+  io $ removeDirectoryRecursive tmp
 
   where
   files =
@@ -117,7 +115,7 @@ syncTestResults = scope "syncTestResults" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncTestResults"
 
   targetDir <- io $ Temp.createTempDirectory tmp "target"
-  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
+  (_, codebase) <- io $ initCodebase tmp "codebase"
 
   runTranscript_ tmp codebase [i|
 ```ucm
@@ -151,9 +149,7 @@ test> tests.x = [Ok "Great!"]
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io do
-    cleanup
-    removeDirectoryRecursive tmp
+  io $ removeDirectoryRecursive tmp
   where
   targetShouldHave =
     [ ".unison/v1/paths/0bnfrk7cu44q0vvaj7a0osl90huv6nj01nkukplcsbgn3i09h6ggbthhrorm01gpqc088673nom2i491fh9rtbqcc6oud6iqq6oam88.ub"
@@ -174,8 +170,8 @@ testPull = scope "pull" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
 
   -- initialize author and user codebases
-  (_authorDir, cleanupAuthor, authorCodebase) <- io $ initCodebase tmp "author"
-  (userDir, cleanupUser, userCodebase) <- io $ initCodebase tmp "user"
+  (_authorDir, authorCodebase) <- io $ initCodebase tmp "author"
+  (userDir, userCodebase) <- io $ initCodebase tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
@@ -230,10 +226,7 @@ testPull = scope "pull" $ do
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
 
   -- if we haven't crashed, clean up!
-  io $ do
-    cleanupAuthor
-    cleanupUser
-    removeDirectoryRecursive tmp
+  io $ removeDirectoryRecursive tmp
 
   where
   gitShouldHave = userShouldHave ++ userShouldNotHave
@@ -295,11 +288,11 @@ testPull = scope "pull" $ do
     ]
 
 -- initialize a fresh codebase
-initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
+initCodebase :: FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
 initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (cleanup, c) <- Codebase.openNewUcmCodebaseOrExit FC.init codebaseDir
-  pure (codebaseDir, cleanup, c)
+  c <- Codebase.openNewUcmCodebaseOrExit FC.init codebaseDir
+  pure (codebaseDir, c)
 
 -- run a transcript on an existing codebase
 runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m ()
@@ -323,7 +316,7 @@ testPush = scope "push" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-push"
 
   -- initialize a fresh codebase named "c"
-  (codebasePath, cleanup, c) <- io $ initCodebase tmp "c"
+  (codebasePath, c) <- io $ initCodebase tmp "c"
 
   -- Run the "setup transcript" to do the adds and updates; everything short of
   -- pushing.
@@ -352,9 +345,7 @@ testPush = scope "push" $ do
         io (fmap not . doesFileExist $ tmp </> implName </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io do
-    cleanup
-    removeDirectoryRecursive tmp
+  io $ removeDirectoryRecursive tmp
 
   where
   setupTranscript = [i|

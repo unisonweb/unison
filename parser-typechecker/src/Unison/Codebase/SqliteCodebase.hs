@@ -115,7 +115,7 @@ init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 createCodebaseOrError ::
   MonadIO m =>
   CodebasePath ->
-  m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
+  m (Either Codebase1.CreateCodebaseError (Codebase m Symbol Ann))
 createCodebaseOrError dir = do
   prettyDir <- P.string <$> canonicalizePath dir
   let convertError = \case
@@ -137,7 +137,7 @@ data CreateCodebaseError
 createCodebaseOrError' ::
   MonadIO m =>
   CodebasePath ->
-  m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
+  m (Either CreateCodebaseError (Codebase m Symbol Ann))
 createCodebaseOrError' path = do
   ifM
     (doesFileExist $ path </> codebasePath)
@@ -158,7 +158,7 @@ createCodebaseOrError' path = do
       fmap (Either.mapLeft CreateCodebaseMissingSchema) (sqliteCodebase path)
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (Codebase m Symbol Ann))
 getCodebaseOrError dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError :: [(Q.SchemaType, Q.SchemaName)] -> String
@@ -185,7 +185,7 @@ codebaseExists root = liftIO do
   Control.Exception.catch @Sqlite.SQLError
     ( sqliteCodebase root >>= \case
         Left _ -> pure False
-        Right (close, _codebase) -> close >> pure True
+        Right _ -> pure True
     )
     (const $ pure False)
 
@@ -247,7 +247,7 @@ unsafeGetConnection root = do
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either [(Q.SchemaType, Q.SchemaName)] (m (), Codebase m Symbol Ann))
+sqliteCodebase :: MonadIO m => CodebasePath -> m (Either [(Q.SchemaType, Q.SchemaName)] (Codebase m Symbol Ann))
 sqliteCodebase root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
@@ -704,10 +704,10 @@ sqliteCodebase root = do
                   <$> unsafeGetConnection srcPath
                   <*> unsafeGetConnection destPath
                   <*> pure (16 * 1024 * 1024)
-              (closeSrc, src) <-
+              src <-
                 lift (sqliteCodebase srcPath)
                   >>= Except.liftEither . Either.mapLeft SyncEphemeral.SrcMissingSchema
-              (closeDest, dest) <-
+              dest <-
                 lift (sqliteCodebase destPath)
                   >>= Except.liftEither . Either.mapLeft SyncEphemeral.DestMissingSchema
               -- we want to use sync22 wherever possible
@@ -768,8 +768,6 @@ sqliteCodebase root = do
               let progress' = Sync.transformProgress (lift . lift) progress
                   bHash = Branch.headHash b
               se $ processBranches sync progress' src dest [B bHash (pure b)]
-              lift closeSrc
-              lift closeDest
             pure $ Validation.valueOr (error . show) result
 
       -- Do we want to include causal hashes here or just namespace hashes?
@@ -779,22 +777,20 @@ sqliteCodebase root = do
       -- primarily with commit hashes.
       -- Arya leaning towards doing the same for Unison.
 
-      let finalizer :: MonadIO m => m ()
-          finalizer = do
-            liftIO $ Sqlite.close conn
-            decls <- readTVarIO declBuffer
-            terms <- readTVarIO termBuffer
-            let printBuffer header b =
-                  liftIO
-                    if b /= mempty
-                      then putStrLn header >> putStrLn "" >> print b
-                      else pure ()
-            printBuffer "Decls:" decls
-            printBuffer "Terms:" terms
+      -- let finalizer :: MonadIO m => m ()
+      --     finalizer = do
+      --       decls <- readTVarIO declBuffer
+      --       terms <- readTVarIO termBuffer
+      --       let printBuffer header b =
+      --             liftIO
+      --               if b /= mempty
+      --                 then putStrLn header >> putStrLn "" >> print b
+      --                 else pure ()
+      --       printBuffer "Decls:" decls
+      --       printBuffer "Terms:" terms
 
       pure . Right $
-        ( finalizer,
-          Codebase1.Codebase
+        ( Codebase1.Codebase
             getTerm
             getTypeOfTermImpl
             getTypeDeclaration
@@ -926,7 +922,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   ifM
     (codebaseExists remotePath)
     ( do
-        (closeCodebase, codebase) <-
+        codebase <-
           lift (sqliteCodebase remotePath)
             >>= Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
         -- try to load the requested branch from it
@@ -950,7 +946,6 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
                   Just b -> pure b
                   Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
               _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-        lift closeCodebase
         pure (Branch.getAt' path branch, remotePath)
     )
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.

@@ -79,11 +79,11 @@ main = 'let
 
 -- * Utilities
 
-initCodebase :: Codebase.Init IO Symbol Ann -> FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
+initCodebase :: Codebase.Init IO Symbol Ann -> FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
 initCodebase cbInit tmpDir name = do
   let codebaseDir = tmpDir </> name
-  (finalize, c) <- Codebase.openNewUcmCodebaseOrExit cbInit codebaseDir
-  pure (codebaseDir, finalize, c)
+  c <- Codebase.openNewUcmCodebaseOrExit cbInit codebaseDir
+  pure (codebaseDir, c)
 
 -- run a transcript on an existing codebase
 runTranscript_
@@ -107,8 +107,6 @@ runTranscript_ newRt tmpDir c transcript = do
 withScopeAndTempDir :: String -> (FilePath -> Codebase IO Symbol Ann -> Test ()) -> Test ()
 withScopeAndTempDir name body = scope name $ do
   tmp <- liftIO $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory name
-  (_, closeCodebase, codebase) <- liftIO $ initCodebase FileCodebase.init tmp "user"
+  (_, codebase) <- liftIO $ initCodebase FileCodebase.init tmp "user"
   body tmp codebase
-  liftIO do
-    closeCodebase
-    removeDirectoryRecursive tmp
+  liftIO $ removeDirectoryRecursive tmp
