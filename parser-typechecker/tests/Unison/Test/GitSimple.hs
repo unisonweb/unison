@@ -24,6 +24,170 @@ test :: Test ()
 test = scope "git-simple" . tests $
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
+  pushPullTest  "typeAlias" fmt
+    (\repo -> [i|
+      ```ucm
+      .> alias.type ##Nat builtin.Nat
+      .> history
+      .> history builtin
+      .> push ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .> pull ${repo}
+      ```
+      ```unison
+      x : Nat
+      x = 3
+      ```
+    |])
+  ,
+  pushPullTest  "topLevelTerm" fmt
+    (\repo -> [i|
+      ```unison:hide
+      y = 3
+      ```
+      ```ucm
+      .> add
+      .> history
+      .> push ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .> pull ${repo}
+      .> find
+      ```
+      ```unison
+      > y
+      ```
+    |])
+  ,
+  pushPullTest  "metadataForTerm" fmt
+    (\repo -> [i|
+          ```unison:hide
+          doc = "y is the number 3"
+          y = 3
+          ```
+          ```ucm
+          .> debug.file
+          .> add
+          .> link doc y
+          .> links y
+          .> history
+          .> push ${repo}
+          ```
+    |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        .> links y
+        ```
+    |])
+  ,
+  pushPullTest  "metadataForType" fmt
+    (\repo -> [i|
+          ```unison:hide
+          doc = "Nat means natural number"
+          ```
+          ```ucm
+          .> add
+          .> alias.type ##Nat Nat
+          .> link doc Nat
+          .> push ${repo}
+          ```
+    |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        .> links Nat
+        ```
+    |])
+  ,
+  pushPullTest  "subNamespace" fmt
+    (\repo -> [i|
+          ```ucm
+          .> alias.type ##Nat builtin.Nat
+          ```
+          ```unison
+          unique type a.b.C = C Nat
+          ```
+          ```ucm
+          .> add
+          .> push ${repo}
+          ```
+    |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        .> find
+        ```
+        ```unison
+        > a.b.C.C 3
+        ```
+    |])
+  ,
+  pushPullTest  "accessPatch" fmt
+    (\repo -> [i|
+          ```ucm
+          .> alias.type ##Nat builtin.Nat
+          ```
+          ```unison:hide
+          unique type A = A Nat
+          foo = A.A 3
+          ```
+          ```ucm
+          .> debug.file
+          .> add
+          ```
+          ```unison:hide
+          unique type A = A Nat Nat
+          foo = A.A 3 3
+          ```
+          ```ucm
+          .> debug.file
+          .> update
+          ```
+          ```ucm
+          .> view.patch patch
+          .> push ${repo}
+          ```
+    |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        .> view.patch patch
+        ```
+    |])
+  ,
+  pushPullTest  "history" fmt
+    (\repo -> [i|
+          ```unison
+          foo = 3
+          ```
+          ```ucm
+          .> add
+          ```
+          ```unison
+          foo = 4
+          ```
+          ```ucm
+          .> update
+          .> history
+          .> push ${repo}
+          ```
+    |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        .> history
+        .> reset-root #ls8
+        .> history
+        ```
+    |])
+  ,
+
   pushPullTest "one-term" fmt
 -- simplest-author
     (\repo -> [i|
