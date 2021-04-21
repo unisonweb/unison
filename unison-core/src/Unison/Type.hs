@@ -96,6 +96,7 @@ arity _ = 0
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 pattern Arrows' spine <- (unArrows -> Just spine)
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)

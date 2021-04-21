@@ -762,7 +762,6 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
  where
   shortName :: (Var v, IsString loc) => v -> loc
   shortName = fromString . Text.unpack . Var.name
-  showRow ctx = intercalateMap ", " (renderType' env . C.apply ctx)
   showElem
     :: (Var v, Ord loc)
     => C.Context v loc
@@ -776,9 +775,6 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
   showElem ctx (C.Ann v t) =
     shortName v <> " : " <> renderType' env (C.apply ctx t)
   showElem _ (C.Marker v) = "|" <> shortName v <> "|"
-  showElem ctx (C.Wanted _ ts)
-    = "wanted {" <> showRow ctx (snd <$> ts) <> "}"
-  showElem ctx (C.Handled _ ts) = "wanted {" <> showRow ctx ts <> "}"
 
 renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm env e =

@@ -112,11 +112,6 @@ data Element v loc
   | Ann v (Type v loc)
   -- | used for scoping
   | Marker v
-  -- | Collection of wanted abilities in a scope, accumulated over
-  -- multiple checks
-  | Wanted v [(loc, Type v loc)]
-  -- | Handler for some particular abilities around the current scope.
-  | Handled v [Type v loc]
 
 
 instance (Ord loc, Var v) => Eq (Element v loc) where
@@ -477,6 +472,10 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 debugEnabled :: Bool
 debugEnabled = False
 
+debugShow :: Show a => a -> Bool
+debugShow e | debugEnabled = traceShow e False
+debugShow _ = False
+
 debugPatternsEnabled :: Bool
 debugPatternsEnabled = False
 
@@ -524,23 +523,11 @@ replaceContext elem replacement =
         "Extending context with a variable that is not reserved by the typechecking environment." <>
         " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
 
-skimContext :: Var v => v -> M v loc ()
-skimContext v = modifyContext $ \ctx0@(Context ctx) ->
-  case focusAt p ctx of
-    Just (r, _, l) -> Context l `extendN` map fst r
-    Nothing -> pure ctx0
-  where
-  p (Handled u _, _) = u == v
-  p (Wanted u _, _) = u == v
-  p _ = False
-
 varOf :: Element v loc -> v
 varOf (Var tv) = TypeVar.underlying tv
 varOf (Solved _ v _) = v
 varOf (Ann v _) = v
 varOf (Marker v) = v
-varOf (Wanted v _) = v
-varOf (Handled v _) = v
 
 isReserved :: Var v => v -> M v loc Bool
 isReserved v = fromMEnv $ (v `isReservedIn`) . env
@@ -647,18 +634,6 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
     Marker v -> if Set.notMember v vs
       then pure $ Info es ses us uas (Set.insert v vs) pvs
       else crash $ "marker variable " <> show v <> " already defined in the context"
-    Wanted v _
-      | Set.notMember v vs
-     -> pure $ Info es ses us uas (Set.insert v vs) pvs
-      | otherwise
-     -> crash $ "'wanted' marker variable "
-                  <> show v <> " already defined in the context"
-    Handled v _
-      | Set.notMember v vs
-     -> pure $ Info es ses us uas (Set.insert v vs) pvs
-      | otherwise
-     -> crash $ "'handled' marker variable "
-                  <> show v <> " already defined in the context"
   crash reason = Left $ IllegalContextExtension c e reason
 
 extend :: Var v => Element v loc -> Context v loc -> M v loc (Context v loc)
@@ -690,14 +665,6 @@ getDataDeclarations = fromMEnv dataDecls
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
 getEffectDeclarations = fromMEnv effectDecls
-
-getAbilities :: M v loc [Type v loc]
-getAbilities = foldr aggregate [] . project <$> getContext
-  where
-  project (Context c) = fst <$> c
-  aggregate (Handled _ as) bs = as ++ bs
-  aggregate (Wanted _ _) _ = []
-  aggregate _ bs = bs
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -806,39 +773,44 @@ apply' solvedExistentials t = go t where
 loc :: ABT.Term f v loc -> loc
 loc = ABT.annotation
 
--- Prepends the provided abilities onto the existing ambient for duration of `m`
-withEffects :: Var v => [Type v loc] -> M v loc a -> M v loc a
-withEffects abils m = do
-  v <- freshenVar (Var.named "handler-hint")
-  extendContext (Handled v abils)
-  m <* skimContext v
+-- | Post-processes an action that wants abilities by filtering out
+-- some handled abilities.
+withEffects
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> M v loc [Type v loc]
+  -> M v loc [Type v loc]
+withEffects handled act = do
+  want <- expandAbilities =<< act
+  handled <- expandAbilities handled
+  pruneWanted [] want handled
 
--- Replaces the ambient abilities with the provided for duration of `m`
-withEffects0 :: Var v => [Type v loc] -> M v loc a -> M v loc a
-withEffects0 abils m = do
-  ve <- freshenVar (Var.named "effect-scope-hint")
-  vh <- freshenVar (Var.named "handler-hint")
-  extendContext (Wanted ve [])
-  extendContext (Handled vh abils)
-  m <* skimContext vh <* skimContext ve
-
-
-synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
+synthesizeApps
+  :: (Foldable f, Var v, Ord loc)
+  => Type v loc
+  -> f (Term v loc) -> M v loc (Type v loc, [Type v loc])
 synthesizeApps ft args =
-  foldM go ft $ Foldable.toList args `zip` [1..]
-  where go ft arg = do
+  foldM go (ft, []) $ Foldable.toList args `zip` [1..]
+  where go (ft, want) arg = do
           ctx <- getContext
-          synthesizeApp (apply ctx ft) arg
+          (t, rwant) <- synthesizeApp (apply ctx ft) arg
+          (t,) <$> coalesceWanted rwant want
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
-synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
+synthesizeApp
+  :: (Var v, Ord loc)
+  => Type v loc
+  -> (Term v loc, Int)
+  -> M v loc (Type v loc, [Type v loc])
 synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
-  scope (InSynthesizeApp ft arg argNum)
-    $ wantAbilities (loc arg) es >> abilityCheck es >> go ft
+  scope (InSynthesizeApp ft arg argNum) $ do
+    (t, w) <- go ft
+    (t,) <$> coalesceWanted es w
   where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
@@ -847,12 +819,10 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     synthesizeApp ft2 argp
   go (Type.Arrow' i o0) = do -- ->App
     let (es, o) = Type.stripEffect o0
-    wantAbilities (loc o0) es
-    abilityCheck es
-    o <$ check arg i
+    (o,) <$> checkWanted es arg i
   -- todo: reviewme should we use polarity info here?
   go (Type.Var' (TypeVar.Existential b a _p)) = do -- a^App
-    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthsizeApp-refined-effect", Var.named "o"]
+    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthesizeApp-refined-effect", Var.named "o"]
     let it = existential' (loc ft) B.Blank i
         ot = existential' (loc ft) B.Blank o
         et = existential' (loc ft) B.Blank e
@@ -896,7 +866,7 @@ noteTopLevelType
   -> M v loc ()
 noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
-    inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
+    inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing -> btw $ topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
@@ -908,77 +878,175 @@ noteTopLevelType e binding typ = case binding of
   _ -> btw $ topLevelComponent
     [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
--- | Synthesize the type of the given term, updating the context in the process.
+synthesizeTop
+  :: Var v
+  => Ord loc
+  => Term v loc
+  -> M v loc (Type v loc)
+synthesizeTop tm = do
+  (ty, want) <- synthesize tm
+  ctx <- getContext
+  want <- substAndDefaultWanted want (out ctx)
+  when (not $ null want) . failWith $
+    AbilityCheckFailure
+      []
+      (Type.flattenEffects =<< want)
+      ctx
+  applyM ty
+  where
+  out (Context es) = fmap fst es
+
+-- | Synthesize the type of the given term, updating the context in
+-- the process.  Also collect wanted abilities.
 -- | Figure 11 from the paper
-synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
-synthesize e | debugEnabled && traceShow ("synthesize"::String, e) False = undefined
+synthesize
+  :: Var v
+  => Ord loc
+  => Term v loc
+  -> M v loc (Type v loc, [Type v loc])
+synthesize e | debugShow ("synthesize"::String, e) = undefined
 synthesize e = scope (InSynthesize e) $
   case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
-      Type.Effect'' es t <- go e
-      wantAbilities (loc e) es
-      abilityCheck es
-      pure t
-  where
-  l = loc e
-  go :: (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
-  go (Term.Var' v) = getContext >>= \ctx -> case lookupAnn ctx v of -- Var
+      (Type.Effect'' es t, want) <- synthesizeWanted e
+      want <- coalesceWanted es want
+      pure (t, want)
+
+wantRequest
+  :: Var v => Ord loc => Type v loc -> (Type v loc, [Type v loc])
+wantRequest ~(Type.Effect'' es t) = (t, es)
+
+synthesizeWanted
+  :: Var v
+  => Ord loc
+  => Term v loc
+  -> M v loc (Type v loc, [Type v loc])
+synthesizeWanted (Term.Var' v) = getContext >>= \ctx ->
+  case lookupAnn ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
-    Just t -> pure t
-  go (Term.Blank' blank) = do
+    -- variables accesses are pure
+    Just t -> pure (t, [])
+synthesizeWanted (Term.Ref' h)
+  = compilerCrash $ UnannotatedReference h
+synthesizeWanted (Term.Ann' (Term.Ref' _) t)
+  -- innermost Ref annotation assumed to be correctly provided by
+  -- `synthesizeClosed`
+  --
+  -- Top level references don't have their own effects.
+  | Set.null s = (,[]) <$> existentializeArrows t
+  | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
+  where s = ABT.freeVars t
+synthesizeWanted (Term.Constructor' r cid)
+  -- Constructors do not have effects
+  = (,[]) . Type.purifyArrows <$> getDataConstructorType r cid
+synthesizeWanted (Term.Request' r cid) =
+  fmap wantRequest . ungeneralize . Type.purifyArrows
+    =<< getEffectConstructorType r cid
+synthesizeWanted (Term.Let1Top' top binding e) = do
+  isClosed <- isClosed binding
+  -- note: no need to freshen binding, it can't refer to v
+  ((tb, wb), ctx2) <- markThenRetract Var.inferOther $ do
+    _ <- extendExistential Var.inferOther
+    synthesize binding
+  -- regardless of whether we generalize existentials, we'll need to
+  -- process the wanted abilities with respect to things falling out
+  -- of scope.
+  wb <- substAndDefaultWanted wb ctx2
+  -- If the binding has no free variables, we generalize over its
+  -- existentials
+  tbinding <-
+    if isClosed then pure $ generalizeExistentials ctx2 tb
+    else applyM . applyCtx ctx2 $ tb
+  v' <- ABT.freshen e freshenVar
+  appendContext [Ann v' tbinding]
+  (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
+  t <- applyM t
+  when top $ noteTopLevelType e binding tbinding
+  want <- coalesceWanted w wb
+  -- doRetract $ Ann v' tbinding
+  pure (t, want)
+synthesizeWanted (Term.LetRecNamed' [] body) = synthesizeWanted body
+synthesizeWanted (Term.LetRecTop' isTop letrec) = do
+  ((t, want), ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
+    e <- annotateLetRecBindings isTop letrec
+    synthesize e
+  want <- substAndDefaultWanted want ctx2
+  pure (generalizeExistentials ctx2 t, want)
+synthesizeWanted (Term.Handle' h body) = do
+  -- To synthesize a handle block, we first synthesize the handler h,
+  -- then push its allowed abilities onto the current ambient set when
+  -- checking the body. Assuming that works, we also verify that the
+  -- handler only uses abilities in the current ambient set.
+  (ht, hwant) <- synthesize h
+  ht <- ungeneralize =<< applyM ht
+  ctx <- getContext
+  case ht of
+    -- common case, like `h : Request {Remote} a -> b`, brings
+    -- `Remote` into ambient when checking `body`
+    Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
+      let es = Type.flattenEffects et
+      bwant <- withEffects es $ checkWanted [] body i
+      o <- applyM o
+      let (oes, o') = Type.stripEffect o
+      want <- coalesceWanted (oes ++ bwant) hwant
+      pure (o', want)
+    -- degenerate case, like `handle x -> 10 in ...`
+    -- todo: reviewme - I think just generate a type error in this case
+    --       reviewme - if keeping this, should we use polarity info?
+    -- Currently assuming no effects are handled.
+    Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing) _))) o -> do
+      r <- extendExistential v
+      let rt = existentialp (loc i) r
+          e0 = Type.apps (Type.ref (loc i) Type.effectRef)
+                 [(loc i, Type.effects (loc i) []), (loc i, rt)]
+      subtype i e0
+      o <- applyM o
+      let (oes, o') = Type.stripEffect o
+      want <- checkWanted oes body rt
+      pure (o', want)
+    _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
+
+synthesizeWanted (Term.Ann' e t) = checkScoped e t
+synthesizeWanted (Term.Apps' f args) = do -- ->EEEEE
+  (ft, fwant) <- synthesize f
+  ctx <- getContext
+  (vs, ft) <- ungeneralize' ft
+  (at, awant) <- scope (InFunctionCall vs f ft args)
+    $ synthesizeApps (apply ctx ft) args
+  (at,) <$> coalesceWanted awant fwant
+
+
+-- From here down, the term location is used in the result, so it is
+-- more convenient to use pattern guards.
+synthesizeWanted e
+  -- literals
+  | Term.Float' _ <- e = pure (Type.float l, []) -- 1I=>
+  | Term.Int' _ <- e = pure (Type.int l, []) -- 1I=>
+  | Term.Nat' _ <- e = pure (Type.nat l, []) -- 1I=>
+  | Term.Boolean' _ <- e = pure (Type.boolean l, [])
+  | Term.Text' _ <- e = pure (Type.text l, [])
+  | Term.Char' _ <- e = pure (Type.char l, [])
+  | Term.TermLink' _ <- e = pure (Type.termLink l, [])
+  | Term.TypeLink' _ <- e = pure (Type.typeLink l, [])
+
+  | Term.Blank' blank <- e = do
     v <- freshenVar Var.blank
     -- todo: reviewme for use of Polarity
     appendContext [Var (TypeVar.Existential blank v Invariant)]
-    pure $ existential' l blank v -- forall (TypeVar.Universal v) (Type.universal v)
-  go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
-    s | Set.null s ->
-      -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
-      existentializeArrows t
-    s -> compilerCrash $ FreeVarsInTypeAnnotation s
-  go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) =
-    Type.purifyArrows <$> getDataConstructorType r cid
-  go (Term.Request' r cid) =
-    ungeneralize . Type.purifyArrows =<< getEffectConstructorType r cid
-  go (Term.Ann' e t) = checkScoped e t
-  go (Term.Float' _) = pure $ Type.float l -- 1I=>
-  go (Term.Int' _) = pure $ Type.int l -- 1I=>
-  go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
-  go (Term.Boolean' _) = pure $ Type.boolean l
-  go (Term.Text' _) = pure $ Type.text l
-  go (Term.Char' _) = pure $ Type.char l
-  go (Term.TermLink' _) = pure $ Type.termLink l
-  go (Term.TypeLink' _) = pure $ Type.typeLink l
-  go (Term.Apps' f args) = do -- ->EEEEE
-    ft <- synthesize f
-    ctx <- getContext
-    (vs, ft) <- ungeneralize' ft
-    scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
-  go (Term.Sequence' v) = do
-    ft <- vectorConstructorOfArity (loc e) (Foldable.length v)
+    pure (existential' l blank v, [])
+
+  | Term.Sequence' v <- e = do
+    ft <- vectorConstructorOfArity l (Foldable.length v)
     case Foldable.toList v of
-      [] -> pure ft
+      [] -> pure (ft, [])
       v1 : _ ->
         scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
-  go (Term.Let1Top' top binding e) = do
-    isClosed <- isClosed binding
-    -- note: no need to freshen binding, it can't refer to v
-    (t, ctx2) <- markThenRetract Var.inferOther $ do
-      _ <- extendExistential Var.inferOther
-      synthesize binding
-      -- If the binding has no free variables, we generalize over its existentials
-    tbinding <-
-      if isClosed then pure $ generalizeExistentials ctx2 t
-      else applyM . applyCtx ctx2 $ t
-    v' <- ABT.freshen e freshenVar
-    appendContext [Ann v' tbinding]
-    t <- applyM =<< synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
-    when top $ noteTopLevelType e binding tbinding
-    -- doRetract $ Ann v' tbinding
-    pure t
-  go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
-    -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
+
+  -- ->I=> (Full Damas Milner rule)
+  | Term.Lam' body <- e = do
+    -- arya: are there more meaningful locations we could put into and
+    -- pull out of the abschain?)
     [arg, i, e, o] <- sequence [ ABT.freshen body freshenVar
                                , freshenVar (ABT.variable body)
                                , freshenVar Var.inferAbility
@@ -989,68 +1057,38 @@ synthesize e = scope (InSynthesize e) $
     appendContext $
       [existential i, existential e, existential o, Ann arg it]
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    if Term.isLam body' then withEffects0 [] $ check body' ot
-    else                     withEffects0 [et] $ check body' ot
+    if Term.isLam body'
+      then checkWithAbilities [] body' ot
+      else checkWithAbilities [et] body' ot
     ctx <- getContext
     let t = Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
-    pure t
-  go (Term.LetRecNamed' [] body) = synthesize body
-  go (Term.LetRecTop' isTop letrec) = do
-    (t, ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
-      e <- annotateLetRecBindings isTop letrec
-      synthesize e
-    pure $ generalizeExistentials ctx2 t
-  go (Term.If' cond t f) = do
-    scope InIfCond $ check cond (Type.boolean l)
-    scope (InIfBody $ ABT.annotation t) $ synthesizeApps (Type.iff2 l) [t, f]
-  go (Term.And' a b) =
-    scope InAndApp $ synthesizeApps (Type.andor' l) [a, b]
-  go (Term.Or' a b) =
-    scope InOrApp $ synthesizeApps (Type.andor' l) [a, b]
-  go (Term.Match' scrutinee cases) = do
-    scrutineeType <- synthesize scrutinee
+    pure (t, [])
+
+  | Term.If' cond t f <- e = do
+    cwant <- scope InIfCond $ check cond (Type.boolean l)
+    (ty, bwant) <-
+      scope (InIfBody $ ABT.annotation t)
+        $ synthesizeApps (Type.iff2 l) [t, f]
+    (ty,) <$> coalesceWanted bwant cwant
+
+  | Term.And' a b <- e
+  = scope InAndApp $ synthesizeApps (Type.andor' l) [a, b]
+
+  | Term.Or' a b <- e
+  = scope InOrApp $ synthesizeApps (Type.andor' l) [a, b]
+
+  | Term.Match' scrutinee cases <- e = do
+    (scrutineeType, swant) <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = existential' l B.Blank outputTypev
     appendContext [existential outputTypev]
-    checkCases scrutineeType outputType cases
+    cwant <- checkCases scrutineeType outputType cases
+    want <- coalesceWanted cwant swant
     ctx <- getContext
-    pure $ apply ctx outputType
-  go (Term.Handle' h body) = do
-    -- To synthesize a handle block, we first synthesize the handler h,
-    -- then push its allowed abilities onto the current ambient set when
-    -- checking the body. Assuming that works, we also verify that the
-    -- handler only uses abilities in the current ambient set.
-    ht <- synthesize h >>= applyM >>= ungeneralize
-    ctx <- getContext
-    case ht of
-      -- common case, like `h : Request {Remote} a -> b`, brings
-      -- `Remote` into ambient when checking `body`
-      Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
-        let es = Type.flattenEffects et
-        withEffects es $ check body i
-        o <- applyM o
-        let (oes, o') = Type.stripEffect o
-        wantAbilities (loc h) oes
-        abilityCheck oes
-        pure o'
-      -- degenerate case, like `handle x -> 10 in ...`
-      -- todo: reviewme - I think just generate a type error in this case
-      --       reviewme - if keeping this, should we use polarity info?
-      -- Currently assuming no effects are handled.
-      Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing) _))) o -> do
-        r <- extendExistential v
-        let rt = existentialp (loc i) r
-            e0 = Type.apps (Type.ref (loc i) Type.effectRef)
-                   [(loc i, Type.effects (loc i) []), (loc i, rt)]
-        subtype i e0
-        check body i
-        o <- applyM o
-        let (oes, o') = Type.stripEffect o
-        wantAbilities (loc h) oes
-        abilityCheck oes
-        pure o'
-      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
-  go _e = compilerCrash PatternMatchFailure
+    pure $ (apply ctx outputType, want)
+  where l = loc e
+
+synthesizeWanted _e = compilerCrash PatternMatchFailure
 
 checkCases
   :: Var v
@@ -1058,8 +1096,8 @@ checkCases
   => Type v loc
   -> Type v loc
   -> [Term.MatchCase loc (Term v loc)]
-  -> M v loc ()
-checkCases _ _ [] = pure ()
+  -> M v loc [Type v loc]
+checkCases _ _ [] = pure []
 checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
   = scope (InMatch (ABT.annotation t)) $ do
       mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
@@ -1069,7 +1107,7 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
             vt = existentialp lo v
         appendContext [existential v]
         subtype (Type.effectV lo (lo, Type.effects lo es) (lo, vt)) sty
-      traverse_ (checkCase scrutType outType) cases
+      coalesceWanteds =<< traverse (checkCase scrutType outType) cases
 
 getEffect
   :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
@@ -1098,11 +1136,11 @@ checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
           -> Type v loc
           -> Term.MatchCase loc (Term v loc)
-          -> M v loc ()
+          -> M v loc [Type v loc]
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   scrutineeType <- applyM scrutineeType
   outputType <- applyM outputType
-  markThenRetract0 Var.inferOther $ do
+  markThenRetractWanted Var.inferOther $ do
     let peel t = case t of
                   ABT.AbsN' vars bod -> (vars, bod)
                   _ -> ([], t)
@@ -1113,9 +1151,10 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
     let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
         rhs' = subst rhsbod
         guard' = subst <$> mayGuard
-    for_ guard' $ \g -> scope InMatchGuard $ check g (Type.boolean (loc g))
+    gwant <- for guard' $ \g -> scope InMatchGuard $
+      checkWanted [] g (Type.boolean (loc g))
     outputType <- applyM outputType
-    scope InMatchBody $ check rhs' outputType
+    scope InMatchBody $ checkWanted (fromMaybe [] gwant) rhs' outputType
 
 -- For example:
 --   match scrute with
@@ -1372,7 +1411,7 @@ annotateLetRecBindings isTop letrec =
       Foldable.for_ (zip bindings bindingTypes) $ \(b, t) ->
         -- note: elements of a cycle have to be pure, otherwise order of effects
         -- is unclear and chaos ensues
-        withEffects0 [] (checkScoped b t)
+        checkScopedWith b t []
       ensureGuardedCycle (vs `zip` bindings)
       pure (bindings, bindingTypes)
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
@@ -1500,67 +1539,197 @@ variableP _ = Nothing
 checkScoped
   :: forall v loc
    . (Var v, Ord loc)
-  => Term v loc -> Type v loc -> M v loc (Type v loc)
+  => Term v loc -> Type v loc -> M v loc (Type v loc, [Type v loc])
 checkScoped e (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
-  (ty, pop) <- markThenRetract v $ do
+  ((ty, want), pop) <- markThenRetract v $ do
     x <- extendUniversal v
     let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
     checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
-  pure $ generalizeP variableP pop ty
+  want <- substAndDefaultWanted want pop
+  pure (generalizeP variableP pop ty, want)
 checkScoped e t = do
   t <- existentializeArrows t
-  t <$ check e t
+  (t,) <$> check e t
 
--- | Check that under the given context, `e` has type `t`,
--- updating the context in the process.
-check :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
-check e t | debugEnabled && traceShow ("check" :: String, e, t) False = undefined
-check e0 t0 = scope (InCheck e0 t0) $ do
+checkScopedWith
+  :: Var v
+  => Ord loc
+  => Term v loc
+  -> Type v loc
+  -> [Type v loc]
+  -> M v loc ()
+checkScopedWith tm ty ab = do
+  (_, want) <- checkScoped tm ty
+  subAbilities want ab
+
+markThenRetractWanted
+  :: Var v
+  => Ord loc
+  => v
+  -> M v loc [Type v loc]
+  -> M v loc [Type v loc]
+markThenRetractWanted v m
+  = markThenRetract v m >>= uncurry substAndDefaultWanted
+
+coalesceWanted
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> M v loc [Type v loc]
+-- TODO: Might need fleshing out to ensure complete lack of duplication.
+coalesceWanted [] old = pure old
+coalesceWanted (n:new) old
+  | Just o <- find (headMatch n) old = do
+    subtype n o
+    new <- expandAbilities new
+    old <- expandAbilities old
+    coalesceWanted new old
+  | otherwise = coalesceWanted new (n:old)
+
+coalesceWanteds
+  :: Var v => Ord loc => [[Type v loc]] -> M v loc [Type v loc]
+coalesceWanteds = foldM (flip coalesceWanted) []
+
+-- | This implements the subtraction of handled effects from the
+-- wanted effects of its body. Similar to merging, it presumes that
+-- only one occurrence of each concrete ability is in play in the
+-- scope, and will impose subtyping relations between the wanted and
+-- handled abilities.
+pruneWanted
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> [Type v loc]
+  -> M v loc [Type v loc]
+pruneWanted acc [] _ = pure acc
+pruneWanted acc (w:want) handled
+  | Just h <- find (headMatch w) handled = do
+    subtype w h
+    want <- expandAbilities want
+    handled <- expandAbilities handled
+    pruneWanted acc want handled
+  | otherwise = pruneWanted (w:acc) want handled
+
+-- | Processes wanted effects with respect to a portion of context
+-- that is being discarded. This has the following consequences:
+--   - All solved variables are substituted into the wanted abilities
+--   - Effects that would involve escaping universal variables cause
+--     an error, because they cannot possibly be satisfied.
+--   - Unsolved existential abilities are defaulted to the empty row
+--   - Abilities containing unsolved existentials that are going out
+--     of scope cause an error, because it is unclear what they ought
+--     to be solved to.
+substAndDefaultWanted
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Element v loc]
+  -> M v loc [Type v loc]
+substAndDefaultWanted want ctx
+  | want <- fmap (applyCtx ctx) want
+  , want <- filter q want
+  = coalesceWanted want []
+  where
+  p (Var v@TypeVar.Existential{}) = Just v
+  p _ = Nothing
+
+  outScope = Set.fromList $ mapMaybe p ctx
+
+  q (Type.Var' u) = u `Set.notMember` outScope
+  q _ = True
+
+-- Defaults unsolved ability variables to the empty row
+defaultAbility :: Var v => Ord loc => Type v loc -> M v loc Bool
+defaultAbility e@(Type.Var' (TypeVar.Existential b v _)) = do
+  instantiateL b v eff0 `orElse` pure ()
+  pure True
+  where
+  eff0 = Type.effects (loc e) []
+defaultAbility _ = pure False
+
+
+checkWanted
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> Term v loc
+  -> Type v loc
+  -> M v loc [Type v loc]
+-- ForallI
+checkWanted want m (Type.Forall' body) = do
+  v <- ABT.freshen body freshenTypeVar
+  markThenRetractWanted v $ do
+    x <- extendUniversal v
+    checkWanted want m
+      $ ABT.bindInheritAnnotation body (universal' () x)
+-- =>I
+-- Lambdas are pure, so they add nothing to the wanted set
+checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
+  x <- ABT.freshen body freshenVar
+  markThenRetract0 x $ do
+    extendContext (Ann x i)
+    body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
+    checkWithAbilities es body o
+  pure want
+checkWanted want (Term.Let1' binding m) t = do
+  v <- ABT.freshen m freshenVar
+  (tbinding, wbinding) <- synthesize binding
+  want <- coalesceWanted wbinding want
+  markThenRetractWanted v $ do
+    extendContext (Ann v tbinding)
+    checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
+checkWanted want (Term.LetRecNamed' [] m) t
+  = checkWanted want m t
+-- letrec can't have effects, so it doesn't extend the wanted set
+checkWanted want (Term.LetRecTop' isTop lr) t
+  = markThenRetractWanted (Var.named "let-rec-marker") $ do
+      e <- annotateLetRecBindings isTop lr
+      checkWanted want e t
+checkWanted want e t = do
+  (u, wnew) <- synthesize e
   ctx <- getContext
-  let Type.Effect'' es t = t0
-  let e                  = minimize' e0
-  case e of
-    Left e -> failWith $ DuplicateDefinitions e
-    Right e ->
-      if wellformedType ctx t0
-        then case t of
-             -- expand existentials before checking
-          t@(Type.Var' (TypeVar.Existential _ _ _))
-            -> wantAbilities (loc t0) es
-            >> abilityCheck es
-            >> go e (apply ctx t)
-          t -> go e (Type.stripIntroOuters t)
-        else failWith $ IllFormedType ctx
- where
-  go :: Term v loc -> Type v loc -> M v loc ()
-  go e (Type.Forall' body) = do -- ForallI
-    v <- ABT.freshen body freshenTypeVar
-    markThenRetract0 v $ do
-      x <- extendUniversal v
-      check e (ABT.bindInheritAnnotation body (universal' () x))
-  go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
-    x <- ABT.freshen body freshenVar
-    markThenRetract0 x $ do
-      extendContext (Ann x i)
-      let Type.Effect'' es ot = o
-      body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      withEffects0 es $ check body' ot
-  go (Term.Let1' binding e) t = do
-    v        <- ABT.freshen e freshenVar
-    tbinding <- synthesize binding
-    markThenRetract0 v $ do
-      extendContext (Ann v tbinding)
-      check (ABT.bindInheritAnnotation e (Term.var () v)) t
-  go (Term.LetRecNamed' [] e) t = check e t
-  go (Term.LetRecTop' isTop letrec) t =
-    markThenRetract0 (Var.named "let-rec-marker") $ do
-      e <- annotateLetRecBindings isTop letrec
-      check e t
-  go e t = do -- Sub
-    a   <- synthesize e
-    ctx <- getContext
-    subtype (apply ctx a) (apply ctx t)
+  subtype (apply ctx u) (apply ctx t)
+  coalesceWanted wnew want
+
+-- | Check that under the current context:
+--     `m` has type `t` with abilities `es`,
+-- updating the context in the process.
+checkWithAbilities
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> Term v loc
+  -> Type v loc
+  -> M v loc ()
+checkWithAbilities es m t = do
+  want <- check m t
+  subAbilities want es
+  -- traverse_ defaultAbility es
+
+-- | Check that under the given context:
+--     `m` has type `t`
+-- updating the context in the process.
+check
+  :: Var v
+  => Ord loc
+  => Term v loc
+  -> Type v loc
+  -> M v loc [Type v loc]
+check m t | debugShow ("check" :: String, m, t) = undefined
+check m0 t0 = scope (InCheck m0 t0) $ do
+  ctx <- getContext
+  case minimize' m0 of
+    Left m -> failWith $ DuplicateDefinitions m
+    Right m
+      | not (wellformedType ctx t0)
+     -> failWith $ IllFormedType ctx
+      | Type.Var' TypeVar.Existential{} <- t0
+     -> applyM t0 >>= checkWanted [] m
+      | otherwise
+     -> checkWanted [] m (Type.stripIntroOuters t0)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -1621,18 +1790,14 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   go ctx t (Type.Var' (TypeVar.Existential b v _p)) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t b v
-  go _ (Type.Effects' es1) (Type.Effects' es2) = do
-     ctx <- getContext
-     let es1' = map (apply ctx) es1
-         es2' = map (apply ctx) es2
-     if all (`elem` es2') es1' then pure () else abilityCheck' es2' es1'
+  go _ (Type.Effects' es1) (Type.Effects' es2) = subAbilities es1 es2
   go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
   go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
 
   expand :: Type v loc -> Bool
   expand t = case t of
-    Type.Var' (TypeVar.Existential{}) -> True
+    Type.Var' _ -> True
     Type.App' _ _ -> True
     Type.Ref' _ -> True
     _ -> False
@@ -1702,6 +1867,29 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
 nameFrom :: Var v => v -> Type v loc -> v
 nameFrom _ (Type.Var' v) = TypeVar.underlying (Var.reset v)
 nameFrom ifNotVar _ = ifNotVar
+
+refineEffectVar
+  :: Var v
+  => Ord loc
+  => loc
+  -> [Type v loc]
+  -> B.Blank loc
+  -> v
+  -> M v loc ()
+refineEffectVar _ es _ v
+  | debugShow ("refineEffectVar", es, v) = undefined
+refineEffectVar _ [] _ _ = pure ()
+refineEffectVar l es blank v = do
+  slack <- freshenVar Var.inferAbility
+  evs <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
+  let locs = loc <$> es
+      es' = zipWith existentialp locs evs
+      t' = Type.effects l (existentialp l slack : es')
+      s = Solved blank v (Type.Monotype t')
+      vs = existential slack : fmap existential evs
+  replaceContext (existential v) (vs ++ [s])
+  Foldable.for_ (es `zip` evs) $ \(e,ev) ->
+    getContext >>= \ctx -> instantiateR (apply ctx e) B.Blank ev
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
@@ -1786,6 +1974,71 @@ solve ctx v t = case lookupSolved ctx v of
       then Just <$> ctxL `extendN` ((Solved blank v t) : ctxR)
       else pure Nothing
     _ -> compilerCrash $ UnknownExistentialVariable v ctx
+
+expandAbilities
+  :: Var v => Ord loc => [Type v loc] -> M v loc [Type v loc]
+expandAbilities
+  = fmap (concatMap Type.flattenEffects) . traverse applyM
+
+pruneAbilities
+  :: Var v
+  => Ord loc
+  => M v loc ()
+  -> [Type v loc]
+  -> [Type v loc]
+  -> M v loc [Type v loc]
+pruneAbilities _ want0 have0
+  | debugShow ("pruneAbilities", want0, have0) = undefined
+pruneAbilities die want0 have0 = go [] want0 have0
+  where
+  isExistential (Type.Var' TypeVar.Existential{}) = True
+  isExistential _ = False
+
+  dflt = not $ any isExistential have0
+
+  go acc [] _    = pure acc
+  go acc (w:want) have
+    | Just v <- find (headMatch w) have = do
+      subtype v w `orElse` die
+      want <- expandAbilities want
+      have <- expandAbilities have
+      go acc want have
+    | dflt = do
+      discard <- defaultAbility w
+      want <- expandAbilities want
+      have <- expandAbilities have
+      if discard
+        then go acc want have
+        else go (w:acc) want have
+    | otherwise = go (w:acc) want have
+
+subAbilities
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> M v loc ()
+subAbilities want have
+  | debugShow ("subAbilities", want, have) = undefined
+subAbilities want have = do
+  want <- expandAbilities want
+  have <- expandAbilities have
+  want <- expandAbilities =<< pruneAbilities die want have
+  have <- expandAbilities have
+  case (want , mapMaybe ex have) of
+    ([], _) -> pure ()
+    (want@(w:_), [(b, ve)]) ->
+      refineEffectVar (loc w) want b ve -- `orElse` die
+    _ -> die
+  where
+  ex (Type.Var' (TypeVar.Existential b v _)) = Just (b, v)
+  ex _ = Nothing
+  die = do
+    ctx <- getContext
+    failWith $ AbilityCheckFailure
+                 (Type.flattenEffects . apply ctx =<< have)
+                 (Type.flattenEffects . apply ctx =<< want)
+                 ctx
 
 -- This function deals with collecting up a list of used abilities
 -- during inference. Example: when inferring `x -> Stream.emit 42`, an
@@ -1872,32 +2125,6 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0
                                    (apply ctx <$> requested0)
                                    ctx
 
-abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
-abilityCheck requested = do
-  ambient <- getAbilities
-  ctx <- getContext
-  abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
-                (apply ctx <$> requested >>= Type.flattenEffects)
-
-wantAbilities :: (Var v, Ord loc) => loc -> [Type v loc] -> M v loc ()
-wantAbilities l as0 = getContext >>= walk >>= setContext
-  where
-  walk (Context ctx) = Context <$> walk' ctx as0
-  walk' ctx [] = pure ctx
-  walk' [] _ = pure []
-  walk' (p@(Handled _ ts,_) : ctx) as
-    = sieve ts as >>= fmap (p:) . walk' ctx
-  walk' ((Wanted v bs, i) : ctx) as
-    = pure $ (Wanted v (map (l,) as ++ bs), i) : ctx
-  walk' (p:ctx) as = (p:) <$> walk' ctx as
-
-  sieve ts = filterM (p ts)
-
-  p ts a
-    | Just t <- find (headMatch a) ts
-    = False <$ subtype t a
-    | otherwise = pure True
-
 verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> Result v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
@@ -1917,7 +2144,7 @@ synthesizeClosed abilities lookupType term0 = let
   in case term of
     Left missingRef ->
       compilerCrashResult (UnknownTermReference missingRef)
-    Right term -> run [] datas effects $ do
+    Right term -> run datas effects $ do
       liftResult $  verifyDataDeclarations datas
                  *> verifyDataDeclarations (DD.toDataDecl <$> effects)
                  *> verifyClosedTerm term
@@ -1952,18 +2179,14 @@ annotateRefs synth = ABT.visit f where
 
 run
   :: (Var v, Ord loc, Functor f)
-  => [Type v loc]
-  -> DataDeclarations v loc
+  => DataDeclarations v loc
   -> EffectDeclarations v loc
   -> MT v loc f a
   -> f a
-run ambient datas effects m =
+run datas effects m =
   fmap fst
-    . runM m 
-    $ MEnv (Env 2 ctx) datas effects
-  where
-  v = Var.freshenId 1 (Var.named "global-abilities")
-  Right ctx = extend' (Handled v ambient) context0
+    . runM m
+    $ MEnv (Env 1 context0) datas effects
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
@@ -1976,7 +2199,8 @@ synthesizeClosed' abilities term = do
   (t, ctx) <- markThenRetract (Var.named "start") $ do
     -- retract will cause notes to be written out for
     -- any `Blank`-tagged existentials passing out of scope
-    withEffects0 abilities (synthesize term)
+    (t, want) <- synthesize term
+    t <$ subAbilities want abilities
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
@@ -2030,7 +2254,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype
   :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run [] Map.empty Map.empty (isSubtype' t1 t2)
+  run Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual
   :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -2045,10 +2269,6 @@ instance (Var v) => Show (Element v loc) where
   show (Ann v t) = Text.unpack (Var.name v) ++ " : " ++
                    TP.pretty' Nothing mempty t
   show (Marker v) = "|"++Text.unpack (Var.name v)++"|"
-  show (Wanted _ ts)
-    = "want {" ++ intercalate "," (show . snd <$> ts) ++ "}"
-  show (Handled _ ts)
-    = "handled {" ++ intercalate "," (show <$> ts) ++ "}"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
   show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
@@ -2059,14 +2279,6 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.name v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
     showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
-    showElem _ (Wanted _ ts)
-      = "want {"
-        ++ (intercalate "," $ TP.pretty' Nothing mempty . snd <$> ts)
-        ++ "}"
-    showElem _ (Handled _ ts)
-      = "handled {"
-        ++ (intercalate "," $ TP.pretty' Nothing mempty <$> ts)
-        ++ "}"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad f => Monad (MT v loc f) where
