@@ -53,6 +53,8 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
+import UnliftIO.Concurrent (myThreadId)
+import qualified Control.Monad.Writer as Writer
 
 -- * types
 
@@ -62,8 +64,10 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
-debugQuery :: Bool
+debugQuery, debugThread, debugConnection :: Bool
 debugQuery = False
+debugThread = False
+debugConnection = False
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -625,25 +629,33 @@ queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
   c <- ask
-  liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " query") q r $ SQLite.query c q r
+  header <- debugHeader
+  liftIO . queryTrace (header ++ " query") q r $ SQLite.query c q r
 
 -- | no input, composite List output
 query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
   c <- ask
-  liftIO . queryTrace_ (show (SQLite.connectionHandle c) ++ " query") q $ SQLite.query_ c q
+  header <- debugHeader
+  liftIO . queryTrace_ (header ++ " query") q $ SQLite.query_ c q
+
+debugHeader :: DB m => m String
+debugHeader = fmap (List.intercalate ", ") $ Writer.execWriterT do
+  when debugThread $ Writer.tell . pure . show =<< myThreadId
+  when debugConnection $ Writer.tell . pure . show . SQLite.connectionHandle =<< ask
 
 queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
-queryTrace title query input m =
+queryTrace title query input m = do
+  let showInput = title ++ " " ++ show query ++ "\n  input: " ++ show input
   if debugQuery || alwaysTraceOnCrash
     then
      do
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          when debugQuery . traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n output: " ++ show a
+          when debugQuery . traceM $ showInput ++ "\n output: " ++ show a
           pure a
         Left e -> do
-          traceM $ title ++ " " ++ show query ++ "\n  input: " ++ show input ++ "\n(and crashed)\n"
+          traceM $ showInput ++ "\n(and crashed)\n"
           throwIO e
     else m
 
@@ -661,13 +673,22 @@ queryTrace_ title query m =
     else m
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
-execute q r = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "execute") q r $ SQLite.execute c q r
+execute q r = do
+  c <- ask
+  header <- debugHeader
+  liftIO . queryTrace (header ++ " " ++ "execute") q r $ SQLite.execute c q r
 
 execute_ :: DB m => SQLite.Query -> m ()
-execute_ q = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "execute_") q "" $ SQLite.execute_ c q
+execute_ q = do
+  c <- ask
+  header <- debugHeader
+  liftIO . queryTrace_ (header ++ " " ++ "execute_") q $ SQLite.execute_ c q
 
 executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
-executeMany q r = do c <- ask; liftIO . queryTrace (show (SQLite.connectionHandle c) ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
+executeMany q r = do
+  c <- ask
+  header <- debugHeader
+  liftIO . queryTrace (header ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
 
 -- | transaction that blocks
 withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
