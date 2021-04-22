@@ -68,24 +68,14 @@ abilityNamedId s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, isPropagatedReference, filePathReference, hostNameReference, serviceNameReference, failureReference, tlsFailureReference, ioFailureReference
+bufferModeReference, eitherReference, ioModeReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
   :: R.Reference
 bufferModeReference = typeNamed "io.BufferMode"
 eitherReference = typeNamed "Either"
 ioModeReference = typeNamed "io.Mode"
 optionReference = typeNamed "Optional"
-errorReference = typeNamed "io.Error"
-errorTypeReference = typeNamed "io.ErrorType"
-seekModeReference = typeNamed "io.SeekMode"
-threadIdReference = typeNamed "io.ThreadId"
-socketReference = typeNamed "io.Socket"
-handleReference = typeNamed "io.Handle"
-epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
-filePathReference = typeNamed "io.FilePath"
-hostNameReference = typeNamed "io.HostName"
-serviceNameReference = typeNamed "io.ServiceName"
 
 failureReference = typeNamed "io2.Failure"
 tlsFailureReference = typeNamed "io2.TlsFailure"
@@ -100,33 +90,11 @@ isIOTest = (isTestReference, termNamed "metadata.isIOTest")
 isPropagatedValue :: R.Reference
 isPropagatedValue = termNamed "metadata.isPropagated"
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
-ioErrorId = constructorNamed errorReference "io.Error.Error"
-handleId = constructorNamed handleReference "io.Handle.Handle"
-socketId = constructorNamed socketReference "io.Socket.Socket"
-threadIdId = constructorNamed threadIdReference "io.ThreadId.ThreadId"
-epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
-bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
-bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
-filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
-
-mkErrorType :: Text -> DD.ConstructorId
-mkErrorType = constructorNamed errorTypeReference
-
-alreadyExistsId, noSuchThingId, resourceBusyId, resourceExhaustedId, eofId, illegalOperationId, permissionDeniedId, userErrorId
-  :: DD.ConstructorId
-alreadyExistsId = mkErrorType "io.ErrorType.AlreadyExists"
-noSuchThingId = mkErrorType "io.ErrorType.NoSuchThing"
-resourceBusyId = mkErrorType "io.ErrorType.ResourceBusy"
-resourceExhaustedId = mkErrorType "io.ErrorType.ResourceExhausted"
-eofId = mkErrorType "io.ErrorType.EOF"
-illegalOperationId = mkErrorType "io.ErrorType.IllegalOperation"
-permissionDeniedId = mkErrorType "io.ErrorType.PermissionDenied"
-userErrorId = mkErrorType "io.ErrorType.UserError"
 
 doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
@@ -315,78 +283,13 @@ unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
 metadata.isTest = IsTest.IsTest
 metadata.isPropagated = IsPropagated.IsPropagated
 
--- Handles are unique identifiers.
--- The implementation of IO in the runtime will supply Haskell
--- file handles and map those to Unison handles.
--- A pure implementation of I/O might use some kind of pure supply
--- of unique IDs instead.
-unique[d4597403ec40fd4fbee57c62b8096f9c3d382dff01f20108546fe3530a927e86] type
-  io.Handle = Handle Text
-
--- Ditto for sockets
-unique[e1d94401fde8b2546d6dfc54e93f11e6a9285a7ea765d3255da19122a42715d3] type
-  io.Socket = Socket Text
-
--- IO error types from the Haskell API
-unique[bb57f367a3740d4a1608b9e0eee14fd744ec9e368f1529550cb436ef56c0b268] type
-  io.ErrorType
-    = AlreadyExists
-    | NoSuchThing
-    | ResourceBusy
-    | ResourceExhausted
-    | EOF
-    | IllegalOperation
-    | PermissionDenied
-    | UserError
-
-unique[b5c578f0a9977ed54a5a12b580dc6b0b2ba37bc3f517f48d1b3285a7f3e8c6bc] type
-  io.ErrorLocation = ErrorLocation Text
-unique[e6ca048b6bf540f93617c0ef9506afcbb490427a9581a01d51ffad39cdf2c554] type
-  io.ErrorDescription = ErrorDescription Text
-unique[d5d61b0a65f1d448dbdeed8af688f0bdbab6b3f775400da370eb5bfc34e428d5] type
-  io.FilePath = FilePath Text
-
-type io.Error = Error io.ErrorType Text
-
-unique[cad7ab802bd143f0b674155c9caf18dde7145d16867a02659534d7bb01a5e287] type
-  io.SeekMode = Absolute | Relative | FromEnd
-
 -- If the buffer size is not specified,
 -- use an implementation-specific size.
 unique[e65de145a461a771de93d6c7885acae28552d77f8ae460bc8bf5de6f2a15ff77] type
   io.BufferMode = Line | Block (Optional Nat)
 
-unique[e1f48f31982a720ae895c0bf4e6ea9a950f5c00d3a73101ad31e63461b7beded] type
-  io.EpochTime = EpochTime Nat
-
--- Either a host name e.g., "unisonweb.org" or a numeric host address
--- string consisting of a dotted decimal IPv4 address
--- e.g., "192.168.0.1".
-unique[c7279b501764751edc66f1f7b532e68354fc4704c9eb1ed201f01c894cdd86f4] type
-  io.HostName = HostName Text
-
--- For example a port number like "8080"
-unique[ee4ff0bda526b0513e4c7b7387b39811ce57938ddb31a77fdb0ff00ee2717c33] type
-  io.ServiceName = ServiceName Text
-
-unique[a38186de35c9fcd29d2b359b2148f9f890732413d91575af39d025fcded67e89] type
-  io.ThreadId = ThreadId Text
-
 -- IO Modes from the Haskell API
 type io.Mode = Read | Write | Append | ReadWrite
-
-use io.Handle
-
--- Builtin handles: standard in, out, error
-
-io.stdin : io.Handle
-io.stdin = Handle "stdin"
-
-io.stdout : io.Handle
-io.stdout = Handle "stdout"
-
-io.stderr : io.Handle
-io.stderr = Handle "stderr"
 
 -- Built-ins
 
