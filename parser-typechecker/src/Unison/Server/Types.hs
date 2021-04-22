@@ -47,6 +47,9 @@ instance ToJSON Name where
     toEncoding = genericToEncoding defaultOptions
 deriving instance ToSchema Name
 
+deriving via Bool instance FromHttpApiData Suffixify
+deriving instance ToParamSchema Suffixify
+
 deriving via Text instance FromHttpApiData ShortBranchHash
 deriving instance ToParamSchema ShortBranchHash
 
@@ -85,6 +88,9 @@ instance ToJSON DefinitionDisplayResults where
    toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema DefinitionDisplayResults
+
+newtype Suffixify = Suffixify { suffixified :: Bool }
+  deriving (Eq, Ord, Show, Generic)
 
 data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]

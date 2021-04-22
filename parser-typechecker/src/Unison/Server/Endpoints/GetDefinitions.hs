@@ -29,6 +29,7 @@ import qualified Unison.Server.Backend         as Backend
 import           Unison.Server.Types            ( HashQualifiedName
                                                 , DefinitionDisplayResults
                                                 , defaultWidth
+                                                , Suffixify(..)
                                                 )
 import           Unison.Server.Errors           ( backendError
                                                 , badNamespace
@@ -45,6 +46,7 @@ type DefinitionsAPI =
                   :> QueryParam "relativeTo" HashQualifiedName
                   :> QueryParams "names" HashQualifiedName
                   :> QueryParam "renderWidth" Width
+                  :> QueryParam "suffixifyBindings" Suffixify
   :> Get '[JSON] DefinitionDisplayResults
 
 instance ToParam (QueryParam "renderWidth" Width) where
@@ -58,6 +60,17 @@ instance ToParam (QueryParam "renderWidth" Width) where
     <> "."
     )
     Normal
+
+instance ToParam (QueryParam "suffixifyBindings" Suffixify) where
+  toParam _ = DocQueryParam
+    "suffixifyBindings"
+    ["True", "False"]
+    (  "If True, renders definitions using the shortest unambiguous "
+    <> "suffix. If False, uses the fully qualified name. "
+    <> "If left absent, assumed to be False."
+    )
+    Normal
+
 
 instance ToParam (QueryParam "relativeTo" HashQualifiedName) where
   toParam _ = DocQueryParam
@@ -94,12 +107,17 @@ serveDefinitions
   -> Maybe HashQualifiedName
   -> [HashQualifiedName]
   -> Maybe Width
+  -> Maybe Suffixify
   -> Handler DefinitionDisplayResults
-serveDefinitions codebase mayRoot relativePath hqns width = do
+serveDefinitions codebase mayRoot relativePath hqns width suff = do
   rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
   ea  <- liftIO . runExceptT $ do
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    Backend.prettyDefinitionsBySuffixes rel root width codebase
+    Backend.prettyDefinitionsBySuffixes rel
+                                        root
+                                        width
+                                        (fromMaybe (Suffixify False) suff)
+                                        codebase
       $   HQ.unsafeFromText
       <$> hqns
   errFromEither backendError ea
