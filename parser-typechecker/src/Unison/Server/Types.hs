@@ -89,6 +89,7 @@ deriving instance ToSchema DefinitionDisplayResults
 data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]
   , bestTermName :: HashQualifiedName
+  , defnTermTag :: Maybe TermTag
   , termDefinition :: DisplayObject SyntaxText
   , signature :: SyntaxText
   } deriving (Eq, Show, Generic)
@@ -96,6 +97,7 @@ data TermDefinition = TermDefinition
 data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName]
   , bestTypeName :: HashQualifiedName
+  , defnTypeTag :: Maybe TypeTag
   , typeDefinition :: DisplayObject SyntaxText
   } deriving (Eq, Show, Generic)
 
