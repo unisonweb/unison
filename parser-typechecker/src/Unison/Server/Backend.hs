@@ -45,7 +45,7 @@ import Unison.Name as Name
   ( unsafeFromText,
   )
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment)
+import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
 import Unison.Names3
@@ -169,11 +169,19 @@ getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
 getRootBranch =
   ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
 
-data TermEntry v a
-  = TermEntry Referent HQ'.HQSegment (Maybe (Type v a)) (Maybe TermTag)
+data TermEntry v a = TermEntry
+  { termEntryReferent :: Referent,
+    termEntryName :: HQ'.HQSegment,
+    termEntryType :: Maybe (Type v a),
+    termEntryTag :: Maybe TermTag
+  }
   deriving (Eq, Ord, Show, Generic)
 
-data TypeEntry = TypeEntry Reference HQ'.HQSegment TypeTag
+data TypeEntry = TypeEntry
+  { typeEntryReference :: Reference,
+    typeEntryName :: HQ'.HQSegment,
+    typeEntryTag :: TypeTag
+  }
   deriving (Eq, Ord, Show, Generic)
 
 data FoundRef = FoundTermRef Referent
@@ -562,25 +570,33 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
             . Names.types
             $ currentNames parseNames
       flatten = Set.toList . fromMaybe Set.empty
-      mkTermDefinition r tm = mk =<< lift (Codebase.getTypeOfTerm codebase r)
+      mkTermDefinition r tm = do
+        ts <- lift (Codebase.getTypeOfTerm codebase r)
+        let bn =
+              bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        tag <- termEntryTag <$> termListEntry codebase
+                                              (Branch.head branch)
+                                              (Referent.Ref r)
+                                              (HQ'.NameOnly (NameSegment bn))
+        mk ts bn tag
        where
-        mk Nothing = throwError $ MissingSignatureForTerm r
-        mk (Just typeSig) =
+        mk Nothing _ _ = throwError $ MissingSignatureForTerm r
+        mk (Just typeSig) bn tag =
           pure
-            . TermDefinition
-                (flatten $ Map.lookup r termFqns)
-                (bestNameForTerm @v (PPE.suffixifiedPPE ppe)
-                                    width
-                                    (Referent.Ref r)
-                )
-                (fmap mungeSyntaxText tm)
+            . TermDefinition (flatten $ Map.lookup r termFqns)
+                             bn
+                             tag
+                             (fmap mungeSyntaxText tm)
             $ prettyType width ppe typeSig
-      mkTypeDefinition r tp =
-        TypeDefinition (flatten $ Map.lookup r typeFqns)
-                       (bestNameForType @v (PPE.suffixifiedPPE ppe) width r)
-          $ fmap mungeSyntaxText tp
-      typeDefinitions =
-        Map.mapWithKey mkTypeDefinition $ typesToSyntax width ppe types
+      mkTypeDefinition r tp = do
+        let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
+        tag <- Just . typeEntryTag
+          <$> typeListEntry codebase r (HQ'.NameOnly (NameSegment bn))
+        pure . TypeDefinition (flatten $ Map.lookup r typeFqns) bn tag $ fmap
+          mungeSyntaxText
+          tp
+  typeDefinitions <- Map.traverseWithKey mkTypeDefinition
+    $ typesToSyntax width ppe types
   termDefinitions <- Map.traverseWithKey mkTermDefinition
     $ termsToSyntax width ppe terms
   let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
