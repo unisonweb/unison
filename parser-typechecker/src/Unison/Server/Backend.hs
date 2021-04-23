@@ -532,20 +532,23 @@ prettyDefinitionsBySuffixes
   => Maybe Path
   -> Maybe Branch.Hash
   -> Maybe Width
+  -> Suffixify
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> Backend m DefinitionDisplayResults
-prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
-  branch                               <- resolveBranchHash root codebase
-  DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
-                                                                branch
-                                                                codebase
-                                                                query
-  hqLength <- lift $ Codebase.hashLength codebase
-  -- We might like to make sure that the user search terms get used as
-  -- the names in the pretty-printer, but the current implementation
-  -- doesn't.
-  let printNames =
+prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codebase query
+  = do
+    branch                               <- resolveBranchHash root codebase
+    DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
+                                                                  branch
+                                                                  codebase
+                                                                  query
+    hqLength <- lift $ Codebase.hashLength codebase
+    -- We might like to make sure that the user search terms get used as
+    -- the names in the pretty-printer, but the current implementation
+    -- doesn't.
+    let
+      printNames =
         getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
       parseNames =
         getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
@@ -590,21 +593,23 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth codebase query = do
             $ prettyType width ppe typeSig
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
-        tag <- Just . typeEntryTag
-          <$> typeListEntry codebase r (HQ'.NameOnly (NameSegment bn))
+        tag <- Just . typeEntryTag <$> typeListEntry
+          codebase
+          r
+          (HQ'.NameOnly (NameSegment bn))
         pure . TypeDefinition (flatten $ Map.lookup r typeFqns) bn tag $ fmap
           mungeSyntaxText
           tp
-  typeDefinitions <- Map.traverseWithKey mkTypeDefinition
-    $ typesToSyntax width ppe types
-  termDefinitions <- Map.traverseWithKey mkTermDefinition
-    $ termsToSyntax width ppe terms
-  let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
-      renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
-      renderedMisses       = fmap HQ.toText misses
-  pure $ DefinitionDisplayResults renderedDisplayTerms
-                                  renderedDisplayTypes
-                                  renderedMisses
+    typeDefinitions <- Map.traverseWithKey mkTypeDefinition
+      $ typesToSyntax suffixifyBindings width ppe types
+    termDefinitions <- Map.traverseWithKey mkTermDefinition
+      $ termsToSyntax suffixifyBindings width ppe terms
+    let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
+        renderedDisplayTypes = Map.mapKeys Reference.toText typeDefinitions
+        renderedMisses       = fmap HQ.toText misses
+    pure $ DefinitionDisplayResults renderedDisplayTerms
+                                    renderedDisplayTypes
+                                    renderedMisses
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
@@ -688,34 +693,43 @@ definitionsBySuffixes relativeTo branch codebase query = do
 termsToSyntax
   :: Var v
   => Ord a
-  => Width
+  => Suffixify
+  -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (Term v a))
   -> Map Reference.Reference (DisplayObject SyntaxText)
-termsToSyntax width ppe0 terms =
+termsToSyntax suff width ppe0 terms =
   Map.fromList . map go . Map.toList $ Map.mapKeys
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
     terms
  where
-  ppeBody r = PPE.declarationPPE ppe0 r
-  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  ppeBody r = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.declarationPPE ppe0 r
+  ppeDecl =
+    (if suffixified suff then PPE.suffixifiedPPE else PPE.unsuffixifiedPPE) ppe0
   go ((n, r), dt) =
     (r, Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n <$> dt)
 
 typesToSyntax
   :: Var v
   => Ord a
-  => Width
+  => Suffixify
+  -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (DD.Decl v a))
   -> Map Reference.Reference (DisplayObject SyntaxText)
-typesToSyntax width ppe0 types =
+typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)
     types
  where
-  ppeBody r = PPE.declarationPPE ppe0 r
-  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  ppeBody r = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.declarationPPE ppe0 r
+  ppeDecl = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.unsuffixifiedPPE ppe0
   go ((n, r), dt) =
     ( r
     , (\case

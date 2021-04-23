@@ -48,6 +48,7 @@ import           Unison.Server.Types            ( mayDefault
                                                 , NamedType
                                                 , DefinitionDisplayResults(..)
                                                 , TypeDefinition(..)
+                                                , Suffixify(..)
                                                 )
 import           Unison.Util.Pretty             ( Width )
 import           Unison.Var                     ( Var )
@@ -173,6 +174,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query = do
           rel
           root
           typeWidth
+          (Suffixify True)
           codebase
           [HQ.HashOnly $ Reference.toShortHash r]
         let
