@@ -169,6 +169,20 @@ typeName length r Names{..} =
   where hq n = HQ'.take length (HQ'.fromNamedReference n r)
         isConflicted n = R.manyDom n (Names.types currentNames)
 
+-- List of names for a referent, longer names (by number of segments) first.
+termNamesByLength :: Int -> Referent -> Names -> [HQ'.HashQualified Name]
+termNamesByLength length r ns =
+  sortOn len (toList $ termName length r ns)
+  where len (HQ'.NameOnly n) = Name.countSegments n
+        len (HQ'.HashQualified n _) = Name.countSegments n
+
+-- The longest term name (by segment count) for a `Referent`.
+longestTermName :: Int -> Referent -> Names -> HQ.HashQualified Name
+longestTermName length r ns =
+  case reverse (termNamesByLength length r ns) of
+    [] -> HQ.take length (HQ.fromReferent r)
+    (h : _) -> Name.convert h
+
 termName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
 termName length r Names{..} =
   if R.memberRan r . Names.terms $ currentNames

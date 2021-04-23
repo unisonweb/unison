@@ -1074,9 +1074,11 @@ loop = do
 
         fileByName = do
           ns <- maybe mempty UF.typecheckedToNames0 <$> use latestTypecheckedFile
-          fnames <- pure $ Names3.Names ns mempty
+          fnames <- pure $ Names3.suffixify (Names3.Names ns mempty)
           case Names3.lookupHQTerm dotDoc fnames of
-            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
+            s | Set.size s == 1 -> do
+              fname' <- pure $ Names3.longestTermName 10 (Set.findMin s) fnames
+              displayI ConsoleLocation fname'
             _ -> codebaseByMetadata
 
         codebaseByMetadata = unlessError do
