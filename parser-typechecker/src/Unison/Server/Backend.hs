@@ -601,7 +601,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
           mungeSyntaxText
           tp
     typeDefinitions <- Map.traverseWithKey mkTypeDefinition
-      $ typesToSyntax width ppe types
+      $ typesToSyntax suffixifyBindings width ppe types
     termDefinitions <- Map.traverseWithKey mkTermDefinition
       $ termsToSyntax suffixifyBindings width ppe terms
     let renderedDisplayTerms = Map.mapKeys Reference.toText termDefinitions
@@ -703,7 +703,9 @@ termsToSyntax suff width ppe0 terms =
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
     terms
  where
-  ppeBody r = PPE.declarationPPE ppe0 r
+  ppeBody r = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.declarationPPE ppe0 r
   ppeDecl =
     (if suffixified suff then PPE.suffixifiedPPE else PPE.unsuffixifiedPPE) ppe0
   go ((n, r), dt) =
@@ -712,17 +714,22 @@ termsToSyntax suff width ppe0 terms =
 typesToSyntax
   :: Var v
   => Ord a
-  => Width
+  => Suffixify
+  -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (DD.Decl v a))
   -> Map Reference.Reference (DisplayObject SyntaxText)
-typesToSyntax width ppe0 types =
+typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)
     types
  where
-  ppeBody r = PPE.declarationPPE ppe0 r
-  ppeDecl = PPE.unsuffixifiedPPE ppe0
+  ppeBody r = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.declarationPPE ppe0 r
+  ppeDecl = if suffixified suff
+    then PPE.suffixifiedPPE ppe0
+    else PPE.unsuffixifiedPPE ppe0
   go ((n, r), dt) =
     ( r
     , (\case
