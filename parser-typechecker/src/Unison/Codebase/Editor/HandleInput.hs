@@ -1077,6 +1077,8 @@ loop = do
           fnames <- pure $ Names3.suffixify (Names3.Names ns mempty)
           case Names3.lookupHQTerm dotDoc fnames of
             s | Set.size s == 1 -> do
+              -- the displayI command expects full term names, so we resolve
+              -- the hash back to its full name in the file
               fname' <- pure $ Names3.longestTermName 10 (Set.findMin s) fnames
               displayI ConsoleLocation fname'
             _ -> codebaseByMetadata
