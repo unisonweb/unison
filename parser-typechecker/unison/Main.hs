@@ -139,7 +139,6 @@ main = do
   args <- getArgs
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
-
   _ <- installSignalHandlers
   -- We need to know whether the program was invoked with -codebase for
   -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
@@ -160,19 +159,21 @@ main = do
   branchCache <- Cache.semispaceCache branchCacheSize
   case restargs of
     [] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      theCodebase <- FileCodebase.getCodebaseOrInit branchCache mcodepath
       Server.start theCodebase $ \token port -> do
-        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
-        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
-          <> show port <> "?" <> URI.encode (unpack token)
-        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
+        PT.putPrettyLn $ P.lines
+          ["I've started a codebase API server at "
+          ,"  http://127.0.0.1:" <> P.string (show port) <> "?"
+           <> P.string (URI.encode $ unpack token)
+          , ""
+          , "Now starting the Unison Codebase Manager..."]
         launch currentDir mNewRun config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> FileCodebase.initCodebaseAndExit mcodepath
     "run" : [mainName] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      theCodebase <- FileCodebase.getCodebaseOrInit branchCache mcodepath
       runtime <- join . getStartRuntime mNewRun $ fst config
       execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
@@ -180,7 +181,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrInit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir mNewRun config theCodebase branchCache [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
@@ -188,7 +189,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+          theCodebase <- FileCodebase.getCodebaseOrInit branchCache mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir mNewRun config theCodebase branchCache
@@ -213,7 +214,7 @@ prepareTranscriptDir branchCache inFork mcodepath = do
     _ <- FileCodebase.initCodebase branchCache tmp
     pure()
 
-  when inFork $ FileCodebase.getCodebaseOrExit branchCache mcodepath >> do
+  when inFork $ FileCodebase.getCodebaseOrInit branchCache mcodepath >> do
     path <- FileCodebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
@@ -232,7 +233,7 @@ runTranscripts'
   -> IO Bool
 runTranscripts' mNewRun branchCache mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
-  theCodebase <- FileCodebase.getCodebaseOrExit branchCache $ Just transcriptDir
+  theCodebase <- FileCodebase.getCodebaseOrInit branchCache $ Just transcriptDir
   case args of
     args@(_:_) -> do
       for_ args $ \arg -> case arg of
