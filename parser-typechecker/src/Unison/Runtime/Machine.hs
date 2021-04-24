@@ -1289,7 +1289,7 @@ bprim2 !ustk !bstk IDXB i j = do
     Just x -> do
       poke ustk $ fromIntegral x
       ustk <- bump ustk
-      ustk <$ poke ustk 0
+      ustk <$ poke ustk 1
   pure (ustk, bstk)
 bprim2 !ustk !bstk CATB i j = do
   l <- peekOffBi bstk i

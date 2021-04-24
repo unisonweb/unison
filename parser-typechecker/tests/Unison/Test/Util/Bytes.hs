@@ -22,6 +22,12 @@ test = scope "util.bytes" . tests $ [
     expect' (Bytes.at 0 (Bytes.fromWord8s []) == Nothing)
     ok,
 
+  scope "at.cornerCases" $ do
+    let b = Bytes.drop 3 $ Bytes.fromWord8s [77,13,12] <> Bytes.fromWord8s [9,10,11]
+    expect' (Bytes.at 0 b == Just 9)
+    expect' (Bytes.at 0 (mempty <> Bytes.fromWord8s [1,2,3]) == Just 1)
+    ok,
+
   scope "consistency with ByteString" $ do
     forM_ [(1::Int)..100] $ \_ -> do
       n <- int' 0 50

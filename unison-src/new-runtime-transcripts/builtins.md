@@ -1,11 +1,5 @@
 # Unit tests for builtin functions
 
-```ucm:hide
-.> builtins.mergeio
-.> load unison-src/new-runtime-transcripts/base.u
-.> add
-```
-
 This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions
@@ -185,17 +179,13 @@ test> Text.tests.alignment =
 
 ## `Bytes` functions
 
-```unison
-(===) a b =
-  if a == b then true
-  else bug ("not equal", a, b)
-
+```unison:hide
 test> Bytes.tests.at =
         bs = Bytes.fromList [77, 13, 12]
         checks [
-          Bytes.at 1 bs === Some 13,
-          Bytes.at 0 bs === Some 77,
-          Bytes.at 99 bs === None
+          Bytes.at 1 bs == Some 13,
+          Bytes.at 0 bs == Some 77,
+          Bytes.at 99 bs == None
         ]
 ```
 
