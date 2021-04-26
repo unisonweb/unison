@@ -48,6 +48,7 @@ import           Unison.Server.Types            ( mayDefault
                                                 , NamedType
                                                 , DefinitionDisplayResults(..)
                                                 , TypeDefinition(..)
+                                                , Suffixify(..)
                                                 )
 import           Unison.Util.Pretty             ( Width )
 import           Unison.Var                     ( Var )
@@ -173,6 +174,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query = do
           rel
           root
           typeWidth
+          (Suffixify True)
           codebase
           [HQ.HashOnly $ Reference.toShortHash r]
         let
@@ -180,7 +182,7 @@ serveFuzzyFind codebase mayRoot relativePath limit typeWidth query = do
           td = case t of
             Just t -> t
             Nothing ->
-              TypeDefinition mempty mempty
+              TypeDefinition mempty mempty Nothing
                 . MissingObject
                 $ Reference.toShortHash r
           namedType = Backend.typeEntryToNamedType te
