@@ -12,7 +12,7 @@ module Unison.Codebase.FileCodebase
 , codebaseExists     -- used by Main
 , initCodebaseAndExit
 , initCodebase
-, getCodebaseOrExit
+, getCodebaseOrInit
 , getCodebaseDir
 ) where
 
@@ -102,39 +102,49 @@ initCodebase cache path = do
          <> prettyDir
        exitFailure
 
-  PT.putPrettyLn'
+  PT.putPrettyLn
     .  P.wrap
     $  "Initializing a new codebase in: "
     <> prettyDir
   Codebase.initializeCodebase theCodebase
   pure theCodebase
 
--- get the codebase in dir, or in the home directory if not provided.
-getCodebaseOrExit :: Branch.Cache IO -> Maybe FilePath -> IO (Codebase IO Symbol Ann)
-getCodebaseOrExit cache mdir = do
-  dir <- getCodebaseDir mdir
-  progName <- getProgName
+-- Get the codebase in dir, or in the home directory if not provided.
+-- Initialize one if it's not there.
+getCodebaseOrInit
+  :: Branch.Cache IO -> Maybe FilePath -> IO (Codebase IO Symbol Ann)
+getCodebaseOrInit cache mdir = do
+  dir       <- getCodebaseDir mdir
+  progName  <- getProgName
   prettyDir <- P.string <$> canonicalizePath dir
-  let errMsg = getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
-  let theCodebase = codebase1 cache V1.formatSymbol formatAnn dir
-  unlessM (codebaseExists dir) $ do
-    PT.putPrettyLn' errMsg
-    exitFailure
-  theCodebase
+  let noCodebaseMessage =
+        getNoCodebaseMessage ((P.text . Text.pack) progName) prettyDir mdir
+  exists <- codebaseExists dir
+  if exists
+    then codebase1 cache V1.formatSymbol formatAnn dir
+    else do
+      cache <- Cache.cache
+      PT.putPrettyLn noCodebaseMessage
+      initCodebase cache dir
 
-getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
-getNoCodebaseErrorMsg executable prettyDir mdir =
-  let secondLine =
-        case mdir of
-          Just dir  -> "Run `" <> executable <> " -codebase " <> fromString dir
-                     <> " init` to create one, then try again!"
-          Nothing -> "Run `" <> executable <> " init` to create one there,"
-                     <> " then try again;"
-                     <> " or `" <> executable <> " -codebase <dir>` to load a codebase from someplace else!"
-  in
-    P.lines
-        [ "No codebase exists in " <> prettyDir <> "."
-        , secondLine ]
+getNoCodebaseMessage
+  :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
+getNoCodebaseMessage executable prettyDir mdir =
+  P.lines
+    $  "No codebase exists in the directory "
+    <> prettyDir
+    <> ". Creating one now."
+    :  more
+ where
+  more = case mdir of
+    Nothing ->
+      [ ""
+      , "If this is not what you wanted, run `"
+        <> executable
+        <> " -codebase <dir>`"
+      , "to load a codebase from the directory <dir>."
+      ]
+    Just _ -> []
 
 getCodebaseDir :: Maybe FilePath -> IO FilePath
 getCodebaseDir = maybe getHomeDirectory pure
