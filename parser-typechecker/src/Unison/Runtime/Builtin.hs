@@ -45,6 +45,7 @@ import Unison.Util.EnumContainers as EC
 import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
+import qualified Data.Text as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -1003,6 +1004,32 @@ boxToBool = inBx arg result
   where
     (arg, result) = fresh2
 
+-- Nat -> c
+-- Works for an type that's packed into a word, just
+-- pass `wordDirect Ty.natRef`, `wordDirect Ty.floatRef`
+-- etc
+wordDirect :: Reference -> ForeignOp
+wordDirect wordType instr
+  = ([BX],)
+  . TAbss [b1]
+  . unbox b1 wordType ub1
+  $ TFOp instr [ub1]
+  where
+  (b1,ub1) = fresh2
+
+-- Nat -> a -> c
+-- Works for an type that's packed into a word, just
+-- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
+-- etc
+wordBoxDirect :: Reference -> ForeignOp
+wordBoxDirect wordType instr
+  = ([BX,BX],)
+  . TAbss [b1,b2]
+  . unbox b1 wordType ub1
+  $ TFOp instr [ub1,b2]
+  where
+  (b1,b2,ub1) = fresh3
+
 -- a -> b -> c
 boxBoxDirect :: ForeignOp
 boxBoxDirect instr
@@ -1470,6 +1497,12 @@ declareForeigns = do
   declareForeign "MVar.tryRead.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
+  declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
+    \(ch :: Char) -> pure (Text.singleton ch)
+
+  declareForeign "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
+    \(n :: Word64, txt :: Text) -> pure (Text.replicate (fromIntegral n) txt)
+
   declareForeign "Text.toUtf8" boxDirect . mkForeign
     $ pure . Bytes.fromArray . encodeUtf8
 
@@ -1483,7 +1516,7 @@ declareForeigns = do
                  TLS.clientSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong },
                  TLS.clientShared = def { TLS.sharedCAStore = store }
                  }) X.getSystemCertificateStore
-  
+
   declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
     $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
         pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
@@ -1570,7 +1603,7 @@ declareForeigns = do
 
   declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
     \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
-  
+
   declareForeign "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls

@@ -3,7 +3,8 @@
 
 module Unison.Util.ColorText (
   ColorText, Color(..), style, toANSI, toPlain, toHTML, defaultColors,
-  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline,
+  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite,
+  bold, underline, invert, background, unstyled,
   module Unison.Util.AnnotatedText)
 where
 
@@ -22,8 +23,8 @@ type ColorText = AnnotatedText Color
 data Color
   =  Black | Red | Green | Yellow | Blue | Purple | Cyan | White
   | HiBlack| HiRed | HiGreen | HiYellow | HiBlue | HiPurple | HiCyan | HiWhite
-  | Bold | Underline
-  deriving (Eq, Ord, Bounded, Enum, Show, Read)
+  | Bold | Underline | Invert Color | Background Color Color | Default
+  deriving (Eq, Ord, Show, Read)
 
 black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline :: ColorText -> ColorText
 black = style Black
@@ -44,6 +45,15 @@ hiCyan = style HiCyan
 hiWhite = style HiWhite
 bold = style Bold
 underline = style Underline
+
+unstyled :: ColorText -> ColorText
+unstyled = style Default
+
+background :: Color -> ColorText -> ColorText
+background c ct = ct <&> Background c
+
+invert :: ColorText -> ColorText
+invert ct = ct <&> Invert
 
 style :: Color -> ColorText -> ColorText
 style = annotate
@@ -82,7 +92,16 @@ toANSI (AnnotatedText chunks) =
       )
   resetANSI = pure . ANSI.setSGRCode $ [ANSI.Reset]
   toANSI :: Color -> Seq String
-  toANSI c = pure . ANSI.setSGRCode $ case c of
+  toANSI c = pure $ ANSI.setSGRCode (toANSI' c)
+
+  toANSI' :: Color -> [ANSI.SGR]
+  toANSI' c = case c of
+    Default  -> []
+    Background c c2 -> (setBg <$> toANSI' c) <> toANSI' c2 where
+      setBg (ANSI.SetColor ANSI.Foreground intensity color) =
+             ANSI.SetColor ANSI.Background intensity color
+      setBg sgr = sgr
+    Invert c -> [ANSI.SetSwapForegroundBackground True] <> toANSI' c
     Black    -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Black]
     Red      -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Red]
     Green    -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Green]

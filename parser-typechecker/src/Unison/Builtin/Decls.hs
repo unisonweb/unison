@@ -70,7 +70,7 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
+okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId :: ConstructorId
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
@@ -84,6 +84,8 @@ Just docEvaluateId = constructorId docRef "Doc.Evaluate"
 Just docJoinId = constructorId docRef "Doc.Join"
 Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
+Just eitherRightId = constructorId eitherRef "Either.Right"
+Just eitherLeftId = constructorId eitherRef "Either.Left"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
@@ -286,10 +288,27 @@ builtinEffectDecls = []
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
+pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
+pattern EitherLeft' tm <- (unLeftTerm -> Just tm)
+pattern EitherRight' tm <- (unRightTerm -> Just tm)
+pattern EitherLeftId <- ((==) eitherLeftId -> True)
+pattern EitherRightId <- ((==) eitherRightId -> True)
+
+unLeftTerm, unRightTerm
+  :: Term.Term2 vt at ap v a
+  -> Maybe (Term.Term2 vt at ap v a)
+unRightTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherRightId) tm ->
+    Just tm
+  _                           -> Nothing
+unLeftTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherLeftId) tm ->
+    Just tm
+  _                           -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
 pattern DocRef <- ((== docRef) -> True)

@@ -145,6 +145,38 @@ test> Nat.tests.conversions =
 .> add
 ```
 
+## `Text` functions
+
+```unison:hide
+test> Text.tests.takeDropAppend =
+      checks [
+        "yabba" ++ "dabba" == "yabbadabba",
+        Text.take 0 "yabba" == "",
+        Text.take 2 "yabba" == "ya",
+        Text.take 99 "yabba" == "yabba",
+        Text.drop 0 "yabba" == "yabba",
+        Text.drop 2 "yabba" == "bba",
+        Text.drop 99 "yabba" == ""
+        ]
+
+test> Text.tests.repeat =
+      checks [
+        Text.repeat 4 "o" == "oooo",
+        Text.repeat 0 "o" == ""
+      ]
+
+test> Text.tests.alignment =
+      checks [
+        Text.alignLeftWith 5 ?\s "a" == "a    ",
+        Text.alignRightWith 5 ?_ "ababa" == "ababa",
+        Text.alignRightWith 5 ?_ "ab" == "___ab"
+      ]
+```
+
+```ucm:hide
+.> add
+```
+
 ## `Any` functions
 
 ```unison

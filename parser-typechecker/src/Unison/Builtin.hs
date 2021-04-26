@@ -381,6 +381,7 @@ builtinsSrc =
   , B "Text.take" $ nat --> text --> text
   , B "Text.drop" $ nat --> text --> text
   , B "Text.size" $ text --> nat
+  , B "Text.repeat" $ nat --> text --> text
   , B "Text.==" $ text --> text --> boolean
   , D "Text.!=" $ text --> text --> boolean
   , B "Text.<=" $ text --> text --> boolean
@@ -394,6 +395,7 @@ builtinsSrc =
   , B "Text.toUtf8" $ text --> bytes
   , B "Text.fromUtf8.impl.v3" $ bytes --> eithert failure text
   , B "Char.toNat" $ char --> nat
+  , B "Char.toText" $ char --> text
   , B "Char.fromNat" $ nat --> char
 
   , B "Bytes.empty" bytes

@@ -9,7 +9,8 @@ module Unison.Lexer (
   lexer, simpleWordyId, simpleSymbolyId,
   line, column,
   escapeChars,
-  debugLex', debugLex'', debugLex''', showEscapeChar, touches,
+  debugFileLex, debugLex', debugLex'', debugLex''',
+  showEscapeChar, touches,
   -- todo: these probably don't belong here
   wordyIdChar, wordyIdStartChar,
   wordyId, symbolyId, wordyId0, symbolyId0)
@@ -30,6 +31,7 @@ import           Text.Megaparsec.Error (ShowToken(..))
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 import qualified Text.Megaparsec as P
+import qualified Text.Megaparsec.Internal as PI
 import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Char as CP
 import Text.Megaparsec.Char (char)
@@ -38,7 +40,10 @@ import qualified Unison.Util.Bytes as Bytes
 
 type Line = Int
 type Column = Int
-data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
+
+data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord)
+instance Show Pos where show (Pos line col) = "line " <> show line <> ", column " <> show col
+
 type BlockName = String
 type Layout = [(BlockName,Column)]
 
@@ -50,9 +55,27 @@ data Token a = Token {
 
 data ParsingEnv =
   ParsingEnv { layout :: !Layout -- layout stack
-             , opening :: Maybe BlockName } -- `Just b` if a block of type `b` is being opened
+             , opening :: Maybe BlockName -- `Just b` if a block of type `b` is being opened
+             , inLayout :: Bool -- are we inside a construct that uses layout?
+             , parentSection :: Int -- 1 means we are inside a # Heading 1
+             , parentListColumn :: Int -- 4 means we are inside a list starting
+                                       -- at the fourth column
+             } deriving Show
 
 type P = P.ParsecT (Token Err) String (S.State ParsingEnv)
+
+local :: (ParsingEnv -> ParsingEnv) -> P a -> P a
+local f p = do
+  env0 <- S.get
+  S.put (f env0)
+  e <- P.observing p
+  S.put env0
+  case e of
+    Left e -> parseFailure e
+    Right a -> pure a
+
+parseFailure :: EP.ParseError Char (Token Err) -> P a
+parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
   = InvalidWordyId String
@@ -176,7 +199,7 @@ token'' tok p = do
             l = layout env
     -- If we're not opening a block, we potentially pop from
     -- the layout stack and/or emit virtual semicolons.
-    Nothing -> pops start
+    Nothing -> if inLayout env then pops start else pure []
   a <- p <|> (S.put env >> fail "resetting state")
   end <- pos
   pure $ layoutToks ++ tok a start end
@@ -188,7 +211,6 @@ token'' tok p = do
       if top l == column p then pure [Token (Semi True) p p]
       else if column p > top l || topHasClosePair l then pure []
       else if column p < top l then
-        -- traceShow (l, p) $
         S.put (env { layout = pop l }) >> ((Token Close p p :) <$> pops p)
       else error "impossible"
 
@@ -196,8 +218,6 @@ token'' tok p = do
     topHasClosePair [] = False
     topHasClosePair ((name,_):_) = name `elem` ["{", "(", "handle", "match", "if", "then"]
 
--- todo: implement function with same signature as the existing lexer function
--- to set up initial state, run the parser, etc
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
   case flip S.evalState env0 $ P.runParserT lexemes scope rem of
@@ -213,7 +233,7 @@ lexer0' scope rem =
   where
   customErrs es = [ Err <$> e | P.ErrorCustom e <- toList es ]
   toPos (P.SourcePos _ line col) = Pos (P.unPos line) (P.unPos col)
-  env0 = ParsingEnv [] (Just scope)
+  env0 = ParsingEnv [] (Just scope) True 0 0
   -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
   -- fix without adding more state to the lexer:
   --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
@@ -240,13 +260,24 @@ infixl 2 <+>
 p1 <+> p2 = do a1 <- p1; a2 <- p2; pure (a1 <> a2)
 
 lexemes :: P [Token Lexeme]
-lexemes = P.optional space >> do
-  hd <- join <$> P.manyTill toks (P.lookAhead P.eof)
+lexemes = lexemes' eof
+  where
+  eof :: P [Token Lexeme]
+  eof = P.try $ do
+    p <- P.eof >> pos
+    n <- maybe 0 (const 1) <$> S.gets opening
+    l <- S.gets layout
+    pure $ replicate (length l + n) (Token Close p p)
+
+
+lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
+lexemes' eof = P.optional space >> do
+  hd <- join <$> P.manyTill toks (P.lookAhead eof)
   tl <- eof
   pure $ hd <> tl
   where
-  toks = doc <|> token numeric <|> token character <|> reserved <|> token symbolyId
-     <|> token blank <|> token wordyId
+  toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved
+     <|> token symbolyId <|> token blank <|> token wordyId
      <|> (asum . map token) [ semi, textual, backticks, hash ]
 
   wordySep c = isSpace c || not (isAlphaNum c)
@@ -255,6 +286,320 @@ lexemes = P.optional space >> do
   tok :: P a -> P [Token a]
   tok p = do (start,a,stop) <- positioned p
              pure [Token a start stop]
+
+  doc2 :: P [Token Lexeme]
+  doc2 = do
+    let start = token'' ignore (lit "{{")
+    startToks <- start <* CP.space
+    env0 <- S.get
+    docToks0 <- wrap "syntax.docUntitledSection" $
+      local (\env -> env { inLayout = False }) (body <* lit "}}")
+    let docToks = startToks <> docToks0
+    endToks <- token' ignore (pure ())
+    -- Hack to allow anonymous doc blocks before type decls
+    --   {{ Some docs }}             Foo.doc = {{ Some docs }}
+    --   ability Foo where      =>   ability Foo where
+    tn <- subsequentTypeName
+    pure $ case (tn, docToks) of
+      (Just tname, ht:_) | isTopLevel ->
+          startToks
+          <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+          <> docToks0
+          <> [Close <$ last docToks]
+          <> endToks
+        where
+          isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
+      _ -> docToks <> endToks
+    where
+    subsequentTypeName = P.lookAhead . P.optional $ do
+      let lit' s = lit s <* sp
+      _ <- P.optional (lit' "unique") *> (lit' "type" <|> lit' "ability")
+      name <- P.takeWhile1P Nothing wordyIdChar
+      pure name
+    ignore _ _ _ = []
+    body = join <$> P.many (sectionElem <* CP.space)
+    sectionElem = section <|> fencedBlock <|> list <|> paragraph
+    paragraph = wrap "syntax.docParagraph" $ join <$> spaced leaf
+    reserved word =
+      isPrefixOf "}}" word ||
+      all (== '#') word
+
+    wordy ok = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
+      let end = P.lookAhead $ void docClose
+                          <|> void docOpen
+                          <|> void (CP.satisfy isSpace)
+                          <|> void (CP.satisfy (not . ok))
+      word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
+      guard (not $ reserved word)
+      pure word
+
+    leafy ok = groupy ok gs
+          where
+          gs = link <|> externalLink <|> ticked <|> expr
+           <|> boldOrItalicOrStrikethrough ok <|> verbatim
+           <|> atDoc <|> wordy ok
+
+    leaf = leafy (const True)
+
+    atDoc = src <|> evalInline <|> signature <|> signatureInline
+      where
+        comma = lit "," <* CP.space
+        src = src' "syntax.docSource" "@source" <|>
+              src' "syntax.docFoldedSource" "@foldedSource"
+        srcElem = wrap "syntax.docSourceElement" $
+          (typeLink <|> termLink) <+>
+          (fmap (fromMaybe []) . P.optional $
+            (tok (Reserved <$> lit "@") <+> (CP.space *> annotations)))
+          where
+            annotation = tok (symbolyId <|> wordyId) <|> expr <* CP.space
+            annotations =
+              join <$> P.some (wrap "syntax.docEmbedAnnotation" annotation)
+        src' name atName = wrap name $ do
+          _ <- lit atName *> (lit " {" <|> lit "{") *> CP.space
+          s <- P.sepBy1 srcElem comma
+          _ <- lit "}"
+          pure (join s)
+        signature = wrap "syntax.docSignature" $ do
+          _ <- lit "@signatures" *> (lit " {" <|> lit "{") *> CP.space
+          s <- join <$> P.sepBy1 signatureLink comma
+          _ <- lit "}"
+          pure s
+        signatureInline = wrap "syntax.docSignatureInline" $ do
+          _ <- lit "@signature" *> (lit " {" <|> lit "{") *> CP.space
+          s <- signatureLink
+          _ <- lit "}"
+          pure s
+        evalInline = wrap "syntax.docEvalInline" $ do
+          _ <- lit "@eval" *> (lit " {" <|> lit "{") *> CP.space
+          let inlineEvalClose  = [] <$ lit "}"
+          s <- lexemes' inlineEvalClose
+          pure s
+
+    typeLink = wrap "syntax.docEmbedTypeLink" $ do
+      _ <- (lit "type" <|> lit "ability") <* CP.space
+      tok (symbolyId <|> wordyId) <* CP.space
+
+    termLink = wrap "syntax.docEmbedTermLink" $
+      tok (symbolyId <|> wordyId) <* CP.space
+
+    signatureLink = wrap "syntax.docEmbedSignatureLink" $
+      tok (symbolyId <|> wordyId) <* CP.space
+
+    groupy ok p = do
+      (start,p,stop) <- positioned p
+      after <- P.optional . P.try $ leafy ok
+      pure $ case after of
+        Nothing -> p
+        Just after ->
+          [Token (Open "syntax.docGroup") start stop',
+           Token (Open "syntax.docJoin") start stop'] <> p <> after <>
+          (take 2 $ repeat (Token Close stop' stop'))
+          where stop' = maybe stop end (lastMay after)
+
+    verbatim =
+      P.label "code (examples: ''**unformatted**'', '''_words_''')" $ do
+      (start,txt,stop) <- positioned $ do
+        quotes <- lit "''" <+> many (CP.satisfy (== '\''))
+        P.someTill CP.anyChar (lit quotes)
+      if all isSpace $ takeWhile (/= '\n') txt
+      then wrap "syntax.docVerbatim" $
+           wrap "syntax.docWord" $
+           pure [Token (Textual (trim txt)) start stop]
+      else wrap "syntax.docCode" $
+           wrap "syntax.docWord" $
+           pure [Token (Textual txt) start stop]
+
+    trim = f . f where
+      f = reverse . dropThru
+      dropThru = dropNl . dropWhile (\ch -> isSpace ch && ch /= '\n')
+      dropNl ('\n':t) = t
+      dropNl as = as
+
+    ticked =
+      P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
+      wrap "syntax.docExample" $ do
+        n <- P.try $ do _ <- lit "`"
+                        length <$> P.takeWhile1P (Just "backticks") (== '`')
+        let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
+        ex <- CP.space *> lexemes' end
+        pure ex
+
+    docClose = [] <$ lit "}}"
+    docOpen  = [] <$ lit "{{"
+
+    link =
+      P.label "link (examples: {type List}, {Nat.+})" $
+      wrap "syntax.docLink" $
+      P.try $ lit "{" *> (typeLink <|> termLink) <* lit "}"
+
+    expr =
+      P.label "transclusion (examples: {{ doc2 }}, {{ sepBy s [doc1, doc2] }})" $
+      wrap "syntax.docTransclude" $
+      docOpen *> lexemes' docClose
+
+    nonNewlineSpace ch = isSpace ch && ch /= '\n' && ch /= '\r'
+    nonNewlineSpaces = P.takeWhileP Nothing nonNewlineSpace
+
+    fencedBlock =
+      P.label "block eval (syntax: a fenced code block)" $
+      unison <|> other
+      where
+        unison = wrap "syntax.docEval" $ do
+          -- commit after seeing that ``` is on its own line
+          fence <- P.try $ do
+            fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+            b <- all isSpace <$> P.lookAhead (P.takeWhileP Nothing (/= '\n'))
+            fence <$ guard b
+          CP.space *>
+            local (\env -> env { inLayout = True, opening = Just "docEval" })
+                  (lexemes' ([] <$ lit fence))
+
+        other = wrap "syntax.docCodeBlock" $ do
+          fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+          name <- P.many (CP.satisfy nonNewlineSpace)
+               *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
+          _ <- CP.space
+          verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
+          pure (name <> verbatim)
+
+    boldOrItalicOrStrikethrough ok = do
+      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some (CP.satisfy (== '~'))
+          name s = if take 1 s == "~" then "syntax.docStrikethrough"
+                   else if length s > 1 then "syntax.docBold"
+                   else "syntax.docItalic"
+      (end,ch) <- P.try $ do
+        end@(ch:_) <- start
+        P.lookAhead (CP.satisfy (not . isSpace))
+        pure (end,ch)
+      wrap (name end) . wrap "syntax.docParagraph" $
+        join <$> P.someTill (leafy (\c -> ok c && c /= ch) <* nonNewlineSpaces)
+                            (lit end)
+
+    externalLink =
+      P.label "hyperlink (example: [link name](https://destination.com))" $
+      wrap "syntax.docNamedLink" $ do
+        _ <- lit "["
+        p <- leafies (/= ']')
+        _ <- lit "]"
+        _ <- lit "("
+        target <- wrap "syntax.docGroup" . wrap "syntax.docJoin" $
+                  link <|> fmap join (P.some (expr <|> wordy (/= ')')))
+        _ <- lit ")"
+        pure (p <> target)
+
+    -- newline = P.optional (lit "\r") *> lit "\n"
+
+    sp = P.try $ do
+      spaces <- P.takeWhile1P (Just "space") isSpace
+      close <- P.optional (P.lookAhead (lit "}}"))
+      case close of
+        Nothing -> guard $ ok spaces
+        Just _ -> pure ()
+      pure spaces
+      where
+        ok s = length [ () | '\n' <- s ] < 2
+
+    spaced p = P.some (p <* P.optional sp)
+    leafies close = wrap "syntax.docParagraph" $ join <$> spaced (leafy close)
+
+    list = bulletedList <|> numberedList
+
+    bulletedList = wrap "syntax.docBulletedList" $ join <$> P.sepBy1 bullet listSep
+    numberedList = wrap "syntax.docNumberedList" $ join <$> P.sepBy1 numberedItem listSep
+
+    listSep = P.try $ newline *> nonNewlineSpaces *> P.lookAhead (bulletedStart <|> numberedStart)
+
+    bulletedStart = P.try $ do
+      r <- listItemStart' $ [] <$ CP.satisfy bulletChar
+      P.lookAhead (CP.satisfy isSpace)
+      pure r
+      where
+        bulletChar ch = ch == '*' || ch == '-' || ch == '+'
+
+    listItemStart' gutter = P.try $ do
+      nonNewlineSpaces
+      col <- column <$> pos
+      parentCol <- S.gets parentListColumn
+      guard (col > parentCol)
+      (col,) <$> gutter
+
+    numberedStart =
+      listItemStart' $ P.try (tok . fmap num $ LP.decimal <* lit ".")
+      where
+        num :: Word -> Lexeme
+        num n = Numeric (show n)
+
+    listItemParagraph = wrap "syntax.docParagraph" $ do
+      col <- column <$> pos
+      join <$> P.some (leaf <* sep col)
+      where
+        -- Trickiness here to support hard line breaks inside of
+        -- a bulleted list, so for instance this parses as expected:
+        --
+        --   * uno dos
+        --     tres quatro
+        --   * alice bob
+        --     carol dave eve
+        sep col = do
+          _ <- nonNewlineSpaces
+          _ <- P.optional . P.try $
+            newline *>
+            nonNewlineSpaces *> do
+              col2 <- column <$> pos
+              guard $ col2 >= col
+              (P.notFollowedBy $ numberedStart <|> bulletedStart)
+          pure ()
+
+    numberedItem = P.label msg $ do
+      (col,s) <- numberedStart
+      pure s <+> (wrap "syntax.docColumn" $ do
+        p <- nonNewlineSpaces *> listItemParagraph
+        subList <-
+          local (\e -> e { parentListColumn = col }) (P.optional $ listSep *> list)
+        pure (p <> fromMaybe [] subList))
+      where
+        msg = "numbered list (examples: 1. item1, 8. start numbering at '8')"
+
+    bullet = wrap "syntax.docColumn" . P.label "bullet (examples: * item1, - item2)" $ do
+      (col,_) <- bulletedStart
+      p <- nonNewlineSpaces *> listItemParagraph
+      subList <- local (\e -> e { parentListColumn = col })
+                       (P.optional $ listSep *> list)
+      pure (p <> fromMaybe [] subList)
+
+    newline = P.label "newline" $ lit "\n" <|> lit "\r\n"
+
+
+    -- ## Section title
+    --
+    -- A paragraph under this section.
+    -- Part of the same paragraph. Blanklines separate paragraphs.
+    --
+    -- ### A subsection title
+    --
+    -- A paragraph under this subsection.
+
+    -- # A section title (not a subsection)
+    section :: P [Token Lexeme]
+    section = wrap "syntax.docSection" $ do
+      n <- S.gets parentSection
+      hashes <- P.try $ lit (replicate n '#') *> P.takeWhile1P Nothing (== '#') <* sp
+      title <- paragraph <* CP.space
+      let m = length hashes + n
+      body <- local (\env -> env { parentSection = m }) $
+              P.many (sectionElem <* CP.space)
+      pure $ title <> join body
+
+    wrap :: String -> P [Token Lexeme] -> P [Token Lexeme]
+    wrap o p = do
+      start <- pos
+      lexemes <- p
+      pure $ go start lexemes
+      where
+      go start [] = [Token (Open o) start start, Token Close start start]
+      go start ts@(Token _ x _ : _) =
+        Token (Open o) start x : (ts ++ [Token Close (end final) (end final)]) where
+        final = last ts
 
   doc :: P [Token Lexeme]
   doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space) where
@@ -292,10 +637,10 @@ lexemes = P.optional space >> do
            where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's' $> ' ')
-  backticks = tick <$> (char '`' *> wordyId <* char '`')
-              where tick (WordyId n sh) = Backticks n sh
-                    tick t = t
-
+  backticks = tick <$> (t *> wordyId <* t)
+    where tick (WordyId n sh) = Backticks n sh
+          tick t = t
+          t = char '`' <* P.notFollowedBy (char '`')
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
@@ -318,7 +663,7 @@ lexemes = P.optional space >> do
     where
     segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
 
-  symbolMsg = "operator (ex: +, Float./, List.++#xyz)"
+  symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
   symbolyIdSeg :: P String
   symbolyIdSeg = do
@@ -328,10 +673,14 @@ lexemes = P.optional space >> do
 
   wordyIdSeg :: P String
   -- wordyIdSeg = litSeg <|> (P.try do -- todo
-  wordyIdSeg = do
+  wordyIdSeg = P.try $ do
+    start <- pos
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
-    when (Set.member (ch : rest) keywords) $ fail "identifier segment can't be a keyword"
+    when (Set.member (ch : rest) keywords) $ do
+      stop <- pos
+      let msg = show start <> ": Identifier segment can't be a keyword: " <> (ch:rest)
+      P.customFailure (Token (Opaque msg) start stop)
     pure (ch : rest)
 
   {-
@@ -419,7 +768,8 @@ lexemes = P.optional space >> do
       ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        ifElse = openKw "if" <|> close' (Just "then") ["if"] "then" <|> close' (Just "else") ["then"] "else"
+        ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
+                             <|> close' (Just "else") ["then"] (lit "else")
         typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
 
         withKw = do
@@ -469,8 +819,16 @@ lexemes = P.optional space >> do
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
 
-    braces = open "{" <|> close ["{"] "}"
-    parens = open "(" <|> close ["("] ")"
+    -- a bit of lookahead here to reserve }} for closing a documentation block
+    braces = open "{" <|> close ["{"] p where
+      p = do
+        l <- lit "}"
+        -- if we're within an existing {{ }} block, inLayout will be false
+        -- so we can actually allow }} to appear in normal code
+        inLayout <- S.gets inLayout
+        when (not inLayout) $ void $ P.lookAhead (CP.satisfy (/= '}'))
+        pure l
+    parens = open "(" <|> close ["("] (lit ")")
 
     delim = P.try $ do
       ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
@@ -498,9 +856,9 @@ lexemes = P.optional space >> do
 
     close = close' Nothing
 
-    close' :: Maybe String -> [String] -> String -> P [Token Lexeme]
-    close' reopenBlockname open close = do
-      (pos1, close, pos2) <- positioned $ lit close
+    close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+    close' reopenBlockname open closeP = do
+      (pos1, close, pos2) <- positioned $ closeP
       env <- S.get
       case findClose open (layout env) of
         Nothing -> err pos1 (CloseWithoutMatchingOpen msgOpen (quote close))
@@ -514,13 +872,6 @@ lexemes = P.optional space >> do
     findClose :: [String] -> Layout -> Maybe (String, Int)
     findClose _ [] = Nothing
     findClose s ((h,_):tl) = if h `elem` s then Just (h, 1) else fmap (1+) <$> findClose s tl
-
-  eof :: P [Token Lexeme]
-  eof = P.try $ do
-    p <- P.eof >> pos
-    n <- maybe 0 (const 1) <$> S.gets opening
-    l <- S.gets layout
-    pure $ replicate (length l + n) (Token Close p p)
 
 simpleWordyId :: String -> Lexeme
 simpleWordyId = flip WordyId Nothing
@@ -602,18 +953,17 @@ stanzas = go [] where
     Semi _ -> reverse (t : acc) : go [] ts
     _      -> go (t:acc) ts
 
--- Moves type and effect declarations to the front of the token stream
+-- Moves type and ability declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder = join . sortWith f . stanzas
-  where
-    f [] = 3 :: Int
-    f (t : _) = case payload $ headToken t of
-      Open "type" -> 1
-      Open "unique" -> 1
-      Open "ability" -> 1
-      Reserved "use" -> 0
-      _ -> 3 :: Int
+reorder = join . sortWith f . stanzas where
+  f [] = 3 :: Int
+  f (t0 : _) = case payload $ headToken t0 of
+    Open "type" -> 1
+    Open "unique" -> 1
+    Open "ability" -> 1
+    Reserved "use" -> 0
+    _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
@@ -735,8 +1085,20 @@ reservedOperators = Set.fromList ["=", "->", ":", "&&", "||", "|", "!", "'"]
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)
 
+debugFileLex :: String -> IO ()
+debugFileLex file = do
+  contents <- readFile file
+  let s = debugLex'' (lexer file contents)
+  putStrLn s
+
 debugLex'' :: [Token Lexeme] -> String
-debugLex'' = show . fmap payload . tree
+debugLex'' [Token (Err (Opaque msg)) start end] =
+  (if start == end then msg1 else msg2) <> ":\n" <> msg
+  where
+    msg1 = "Error on line " <> show (line start) <> ", column " <> show (column start)
+    msg2 = "Error on line " <> show (line start) <> ", column " <> show (column start)
+        <> " - line " <> show (line end) <> ", column " <> show (column end)
+debugLex'' ts = show . fmap payload . tree $ ts
 
 debugLex' :: String -> String
 debugLex' =  debugLex'' . lexer "debugLex"
@@ -802,3 +1164,4 @@ instance Monoid Pos where
   Pos line col `mappend` Pos line2 col2 =
     if line2 == 0 then Pos line (col + col2)
     else Pos (line + line2) col2
+

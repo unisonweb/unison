@@ -16,6 +16,7 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
+import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -79,6 +80,13 @@ instance ForeignConvention Word64 where
   writeForeign ustk bstk n = do
     ustk <- bump ustk
     (ustk, bstk) <$ pokeN ustk n
+
+instance ForeignConvention Char where
+  readForeign (i:us) bs ustk _ = (us,bs,) . Char.chr <$> peekOff ustk i
+  readForeign [] _ _ _ = foreignCCError "Char"
+  writeForeign ustk bstk ch = do
+    ustk <- bump ustk
+    (ustk, bstk) <$ poke ustk (Char.ord ch)
 
 instance ForeignConvention Closure where
   readForeign us (i:bs) _ bstk = (us,bs,) <$> peekOff bstk i

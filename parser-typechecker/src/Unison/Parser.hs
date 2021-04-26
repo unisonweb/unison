@@ -189,6 +189,10 @@ instance Annotated a => Annotated (ABT.Term f v a) where
 instance Annotated a => Annotated (Pattern a) where
   ann = ann . Pattern.loc
 
+instance Annotated a => Annotated [a] where
+  ann [] = mempty
+  ann (h:t) = foldl' (\acc a -> acc <> ann a) (ann h) t
+
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 

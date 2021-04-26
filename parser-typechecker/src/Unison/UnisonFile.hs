@@ -144,6 +144,15 @@ lookupDecl v uf =
   over _2 Right <$> (Map.lookup v (dataDeclarationsId' uf)) <|>
   over _2 Left  <$> (Map.lookup v (effectDeclarationsId' uf))
 
+indexByReference :: TypecheckedUnisonFile v a
+                 -> (Map Reference.Id (Term v a, Type v a), Map Reference.Id (DD.Decl v a))
+indexByReference uf = (tms, tys)
+  where
+    tys = Map.fromList (over _2 Right <$> toList (dataDeclarationsId' uf)) <>
+          Map.fromList (over _2 Left <$> toList (effectDeclarationsId' uf))
+    tms = Map.fromList [
+      (r, (tm,ty)) | (Reference.DerivedId r, tm, ty) <- toList (hashTerms uf) ]
+
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
   Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]

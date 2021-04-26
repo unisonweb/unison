@@ -18,7 +18,7 @@ import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Server.SearchResult' as SR'
-import Unison.Server.Backend (ShallowListEntry(..))
+import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..))
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
@@ -541,10 +541,10 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry _r hq ot _ ->
+      ShallowTermEntry (TermEntry _r hq ot _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
-      ShallowTypeEntry r hq _ ->
+      ShallowTypeEntry (TypeEntry r hq _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns _ count ->
@@ -1560,11 +1560,17 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
                       (types `zip` [0..])
          <*> traverse prettyGroup (terms `zip` [length types ..])
     where
-        leftNamePad :: Int = foldl1' max $
-          map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
-          map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: ((Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name)), Int)
-                    -> Numbered Pretty
+        leftNamePad :: P.Width =
+          foldl1' max
+            $  map (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                   terms
+            <> map (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                   types
+        prettyGroup
+          :: ( (Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name))
+             , Int
+             )
+          -> Numbered Pretty
         prettyGroup ((r, _, olds, news),i) = let
           -- [ "peach  ┐"
           -- , "peach' ┘"]
@@ -1740,29 +1746,38 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
 
   -- + 2. MIT               : License
   -- - 3. AllRightsReserved : License
-  mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
+  mdTermLine
+    :: Path.Absolute
+    -> P.Width
+    -> OBD.TermDisplay v a
+    -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
     n <- numHQ' p hq r
-    fmap ((n,) . P.linesNonEmpty) . sequence $
-      [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
-      , prettyMetadataDiff mddiff ]
-      -- , P.indentN 2 <$> prettyMetadataDiff mddiff ]
+    fmap ((n, ) . P.linesNonEmpty)
+      . sequence
+      $ [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
+        , prettyMetadataDiff mddiff
+        ]
 
   prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
-  prettyUpdateTerm (Nothing, newTerms) =
-    if null newTerms then error "Super invalid UpdateTermDisplay" else
-    fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
-    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) newTerms
-  prettyUpdateTerm (Just olds, news) =
-    fmap P.column2 $ do
-      olds <- traverse (mdTermLine oldPath namesWidth) [ (name,r,typ,mempty) | (name,r,typ) <- olds ]
-      news <- traverse (mdTermLine newPath namesWidth) news
-      let (oldnums, olddatas) = unzip olds
-      let (newnums, newdatas) = unzip news
-      pure $ zip (oldnums <> [""] <> newnums)
-                 (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
-    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) news
-                                   <> fmap (HQ'.nameLength . view _1) olds
+  prettyUpdateTerm (Nothing, newTerms) = if null newTerms
+    then error "Super invalid UpdateTermDisplay"
+    else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
+   where
+    namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength . view _1) newTerms
+  prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
+    olds <- traverse (mdTermLine oldPath namesWidth)
+                     [ (name, r, typ, mempty) | (name, r, typ) <- olds ]
+    news <- traverse (mdTermLine newPath namesWidth) news
+    let (oldnums, olddatas) = unzip olds
+    let (newnums, newdatas) = unzip news
+    pure $ zip (oldnums <> [""] <> newnums)
+               (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
+   where
+    namesWidth =
+      foldl1' max
+        $  fmap (P.Width . HQ'.nameLength . view _1) news
+        <> fmap (P.Width . HQ'.nameLength . view _1) olds
 
   prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
@@ -1806,7 +1821,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> "."
 
-  leftNumsWidth = length (show menuSize) + length ("."  :: String)
+  leftNumsWidth = P.Width $ length (show menuSize) + length ("."  :: String)
 
 noResults :: Pretty
 noResults = P.callout "😶" $
@@ -1910,7 +1925,7 @@ watchPrinter src ppe ann kind term isHit =
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra
               <> (if isHit then id else P.purple) "⧩"
-              , P.indentN (lineNumWidth + length extra)
+              , P.indentN (P.Width (lineNumWidth + length extra))
               . (if isHit then id else P.bold)
               $ TermPrinter.pretty ppe term
               ]

@@ -150,7 +150,17 @@ stanza = watchExpression <|> unexpectedAction <|> binding
     msum [
       WatchBinding kind ann <$> TermParser.binding,
       WatchExpression kind guid ann <$> TermParser.blockTerm ]
-  binding = Binding <$> TermParser.binding
+
+  -- binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
+  binding = do
+    -- this logic converts
+    --   {{ A doc }}  to   foo.doc = {{ A doc }}
+    --   foo = 42          foo = 42
+    doc <- P.optional (TermParser.doc2Block <* semi)
+    binding@((_,v), _) <- TermParser.binding
+    pure $ case doc of
+      Nothing -> Binding binding
+      Just doc -> Bindings [((ann doc, Var.joinDot v (Var.named "doc")), doc), binding]
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
