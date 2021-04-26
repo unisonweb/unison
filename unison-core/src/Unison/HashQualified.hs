@@ -7,7 +7,7 @@ import Unison.Prelude hiding (fromString)
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -163,6 +163,12 @@ instance Ord n => Ord (HashQualified n) where
   compare a b = case compare (toName a) (toName b) of
     EQ -> compare (toHash a) (toHash b)
     o -> o
+
+instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
+  convert = fmap Name.convert
+
+instance Parse Text (HashQualified Name) where
+  parse = fromText
 
 --instance Show n => Show (HashQualified n) where
 --  show = Text.unpack . toText

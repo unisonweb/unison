@@ -104,7 +104,7 @@ f x = h zap x
 fVal : Value
 fVal = Value.value f
 
-fDeps : [Term]
+fDeps : [Link.Term]
 fDeps = Value.dependencies fVal
 
 fSer : Bytes

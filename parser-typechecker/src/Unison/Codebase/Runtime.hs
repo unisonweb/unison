@@ -68,7 +68,6 @@ evaluateWatches
   -> Runtime v
   -> UnisonFile v a
   -> IO (WatchResults v a)
-
 evaluateWatches code ppe evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference, Term.Term v a)
@@ -120,21 +119,33 @@ evaluateWatches code ppe evaluationCache rt uf = do
       Just v  -> Just (Term.var (ABT.annotation t) v)
     go _ = Nothing
 
-evaluateTerm
+evaluateTerm'
   :: (Var v, Monoid a)
   => CL.CodeLookup v IO a
+  -> (Reference -> IO (Maybe (Term v)))
   -> PPE.PrettyPrintEnv
   -> Runtime v
   -> Term.Term v a
   -> IO (Either Error (Term v))
-evaluateTerm codeLookup ppe rt tm = do
-  let uf = UF.UnisonFileId mempty mempty mempty
-             (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-  runnable <-
-    if needsContainment rt
-      then Codebase.makeSelfContained' codeLookup uf
-      else pure uf
-  r <- evaluateWatches codeLookup ppe noCache rt runnable
-  pure $ r <&> \(_,map) ->
-    let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
-    in value
+evaluateTerm' codeLookup cache ppe rt tm = do
+  let ref = Reference.DerivedId (Term.hashClosedTerm tm)
+  result <- cache ref
+  case result of
+    Just r -> pure (Right r)
+    Nothing -> do
+      let uf = UF.UnisonFileId mempty mempty mempty
+                 (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
+      runnable <-
+        if needsContainment rt
+          then Codebase.makeSelfContained' codeLookup uf
+          else pure uf
+      r <- evaluateWatches codeLookup ppe cache rt runnable
+      pure $ r <&> \(_,map) ->
+        let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
+        in value
+
+evaluateTerm
+  :: (Var v, Monoid a)
+  => CL.CodeLookup v IO a -> PPE.PrettyPrintEnv -> Runtime v -> Term.Term v a
+  -> IO (Either Error (Term v))
+evaluateTerm codeLookup = evaluateTerm' codeLookup noCache

@@ -12,6 +12,7 @@ library:
     - cryptonite
     - either
     - extra
+    - fuzzyfind
     - lens
     - prelude-extras
     - memory

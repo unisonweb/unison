@@ -28,23 +28,23 @@ putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p | p == mempty = pure ()
 putPrettyLn' p = do
   width <- getAvailableWidth
-  less . P.toANSI width $ p
+  less $ P.toANSI width p
 
 clearCurrentLine :: IO ()
 clearCurrentLine = do
   width <- getAvailableWidth
   putStr "\r"
-  putStr . replicate width $ ' '
+  putStr $ replicate (P.widthToInt width) ' '
   putStr "\r"
 
 putPretty' :: P.Pretty CT.ColorText -> IO ()
 putPretty' p = do
   width <- getAvailableWidth
-  putStr . P.toANSI width $ p
+  putStr $ P.toANSI width p
 
-getAvailableWidth :: IO Int
+getAvailableWidth :: IO P.Width
 getAvailableWidth =
-  maybe 80 (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  maybe 80 (\s -> 100 `min` P.Width (Terminal.width s)) <$> Terminal.size
 
 putPrettyNonempty :: P.Pretty P.ColorText -> IO ()
 putPrettyNonempty msg = do

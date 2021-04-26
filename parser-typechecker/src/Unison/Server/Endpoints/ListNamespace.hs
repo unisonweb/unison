@@ -10,7 +10,7 @@
 module Unison.Server.Endpoints.ListNamespace where
 
 import           Control.Error                  ( runExceptT )
-import           Data.Aeson                     ( ToJSON )
+import           Data.Aeson
 import           Data.OpenApi                   ( ToSchema )
 import           Servant                        ( Get
                                                 , JSON
@@ -35,13 +35,10 @@ import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Hash                   as Hash
 import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import qualified Unison.NameSegment            as NameSegment
 import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
 import qualified Unison.Server.Backend         as Backend
 import           Unison.Server.Errors           ( backendError
                                                 , badHQN
@@ -52,8 +49,8 @@ import           Unison.Server.Types            ( HashQualifiedName
                                                 , Size
                                                 , UnisonHash
                                                 , UnisonName
-                                                , mayDefault
-                                                , formatType
+                                                , NamedTerm(..)
+                                                , NamedType(..)
                                                 )
 import           Unison.Util.Pretty             ( Width )
 import           Unison.Var                     ( Var )
@@ -61,7 +58,6 @@ import qualified Unison.Codebase.ShortBranchHash
                                                as SBH
 import qualified Unison.ShortHash              as ShortHash
 import qualified Data.Text                     as Text
-import           Unison.Server.Syntax           ( SyntaxText )
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
@@ -93,7 +89,8 @@ data NamespaceListing = NamespaceListing
   }
   deriving (Generic, Show)
 
-instance ToJSON NamespaceListing
+instance ToJSON NamespaceListing where
+   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema NamespaceListing
 
@@ -104,7 +101,8 @@ data NamespaceObject
   | PatchObject NamedPatch
   deriving (Generic, Show)
 
-instance ToJSON NamespaceObject
+instance ToJSON NamespaceObject where
+   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema NamespaceObject
 
@@ -115,54 +113,26 @@ data NamedNamespace = NamedNamespace
   }
   deriving (Generic, Show)
 
-instance ToJSON NamedNamespace
+instance ToJSON NamedNamespace where
+   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema NamedNamespace
-
-data NamedTerm = NamedTerm
-  { termName :: HashQualifiedName
-  , termHash :: UnisonHash
-  , termType :: Maybe SyntaxText
-  , termTag :: Maybe Backend.TermTag
-  }
-  deriving (Generic, Show)
-
-instance ToJSON NamedTerm
-
-deriving instance ToSchema NamedTerm
-
-data NamedType = NamedType
-  { typeName :: HashQualifiedName
-  , typeHash :: UnisonHash
-  , typeTag :: Backend.TypeTag
-  }
-  deriving (Generic, Show)
-
-instance ToJSON NamedType
-
-deriving instance ToSchema NamedType
 
 newtype NamedPatch = NamedPatch { patchName :: HashQualifiedName }
   deriving (Generic, Show)
 
-instance ToJSON NamedPatch
+instance ToJSON NamedPatch where
+   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema NamedPatch
 
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
   deriving (Generic, Show)
 
-instance ToJSON KindExpression
+instance ToJSON KindExpression where
+   toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema KindExpression
-
-instance ToJSON Backend.TermTag
-
-deriving instance ToSchema Backend.TermTag
-
-instance ToJSON Backend.TypeTag
-
-deriving instance ToSchema Backend.TypeTag
 
 backendListEntryToNamespaceObject
   :: Var v
@@ -171,17 +141,9 @@ backendListEntryToNamespaceObject
   -> Backend.ShallowListEntry v a
   -> NamespaceObject
 backendListEntryToNamespaceObject ppe typeWidth = \case
-  Backend.ShallowTermEntry r name mayType tag -> TermObject $ NamedTerm
-    { termName = HQ'.toText name
-    , termHash = Referent.toText r
-    , termType = formatType ppe (mayDefault typeWidth) <$> mayType
-    , termTag  = tag
-    }
-  Backend.ShallowTypeEntry r name tag -> TypeObject $ NamedType
-    { typeName = HQ'.toText name
-    , typeHash = Reference.toText r
-    , typeTag  = tag
-    }
+  Backend.ShallowTermEntry te ->
+    TermObject $ Backend.termEntryToNamedTerm ppe typeWidth te
+  Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
   Backend.ShallowBranchEntry name hash size -> Subnamespace $ NamedNamespace
     { namespaceName = NameSegment.toText name
     , namespaceHash = "#" <> SBH.toText hash

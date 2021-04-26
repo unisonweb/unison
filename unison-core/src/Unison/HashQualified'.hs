@@ -7,7 +7,7 @@ import Unison.Prelude
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.NameSegment             ( NameSegment )
 import           Unison.Reference               ( Reference )
@@ -120,6 +120,20 @@ instance Ord n => Ord (HashQualified n) where
 instance IsString (HashQualified Name) where
   fromString = unsafeFromText . Text.pack
 
-
 instance Show n => Show (HashQualified n) where
   show = Text.unpack . toText
+
+instance Convert n n2 => Parse (HashQualified n) n2 where
+  parse = \case
+    NameOnly n -> Just (Name.convert n)
+    _ -> Nothing
+
+instance Convert (HashQualified n) (HQ.HashQualified n) where
+  convert = toHQ
+
+instance Parse (HQ.HashQualified n) (HashQualified n) where
+  parse = fromHQ
+
+instance Parse Text (HashQualified Name) where
+  parse = fromText
+

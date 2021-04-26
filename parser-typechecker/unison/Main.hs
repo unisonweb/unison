@@ -166,7 +166,8 @@ main = do
         PT.putPrettyLn . P.string $ "I've started a codebase API server at "
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
           <> show port <> "?" <> URI.encode (unpack token)
-      launch currentDir mNewRun config theCodebase []
+        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
+        launch currentDir mNewRun config theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)

@@ -17,6 +17,7 @@ module Unison.Names2
   , filterByHQs
   , filterBySHs
   , filterTypes
+  , fuzzyFind
   , hqName
   , hqTermName
   , hqTypeName
@@ -46,6 +47,7 @@ where
 
 import Unison.Prelude
 
+import qualified Data.Map                     as Map
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
 import           Unison.HashQualified'        (HashQualified)
@@ -60,6 +62,7 @@ import           Unison.Util.Relation         (Relation)
 import qualified Unison.Util.Relation         as R
 import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
+import qualified Text.FuzzyFind               as FZF
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -72,6 +75,31 @@ data Names' n = Names
 
 type Names = Names' (HashQualified Name)
 type Names0 = Names' Name
+
+-- Finds names that are supersequences of all the given strings, ordered by
+-- score and grouped by name.
+fuzzyFind
+  :: [String]
+  -> Names0
+  -> [(FZF.Alignment, Name, Set (Either Referent Reference))]
+fuzzyFind query names =
+  fmap flatten
+    .  fuzzyFinds (Name.toString . fst) query
+    .  Map.toList
+    $  R.toMultimap (R.mapRan Left $ terms names)
+    <> R.toMultimap (R.mapRan Right $ types names)
+ where
+  flatten (a, (b, c)) = (a, b, c)
+  fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]
+  fuzzyFinds f query d =
+      d
+      >>= (\s ->
+            toList
+              $   (, s)
+              <$> foldl' (\a q -> (<>) <$> a <*> FZF.bestMatch q (f s))
+                         (Just mempty)
+                         query
+          )
 
 names0ToNames :: Names0 -> Names
 names0ToNames names0 = Names terms' types' where
