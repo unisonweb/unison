@@ -177,6 +177,22 @@ test> Text.tests.alignment =
 .> add
 ```
 
+## `Bytes` functions
+
+```unison:hide
+test> Bytes.tests.at =
+        bs = Bytes.fromList [77, 13, 12]
+        checks [
+          Bytes.at 1 bs == Some 13,
+          Bytes.at 0 bs == Some 77,
+          Bytes.at 99 bs == None
+        ]
+```
+
+```ucm:hide
+.> add
+```
+
 ## `Any` functions
 
 ```unison
