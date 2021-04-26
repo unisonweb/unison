@@ -75,18 +75,11 @@ jobs:
       - name: build
         run: stack --no-terminal build --fast
 
-      # Run each test suite (tests and transcripts) on each runtime
+      # Run each test suite (tests and transcripts)
       - name: tests
         run: stack --no-terminal exec tests
-      - name: tests (new runtime)
-        run: stack --no-terminal exec tests -- --new-runtime
       - name: transcripts
         run: |
           stack --no-terminal exec transcripts
-          git diff
-          x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
-      - name: transcripts (new runtime)
-        run: |
-          stack --no-terminal exec transcripts -- --new-runtime
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
