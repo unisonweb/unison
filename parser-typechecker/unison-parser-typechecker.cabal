@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 26cd32e792c7cce84c43a71156c58cbf0053505a80762d095736979b231055da
+-- hash: 53969d6f6add359ef978b603882723e65adf9d4ee9dfc274567ea63c37c4ec7f
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -45,6 +45,7 @@ library
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
+      Unison.Codebase.Editor.Output.DumpNamespace
       Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.Editor.SlurpComponent
