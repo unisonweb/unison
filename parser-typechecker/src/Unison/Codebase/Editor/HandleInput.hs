@@ -41,9 +41,11 @@ import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
 import           Control.Monad.State            ( StateT )
+import qualified Control.Monad.State as State
 import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
 import           Data.Configurator              ()
+import qualified Data.Foldable as Foldable
 import qualified Data.List                      as List
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
@@ -60,6 +62,7 @@ import           Unison.Codebase.Branch         ( Branch(..)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
+import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
@@ -130,6 +133,8 @@ import Data.Tuple.Extra (uncurry3)
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Control.Error.Util as ErrorUtil
 import Unison.Util.Monoid (intercalateMap)
+import qualified Unison.Util.Star3 as Star3
+import qualified Unison.Util.Pretty as P
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
@@ -463,6 +468,7 @@ loop = do
           DebugNumberedArgsI{} -> wat
           DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
+          DebugDumpNamespacesI{} -> wat
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
@@ -1765,7 +1771,76 @@ loop = do
           effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
           terms = [ (Name.fromVar v, r) | (v, (r, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
-
+      DebugDumpNamespacesI -> do
+        let seen h = State.gets (Set.member h)
+            set h = State.modify (Set.insert h)
+            getCausal b = (Branch.headHash b, pure $ Branch._history b)
+            goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+            goCausal [] = pure ()
+            goCausal ((h, mc) : queue) = do
+              ifM (seen h) (goCausal queue) do
+                lift mc >>= \case
+                  Causal.One h b -> goBranch h b mempty queue
+                  Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
+                  Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
+            goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+            goBranch h b (Set.fromList -> causalParents) queue = case b of
+              Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ -> let
+                wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
+                wrangleMetadata s r =
+                  (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
+                terms = Map.fromList . map (wrangleMetadata terms0) . Foldable.toList $ Star3.fact terms0
+                types = Map.fromList . map (wrangleMetadata types0) . Foldable.toList $ Star3.fact types0
+                patches = fmap fst patches0
+                children = fmap Branch.headHash children0
+                in do
+                  let d = Output.DN.DumpNamespace terms types patches children causalParents
+                  -- the alternate implementation that doesn't rely on `traceM` blows up
+                  traceM $ P.toPlain 200 (prettyDump (h, d))
+                  set h
+                  goCausal (map getCausal (Foldable.toList children0) ++ queue)
+            prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
+              P.lit "Namespace " <> P.shown h <> P.newline <> (P.indentN 2 $ P.linesNonEmpty [
+                Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents))
+              , Monoid.unlessM (null terms) $ P.lit "Terms:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Referent.toText) $ Map.toList terms))
+              , Monoid.unlessM (null types) $ P.lit "Types:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Reference.toText) $ Map.toList types))
+              , Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap P.shown P.shown) $ Map.toList patches))
+              , Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap P.shown P.shown) $ Map.toList children))
+              ])
+              where
+                prettyLinks renderR r [] = P.indentN 2 $ P.text (renderR r)
+                prettyLinks renderR r links = P.indentN 2 (P.lines (P.text (renderR r) : (links <&> \r -> "+ " <> P.text (Reference.toText r))))
+                prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
+                  P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
+        void . eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
+      -- DebugDumpNamespacesI -> do
+      --   let seen h = State.gets (Map.member h)
+      --       set h d = State.modify (Map.insert h d)
+      --       getCausal b = (Branch.headHash b, pure $ Branch._history b)
+      --       goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Map Branch.Hash Output.DN.DumpNamespace) m ()
+      --       goCausal [] = pure ()
+      --       goCausal ((h, mc) : queue) = do
+      --         ifM (seen h) (goCausal queue) do
+      --           traceShowM =<< State.gets Map.size
+      --           lift mc >>= \case
+      --             Causal.One h b -> goBranch h b mempty queue
+      --             Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
+      --             Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
+      --       goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Map Branch.Hash Output.DN.DumpNamespace) m ()
+      --       goBranch h b (Set.fromList -> causalParents) queue = case b of
+      --         Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ -> let
+      --           wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
+      --           wrangleMetadata s r =
+      --             (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
+      --           terms = Map.fromList . map (wrangleMetadata terms0) . Foldable.toList $ Star3.fact terms0
+      --           types = Map.fromList . map (wrangleMetadata types0) . Foldable.toList $ Star3.fact types0
+      --           patches = fmap fst patches0
+      --           children = fmap Branch.headHash children0
+      --           in do
+      --             set h $ Output.DN.DumpNamespace terms types patches children causalParents
+      --             goCausal (map getCausal (Foldable.toList children0) ++ queue)
+      --   m <- eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
+      --   eval . Notify $ Output.DumpNamespace m
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       RemoveTermReplacementI from patchPath ->
