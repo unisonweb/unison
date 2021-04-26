@@ -37,7 +37,7 @@ fromJust = 1
 b = 2
 bdependent = b
 c = 3
-helloWorld = '(printLine "Hello, world!")
+helloWorld = "Hello, world!"
 
 type A a = A Nat
 ability X a1 a2 where x : Nat
