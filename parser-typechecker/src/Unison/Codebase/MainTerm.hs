@@ -23,7 +23,6 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Type                   as Type
 import           Unison.Type                    ( Type )
 import qualified Unison.Typechecker as Typechecker
-import           Unison.Runtime.IOSource        ( ioReference )
 
 data MainTerm v
   = NotAFunctionName String
@@ -58,14 +57,6 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
             _ -> pure (BadType mainName Nothing)
         _ -> pure (NotFound mainName)
 
--- forall a. '{IO} a
-nullaryMain :: Var v => a -> Type.Type v a
-nullaryMain a =
-  Type.forall a v $ Type.arrow a (Type.ref a DD.unitRef) (io a)
-  where io a = Type.effect a [Type.ref a ioReference] (Type.var a v)
-        v = Var.named "a"
-
-
 -- forall a. '{io2.IO} a
 builtinMain :: Var v => a -> Type.Type v a
 builtinMain a =
@@ -77,22 +68,10 @@ builtinMain a =
 resultArr :: Ord v => a -> Type.Type v a
 resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
 
--- {IO} [Result]
-ioResultArr :: Ord v => a -> Type.Type v a
-ioResultArr a = Type.effect1 a (Type.ref a ioReference) (resultArr a)
-
 builtinResultArr :: Ord v => a -> Type.Type v a
 builtinResultArr a = Type.effect1 a (Type.builtinIO a) (resultArr a)
-
--- '{IO} [Result]
-nullaryTest :: Ord v => a -> Type.Type v a
-nullaryTest a
-  = Type.arrow a (Type.ref a DD.unitRef) (ioResultArr a)
 
 -- '{io2.IO} [Result]
 builtinTest :: Ord v => a -> Type.Type v a
 builtinTest a
   = Type.arrow a (Type.ref a DD.unitRef) (builtinResultArr a)
-
-mainTypes :: Var v => a -> [Type v a]
-mainTypes a = [nullaryMain a]

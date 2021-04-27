@@ -25,8 +25,8 @@ testBasicFork = 'let
   
     ⍟ These new definitions are ok to `add`:
     
-      otherThread   : '{io2.IO} ()
-      testBasicFork : '{io2.IO} [Result]
+      otherThread   : '{IO} ()
+      testBasicFork : '{IO} [Result]
 
 ```
 See if we can get another thread to stuff a value into a MVar
@@ -63,8 +63,8 @@ testBasicMultiThreadMVar = 'let
   
     ⍟ These new definitions are ok to `add`:
     
-      testBasicMultiThreadMVar : '{io2.IO} [Result]
-      thread1                  : Nat -> MVar Nat -> '{io2.IO} ()
+      testBasicMultiThreadMVar : '{IO} [Result]
+      thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 ```
 ```ucm
@@ -72,8 +72,8 @@ testBasicMultiThreadMVar = 'let
 
   ⍟ I've added these definitions:
   
-    testBasicMultiThreadMVar : '{io2.IO} [Result]
-    thread1                  : Nat -> MVar Nat -> '{io2.IO} ()
+    testBasicMultiThreadMVar : '{IO} [Result]
+    thread1                  : Nat -> MVar Nat -> '{IO} ()
 
 .> io.test testBasicMultiThreadMVar
 
@@ -133,10 +133,10 @@ testTwoThreads = 'let
   
     ⍟ These new definitions are ok to `add`:
     
-      receivingThread : MVar Nat -> MVar Text -> '{io2.IO} ()
-      sendingThread   : Nat -> MVar Nat -> '{io2.IO} ()
+      receivingThread : MVar Nat -> MVar Text -> '{IO} ()
+      sendingThread   : Nat -> MVar Nat -> '{IO} ()
         (also named thread1)
-      testTwoThreads  : '{io2.IO} [Result]
+      testTwoThreads  : '{IO} [Result]
 
 ```
 ```ucm
@@ -144,10 +144,10 @@ testTwoThreads = 'let
 
   ⍟ I've added these definitions:
   
-    receivingThread : MVar Nat -> MVar Text -> '{io2.IO} ()
-    sendingThread   : Nat -> MVar Nat -> '{io2.IO} ()
+    receivingThread : MVar Nat -> MVar Text -> '{IO} ()
+    sendingThread   : Nat -> MVar Nat -> '{IO} ()
       (also named thread1)
-    testTwoThreads  : '{io2.IO} [Result]
+    testTwoThreads  : '{IO} [Result]
 
 .> io.test testTwoThreads
 

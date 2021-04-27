@@ -9,12 +9,24 @@ transcripts which contain less boilerplate.
 
 ## Usage
 
+```ucm:hide
+.> builtins.merge
+.> builtins.mergeio
+.> cd builtin
+.> load unison-src/transcripts-using-base/base.u
+.> add
+```
+
 The test shows that `hex (fromHex str) == str` as expected.
 
-```unison
+```unison:hide
 test> hex.tests.ex1 = checks let
          s = "3984af9b"
          [hex (fromHex s) == s]
+```
+
+```ucm:hide
+.scratch> test
 ```
 
 Lets do some basic testing of our test harness to make sure its
@@ -40,32 +52,7 @@ testAutoClean _ =
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      testAutoClean : '{io2.IO} [Result]
-
-```
-```ucm
 .> add
-
-  ⍟ I've added these definitions:
-  
-    testAutoClean : '{io2.IO} [Result]
-
 .> io.test testAutoClean
-
-    New test results:
-  
-  ◉ testAutoClean   our temporary directory should exist
-  ◉ testAutoClean   our temporary directory should no longer exist
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view testAutoClean to view the source of a test.
-
 ```
+
