@@ -90,6 +90,7 @@ data Integrity
   | UnknownHash Hash
   | UnknownText Text
   | NoObjectForHashId HashId
+  | NoObjectForPrimaryHashId HashId
   | NoNamespaceRoot
   | MultipleNamespaceRoots [CausalHashId]
   | NoTypeIndexForTerm Referent.Id
@@ -254,7 +255,7 @@ loadObjectWithHashIdAndTypeById oId = queryMaybe sql (Only oId) >>= orError (Unk
 -- |Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
-  maybeObjectIdForPrimaryHashId h >>= orError (UnknownHashId h)
+  maybeObjectIdForPrimaryHashId h >>= orError (NoObjectForPrimaryHashId h)
 
 maybeObjectIdForPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
 maybeObjectIdForPrimaryHashId h = queryAtom sql (Only h) where sql = [here|

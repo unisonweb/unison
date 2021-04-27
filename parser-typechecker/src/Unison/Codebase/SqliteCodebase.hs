@@ -264,10 +264,13 @@ sqliteCodebase root = do
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              Cv.term2to1 h1 getCycleLen getDeclType term2
+              Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
 
-          getCycleLen :: EDB m => Hash -> m Reference.Size
-          getCycleLen = Ops.getCycleLen . Cv.hash1to2
+          getCycleLen :: EDB m => String -> Hash -> m Reference.Size
+          getCycleLen source h = do
+            (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
+              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> error $ show e ++ " in " ++ source
+              e -> Except.throwError e
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
           getDeclType = \case
@@ -289,13 +292,13 @@ sqliteCodebase root = do
           getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
-              Cv.ttype2to1 getCycleLen type2
+              Cv.ttype2to1 (getCycleLen "getTypeOfTermImpl") type2
 
           getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
           getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-              Cv.decl2to1 h1 getCycleLen decl2
+              Cv.decl2to1 h1 (getCycleLen "getTypeDeclaration") decl2
 
           putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
           putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
@@ -566,7 +569,7 @@ sqliteCodebase root = do
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
-              Set.traverse (Cv.referenceid2to1 getCycleLen)
+              Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
@@ -585,14 +588,14 @@ sqliteCodebase root = do
           watches w =
             runDB conn $
               Ops.listWatches (Cv.watchKind1to2 w)
-                >>= traverse (Cv.referenceid2to1 getCycleLen)
+                >>= traverse (Cv.referenceid2to1 (getCycleLen "watches"))
 
           getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
           getWatch k r@(Reference.Id h _i _n)
             | elem k standardWatchKinds =
               runDB' conn $
                 Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h getCycleLen getDeclType
+                  >>= Cv.term2to1 h (getCycleLen "getWatch") getDeclType
           getWatch _unknownKind _ = pure Nothing
 
           standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
@@ -638,13 +641,13 @@ sqliteCodebase root = do
           termsOfTypeImpl r =
             runDB conn $
               Ops.termsHavingType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsOfTypeImpl") getDeclType)
 
           termsMentioningTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
           termsMentioningTypeImpl r =
             runDB conn $
               Ops.termsMentioningType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsMentioningTypeImpl") getDeclType)
 
           hashLength :: Applicative m => m Int
           hashLength = pure 10
@@ -661,7 +664,7 @@ sqliteCodebase root = do
                   >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
                   >>= pure . Set.fromList
 
-              Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
+              Set.fromList <$> traverse (Cv.referenceid2to1 (getCycleLen "defnReferencesByPrefix")) (Set.toList refs)
 
           termReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
           termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
@@ -674,7 +677,7 @@ sqliteCodebase root = do
           referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = runDB conn do
             termReferents <-
               Ops.termReferentsByPrefix prefix cycle
-                >>= traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
                   [ Referent.Con' (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
