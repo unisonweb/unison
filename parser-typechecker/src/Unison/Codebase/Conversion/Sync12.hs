@@ -226,7 +226,7 @@ trySync t _gc e = do
             Right (Left deps) -> pure . Sync.Missing $ Foldable.toList deps
             Right (Right (h', patch')) -> do
               t $ Codebase.putPatch dest h' patch'
-              setPatchStatus h PatchOk
+              setPatchStatus h if h == h' then PatchOk else PatchReplaced h'
               pure Sync.Done
 
 getBranchStatus :: S m n => Branch.Hash -> n (Maybe (BranchStatus m))
