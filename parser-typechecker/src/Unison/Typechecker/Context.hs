@@ -819,7 +819,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     synthesizeApp ft2 argp
   go (Type.Arrow' i o0) = do -- ->App
     let (es, o) = Type.stripEffect o0
-    (o,) <$> checkWanted es arg i
+    (o,) <$> checkWantedScoped es arg i
   -- todo: reviewme should we use polarity info here?
   go (Type.Var' (TypeVar.Existential b a _p)) = do -- a^App
     [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthesizeApp-refined-effect", Var.named "o"]
@@ -1699,6 +1699,16 @@ discardCovariant ty
     where
     p (Type.Var' (TypeVar.Existential _ v _)) = traceShowId $ v `Set.member` keep
     p _ = True
+
+checkWantedScoped
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> Term v loc
+  -> Type v loc
+  -> M v loc [Type v loc]
+checkWantedScoped want m ty
+  = scope (InCheck m ty) $ checkWanted want m ty
 
 checkWanted
   :: Var v
