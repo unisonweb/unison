@@ -7,6 +7,7 @@
 module Unison.Codebase.Branch
   ( -- * Branch types
     Branch(..)
+  , UnwrappedBranch
   , Branch0(..)
   , MergeMode(..)
   , Raw(..)
@@ -160,8 +161,9 @@ import Unison.LabeledDependency (LabeledDependency)
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
-newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
+newtype Branch m = Branch { _history :: UnwrappedBranch m }
   deriving (Eq, Ord)
+type UnwrappedBranch m = Causal m Raw (Branch0 m)
 
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
@@ -488,7 +490,7 @@ numHashChars _b = 3
 
 -- This type is a little ugly, so we wrap it up with a nice type alias for
 -- use outside this module.
-type Cache m = Cache.Cache m (Causal.RawHash Raw) (Causal m Raw (Branch0 m))
+type Cache m = Cache.Cache m (Causal.RawHash Raw) (UnwrappedBranch m)
 
 boundedCache :: MonadIO m => Word -> m (Cache m)
 boundedCache = Cache.semispaceCache

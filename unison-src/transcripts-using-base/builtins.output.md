@@ -165,6 +165,18 @@ test> Text.tests.alignment =
       ]
 ```
 
+## `Bytes` functions
+
+```unison
+test> Bytes.tests.at =
+        bs = Bytes.fromList [77, 13, 12]
+        checks [
+          Bytes.at 1 bs == Some 13,
+          Bytes.at 0 bs == Some 77,
+          Bytes.at 99 bs == None
+        ]
+```
+
 ## `Any` functions
 
 ```unison
@@ -212,6 +224,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
   
   ◉ Any.test1                   Passed
   ◉ Any.test2                   Passed
+  ◉ Bytes.tests.at              Passed
   ◉ Int.tests.arithmetic        Passed
   ◉ Int.tests.bitTwiddling      Passed
   ◉ Int.tests.conversions       Passed
@@ -222,7 +235,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Text.tests.repeat           Passed
   ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 11 test(s) passing
+  ✅ 12 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

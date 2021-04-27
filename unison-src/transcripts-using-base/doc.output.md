@@ -25,7 +25,7 @@ The 7 days of the week, defined as:
 
   @source{type DayOfWeek}
 }}
-unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
+unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
 ```ucm
@@ -36,12 +36,12 @@ unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type DayOfWeek
-      DayOfWeek.doc         : Doc2
+      unique type time.DayOfWeek
       ImportantConstant     : Nat
       ImportantConstant.doc : Doc2
       d1                    : Doc2
       name                  : Doc2
+      time.DayOfWeek.doc    : Doc2
 
 ```
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
