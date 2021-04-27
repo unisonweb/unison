@@ -1061,7 +1061,7 @@ synthesizeWanted e
       then checkWithAbilities [] body' ot
       else checkWithAbilities [et] body' ot
     ctx <- getContext
-    let t = Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
+    let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
     pure (t, [])
 
   | Term.If' cond t f <- e = do
@@ -1498,8 +1498,16 @@ forcedData ty = Type.freeVars ty
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => [Element v loc] -> Type v loc -> Type v loc
-generalizeExistentials ctx
-  = generalizeP existentialP ctx . discardCovariant
+generalizeExistentials ctx ty0 = generalizeP pred ctx ty
+  where
+  ty = discardCovariant $ applyCtx ctx ty0
+  fvs = Type.freeVars ty
+
+  pred e
+    | pe@(Just (tv, _)) <- existentialP e
+    , tv `Set.member` fvs = pe
+    | otherwise = Nothing
+
 
 generalizeP
   :: Var v
