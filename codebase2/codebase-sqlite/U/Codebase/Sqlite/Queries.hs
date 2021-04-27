@@ -55,6 +55,8 @@ import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
 import qualified Control.Monad.Writer as Writer
+import Data.Functor (void)
+import qualified Data.Text as Text
 
 -- * types
 
@@ -64,10 +66,11 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
-debugQuery, debugThread, debugConnection :: Bool
 debugQuery = False
 debugThread = False
 debugConnection = False
+debugQuery, debugThread, debugConnection, debugFile :: Bool
+debugFile = False
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -630,6 +633,7 @@ query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r
 query q r = do
   c <- ask
   header <- debugHeader
+  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " query") q r $ SQLite.query c q r
 
 -- | no input, composite List output
@@ -637,6 +641,7 @@ query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
   c <- ask
   header <- debugHeader
+  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " query") q $ SQLite.query_ c q
 
 debugHeader :: DB m => m String
@@ -672,22 +677,32 @@ queryTrace_ title query m =
           throwIO e
     else m
 
+traceConnectionFile :: DB m => m ()
+traceConnectionFile = do
+  c <- ask
+  liftIO (SQLite.query_ c "PRAGMA database_list;") >>= \case
+    [(_seq :: Int, _name :: String, file)] -> traceM file
+    x -> error $ show x
+
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
 execute q r = do
   c <- ask
   header <- debugHeader
+  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "execute") q r $ SQLite.execute c q r
 
 execute_ :: DB m => SQLite.Query -> m ()
 execute_ q = do
   c <- ask
   header <- debugHeader
+  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " " ++ "execute_") q $ SQLite.execute_ c q
 
 executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
 executeMany q r = do
   c <- ask
   header <- debugHeader
+  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
 
 -- | transaction that blocks
