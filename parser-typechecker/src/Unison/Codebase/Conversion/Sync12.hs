@@ -394,22 +394,35 @@ repairPatch (Patch termEdits typeEdits) = do
   let patch = Patch termEdits' typeEdits'
   pure (H.accumulate' patch, patch)
   where
-    filterTermEdit _ = \case
-      TermEdit.Deprecate -> pure True
-      TermEdit.Replace (Reference.Builtin _) _ -> pure True
-      TermEdit.Replace (Reference.DerivedId (Reference.Id h _ n)) _ ->
+    -- filtering `old` is part of a workaround for ucm currently
+    -- requiring the actual component in order to construct a
+    -- reference to it.  See Sync22.syncPatchLocalIds
+    helpTermEdit = \case
+      Reference.Builtin _ -> pure True
+      Reference.DerivedId (Reference.Id h _ n) ->
         getTermStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ T h n
           Just TermOk -> pure True
           Just _ -> pure False
-    filterTypeEdit _ = \case
-      TypeEdit.Deprecate -> pure True
-      TypeEdit.Replace (Reference.Builtin _) -> pure True
-      TypeEdit.Replace (Reference.DerivedId (Reference.Id h _ n)) ->
+    helpTypeEdit = \case
+      Reference.Builtin _ -> pure True
+      Reference.DerivedId (Reference.Id h _ n) ->
         getDeclStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ D h n
           Just DeclOk -> pure True
           Just _ -> pure False
+    filterTermEdit old new = do
+      oldOk <- helpTermEdit old
+      newOk <- case new of
+        TermEdit.Deprecate -> pure True
+        TermEdit.Replace new _typing -> helpTermEdit new
+      pure $ oldOk && newOk
+    filterTypeEdit old new = do
+      oldOk <- helpTypeEdit old
+      newOk <- case new of
+        TypeEdit.Deprecate -> pure True
+        TypeEdit.Replace new -> helpTypeEdit new
+      pure $ oldOk && newOk
 
 filterBranchTermStar :: (S m n, V m n) => Metadata.Star Referent NameSegment -> n (Metadata.Star Referent NameSegment)
 filterBranchTermStar (Star3 _refs names _mdType md) = do
