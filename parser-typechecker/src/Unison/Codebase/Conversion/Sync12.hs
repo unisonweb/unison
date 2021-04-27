@@ -149,6 +149,27 @@ trySync t _gc e = do
   Env _ dest _ <- Reader.ask
   case e of
     C h mc -> do
+      -- getBranchStatus h >>= \case
+      --   Just {} -> pure Sync.PreviouslyDone
+      --   Nothing -> t (Codebase.branchExists dest h) >>= \case
+      --     True -> setBranchStatus h BranchOk $> Sync.PreviouslyDone
+      --     False -> do
+      --       c <- t mc
+      --       runValidateT @_ @n (repairBranch c) >>= \case
+      --         Left deps -> pure . Sync.Missing $ Foldable.toList deps
+      --         Right c' -> do
+      --           let h' = Causal.currentHash c'
+      --           t $ Codebase.putBranch dest (Branch.Branch c')
+      --           if h == h'
+      --             then do
+      --               setBranchStatus @m @n h BranchOk
+      --               pure Sync.Done
+      --             else do
+      --               setBranchStatus h (BranchReplaced h' c')
+      --               pure Sync.NonFatalError
+
+
+
       t (Codebase.branchExists dest h) >>= \case
         True -> setBranchStatus h BranchOk $> Sync.PreviouslyDone
         False -> do

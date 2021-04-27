@@ -112,6 +112,7 @@ test = scope "git-simple" . tests $
           ```
           ```unison
           unique type a.b.C = C Nat
+          a.b.d = 4
           ```
           ```ucm
           .> add
@@ -124,7 +125,7 @@ test = scope "git-simple" . tests $
         .> find
         ```
         ```unison
-        > a.b.C.C 3
+        > a.b.C.C a.b.d
         ```
     |])
   ,

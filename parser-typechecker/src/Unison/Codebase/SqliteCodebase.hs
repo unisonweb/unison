@@ -98,6 +98,7 @@ import UnliftIO.STM
 import qualified Unison.Util.TQueue as TQueue
 import qualified Unison.Codebase.Watch as Watch
 import UnliftIO.Concurrent (forkIO, killThread)
+import qualified System.Console.ANSI as ANSI
 
 debug, debugProcessBranches :: Bool
 debug = False
@@ -444,7 +445,11 @@ sqliteCodebase root = do
                 v' <- runDB conn Ops.dataVersion
                 if v == v' then pure (Right b) else do
                   newRootHash <- runDB conn Ops.loadRootCausalHash
-                  if Branch.headHash b == Cv.branchHash2to1 newRootHash then pure (Right b) else forceReload
+                  if Branch.headHash b == Cv.branchHash2to1 newRootHash
+                    then pure (Right b)
+                    else do
+                      traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
+                      forceReload
             where
               forceReload = do
                 b <- fmap (Either.mapLeft err)
@@ -479,36 +484,36 @@ sqliteCodebase root = do
 
           rootBranchUpdates :: MonadIO m => TVar (Maybe (Q.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates rootBranchCache = do
-            branchHeadChanges      <- TQueue.newIO
-            (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
-            watcher1               <-
-              liftIO . forkIO
-              $ forever
-              $ do
-                  -- void ignores the name and time of the changed file,
-                  -- and assume 'unison.sqlite3' has changed
-                  (filename, time) <- watcher
-                  traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
-                  readTVarIO rootBranchCache >>= \case
-                    Nothing -> pure ()
-                    Just (v, _) -> do
-                      -- this use of `conn` in a separate thread may be problematic.
-                      -- hopefully sqlite will produce an obvious error message if it is.
-                      v' <- runDB conn Ops.dataVersion
-                      if v /= v' then
-                        atomically
-                          . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
-                      else pure ()
+            -- branchHeadChanges      <- TQueue.newIO
+            -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
+            -- watcher1               <-
+            --   liftIO . forkIO
+            --   $ forever
+            --   $ do
+            --       -- void ignores the name and time of the changed file,
+            --       -- and assume 'unison.sqlite3' has changed
+            --       (filename, time) <- watcher
+            --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
+            --       readTVarIO rootBranchCache >>= \case
+            --         Nothing -> pure ()
+            --         Just (v, _) -> do
+            --           -- this use of `conn` in a separate thread may be problematic.
+            --           -- hopefully sqlite will produce an obvious error message if it is.
+            --           v' <- runDB conn Ops.dataVersion
+            --           if v /= v' then
+            --             atomically
+            --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
+            --           else pure ()
 
-                  -- case hashFromFilePath filePath of
-                  --   Nothing -> failWith $ CantParseBranchHead filePath
-                  --   Just h ->
-                  --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
-            -- smooth out intermediate queue
-            pure
-              ( cancelWatch >> killThread watcher1
-              , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
-              )
+            --       -- case hashFromFilePath filePath of
+            --       --   Nothing -> failWith $ CantParseBranchHead filePath
+            --       --   Just h ->
+            --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+            -- -- smooth out intermediate queue
+            -- pure
+            --   ( cancelWatch >> killThread watcher1
+            --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+            --   )
             pure (cleanup, liftIO newRootsDiscovered)
             where
               newRootsDiscovered = do
@@ -871,7 +876,7 @@ syncProgress = Sync.Progress need done warn allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done) (Right warn)
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
     done h = do
       unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
@@ -881,7 +886,7 @@ syncProgress = Sync.Progress need done warn allDone
         SyncProgressState (Just need) (Right done) warn ->
           State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done) warn
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
     warn h = do
       unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
@@ -891,16 +896,20 @@ syncProgress = Sync.Progress need done warn allDone
         SyncProgressState (Just need) done (Right warn) ->
           State.put $ SyncProgressState (Just $ Set.delete h need) done (Right $ Set.insert h warn)
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
-    allDone =
+    allDone = do
       State.get >>= liftIO . putStr . renderState ("Done syncing ")
+      liftIO ANSI.showCursor
+
+    printSynced :: (MonadState SyncProgressState m, MonadIO m) => m ()
+    printSynced = liftIO ANSI.hideCursor >> State.get >>= liftIO . putStr . (\s -> renderState "Synced " s)
 
     renderState prefix = \case
       SyncProgressState Nothing (Left done) (Left warn) ->
         "\r" ++ prefix ++ show done ++ " entities" ++ if warn > 0 then " with " ++ show warn ++ " warnings." else "."
-      SyncProgressState (Just need) (Right done) (Right warn) ->
-        "\r" ++ prefix ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need + Set.size warn)
+      SyncProgressState (Just _need) (Right done) (Right warn) ->
+        "\r" ++ prefix ++ show (Set.size done + Set.size warn)
           ++ " entities"
           ++ if Set.size warn > 0
             then " with " ++ show warn ++ " warnings."

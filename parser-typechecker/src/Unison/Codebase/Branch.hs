@@ -10,7 +10,6 @@ module Unison.Codebase.Branch
   , UnwrappedBranch
   , Branch0(..)
   , MergeMode(..)
-  , UnwrappedBranch
   , Raw(..)
   , Star
   , Hash

@@ -43,6 +43,7 @@ import Unison.Util.Timing (time)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import UnliftIO.Directory (getHomeDirectory)
+import qualified Unison.Codebase.GitError as GitError
 
 type DataDeclaration v a = DD.DataDeclaration v a
 
@@ -339,7 +340,10 @@ importRemoteBranch codebase ns mode = runExceptT do
   withStatus "Importing downloaded files into local codebase..." $
     time "SyncFromDirectory" $
       lift $ syncFromDirectory codebase cacheDir mode branch
-  pure branch
+  ExceptT
+    let h = Branch.headHash branch
+        err = Left $ GitError.CouldntLoadSyncedBranch h
+    in getBranchForHash codebase h <&> maybe err Right
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.

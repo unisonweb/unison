@@ -22,4 +22,5 @@ data GitError = NoGit
               | CouldntParseRootBranch RemoteRepo String
               | CouldntOpenCodebase RemoteRepo CodebasePath
               | SomeOtherError String
+              | CouldntLoadSyncedBranch Branch.Hash
               deriving Show
