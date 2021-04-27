@@ -49,7 +49,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
-.> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
+.> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 ```
 
 ```ucm:hide
