@@ -56,7 +56,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
-import Unison.Codebase.Editor.Output.DumpNamespace (DumpNamespace)
 import Unison.LabeledDependency (LabeledDependency)
 
 type ListDetailed = Bool

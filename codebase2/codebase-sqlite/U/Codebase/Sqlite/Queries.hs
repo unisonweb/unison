@@ -55,8 +55,6 @@ import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
 import qualified Control.Monad.Writer as Writer
-import Data.Functor (void)
-import qualified Data.Text as Text
 
 -- * types
 

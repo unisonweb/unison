@@ -23,7 +23,6 @@ import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..)
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (first, second)
-import qualified Data.Foldable as Foldable
 import           Data.List                     (sort, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
@@ -63,7 +62,6 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
-import Unison.NameSegment (NameSegment(NameSegment))
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
                                                 prettyLabeledDependency,
@@ -103,7 +101,6 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
-import qualified Unison.Codebase.Editor.Output.DumpNamespace as DN
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
@@ -671,6 +668,8 @@ notifyUser dir o = case o of
     CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
       <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
       <> P.group (prettyRepoBranch repo <> ".")
+    CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
+      <> P.red (P.shown h) <> "but now I can't find it."
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
     CloneException repo msg -> P.wrap $
