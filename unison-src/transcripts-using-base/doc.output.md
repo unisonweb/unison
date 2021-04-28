@@ -451,7 +451,17 @@ and the rendered output using `display`:
     
     {{
     docTable
-      [ [{{ a }}, {{ b }}, {{ c }}],
+      [ [ {{
+      a
+      }},
+        {{
+      b
+      }},
+        {{
+      A longer paragraph that will split onto multiple lines,
+      such that this row occupies multiple lines in the rendered
+      table.
+      }} ],
         [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
     }}
 
@@ -488,7 +498,10 @@ and the rendered output using `display`:
   
   Hover over me
   
-  a           b           c
+  a           b           A longer paragraph that will split
+                          onto multiple lines, such that this
+                          row occupies multiple lines in the
+                          rendered table.
   Some text   More text   Zounds!
 
 ```
@@ -684,7 +697,10 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
     Hover over me
     
-    a           b           c
+    a           b           A longer paragraph that will split
+                            onto multiple lines, such that this
+                            row occupies multiple lines in the
+                            rendered table.
     Some text   More text   Zounds!
 
 ```
