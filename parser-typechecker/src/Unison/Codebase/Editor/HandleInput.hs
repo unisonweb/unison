@@ -1597,7 +1597,7 @@ loop = do
           mainType <- eval RuntimeMain
           respond $ NoMainFunction main ppe [mainType]
         TermHasBadType ty -> do
-          let names0 = basicPrettyPrintNames0
+          let names0 = Names3.suffixify0 basicPrettyPrintNames0
           ppe <- prettyPrintEnv (Names3.Names names0 mempty)
           mainType <- eval RuntimeMain
           respond $ BadMainFunction main ty ppe [mainType]
@@ -2910,7 +2910,7 @@ addRunMain mainName (Just uf) = do
       v2 = Var.freshIn (Set.fromList [v]) v
       a = ABT.annotation tm
       in
-      if Typechecker.isSubtype mainType ty then RunMainSuccess $ let
+      if Typechecker.isSubtype ty mainType then RunMainSuccess $ let
         runMain = DD.forceTerm a a (Term.var a v)
         in UF.typecheckedUnisonFile
              (UF.dataDeclarationsId' uf)
