@@ -14,7 +14,7 @@ next steps:
 - [x] Syncing a remote codebase
   - [x] `SqliteCodebase.syncFromDirectory`
   - [x] `SqliteCodebase.syncToDirectory`
-    - [ ] do I need to initialize a sqlite codebase in the destination?
+    - [x] do I need to initialize a sqlite codebase in the destination?
 - [ ] Managing external edit events?
   - [x] `SqliteCodebase.rootBranchUpdates` Is there some Sqlite function for detecting external changes?
   - https://www.sqlite.org/pragma.html#pragma_data_version
@@ -33,7 +33,7 @@ next steps:
     C:\Users\arya\unison>stack exec unison
     unison.EXE: SQLite3 returned ErrorCan'tOpen while attempting to perform open "C:\\Users\\arya\\.unison\\v2\\unison.sqlite3": unable to open database file
 
-- [ ] UnknownHashId (HashId 2179)
+- [x] UnknownHashId (HashId 2179)
     arya@jrrr unison % stack exec unison -- -codebase /tmp/getbase3 init
     Initializing a new codebase in: /private/tmp/getbase3
     arya@jrrr unison % stack exec unison -- -codebase /tmp/getbase3

@@ -98,6 +98,7 @@ import UnliftIO.STM
 import qualified Unison.Util.TQueue as TQueue
 import qualified Unison.Codebase.Watch as Watch
 import UnliftIO.Concurrent (forkIO, killThread)
+import qualified System.Console.ANSI as ANSI
 
 debug, debugProcessBranches :: Bool
 debug = False
@@ -263,10 +264,13 @@ sqliteCodebase root = do
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              Cv.term2to1 h1 getCycleLen getDeclType term2
+              Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
 
-          getCycleLen :: EDB m => Hash -> m Reference.Size
-          getCycleLen = Ops.getCycleLen . Cv.hash1to2
+          getCycleLen :: EDB m => String -> Hash -> m Reference.Size
+          getCycleLen source h = do
+            (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
+              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> error $ show e ++ " in " ++ source
+              e -> Except.throwError e
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
           getDeclType = \case
@@ -288,13 +292,13 @@ sqliteCodebase root = do
           getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
-              Cv.ttype2to1 getCycleLen type2
+              Cv.ttype2to1 (getCycleLen "getTypeOfTermImpl") type2
 
           getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
           getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-              Cv.decl2to1 h1 getCycleLen decl2
+              Cv.decl2to1 h1 (getCycleLen "getTypeDeclaration") decl2
 
           putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
           putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
@@ -444,7 +448,11 @@ sqliteCodebase root = do
                 v' <- runDB conn Ops.dataVersion
                 if v == v' then pure (Right b) else do
                   newRootHash <- runDB conn Ops.loadRootCausalHash
-                  if Branch.headHash b == Cv.branchHash2to1 newRootHash then pure (Right b) else forceReload
+                  if Branch.headHash b == Cv.branchHash2to1 newRootHash
+                    then pure (Right b)
+                    else do
+                      traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
+                      forceReload
             where
               forceReload = do
                 b <- fmap (Either.mapLeft err)
@@ -479,36 +487,36 @@ sqliteCodebase root = do
 
           rootBranchUpdates :: MonadIO m => TVar (Maybe (Q.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates rootBranchCache = do
-            branchHeadChanges      <- TQueue.newIO
-            (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
-            watcher1               <-
-              liftIO . forkIO
-              $ forever
-              $ do
-                  -- void ignores the name and time of the changed file,
-                  -- and assume 'unison.sqlite3' has changed
-                  (filename, time) <- watcher
-                  traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
-                  readTVarIO rootBranchCache >>= \case
-                    Nothing -> pure ()
-                    Just (v, _) -> do
-                      -- this use of `conn` in a separate thread may be problematic.
-                      -- hopefully sqlite will produce an obvious error message if it is.
-                      v' <- runDB conn Ops.dataVersion
-                      if v /= v' then
-                        atomically
-                          . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
-                      else pure ()
+            -- branchHeadChanges      <- TQueue.newIO
+            -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
+            -- watcher1               <-
+            --   liftIO . forkIO
+            --   $ forever
+            --   $ do
+            --       -- void ignores the name and time of the changed file,
+            --       -- and assume 'unison.sqlite3' has changed
+            --       (filename, time) <- watcher
+            --       traceM $ "SqliteCodebase.watcher " ++ show (filename, time)
+            --       readTVarIO rootBranchCache >>= \case
+            --         Nothing -> pure ()
+            --         Just (v, _) -> do
+            --           -- this use of `conn` in a separate thread may be problematic.
+            --           -- hopefully sqlite will produce an obvious error message if it is.
+            --           v' <- runDB conn Ops.dataVersion
+            --           if v /= v' then
+            --             atomically
+            --               . TQueue.enqueue branchHeadChanges =<< runDB conn Ops.loadRootCausalHash
+            --           else pure ()
 
-                  -- case hashFromFilePath filePath of
-                  --   Nothing -> failWith $ CantParseBranchHead filePath
-                  --   Just h ->
-                  --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
-            -- smooth out intermediate queue
-            pure
-              ( cancelWatch >> killThread watcher1
-              , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
-              )
+            --       -- case hashFromFilePath filePath of
+            --       --   Nothing -> failWith $ CantParseBranchHead filePath
+            --       --   Just h ->
+            --       --     atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+            -- -- smooth out intermediate queue
+            -- pure
+            --   ( cancelWatch >> killThread watcher1
+            --   , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+            --   )
             pure (cleanup, liftIO newRootsDiscovered)
             where
               newRootsDiscovered = do
@@ -561,7 +569,7 @@ sqliteCodebase root = do
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
-              Set.traverse (Cv.referenceid2to1 getCycleLen)
+              Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
@@ -580,14 +588,14 @@ sqliteCodebase root = do
           watches w =
             runDB conn $
               Ops.listWatches (Cv.watchKind1to2 w)
-                >>= traverse (Cv.referenceid2to1 getCycleLen)
+                >>= traverse (Cv.referenceid2to1 (getCycleLen "watches"))
 
           getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
           getWatch k r@(Reference.Id h _i _n)
             | elem k standardWatchKinds =
               runDB' conn $
                 Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h getCycleLen getDeclType
+                  >>= Cv.term2to1 h (getCycleLen "getWatch") getDeclType
           getWatch _unknownKind _ = pure Nothing
 
           standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
@@ -633,13 +641,13 @@ sqliteCodebase root = do
           termsOfTypeImpl r =
             runDB conn $
               Ops.termsHavingType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsOfTypeImpl") getDeclType)
 
           termsMentioningTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
           termsMentioningTypeImpl r =
             runDB conn $
               Ops.termsMentioningType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsMentioningTypeImpl") getDeclType)
 
           hashLength :: Applicative m => m Int
           hashLength = pure 10
@@ -656,7 +664,7 @@ sqliteCodebase root = do
                   >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
                   >>= pure . Set.fromList
 
-              Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
+              Set.fromList <$> traverse (Cv.referenceid2to1 (getCycleLen "defnReferencesByPrefix")) (Set.toList refs)
 
           termReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
           termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
@@ -669,7 +677,7 @@ sqliteCodebase root = do
           referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = runDB conn do
             termReferents <-
               Ops.termReferentsByPrefix prefix cycle
-                >>= traverse (Cv.referentid2to1 getCycleLen getDeclType)
+                >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
                   [ Referent.Con' (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
@@ -871,7 +879,7 @@ syncProgress = Sync.Progress need done warn allDone
                 then pure ()
                 else State.put $ SyncProgressState (Just $ Set.insert h need) (Right done) (Right warn)
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
     done h = do
       unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
@@ -881,7 +889,7 @@ syncProgress = Sync.Progress need done warn allDone
         SyncProgressState (Just need) (Right done) warn ->
           State.put $ SyncProgressState (Just $ Set.delete h need) (Right $ Set.insert h done) warn
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
     warn h = do
       unless quiet $ Monad.whenM (State.gets size <&> (== 0)) $ liftIO $ putStr "\n"
@@ -891,16 +899,20 @@ syncProgress = Sync.Progress need done warn allDone
         SyncProgressState (Just need) done (Right warn) ->
           State.put $ SyncProgressState (Just $ Set.delete h need) done (Right $ Set.insert h warn)
         SyncProgressState _ _ _ -> undefined
-      unless quiet $ State.get >>= liftIO . putStr . renderState ("Synced ")
+      unless quiet printSynced
 
-    allDone =
+    allDone = do
       State.get >>= liftIO . putStr . renderState ("Done syncing ")
+      liftIO ANSI.showCursor
+
+    printSynced :: (MonadState SyncProgressState m, MonadIO m) => m ()
+    printSynced = liftIO ANSI.hideCursor >> State.get >>= liftIO . putStr . (\s -> renderState "Synced " s)
 
     renderState prefix = \case
       SyncProgressState Nothing (Left done) (Left warn) ->
         "\r" ++ prefix ++ show done ++ " entities" ++ if warn > 0 then " with " ++ show warn ++ " warnings." else "."
-      SyncProgressState (Just need) (Right done) (Right warn) ->
-        "\r" ++ prefix ++ show (Set.size done) ++ "/" ++ show (Set.size done + Set.size need + Set.size warn)
+      SyncProgressState (Just _need) (Right done) (Right warn) ->
+        "\r" ++ prefix ++ show (Set.size done + Set.size warn)
           ++ " entities"
           ++ if Set.size warn > 0
             then " with " ++ show warn ++ " warnings."

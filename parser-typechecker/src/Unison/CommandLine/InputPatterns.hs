@@ -1303,6 +1303,12 @@ debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
   (const $ Right Input.DebugTypecheckedUnisonFileI)
 
+debugDumpNamespace :: InputPattern
+debugDumpNamespace = InputPattern
+  "debug.dump-namespace" [] [(Required, noCompletions)]
+  "Dump the namespace to a text file"
+  (const $ Right Input.DebugDumpNamespacesI)
+
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1430,6 +1436,7 @@ validInputs =
   , debugNumberedArgs
   , debugBranchHistory
   , debugFileHashes
+  , debugDumpNamespace
   ]
 
 commandNames :: [String]

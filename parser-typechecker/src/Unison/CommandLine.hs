@@ -38,6 +38,10 @@ import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
+import qualified Data.Configurator as Config
+
+disableWatchConfig :: Bool
+disableWatchConfig = False
 
 allow :: FilePath -> Bool
 allow p =
@@ -46,7 +50,7 @@ allow p =
   (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchConfig :: FilePath -> IO (Config, IO ())
-watchConfig path = do
+watchConfig path = if disableWatchConfig then pure (Config.empty, pure ()) else do
   (config, t) <- autoReload autoConfig [Optional path]
   pure (config, killThread t)
 

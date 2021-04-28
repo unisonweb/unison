@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Codebase.Conversion.Upgrade12 where
 
 import Control.Exception.Safe (MonadCatch)
@@ -23,6 +24,7 @@ import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.PrettyTerminal as CT
 import UnliftIO (MonadIO, liftIO)
+import qualified Data.Map as Map
 
 upgradeCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m ()
 upgradeCodebase root = do
@@ -36,14 +38,17 @@ upgradeCodebase root = do
       lift (Codebase.getRootBranch srcCB) >>= \case
         Left e -> error $ "Error loading source codebase root branch: " ++ show e
         Right (Branch c) -> pure $ Sync12.C (Causal.currentHash c) (pure c)
-    flip Reader.runReaderT env . flip State.evalStateT initialState $ do
+    (_, _, s) <- flip Reader.runReaderT env . flip State.execStateT initialState $ do
       sync <- Sync12.sync12 (lift . lift . lift)
       Sync.sync @_ @(Sync12.Entity _)
         (Sync.transformSync (lensStateT Lens._3) sync)
         Sync12.simpleProgress
         [rootEntity]
-    case rootEntity of
-      Sync12.C _h mc -> lift $ Codebase.putRootBranch destCB =<< Branch <$> mc
+    lift $ Codebase.putRootBranch destCB =<< fmap Branch case rootEntity of
+      Sync12.C h mc -> case Map.lookup h (Sync12._branchStatus s) of
+        Just Sync12.BranchOk -> mc
+        Just (Sync12.BranchReplaced _h' c') -> pure c'
+        Nothing -> error "We didn't sync the root?"
       _ -> error "The root wasn't a causal?"
     pure ()
 

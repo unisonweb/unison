@@ -23,6 +23,7 @@ import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..)
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
 import           Data.Bifunctor                (first, second)
+import qualified Data.Foldable as Foldable
 import           Data.List                     (sort, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd, notNull)
 import qualified Data.Map                      as Map
@@ -62,6 +63,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
+import Unison.NameSegment (NameSegment(NameSegment))
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyReference, prettyReferent,
                                                 prettyLabeledDependency,
@@ -101,6 +103,7 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
+import qualified Unison.Codebase.Editor.Output.DumpNamespace as DN
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
@@ -1033,6 +1036,22 @@ notifyUser dir o = case o of
       "",
       "Paste that output into http://bit-booster.com/graph.html"
       ]
+  -- DumpNamespace m -> pure $ P.shown m
+  DumpNamespace m -> let
+    prettyDump (h, DN.DumpNamespace terms types patches children causalParents) =
+      P.lit "Namespace " <> P.shown h <> P.newline <> (P.indentN 2 $ P.linesNonEmpty [
+        Monoid.unlessM (null causalParents) $ P.lit "Causal Parents:" <> P.newline <> P.indentN 2 (P.lines (map P.shown $ Set.toList causalParents))
+      , Monoid.unlessM (null terms) $ P.lit "Terms:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Referent.toText) $ Map.toList terms))
+      , Monoid.unlessM (null types) $ P.lit "Types:" <> P.newline <> P.indentN 2 (P.lines (map (prettyDefn Reference.toText) $ Map.toList types))
+      , Monoid.unlessM (null patches) $ P.lit "Patches:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap P.shown P.shown) $ Map.toList patches))
+      , Monoid.unlessM (null children) $ P.lit "Children:" <> P.newline <> P.indentN 2 (P.column2 (map (bimap P.shown P.shown) $ Map.toList children))
+      ])
+      where
+        prettyLinks renderR r [] = P.indentN 2 $ P.text (renderR r)
+        prettyLinks renderR r links = P.indentN 2 (P.lines (P.text (renderR r) : (links <&> \r -> "+ " <> P.text (Reference.toText r))))
+        prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
+          P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
+    in pure $ P.lines (map prettyDump $ Map.toList m)
   ListDependents hqLength ld names missing -> pure $
     if names == mempty && missing == mempty
     then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
