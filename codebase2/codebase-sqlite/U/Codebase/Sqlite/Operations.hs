@@ -10,8 +10,40 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module U.Codebase.Sqlite.Operations where
-
+module U.Codebase.Sqlite.Operations
+  ( EDB,
+  Error(..),
+  DecodeError(..),
+  termReferentsByPrefix,
+  declReferentsByPrefix,
+  causalHashesByPrefix,
+  saveRootBranch,
+  loadTermByReference,
+  loadDeclByReference,
+  getCycleLen,
+  getDeclTypeByReference,
+  loadTypeOfTermByTermReference,
+  objectExistsForHash,
+  saveTermComponent,
+  saveDeclComponent,
+  dataVersion,
+  loadRootCausalHash,
+  loadRootCausal,
+  loadCausalBranchByCausalHash,
+  saveBranch,
+  primaryHashToMaybePatchObjectId,
+  loadPatchById,
+  savePatch,
+  dependents,
+  listWatches,
+  loadWatch,
+  saveWatch,
+  termsHavingType,
+  termsMentioningType,
+  componentReferencesByPrefix,
+  loadHashByObjectId,
+  )
+where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import Control.Monad (MonadPlus (mzero), join, when, (<=<), unless)
