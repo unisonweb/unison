@@ -11,7 +11,6 @@ import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
 import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
 import qualified U.Util.Map as Map
-import qualified Data.Monoid as Monoid
 
 type PatchDiff = PatchDiff' Db.TextId Db.HashId Db.ObjectId
 
