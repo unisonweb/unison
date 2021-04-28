@@ -29,7 +29,7 @@ The 7 days of the week, defined as:
 
   @source{type DayOfWeek}
 }}
-unique type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
+unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
@@ -49,7 +49,7 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ```ucm
-.> load ./unison-src/new-runtime-transcripts/doc.md.files/syntax.u
+.> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 ```
 
 ```ucm:hide

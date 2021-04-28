@@ -21,6 +21,7 @@ module Unison.Name
   , stripNamePrefix
   , stripPrefixes
   , segments
+  , countSegments
   , segments'
   , suffixes
   , toString
@@ -176,6 +177,9 @@ fromSegment = unsafeFromText . NameSegment.toText
 -- e.g. split `base..` into `[base,.]`
 segments :: Name -> [NameSegment]
 segments (Name n) = NameSegment <$> segments' n
+
+countSegments :: Name -> Int
+countSegments n = length (segments n)
 
 class Convert a b where
   convert :: a -> b

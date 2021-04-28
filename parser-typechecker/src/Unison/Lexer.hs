@@ -301,7 +301,7 @@ lexemes' eof = P.optional space >> do
     --   ability Foo where      =>   ability Foo where
     tn <- subsequentTypeName
     pure $ case (tn, docToks) of
-      (Just tname, ht:_) | isTopLevel ->
+      (Just (WordyId tname _), ht:_) | isTopLevel ->
           startToks
           <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
           <> docToks0
@@ -314,8 +314,7 @@ lexemes' eof = P.optional space >> do
     subsequentTypeName = P.lookAhead . P.optional $ do
       let lit' s = lit s <* sp
       _ <- P.optional (lit' "unique") *> (lit' "type" <|> lit' "ability")
-      name <- P.takeWhile1P Nothing wordyIdChar
-      pure name
+      wordyId
     ignore _ _ _ = []
     body = join <$> P.many (sectionElem <* CP.space)
     sectionElem = section <|> fencedBlock <|> list <|> paragraph

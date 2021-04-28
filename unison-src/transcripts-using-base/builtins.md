@@ -4,7 +4,7 @@ This transcript defines unit tests for builtin functions. There's a single `.> t
 
 ## `Int` functions
 
-```unison
+```unison:hide
 use Int
 
 -- Note: you can make the tests more fine-grained if you
@@ -76,9 +76,13 @@ test> Int.tests.conversions =
         ]
 ```
 
+```ucm:hide
+.> add
+```
+
 ## `Nat` functions
 
-```unison
+```unison:hide
 use Nat
 
 test> Nat.tests.arithmetic =
@@ -137,9 +141,13 @@ test> Nat.tests.conversions =
         ]
 ```
 
+```ucm:hide
+.> add
+```
+
 ## `Text` functions
 
-```unison
+```unison:hide
 test> Text.tests.takeDropAppend =
       checks [
         "yabba" ++ "dabba" == "yabbadabba",
@@ -165,6 +173,26 @@ test> Text.tests.alignment =
       ]
 ```
 
+```ucm:hide
+.> add
+```
+
+## `Bytes` functions
+
+```unison:hide
+test> Bytes.tests.at =
+        bs = Bytes.fromList [77, 13, 12]
+        checks [
+          Bytes.at 1 bs == Some 13,
+          Bytes.at 0 bs == Some 77,
+          Bytes.at 99 bs == None
+        ]
+```
+
+```ucm:hide
+.> add
+```
+
 ## `Any` functions
 
 ```unison
@@ -174,56 +202,14 @@ test> Any.test1 = checks [(Any "hi" == Any "hi")]
 test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      Any.test1 : [Result]
-      Any.test2 : [Result]
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-    1 | > [Any "hi", Any (41 + 1)]
-          ⧩
-          [Any "hi", Any 42]
-  
-    3 | test> Any.test1 = checks [(Any "hi" == Any "hi")]
-    
-    ✅ Passed Passed
-  
-    4 | test> Any.test2 = checks [(not (Any "hi" == Any 42))]
-    
-    ✅ Passed Passed
-
+```ucm:hide
+.> add
 ```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ```ucm
 .> test
-
-  Cached test results (`help testcache` to learn more)
-  
-  ◉ Any.test1                   Passed
-  ◉ Any.test2                   Passed
-  ◉ Int.tests.arithmetic        Passed
-  ◉ Int.tests.bitTwiddling      Passed
-  ◉ Int.tests.conversions       Passed
-  ◉ Nat.tests.arithmetic        Passed
-  ◉ Nat.tests.bitTwiddling      Passed
-  ◉ Nat.tests.conversions       Passed
-  ◉ Text.tests.alignment        Passed
-  ◉ Text.tests.repeat           Passed
-  ◉ Text.tests.takeDropAppend   Passed
-  
-  ✅ 11 test(s) passing
-  
-  Tip: Use view Any.test1 to view the source of a test.
-
 ```

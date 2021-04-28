@@ -13,7 +13,7 @@ transcripts which contain less boilerplate.
 .> builtins.merge
 .> builtins.mergeio
 .> cd builtin
-.> load unison-src/new-runtime-transcripts/base.u
+.> load unison-src/transcripts-using-base/base.u
 .> add
 ```
 
