@@ -1,6 +1,0 @@
-```ucm
-.> builtins.merge
-
-  Done.
-
-```

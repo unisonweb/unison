@@ -1,0 +1,27 @@
+name: unison-codebase-sqlite
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - bytes
+  - bytestring
+  - containers
+  - extra
+  - here
+  - lens
+  - monad-validate
+  - mtl
+  - sqlite-simple
+  - text
+  - transformers
+  - unliftio
+  - vector
+  - unison-codebase
+  - unison-codebase-sync
+  - unison-core
+  - unison-util
+  - unison-util-serialization
+  - unison-util-term

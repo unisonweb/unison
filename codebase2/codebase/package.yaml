@@ -1,4 +1,4 @@
-name: unison-util
+name: unison-codebase
 github: unisonweb/unison
 
 library:
@@ -6,13 +6,9 @@ library:
 
 dependencies:
   - base
-  - bytestring
   - containers
-  - cryptonite
-  - extra
   - lens
-  - memory
-  - safe
-  - sandi
+  - mtl
   - text
-  - unliftio
+  - unison-core
+  - unison-util
