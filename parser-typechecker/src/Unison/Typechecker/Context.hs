@@ -1152,9 +1152,10 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
         rhs' = subst rhsbod
         guard' = subst <$> mayGuard
     gwant <- for guard' $ \g -> scope InMatchGuard $
-      checkWanted [] g (Type.boolean (loc g))
+      checkWantedScoped [] g (Type.boolean (loc g))
     outputType <- applyM outputType
-    scope InMatchBody $ checkWanted (fromMaybe [] gwant) rhs' outputType
+    scope InMatchBody $
+      checkWantedScoped (fromMaybe [] gwant) rhs' outputType
 
 -- For example:
 --   match scrute with
