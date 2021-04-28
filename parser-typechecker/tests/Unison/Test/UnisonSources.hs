@@ -29,7 +29,6 @@ import qualified Unison.PrintError      as PrintError
 import           Unison.Reference       ( Reference )
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
-import qualified Unison.Runtime.Rt1IO   as RT
 import qualified Unison.Runtime.Interface as RTI
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
@@ -66,9 +65,9 @@ good = expectRight'
 bad :: EitherResult -> Test TFile
 bad r = EasyTest.expectLeft r >> done
 
-test :: Bool -> Test ()
-test new = do
-  rt <- if new then io RTI.startRuntime else pure RT.runtime
+test :: Test ()
+test = do
+  rt <- io RTI.startRuntime
   scope "unison-src"
     . tests
     $ [ go rt shouldPassNow   good

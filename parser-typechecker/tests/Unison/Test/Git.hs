@@ -304,7 +304,7 @@ runTranscript_ tmpDir c (stripMargin -> transcript) = do
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run Nothing cwd configFile stanzas c >>=
+    void . liftIO $ TR.run cwd configFile stanzas c >>=
                       when traceTranscriptOutput . traceM . Text.unpack
 
 -- goal of this test is to make sure that push works correctly:

@@ -195,14 +195,14 @@ testCNReject _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      serverThread          : MVar Nat -> Text -> '{io2.IO} ()
-      testCAReject          : '{io2.IO} [Result]
-      testCNReject          : '{io2.IO} [Result]
+      serverThread          : MVar Nat -> Text -> '{IO} ()
+      testCAReject          : '{IO} [Result]
+      testCNReject          : '{IO} [Result]
       testClient            : Optional SignedCert
                               -> Text
                               -> MVar Nat
-                              -> '{io2.IO, Exception} Text
-      testConnectSelfSigned : '{io2.IO} [Result]
+                              -> '{IO, Exception} Text
+      testConnectSelfSigned : '{IO} [Result]
 
 ```
 ```ucm
@@ -210,14 +210,14 @@ testCNReject _ =
 
   ⍟ I've added these definitions:
   
-    serverThread          : MVar Nat -> Text -> '{io2.IO} ()
-    testCAReject          : '{io2.IO} [Result]
-    testCNReject          : '{io2.IO} [Result]
+    serverThread          : MVar Nat -> Text -> '{IO} ()
+    testCAReject          : '{IO} [Result]
+    testCNReject          : '{IO} [Result]
     testClient            : Optional SignedCert
                             -> Text
                             -> MVar Nat
-                            -> '{io2.IO, Exception} Text
-    testConnectSelfSigned : '{io2.IO} [Result]
+                            -> '{IO, Exception} Text
+    testConnectSelfSigned : '{IO} [Result]
 
 .> io.test testConnectSelfSigned
 

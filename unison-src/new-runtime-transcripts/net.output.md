@@ -99,9 +99,9 @@ testDefaultPort _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testDefaultHost  : '{io2.IO} [Result]
-      testDefaultPort  : '{io2.IO} [Result]
-      testExplicitHost : '{io2.IO} [Result]
+      testDefaultHost  : '{IO} [Result]
+      testDefaultPort  : '{IO} [Result]
+      testExplicitHost : '{IO} [Result]
 
 ```
 ```ucm
@@ -109,9 +109,9 @@ testDefaultPort _ =
 
   ⍟ I've added these definitions:
   
-    testDefaultHost  : '{io2.IO} [Result]
-    testDefaultPort  : '{io2.IO} [Result]
-    testExplicitHost : '{io2.IO} [Result]
+    testDefaultHost  : '{IO} [Result]
+    testDefaultPort  : '{IO} [Result]
+    testExplicitHost : '{IO} [Result]
 
 .> io.test testDefaultPort
 
@@ -184,9 +184,9 @@ testTcpConnect = 'let
   
     ⍟ These new definitions are ok to `add`:
     
-      clientThread   : MVar Nat -> MVar Text -> '{io2.IO} ()
-      serverThread   : MVar Nat -> Text -> '{io2.IO} ()
-      testTcpConnect : '{io2.IO} [Result]
+      clientThread   : MVar Nat -> MVar Text -> '{IO} ()
+      serverThread   : MVar Nat -> Text -> '{IO} ()
+      testTcpConnect : '{IO} [Result]
 
 ```
 ```ucm
@@ -194,9 +194,9 @@ testTcpConnect = 'let
 
   ⍟ I've added these definitions:
   
-    clientThread   : MVar Nat -> MVar Text -> '{io2.IO} ()
-    serverThread   : MVar Nat -> Text -> '{io2.IO} ()
-    testTcpConnect : '{io2.IO} [Result]
+    clientThread   : MVar Nat -> MVar Text -> '{IO} ()
+    serverThread   : MVar Nat -> Text -> '{IO} ()
+    testTcpConnect : '{IO} [Result]
 
 .> io.test testTcpConnect
 

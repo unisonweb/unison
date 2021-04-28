@@ -93,7 +93,7 @@ identicality t x
                        -> (Three Nat Nat Nat
                        ->{Throw Text} Nat
                        ->{Throw Text} b)
-                       ->{io2.IO} Result
+                       ->{IO} Result
       extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
                        ->{Throw Text} (a
                        ->{Throw Text} b
@@ -106,10 +106,10 @@ identicality t x
       fib10          : [Nat]
       handleTest     : Text -> Request {Throw Text} a -> Result
       identical      : Text -> a -> a ->{Throw Text} ()
-      identicality   : Text -> a ->{io2.IO} Result
-      load           : Bytes ->{io2.IO, Throw Text} a
+      identicality   : Text -> a ->{IO} Result
+      load           : Bytes ->{IO, Throw Text} a
       prod           : [a] ->{g} [b] ->{g} [(a, b)]
-      roundtrip      : a ->{io2.IO, Throw Text} a
+      roundtrip      : a ->{IO, Throw Text} a
       save           : a -> Bytes
       showThree      : Three Nat Nat Nat -> Text
       threes         : [Three Nat Nat Nat]
@@ -126,7 +126,7 @@ identicality t x
                      -> (Three Nat Nat Nat
                      ->{Throw Text} Nat
                      ->{Throw Text} b)
-                     ->{io2.IO} Result
+                     ->{IO} Result
     extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
                      ->{Throw Text} (a
                      ->{Throw Text} b
@@ -139,10 +139,10 @@ identicality t x
     fib10          : [Nat]
     handleTest     : Text -> Request {Throw Text} a -> Result
     identical      : Text -> a -> a ->{Throw Text} ()
-    identicality   : Text -> a ->{io2.IO} Result
-    load           : Bytes ->{io2.IO, Throw Text} a
+    identicality   : Text -> a ->{IO} Result
+    load           : Bytes ->{IO, Throw Text} a
     prod           : [a] ->{g} [b] ->{g} [(a, b)]
-    roundtrip      : a ->{io2.IO, Throw Text} a
+    roundtrip      : a ->{IO, Throw Text} a
     save           : a -> Bytes
     showThree      : Three Nat Nat Nat -> Text
     threes         : [Three Nat Nat Nat]
@@ -214,7 +214,7 @@ tests =
       fVal   : Value
       h      : Three Nat Nat Nat -> Nat -> Nat
       rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-      tests  : '{io2.IO} [Result]
+      tests  : '{IO} [Result]
       zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
 
 ```
@@ -234,7 +234,7 @@ to actual show that the serialization works.
     fVal   : Value
     h      : Three Nat Nat Nat -> Nat -> Nat
     rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-    tests  : '{io2.IO} [Result]
+    tests  : '{IO} [Result]
     zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
 
 .> display fDeps

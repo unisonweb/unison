@@ -87,7 +87,7 @@ fromJust = 1
 b = 2
 bdependent = b
 c = 3
-helloWorld = '(printLine "Hello, world!")
+helloWorld = "Hello, world!"
 
 type A a = A Nat
 ability X a1 a2 where x : Nat
@@ -106,7 +106,7 @@ ability X a1 a2 where x : Nat
     bdependent : Nat
     c          : Nat
     fromJust   : Nat
-    helloWorld : '{io.IO} ()
+    helloWorld : Text
 
 .ns1> alias.term fromJust fromJust'
 
@@ -148,8 +148,8 @@ Here's what we've done so far:
     7.  c             : Nat
     8.  ┌ fromJust    : Nat (+1 metadata)
     9.  └ fromJust'   : Nat (+1 metadata)
-    10. ┌ helloWorld  : '{io.IO} ()
-    11. └ helloWorld2 : '{io.IO} ()
+    10. ┌ helloWorld  : Text
+    11. └ helloWorld2 : Text
 
 .> diff.namespace ns1 ns2
 

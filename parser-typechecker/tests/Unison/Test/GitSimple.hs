@@ -358,9 +358,9 @@ pushPullTest name fmt authorScript userScript = scope name do
   io do
     repo <- initGitRepo
     author <- Ucm.initCodebase fmt
-    authorOutput <- Ucm.runTranscript author Ucm.Runtime1 (authorScript repo)
+    authorOutput <- Ucm.runTranscript author (authorScript repo)
     user <- Ucm.initCodebase fmt
-    userOutput <- Ucm.runTranscript user Ucm.Runtime1 (userScript repo)
+    userOutput <- Ucm.runTranscript user (userScript repo)
 
     when writeTranscriptOutput $ writeFile
       ("unison-src"</>"transcripts"</>("GitSimple." ++ name ++ ".output.md"))

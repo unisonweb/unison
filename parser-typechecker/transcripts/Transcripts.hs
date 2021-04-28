@@ -21,32 +21,29 @@ import           Data.List
 import System.Environment (getArgs)
 
 data TestConfig = TestConfig
-  { useNewRuntime  :: Bool
-  , matchPrefix    :: Maybe String
+  { matchPrefix    :: Maybe String
   } deriving Show
 
 type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
 testBuilder
-  :: TestConfig -> FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder config ucm dir prelude transcript = scope transcript $ do
+  :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder ucm dir prelude transcript = scope transcript $ do
   io $ fromString ucm args
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args | useNewRuntime config = ["--new-runtime", "transcript"] ++ files
-         | otherwise = ["transcript"] ++ files
+    args = ["transcript"] ++ files
 
 testBuilder'
-  :: TestConfig -> FilePath -> FilePath -> [String] -> String -> Test ()
-testBuilder' config ucm dir prelude transcript = scope transcript $ do
+  :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder' ucm dir prelude transcript = scope transcript $ do
   let output = dir </> takeBaseName transcript <> ".output.md"
   io $ runAndCaptureError ucm args output
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
-    args | useNewRuntime config = ["--new-runtime", "transcript"] ++ files
-         | otherwise = ["transcript"] ++ files
+    args = ["transcript"] ++ files
     -- Given a command and arguments, run it and capture the standard error to a file
     -- regardless of success or failure.
     runAndCaptureError :: FilePath -> [Text] -> FilePath -> IO ()
@@ -108,26 +105,22 @@ cleanup = do
 
 test :: TestConfig -> Test ()
 test config = do
-  buildTests config (testBuilder config)
+  buildTests config testBuilder
     $ "unison-src" </> "transcripts"
-  buildTests config (testBuilder (config { useNewRuntime = True }))
+  buildTests config testBuilder
     $ "unison-src" </> "new-runtime-transcripts"
-  buildTests config (testBuilder (config { useNewRuntime = False }))
-    $ "unison-src" </> "old-runtime-transcripts"
-  buildTests config (testBuilder' config)
+  buildTests config testBuilder'
     $ "unison-src" </> "transcripts" </> "errors"
   cleanup
 
 handleArgs :: [String] -> TestConfig
 handleArgs args =
   let
-    (useNewRuntime, remainingArgs) =
-      ("--new-runtime" `elem` args, delete "--new-runtime" args)
-    matchPrefix = case remainingArgs of
+    matchPrefix = case args of
       [prefix] -> Just prefix
       _        -> Nothing
   in
-    TestConfig useNewRuntime matchPrefix
+    TestConfig matchPrefix
 
 main :: IO ()
 main = do

@@ -18,7 +18,6 @@ import Control.Concurrent (mkWeakThreadId, myThreadId)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
-import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
 import qualified Network.URI.Encode as URI
@@ -39,7 +38,6 @@ import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (watchConfig)
@@ -48,7 +46,6 @@ import Unison.Parser (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
-import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
@@ -146,13 +143,10 @@ main = do
   let (mcodepath, restargs0) = case args of
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
-      (mNewRun, restargs1) = case restargs0 of
-           "--new-runtime" : rest -> (Just True, rest)
-           _ -> (Nothing, restargs0)
-      (fromMaybe True -> newCodebase, restargs) = case restargs1 of
+      (fromMaybe True -> newCodebase, restargs) = case restargs0 of
            "--new-codebase" : rest -> (Just True, rest)
            "--old-codebase" : rest -> (Just False, rest)
-           _ -> (Nothing, restargs1)
+           _ -> (Nothing, restargs0)
       cbInit = if newCodebase then SC.init else FC.init
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
@@ -167,14 +161,14 @@ main = do
         PT.putPrettyLn . P.string $ "http://127.0.0.1:"
           <> show port <> "?" <> URI.encode (unpack token)
         PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
-        launch currentDir mNewRun config theCodebase []
+        launch currentDir config theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
     "run" : [mainName] -> do
       theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
-      runtime <- join . getStartRuntime mNewRun $ fst config
+      runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
@@ -183,7 +177,7 @@ main = do
         Right contents -> do
           theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir mNewRun config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
@@ -192,16 +186,16 @@ main = do
           theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
-            currentDir mNewRun config theCodebase
+            currentDir config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit False True mcodepath transcripts
-      _                              -> runTranscripts mNewRun cbInit False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts cbInit False True mcodepath transcripts
+      _                              -> runTranscripts cbInit False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts mNewRun cbInit True True mcodepath transcripts
-      _                              -> runTranscripts mNewRun cbInit True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts cbInit True True mcodepath transcripts
+      _                              -> runTranscripts cbInit True False mcodepath args'
     ["upgrade-codebase"] -> upgradeCodebase mcodepath
     _ -> do
       PT.putPrettyLn (usage progName)
@@ -229,13 +223,12 @@ prepareTranscriptDir cbInit inFork mcodepath = do
   pure tmp
 
 runTranscripts'
-  :: Maybe Bool
-  -> Codebase.Init IO Symbol Ann
+  :: Codebase.Init IO Symbol Ann
   -> Maybe FilePath
   -> FilePath
   -> [String]
   -> IO Bool
-runTranscripts' mNewRun cbInit mcodepath transcriptDir args = do
+runTranscripts' cbInit mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   case args of
     args@(_:_) -> do
@@ -251,7 +244,7 @@ runTranscripts' mNewRun cbInit mcodepath transcriptDir args = do
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
               theCodebase <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
-              mdOut <- TR.run mNewRun transcriptDir configFilePath stanzas theCodebase
+              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)
@@ -267,18 +260,17 @@ runTranscripts' mNewRun cbInit mcodepath transcriptDir args = do
       pure False
 
 runTranscripts
-  :: Maybe Bool
-  -> Codebase.Init IO Symbol Ann
+  :: Codebase.Init IO Symbol Ann
   -> Bool
   -> Bool
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts mNewRun cbInit inFork keepTemp mcodepath args = do
+runTranscripts cbInit inFork keepTemp mcodepath args = do
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir cbInit inFork mcodepath
   completed <-
-    runTranscripts' mNewRun cbInit (Just transcriptDir) transcriptDir args
+    runTranscripts' cbInit (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -298,21 +290,14 @@ runTranscripts mNewRun cbInit inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-getStartRuntime :: Maybe Bool -> Config -> IO (IO (Runtime Symbol))
-getStartRuntime newRun config = do
-  b <- maybe (Config.lookupDefault False config "new-runtime") pure newRun
-  pure $ if b then RTI.startRuntime else pure Rt1.runtime
-
 launch
   :: FilePath
-  -> Maybe Bool
   -> (Config, IO ())
   -> _
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir newRun config code inputs = do
-  startRuntime <- getStartRuntime newRun $ fst config
-  CommandLine.main dir defaultBaseLib initialPath config inputs startRuntime code Version.gitDescribe
+launch dir config code inputs =
+  CommandLine.main dir defaultBaseLib initialPath config inputs code Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
