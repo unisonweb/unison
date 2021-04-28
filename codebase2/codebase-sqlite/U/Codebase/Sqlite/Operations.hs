@@ -196,17 +196,9 @@ primaryHashToMaybeObjectId h = do
     Just hashId -> Q.maybeObjectIdForPrimaryHashId hashId
     Nothing -> pure Nothing
 
-primaryHashToExistingPatchObjectId :: EDB m => PatchHash -> m Db.PatchObjectId
-primaryHashToExistingPatchObjectId =
-  fmap Db.PatchObjectId . primaryHashToExistingObjectId . unPatchHash
-
 primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
 primaryHashToMaybePatchObjectId =
   (fmap . fmap) Db.PatchObjectId . primaryHashToMaybeObjectId . unPatchHash
-
-primaryHashToMaybeBranchObjectId :: DB m => BranchHash -> m (Maybe Db.BranchObjectId)
-primaryHashToMaybeBranchObjectId =
-  (fmap . fmap) Db.BranchObjectId . primaryHashToMaybeObjectId . unBranchHash
 
 objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
@@ -1005,18 +997,6 @@ saveBranch (C.Causal hc he parents me) = do
               (Vector.fromList (Foldable.toList patchObjectIds))
               (Vector.fromList (Foldable.toList branchCausalIds))
       pure (ids, lBranch)
-
-lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
-lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
-
-lookupBranchLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
-lookupBranchLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
-
-lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
-lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
-
-lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
-lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
 
 loadRootCausal :: EDB m => m (C.Branch.Causal m)
 loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId

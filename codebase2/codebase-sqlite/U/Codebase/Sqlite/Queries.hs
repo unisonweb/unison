@@ -375,9 +375,6 @@ loadOldCausalValueHash id =
   WHERE old_hash_id = ?
 |]
 
-saveCausalParent :: DB m => CausalHashId -> CausalHashId -> m ()
-saveCausalParent child parent = saveCausalParents child [parent]
-
 saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
 saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
   sql = [here|

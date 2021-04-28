@@ -144,9 +144,6 @@ type F m i v = Free (Command m i v)
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
-_liftToAction :: m a -> Action m i v a
-_liftToAction = lift . lift . Free.eval . Eval
-
 data LoopState m v
   = LoopState
       { _root :: Branch m

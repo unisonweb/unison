@@ -30,14 +30,6 @@ data PatchDiff' t h d = PatchDiff
   }
   deriving (Eq, Ord, Show)
 
--- | the number of dbids in the patch, an approximation to disk size
-idcount :: PatchDiff' t h d -> Int
-idcount (PatchDiff atm atp rtm rtp) =
-  go atm + go atp + go rtm + go rtp
-  where
-    go :: Foldable f => f (Set a) -> Int
-    go fsa = (Monoid.getSum . foldMap (Monoid.Sum . Set.size)) fsa + length fsa
-
 trimap ::
   (Ord t', Ord h', Ord d') =>
   (t -> t') ->
