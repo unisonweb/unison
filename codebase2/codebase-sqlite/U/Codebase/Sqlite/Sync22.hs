@@ -57,9 +57,7 @@ data DbTag = SrcDb | DestDb
 data DecodeError
   = ErrTermComponent
   | ErrDeclComponent
-  | -- | ErrTermFormat
-    -- | ErrDeclFormat
-    ErrBranchFormat
+  | ErrBranchFormat
   | ErrPatchFormat
   | ErrBranchBody Word8
   | ErrPatchBody Word8
@@ -113,23 +111,7 @@ trySync ::
   Generation ->
   Entity ->
   m (TrySyncResult Entity)
-trySync t h o c _gc e = do
-  -- traceM $ "trySync " ++ show e ++ "..."
-  result <- trySync' t h o c _gc e
-  -- traceM $ "trySync " ++ show e ++ " = " ++ show result
-  pure result
-
-trySync' ::
-  forall m.
-  (MonadIO m, MonadError Error m, MonadReader Env m) =>
-  Cache m TextId TextId ->
-  Cache m HashId HashId ->
-  Cache m ObjectId ObjectId ->
-  Cache m CausalHashId CausalHashId ->
-  Generation ->
-  Entity ->
-  m (TrySyncResult Entity)
-trySync' tCache hCache oCache cCache _gc = \case
+trySync tCache hCache oCache cCache _gc = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes
@@ -438,8 +420,3 @@ runDB conn action =
   Except.runExceptT (Reader.runReaderT action conn) >>= \case
     Left e -> throwError (DbIntegrity e)
     Right a -> pure a
-
--- syncs coming from git:
---  - pull a specified remote causal (Maybe CausalHash) into the local database
---  - and then maybe do some stuff
--- syncs coming from

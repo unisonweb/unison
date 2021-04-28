@@ -1813,34 +1813,6 @@ loop = do
                 prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                   P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
         void . eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
-      -- DebugDumpNamespacesI -> do
-      --   let seen h = State.gets (Map.member h)
-      --       set h d = State.modify (Map.insert h d)
-      --       getCausal b = (Branch.headHash b, pure $ Branch._history b)
-      --       goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Map Branch.Hash Output.DN.DumpNamespace) m ()
-      --       goCausal [] = pure ()
-      --       goCausal ((h, mc) : queue) = do
-      --         ifM (seen h) (goCausal queue) do
-      --           traceShowM =<< State.gets Map.size
-      --           lift mc >>= \case
-      --             Causal.One h b -> goBranch h b mempty queue
-      --             Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
-      --             Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-      --       goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Map Branch.Hash Output.DN.DumpNamespace) m ()
-      --       goBranch h b (Set.fromList -> causalParents) queue = case b of
-      --         Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ -> let
-      --           wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
-      --           wrangleMetadata s r =
-      --             (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
-      --           terms = Map.fromList . map (wrangleMetadata terms0) . Foldable.toList $ Star3.fact terms0
-      --           types = Map.fromList . map (wrangleMetadata types0) . Foldable.toList $ Star3.fact types0
-      --           patches = fmap fst patches0
-      --           children = fmap Branch.headHash children0
-      --           in do
-      --             set h $ Output.DN.DumpNamespace terms types patches children causalParents
-      --             goCausal (map getCausal (Foldable.toList children0) ++ queue)
-      --   m <- eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
-      --   eval . Notify $ Output.DumpNamespace m
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       RemoveTermReplacementI from patchPath ->

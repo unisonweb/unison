@@ -15,11 +15,7 @@ import qualified U.Util.Cache as Cache
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
-import Prelude hiding
-  ( head,
-    read,
-    tail,
-  )
+import Prelude hiding (head, read, tail)
 
 {-
 `Causal a` has 5 operations, specified algebraically here:

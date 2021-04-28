@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6bc4dfe7298f08ffbdf912c194bdaa7b5d82d6239249779de15a536ce062e383
+-- hash: 143e303e5857e697f54b99302f3b1ddf2c44f27d5373dad588243be2034caeb2
 
 name:           unison-codebase
 version:        0.0.0
@@ -20,7 +20,6 @@ library
   exposed-modules:
       U.Codebase.Branch
       U.Codebase.Causal
-      U.Codebase.Codebase
       U.Codebase.Decl
       U.Codebase.HashTags
       U.Codebase.Kind

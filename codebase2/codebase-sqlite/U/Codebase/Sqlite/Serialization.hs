@@ -34,7 +34,7 @@ import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (BranchObjectId, ObjectId, PatchObjectId, unBranchObjectId, unPatchObjectId)
+import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
@@ -43,8 +43,7 @@ import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
-import U.Codebase.Sqlite.Symbol
-import qualified U.Codebase.Sqlite.SyncEntity as SE
+import U.Codebase.Sqlite.Symbol (Symbol (..))
 import qualified U.Codebase.Sqlite.Term.Format as TermFormat
 import qualified U.Codebase.Term as Term
 import qualified U.Codebase.Type as Type
@@ -114,26 +113,6 @@ getABT getVar getA getF = getList getVar >>= go []
           pure $ ABT.abs a v body
         3 -> ABT.cycle a <$> go env fvs
         _ -> unknownTag "getABT" tag
-
-{-
-put/get/write/read
-- [x][x][ ][ ] term component
-- [x][x][ ][ ] types of terms
-- [x][x][ ][ ] decl component
-- [-][-][ ][ ] causal
-- [x][x][ ][ ] BranchFormat
-- [x][ ][ ][ ] full branch
-- [x][ ][ ][ ] diff branch
-- [x][ ][ ][ ] PatchFormat
-- [x][ ][ ][ ] full patch
-- [x][ ][ ][ ] diff patch
-- [ ] O(1) framed array access?
-- [ ] tests for framed array access
-
-- [ ] add to dependents index
-- [ ] add to type index
-- [ ] add to type mentions index
--}
 
 putLocalIds :: (MonadPut m, Integral t, Bits t, Integral d, Bits d) => LocalIds' t d -> m ()
 putLocalIds LocalIds {..} = do
@@ -659,40 +638,8 @@ getBranchLocalIds =
     <*> getVector getVarInt
     <*> getVector (getPair getVarInt getVarInt)
 
-getBranchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
-getBranchSyncEntities =
-  getWord8 >>= \case
-    -- Full
-    0 -> getDeps
-    -- Diff
-    1 -> do
-      id <- getVarInt @_ @BranchObjectId
-      SE.addObjectId (unBranchObjectId id) <$> getDeps
-    x -> unknownTag "getBranchSyncEntities" x
-  where
-    getDeps = localIdsToDeps <$> getBranchLocalIds
-    localIdsToDeps (BranchFormat.LocalIds ts os ps bcs) =
-      SE.SyncEntity
-        (vec2seq ts)
-        ( vec2seq os
-            <> vec2seq (Vector.map unPatchObjectId ps)
-            <> vec2seq (Vector.map unBranchObjectId bos)
-        )
-        mempty
-        (vec2seq chs)
-      where
-        (bos, chs) = Vector.unzip bcs
-
 vec2seq :: Vector a -> Seq a
 vec2seq v = Seq.fromFunction (length v) (v Vector.!)
-
-localIdsToLocalDeps :: LocalIds -> SE.SyncEntitySeq
-localIdsToLocalDeps (LocalIds ts os) =
-  SE.SyncEntity (vec2seq ts) (vec2seq os) mempty mempty
-
-watchLocalIdsToLocalDeps :: WatchLocalIds -> SE.SyncEntitySeq
-watchLocalIdsToLocalDeps (LocalIds ts hs) =
-  SE.SyncEntity (vec2seq ts) mempty (vec2seq hs) mempty
 
 decomposeComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
 decomposeComponent = do
@@ -738,28 +685,6 @@ recomposeBranchFull li bs = putBranchLocalIds li *> putByteString bs
 
 recomposeBranchDiff :: MonadPut m => ObjectId -> BranchLocalIds -> BS.ByteString -> m ()
 recomposeBranchDiff id li bs = putVarInt id *> putBranchLocalIds li *> putByteString bs
-
--- the same implementation currently works for term component and type component
-getComponentSyncEntities :: MonadGet m => m SE.SyncEntitySeq
-getComponentSyncEntities =
-  foldMap (localIdsToLocalDeps . fst) <$> decomposeComponent
-
-getPatchSyncEntities :: MonadGet m => m SE.SyncEntitySeq
-getPatchSyncEntities =
-  getWord8 >>= \case
-    0 -> getDeps
-    1 -> do
-      id <- getVarInt @_ @PatchObjectId
-      SE.addObjectId (unPatchObjectId id) <$> getDeps
-    x -> unknownTag "getPatchSyncEntities" x
-  where
-    getDeps = localIdsToDeps <$> getPatchLocalIds
-    localIdsToDeps (PatchFormat.LocalIds ts hs os) =
-      SE.SyncEntity
-        (vec2seq ts)
-        (vec2seq os)
-        (vec2seq hs)
-        mempty
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
@@ -928,7 +853,4 @@ getMaybe getA =
 
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
-  fail $
-    "unknown tag " ++ show tag
-      ++ " while deserializing: "
-      ++ msg
+  fail $ "unknown tag " ++ show tag ++ " while deserializing: " ++ msg

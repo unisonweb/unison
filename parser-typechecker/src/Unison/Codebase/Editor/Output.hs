@@ -206,7 +206,6 @@ data Output v
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
-  | DumpNamespace (Map Branch.Hash DumpNamespace)
   | BadName String
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
@@ -327,7 +326,6 @@ isFailure o = case o of
   ListDependents{} -> False
   TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
-  DumpNamespace _ -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

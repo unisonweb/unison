@@ -210,10 +210,17 @@ main = do
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
   Codebase.getCodebaseDir mcodepath >>= \root -> do
-    putStrLn $ "I'm upgrading the codebase in '" ++ root ++ "', but it will take a while."
+    PT.putPrettyLn $
+      "I'm upgrading the codebase in '" <> P.string root <> "', but it will take a while."
     Upgrade12.upgradeCodebase root
-    putStrLn $ "\nTry it out and once you're satisfied, you may delete the old version from\n\n\t'"
-      ++ Codebase.codebasePath (FC.init @IO) root ++ "';\n\nbut there's no rush."
+    PT.putPrettyLn
+      $ P.newline
+      <> "Try it out and once you're satisfied, you can safely(?) delete the old version from"
+      <> P.newline
+      <> P.indentN 2 (P.string $ Codebase.codebasePath (FC.init @IO) root)
+      <> P.newline
+      <> "but there's no rush.  You can access the old codebase again by passing the"
+      <> P.backticked "--old-codebase" <> "flag at startup."
 
 prepareTranscriptDir :: Codebase.Init IO Symbol Ann -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir cbInit inFork mcodepath = do

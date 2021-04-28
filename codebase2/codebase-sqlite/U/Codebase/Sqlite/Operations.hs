@@ -101,7 +101,6 @@ import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Codebase.Sqlite.Referent as S.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
 import U.Codebase.Sqlite.Symbol (Symbol)
-import qualified U.Codebase.Sqlite.SyncEntity as SE
 import qualified U.Codebase.Sqlite.Term.Format as S.Term
 import qualified U.Codebase.Term as C
 import qualified U.Codebase.Term as C.Term
@@ -184,11 +183,6 @@ lookupTextId t =
 loadTextById :: EDB m => Db.TextId -> m Text
 loadTextById = liftQ . Q.loadTextById
 
--- | Q: Any Hash that UCM gets ahold of should already exist in the DB?
--- because it came from a sync or from a save
--- hashToHashId :: EDB m => H.Hash -> m Db.HashId
--- hashToHashId = liftQ . Q.expectHashIdByHash
-
 -- | look up an existing object by its primary hash
 primaryHashToExistingObjectId :: EDB m => H.Hash -> m Db.ObjectId
 primaryHashToExistingObjectId h = do
@@ -213,8 +207,6 @@ primaryHashToMaybePatchObjectId =
 primaryHashToMaybeBranchObjectId :: DB m => BranchHash -> m (Maybe Db.BranchObjectId)
 primaryHashToMaybeBranchObjectId =
   (fmap . fmap) Db.BranchObjectId . primaryHashToMaybeObjectId . unBranchHash
-
--- (fmap . fmap) Db.BranchObjectId . liftQ . Q.maybeObjectIdPrimaryHashId . unBranchHash
 
 objectExistsForHash :: DB m => H.Hash -> m Bool
 objectExistsForHash h =
@@ -409,10 +401,11 @@ getCycleLen h = do
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById
-    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on the
-    -- fact the two things that have cycles (term and decl components) have the same basic
-    -- serialized structure: first a format byte that is always 0 for now, followed by
-    -- a framed array representing the component. :grimace:
+    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on
+    -- the fact the two things that references can refer to (term and decl
+    -- components) have the same basic serialized structure: first a format
+    -- byte that is always 0 for now, followed by a framed array representing
+    -- the strongly-connected component. :grimace:
     >>= decodeComponentLengthOnly
     >>= pure . fromIntegral
 
@@ -1359,28 +1352,5 @@ derivedDependencies cid = do
   sids <- Q.getDependencyIdsForDependent sid
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
-
--- * Sync-related dependency queries
-
-objectDependencies :: EDB m => Db.ObjectId -> m SE.SyncEntitySeq
-objectDependencies oid = do
-  (ot, bs) <- liftQ $ Q.loadObjectWithTypeById oid
-  let getOrError = getFromBytesOr (ErrObjectDependencies ot oid)
-  case ot of
-    OT.TermComponent -> getOrError S.getComponentSyncEntities bs
-    OT.DeclComponent -> getOrError S.getComponentSyncEntities bs
-    OT.Namespace -> getOrError S.getBranchSyncEntities bs
-    OT.Patch -> getOrError S.getPatchSyncEntities bs
-
--- branchDependencies ::
---   Branch.Hash -> m (Maybe (CausalHash, BD.Dependencies)),
--- -- |the "new" terms and types mentioned in a patch
-
--- patchDependencies :: EditHash -> m (Maybe (Set DefnHash))
--- patchDependencies h = error "todo"
-
--- getBranchByAnyHash ::
--- getBranchByBranchHash :: DB m => BranchHash -> m (Maybe (Branch m))
--- getBranchByCausalHash :: DB m => CausalHash -> m (Maybe (Branch m))
 
 -- lca              :: (forall he e. [Causal m CausalHash he e] -> m (Maybe BranchHash)),

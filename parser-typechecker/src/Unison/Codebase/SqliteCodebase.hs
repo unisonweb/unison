@@ -10,7 +10,7 @@ module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsa
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, when, (>=>), unless, forever)
+import Control.Monad (filterM, when, (>=>), unless)
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM, (||^))
@@ -95,9 +95,6 @@ import Unison.Util.Timing (time)
 import UnliftIO (MonadIO, catchIO, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import qualified Unison.Util.TQueue as TQueue
-import qualified Unison.Codebase.Watch as Watch
-import UnliftIO.Concurrent (forkIO, killThread)
 import qualified System.Console.ANSI as ANSI
 
 debug, debugProcessBranches :: Bool
@@ -189,8 +186,6 @@ codebaseExists root = liftIO do
         Right _ -> pure True
     )
     (const $ pure False)
-
--- and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -486,7 +481,7 @@ sqliteCodebase root = do
             atomically $ modifyTVar rootBranchCache (fmap . second $ const branch1)
 
           rootBranchUpdates :: MonadIO m => TVar (Maybe (Q.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
-          rootBranchUpdates rootBranchCache = do
+          rootBranchUpdates _rootBranchCache = do
             -- branchHeadChanges      <- TQueue.newIO
             -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
             -- watcher1               <-
@@ -742,11 +737,10 @@ sqliteCodebase root = do
                     when debugProcessBranches $ traceM $ "processBranches B " ++ take 10 (show h)
                     ifM @(ExceptT Sync22.Error m)
                       (lift $ Codebase1.branchExists dest h)
-                      ( do
+                      do
                           when debugProcessBranches $ traceM "  already exists in dest db"
                           processBranches sync progress src dest rest
-                      )
-                      ( do
+                      do
                           when debugProcessBranches $ traceM "  doesn't exist in dest db"
                           let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
                           lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
@@ -764,7 +758,6 @@ sqliteCodebase root = do
                                     let bs = map (uncurry B) branchDeps
                                         os = map O (es <> ts <> ds)
                                      in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
-                      )
                   processBranches sync progress src dest (O h : rest) = do
                     when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
                     (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
@@ -778,24 +771,19 @@ sqliteCodebase root = do
               se $ processBranches sync progress' src dest [B bHash (pure b)]
             pure $ Validation.valueOr (error . show) result
 
-      -- Do we want to include causal hashes here or just namespace hashes?
-      -- Could we expose just one or the other of them to the user?
-      -- Git uses commit hashes and tree hashes (analogous to causal hashes
-      -- and namespace hashes, respectively), but the user is presented
-      -- primarily with commit hashes.
-      -- Arya leaning towards doing the same for Unison.
-
-      -- let finalizer :: MonadIO m => m ()
-      --     finalizer = do
-      --       decls <- readTVarIO declBuffer
-      --       terms <- readTVarIO termBuffer
-      --       let printBuffer header b =
-      --             liftIO
-      --               if b /= mempty
-      --                 then putStrLn header >> putStrLn "" >> print b
-      --                 else pure ()
-      --       printBuffer "Decls:" decls
-      --       printBuffer "Terms:" terms
+      -- we don't currently have any good opportunity to call this sanity check;
+      -- at ucm shutdown
+      let _finalizer :: MonadIO m => m ()
+          _finalizer = do
+            decls <- readTVarIO declBuffer
+            terms <- readTVarIO termBuffer
+            let printBuffer header b =
+                  liftIO
+                    if b /= mempty
+                      then putStrLn header >> putStrLn "" >> print b
+                      else pure ()
+            printBuffer "Decls:" decls
+            printBuffer "Terms:" terms
 
       pure . Right $
         ( Codebase1.Codebase
@@ -933,7 +921,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   remotePath <- time "Git fetch" $ pullBranch repo
   ifM
     (codebaseExists remotePath)
-    ( do
+    do
         codebase <-
           lift (sqliteCodebase remotePath)
             >>= Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
@@ -959,7 +947,6 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
                   Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
               _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
         pure (Branch.getAt' path branch, remotePath)
-    )
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.
     (pure (Branch.empty, remotePath))
 
@@ -976,9 +963,7 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
   ifM
-    ( pure (remoteRoot == Branch.empty)
-        ||^ lift (remoteRoot `Branch.before` branch)
-    )
+    (pure (remoteRoot == Branch.empty) ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
     (stageAndPush remotePath)

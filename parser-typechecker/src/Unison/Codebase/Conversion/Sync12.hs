@@ -138,6 +138,14 @@ sync12 t = do
   gc <- runDest' Q.getNurseryGeneration
   pure $ Sync (trySync t (succ gc))
 
+-- For each entity, we have to check to see
+-- a) if it exists (if not, mark as missing in Status)
+-- b) if any of its dependencies have not yet been synced
+--    (if so, note as validation)
+-- c) if any of its dependencies are missing from the source codebase
+--     (if so, then filter them if possible, otherwise give this entity an
+--      error Status)
+
 trySync ::
   forall m n a.
   (R m n a, S m n, Applicative m) =>
@@ -486,13 +494,6 @@ runDest' ma = Reader.reader destConnection >>= flip runDB ma
 runDB :: Connection -> ReaderT Connection m a -> m a
 runDB conn action = Reader.runReaderT action conn
 
--- each entity has to check to see
--- a) if it exists (if not, mark as missing in Status)
--- b) if any of its dependencies have not yet been synced
--- (if so, note as validation)
--- c) if any of its dependencies are missing from the source codebase
--- (if so, then filter them if possible, otherwise give this entity an error Status)
-
 data DoneCount = DoneCount
   { _doneBranches :: Int,
     _doneTerms :: Int,
@@ -570,7 +571,7 @@ simpleProgress = Sync.Progress need done error allDone
     printProgress = do
       (DoneCount b t d p, ErrorCount b' t' d' p', _) <- State.get
       let ways :: [Maybe String] =
-            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show b ++ " branches" ++ Monoid.whenM (b' > 0) (" (+" ++ show b' ++ " repaired)")),
+            [ Monoid.whenM (b > 0 || b' > 0) (Just $ show (b + b') ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ " repaired)")),
               Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " terms" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ " errors)")),
               Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
