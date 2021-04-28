@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2348a30f404f40907b12d120e39f2772988aed578104a14f9c7722f9b0445567
+-- hash: c6e26ae011df5a4dd154f8c552bf57f686a830cb49e5794f295d593d81348551
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -115,8 +115,6 @@ library
       Unison.Runtime.Machine
       Unison.Runtime.MCode
       Unison.Runtime.Pattern
-      Unison.Runtime.Rt1
-      Unison.Runtime.Rt1IO
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
@@ -305,7 +303,6 @@ executable tests
       Unison.Test.FileParser
       Unison.Test.Git
       Unison.Test.GitSimple
-      Unison.Test.IO
       Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Range

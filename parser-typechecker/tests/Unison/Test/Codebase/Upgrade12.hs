@@ -15,7 +15,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "typeAlias" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```ucm
           .> alias.type ##Nat builtin.Nat
           .> history
@@ -23,7 +23,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
           ```unison
           x : Nat
           x = 3
@@ -34,7 +34,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "topLevelTerm" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```unison:hide
           y = 3
           ```
@@ -43,7 +43,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
         ```ucm
         .> find
         ```
@@ -56,8 +56,8 @@ test = scope "codebase.upgrade12" $ tests [
   scope "metadataForTerm" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 ""
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 ""
+      Ucm.runTranscript c1 [i|
           ```unison:hide
           doc = "y is the number 3"
           y = 3
@@ -75,13 +75,13 @@ test = scope "codebase.upgrade12" $ tests [
         -- ttjf post-link
         -- 988m pre-link
         -- 7asf empty
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
         ```ucm
         .> links y
         ```
       |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
         ```ucm
         .> links y
         ```
@@ -91,7 +91,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "metadataForType" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```unison:hide
           doc = "Nat means natural number"
           ```
@@ -102,7 +102,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
         ```ucm
         .> links Nat
         ```
@@ -112,7 +112,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "subNamespace" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```ucm
           .> alias.type ##Nat builtin.Nat
           ```
@@ -124,7 +124,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
         ```ucm
         .> find
         ```
@@ -137,7 +137,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "accessPatch" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```ucm
           .> alias.type ##Nat builtin.Nat
           ```
@@ -162,7 +162,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
         ```ucm
         .> view.patch patch
         ```
@@ -177,7 +177,7 @@ test = scope "codebase.upgrade12" $ tests [
   scope "history" do
     void $ io do
       c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-      Ucm.runTranscript c1 Ucm.Runtime1 [i|
+      Ucm.runTranscript c1 [i|
           ```unison
           foo = 3
           ```
@@ -193,7 +193,7 @@ test = scope "codebase.upgrade12" $ tests [
           ```
         |]
       c2 <- Ucm.upgradeCodebase c1
-      Ucm.runTranscript c2 Ucm.Runtime1 [i|
+      Ucm.runTranscript c2 [i|
           ```ucm
           .> history
           .> reset-root #ls8

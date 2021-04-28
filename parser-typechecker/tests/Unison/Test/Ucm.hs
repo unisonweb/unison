@@ -8,7 +8,6 @@ module Unison.Test.Ucm
     runTranscript,
     upgradeCodebase,
     CodebaseFormat (..),
-    Runtime (..),
     Transcript,
     unTranscript,
   )
@@ -29,8 +28,6 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (traceM)
 import qualified Unison.Util.Pretty as P
-
-data Runtime = Runtime1 | Runtime2
 
 data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 
@@ -68,8 +65,8 @@ upgradeCodebase = \case
     Upgrade12.upgradeCodebase path
     pure $ Codebase path CodebaseFormat2
 
-runTranscript :: Codebase -> Runtime -> Transcript -> IO TranscriptOutput
-runTranscript (Codebase codebasePath fmt) rt transcript = do
+runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
+runTranscript (Codebase codebasePath fmt) transcript = do
   -- this configFile ought to be optional
   configFile <- do
     tmpDir <-
@@ -88,7 +85,6 @@ runTranscript (Codebase codebasePath fmt) rt transcript = do
     flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
         TR.run
-          (case rt of Runtime1 -> Just False; Runtime2 -> Just True)
           codebasePath
           configFile
           stanzas
