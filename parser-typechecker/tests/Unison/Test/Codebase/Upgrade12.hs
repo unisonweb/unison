@@ -1,14 +1,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# Language QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 
 module Unison.Test.Codebase.Upgrade12 (test) where
 
 import Data.Functor (void)
 import Data.String.Here.Interpolated (i)
-import EasyTest (Test, io, ok, scope, tests)
+import EasyTest (Test, expectJust, io, ok, scope, tests)
 import Shellmet ()
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Test.Ucm as Ucm
+import Unison.UnisonFile (pattern TestWatch)
+import Debug.Trace (traceShowM)
 
 test :: Test ()
 test = scope "codebase.upgrade12" $ tests [
@@ -200,5 +205,38 @@ test = scope "codebase.upgrade12" $ tests [
           .> history
           ```
         |]
+    ok,
+
+  scope "test-watches" do
+    (watchTerms1, watchTerms2) <- io do
+      c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
+      Ucm.runTranscript c1 [i|
+        ```ucm
+        .> builtins.merge
+        ```
+        ```unison
+        test> pass = [Ok "Passed"]
+        ```
+        ```ucm
+        .> add
+        ```
+      |]
+      c1' <- Ucm.lowLevel c1
+      watches1@(_:_) <- Codebase.watches c1' TestWatch
+      watchTerms1 <- traverse (Codebase.getWatch c1' TestWatch) watches1
+      Ucm.runTranscript c1 [i|
+        ```unison
+        test> pass = [Ok "Passed"]
+        ```
+      |]
+      c2 <- Ucm.upgradeCodebase c1
+      c2' <- Ucm.lowLevel c2
+      watchTerms2 <- traverse (Codebase.getWatch c2' TestWatch) watches1
+      traceShowM watches1
+      traceShowM watchTerms1
+      traceShowM watchTerms2
+      pure (watchTerms1, watchTerms2)
+    expectJust (sequence watchTerms1)
+    expectJust (sequence watchTerms2)
     ok
   ]

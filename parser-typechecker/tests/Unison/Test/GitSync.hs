@@ -1,18 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Unison.Test.GitSimple where
+module Unison.Test.GitSync where
 
+import Data.Maybe (fromJust)
+import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
 import Shellmet ()
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase (Codebase)
+import Unison.Parser (Ann)
 import Unison.Prelude
+import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
-import Data.String.Here.Interpolated (i)
+import Unison.UnisonFile (pattern TestWatch)
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
@@ -21,7 +28,7 @@ writeTranscriptOutput :: Bool
 writeTranscriptOutput = False
 
 test :: Test ()
-test = scope "git-simple" . tests $
+test = scope "gitsync22" . tests $
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
   pushPullTest  "typeAlias" fmt
@@ -303,7 +310,36 @@ test = scope "git-simple" . tests $
       > greatApp
       ```
     |])
-    -- ,
+  ,
+  watchPushPullTest "test-watches" fmt
+    (\repo -> [i|
+        ```ucm
+        .> builtins.merge
+        ```
+        ```unison
+        test> pass = [Ok "Passed"]
+        ```
+        ```ucm
+        .> add
+        .> push ${repo}
+        ```
+      |])
+    (\repo -> [i|
+        ```ucm
+        .> pull ${repo}
+        ```
+      |])
+    (\cb -> do
+      void . fmap (fromJust . sequence) $
+        traverse (Codebase.getWatch cb TestWatch) =<<
+          Codebase.watches cb TestWatch)
+
+          -- m [Reference.Id]
+
+-- traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
+-- watches            :: UF.WatchKind -> m [Reference.Id]
+-- getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
+
   -- pushPullTest "regular" fmt
   --   (\repo -> [i|
   --   ```ucm:hide
@@ -363,7 +399,7 @@ pushPullTest name fmt authorScript userScript = scope name do
     userOutput <- Ucm.runTranscript user (userScript repo)
 
     when writeTranscriptOutput $ writeFile
-      ("unison-src"</>"transcripts"</>("GitSimple." ++ name ++ ".output.md"))
+      ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
       (authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
@@ -371,6 +407,50 @@ pushPullTest name fmt authorScript userScript = scope name do
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
+
+watchPushPullTest :: String -> CodebaseFormat -> (FilePath -> Transcript) -> (FilePath -> Transcript) -> (Codebase IO Symbol Ann -> IO ()) -> Test ()
+watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
+  io do
+    repo <- initGitRepo
+    author <- Ucm.initCodebase fmt
+    authorOutput <- Ucm.runTranscript author (authorScript repo)
+    user <- Ucm.initCodebase fmt
+    userOutput <- Ucm.runTranscript user (userScript repo)
+    user' <- Ucm.lowLevel user
+    codebaseCheck user'
+
+    when writeTranscriptOutput $ writeFile
+      ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
+      (authorOutput <> "\n-------\n" <> userOutput)
+
+    -- if we haven't crashed, clean up!
+    removeDirectoryRecursive repo
+    Ucm.deleteCodebase author
+    Ucm.deleteCodebase user
+  ok
+
+
+  -- scope "test-watches" do
+  --   (watchTerms1, watchTerms2) <- io do
+  --     c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
+  --     Ucm.runTranscript c1 [i|
+  --       ```unison
+  --       test> x = 4
+  --       ```
+  --       ```ucm
+  --       .> add
+  --       ```
+  --     |]
+  --     c1' <- Ucm.lowLevel c1
+  --     watches1 <- Codebase.watches c1' TestWatch
+  --     watchTerms1 <- traverse (Codebase.getWatch c1' TestWatch) watches1
+  --     c2 <- Ucm.upgradeCodebase c1
+  --     c2' <- Ucm.lowLevel c2
+  --     watchTerms2 <- traverse (Codebase.getWatch c2' TestWatch) watches1
+  --     pure (watchTerms1, watchTerms2)
+  --   expectJust watchTerms1
+  --   expectJust watchTerms2
+  --   ok
 
 initGitRepo :: IO FilePath
 initGitRepo = do

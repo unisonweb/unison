@@ -7,6 +7,7 @@ module Unison.Test.Ucm
     deleteCodebase,
     runTranscript,
     upgradeCodebase,
+    lowLevel,
     CodebaseFormat (..),
     Transcript,
     unTranscript,
@@ -28,6 +29,9 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (traceM)
 import qualified Unison.Util.Pretty as P
+import Unison.Parser (Ann)
+import Unison.Symbol (Symbol)
+import qualified Data.Either as Either
 
 data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 
@@ -91,3 +95,9 @@ runTranscript (Codebase codebasePath fmt) transcript = do
           codebase
   when debugTranscriptOutput $ traceM output
   pure output
+
+lowLevel :: Codebase -> IO (Codebase.Codebase IO Symbol Ann)
+lowLevel (Codebase root fmt) = do
+  let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
+  Either.fromRight (error "This really should have loaded") <$>
+    Codebase.Init.openCodebase cbInit root

@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import System.Directory (canonicalizePath)
-import System.FilePath (takeFileName)
+import System.FilePath (dropExtension)
 import Unison.Codebase (BuiltinAnnotation, Codebase (Codebase), CodebasePath)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch)
@@ -209,7 +209,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
         let wp = watchesDir path (Text.pack k)
         createDirectoryIfMissing True wp
         ls <- listDirectory wp
-        pure $ ls >>= (toList . componentIdFromString . takeFileName)
+        pure $ ls >>= (toList . componentIdFromString . dropExtension)
     getReflog :: m [Reflog.Entry]
     getReflog =
       liftIO
