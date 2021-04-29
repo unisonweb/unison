@@ -219,7 +219,7 @@ ucmHostVar :: String
 ucmHostVar = "UCM_HOST"
 
 ucmTokenVar :: String
-ucmTokenVar = "UCM_HOST"
+ucmTokenVar = "UCM_TOKEN"
 
 -- The auth token required for accessing the server is passed to the function k
 start

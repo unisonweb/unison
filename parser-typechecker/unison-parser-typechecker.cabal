@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b6fb5e0513e2332b458be9a249c65772c9d0b1fc0efc7732242597e073723b35
+-- hash: a523531c841ac375ddc2c173943b1650734d6f62a021bf0d2cb3585683f9ef52
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -199,6 +199,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-media
     , http-types
     , io-streams
     , lens
@@ -223,6 +224,7 @@ library
     , safe
     , safe-exceptions
     , servant
+    , servant-auth-server
     , servant-docs
     , servant-openapi3
     , servant-server
