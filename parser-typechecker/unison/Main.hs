@@ -205,7 +205,9 @@ upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
   Codebase.getCodebaseDir mcodepath >>= \root -> do
     PT.putPrettyLn $
-      "I'm upgrading the codebase in '" <> P.string root <> "', but it will take a while."
+      "I'm upgrading the codebase in '" <> P.string root <> "', but it will"
+      <> "take a while, and may even run out of memory. If you're having"
+      <> "trouble, contact us on #alphatesting and we'll try to help."
     Upgrade12.upgradeCodebase root
     PT.putPrettyLn
       $ P.newline
