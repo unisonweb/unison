@@ -1672,33 +1672,29 @@ discardCovariant ty
   = ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
   keepVarsT pos (Type.Arrow' i o)
-    = trace "arr" $ keepVarsT (not pos) i <> keepVarsT pos o
+    = keepVarsT (not pos) i <> keepVarsT pos o
   keepVarsT pos (Type.Effect1' e o)
-    = trace "eff1" $ keepVarsT pos e <> keepVarsT pos o
-  keepVarsT pos (Type.Effects' es) = traceShow ("effs", es, pos) $ foldMap (keepVarsE pos) es
-  keepVarsT pos (Type.ForallNamed' _ t) = trace "all" $ keepVarsT pos t
-  keepVarsT pos (Type.IntroOuterNamed' _ t) = trace "intro" $ keepVarsT pos t
-  keepVarsT _ t = trace "plonk" $ foldMap exi $ Type.freeVars t
+    = keepVarsT pos e <> keepVarsT pos o
+  keepVarsT pos (Type.Effects' es) = foldMap (keepVarsE pos) es
+  keepVarsT pos (Type.ForallNamed' _ t) = keepVarsT pos t
+  keepVarsT pos (Type.IntroOuterNamed' _ t) = keepVarsT pos t
+  keepVarsT _ t = foldMap exi $ Type.freeVars t
 
   exi (TypeVar.Existential _ v _) = Set.singleton v
   exi _ = mempty
 
   keepVarsE pos (Type.Var' (TypeVar.Existential _ v _))
-    | traceShow ("wat",v) False = mempty
     | pos = mempty
     | otherwise = Set.singleton v
-  keepVarsE pos e
-    | traceShow ("huh",e) False = mempty
-    | otherwise  = keepVarsT pos e
+  keepVarsE pos e = keepVarsT pos e
 
-  strip keep t | traceShow ("strip", keep, t) False = undefined
   strip keep t@(Type.Effect1' es0 o)
     = Type.effect (loc t) (discard keep $ Type.flattenEffects es0) o
   strip _ t = t
 
-  discard keep es = traceShow keep $ filter p es
+  discard keep es = filter p es
     where
-    p (Type.Var' (TypeVar.Existential _ v _)) = traceShowId $ v `Set.member` keep
+    p (Type.Var' (TypeVar.Existential _ v _)) = v `Set.member` keep
     p _ = True
 
 checkWantedScoped
