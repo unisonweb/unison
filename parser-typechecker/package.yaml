@@ -158,6 +158,7 @@ library:
     - hashtables
     - haskeline
     - http-types
+    - http-media
     - io-streams
     - lens
     - ListLike
@@ -185,6 +186,7 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
+    - servant-auth-server
     - shellmet
     - split
     - stm
