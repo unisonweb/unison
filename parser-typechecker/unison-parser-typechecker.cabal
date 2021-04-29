@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a523531c841ac375ddc2c173943b1650734d6f62a021bf0d2cb3585683f9ef52
+-- hash: d836e6a01f959984e28535698293e15253e3d1a57d0ac5a85a38ec33001b7ae9
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -214,6 +214,7 @@ library
     , network-simple
     , nonempty-containers
     , openapi3
+    , optparse-applicative
     , pem
     , primitive
     , process

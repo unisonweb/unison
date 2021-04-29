@@ -173,6 +173,7 @@ library:
     - network-simple
     - nonempty-containers
     - openapi3
+    - optparse-applicative
     - pem
     - process
     - primitive

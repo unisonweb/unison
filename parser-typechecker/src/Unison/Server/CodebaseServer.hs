@@ -6,6 +6,7 @@
 
 module Unison.Server.CodebaseServer where
 
+import Control.Applicative
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
@@ -13,6 +14,7 @@ import Control.Lens
   ( (&),
     (.~),
   )
+import Control.Monad (join)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -27,7 +29,7 @@ import Data.OpenApi
     OpenApi,
     URL (..),
   )
-import Data.OpenApi.Lens (info)
+import qualified Data.OpenApi.Lens as OpenApi
 import Data.Proxy (Proxy (..))
 import Data.String (fromString)
 import qualified Data.Text as Text
@@ -47,6 +49,16 @@ import Network.Wai.Handler.Warp
     setHost,
     setPort,
     withApplicationSettings,
+  )
+import Options.Applicative
+  ( auto,
+    execParser,
+    help,
+    long,
+    info,
+    metavar,
+    option,
+    strOption,
   )
 import Servant
   ( Header,
@@ -152,7 +164,7 @@ authHandler token = mkAuthHandler handler
       $ queryString req
 
 openAPI :: OpenApi
-openAPI = toOpenApi api & info .~ infoObject
+openAPI = toOpenApi api & OpenApi.info .~ infoObject
 
 infoObject :: Info
 infoObject = mempty
@@ -229,7 +241,51 @@ start codebase k = do
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
   envUI    <- lookupEnv ucmUIVar
-  token    <- case envToken of
+  let
+    p =
+      startServer codebase k
+        <$> (   (<|> envToken)
+            <$> (  optional
+                .  strOption
+                $  long "token"
+                <> metavar "STRING"
+                <> help "API auth token"
+                )
+            )
+        <*> (   (<|> envHost)
+            <$> (  optional
+                .  strOption
+                $  long "host"
+                <> metavar "STRING"
+                <> help "UCM server host"
+                )
+            )
+        <*> (   (<|> envPort)
+            <$> (  optional
+                .  option auto
+                $  long "port"
+                <> metavar "NUMBER"
+                <> help "UCM server port"
+                )
+            )
+        <*> (   (<|> envUI)
+            <$> (optional . strOption $ long "ui" <> metavar "DIR" <> help
+                  "Path to codebase ui root"
+                )
+            )
+  join . execParser $ info p mempty
+
+startServer
+  :: Var v
+  => Codebase IO v Ann
+  -> (Strict.ByteString -> Port -> IO ())
+  -> Maybe String
+  -> Maybe String
+  -> Maybe Port
+  -> Maybe String
+  -> IO ()
+startServer codebase k envToken envHost envPort envUI = do
+  token <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
   let settings = appEndo
@@ -240,15 +296,13 @@ start codebase k = do
       a = app codebase envUI token
   case envPort of
     Nothing -> withApplicationSettings settings (pure a) (k token)
-    Just p -> do
+    Just p  -> do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
-      result <- race
-                  (runSettings settings' a)
-                  (waitFor started *> k token p)
+      result <- race (runSettings settings' a) (waitFor started *> k token p)
       case result of
-        Left () -> throwIO $ ErrorCall "Server exited unexpectedly!"
-        Right x -> pure x
+        Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
+        Right x  -> pure x
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = fmap RawHtml . liftIO . Lazy.readFile $ path </> "index.html"
