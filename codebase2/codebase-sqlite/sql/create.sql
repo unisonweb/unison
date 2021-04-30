@@ -11,6 +11,7 @@ CREATE TABLE text (
   id INTEGER PRIMARY KEY,
   text TEXT UNIQUE NOT NULL
 );
+
 -- just came up with this, a layer of indirection to allow multiple hash_ids to
 -- reference the same object.
 -- so: SELECT object.id, bytes FROM object
@@ -68,6 +69,7 @@ CREATE TABLE namespace_root (
   causal_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT namespace_root_fk1 REFERENCES causal(self_hash_id)
 );
 
+-- LCA computations only need to look at this table
 CREATE TABLE causal_parent (
   causal_id INTEGER NOT NULL CONSTRAINT causal_parent_fk1 REFERENCES causal(self_hash_id),
   parent_id INTEGER NOT NULL CONSTRAINT causal_parent_fk2 REFERENCES causal(self_hash_id),
