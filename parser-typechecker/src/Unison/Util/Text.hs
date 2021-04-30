@@ -9,6 +9,8 @@ import qualified Data.Text
 import qualified Data.Text.Short as T
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LazyByteString
 
 -- Text type represented as a finger tree of utf8 chunks.
 type Text = R.Rope T.ShortText
@@ -95,7 +97,11 @@ toText :: Text -> Data.Text.Text
 toText t = Data.Text.concat (T.toText <$> unfoldr R.uncons t)
 
 toUtf8 :: Text -> B.Bytes
-toUtf8 t = mconcat (B.fromArray . T.toByteString <$> unfoldr R.uncons t)
+toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
 
 fromUtf8 :: B.Bytes -> Maybe Text
-fromUtf8 = undefined
+fromUtf8 bs = R.singleton <$>
+  (T.fromByteString .
+   ByteString.concat .
+   LazyByteString.toChunks .
+   B.toLazyByteString) bs

@@ -3,7 +3,7 @@
 
 module Unison.Util.Rope where
 
-import Prelude hiding (drop,take,reverse,map)
+import Prelude hiding (drop,take,reverse,map,traverse)
 
 data Rope a
   = Empty
@@ -11,11 +11,20 @@ data Rope a
   | Two {-# unpack #-} !Int !(Rope a) !(Rope a)
   deriving Foldable
 
+singleton :: Sized a => a -> Rope a
+singleton = One
+
 map :: Sized b => (a -> b) -> Rope a -> Rope b
 map f = \case
   Empty -> Empty
   One a -> One (f a)
   Two _ l r -> two (map f l) (map f r)
+
+traverse :: (Applicative f, Sized b) => (a -> f b) -> Rope a -> f (Rope b)
+traverse f = \case
+  Empty -> pure Empty
+  One a -> One <$> f a
+  Two _ l r -> two <$> traverse f l <*> traverse f r
 
 class Sized a where size :: a -> Int
 class Take a  where take :: Int -> a -> a
