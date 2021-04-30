@@ -1,4 +1,5 @@
 {-# Language ViewPatterns #-}
+{-# Language GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Util.Bytes where
@@ -23,7 +24,7 @@ type ByteString = Block Word8
 -- Bytes type represented as a finger tree of ByteStrings.
 -- Can be efficiently sliced and indexed, using the byte count
 -- annotation at each subtree.
-newtype Bytes = Bytes (R.Rope (View ByteString))
+newtype Bytes = Bytes (R.Rope (View ByteString)) deriving (Eq,Ord)
 
 null :: Bytes -> Bool
 null (Bytes bs) = R.null bs
@@ -125,34 +126,6 @@ instance T.Measured (Sum Int) (View ByteString) where
 
 instance Show Bytes where
   show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]
-
--- Produces two lists where the chunks have the same length
-alignChunks :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> ([View ba], [View ba])
-alignChunks bs1 bs2 = (cs1, cs2)
-  where
-  cs1 = alignTo bs1 bs2
-  cs2 = alignTo bs2 cs1
-  alignTo :: B.ByteArrayAccess ba => [View ba] -> [View ba] -> [View ba]
-  alignTo bs1 [] = bs1
-  alignTo []  _  = []
-  alignTo (hd1:tl1) (hd2:tl2)
-    | len1 == len2 = hd1 : alignTo tl1 tl2
-    | len1 < len2  = hd1 : alignTo tl1 (R.drop len1 hd2 : tl2)
-    | otherwise    = -- len1 > len2
-                     let (hd1',hd1rem) = (R.take len2 hd1, R.drop len2 hd1)
-                     in hd1' : alignTo (hd1rem : tl1) tl2
-    where
-      len1 = B.length hd1
-      len2 = B.length hd2
-
-instance Eq Bytes where
-  b1 == b2 | size b1 == size b2 =
-    uncurry (==) (alignChunks (chunks b1) (chunks b2))
-  _ == _ = False
-
--- Lexicographical ordering
-instance Ord Bytes where
-  b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
 
 --
 -- Forked from: http://hackage.haskell.org/package/memory-0.15.0/docs/src/Data.ByteArray.View.html

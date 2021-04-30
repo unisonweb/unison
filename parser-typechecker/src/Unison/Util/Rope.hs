@@ -4,12 +4,16 @@
 module Unison.Util.Rope where
 
 import Prelude hiding (drop,take,reverse,map,traverse)
+import Data.Foldable (toList)
 
 data Rope a
   = Empty
   | One {-# unpack #-} !a
   | Two {-# unpack #-} !Int !(Rope a) !(Rope a)
   deriving Foldable
+
+chunks :: Rope a -> [a]
+chunks = toList
 
 singleton :: Sized a => a -> Rope a
 singleton = One
@@ -129,3 +133,30 @@ unsnoc = \case
   Two _ l r -> case unsnoc r of
     Nothing -> unsnoc l
     Just (init,last) -> Just (two l init, last)
+
+-- Produces two lists of chunks where the chunks have the same length
+alignChunks :: (Sized a, Take a, Drop a) => [a] -> [a] -> ([a], [a])
+alignChunks bs1 bs2 = (cs1, cs2)
+  where
+  cs1 = alignTo bs1 bs2
+  cs2 = alignTo bs2 cs1
+  alignTo bs1 [] = bs1
+  alignTo []  _  = []
+  alignTo (hd1:tl1) (hd2:tl2)
+    | len1 == len2 = hd1 : alignTo tl1 tl2
+    | len1 < len2  = hd1 : alignTo tl1 (drop len1 hd2 : tl2)
+    | otherwise    = -- len1 > len2
+                     let (hd1',hd1rem) = (take len2 hd1, drop len2 hd1)
+                     in hd1' : alignTo (hd1rem : tl1) tl2
+    where
+      len1 = size hd1
+      len2 = size hd2
+
+instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
+  b1 == b2 | size b1 == size b2 =
+    uncurry (==) (alignChunks (chunks b1) (chunks b2))
+  _ == _ = False
+
+-- Lexicographical ordering
+instance (Sized a, Take a, Drop a, Ord a) => Ord (Rope a) where
+  b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
