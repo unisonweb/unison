@@ -153,14 +153,6 @@ main = do
   branchCacheSize :: Word <- Config.lookupDefault 4096 config_ "NamespaceCacheSize"
   branchCache <- Cache.semispaceCache branchCacheSize
   case restargs of
-    [] -> do
-      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
-      Server.start theCodebase $ \token port -> do
-        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
-        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
-          <> show port <> "?" <> URI.encode (unpack token)
-        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
-        launch currentDir config theCodebase branchCache []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
@@ -196,8 +188,13 @@ main = do
       "-save-codebase" : transcripts -> runTranscripts branchCache True True mcodepath transcripts
       _                              -> runTranscripts branchCache True False mcodepath args'
     _ -> do
-      PT.putPrettyLn (usage progName)
-      Exit.exitWith (Exit.ExitFailure 1)
+      theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
+      Server.start theCodebase $ \token port -> do
+        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
+        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
+          <> show port <> "?" <> URI.encode (unpack token)
+        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
+        launch currentDir config theCodebase branchCache []
 
 prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
 prepareTranscriptDir branchCache inFork mcodepath = do
