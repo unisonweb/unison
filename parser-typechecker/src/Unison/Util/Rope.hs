@@ -77,6 +77,7 @@ cons a0 as = case as of
     case size a0 + size a1 of
       n | n <= threshold -> One (a0 <> a1)
         | otherwise      -> Two n (One a0) (One a1)
+  Two _ _ (One _) -> two (One a0) as
   Two _ l r -> cons a0 l <> r
 
 snoc :: (Semigroup a, Sized a) => Rope a -> a -> Rope a
@@ -85,6 +86,7 @@ snoc as aN = case as of
   One a0 -> case size a0 + size aN of
     n | n <= threshold -> One (a0 <> aN)
       | otherwise      -> Two n (One a0) (One aN)
+  Two _ (One _) _ -> two as (One aN)
   Two _ l r -> l <> snoc r aN
 
 instance (Sized a, Index a ch) => Index (Rope a) ch where

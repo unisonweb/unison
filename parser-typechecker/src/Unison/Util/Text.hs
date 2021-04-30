@@ -99,6 +99,8 @@ toText t = Data.Text.concat (T.toText <$> unfoldr R.uncons t)
 toUtf8 :: Text -> B.Bytes
 toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
 
+-- todo: there's a more direct but fiddly implementation of this
+-- which doesn't go through strict bytestring
 fromUtf8 :: B.Bytes -> Maybe Text
 fromUtf8 bs = R.singleton <$>
   (T.fromByteString .
