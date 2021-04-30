@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b6fb5e0513e2332b458be9a249c65772c9d0b1fc0efc7732242597e073723b35
+-- hash: 55d5e8d2d6e3c011445b411e520e8d28138924b88e443f1df25712736d53754f
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -151,8 +151,10 @@ library
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
+      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.SyntaxText
+      Unison.Util.Text
       Unison.Util.Timing
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
@@ -234,6 +236,7 @@ library
     , temporary
     , terminal-size
     , text
+    , text-short
     , time
     , tls
     , transformers
