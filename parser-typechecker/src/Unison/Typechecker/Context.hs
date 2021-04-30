@@ -1501,7 +1501,9 @@ forcedData ty = Type.freeVars ty
 generalizeExistentials :: (Var v, Ord loc) => [Element v loc] -> Type v loc -> Type v loc
 generalizeExistentials ctx ty0 = generalizeP pred ctx ty
   where
-  ty = discardCovariant $ applyCtx ctx ty0
+  gens = Set.fromList $ mapMaybe (fmap snd . existentialP) ctx
+
+  ty = discardCovariant gens $ applyCtx ctx ty0
   fvs = Type.freeVars ty
 
   pred e
@@ -1666,9 +1668,9 @@ defaultAbility _ = pure False
 --
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
-discardCovariant :: Var v => Type v loc -> Type v loc
-discardCovariant ty | debugShow ("discardCovariant", ty) = undefined
-discardCovariant ty
+discardCovariant :: Var v => Set v -> Type v loc -> Type v loc
+discardCovariant _ ty | debugShow ("discardCovariant", ty) = undefined
+discardCovariant gens ty
   = ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
   keepVarsT pos (Type.Arrow' i o)
@@ -1684,7 +1686,7 @@ discardCovariant ty
   exi _ = mempty
 
   keepVarsE pos (Type.Var' (TypeVar.Existential _ v _))
-    | pos = mempty
+    | pos, v `Set.member` gens = mempty
     | otherwise = Set.singleton v
   keepVarsE pos e = keepVarsT pos e
 
