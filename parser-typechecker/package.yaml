@@ -193,6 +193,7 @@ library:
     - temporary
     - terminal-size
     - text
+    - text-short
     - time
     - tls
     - transformers
