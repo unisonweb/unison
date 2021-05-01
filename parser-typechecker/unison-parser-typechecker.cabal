@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d836e6a01f959984e28535698293e15253e3d1a57d0ac5a85a38ec33001b7ae9
+-- hash: 698f520d4a0ec6ddcafd574310fd44d7793c2c33e6f4e27b4e42950d6b7881d0
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -244,6 +244,7 @@ library
     , unison-core
     , unliftio
     , unliftio-core
+    , utf8-string
     , util
     , vector
     , wai

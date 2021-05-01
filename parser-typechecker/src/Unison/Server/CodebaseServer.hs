@@ -21,7 +21,9 @@ import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Lazy.UTF8 as BLU
 import Data.Foldable (Foldable (toList))
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo (..), appEndo)
 import Data.OpenApi
   ( Info (..),
@@ -54,8 +56,8 @@ import Options.Applicative
   ( auto,
     execParser,
     help,
-    long,
     info,
+    long,
     metavar,
     option,
     strOption,
@@ -77,7 +79,6 @@ import Servant.API
     type (:<|>) (..),
   )
 import Servant.API.Experimental.Auth (AuthProtect)
-import Servant.Auth.Server (throwAll)
 import Servant.Docs
   ( DocIntro (DocIntro),
     docsWithIntros,
@@ -100,6 +101,7 @@ import Servant.Server.Experimental.Auth
     mkAuthHandler,
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
+import System.Directory (doesFileExist)
 import System.Environment (lookupEnv)
 import System.FilePath.Posix ((</>))
 import System.Random.Stateful
@@ -305,21 +307,26 @@ startServer codebase k envToken envHost envPort envUI = do
         Right x  -> pure x
 
 serveIndex :: FilePath -> Handler RawHtml
-serveIndex path = fmap RawHtml . liftIO . Lazy.readFile $ path </> "index.html"
-
-serveUI :: Maybe FilePath -> Server WebUI
-serveUI = \case
-  Just path -> serveDirectoryWebApp (path </> "static") :<|> serveIndex path
-  Nothing   -> fail
+serveIndex path = do
+  let index = path </> "index.html"
+  exists <- liftIO $ doesFileExist index
+  if exists
+    then fmap RawHtml . liftIO . Lazy.readFile $ path </> "index.html"
+    else fail
  where
-  fail = throwAll $ err404
-    { errReasonPhrase =
-      "No codebase UI configured."
+  fail = throwError $ err404
+    { errBody =
+      BLU.fromString
+      $  "No codebase UI configured."
       <> " Set the "
       <> ucmUIVar
       <> " environment variable to the directory where the UI is installed."
     }
 
+serveUI :: Maybe FilePath -> Server WebUI
+serveUI p =
+  let path = fromMaybe "ui" p
+  in  serveDirectoryWebApp (path </> "static") :<|> serveIndex path
 
 server :: Var v => Codebase IO v Ann -> Maybe FilePath -> Server ServerAPI
 server codebase uiPath =

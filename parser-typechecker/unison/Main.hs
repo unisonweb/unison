@@ -190,10 +190,15 @@ main = do
     _ -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
       Server.start theCodebase $ \token port -> do
-        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
-        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
-          <> show port <> "?" <> URI.encode (unpack token)
-        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
+        PT.putPrettyLn $ P.lines
+          ["I've started the codebase API server at "
+          , P.string $ "http://127.0.0.1:" <> show port <> "/api?"
+            <> URI.encode (unpack token)]
+        PT.putPrettyLn $ P.lines
+          ["The Unison Codebase UI is running at"
+          , P.string $ "http://127.0.0.1:" <> show port <> "/ui?"
+            <> URI.encode (unpack token)]
+        PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
         launch currentDir config theCodebase branchCache []
 
 prepareTranscriptDir :: Branch.Cache IO -> Bool -> Maybe FilePath -> IO FilePath
