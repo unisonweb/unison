@@ -92,7 +92,7 @@ import Servant.Server
     ServerError (..),
     Tagged (Tagged),
     err401,
-    err500,
+    err404,
   )
 import Servant.Server.Experimental.Auth
   ( AuthHandler,
@@ -312,7 +312,7 @@ serveUI = \case
   Just path -> serveDirectoryWebApp (path </> "static") :<|> serveIndex path
   Nothing   -> fail
  where
-  fail = throwAll $ err500
+  fail = throwAll $ err404
     { errReasonPhrase =
       "No codebase UI configured."
       <> " Set the "
