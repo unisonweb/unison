@@ -1,3 +1,7 @@
+CREATE TABLE schema_version (
+  version INTEGER NOT NULL
+);
+
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
   id INTEGER PRIMARY KEY,

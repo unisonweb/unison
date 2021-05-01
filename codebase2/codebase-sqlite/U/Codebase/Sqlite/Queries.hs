@@ -127,7 +127,8 @@ checkForMissingSchema = filterM missing schema
     missing (t, n) = null @[] @(Only Int) <$> query sql (t, n)
     sql = "SELECT 1 FROM sqlite_master WHERE type = ? and name = ?"
     schema =
-      [ ("table", "hash"),
+      [ ("table", "schema_version"),
+        ("table", "hash"),
         ("index", "hash_base32"),
         ("table", "text"),
         ("table", "hash_object"),
