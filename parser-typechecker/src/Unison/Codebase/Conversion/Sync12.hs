@@ -35,6 +35,8 @@ import qualified Data.Set as Set
 import Data.Traversable (for)
 import Database.SQLite.Simple (Connection)
 import Debug.Trace (traceM)
+import System.IO (stdout)
+import System.IO.Extra (hFlush)
 import U.Codebase.Sqlite.DbId (Generation)
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
@@ -64,11 +66,10 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import Unison.UnisonFile (WatchKind)
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
-import System.IO (stdout)
-import System.IO.Extra (hFlush)
 
 debug :: Bool
 debug = False
@@ -82,6 +83,7 @@ data Env m a = Env
 data Entity m
   = C Branch.Hash (m (UnwrappedBranch m))
   | T Hash Reference.Size
+  | W WatchKind Reference.Id
   | D Hash Reference.Size
   | P Branch.EditHash
 
@@ -104,29 +106,36 @@ data TermStatus
   | TermMissing
   | TermMissingType
   | TermMissingDependencies
-  deriving Show
+  deriving (Show)
+
+data WatchStatus
+  = WatchOk
+  | WatchNotCached
+  | WatchMissingDependencies
+  deriving (Show)
 
 data DeclStatus
   = DeclOk
   | DeclMissing
   | DeclMissingDependencies
-  deriving Show
+  deriving (Show)
 
 data PatchStatus
   = PatchOk
   | PatchMissing
   | PatchReplaced Branch.EditHash
-  deriving Show
+  deriving (Show)
 
 data Status m = Status
   { _branchStatus :: Map Branch.Hash (BranchStatus m),
     _termStatus :: Map Hash TermStatus,
     _declStatus :: Map Hash DeclStatus,
-    _patchStatus :: Map Branch.EditHash PatchStatus
+    _patchStatus :: Map Branch.EditHash PatchStatus,
+    _watchStatus :: Map (WatchKind, Reference.Id) WatchStatus
   }
 
 emptyStatus :: Status m
-emptyStatus = Status mempty mempty mempty mempty
+emptyStatus = Status mempty mempty mempty mempty mempty
 
 makeLenses ''Status
 
@@ -190,6 +199,20 @@ trySync t _gc e = do
                 t $ Codebase.putTerm dest (Reference.Id h i n) term typ
               setTermStatus h TermOk
               pure Sync.Done
+    W k r ->
+      getWatchStatus k r >>= \case
+        Just {} -> pure Sync.PreviouslyDone
+        Nothing -> do
+          runExceptT (runValidateT (checkWatchComponent (lift . lift . t) k r)) >>= \case
+            Left status -> do
+              setWatchStatus k r status
+              pure Sync.NonFatalError
+            Right (Left deps) ->
+              pure . Sync.Missing $ Foldable.toList deps
+            Right (Right watchResult) -> do
+              t $ Codebase.putWatch dest k r watchResult
+              setWatchStatus k r WatchOk
+              pure Sync.Done
     D h n ->
       getDeclStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
@@ -229,6 +252,9 @@ getDeclStatus h = use (declStatus . at h)
 getPatchStatus :: S m n => Hash -> n (Maybe PatchStatus)
 getPatchStatus h = use (patchStatus . at h)
 
+getWatchStatus :: S m n => WatchKind -> Reference.Id -> n (Maybe WatchStatus)
+getWatchStatus w r = use (watchStatus . at (w, r))
+
 setTermStatus :: S m n => Hash -> TermStatus -> n ()
 setTermStatus h s = do
   when debug (traceM $ "setTermStatus " ++ take 10 (show h) ++ " " ++ show s)
@@ -244,10 +270,15 @@ setPatchStatus h s = do
   when debug (traceM $ "setPatchStatus " ++ take 10 (show h) ++ " " ++ show s)
   patchStatus . at h .= Just s
 
-setBranchStatus :: forall m n. S m n => Branch.Hash -> BranchStatus m -> n ()
+setBranchStatus :: S m n => Branch.Hash -> BranchStatus m -> n ()
 setBranchStatus h s = do
   when debug (traceM $ "setBranchStatus " ++ take 10 (show h) ++ " " ++ show s)
   branchStatus . at h .= Just s
+
+setWatchStatus :: S m n => WatchKind -> Reference.Id -> WatchStatus -> n ()
+setWatchStatus k r@(Reference.Id h i _) s = do
+  when debug (traceM $ "setWatchStatus " ++ show k ++ " " ++ take 10 (show h) ++ " " ++ show i)
+  watchStatus . at (k, r) .= Just s
 
 checkTermComponent ::
   forall m n a.
@@ -275,8 +306,11 @@ checkTermComponent t h n = do
                   Just _ -> Except.throwError TermMissingDependencies
                   Nothing -> Validate.dispute . Set.singleton $ D h' n'
             checkTerm = \case
-              Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _ _) | h == h' -> pure ()
+              Reference.Builtin {} ->
+                pure ()
+              Reference.DerivedId (Reference.Id h' _ _)
+                | h == h' ->
+                  pure () -- ignore self-references
               Reference.DerivedId (Reference.Id h' _ n') ->
                 getTermStatus h' >>= \case
                   Just TermOk -> pure ()
@@ -285,6 +319,40 @@ checkTermComponent t h n = do
         traverse_ (bitraverse_ checkDecl checkTerm . LD.toReference) termDeps
         traverse_ checkDecl typeDeps
         pure (term, typ)
+
+checkWatchComponent ::
+  forall m n a.
+  (RS m n a, V m n, E WatchStatus n) =>
+  (m ~> n) ->
+  WatchKind ->
+  Reference.Id ->
+  n (Term Symbol a)
+checkWatchComponent t k r@(Reference.Id h _ _) = do
+  Env src _ _ <- Reader.ask
+  (t $ Codebase.getWatch src k r) >>= \case
+    Nothing -> Except.throwError WatchNotCached
+    Just watchResult -> do
+      let deps = Term.labeledDependencies watchResult
+      let checkDecl = \case
+            Reference.Builtin {} -> pure ()
+            Reference.DerivedId (Reference.Id h' _ n') ->
+              getDeclStatus h' >>= \case
+                Just DeclOk -> pure ()
+                Just _ -> Except.throwError WatchMissingDependencies
+                Nothing -> Validate.dispute . Set.singleton $ D h' n'
+          checkTerm = \case
+            Reference.Builtin {} ->
+              pure ()
+            Reference.DerivedId (Reference.Id h' _ _)
+              | h == h' ->
+                pure () -- ignore self-references
+            Reference.DerivedId (Reference.Id h' _ n') ->
+              getTermStatus h' >>= \case
+                Just TermOk -> pure ()
+                Just _ -> Except.throwError WatchMissingDependencies
+                Nothing -> Validate.dispute . Set.singleton $ T h' n'
+      traverse_ (bitraverse_ checkDecl checkTerm . LD.toReference) deps
+      pure watchResult
 
 checkDeclComponent ::
   forall m n a.
@@ -498,21 +566,23 @@ data DoneCount = DoneCount
   { _doneBranches :: Int,
     _doneTerms :: Int,
     _doneDecls :: Int,
-    _donePatches :: Int
+    _donePatches :: Int,
+    _doneWatches :: Int
   }
 
 data ErrorCount = ErrorCount
   { _errorBranches :: Int,
     _errorTerms :: Int,
     _errorDecls :: Int,
-    _errorPatches :: Int
+    _errorPatches :: Int,
+    _errorWatches :: Int
   }
 
 emptyDoneCount :: DoneCount
-emptyDoneCount = DoneCount 0 0 0 0
+emptyDoneCount = DoneCount 0 0 0 0 0
 
 emptyErrorCount :: ErrorCount
-emptyErrorCount = ErrorCount 0 0 0 0
+emptyErrorCount = ErrorCount 0 0 0 0 0
 
 makeLenses ''DoneCount
 makeLenses ''ErrorCount
@@ -535,6 +605,7 @@ simpleProgress = Sync.Progress need done error allDone
         T {} -> _1 . doneTerms += 1
         D {} -> _1 . doneDecls += 1
         P {} -> _1 . donePatches += 1
+        W {} -> _1 . doneWatches += 1
       printProgress
 
     error e = do
@@ -544,11 +615,12 @@ simpleProgress = Sync.Progress need done error allDone
         T {} -> _2 . errorTerms += 1
         D {} -> _2 . errorDecls += 1
         P {} -> _2 . errorPatches += 1
+        W {} -> _2 . errorWatches += 1
       printProgress
 
     allDone :: MonadState (DoneCount, ErrorCount, Status m) n => MonadIO n => n ()
     allDone = do
-      Status branches terms decls patches <- Lens.use Lens._3
+      Status branches terms decls patches watches <- Lens.use Lens._3
       liftIO $ putStrLn "Finished."
       Foldable.for_ (Map.toList decls) \(h, s) -> case s of
         DeclOk -> pure ()
@@ -559,6 +631,10 @@ simpleProgress = Sync.Progress need done error allDone
         TermMissing -> liftIO . putStrLn $ "I couldn't find the  term " ++ show h ++ "so I filtered it out of the sync."
         TermMissingType -> liftIO . putStrLn $ "The type of term " ++ show h ++ " was missing, so I filtered it out of the sync."
         TermMissingDependencies -> liftIO . putStrLn $ "One or more dependencies of term " ++ show h ++ " were missing, so I filtered it out of the sync."
+      Foldable.for_ (Map.toList watches) \((k, r), s) -> case s of
+        WatchOk -> pure ()
+        WatchNotCached -> pure ()
+        WatchMissingDependencies -> liftIO . putStrLn $ "One or more dependencies of watch expression " ++ show (k, r) ++ " were missing, so I skipped it."
       Foldable.for_ (Map.toList patches) \(h, s) -> case s of
         PatchOk -> pure ()
         PatchMissing -> liftIO . putStrLn $ "I couldn't find the patch " ++ show h ++ ", so I filtered it out of the sync."
@@ -569,10 +645,11 @@ simpleProgress = Sync.Progress need done error allDone
 
     printProgress :: MonadState (ProgressState m) n => MonadIO n => n ()
     printProgress = do
-      (DoneCount b t d p, ErrorCount b' t' d' p', _) <- State.get
+      (DoneCount b t d p w, ErrorCount b' t' d' p' w', _) <- State.get
       let ways :: [Maybe String] =
             [ Monoid.whenM (b > 0 || b' > 0) (Just $ show (b + b') ++ " branches" ++ Monoid.whenM (b' > 0) (" (" ++ show b' ++ " repaired)")),
               Monoid.whenM (t > 0 || t' > 0) (Just $ show t ++ " terms" ++ Monoid.whenM (t' > 0) (" (" ++ show t' ++ " errors)")),
+              Monoid.whenM (w > 0 || w' > 0) (Just $ show w ++ " test results" ++ Monoid.whenM (w' > 0) (" (" ++ show w' ++ " errors)")),
               Monoid.whenM (d > 0 || d' > 0) (Just $ show d ++ " types" ++ Monoid.whenM (d' > 0) (" (" ++ show d' ++ " errors)")),
               Monoid.whenM (p > 0 || p' > 0) (Just $ show p ++ " patches" ++ Monoid.whenM (p' > 0) (" (" ++ show p' ++ " errors)"))
             ]
@@ -580,19 +657,15 @@ simpleProgress = Sync.Progress need done error allDone
         putStr $ "\rSynced " ++ List.intercalate ", " (catMaybes ways) ++ Monoid.whenM newlines "\n"
         hFlush stdout
 
-
 instance Show (Entity m) where
-  show = \case
-    C h _ -> "C " ++ show h
-    T h len -> "T " ++ show h ++ " " ++ show len
-    D h len -> "D " ++ show h ++ " " ++ show len
-    P h -> "P " ++ show h
+  show = show . toEntity'
 
 data Entity'
   = C' Branch.Hash
   | T' Hash
   | D' Hash
   | P' Branch.EditHash
+  | W' WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
 toEntity' :: Entity m -> Entity'
@@ -601,6 +674,7 @@ toEntity' = \case
   T h _ -> T' h
   D h _ -> D' h
   P h -> P' h
+  W k r -> W' k r
 
 instance Eq (Entity m) where
   x == y = toEntity' x == toEntity' y
