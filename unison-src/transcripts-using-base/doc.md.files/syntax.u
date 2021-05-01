@@ -164,7 +164,8 @@ This is an aside. {{ docAside {{ Some extra detail that doesn't belong in main t
 
 {{ 
   docTable 
-    [ [{{a}}, {{b}}, {{c}}]
+    [ [{{a}}, {{b}}, {{A longer paragraph that will split onto multiple lines, such
+                       that this row occupies multiple lines in the rendered table.}}]
     , [{{Some text}}, {{More text}}, {{ Zounds! }}] ] 
 }} 
 
