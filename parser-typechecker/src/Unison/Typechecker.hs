@@ -16,6 +16,7 @@ import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
 import           Control.Monad.Writer
 import qualified Data.Map                   as Map
+import qualified Data.Set                   as Set
 import qualified Data.Sequence.NonEmpty     as NESeq (toSeq)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
@@ -27,6 +28,7 @@ import qualified Unison.Result              as Result
 import           Unison.Term                (Term)
 import qualified Unison.Term                as Term
 import           Unison.Type                (Type)
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import           Unison.Var                 (Var)
@@ -176,7 +178,7 @@ data Resolution v loc =
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve
-  :: (Monad f, Var v, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
+  :: (Monad f, Var v, Monoid loc, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve env = do
   tm  <- get
   (tp, notes) <- listen . lift $ synthesize env tm
@@ -210,7 +212,7 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution
   :: forall v loc f
-   . (Monad f, Var v, Ord loc)
+   . (Monad f, Var v, Ord loc, Monoid loc)
   => Notes v loc
   -> Type v loc
   -> Env v loc
@@ -294,7 +296,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) [Context.Suggestion v loc]
   resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
-    case Context.isSubtype (TypeVar.liftType foundType) inferredType of
+    case Context.isSubtype (TypeVar.liftType foundType) (relax inferredType) of
       Left bug -> const [] <$> compilerBug bug
       -- Suggest the import if the type matches.
       Right b  -> pure
@@ -304,6 +306,32 @@ typeDirectedNameResolution oldNotes oldType env = do
             replace
             (if b then Context.Exact else Context.WrongType)
         ]
+
+  relax :: Context.Type v loc -> Context.Type v loc
+  relax t = relax' v t
+    where
+    fvs = foldMap f $ Type.freeVars t
+    f (TypeVar.Existential _ v _) = Set.singleton v
+    f _ = mempty
+    v = ABT.freshIn fvs $ Var.inferAbility
+
+  relax' :: v -> Context.Type v loc -> Context.Type v loc
+  relax' v t
+    | Type.Arrow' i o <- t = Type.arrow' i $ relax' v o
+    | Type.ForallsNamed' vs b <- t
+    = Type.foralls loc vs $ relax' v b
+    | Type.Effect' es r <- t
+    , Type.Arrow' i o <- r
+    = Type.effect loc es . Type.arrow' i $ relax' v o
+    | Type.Effect' es r <- t
+    , not $ any open es
+    = Type.effect loc (tv : es) r
+    | otherwise = t
+    where
+    open (Type.Var' (TypeVar.Existential{})) = True
+    open _ = False
+    loc = ABT.annotation t
+    tv = Type.var loc (TypeVar.Existential B.Blank v TypeVar.Invariant)
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
