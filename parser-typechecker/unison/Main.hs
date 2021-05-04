@@ -201,7 +201,7 @@ main = do
           , P.string $ "http://127.0.0.1:" <> show port <> "/ui?"
             <> URI.encode (unpack token)]
         PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
-        launch currentDir config theCodebase branchCache []
+        launch currentDir config theCodebase []
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
