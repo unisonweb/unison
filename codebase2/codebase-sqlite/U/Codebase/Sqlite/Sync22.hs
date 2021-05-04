@@ -50,7 +50,11 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 
-data Entity = O ObjectId | C CausalHashId deriving (Eq, Ord, Show)
+data Entity
+  = O ObjectId
+  | C CausalHashId
+  | W WK.WatchKind Sqlite.Reference.IdH
+  deriving (Eq, Ord, Show)
 
 data DbTag = SrcDb | DestDb
 
@@ -171,20 +175,8 @@ trySync tCache hCache oCache cCache _gc = \case
             -- copy reference-specific stuff
             lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
               -- sync watch results
-              for_ [WK.RegularWatch, WK.TestWatch] \wk -> do
-                let refH = Reference.Id hId idx
-                    refH' = Reference.Id hId' idx
-                runSrc (Q.loadWatch wk refH) >>= traverse_ \blob -> do
-                  (L.LocalIds tIds hIds, termBytes) <-
-                    case runGetS S.decomposeWatchResult blob of
-                      Right x -> pure x
-                      Left s -> throwError $ DecodeError ErrWatchResult blob s
-                  tIds' <- traverse syncTextLiteral tIds
-                  hIds' <- traverse syncHashLiteral hIds
-                  when debug $ traceM $ "LocalIds for Source watch result " ++ show refH ++ ": " ++ show (tIds, hIds)
-                  when debug $ traceM $ "LocalIds for Dest watch result " ++ show refH' ++ ": " ++ show (tIds', hIds')
-                  let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
-                  runDest (Q.saveWatch wk refH' blob')
+              for_ [WK.TestWatch] \wk ->
+                syncWatch wk (Reference.Id hId idx)
               -- sync dependencies index
               let ref = Reference.Id oId idx
                   ref' = Reference.Id oId' idx
@@ -290,6 +282,7 @@ trySync tCache hCache oCache cCache _gc = \case
             when debug $ traceM $ "Source " ++ show (hId, oId) ++ " becomes Dest " ++ show (hId', oId')
             Cache.insert oCache oId oId'
             pure Sync.Done
+  W k r -> ifM (syncWatch k r) (pure Sync.Done) (pure Sync.NonFatalError)
   where
     syncLocalObjectId :: ObjectId -> ValidateT (Set Entity) m ObjectId
     syncLocalObjectId oId =
@@ -334,6 +327,7 @@ trySync tCache hCache oCache cCache _gc = \case
       pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
 
     syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
+
     rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id
     rewriteTypeIndexReferent oId' = bimap (const oId') (const oId')
 
@@ -375,6 +369,25 @@ trySync tCache hCache oCache cCache _gc = \case
     findParents' chId = do
       srcParents <- runSrc $ Q.loadCausalParents chId
       traverse syncCausal srcParents
+
+    syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m Bool
+    syncWatch wk r = do
+      r' <- traverse syncHashLiteral r
+      doneKinds <- runDest (Q.loadWatchKindsByReference r')
+      if (wk `elem` doneKinds) then do
+        runSrc (Q.loadWatch wk r) >>= traverse \blob -> do
+          (L.LocalIds tIds hIds, termBytes) <-
+            case runGetS S.decomposeWatchResult blob of
+              Right x -> pure x
+              Left s -> throwError $ DecodeError ErrWatchResult blob s
+          tIds' <- traverse syncTextLiteral tIds
+          hIds' <- traverse syncHashLiteral hIds
+          when debug $ traceM $ "LocalIds for Source watch result " ++ show r ++ ": " ++ show (tIds, hIds)
+          when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show (tIds', hIds')
+          let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
+          runDest (Q.saveWatch wk r' blob')
+        pure True
+      else pure False
 
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')

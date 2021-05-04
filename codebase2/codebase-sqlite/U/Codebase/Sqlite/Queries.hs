@@ -24,9 +24,11 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
 import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+import qualified Control.Monad.Writer as Writer
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
+import Data.Int (Int8)
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
@@ -36,7 +38,7 @@ import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (..), (:.) (..))
 import qualified Database.SQLite.Simple as SQLite
-import Database.SQLite.Simple.FromField (FromField)
+import Database.SQLite.Simple.FromField (FromField (..))
 import Database.SQLite.Simple.ToField (ToField (..))
 import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
@@ -54,7 +56,6 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
-import qualified Control.Monad.Writer as Writer
 
 -- * types
 
@@ -437,9 +438,19 @@ loadWatch k r = queryAtom sql (Only k :. r) where sql = [here|
       AND watch.component_index = ?
   |]
 
-loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.Id]
+loadWatchKindsByReference :: DB m => Reference.IdH -> m [WatchKind]
+loadWatchKindsByReference r = queryAtoms sql r where sql = [here|
+    SELECT watch_kind_id FROM watch_result
+    INNER JOIN watch
+      ON watch_result.hash_id = watch.hash_id
+      AND watch_result.component_index = watch.component_index
+    WHERE watch.hash_id = ?
+      AND watch.component_index = ?
+  |]
+
+loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.IdH]
 loadWatchesByWatchKind k = query sql (Only k) where sql = [here|
-  SELECT object_id, component_index FROM watch WHERE watch_kind_id = ?
+  SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
 -- * Index-building
@@ -722,4 +733,10 @@ instance ToField WatchKind where
   toField = \case
     WatchKind.RegularWatch -> SQLite.SQLInteger 0
     WatchKind.TestWatch -> SQLite.SQLInteger 1
+
+instance FromField WatchKind where
+  fromField = fromField @Int8  <&> fmap \case
+    0 -> WatchKind.RegularWatch
+    1 -> WatchKind.TestWatch
+    tag -> error $ "Unknown WatchKind id " ++ show tag
 

@@ -240,6 +240,9 @@ c2sReferenceId = C.Reference.idH primaryHashToExistingObjectId
 s2cReferenceId :: EDB m => S.Reference.Id -> m C.Reference.Id
 s2cReferenceId = C.Reference.idH loadHashByObjectId
 
+h2cReferenceId :: EDB m => S.Reference.IdH -> m C.Reference.Id
+h2cReferenceId = C.Reference.idH loadHashByHashId
+
 h2cReference :: EDB m => S.ReferenceH -> m C.Reference
 h2cReference = bitraverse loadTextById loadHashByHashId
 
@@ -688,7 +691,7 @@ c2sTerm tm tp = c2xTerm Q.saveText primaryHashToExistingObjectId tm (Just tp) <&
 -- *** Watch expressions
 
 listWatches :: EDB m => WatchKind -> m [C.Reference.Id]
-listWatches k = Q.loadWatchesByWatchKind k >>= traverse s2cReferenceId
+listWatches k = Q.loadWatchesByWatchKind k >>= traverse h2cReferenceId
 
 -- | returns Nothing if the expression isn't cached.
 loadWatch :: EDB m => WatchKind -> C.Reference.Id -> MaybeT m (C.Term Symbol)

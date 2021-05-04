@@ -10,7 +10,7 @@ module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsa
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, when, (>=>), unless)
+import Control.Monad (filterM, unless, when, (>=>))
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM, (||^))
@@ -33,11 +33,13 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Traversable (for)
 import qualified Data.Validation as Validation
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import GHC.Stack (HasCallStack)
+import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
@@ -48,6 +50,7 @@ import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import qualified U.Codebase.Sync as Sync
+import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
 import qualified U.Util.Set as Set
@@ -95,7 +98,6 @@ import Unison.Util.Timing (time)
 import UnliftIO (MonadIO, catchIO, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import qualified System.Console.ANSI as ANSI
 
 debug, debugProcessBranches :: Bool
 debug = False
@@ -624,10 +626,9 @@ sqliteCodebase root = do
 
           appendReflog :: MonadIO m => Text -> Branch m -> Branch m -> m ()
           appendReflog reason old new =
-            let t =
-                  Reflog.toText $
-                    Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
-             in liftIO $ TextIO.appendFile (reflogPath root) (t <> "\n")
+            liftIO $ TextIO.appendFile (reflogPath root) (t <> "\n")
+            where
+              t = Reflog.toText $ Reflog.Entry (Branch.headHash old) (Branch.headHash new) reason
 
           reflogPath :: CodebasePath -> FilePath
           reflogPath root = root </> "reflog"
@@ -769,6 +770,9 @@ sqliteCodebase root = do
               let progress' = Sync.transformProgress (lift . lift) progress
                   bHash = Branch.headHash b
               se $ processBranches sync progress' src dest [B bHash (pure b)]
+              testWatchRefs <- lift . fmap concat $ for [WK.TestWatch] \wk ->
+                fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
+              se . r $ Sync.sync sync progress' testWatchRefs
             pure $ Validation.valueOr (error . show) result
 
       -- we don't currently have any good opportunity to call this sanity check;
