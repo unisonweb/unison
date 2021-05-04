@@ -542,7 +542,7 @@ table' rows = case maximum (Prelude.length <$> rows) of
   _ -> let
     colHd = [ h | (h:_) <- rows ]
     colTl = [ t | (_:t) <- rows ]
-    in align (colHd `zip` (("  " <>) <$> table' colTl))
+    in align (fmap (<> "  ") colHd `zip` (table' colTl))
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s

@@ -66,6 +66,7 @@ library:
     - hashtables
     - haskeline
     - http-types
+    - http-media
     - io-streams
     - lens
     - ListLike
@@ -82,6 +83,7 @@ library:
     - network-simple
     - nonempty-containers
     - openapi3
+    - optparse-applicative
     - pem
     - process
     - primitive
@@ -95,6 +97,7 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
+    - servant-auth-server
     - shellmet
     - split
     - stm
@@ -109,6 +112,7 @@ library:
     - transformers
     - unliftio
     - unliftio-core
+    - utf8-string
     - util
     - unicode-show
     - validation
