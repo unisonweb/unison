@@ -269,6 +269,35 @@ rename old new t0@(Term fvs ann t) =
       else abs' ann v (rename old new body)
     Tm v -> tm' ann (fmap (rename old new) v)
 
+renames
+  :: (Foldable f, Functor f, Var v)
+  => Map v v -> Term f v a -> Term f v a
+renames rn0 t0@(Term fvs ann t)
+  | Map.null rn = t0
+  | Var v <- t
+  , Just u <- Map.lookup v rn
+  = annotatedVar ann u
+  | Cycle body <- t
+  = cycle' ann (renames rn body)
+  | Abs v body <- t
+  , (u, rn) <- mangle (freeVars body) v rn
+  , not $ Map.null rn
+  = abs' ann u (renames rn body)
+  | Tm body <- t
+  = tm' ann (renames rn <$> body)
+  | otherwise = t0
+  where
+  rn = Map.restrictKeys rn0 fvs
+  mangle fvs v m
+    | any (==v) vs
+    , u <- freshIn (fvs <> Set.fromList vs) v
+    = (u, Map.insert v u m)
+    | otherwise = (v, Map.delete v m)
+    where
+    vs = toList m
+
+-- Note: this does not do capture-avoiding renaming. It actually
+-- renames bound variables using the map as well.
 changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
 changeVars m t = case out t of
   Abs v body -> case Map.lookup v m of
