@@ -35,6 +35,7 @@ import Unison.Runtime.MCode
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
+import qualified Unison.Builtin.Decls as Ty
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
@@ -298,22 +299,22 @@ instance ( ForeignConvention a
 instance ForeignConvention BufferMode where
   readForeign (i:us) bs ustk bstk
     = peekOff ustk i >>= \case
-        0 -> pure (us, bs, NoBuffering)
-        1 -> pure (us, bs, LineBuffering)
-        2 -> pure (us, bs, BlockBuffering Nothing)
-        3 -> fmap (BlockBuffering . Just)
+        t | t == Ty.bufferModeNoBufferingId -> pure (us, bs, NoBuffering)
+          | t == Ty.bufferModeLineBufferingId -> pure (us, bs, LineBuffering)
+          | t == Ty.bufferModeBlockBufferingId -> pure (us, bs, BlockBuffering Nothing)
+          | t == Ty.bufferModeSizedBlockBufferingId -> fmap (BlockBuffering . Just)
                <$> readForeign us bs ustk bstk
-        _ -> foreignCCError "BufferMode"
-  readForeign _ _ _ _ = foreignCCError "BufferMode"
+          | otherwise -> foreignCCError $ "BufferMode (unknown tag: " <> show t <> ")"
+  readForeign _ _ _ _ = foreignCCError $ "BufferMode (empty stack)"
   writeForeign ustk bstk bm = bump ustk >>= \ustk ->
     case bm of
-      NoBuffering -> (ustk,bstk) <$ poke ustk 0
-      LineBuffering -> (ustk,bstk) <$ poke ustk 1
-      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk 2
+      NoBuffering -> (ustk,bstk) <$ poke ustk Ty.bufferModeNoBufferingId
+      LineBuffering -> (ustk,bstk) <$ poke ustk Ty.bufferModeLineBufferingId
+      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk Ty.bufferModeBlockBufferingId
       BlockBuffering (Just n) -> do
         poke ustk n
         ustk <- bump ustk
-        (ustk,bstk) <$ poke ustk 3
+        (ustk,bstk) <$ poke ustk Ty.bufferModeSizedBlockBufferingId
 
 instance ForeignConvention [Closure] where
   readForeign us (i:bs) _ bstk
