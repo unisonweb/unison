@@ -80,21 +80,30 @@ testOpenClose _ =
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
     setBuffering handle1 (SizedBlockBuffering 1024)
+    setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs01
     setBuffering handle1 NoBuffering
+    setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs23
     setBuffering handle1 BlockBuffering
+    setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs45
     setBuffering handle1 LineBuffering
+    setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs67
     closeFile handle1
     check "file should be closed" (not (isFileOpen handle1))
 
     -- make sure the bytes have been written
     handle2 = openFile fooFile FileMode.Read
-    bs = getBytes handle2 4
-    check "bytes have been written" (bs == 0xs01234567)
+    check "bytes have been written" (getBytes handle2 4 == 0xs01234567)
     closeFile handle2
+
+    -- checking that ReadWrite mode works fine
+    handle3 = openFile fooFile FileMode.ReadWrite
+    check "bytes have been written" (getBytes handle3 4 == 0xs01234567)
+    closeFile handle3
+
     check "file should be closed" (not (isFileOpen handle1))
 
   runTest test
