@@ -735,32 +735,23 @@ seek'handle instr
   where
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> ANormal v
-get'buffering'output bu m n b =
+get'buffering'output :: forall v. Var v => v -> v -> ANormal v
+get'buffering'output bu n =
   TMatch bu . MatchSum  $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([], line))
-  , (2, ([], block'nothing))
-  , (3, ([UN], TAbs n block'n))
+  [ (c Ty.bufferModeNoBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeNoBufferingId) []))
+  , (c Ty.bufferModeLineBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeLineBufferingId) []))
+  , (c Ty.bufferModeBlockBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeBlockBufferingId) []))
+  , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n block'n))
   ]
   where
-  final = TCon Ty.optionalRef 1 [b]
-  block = TLetD b BX (TCon Ty.bufferModeRef 1 [m]) $ final
-
-  line
-    = TLetD b BX (TCon Ty.bufferModeRef 0 []) $ final
-  block'nothing
-    = TLetD m BX (TCon Ty.optionalRef 0 [])
-    $ block
-  block'n
-    = TLetD m BX (TCon Ty.optionalRef 1 [n])
-    $ block
+    c i = toEnum i
+    block'n = TCon Ty.bufferModeRef (c Ty.bufferModeSizedBlockBufferingId) [n]
 
 get'buffering :: ForeignOp
 get'buffering = inBx arg1 result
-              $ get'buffering'output result m n b
+              $ get'buffering'output result n
   where
-    (arg1, result, m, n, b) = fresh5
+    (arg1, result, n) = fresh3
 
 crypto'hash :: ForeignOp
 crypto'hash instr
