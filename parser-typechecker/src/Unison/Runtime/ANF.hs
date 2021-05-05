@@ -270,9 +270,9 @@ letFloater rec vbs e = do
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn.fst) vbs
   modify (\(cvs, ctx, dcmp) -> (cvs<>shvs, ctx, dcmp))
-  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
+  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.renames shadowMap b)) vbs
   modify (\(vs,ctx,dcmp) -> (vs, ctx ++ fvbs, dcmp))
-  pure $ ABT.changeVars shadowMap e
+  pure $ ABT.renames shadowMap e
   where
   rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
   rec' b = rec b
@@ -307,7 +307,7 @@ floater _   rec (Let1Named' v b e)
   | LamsNamed' vs bd <- b
   = Just $ rec bd
        >>= lamFloater (null $ ABT.freeVars b) b (Just v) a vs
-       >>= \lv -> rec $ ABT.changeVars (Map.singleton v lv) e
+       >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where a = ABT.annotation b
 
 floater top rec tm@(LamsNamed' vs bd)
