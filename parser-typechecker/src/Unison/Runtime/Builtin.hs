@@ -735,23 +735,41 @@ seek'handle instr
   where
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
-get'buffering'output :: forall v. Var v => v -> v -> ANormal v
-get'buffering'output bu n =
+{-
+set'buffering :: ForeignOp
+set'buffering instr
+  = ([BX,BX],)
+  . TAbss [handle, bmode]
+  . TMatch bmode . MatchData $ mapFromList
+    [ (c Ty.bufferModeNoBufferingId, u Ty.bufferModeNoBufferingId)
+    , (c Ty.bufferModeLineBufferingId, u Ty.bufferModeLineBufferingId)
+    , (c Ty.bufferModeBlockBufferingId, u Ty.bufferModeBlockBufferingId)
+    -- , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n2 block'n))
+    ]
+    where
+      u cid = TLetD tag UN (TLit (N cid)) (TFOp instr [handle, tag])
+      c i = toEnum i
+      (handle, bmode, tag) = fresh3
+-}
+
+get'buffering'output :: forall v. Var v => v -> v -> v -> ANormal v
+get'buffering'output bu n n2 =
   TMatch bu . MatchSum  $ mapFromList
   [ (c Ty.bufferModeNoBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeNoBufferingId) []))
   , (c Ty.bufferModeLineBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeLineBufferingId) []))
   , (c Ty.bufferModeBlockBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeBlockBufferingId) []))
-  , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n block'n))
+  , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n2 block'n))
   ]
   where
     c i = toEnum i
-    block'n = TCon Ty.bufferModeRef (c Ty.bufferModeSizedBlockBufferingId) [n]
+    block'n = TLetD n UN (TCon Ty.natRef 0 n2)
+            $ TCon Ty.bufferModeRef (c Ty.bufferModeSizedBlockBufferingId) [n]
 
 get'buffering :: ForeignOp
 get'buffering = inBx arg1 result
-              $ get'buffering'output result n
+              $ get'buffering'output result n n2
   where
-    (arg1, result, n) = fresh3
+    (arg1, result, n, n2) = fresh4
 
 crypto'hash :: ForeignOp
 crypto'hash instr
@@ -906,7 +924,7 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
         . TAbss [stack3]
-        . TLetD unit UN (TCon Ty.unitRef 0 [])
+        . TLetD unit UN (TCon Ty.unitRef 0 []) -- TODO dolio: should this be BX?
         $ TCon eitherReference 1 [unit])
   ]
 
