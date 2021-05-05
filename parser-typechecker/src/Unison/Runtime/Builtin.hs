@@ -32,7 +32,7 @@ import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
 import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.IOSource
+import Unison.Runtime.IOSource (ioFailureReference, tlsFailureReference, eitherReference, failureReference)
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -745,10 +745,10 @@ get'buffering'output bu m n b =
   ]
   where
   final = TCon Ty.optionalRef 1 [b]
-  block = TLetD b BX (TCon bufferModeReference 1 [m]) $ final
+  block = TLetD b BX (TCon Ty.bufferModeRef 1 [m]) $ final
 
   line
-    = TLetD b BX (TCon bufferModeReference 0 []) $ final
+    = TLetD b BX (TCon Ty.bufferModeRef 0 []) $ final
   block'nothing
     = TLetD m BX (TCon Ty.optionalRef 0 [])
     $ block
@@ -849,7 +849,7 @@ inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], A
 inBxIomr arg1 arg2 fm result cont instr
   = ([BX,BX],)
   . TAbss [arg1, arg2]
-  . unenum 4 arg2 ioModeReference fm
+  . unenum 4 arg2 Ty.fileModeRef fm
   $ TLetD result UN (TFOp instr [arg1, fm]) cont
 
 -- Output Shape -- these will represent different ways of translating
