@@ -154,14 +154,6 @@ main = do
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case restargs of
-    [] -> do
-      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
-      Server.start theCodebase $ \token port -> do
-        PT.putPrettyLn . P.string $ "I've started a codebase API server at "
-        PT.putPrettyLn . P.string $ "http://127.0.0.1:"
-          <> show port <> "?" <> URI.encode (unpack token)
-        PT.putPrettyLn' . P.string $ "Now starting the Unison Codebase Manager..."
-        launch currentDir config theCodebase []
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
@@ -198,8 +190,18 @@ main = do
       _                              -> runTranscripts cbInit True False mcodepath args'
     ["upgrade-codebase"] -> upgradeCodebase mcodepath
     _ -> do
-      PT.putPrettyLn (usage progName)
-      Exit.exitWith (Exit.ExitFailure 1)
+      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
+      Server.start theCodebase $ \token port -> do
+        PT.putPrettyLn $ P.lines
+          ["I've started the codebase API server at "
+          , P.string $ "http://127.0.0.1:" <> show port <> "/api?"
+            <> URI.encode (unpack token)]
+        PT.putPrettyLn $ P.lines
+          ["The Unison Codebase UI is running at"
+          , P.string $ "http://127.0.0.1:" <> show port <> "/ui?"
+            <> URI.encode (unpack token)]
+        PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
+        launch currentDir config theCodebase []
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =

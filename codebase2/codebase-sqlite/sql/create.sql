@@ -3,6 +3,7 @@
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
+INSERT INTO schema_version (version) VALUES (2);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (
@@ -80,6 +81,7 @@ CREATE INDEX object_type_id ON object(type_id);
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
   value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id),
+  commit_flag INTEGER NOT NULL DEFAULT 0,
   gc_generation INTEGER NOT NULL
 );
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
@@ -99,6 +101,14 @@ CREATE TABLE causal_parent (
 ) WITHOUT ROWID;
 CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
 CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);
+
+CREATE TABLE causal_metadata (
+  causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
+  metadata_object_id INTEGER NOT NULL REFERENCES object(id),
+  metadata_component_index INTEGER NOT NULL,
+  PRIMARY KEY (causal_id, metadata_object_id, metadata_component_index)
+);
+CREATE INDEX causal_metadata_causal_id ON causal_metadata(causal_id);
 
 -- associate old (e.g. v1) causal hashes with new causal hashes
 CREATE TABLE causal_old_hash (
