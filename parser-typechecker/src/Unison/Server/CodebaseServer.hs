@@ -14,7 +14,6 @@ import Control.Lens
   ( (&),
     (.~),
   )
-import Control.Monad (join)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -54,7 +53,10 @@ import Network.Wai.Handler.Warp
   )
 import Options.Applicative
   ( auto,
-    execParser,
+    defaultPrefs,
+    execParserPure,
+    getParseResult,
+    forwardOptions,
     help,
     info,
     long,
@@ -102,7 +104,7 @@ import Servant.Server.Experimental.Auth
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (doesFileExist)
-import System.Environment (lookupEnv)
+import System.Environment (getArgs, lookupEnv)
 import System.FilePath.Posix ((</>))
 import System.Random.Stateful
   ( getStdGen,
@@ -243,9 +245,10 @@ start codebase k = do
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
   envUI    <- lookupEnv ucmUIVar
+  args     <- getArgs
   let
     p =
-      startServer codebase k
+      (,,,)
         <$> (   (<|> envToken)
             <$> (  optional
                 .  strOption
@@ -275,7 +278,11 @@ start codebase k = do
                   "Path to codebase ui root"
                 )
             )
-  join . execParser $ info p mempty
+    mayOpts =
+      getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
+  case mayOpts of
+    Just (token, host, port, ui) -> startServer codebase k token host port ui
+    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
 
 startServer
   :: Var v
