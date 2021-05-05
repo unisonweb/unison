@@ -3,6 +3,8 @@
 ```ucm:hide
 .> builtins.merge
 .> builtins.mergeio
+.> load unison-src/transcripts-using-base/base.u
+.> add
 .> cd builtin
 ```
 
@@ -28,9 +30,9 @@ create a scratch directory which will automatically get cleaned up.
 
 ### Creating/Deleting/Renaming Directories
 
-Tests: createDirectory, 
-       isDirectory, 
-       fileExists, 
+Tests: createDirectory,
+       isDirectory,
+       fileExists,
        renameDirectory,
        deleteDirectory
 
@@ -77,7 +79,22 @@ testOpenClose _ =
     fooFile = tempDir ++ "/foo"
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
+    setBuffering handle1 (SizedBlockBuffering 1024)
+    putBytes handle1 0xs01
+    setBuffering handle1 NoBuffering
+    putBytes handle1 0xs23
+    setBuffering handle1 BlockBuffering
+    putBytes handle1 0xs45
+    setBuffering handle1 LineBuffering
+    putBytes handle1 0xs67
     closeFile handle1
+    check "file should be closed" (not (isFileOpen handle1))
+
+    -- make sure the bytes have been written
+    handle2 = openFile fooFile FileMode.Read
+    bs = getBytes handle2 4
+    check "bytes have been written" (bs == 0xs01234567)
+    closeFile handle2
     check "file should be closed" (not (isFileOpen handle1))
 
   runTest test
