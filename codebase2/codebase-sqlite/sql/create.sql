@@ -10,9 +10,21 @@ CREATE TABLE hash (
   id INTEGER PRIMARY KEY NOT NULL,
   -- this would be the full hash, represented as base32 instead of bytes,
   -- to optimize for looking them up by prefix.
-  base32 TEXT UNIQUE NOT NULL
+  base32 TEXT NOT NULL
 );
-CREATE INDEX hash_base32 ON hash(base32);
+-- Per https://sqlite.org/optoverview.html#the_like_optimization,
+-- we need COLLATE NOCASE to enable prefix scanning with `LIKE`.
+-- If we want LIKE to be case sensitive (defaults to no) then
+-- see that link.
+-- We want:
+    -- sqlite> explain query plan select id from hash where base32 like 'a1b2c3%'
+    -- QUERY PLAN
+    -- `--SEARCH TABLE hash USING COVERING INDEX hash_base32 (base32>? AND base32<?)
+-- Not:
+    -- sqlite> explain query plan select id from hash where base32 like 'a1b2c3%'
+    -- QUERY PLAN
+    -- `--SCAN TABLE hash
+CREATE INDEX hash_base32 ON hash(base32 COLLATE NOCASE);
 
 CREATE TABLE text (
   id INTEGER PRIMARY KEY NOT NULL,
@@ -36,15 +48,13 @@ CREATE TABLE hash_object (
   object_id INTEGER NOT NULL CONSTRAINT hash_object_fk2 REFERENCES object(id),
   hash_version INTEGER NOT NULL
 );
--- efficient look up of objects by hash
-CREATE INDEX hash_object_hash_id ON hash_object(hash_id);
 -- efficient lookup of hashes by objects
 CREATE INDEX hash_object_object_id ON hash_object(object_id);
 
 -- This table is just for diagnostic queries, not for normal ucm operation,
 -- by joining `ON object.type_id = object_type_description.id`
 CREATE TABLE object_type_description (
-  id INTEGER UNIQUE NOT NULL,
+  id INTEGER PRIMARY KEY NOT NULL,
   description TEXT UNIQUE NOT NULL
 );
 INSERT INTO object_type_description (id, description) VALUES
@@ -56,8 +66,8 @@ INSERT INTO object_type_description (id, description) VALUES
 
 -- `object` stores binary blobs that are uniquely identified by hash (alone).
 -- Within the database, objects (including terms, decls, namespaces) are primarily
--- referenced by their object_ids, not hash ids.  (The use of object_id-based
--- is meant to prove that the referenced object actually exists in the database,
+-- referenced by their object_ids, not hash ids.  (The use of object_id is
+-- meant to prove that the referenced object actually exists in the database,
 -- whereas if hash_ids were used, we could only prove that the hash was in the
 -- database.)
 -- The `hash_object` table allows us to associate multiple hashes to objects,
@@ -65,19 +75,18 @@ INSERT INTO object_type_description (id, description) VALUES
 -- The `primary_hash_id` tells us which one we'll use.
 CREATE TABLE object (
   id INTEGER PRIMARY KEY NOT NULL,
-  primary_hash_id INTEGER UNIQUE NOT NULL CONSTRAINT object_fk1 REFERENCES hash(id),
+  primary_hash_id INTEGER NOT NULL CONSTRAINT object_fk1 REFERENCES hash(id),
   type_id INTEGER NOT NULL CONSTRAINT object_fk2 REFERENCES object_type_description(id),
   bytes BLOB NOT NULL
 );
 -- look up objects by primary_hash_id.
-CREATE INDEX object_hash_id ON object(primary_hash_id);
+CREATE UNIQUE INDEX object_hash_id ON object(primary_hash_id);
+-- filter objects by
 CREATE INDEX object_type_id ON object(type_id);
 
 -- `causal` references value hash ids instead of value ids, in case you want
 -- to be able to drop values and keep just the causal spine.
--- This implementation keeps the hash of the dropped values, although I could
--- see an argument to drop them too and just use NULL, but I thought it better
--- to not lose their identities.
+-- `commit_flag` and `gc_generation` are basically unused at the moment.
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
   value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id),
@@ -87,13 +96,13 @@ CREATE TABLE causal (
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
 CREATE INDEX causal_gc_generation ON causal(gc_generation);
 
+-- We expect exactly 1 row, which we overwrite when we setRootNamespace.
 CREATE TABLE namespace_root (
-  -- a dummy pk because
-  -- id INTEGER PRIMARY KEY NOT NULL,
   causal_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT namespace_root_fk1 REFERENCES causal(self_hash_id)
 );
 
 -- LCA computations only need to look at this table
+-- A causal can have many parents, and a parent may be a parent to many causals.
 CREATE TABLE causal_parent (
   causal_id INTEGER NOT NULL CONSTRAINT causal_parent_fk1 REFERENCES causal(self_hash_id),
   parent_id INTEGER NOT NULL CONSTRAINT causal_parent_fk2 REFERENCES causal(self_hash_id),
@@ -102,12 +111,13 @@ CREATE TABLE causal_parent (
 CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
 CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);
 
+-- links reference.id to causals
 CREATE TABLE causal_metadata (
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
   metadata_object_id INTEGER NOT NULL REFERENCES object(id),
   metadata_component_index INTEGER NOT NULL,
   PRIMARY KEY (causal_id, metadata_object_id, metadata_component_index)
-);
+) WITHOUT ROWID;
 CREATE INDEX causal_metadata_causal_id ON causal_metadata(causal_id);
 
 -- associate old (e.g. v1) causal hashes with new causal hashes
@@ -140,9 +150,10 @@ INSERT INTO watch_kind_description (id, description) VALUES
   (1, "Test") -- will be synced
   ;
 
--- find type index uses hash-based references instead of component-based
--- references, because they may be arbitrary types, not just the head
--- types that are stored in the codebase.
+-- Related to the discussion at the `object` table, `find_type_index` indexes
+-- the types by hash-based references instead of object-based references, because
+-- they may be arbitrary types, not just the head types that are stored in the
+-- codebase.  The terms having these types are indexed by object-based referents.
 CREATE TABLE find_type_index (
   type_reference_builtin INTEGER NULL CONSTRAINT find_type_index_fk1 REFERENCES text(id),
   type_reference_hash_id INTEGER NULL CONSTRAINT find_type_index_fk2 REFERENCES hash(id),
@@ -192,6 +203,7 @@ CREATE INDEX find_type_mentions_index_type ON find_type_mentions_index (
   type_reference_component_index
 );
 
+-- dependents and dependencies are all in the codebase, so they use object-based references.
 CREATE TABLE dependents_index (
   dependency_builtin INTEGER NULL CONSTRAINT dependents_index_fk1 REFERENCES text(id),
   dependency_object_id INTEGER NULL CONSTRAINT dependents_index_fk2 REFERENCES object(id),
@@ -216,4 +228,11 @@ CREATE INDEX dependencies_by_dependent ON dependents_index (
   dependent_object_id,
   dependent_component_index
 )
--- semicolon intentionally omitted
+-- Semicolon intentionally omitted, for the same reason
+-- semicolons in comments will blow up codebase initialization.
+-- (oops, almost used a semicolon at the end of that last phrase!)
+-- Sqlite doesn't let us submit multiple statements in the same
+-- command, so we are using Haskell code to segment the statements
+-- by splitting on semicolons.  It doesn't know to ignore comments,
+-- though I guess that wouldn't be hard to implement.  Should have
+-- done it from the start.

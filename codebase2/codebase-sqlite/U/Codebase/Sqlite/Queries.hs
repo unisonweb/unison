@@ -131,7 +131,6 @@ checkForMissingSchema = filterM missing schema
         ("index", "hash_base32"),
         ("table", "text"),
         ("table", "hash_object"),
-        ("index", "hash_object_hash_id"),
         ("index", "hash_object_object_id"),
         ("table", "object_type_description"),
         ("table", "object"),
@@ -148,7 +147,14 @@ checkForMissingSchema = filterM missing schema
         ("table", "watch_result"),
         ("table", "watch"),
         ("index", "watch_kind"),
-        ("table", "watch_kind_description")
+        ("table", "watch_kind_description"),
+        ("table", "find_type_index"),
+        ("index", "find_type_index_type"),
+        ("table", "find_type_mentions_index"),
+        ("index", "find_type_mentions_index_type"),
+        ("table", "dependents_index"),
+        ("index", "dependents_by_dependency"),
+        ("index", "dependencies_by_dependent")
       ]
 
 {- ORMOLU_DISABLE -}
