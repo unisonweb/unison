@@ -513,7 +513,7 @@ normalizeSeqP p = p
 -- redundant names (like with the pattern u@v) into renamings.
 prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
 prepareAs (P.Unbound _) u = pure $ P.Var u
-prepareAs (P.As _ p) u = prepareAs p u <* (renameTo u =<< useVar)
+prepareAs (P.As _ p) u = (useVar >>= renameTo u) *> prepareAs p u
 prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
 prepareAs (P.Constructor _ r i ps) u = do
   P.Constructor u r i <$> traverse preparePattern ps
