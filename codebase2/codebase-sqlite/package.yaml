@@ -4,6 +4,9 @@ github: unisonweb/unison
 library:
   source-dirs: .
 
+extra-source-files:
+  - sql/*
+
 dependencies:
   - base
   - bytes

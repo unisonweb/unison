@@ -4,13 +4,15 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e1cd44afa84ce86b33e3573d3ec12f6238df82991290e25f9b13a65d5ad98b04
+-- hash: 08b634642723a41ec97773c7481d4d7af6a31e527b06c0e800001677e64a955d
 
 name:           unison-codebase-sqlite
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
+extra-source-files:
+    sql/create.sql
 
 source-repository head
   type: git

@@ -108,12 +108,10 @@ orError e = maybe (throwError e) pure
 type TypeHashReference = Reference' TextId HashId
 
 -- * main squeeze
-
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
-      <> List.splitOn ";" [hereFile|sql/create-index.sql|]
 
 setFlags :: DB m => m ()
 setFlags = execute_ "PRAGMA foreign_keys = ON;"
@@ -146,7 +144,7 @@ checkForMissingSchema = filterM missing schema
         ("table", "causal_parent"),
         ("index", "causal_parent_causal_id"),
         ("index", "causal_parent_parent_id"),
-        -- ,("table", "causal_old")
+        ("table", "causal_old_hash"),
         ("table", "watch_result"),
         ("table", "watch"),
         ("index", "watch_kind"),
