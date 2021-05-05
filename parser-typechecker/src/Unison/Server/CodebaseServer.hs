@@ -14,7 +14,6 @@ import Control.Lens
   ( (&),
     (.~),
   )
-import Control.Monad (join)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -54,7 +53,10 @@ import Network.Wai.Handler.Warp
   )
 import Options.Applicative
   ( auto,
-    execParser,
+    defaultPrefs,
+    execParserPure,
+    getParseResult,
+    forwardOptions,
     help,
     info,
     long,
@@ -102,7 +104,7 @@ import Servant.Server.Experimental.Auth
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (doesFileExist)
-import System.Environment (lookupEnv)
+import System.Environment (getArgs, lookupEnv)
 import System.FilePath.Posix ((</>))
 import System.Random.Stateful
   ( getStdGen,
@@ -141,15 +143,15 @@ instance MimeRender HTML RawHtml where
 type OpenApiJSON = "openapi.json"
   :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
 
-type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
+type DocAPI = AuthProtect "token-auth" :> (UnisonAPI :<|> OpenApiJSON :<|> Raw)
 
 type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
 
 type instance AuthServerData (AuthProtect "token-auth") = ()
 
-type WebUI = ("static" :> Raw) :<|> (Get '[HTML] RawHtml)
+type WebUI = ("static" :> Raw) :<|> (AuthProtect "token-auth" :> Get '[HTML] RawHtml)
 
-type ServerAPI = AuthProtect "token-auth" :> (("ui" :> WebUI) :<|> ("api" :> DocAPI))
+type ServerAPI = (("ui" :> WebUI) :<|> ("api" :> DocAPI))
 
 genAuthServerContext
   :: Strict.ByteString -> Context (AuthHandler Request ()': '[])
@@ -243,9 +245,10 @@ start codebase k = do
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
   envUI    <- lookupEnv ucmUIVar
+  args     <- getArgs
   let
     p =
-      startServer codebase k
+      (,,,)
         <$> (   (<|> envToken)
             <$> (  optional
                 .  strOption
@@ -275,7 +278,11 @@ start codebase k = do
                   "Path to codebase ui root"
                 )
             )
-  join . execParser $ info p mempty
+    mayOpts =
+      getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
+  case mayOpts of
+    Just (token, host, port, ui) -> startServer codebase k token host port ui
+    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
 
 startServer
   :: Var v
@@ -326,22 +333,20 @@ serveIndex path = do
 serveUI :: Maybe FilePath -> Server WebUI
 serveUI p =
   let path = fromMaybe "ui" p
-  in  serveDirectoryWebApp (path </> "static") :<|> serveIndex path
+  in  serveDirectoryWebApp (path </> "static") :<|> (\_ -> serveIndex path)
 
 server :: Var v => Codebase IO v Ann -> Maybe FilePath -> Server ServerAPI
 server codebase uiPath =
-  (\_ ->
-    serveUI uiPath
-      :<|> (    (    serveNamespace codebase
-                :<|> serveDefinitions codebase
-                :<|> serveFuzzyFind codebase
-                )
-           :<|> addHeader "*"
-           <$>  serveOpenAPI
-           :<|> Tagged serveDocs
-           )
-  )
-
+  serveUI uiPath
+    :<|> (\_ ->
+           (    serveNamespace codebase
+             :<|> serveDefinitions codebase
+             :<|> serveFuzzyFind codebase
+             )
+             :<|> addHeader "*"
+             <$>  serveOpenAPI
+             :<|> Tagged serveDocs
+         )
  where
   serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
   serveOpenAPI = pure openAPI
