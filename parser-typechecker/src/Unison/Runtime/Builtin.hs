@@ -940,7 +940,7 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
         . TAbss [stack3]
-        . TLetD unit UN (TCon Ty.unitRef 0 []) -- TODO dolio: should this be BX?
+        . TLetD unit BX (TCon Ty.unitRef 0 [])
         $ TCon eitherReference 1 [unit])
   ]
 
