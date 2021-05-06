@@ -36,7 +36,14 @@ import Data.Maybe (fromJust, fromMaybe)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
-import Database.SQLite.Simple (Connection, FromRow, Only (..), SQLData, ToRow (..), (:.) (..))
+import Database.SQLite.Simple
+  ( Connection,
+    FromRow,
+    Only (..),
+    SQLData,
+    ToRow (..),
+    (:.) (..),
+  )
 import qualified Database.SQLite.Simple as SQLite
 import Database.SQLite.Simple.FromField (FromField (..))
 import Database.SQLite.Simple.ToField (ToField (..))

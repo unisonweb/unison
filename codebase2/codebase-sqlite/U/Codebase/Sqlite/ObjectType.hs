@@ -4,7 +4,9 @@ import Database.SQLite.Simple.FromField (FromField(..))
 import Database.SQLite.Simple.ToField (ToField(..))
 import Database.SQLite.Simple (SQLData(SQLInteger))
 
--- |Don't reorder these, they are part of the database
+-- |Don't reorder these, they are part of the database,
+-- and the ToField and FromField implementation currently
+-- depends on the derived Enum implementation.
 data ObjectType
   = TermComponent -- 0
   | DeclComponent -- 1
