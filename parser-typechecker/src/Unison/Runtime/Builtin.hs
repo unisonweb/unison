@@ -1376,7 +1376,7 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
 
 declareForeigns :: Var v => FDecl v ()
 declareForeigns = do
-  declareForeign "IO.openFile.impl.v3" boxIomrToEFBox $
+  declareForeign "IO.openFile.impl.v4" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Text, n :: Int) ->
       let fname = (unpack fnameText)
           mode = case n of
@@ -1398,10 +1398,10 @@ declareForeigns = do
     -- TODO: truncating integer
     . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
 
-  declareForeign "IO.getBuffering.impl.v3" get'buffering
+  declareForeign "IO.getBuffering.impl.v4" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.impl.v3" set'buffering
+  declareForeign "IO.setBuffering.impl.v4" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n

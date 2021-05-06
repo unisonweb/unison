@@ -508,15 +508,15 @@ hashBuiltins =
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile.impl.v3", text --> fmode --> iof handle)
+  [ ("IO.openFile.impl.v4", text --> fmode --> iof handle)
   , ("IO.closeFile.impl.v3", handle --> iof unit)
   , ("IO.isFileEOF.impl.v3", handle --> iof boolean)
   , ("IO.isFileOpen.impl.v3", handle --> iof boolean)
   , ("IO.isSeekable.impl.v3", handle --> iof boolean)
   , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
   , ("IO.handlePosition.impl.v3", handle --> iof nat)
-  , ("IO.getBuffering.impl.v3", handle --> iof bmode)
-  , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
+  , ("IO.getBuffering.impl.v4", handle --> iof bmode)
+  , ("IO.setBuffering.impl.v4", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
