@@ -12,6 +12,7 @@ CREATE TABLE hash (
   -- to optimize for looking them up by prefix.
   base32 TEXT NOT NULL
 );
+CREATE UNIQUE INDEX hash_base32 ON hash(base32 COLLATE NOCASE);
 -- Per https://sqlite.org/optoverview.html#the_like_optimization,
 -- we need COLLATE NOCASE to enable prefix scanning with `LIKE`.
 -- If we want LIKE to be case sensitive (defaults to no) then
@@ -24,7 +25,6 @@ CREATE TABLE hash (
     -- sqlite> explain query plan select id from hash where base32 like 'a1b2c3%'
     -- QUERY PLAN
     -- `--SCAN TABLE hash
-CREATE INDEX hash_base32 ON hash(base32 COLLATE NOCASE);
 
 CREATE TABLE text (
   id INTEGER PRIMARY KEY NOT NULL,
