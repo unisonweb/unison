@@ -96,8 +96,31 @@ testOpenClose _ =
     fooFile = tempDir ++ "/foo"
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
-    putBytes handle1 (0xs09824357892394085238904578920345)
+    setBuffering handle1 (SizedBlockBuffering 1024)
+    setBuffering handle1 (getBuffering handle1)
+    putBytes handle1 0xs01
+    setBuffering handle1 NoBuffering
+    setBuffering handle1 (getBuffering handle1)
+    putBytes handle1 0xs23
+    setBuffering handle1 BlockBuffering
+    setBuffering handle1 (getBuffering handle1)
+    putBytes handle1 0xs45
+    setBuffering handle1 LineBuffering
+    setBuffering handle1 (getBuffering handle1)
+    putBytes handle1 0xs67
     closeFile handle1
+    check "file should be closed" (not (isFileOpen handle1))
+
+    -- make sure the bytes have been written
+    handle2 = openFile fooFile FileMode.Read
+    check "bytes have been written" (getBytes handle2 4 == 0xs01234567)
+    closeFile handle2
+
+    -- checking that ReadWrite mode works fine
+    handle3 = openFile fooFile FileMode.ReadWrite
+    check "bytes have been written" (getBytes handle3 4 == 0xs01234567)
+    closeFile handle3
+
     check "file should be closed" (not (isFileOpen handle1))
 
   runTest test
@@ -127,8 +150,11 @@ testOpenClose _ =
   
   ◉ testOpenClose   file should be open
   ◉ testOpenClose   file should be closed
+  ◉ testOpenClose   bytes have been written
+  ◉ testOpenClose   bytes have been written
+  ◉ testOpenClose   file should be closed
   
-  ✅ 2 test(s) passing
+  ✅ 5 test(s) passing
   
   Tip: Use view testOpenClose to view the source of a test.
 
