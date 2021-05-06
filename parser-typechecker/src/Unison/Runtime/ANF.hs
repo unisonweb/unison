@@ -55,7 +55,7 @@ module Unison.Runtime.ANF
   , packTags
   , unpackTags
   , ANFM
-  , Branched(..)
+  , Branched(.., MatchDataCover)
   , Func(..)
   , superNormalize
   , anfTerm
@@ -684,6 +684,9 @@ data Branched e
   | MatchSum (EnumMap Word64 ([Mem], e))
   deriving (Show, Functor, Foldable, Traversable)
 
+-- Data cases expected to cover all constructors
+pattern MatchDataCover r m = MatchData r m Nothing
+
 data BranchAccum v
   = AccumEmpty
   | AccumIntegral
@@ -1033,7 +1036,7 @@ anfBlock (If' c t f) = do
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
   (d, tmr) <- anfTerm r
-  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+  let tree = TMatch vl . MatchDataCover Ty.booleanRef
            $ mapFromList
            [ (0, ([], fls))
            , (1, ([], tmr))
@@ -1042,7 +1045,7 @@ anfBlock (And' l r) = do
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
   (d, tmr) <- anfTerm r
-  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+  let tree = TMatch vl . MatchDataCover Ty.booleanRef
            $ mapFromList
            [ (1, ([], tru))
            , (0, ([], tmr))
@@ -1104,9 +1107,8 @@ anfBlock (Match' scrut cas) = do
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
     AccumIntegral r df cs -> do
       i <- fresh
-      let dcs = MatchData r
+      let dcs = MatchDataCover r
                   (EC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
-                  Nothing
           ics = TMatch i $ MatchIntegral cs df
       pure (sctx <> cx, pure $ TMatch v dcs)
     AccumData r df cs ->
@@ -1121,13 +1123,12 @@ anfBlock (Match' scrut cas) = do
       pure ( sctx <> cx
                <> (Indirect (), [ST1 (Indirect b) r BX (TCom op [v])])
            , pure . TMatch r
-           $ MatchData Ty.seqViewRef
+           $ MatchDataCover Ty.seqViewRef
                (EC.mapFromList
                   [ (0, ([], em))
                   , (1, ([BX,BX], bd))
                   ]
                )
-               Nothing
            )
     AccumSeqView {} ->
       error "anfBlock: non-exhaustive AccumSeqView"

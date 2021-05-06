@@ -735,41 +735,57 @@ seek'handle instr
   where
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
-{-
+no'buf, line'buf, block'buf, sblock'buf :: Enum e => e
+no'buf = toEnum Ty.bufferModeNoBufferingId
+line'buf = toEnum Ty.bufferModeLineBufferingId
+block'buf = toEnum Ty.bufferModeBlockBufferingId
+sblock'buf = toEnum Ty.bufferModeSizedBlockBufferingId
+
+infixr 0 -->
+(-->) :: a -> b -> (a, b)
+x --> y = (x, y)
+
 set'buffering :: ForeignOp
 set'buffering instr
   = ([BX,BX],)
   . TAbss [handle, bmode]
-  . TMatch bmode . MatchData $ mapFromList
-    [ (c Ty.bufferModeNoBufferingId, u Ty.bufferModeNoBufferingId)
-    , (c Ty.bufferModeLineBufferingId, u Ty.bufferModeLineBufferingId)
-    , (c Ty.bufferModeBlockBufferingId, u Ty.bufferModeBlockBufferingId)
-    -- , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n2 block'n))
-    ]
-    where
-      u cid = TLetD tag UN (TLit (N cid)) (TFOp instr [handle, tag])
-      c i = toEnum i
-      (handle, bmode, tag) = fresh3
--}
-
-get'buffering'output :: forall v. Var v => v -> v -> v -> ANormal v
-get'buffering'output bu n n2 =
-  TMatch bu . MatchSum  $ mapFromList
-  [ (c Ty.bufferModeNoBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeNoBufferingId) []))
-  , (c Ty.bufferModeLineBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeLineBufferingId) []))
-  , (c Ty.bufferModeBlockBufferingId, ([], TCon Ty.bufferModeRef (c Ty.bufferModeBlockBufferingId) []))
-  , (c Ty.bufferModeSizedBlockBufferingId, ([UN], TAbs n2 block'n))
+  . TMatch bmode . MatchDataCover Ty.bufferModeRef $ mapFromList
+  [ no'buf --> [] --> k1 no'buf
+  , line'buf --> [] --> k1 line'buf
+  , block'buf --> [] --> k1 block'buf
+  , sblock'buf --> [BX] -->
+      TAbs n . TMatch n . MatchDataCover Ty.bufferModeRef $ mapFromList
+      [ 0 --> [UN] -->
+            TAbs w
+          . TLetD tag UN (TLit (N sblock'buf))
+          $ k2 [tag,w]
+      ]
   ]
   where
-    c i = toEnum i
-    block'n = TLetD n UN (TCon Ty.natRef 0 n2)
-            $ TCon Ty.bufferModeRef (c Ty.bufferModeSizedBlockBufferingId) [n]
+  k1 num = TLetD tag UN (TLit (N num))
+         $ k2 [tag]
+  k2 args = TLetD r UN (TFOp instr (handle:args))
+          $ outIoFailUnit s1 s2 s3 u f r
+  (handle,bmode,tag,n,w,s1,s2,s3,u,f,r) = fresh11
+
+get'buffering'output :: forall v. Var v => v -> v -> v -> ANormal v
+get'buffering'output bu n w =
+  TMatch bu . MatchSum  $ mapFromList
+  [ no'buf --> [] --> TCon Ty.bufferModeRef no'buf []
+  , line'buf --> [] --> TCon Ty.bufferModeRef line'buf []
+  , block'buf --> [] --> TCon Ty.bufferModeRef block'buf []
+  , sblock'buf --> [UN] -->
+        TAbs w
+      . TLetD n BX (TCon Ty.natRef 0 [w])
+      $ TCon Ty.bufferModeRef sblock'buf [n]
+  ]
 
 get'buffering :: ForeignOp
-get'buffering = inBx arg1 result
-              $ get'buffering'output result n n2
+get'buffering
+  = inBx arg1 result
+  $ get'buffering'output result n n2
   where
-    (arg1, result, n, n2) = fresh4
+  (arg1, result, n, n2) = fresh4
 
 crypto'hash :: ForeignOp
 crypto'hash instr
@@ -1385,7 +1401,7 @@ declareForeigns = do
   declareForeign "IO.getBuffering.impl.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.impl.v3" boxBoxToEF0
+  declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
