@@ -145,6 +145,33 @@ test> Nat.tests.conversions =
 .> add
 ```
 
+## `Boolean` functions
+```unison:hide
+test> Boolean.tests.orTable =
+      checks [
+        true || true == true,
+        true || false == true,
+        false || true == true,
+        false || false == false
+      ]
+test> Boolean.tests.andTable =
+      checks [
+        true && true == true,
+        false && true == false,
+        true && false == false,
+        false && false == false
+      ]
+test> Boolean.tests.notTable =
+      checks [
+        not true == false,
+        not false == true
+      ]
+```
+
+```ucm:hide
+.> add
+```
+
 ## `Text` functions
 
 ```unison:hide

@@ -1016,7 +1016,7 @@ anfHandled body = anfBlock body >>= \case
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
-tru = TCon Ty.booleanRef 0 []
+tru = TCon Ty.booleanRef 1 []
 
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, DNormal v)
 anfBlock (Var' v) = pure (mempty, pure $ TVar v)

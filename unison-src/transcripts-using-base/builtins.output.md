@@ -137,6 +137,29 @@ test> Nat.tests.conversions =
         ]
 ```
 
+## `Boolean` functions
+```unison
+test> Boolean.tests.orTable =
+      checks [
+        true || true == true,
+        true || false == true,
+        false || true == true,
+        false || false == false
+      ]
+test> Boolean.tests.andTable =
+      checks [
+        true && true == true,
+        false && true == false,
+        true && false == false,
+        false && false == false
+      ]
+test> Boolean.tests.notTable =
+      checks [
+        not true == false,
+        not false == true
+      ]
+```
+
 ## `Text` functions
 
 ```unison
@@ -224,6 +247,9 @@ Now that all the tests have been added to the codebase, let's view the test repo
   
   ◉ Any.test1                   Passed
   ◉ Any.test2                   Passed
+  ◉ Boolean.tests.andTable      Passed
+  ◉ Boolean.tests.notTable      Passed
+  ◉ Boolean.tests.orTable       Passed
   ◉ Bytes.tests.at              Passed
   ◉ Int.tests.arithmetic        Passed
   ◉ Int.tests.bitTwiddling      Passed
@@ -235,7 +261,7 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Text.tests.repeat           Passed
   ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 12 test(s) passing
+  ✅ 15 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 
