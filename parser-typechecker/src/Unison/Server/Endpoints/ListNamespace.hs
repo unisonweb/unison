@@ -154,11 +154,12 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serveNamespace
   :: Var v
-  => Codebase IO v Ann
+  => Handler ()
+  -> Codebase IO v Ann
   -> Maybe HashQualifiedName
   -> Handler NamespaceListing
-serveNamespace codebase mayHQN = case mayHQN of
-  Nothing  -> serveNamespace codebase $ Just "."
+serveNamespace tryAuth codebase mayHQN = tryAuth *> case mayHQN of
+  Nothing  -> serveNamespace tryAuth codebase $ Just "."
   Just hqn -> do
     parsedName <- parseHQN hqn
     hashLength <- liftIO $ Codebase.hashLength codebase
