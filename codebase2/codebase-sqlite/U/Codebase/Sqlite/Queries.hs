@@ -321,9 +321,9 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
 saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
-saveCausal self value = execute sql (self, value, Generation 0) where sql = [here|
-  INSERT INTO causal (self_hash_id, value_hash_id, gc_generation)
-  VALUES (?, ?, ?)
+saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
+  INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
+  VALUES (?, ?, ?, ?)
   ON CONFLICT DO NOTHING
 |]
 
