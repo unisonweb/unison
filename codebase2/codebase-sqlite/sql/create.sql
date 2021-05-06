@@ -120,12 +120,6 @@ CREATE TABLE causal_metadata (
 ) WITHOUT ROWID;
 CREATE INDEX causal_metadata_causal_id ON causal_metadata(causal_id);
 
--- associate old (e.g. v1) causal hashes with new causal hashes
-CREATE TABLE causal_old_hash (
-  old_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_old_fk1 REFERENCES hash(id),
-  new_hash_id INTEGER NOT NULL CONSTRAINT causal_old_fk2 REFERENCES hash(id)
-);
-
 CREATE TABLE watch_result (
   hash_id INTEGER NOT NULL CONSTRAINT watch_result_fk1 REFERENCES hash(id),
   component_index INTEGER NOT NULL,

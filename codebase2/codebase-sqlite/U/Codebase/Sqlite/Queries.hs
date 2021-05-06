@@ -44,7 +44,16 @@ import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
 import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
 import U.Codebase.Reference (Reference')
-import U.Codebase.Sqlite.DbId (BranchHashId (..), BranchObjectId (..), CausalHashId (..), CausalOldHashId, Generation (..), HashId (..), ObjectId (..), TextId)
+import U.Codebase.Sqlite.DbId
+  ( BranchHashId (..),
+    BranchObjectId (..),
+    CausalHashId (..),
+    Committed (..),
+    Generation (..),
+    HashId (..),
+    ObjectId (..),
+    TextId,
+  )
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -85,7 +94,6 @@ data Integrity
   | UnknownTextId TextId
   | UnknownObjectId ObjectId
   | UnknownCausalHashId CausalHashId
-  | UnknownCausalOldHashId CausalOldHashId
   | UnknownHash Hash
   | UnknownText Text
   | NoObjectForHashId HashId
@@ -143,7 +151,6 @@ checkForMissingSchema = filterM missing schema
         ("table", "causal_parent"),
         ("index", "causal_parent_causal_id"),
         ("index", "causal_parent_parent_id"),
-        ("table", "causal_old_hash"),
         ("table", "watch_result"),
         ("table", "watch"),
         ("index", "watch_kind"),
@@ -359,26 +366,6 @@ loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id) where sql = [here|
   SELECT object_id FROM hash_object
   INNER JOIN causal ON hash_id = causal.value_hash_id
   WHERE causal.self_hash_id = ?
-|]
-
-saveCausalOld :: DB m => HashId -> CausalHashId -> m ()
-saveCausalOld v1 v2 = execute sql (v1, v2) where sql = [here|
-  INSERT INTO causal_old (old_hash_id, new_hash_id) VALUES (?, ?)
-  ON CONFLICT DO NOTHING
-|]
-
-loadCausalHashIdByCausalOldHash :: EDB m => CausalOldHashId -> m CausalHashId
-loadCausalHashIdByCausalOldHash id =
-  queryAtom sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
-  SELECT new_hash_id FROM causal_old where old_hash_id = ?
-|]
-
-loadOldCausalValueHash :: EDB m => CausalOldHashId -> m BranchHashId
-loadOldCausalValueHash id =
- queryAtom sql (Only id) >>= orError (UnknownCausalOldHashId id) where sql = [here|
-  SELECT value_hash_id FROM causal
-  INNER JOIN causal_old ON self_hash_id = new_hash_id
-  WHERE old_hash_id = ?
 |]
 
 saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
