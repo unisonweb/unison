@@ -5,12 +5,35 @@ The v2 codebase format is a sqlite3 database with some Unison objects stored rel
 There are a few important concepts for understanding the implementation.
 
 **The `hash` and `text` tables**
+
+```sql
+CREATE TABLE hash (
+  id INTEGER PRIMARY KEY NOT NULL,
+  base32 TEXT UNIQUE NOT NULL COLLATE NOCASE
+);
+```
+
 `hash` stores Unison hashes in base32hex format. It is indexed to let us look up hashes efficiently by case-insensitive prefix in log time.  Hashes are not stored anywhere else in the database.
+
+```sql
+CREATE TABLE text (
+  id INTEGER PRIMARY KEY NOT NULL,
+  text TEXT UNIQUE NOT NULL
+);
+```
 
 `text` stores all of the strings in the codebase. This includes definition names, internal names of ucm builtins, and user-defined strings. Though it doesn't include local variable definition names. Possibly an oversight. 😬  It is indexed to let us look up strings by exact match in logarithmic time, for deduplication purposes. Indeed, it does not contain any duplicates.
 
 **The `object` table**
 
+```sql
+CREATE TABLE object (
+  id INTEGER PRIMARY KEY NOT NULL,
+  primary_hash_id INTEGER NOT NULL REFERENCES hash(id),
+  type_id INTEGER NOT NULL REFERENCES object_type_description(id),
+  bytes BLOB NOT NULL
+);
+```
 The object table stores things that are identified by hash and represented with binary blobs instead of relationally.  Currently that includes patches and namespace slices, along with term and decl components ("component" ambiguously meaning the whole cycle, a strongly-connected component of definitions).  Note that the entire component is identified by a single hash, like patches and namespace slices are.  There could be new object types in the future.  The object type of each object is given by the `type_id` field. (It's an integer, but the description is given in the `object_type_description` table for convenience, and in `ObjectType.hs`.)
 
 **The `causal` and `causal_parents` tables**
