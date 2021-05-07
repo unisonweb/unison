@@ -27,12 +27,6 @@ toByteString :: Base32Hex -> ByteString
 toByteString = fromMaybe err . textToByteString . toText
   where err = "invalid base32Hex presumably created via \"unsafe\" constructors"
 
-fromText :: Text -> Maybe Base32Hex
-fromText = fmap fromByteString . textToByteString
-
-unsafeFromText :: Text -> Base32Hex
-unsafeFromText = UnsafeBase32Hex
-
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 textToByteString :: Text -> Maybe ByteString
 textToByteString txt =

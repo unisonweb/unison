@@ -58,11 +58,6 @@ rmap f = ABT.transform \case
   Ref r -> Ref (f r)
   x -> unsafeCoerce x
 
-rtraverse :: (Monad g, Ord v) => (r -> g r') -> ABT.Term (F' r) v a -> g (ABT.Term (F' r') v a)
-rtraverse g = ABT.transformM \case
-  Ref r -> Ref <$> g r
-  x -> pure $ unsafeCoerce x
-
 typeD2T :: Ord v => Hash -> TypeD v -> TypeT v
 typeD2T h = rmap $ bimap id $ Maybe.fromMaybe h
 

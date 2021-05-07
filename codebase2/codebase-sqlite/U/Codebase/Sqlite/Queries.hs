@@ -17,8 +17,8 @@
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries where
 
-import Control.Monad (filterM, when)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import Control.Monad (when)
+import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
@@ -40,7 +40,6 @@ import Database.SQLite.Simple
   ( Connection,
     FromRow,
     Only (..),
-    SQLData,
     ToRow (..),
     (:.) (..),
   )
@@ -101,7 +100,6 @@ data Integrity
   | UnknownObjectId ObjectId
   | UnknownCausalHashId CausalHashId
   | UnknownHash Hash
-  | UnknownText Text
   | NoObjectForHashId HashId
   | NoObjectForPrimaryHashId HashId
   | NoNamespaceRoot
@@ -110,13 +108,6 @@ data Integrity
   | MultipleSchemaVersions [SchemaVersion]
   | NoTypeIndexForTerm Referent.Id
   deriving (Show)
-
--- | discard errors that you're sure are impossible
-noExcept :: (Monad m, Show e) => ExceptT e m a -> m a
-noExcept a =
-  runExceptT a >>= \case
-    Right a -> pure a
-    Left e -> error $ "unexpected error: " ++ show e
 
 orError :: Err m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure
@@ -188,9 +179,6 @@ saveText t = execute sql (Only t) >> queryOne (loadText t)
 loadText :: DB m => Text -> m (Maybe TextId)
 loadText t = queryAtom sql (Only t)
   where sql = [here| SELECT id FROM text WHERE text = ? |]
-
-expectText :: EDB m => Text -> m TextId
-expectText t = loadText t >>= orError (UnknownText t)
 
 loadTextById :: EDB m => TextId -> m Text
 loadTextById h = queryAtom sql (Only h) >>= orError (UnknownTextId h)
@@ -265,21 +253,6 @@ loadPrimaryHashByObjectId oId = queryAtom sql (Only oId) >>= orError (UnknownObj
   FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
   WHERE object.id = ?
 |]
-
-objectAndPrimaryHashByAnyHash :: EDB m => Base32Hex -> m (Maybe (Base32Hex, ObjectId))
-objectAndPrimaryHashByAnyHash h = runMaybeT do
-  hashId <- MaybeT $ loadHashId h -- hash may not exist
-  oId <- MaybeT $ maybeObjectIdForAnyHashId hashId -- hash may not correspond to any object
-  base32 <- loadPrimaryHashByObjectId oId
-  pure (base32, oId)
-
-objectExistsWithHash :: DB m => Base32Hex -> m Bool
-objectExistsWithHash h = queryExists sql (Only h) where
-  sql = [here|
-    SELECT 1
-    FROM hash INNER JOIN hash_object ON hash.id = hash_object.hash_id
-    WHERE base32 = ?
-  |]
 
 hashIdsForObject :: DB m => ObjectId -> m (NonEmpty HashId)
 hashIdsForObject oId = do
@@ -602,10 +575,6 @@ queryAtom q r = fmap fromOnly <$> queryMaybe q r
 -- | Just output
 queryOne :: Functor f => f (Maybe b) -> f b
 queryOne = fmap fromJust
-
--- | composite input, Boolean output
-queryExists :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m Bool
-queryExists q r = not . null . map (id @SQLData) <$> queryAtoms q r
 
 -- | composite input, composite List output
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]

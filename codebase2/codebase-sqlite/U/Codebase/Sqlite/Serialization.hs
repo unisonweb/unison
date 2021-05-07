@@ -16,11 +16,7 @@ import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.Int (Int64)
 import Data.List (elemIndex)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import Data.Word (Word64)
 import Debug.Trace (trace)
 import qualified U.Codebase.Decl as Decl
@@ -637,9 +633,6 @@ getBranchLocalIds =
     <*> getVector getVarInt
     <*> getVector getVarInt
     <*> getVector (getPair getVarInt getVarInt)
-
-vec2seq :: Vector a -> Seq a
-vec2seq v = Seq.fromFunction (length v) (v Vector.!)
 
 decomposeComponent :: MonadGet m => m [(LocalIds, BS.ByteString)]
 decomposeComponent = do

@@ -18,10 +18,7 @@ import qualified Data.Set as Set
 import qualified Data.Foldable as Foldable
 import Prelude hiding (abs,cycle)
 import U.Util.Hashable (Accumulate, Hashable1)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified U.Util.Hashable as Hashable
-import Data.Functor (void)
 import qualified Data.List as List
 import qualified Data.Vector as Vector
 import Control.Monad (join)
@@ -55,13 +52,6 @@ vmap f (Term _ a out) = case out of
   Cycle r -> cycle a (vmap f r)
   Abs v body -> abs a (f v) (vmap f body)
 
-vtraverse :: (Traversable f, Applicative g, Ord v') => (v -> g v') -> Term f v a -> g (Term f v' a)
-vtraverse g (Term _ a out) = case out of
-  Var v -> var a <$> g v
-  Cycle r -> cycle a <$> vtraverse g r
-  Abs v r -> abs a <$> g v <*> vtraverse g r
-  Tm fa -> tm a <$> traverse (vtraverse g) fa
-
 transform :: (Ord v, Foldable g, Functor g)
           => (forall a. f a -> g a) -> Term f v a -> Term g v a
 transform f t = case out t of
@@ -86,12 +76,6 @@ var a v = Term (Set.singleton v) a (Var v)
 
 cycle :: a -> Term f v a -> Term f v a
 cycle a t = Term (freeVars t) a (Cycle t)
-
-absChain' :: Ord v => [v] -> Term f v () -> Term f v ()
-absChain' vs t = foldr (\v t -> abs () v t) t vs
-
-absCycle' :: Ord v => [v] -> Term f v () -> Term f v ()
-absCycle' vs t = cycle () $ absChain' vs t
 
 tm :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
 tm a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
@@ -124,26 +108,6 @@ hash = hash' [] where
     in case map Right (permute p cycle) ++ envTl of
       env -> (map (hash' env) ts', hash' env)
   hashCycle env ts = (map (hash' env) ts, hash' env)
-
--- Hash a strongly connected component and sort its definitions into a canonical order.
-hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h)
-  => Map v (Term f v a) -> (h, [(v, Term f v a)])
-hashComponent byName = let
-  ts = Map.toList byName
-  embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
-  vs = fst <$> ts
-  -- make closed terms for each element of the component
-  -- [ let x = ..., y = ..., in x
-  -- , let x = ..., y = ..., in y ]
-  -- so that we can then hash them (closed terms can be hashed)
-  -- so that we can sort them by hash. this is the "canonical, name-agnostic"
-  --   hash that yields the canonical ordering of the component.
-  tms = [ (v, absCycle' vs (tm () $ Component (snd <$> embeds) (var () v))) | v <- vs ]
-  hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
-  sortedHashed = List.sortOn snd hashed
-  overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
-  in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
