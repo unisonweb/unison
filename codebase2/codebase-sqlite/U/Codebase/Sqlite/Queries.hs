@@ -57,6 +57,7 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId (..),
     ObjectId (..),
+    SchemaVersion,
     TextId,
   )
 import U.Codebase.Sqlite.ObjectType (ObjectType)
@@ -105,6 +106,8 @@ data Integrity
   | NoObjectForPrimaryHashId HashId
   | NoNamespaceRoot
   | MultipleNamespaceRoots [CausalHashId]
+  | NoSchemaVersion
+  | MultipleSchemaVersions [SchemaVersion]
   | NoTypeIndexForTerm Referent.Id
   deriving (Show)
 
@@ -129,46 +132,14 @@ createSchema = do
 setFlags :: DB m => m ()
 setFlags = execute_ "PRAGMA foreign_keys = ON;"
 
-type SchemaType = String
-
-type SchemaName = String
-
-checkForMissingSchema :: DB m => m [(SchemaType, SchemaName)]
-checkForMissingSchema = filterM missing schema
-  where
-    missing (t, n) = null @[] @(Only Int) <$> query sql (t, n)
-    sql = "SELECT 1 FROM sqlite_master WHERE type = ? and name = ?"
-    schema =
-      [ ("table", "schema_version"),
-        ("table", "hash"),
-        ("index", "hash_base32"),
-        ("table", "text"),
-        ("table", "hash_object"),
-        ("index", "hash_object_object_id"),
-        ("table", "object_type_description"),
-        ("table", "object"),
-        ("index", "object_hash_id"),
-        ("index", "object_type_id"),
-        ("table", "causal"),
-        ("index", "causal_value_hash_id"),
-        ("table", "namespace_root"),
-        ("table", "causal_parent"),
-        ("index", "causal_parent_causal_id"),
-        ("index", "causal_parent_parent_id"),
-        ("table", "watch_result"),
-        ("table", "watch"),
-        ("index", "watch_kind"),
-        ("table", "watch_kind_description"),
-        ("table", "find_type_index"),
-        ("index", "find_type_index_type"),
-        ("table", "find_type_mentions_index"),
-        ("index", "find_type_mentions_index_type"),
-        ("table", "dependents_index"),
-        ("index", "dependents_by_dependency"),
-        ("index", "dependencies_by_dependent")
-      ]
-
 {- ORMOLU_DISABLE -}
+schemaVersion :: DB m => m SchemaVersion
+schemaVersion = queryAtoms sql () >>= \case
+  [] -> error $ show NoSchemaVersion
+  [v] -> pure v
+  vs -> error $ show (MultipleSchemaVersions vs)
+  where sql = "SELECT version from schema_version;"
+
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
   where sql = [here|

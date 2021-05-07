@@ -4,7 +4,7 @@ module Unison.Codebase.SqliteCodebase.SyncEphemeral where
 
 import Data.Set (Set)
 import U.Codebase.HashTags (CausalHash)
-import qualified U.Codebase.Sqlite.Queries as Q
+import U.Codebase.Sqlite.DbId (SchemaVersion)
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import Unison.Hash (Hash)
 
@@ -15,8 +15,8 @@ data Dependencies = Dependencies
 
 data Error
   = Sync22Error Sync22.Error
-  | SrcMissingSchema [(Q.SchemaType, Q.SchemaName)]
-  | DestMissingSchema [(Q.SchemaType, Q.SchemaName)]
+  | SrcWrongSchema SchemaVersion
+  | DestWrongSchema SchemaVersion
   | DisappearingBranch CausalHash
   deriving (Show)
 

@@ -21,7 +21,6 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
-import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, (<&>))
@@ -92,12 +91,12 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.ColorText as ColorText
 import qualified Unison.Util.Pretty as P
 import Unison.Util.Timing (time)
 import UnliftIO (MonadIO, catchIO, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
+import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
 debug, debugProcessBranches :: Bool
 debug = False
@@ -120,18 +119,15 @@ createCodebaseOrError dir = do
   prettyDir <- P.string <$> canonicalizePath dir
   let convertError = \case
         CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseMissingSchema schema ->
-          let prettyError :: [(Q.SchemaType, Q.SchemaName)] -> Codebase1.Pretty
-              prettyError schema =
-                (("Missing SqliteCodebase structure in " <> prettyDir <> ".") <>)
-                  . P.column2Header "Schema Type" "Name"
-                  $ map (Bifunctor.bimap P.string P.string) schema
-           in Codebase1.CreateCodebaseOther $ prettyError schema
+        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
+      prettyError :: SchemaVersion -> Codebase1.Pretty
+      prettyError v = P.wrap $
+        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   Either.mapLeft convertError <$> createCodebaseOrError' dir
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
-  | CreateCodebaseMissingSchema [(Q.SchemaType, Q.SchemaName)]
+  | CreateCodebaseUnknownSchemaVersion SchemaVersion
   deriving (Show)
 
 createCodebaseOrError' ::
@@ -155,18 +151,14 @@ createCodebaseOrError' path = do
               Right () -> pure ()
             )
 
-      fmap (Either.mapLeft CreateCodebaseMissingSchema) (sqliteCodebase path)
+      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase path)
 
 -- get the codebase in dir
 getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (Codebase m Symbol Ann))
 getCodebaseOrError dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError :: [(Q.SchemaType, Q.SchemaName)] -> String
-      prettyError schema =
-        ColorText.toANSI . P.render 80 . (("Missing SqliteCodebase structure in " <> prettyDir <> ".") <>)
-          . P.column2Header "Schema Type" "Name"
-          $ map (Bifunctor.bimap P.string P.string) schema
-  fmap (Either.mapLeft $ P.string . prettyError) (sqliteCodebase dir)
+  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
+  fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -245,12 +237,12 @@ unsafeGetConnection root = do
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either [(Q.SchemaType, Q.SchemaName)] (Codebase m Symbol Ann))
+sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (Codebase m Symbol Ann))
 sqliteCodebase root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
-  runReaderT Q.checkForMissingSchema conn >>= \case
-    [] -> do
+  runReaderT Q.schemaVersion conn >>= \case
+    SchemaVersion 1 -> do
       rootBranchCache <- newTVarIO Nothing
       -- The v1 codebase interface has operations to read and write individual definitions
       -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -710,10 +702,10 @@ sqliteCodebase root = do
                   <*> pure (16 * 1024 * 1024)
               src <-
                 lift (sqliteCodebase srcPath)
-                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.SrcMissingSchema
+                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.SrcWrongSchema
               dest <-
                 lift (sqliteCodebase destPath)
-                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.DestMissingSchema
+                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.DestWrongSchema
               -- we want to use sync22 wherever possible
               -- so for each branch, we'll check if it exists in the destination branch
               -- or if it exists in the source branch, then we can sync22 it
@@ -824,7 +816,7 @@ sqliteCodebase root = do
             branchHashLength
             branchHashesByPrefix
         )
-    missingSchema -> pure . Left $ missingSchema
+    v -> pure . Left $ v
 
 runDB' :: MonadIO m => Connection -> MaybeT (ReaderT Connection (ExceptT Ops.Error m)) a -> m (Maybe a)
 runDB' conn = runDB conn . runMaybeT
