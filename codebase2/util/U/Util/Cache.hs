@@ -1,9 +1,14 @@
-module Unison.Util.Cache where
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
+module U.Util.Cache where
 
 import Prelude hiding (lookup)
-import Unison.Prelude
-import UnliftIO (newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
+import UnliftIO (MonadIO, newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
+import Data.Functor (($>))
+import Control.Monad (when)
+import Data.Foldable (for_)
 
 data Cache m k v =
   Cache { lookup :: k -> m (Maybe v)
@@ -24,8 +29,8 @@ cache = do
 
   pure $ Cache lookup insert
 
-nullCache :: (MonadIO m, Ord k) => m (Cache m k v)
-nullCache = pure $ Cache (const (pure Nothing)) (\_ _ -> pure ())
+nullCache :: Applicative m => Cache m k v
+nullCache = Cache (const (pure Nothing)) (\_ _ -> pure ())
 
 -- Create a cache of bounded size. Once the cache
 -- reaches a size of `maxSize`, older unused entries
@@ -33,7 +38,7 @@ nullCache = pure $ Cache (const (pure Nothing)) (\_ _ -> pure ())
 -- where cache hits require updating LRU info,
 -- cache hits here are read-only and contention free.
 semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache m k v)
-semispaceCache 0 = nullCache
+semispaceCache 0 = pure nullCache
 semispaceCache maxSize = do
   -- Analogous to semispace GC, keep 2 maps: gen0 and gen1
   -- `insert k v` is done in gen0

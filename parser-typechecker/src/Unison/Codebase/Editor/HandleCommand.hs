@@ -26,7 +26,6 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Editor.Git    as Git
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
@@ -86,10 +85,9 @@ commandLine
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
   -> (Int -> IO gen)
-  -> Branch.Cache IO
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen branchCache =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
  flip State.evalStateT 0 . Free.fold go
  where
   go :: forall x . Command IO i v x -> State.StateT Int IO x
@@ -121,11 +119,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     ViewRemoteBranch ns ->
-      lift $ runExceptT $ Git.viewRemoteBranch branchCache ns
+      lift $ Codebase.viewRemoteBranch codebase ns
     ImportRemoteBranch ns syncMode ->
-      lift $ runExceptT $ Git.importRemoteBranch codebase branchCache ns syncMode
+      lift $ Codebase.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
-      lift $ runExceptT $ Git.pushGitRootBranch codebase branchCache branch repo syncMode
+      lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

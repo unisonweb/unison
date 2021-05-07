@@ -4,9 +4,9 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3356e1ce77d4b4994ed6bdc4110bda88d7cdce1a2385a15f89e8d9edf162e4ea
+-- hash: 362988cc0b4fcb2d0837196a3dfe72c8d5905b654c52b8f82552a1bbcc879214
 
-name:           unison-core
+name:           unison-core1
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -61,7 +61,7 @@ library
       Unison.Util.Set
       Unison.Var
   other-modules:
-      Paths_unison_core
+      Paths_unison_core1
   hs-source-dirs:
       src
   default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications

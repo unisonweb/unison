@@ -21,7 +21,7 @@ import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(..) )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Branch.Dependencies as BD
+import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.Patch         as Patch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1

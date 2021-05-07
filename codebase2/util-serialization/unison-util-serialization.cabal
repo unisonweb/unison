@@ -1,0 +1,32 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: f313cfc57110dcc277ac24eb79210d1dc8071221e3452971ad26e8a3e1d8abc4
+
+name:           unison-util-serialization
+version:        0.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      U.Util.Serialization
+  other-modules:
+      Paths_unison_util_serialization
+  hs-source-dirs:
+      ./.
+  build-depends:
+      base
+    , bytes
+    , bytestring
+    , containers
+    , extra
+    , filepath
+    , text
+    , text-short
+    , unison-util
+    , unliftio
+    , vector
+  default-language: Haskell2010

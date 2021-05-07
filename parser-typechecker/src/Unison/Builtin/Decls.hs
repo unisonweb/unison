@@ -1,38 +1,39 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Builtin.Decls where
 
-import           Data.List                      ( elemIndex, find )
-import qualified Data.Map                       as Map
-import           Data.Text                      (Text,unpack)
+import Data.List (elemIndex, find)
+import qualified Data.Map as Map
+import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
-import qualified Unison.ConstructorType         as CT
+import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration
+  ( DataDeclaration (..),
+    Modifier (Structural, Unique),
+    hashDecls,
+  )
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration         ( DataDeclaration(..)
-                                                , Modifier(Structural, Unique)
-                                                , hashDecls )
-import qualified Unison.Pattern                 as Pattern
-import           Unison.Reference               (Reference)
-import qualified Unison.Reference               as Reference
-import           Unison.Referent                (Referent)
-import qualified Unison.Referent                as Referent
-import           Unison.Symbol                  (Symbol)
-import           Unison.Term                    (ConstructorId, Term, Term2)
-import qualified Unison.Term                    as Term
-import qualified Unison.Type                    as Type
-import           Unison.Type                    (Type)
-import qualified Unison.Var                     as Var
-import           Unison.Var                     (Var)
+import qualified Unison.Pattern as Pattern
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
+import Unison.Term (ConstructorId, Term, Term2)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
-  | [(_, d, _)] <- filter (\(v,_,_) -> v == Var.named str) decls
-  = Reference.DerivedId d
-  | otherwise
-  = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
-  where decls = builtinDataDecls @Symbol
+  | [(_, d, _)] <- filter (\(v, _, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
+  where
+    decls = builtinDataDecls @Symbol
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -396,4 +397,3 @@ unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool
 unUnitRef = (== unitRef)
 unPairRef = (== pairRef)
 unOptionalRef = (== optionalRef)
-

@@ -1,0 +1,250 @@
+# Overview
+
+The v2 codebase format is a sqlite3 database with some Unison objects stored relationally, and others stored as binary blobs.
+
+There are a few important concepts for understanding the implementation.
+
+**The `hash` and `text` tables**
+
+```sql
+CREATE TABLE hash (
+  id INTEGER PRIMARY KEY NOT NULL,
+  base32 TEXT UNIQUE NOT NULL COLLATE NOCASE
+);
+```
+
+`hash` stores Unison hashes in base32hex format. It is indexed to let us look up hashes efficiently by case-insensitive prefix in log time.  Hashes are not stored anywhere else in the database.
+
+```sql
+CREATE TABLE text (
+  id INTEGER PRIMARY KEY NOT NULL,
+  text TEXT UNIQUE NOT NULL
+);
+```
+
+`text` stores all of the strings in the codebase. This includes definition names, internal names of ucm builtins, and user-defined strings. Though it doesn't include local variable definition names. Possibly an oversight. 😬  It is indexed to let us look up strings by exact match in logarithmic time, for deduplication purposes. Indeed, it does not contain any duplicates.
+
+**The `object` table**
+
+```sql
+CREATE TABLE object (
+  id INTEGER PRIMARY KEY NOT NULL,
+  primary_hash_id INTEGER NOT NULL REFERENCES hash(id),
+  type_id INTEGER NOT NULL REFERENCES object_type_description(id),
+  bytes BLOB NOT NULL
+);
+```
+The object table stores things that are identified by hash and represented with binary blobs instead of relationally.  Currently that includes patches and namespace slices, along with term and decl components ("component" ambiguously meaning the whole cycle, a strongly-connected component of definitions).  Note that the entire component is identified by a single hash, like patches and namespace slices are.  There could be new object types in the future.  The object type of each object is given by the `type_id` field. (It's an integer, but the description is given in the `object_type_description` table for convenience, and in `ObjectType.hs`.)
+
+**The `causal` and `causal_parents` tables**
+
+```sql
+CREATE TABLE causal (
+  self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
+  value_hash_id INTEGER NOT NULL REFERENCES hash(id)
+);
+
+CREATE TABLE causal_parent (
+  causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
+  parent_id INTEGER NOT NULL REFERENCES causal(self_hash_id)
+);
+```
+
+Although causals are indexed by `hash.id`, an entry in the `causal` table is required, to qualify as a real causal. This also tells us the hash of its root namespace slice (which may or may not be present).
+
+**Hash-based vs Object-based References**
+
+To avoid referencing an object that is expected to be in the database but isn't actually in the database (e.g. a patch, a term dependency), most objects in the v2 codebase format are referenced by `object.id`.
+
+The Haskell reference type used internally by the v2 codebase code is parameterized over the text and hash types:
+```haskell
+data Reference' t h
+  = ReferenceBuiltin t
+  | ReferenceDerived (Id' h)
+  deriving (Eq, Ord, Show)
+
+data Id' h = Id h Pos
+type Pos = Word64
+
+-- e.g.
+type Reference = Reference' TextId ObjectId
+type ReferenceH = Reference' TextId HashId
+```
+
+where the former references objects that must exist in the database and the latter references objects that may not.
+
+
+### Serialization formats for codebase objects
+
+Each of the object blob formats begins with a varint format id.  For a given object type, different format ids indicate different ways of representing the same object -- not a way of representing a slightly different type of object.  This enables us to make different storage-lager efficiency tradeoffs based on an object's contents or a user's access patterns.
+
+These different formats are enumerated in `U.Codebase.Sqlite.{Term,Decl,Branch,Patch}.Format.hs` respectively, and collected below:
+
+```haskell
+data DeclFormat
+  = Decl DeclFormat.LocallyIndexedComponent
+
+data TermFormat
+  = Term TermFormat.LocallyIndexedComponent
+
+data WatchResultFormat
+  = WatchResult WatchLocalIds Term
+
+data BranchFormat
+  = Full BranchLocalIds LocalBranch
+  | Diff BranchObjectId BranchLocalIds LocalDiff
+
+data PatchFormat
+  = Full PatchLocalIds LocalPatch
+  | Diff PatchObjectId PatchLocalIds LocalPatchDiff
+```
+
+Only one format is currently defined for decls, terms, and watch expression results; two are defined---though only the first is currently in use and tested---for branches and patches.
+
+Here things get a little hairy, and we'll dive into each one individually.
+
+#### DeclFormat.Decl
+
+To start with, the ABT base functor for the Haskell type which directly backs the codebase blob representation of unison types is parameterized by a reference type `r`:
+```haskell
+data F' r a
+  = Ref r
+  | Arrow a a
+  | Ann a Kind
+  | App a a
+  | Effect a a
+  | Effects [a]
+  | Forall a
+  | IntroOuter a
+```
+
+Different parameterizations are used in different contexts, but for storing type declarations, we have `r` as `Reference' LocalTextId (Maybe LocalDefnId)` which is a parameterization of reference we haven't talked about yet.
+
+In the previous section, we saw `type Reference = Reference' TextId ObjectId`, but we avoid using this type of reference in the binary blobs because one database will number its `TextId`s and `ObjectId`s differently from another database
+
+In order to avoid fully rewriting the ABT to update `TextId` and `ObjectId` replace when transferring definitions from one codebase to another, each definition is bundled with a lookup array for `TextId` and `ObjectId` values.  The references in the ABT are indexed by indexes into these _lookup array_, and when a definition is transferred between codebases, only the lookup array is rewritten, not the ABT itself.  And hopefully that's better.
+
+An example:
+
+```unison
+type Tree = Branch Tree Tree | INode (Optional ##Int) | BNode Boolean
+```
+This gives us a decl with two constructor types:
+- `Tree -> Tree -> Tree`
+- `Optional Int -> Tree`
+- `Boolean -> Tree`
+
+First we can imagine it represented using `r = Reference' TextId (Maybe ObjectId)`, where `Nothing` would represent the current object being constructed, which does not yet have an `ObjectId`.
+
+Supposing the builtin type `##Int` has `TextId 5`, `##Boolean` has `TextId 4`, and the derived type `Optional` has `ObjectId 3`, the types would look something like:
+
+`Branch`:
+```
+Ref (ReferenceDerived Nothing (Pos 0)) ->
+Ref (ReferenceDerived Nothing (Pos 0)) ->
+Ref (ReferenceDerived Nothing (Pos 0))``
+```
+`INode`:
+```
+App (Ref (ReferenceDerived (Just (ObjectId 3)) (Pos 0)))
+    (Ref (ReferenceBuiltin (TextId 5))) ->
+Ref (ReferenceDerived Nothing (Pos 0))
+```
+`BNode`:
+```
+Ref (ReferenceBuiltin (TextId 4)) ->
+Ref (ReferenceDerived Nothing (Pos 0))``
+```
+
+From the decl containing these types, we create lookup arrays for `TextId`s `ObjectId`s, while substituting their indices into the constructor types:
+
+"LocalIds":
+```
+   textLookup
+0| TextId 5
+1| TextId 4
+
+    defnLookup
+0'| ObjectId 3
+```
+
+`Branch`:
+```
+Ref (ReferenceDerived Nothing (Pos 0)) ->
+Ref (ReferenceDerived Nothing (Pos 0)) ->
+Ref (ReferenceDerived Nothing (Pos 0))``
+```
+`INode`:
+```
+App (Ref (ReferenceDerived (Just (LocalDefnId 0')) (Pos 0)))
+    (Ref (ReferenceBuiltin (LocalTextId 0))) ->
+Ref (ReferenceDerived Nothing (Pos 0))
+```
+`BNode`:
+```
+Ref (ReferenceBuiltin (LocalTextId 1)) ->
+Ref (ReferenceDerived Nothing (Pos 0))``
+```
+
+
+Then on a sync, we look up the corresponding ids in the source and destination codebases (creating them at the destination if necessary), and construct a new "LocalIds" lookup table:
+
+`TextId 5` -> `"##Nat"` -> `TextId 60`
+`TextId 4` -> `"##Boolean"` -> `TextId 2`
+`ObjectId 3` -> `HashId 14` -> `#asodcj3` -> `HashId 16` -> `ObjectId 2`
+
+"LocalIds" at destination:
+```
+   textLookup
+0| TextId 50
+1| TextId 2
+
+    defnLookup
+0'| ObjectId 2
+```
+
+```haskell
+-- | Add new formats here
+data DeclFormat = Decl (Vector (LocalIds, Decl Symbol))
+```
+
+From the above definition, you can see that each `Decl` is paired with its own `LocalIds` structure, as opposed to having a single `LocalIds` that spans the entire component.
+
+### TermFormat.Term
+
+This works the same way!
+
+### WatchResultFormat.WatchResult
+
+This works the same way, except that because watch expression results can reference definitions that don't exist in your codebase, but only in your watch file, other terms and types are referenced by `HashId` instead of `ObjectId`, and the `LocalIds` table contains `HashId`s instead of `ObjectId`s.
+
+### PatchFormat.Full
+
+This works the same way, except that "PatchLocalIds' includes all three of `TextId`s, `HashId`s, and `ObjectId`s.  This is because while the target of a replacement is considered mandatory in the codebase, the old version of a definition doesn't have to be available to use the patch.  The point of the patch is to stop using the old definition, after all!
+
+### BranchFormat.Full
+
+These namespace slices are represented in a similar way:
+```haskell
+data Branch' t h p c = Branch
+  { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
+    types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
+    patches :: Map t p,
+    children :: Map t c
+  }
+
+data MetadataSetFormat' t h = Inline (Set (Reference' t h))
+
+data BranchLocalIds = LocalIds
+  { branchTextLookup :: Vector TextId,
+    branchDefnLookup :: Vector ObjectId,
+    branchPatchLookup :: Vector PatchObjectId,
+    branchChildLookup :: Vector (BranchObjectId, CausalHashId)
+  }
+```
+
+`TextId`s are used to represent namesegments in a namespace slice
+`ObjectId`s are used to reference types and terms in the namespace.  Note that they are not `HashId`s, because the namespace shouldn't be able to refer to definitions that aren't in the database.
+`PatchObjectIds` reference the object ids of patch objects, as you might imagine.
+
+`branchChildLookup` contains two fields: a `CausalHashId` which points to the history of the child, and the `BranchObjectId` which proves that the relevant namespace slice is also present.  In general, a codebase may not have the namespace slice corresponding to every causal id, but it ought to have them for the children of another namespace slice it does have (thus, the `BranchObjectId` is used).  The causal relationship stored relationally rather than as blobs, and the `CausalHashId` is a useful index into the `causal_parents` table.

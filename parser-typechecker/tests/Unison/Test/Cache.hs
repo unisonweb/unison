@@ -4,7 +4,7 @@ import EasyTest
 import Control.Monad
 import Control.Concurrent.STM
 import Control.Concurrent.Async
-import qualified Unison.Util.Cache as Cache
+import qualified U.Util.Cache as Cache
 
 test :: Test ()
 test = scope "util.cache" $ tests [

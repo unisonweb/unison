@@ -29,7 +29,7 @@ import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 )
 import qualified Unison.Codebase.Branch         as Branch
-import qualified Unison.Codebase.Branch.Dependencies as BD
+import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
                                                 , unRawHash

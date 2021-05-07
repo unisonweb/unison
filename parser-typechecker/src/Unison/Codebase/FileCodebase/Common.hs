@@ -43,6 +43,9 @@ module Unison.Codebase.FileCodebase.Common
   , deserializeEdits
   , serializeRawBranch
   , branchFromFiles
+  , putBranch
+  , getPatch
+  , patchExists
   , branchHashesByPrefix
   , termReferencesByPrefix
   , termReferentsByPrefix
@@ -141,14 +144,14 @@ codebasePath = ".unison" </> "v1"
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
 
--- Write Branch and its dependents to the dest codebase, and set it as the root.
+-- Write Branch and its dependents to the dest codebase
 type SyncToDir m v a
   = S.Format v
   -> S.Format a
   -> CodebasePath -- src codebase
   -> CodebasePath -- dest codebase
   -> SyncMode
-  -> Branch m -- new dest root branch
+  -> Branch m -- branch to sync to dest codebase
   -> m ()
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
@@ -309,6 +312,13 @@ deserializeEdits root h =
     Left  err   -> failWith $ InvalidEditsFile file err
     Right edits -> pure edits
 
+getPatch :: MonadIO m => CodebasePath -> Branch.EditHash -> m (Maybe Patch)
+getPatch root h =
+  let file = editsPath root h
+  in S.getFromFile' V1.getEdits file >>= \case
+    Left  _err   -> pure Nothing
+    Right edits -> pure (Just edits)
+
 getRootBranch :: forall m.
   MonadIO m => Branch.Cache m -> CodebasePath -> m (Either Codebase.GetRootBranchError (Branch m))
 getRootBranch cache root = time "FileCodebase.Common.getRootBranch" $
@@ -331,14 +341,18 @@ getRootBranch cache root = time "FileCodebase.Common.getRootBranch" $
     Just (Branch.Hash -> h) -> branchFromFiles cache root h <&>
                                 maybeToEither (Codebase.CouldntLoadRootBranch h)
 
--- |only syncs branches and edits -- no dependencies
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
+  putBranch root b
+  updateCausalHead (branchHeadDir root) (Branch._history b)
+
+-- |only syncs branches and edits -- no dependencies
+putBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
+putBranch root b =
   Branch.sync (hashExists root)
               (serializeRawBranch root)
               (serializeEdits root)
               b
-  updateCausalHead (branchHeadDir root) (Branch._history b)
 
 hashExists :: MonadIO m => CodebasePath -> Branch.Hash -> m Bool
 hashExists root h = doesFileExist (branchPath root h)
@@ -348,10 +362,13 @@ serializeRawBranch
 serializeRawBranch root h =
   S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
 
+patchExists :: MonadIO m => CodebasePath -> Branch.EditHash -> m Bool
+patchExists root h = doesFileExist (editsPath root h)
+
 serializeEdits
   :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch -> m ()
 serializeEdits root h medits =
-  unlessM (doesFileExist (editsPath root h)) $ do
+  unlessM (patchExists root h) $ do
     edits <- medits
     S.putWithParentDirs V1.putEdits (editsPath root h) edits
 

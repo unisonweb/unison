@@ -1,0 +1,50 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: eb553f8d44e26dc6e4cf34d13fe54b626164d7c5c60146b417e27d6ece43c03f
+
+name:           unison-util
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      U.Util.Alternative
+      U.Util.Base32Hex
+      U.Util.Cache
+      U.Util.Components
+      U.Util.Hash
+      U.Util.Hashable
+      U.Util.Lens
+      U.Util.Map
+      U.Util.Monoid
+      U.Util.Relation
+      U.Util.Set
+      U.Util.String
+      U.Util.Text
+  other-modules:
+      Paths_unison_util
+  hs-source-dirs:
+      ./.
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , cryptonite
+    , extra
+    , lens
+    , memory
+    , safe
+    , sandi
+    , text
+    , unliftio
+  default-language: Haskell2010

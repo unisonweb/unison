@@ -29,8 +29,12 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
 
+debug :: Bool
+debug = False
+
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = typecheckedFile'
+typecheckedFile = let x = typecheckedFile' in
+  if debug then trace ("IOSource.typecheckedFile = " ++ show x) x else x
 
 typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
 typecheckedFile' = let
