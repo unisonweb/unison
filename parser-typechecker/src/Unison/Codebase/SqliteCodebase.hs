@@ -899,7 +899,7 @@ syncProgress = Sync.Progress need done warn allDone
         "\r" ++ prefix ++ show (Set.size done + Set.size warn)
           ++ " entities"
           ++ if Set.size warn > 0
-            then " with " ++ show warn ++ " warnings."
+            then " with " ++ show (Set.size warn) ++ " warnings."
             else "."
       SyncProgressState need done warn ->
         "invalid SyncProgressState "

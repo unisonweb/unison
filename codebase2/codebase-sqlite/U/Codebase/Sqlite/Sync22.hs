@@ -280,7 +280,7 @@ trySync tCache hCache oCache cCache = \case
             when debug $ traceM $ "Source " ++ show (hId, oId) ++ " becomes Dest " ++ show (hId', oId')
             Cache.insert oCache oId oId'
             pure Sync.Done
-  W k r -> ifM (syncWatch k r) (pure Sync.Done) (pure Sync.NonFatalError)
+  W k r -> syncWatch k r
   where
     syncLocalObjectId :: ObjectId -> ValidateT (Set Entity) m ObjectId
     syncLocalObjectId oId =
@@ -368,11 +368,11 @@ trySync tCache hCache oCache cCache = \case
       srcParents <- runSrc $ Q.loadCausalParents chId
       traverse syncCausal srcParents
 
-    syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m Bool
+    syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m (TrySyncResult Entity)
     syncWatch wk r = do
       r' <- traverse syncHashLiteral r
       doneKinds <- runDest (Q.loadWatchKindsByReference r')
-      if (wk `elem` doneKinds) then do
+      if (notElem wk doneKinds) then do
         runSrc (Q.loadWatch wk r) >>= traverse \blob -> do
           (L.LocalIds tIds hIds, termBytes) <-
             case runGetS S.decomposeWatchResult blob of
@@ -384,8 +384,8 @@ trySync tCache hCache oCache cCache = \case
           when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show (tIds', hIds')
           let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
           runDest (Q.saveWatch wk r' blob')
-        pure True
-      else pure False
+        pure Sync.Done
+      else pure Sync.PreviouslyDone
 
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')
