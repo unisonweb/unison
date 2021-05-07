@@ -37,8 +37,6 @@ import Database.SQLite.Simple (Connection)
 import Debug.Trace (traceM)
 import System.IO (stdout)
 import System.IO.Extra (hFlush)
-import U.Codebase.Sqlite.DbId (Generation)
-import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Monoid as Monoid
@@ -143,9 +141,7 @@ sync12 ::
   (MonadIO f, MonadReader (Env p x) f, RS m n a, Applicative m) =>
   (m ~> n) ->
   f (Sync n (Entity m))
-sync12 t = do
-  gc <- runDest' Q.getNurseryGeneration
-  pure $ Sync (trySync t (succ gc))
+sync12 t = pure $ Sync (trySync t)
 
 -- For each entity, we have to check to see
 -- a) if it exists (if not, mark as missing in Status)
@@ -159,10 +155,9 @@ trySync ::
   forall m n a.
   (R m n a, S m n, Applicative m) =>
   (m ~> n) ->
-  Generation ->
   Entity m ->
   n (TrySyncResult (Entity m))
-trySync t _gc e = do
+trySync t e = do
   Env _ dest _ <- Reader.ask
   case e of
     C h mc -> do

@@ -89,12 +89,9 @@ CREATE INDEX object_type_id ON object(type_id);
 -- `commit_flag` and `gc_generation` are basically unused at the moment.
 CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
-  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id),
-  commit_flag INTEGER NOT NULL,
-  gc_generation INTEGER NOT NULL
+  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id)
 );
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
-CREATE INDEX causal_gc_generation ON causal(gc_generation);
 
 -- We expect exactly 1 row, which we overwrite when we setRootNamespace.
 CREATE TABLE namespace_root (

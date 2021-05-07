@@ -34,19 +34,8 @@ newtype BranchHashId = BranchHashId { unBranchHashId :: HashId } deriving (Eq, O
 newtype CausalHashId = CausalHashId { unCausalHashId :: HashId } deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via HashId
 
-newtype TypeId = TypeId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-newtype TermId = TermCycleId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-newtype DeclId = DeclCycleId ObjectId deriving Show deriving (FromField, ToField) via ObjectId
-
--- |For generational garbage-collection; 0 is the oldest generation.
-newtype Generation = Generation { unGeneration :: Word64 }
-  deriving (Eq, Ord, Show)
-  deriving (Enum, FromField, ToField) via Word64
-
--- |Also I guess garbage-collection related? 🤔
-newtype Committed = Committed { unCommitted :: Bool }
-  deriving (Eq, Ord, Show)
-  deriving (Enum, FromField, ToField) via Bool
+newtype SchemaVersion = SchemaVersion Word64 deriving (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, Hashable, FromField, ToField) via Word64
 
 instance Show PatchObjectId where
   show h = "PatchObjectId (" ++ show (unPatchObjectId h) ++ ")"

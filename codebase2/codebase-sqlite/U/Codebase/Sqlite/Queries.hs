@@ -32,7 +32,7 @@ import Data.Int (Int8)
 import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
@@ -55,8 +55,6 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
-    Committed (..),
-    Generation (..),
     HashId (..),
     ObjectId (..),
     TextId,
@@ -153,7 +151,6 @@ checkForMissingSchema = filterM missing schema
         ("index", "object_type_id"),
         ("table", "causal"),
         ("index", "causal_value_hash_id"),
-        ("index", "causal_gc_generation"),
         ("table", "namespace_root"),
         ("table", "causal_parent"),
         ("index", "causal_parent_causal_id"),
@@ -335,23 +332,28 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
 saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
-saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
-  INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
-  VALUES (?, ?, ?, ?)
+saveCausal self value = execute sql (self, value) where sql = [here|
+  INSERT INTO causal (self_hash_id, value_hash_id)
+  VALUES (?, ?)
   ON CONFLICT DO NOTHING
 |]
+-- saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
+--   INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
+--   VALUES (?, ?, ?, ?)
+--   ON CONFLICT DO NOTHING
+-- |]
 
--- maybe: look at whether parent causal is "committed"; if so, then increment;
--- otherwise, don't.
-getNurseryGeneration :: DB m => m Generation
-getNurseryGeneration = query_ sql <&> \case
-  [] -> Generation 0
-  [fromOnly -> g] -> Generation $ fromMaybe 0 g
-  (fmap fromOnly -> gs) ->
-    error $ "How did I get multiple values out of a MAX()? " ++ show gs
-  where sql = [here|
-    SELECT MAX(gc_generation) FROM causal;
-  |]
+-- -- maybe: look at whether parent causal is "committed"; if so, then increment;
+-- -- otherwise, don't.
+-- getNurseryGeneration :: DB m => m Generation
+-- getNurseryGeneration = query_ sql <&> \case
+--   [] -> Generation 0
+--   [fromOnly -> g] -> Generation $ fromMaybe 0 g
+--   (fmap fromOnly -> gs) ->
+--     error $ "How did I get multiple values out of a MAX()? " ++ show gs
+--   where sql = [here|
+--     SELECT MAX(gc_generation) FROM causal;
+--   |]
 
 loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
 loadCausalValueHashId chId@(CausalHashId id) =

@@ -102,8 +102,7 @@ sync22 = do
   hCache <- Cache.semispaceCache size
   oCache <- Cache.semispaceCache size
   cCache <- Cache.semispaceCache size
-  gc <- runDest $ Q.getNurseryGeneration
-  pure $ Sync (trySync tCache hCache oCache cCache (succ gc))
+  pure $ Sync (trySync tCache hCache oCache cCache)
 
 trySync ::
   forall m.
@@ -112,10 +111,9 @@ trySync ::
   Cache m HashId HashId ->
   Cache m ObjectId ObjectId ->
   Cache m CausalHashId CausalHashId ->
-  Generation ->
   Entity ->
   m (TrySyncResult Entity)
-trySync tCache hCache oCache cCache _gc = \case
+trySync tCache hCache oCache cCache = \case
   -- for causals, we need to get the value_hash_id of the thingo
   -- - maybe enqueue their parents
   -- - enqueue the self_ and value_ hashes

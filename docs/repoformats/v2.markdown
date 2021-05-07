@@ -17,19 +17,17 @@ The object table stores things that are identified by hash and represented with 
 
 ```sql
 CREATE TABLE causal (
-  self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
-  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id),
-  commit_flag INTEGER NOT NULL,
-  gc_generation INTEGER NOT NULL
+  self_hash_id INTEGER PRIMARY KEY NOT NULL REFERENCES hash(id),
+  value_hash_id INTEGER NOT NULL REFERENCES hash(id)
 );
 
 CREATE TABLE causal_parent (
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
-  parent_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
+  parent_id INTEGER NOT NULL REFERENCES causal(self_hash_id)
 );
 ```
 
-Although causals are indexed by `hash.id`, an entry in the `causal` table is required, to qualify as a real causal. This also tells us the hash of its root namespace slice (which may or may not be present), whether it's been committed, and its `gc_generation`, which will be `True` and `0` until a commit/squash feature is implemented.
+Although causals are indexed by `hash.id`, an entry in the `causal` table is required, to qualify as a real causal. This also tells us the hash of its root namespace slice (which may or may not be present).
 
 **Hash-based vs Object-based References**
 
