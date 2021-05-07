@@ -72,11 +72,9 @@ abilityNamedId s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-bufferModeReference, eitherReference, ioModeReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
+eitherReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
   :: R.Reference
-bufferModeReference = typeNamed "io.BufferMode"
 eitherReference = typeNamed "Either"
-ioModeReference = typeNamed "io.Mode"
 optionReference = typeNamed "Optional"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
@@ -286,14 +284,6 @@ unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
 -- (Reminder: Metadata is references, not values.)
 metadata.isTest = IsTest.IsTest
 metadata.isPropagated = IsPropagated.IsPropagated
-
--- If the buffer size is not specified,
--- use an implementation-specific size.
-unique[e65de145a461a771de93d6c7885acae28552d77f8ae460bc8bf5de6f2a15ff77] type
-  io.BufferMode = Line | Block (Optional Nat)
-
--- IO Modes from the Haskell API
-type io.Mode = Read | Write | Append | ReadWrite
 
 -- Built-ins
 

@@ -35,6 +35,7 @@ import Unison.Runtime.MCode
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
+import qualified Unison.Builtin.Decls as Ty
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
@@ -295,25 +296,35 @@ instance ( ForeignConvention a
     (ustk,bstk) <- writeForeign ustk bstk b
     writeForeign ustk bstk a
 
+no'buf, line'buf, block'buf, sblock'buf :: Int
+no'buf = Ty.bufferModeNoBufferingId
+line'buf = Ty.bufferModeLineBufferingId
+block'buf = Ty.bufferModeBlockBufferingId
+sblock'buf = Ty.bufferModeSizedBlockBufferingId
+
 instance ForeignConvention BufferMode where
   readForeign (i:us) bs ustk bstk
     = peekOff ustk i >>= \case
-        0 -> pure (us, bs, NoBuffering)
-        1 -> pure (us, bs, LineBuffering)
-        2 -> pure (us, bs, BlockBuffering Nothing)
-        3 -> fmap (BlockBuffering . Just)
-               <$> readForeign us bs ustk bstk
-        _ -> foreignCCError "BufferMode"
-  readForeign _ _ _ _ = foreignCCError "BufferMode"
+        t | t == no'buf -> pure (us, bs, NoBuffering)
+          | t == line'buf -> pure (us, bs, LineBuffering)
+          | t == block'buf -> pure (us, bs, BlockBuffering Nothing)
+          | t == sblock'buf
+            -> fmap (BlockBuffering . Just)
+           <$> readForeign us bs ustk bstk
+          | otherwise
+            -> foreignCCError
+             $ "BufferMode (unknown tag: " <> show t <> ")"
+  readForeign _ _ _ _ = foreignCCError $ "BufferMode (empty stack)"
+
   writeForeign ustk bstk bm = bump ustk >>= \ustk ->
     case bm of
-      NoBuffering -> (ustk,bstk) <$ poke ustk 0
-      LineBuffering -> (ustk,bstk) <$ poke ustk 1
-      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk 2
+      NoBuffering -> (ustk,bstk) <$ poke ustk no'buf
+      LineBuffering -> (ustk,bstk) <$ poke ustk line'buf
+      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk block'buf
       BlockBuffering (Just n) -> do
         poke ustk n
         ustk <- bump ustk
-        (ustk,bstk) <$ poke ustk 3
+        (ustk,bstk) <$ poke ustk sblock'buf
 
 instance ForeignConvention [Closure] where
   readForeign us (i:bs) _ bstk
