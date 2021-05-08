@@ -145,7 +145,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Reference              as Reference
 
-import qualified Unison.Util.Cache             as Cache
+import qualified U.Util.Cache             as Cache
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4

@@ -1,0 +1,33 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 4ffe80ec3d93d2c069c06e4713c6a630d11e01d99b29ce073a6ae0b79fffaa5e
+
+name:           unison-util-term
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      U.Util.Term
+      U.Util.Type
+  other-modules:
+      Paths_unison_util_term
+  hs-source-dirs:
+      ./.
+  build-depends:
+      base
+    , containers
+    , mtl
+    , unison-codebase
+    , unison-core
+  default-language: Haskell2010

@@ -25,99 +25,7 @@ flags:
 
 when:
   - condition: flag(optimized)
-    ghc-options: -funbox-strict-fields -02
-
-executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - megaparsec
-      - mtl
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core
-      - unison-parser-typechecker
-      - uri-encode
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
-  prettyprintdemo:
-    source-dirs: prettyprintdemo
-    main: Main.hs
-    dependencies:
-      - base
-      - safe
-      - text
-      - unison-parser-typechecker
-
-  tests:
-    source-dirs: tests
-    main: Suite.hs
-    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
-    dependencies:
-      - async
-      - base
-      - bytestring
-      - containers
-      - directory
-      - easytest
-      - errors
-      - extra
-      - filepath
-      - filemanip
-      - here
-      - lens
-      - megaparsec
-      - mtl
-      - raw-strings-qq
-      - stm
-      - shellmet
-      - split
-      - temporary
-      - text
-      - transformers
-      - unliftio
-      - unison-core
-      - unison-parser-typechecker
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core
-      - unison-parser-typechecker
-
-benchmarks:
-  runtime:
-    source-dirs: benchmarks/runtime
-    main: Main.hs
-    dependencies:
-      - base
-      - criterion
-      - containers
-      - unison-core
-      - unison-parser-typechecker
+    ghc-options: -funbox-strict-fields -O2
 
 library:
   source-dirs: src
@@ -166,9 +74,11 @@ library:
     - memory
     - mmorph
     - monad-loops
+    - monad-validate
     - mtl
     - murmur-hash
     - mutable-containers
+    - natural-transformation
     - network
     - network-simple
     - nonempty-containers
@@ -192,6 +102,7 @@ library:
     - split
     - stm
     - strings
+    - sqlite-simple
     - tagged
     - temporary
     - terminal-size
@@ -199,12 +110,12 @@ library:
     - time
     - tls
     - transformers
-    - unison-core
     - unliftio
     - unliftio-core
     - utf8-string
     - util
     - unicode-show
+    - validation
     - vector
     - wai
     - warp
@@ -212,3 +123,106 @@ library:
     - x509
     - x509-store
     - x509-system
+    - unison-codebase
+    - unison-codebase-sqlite
+    - unison-codebase-sync
+    - unison-core
+    - unison-core1
+    - unison-util
+
+executables:
+  unison:
+    source-dirs: unison
+    main: Main.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    dependencies:
+      - base
+      - bytestring
+      - containers
+      - configurator
+      - directory
+      - errors
+      - filepath
+      - lens
+      - megaparsec
+      - mtl
+      - safe
+      - shellmet
+      - template-haskell
+      - temporary
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-codebase-sync
+      - uri-encode
+    when:
+      - condition: '!os(windows)'
+        dependencies: unix
+
+  prettyprintdemo:
+    source-dirs: prettyprintdemo
+    main: Main.hs
+    dependencies:
+      - base
+      - safe
+      - text
+      - unison-parser-typechecker
+
+  tests:
+    source-dirs: tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    dependencies:
+      - async
+      - base
+      - bytestring
+      - containers
+      - directory
+      - easytest
+      - errors
+      - exceptions
+      - extra
+      - filepath
+      - filemanip
+      - here
+      - lens
+      - megaparsec
+      - mtl
+      - raw-strings-qq
+      - stm
+      - shellmet
+      - split
+      - temporary
+      - text
+      - transformers
+      - unliftio
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-util
+
+
+  transcripts:
+    source-dirs: transcripts
+    main: Transcripts.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    dependencies:
+      - base
+      - directory
+      - easytest
+      - filepath
+      - shellmet
+      - process
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+
+benchmarks:
+  runtime:
+    source-dirs: benchmarks/runtime
+    main: Main.hs
+    dependencies:
+      - base
+      - criterion
+      - containers
+      - unison-core1
+      - unison-parser-typechecker

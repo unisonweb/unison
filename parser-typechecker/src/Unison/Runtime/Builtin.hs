@@ -32,7 +32,7 @@ import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
 import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.IOSource
+import Unison.Runtime.IOSource (ioFailureReference, tlsFailureReference, eitherReference, failureReference)
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -735,32 +735,57 @@ seek'handle instr
   where
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> ANormal v
-get'buffering'output bu m n b =
-  TMatch bu . MatchSum  $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([], line))
-  , (2, ([], block'nothing))
-  , (3, ([UN], TAbs n block'n))
+no'buf, line'buf, block'buf, sblock'buf :: Enum e => e
+no'buf = toEnum Ty.bufferModeNoBufferingId
+line'buf = toEnum Ty.bufferModeLineBufferingId
+block'buf = toEnum Ty.bufferModeBlockBufferingId
+sblock'buf = toEnum Ty.bufferModeSizedBlockBufferingId
+
+infixr 0 -->
+(-->) :: a -> b -> (a, b)
+x --> y = (x, y)
+
+set'buffering :: ForeignOp
+set'buffering instr
+  = ([BX,BX],)
+  . TAbss [handle, bmode]
+  . TMatch bmode . MatchDataCover Ty.bufferModeRef $ mapFromList
+  [ no'buf --> [] --> k1 no'buf
+  , line'buf --> [] --> k1 line'buf
+  , block'buf --> [] --> k1 block'buf
+  , sblock'buf --> [BX] -->
+      TAbs n . TMatch n . MatchDataCover Ty.bufferModeRef $ mapFromList
+      [ 0 --> [UN] -->
+            TAbs w
+          . TLetD tag UN (TLit (N sblock'buf))
+          $ k2 [tag,w]
+      ]
   ]
   where
-  final = TCon Ty.optionalRef 1 [b]
-  block = TLetD b BX (TCon bufferModeReference 1 [m]) $ final
+  k1 num = TLetD tag UN (TLit (N num))
+         $ k2 [tag]
+  k2 args = TLetD r UN (TFOp instr (handle:args))
+          $ outIoFailUnit s1 s2 s3 u f r
+  (handle,bmode,tag,n,w,s1,s2,s3,u,f,r) = fresh11
 
-  line
-    = TLetD b BX (TCon bufferModeReference 0 []) $ final
-  block'nothing
-    = TLetD m BX (TCon Ty.optionalRef 0 [])
-    $ block
-  block'n
-    = TLetD m BX (TCon Ty.optionalRef 1 [n])
-    $ block
+get'buffering'output :: forall v. Var v => v -> v -> v -> ANormal v
+get'buffering'output bu n w =
+  TMatch bu . MatchSum  $ mapFromList
+  [ no'buf --> [] --> TCon Ty.bufferModeRef no'buf []
+  , line'buf --> [] --> TCon Ty.bufferModeRef line'buf []
+  , block'buf --> [] --> TCon Ty.bufferModeRef block'buf []
+  , sblock'buf --> [UN] -->
+        TAbs w
+      . TLetD n BX (TCon Ty.natRef 0 [w])
+      $ TCon Ty.bufferModeRef sblock'buf [n]
+  ]
 
 get'buffering :: ForeignOp
-get'buffering = inBx arg1 result
-              $ get'buffering'output result m n b
+get'buffering
+  = inBx arg1 result
+  $ get'buffering'output result n n2
   where
-    (arg1, result, m, n, b) = fresh5
+  (arg1, result, n, n2) = fresh4
 
 crypto'hash :: ForeignOp
 crypto'hash instr
@@ -849,7 +874,7 @@ inBxIomr :: forall v. Var v => v -> v -> v -> v -> ANormal v -> FOp -> ([Mem], A
 inBxIomr arg1 arg2 fm result cont instr
   = ([BX,BX],)
   . TAbss [arg1, arg2]
-  . unenum 4 arg2 ioModeReference fm
+  . unenum 4 arg2 Ty.fileModeRef fm
   $ TLetD result UN (TFOp instr [arg1, fm]) cont
 
 -- Output Shape -- these will represent different ways of translating
@@ -915,7 +940,7 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
         . TAbss [stack3]
-        . TLetD unit UN (TCon Ty.unitRef 0 [])
+        . TLetD unit BX (TCon Ty.unitRef 0 [])
         $ TCon eitherReference 1 [unit])
   ]
 
@@ -1376,7 +1401,7 @@ declareForeigns = do
   declareForeign "IO.getBuffering.impl.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.impl.v3" boxBoxToEF0
+  declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n

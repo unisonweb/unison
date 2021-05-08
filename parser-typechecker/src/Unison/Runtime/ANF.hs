@@ -7,11 +7,7 @@
 {-# Language GeneralizedNewtypeDeriving #-}
 
 module Unison.Runtime.ANF
-  ( optimize
-  , fromTerm
-  , fromTerm'
-  , term
-  , minimizeCyclesOrCrash
+  ( minimizeCyclesOrCrash
   , pattern TVar
   , pattern TLit
   , pattern TApp
@@ -55,7 +51,7 @@ module Unison.Runtime.ANF
   , packTags
   , unpackTags
   , ANFM
-  , Branched(..)
+  , Branched(.., MatchDataCover)
   , Func(..)
   , superNormalize
   , anfTerm
@@ -90,7 +86,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
-import qualified Unison.Term as Term
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin.Decls as Ty (unitRef,seqViewRef)
 import qualified Unison.Var as Var
@@ -99,31 +94,6 @@ import Unison.Pattern (SeqOp(..))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent, pattern Ref, pattern Con)
-
-newtype ANF v a = ANF_ { term :: Term v a }
-
--- Replace all lambdas with free variables with closed lambdas.
--- Works by adding a parameter for each free variable. These
--- synthetic parameters are added before the existing lambda params.
--- For example, `(x -> x + y + z)` becomes `(y z x -> x + y + z) y z`.
--- As this replacement has the same type as the original lambda, it
--- can be done as a purely local transformation, without updating any
--- call sites of the lambda.
---
--- The transformation is shallow and doesn't transform the body of
--- lambdas it finds inside of `t`.
-lambdaLift :: (Var v, Semigroup a) => (v -> v) -> Term v a -> Term v a
-lambdaLift liftVar t = result where
-  result = ABT.visitPure go t
-  go t@(LamsNamed' vs body) = Just $ let
-    fvs = ABT.freeVars t
-    fvsLifted = [ (v, liftVar v) | v <- toList fvs ]
-    a = ABT.annotation t
-    subs = [(v, var a v') | (v,v') <- fvsLifted ]
-    in if Set.null fvs then lam' a vs body -- `lambdaLift body` would make transform deep
-       else apps' (lam' a (map snd fvsLifted ++ vs) (ABT.substs subs body))
-                  (snd <$> subs)
-  go _ = Nothing
 
 closure :: Var v => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -270,9 +240,9 @@ letFloater rec vbs e = do
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn.fst) vbs
   modify (\(cvs, ctx, dcmp) -> (cvs<>shvs, ctx, dcmp))
-  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.changeVars shadowMap b)) vbs
+  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.renames shadowMap b)) vbs
   modify (\(vs,ctx,dcmp) -> (vs, ctx ++ fvbs, dcmp))
-  pure $ ABT.changeVars shadowMap e
+  pure $ ABT.renames shadowMap e
   where
   rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
   rec' b = rec b
@@ -307,7 +277,7 @@ floater _   rec (Let1Named' v b e)
   | LamsNamed' vs bd <- b
   = Just $ rec bd
        >>= lamFloater (null $ ABT.freeVars b) b (Just v) a vs
-       >>= \lv -> rec $ ABT.changeVars (Map.singleton v lv) e
+       >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where a = ABT.annotation b
 
 floater top rec tm@(LamsNamed' vs bd)
@@ -369,129 +339,11 @@ saturate dat = ABT.visitPure $ \case
     fvs = foldMap freeVars args
     args' = saturate dat <$> args
 
-optimize :: forall a v . (Semigroup a, Var v) => Term v a -> Term v a
-optimize t = go t where
-  ann = ABT.annotation
-  go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
-  go e@(App' f arg) = case go f of
-    Lam' f -> go (ABT.bind f arg)
-    f -> app (ann e) f (go arg)
-  go (If' (Boolean' False) _ f) = go f
-  go (If' (Boolean' True) t _) = go t
-  -- todo: can simplify match expressions
-  go e@(ABT.Var' _) = e
-  go e@(ABT.Tm' f) = case e of
-    Lam' _ -> e -- optimization is shallow - don't descend into lambdas
-    _ -> ABT.tm' (ann e) (go <$> f)
-  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
-  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
-  go e = e
-
-  -- test for whether an expression `let x = y in body` can be
-  -- reduced by substituting `y` into `body`. We only substitute
-  -- when `y` is a variable or a primitive, otherwise this might
-  -- end up duplicating evaluation or changing the order that
-  -- effects are evaluated
-  canSubstLet expr _body
-    | isLeaf expr = True
-    -- todo: if number of occurrences of the binding is 1 and the
-    -- binding is pure, okay to substitute
-    | otherwise   = False
-
-isLeaf :: ABT.Term (F typeVar typeAnn patternAnn) v a -> Bool
-isLeaf (Var' _) = True
-isLeaf (Int' _) = True
-isLeaf (Float' _) = True
-isLeaf (Nat' _) = True
-isLeaf (Text' _) = True
-isLeaf (Boolean' _) = True
-isLeaf (Constructor' _ _) = True
-isLeaf (TermLink' _) = True
-isLeaf (TypeLink' _) = True
-isLeaf _ = False
-
 minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e -> error $ "tried to minimize let rec with duplicate definitions: "
                  ++ show (fst <$> toList e)
-
-fromTerm' :: (Monoid a, Var v) => (v -> v) -> Term v a -> Term v a
-fromTerm' liftVar t = term (fromTerm liftVar t)
-
-fromTerm :: forall a v . (Monoid a, Var v) => (v -> v) -> Term v a -> ANF v a
-fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
-  ann = ABT.annotation
-  isRef (Ref' _) = True
-  isRef _ = False
-  fixup :: Set v -- if we gotta create new vars, avoid using these
-       -> ([Term v a] -> Term v a) -- do this with ANF'd args
-       -> [Term v a] -- the args (not all in ANF already)
-       -> Term v a -- the ANF'd term
-  fixup used f args = let
-    args' = Map.fromList $ toVar =<< (args `zip` [0..])
-    toVar (b, i) | isLeaf b   = []
-                 | otherwise = [(i, Var.freshIn used (Var.named . Text.pack $ "arg" ++ show i))]
-    argsANF = map toANF (args `zip` [0..])
-    toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
-    addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
-    in foldr addLet (f argsANF) (args `zip` [(0::Int)..])
-  go :: Term v a -> Term v a
-  go e@(Apps' f args)
-    | (isRef f || isLeaf f) && all isLeaf args = e
-    | not (isRef f || isLeaf f) =
-      let f' = ABT.fresh e (Var.named "f")
-      in let1' False [(f', go f)] (go $ apps' (var (ann f) f') args)
-    | otherwise = fixup (ABT.freeVars e) (apps' f) args
-  go e@(Handle' h body)
-    | isLeaf h = handle (ann e) h (go body)
-    | otherwise = let h' = ABT.fresh e (Var.named "handler")
-                  in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
-  go e@(If' cond t f)
-    | isLeaf cond = iff (ann e) cond (go t) (go f)
-    | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') (go t) (go f))
-  go e@(Match' scrutinee cases)
-    | isLeaf scrutinee = match (ann e) scrutinee (fmap go <$> cases)
-    | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-                  in let1' False [(scrutinee', go scrutinee)]
-                      (match (ann e)
-                             (var (ann scrutinee) scrutinee')
-                             (fmap go <$> cases))
-  -- MatchCase RHS, shouldn't conflict with LetRec
-  go (ABT.Abs1NA' avs t) = ABT.absChain' avs (go t)
-  go e@(And' x y)
-    | isLeaf x = and (ann e) x (go y)
-    | otherwise =
-        let x' = ABT.fresh e (Var.named "argX")
-        in let1' False [(x', go x)] (and (ann e) (var (ann x) x') (go y))
-  go e@(Or' x y)
-    | isLeaf x = or (ann e) x (go y)
-    | otherwise =
-        let x' = ABT.fresh e (Var.named "argX")
-        in let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))
-  go e@(Var' _) = e
-  go e@(Int' _) = e
-  go e@(Nat' _) = e
-  go e@(Float' _) = e
-  go e@(Boolean' _) = e
-  go e@(Text' _) = e
-  go e@(Char' _) = e
-  go e@(Blank' _) = e
-  go e@(Ref' _) = e
-  go e@(TermLink' _) = e
-  go e@(TypeLink' _) = e
-  go e@(RequestOrCtor' _ _) = e
-  go e@(Lam' _) = e -- ANF conversion is shallow -
-                     -- don't descend into closed lambdas
-  go (Let1Named' v b e) = let1' False [(v, go b)] (go e)
-  -- top = False because we don't care to emit typechecker notes about TLDs
-  go (LetRecNamed' bs e) = letRec' False (fmap (second go) bs) (go e)
-  go e@(List' vs) =
-    if all isLeaf vs then e
-    else fixup (ABT.freeVars e) (list (ann e)) (toList vs)
-  go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
-  go e = error $ "ANF.term: I thought we got all of these\n" <> show e
 
 data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 
@@ -683,6 +535,9 @@ data Branched e
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
   deriving (Show, Functor, Foldable, Traversable)
+
+-- Data cases expected to cover all constructors
+pattern MatchDataCover r m = MatchData r m Nothing
 
 data BranchAccum v
   = AccumEmpty
@@ -1016,7 +871,7 @@ anfHandled body = anfBlock body >>= \case
 
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
-tru = TCon Ty.booleanRef 0 []
+tru = TCon Ty.booleanRef 1 []
 
 anfBlock :: Var v => Term v a -> ANFM v (Ctx v, DNormal v)
 anfBlock (Var' v) = pure (mempty, pure $ TVar v)
@@ -1033,7 +888,7 @@ anfBlock (If' c t f) = do
 anfBlock (And' l r) = do
   (lctx, vl) <- anfArg l
   (d, tmr) <- anfTerm r
-  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+  let tree = TMatch vl . MatchDataCover Ty.booleanRef
            $ mapFromList
            [ (0, ([], fls))
            , (1, ([], tmr))
@@ -1042,7 +897,7 @@ anfBlock (And' l r) = do
 anfBlock (Or' l r) = do
   (lctx, vl) <- anfArg l
   (d, tmr) <- anfTerm r
-  let tree = TMatch vl . flip (MatchData Ty.booleanRef) Nothing
+  let tree = TMatch vl . MatchDataCover Ty.booleanRef
            $ mapFromList
            [ (1, ([], tru))
            , (0, ([], tmr))
@@ -1104,9 +959,8 @@ anfBlock (Match' scrut cas) = do
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
     AccumIntegral r df cs -> do
       i <- fresh
-      let dcs = MatchData r
+      let dcs = MatchDataCover r
                   (EC.mapSingleton 0 ([UN], ABTN.TAbss [i] ics))
-                  Nothing
           ics = TMatch i $ MatchIntegral cs df
       pure (sctx <> cx, pure $ TMatch v dcs)
     AccumData r df cs ->
@@ -1121,13 +975,12 @@ anfBlock (Match' scrut cas) = do
       pure ( sctx <> cx
                <> (Indirect (), [ST1 (Indirect b) r BX (TCom op [v])])
            , pure . TMatch r
-           $ MatchData Ty.seqViewRef
+           $ MatchDataCover Ty.seqViewRef
                (EC.mapFromList
                   [ (0, ([], em))
                   , (1, ([BX,BX], bd))
                   ]
                )
-               Nothing
            )
     AccumSeqView {} ->
       error "anfBlock: non-exhaustive AccumSeqView"

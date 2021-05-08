@@ -44,6 +44,9 @@ type Type v = Type.Type v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 type Result' v = Result (Seq (Note v Ann))
 
+debug :: Bool
+debug = False
+
 convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes bugs es is) =
   (CompilerBug . TypecheckerBug <$> bugs) <> (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
@@ -66,6 +69,7 @@ parseAndSynthesizeFile
        m
        (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
+  when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
   let names0 = Names.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf

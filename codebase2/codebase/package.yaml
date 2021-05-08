@@ -1,0 +1,14 @@
+name: unison-codebase
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - containers
+  - lens
+  - mtl
+  - text
+  - unison-core
+  - unison-util

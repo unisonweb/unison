@@ -1,0 +1,68 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 08b634642723a41ec97773c7481d4d7af6a31e527b06c0e800001677e64a955d
+
+name:           unison-codebase-sqlite
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+build-type:     Simple
+extra-source-files:
+    sql/create.sql
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      U.Codebase.Sqlite.Branch.Diff
+      U.Codebase.Sqlite.Branch.Format
+      U.Codebase.Sqlite.Branch.Full
+      U.Codebase.Sqlite.DbId
+      U.Codebase.Sqlite.Decl.Format
+      U.Codebase.Sqlite.LocalIds
+      U.Codebase.Sqlite.ObjectType
+      U.Codebase.Sqlite.Operations
+      U.Codebase.Sqlite.Patch.Diff
+      U.Codebase.Sqlite.Patch.Format
+      U.Codebase.Sqlite.Patch.Full
+      U.Codebase.Sqlite.Patch.TermEdit
+      U.Codebase.Sqlite.Patch.TypeEdit
+      U.Codebase.Sqlite.Queries
+      U.Codebase.Sqlite.Reference
+      U.Codebase.Sqlite.Referent
+      U.Codebase.Sqlite.Serialization
+      U.Codebase.Sqlite.Symbol
+      U.Codebase.Sqlite.Sync22
+      U.Codebase.Sqlite.Term.Format
+  other-modules:
+      Paths_unison_codebase_sqlite
+  hs-source-dirs:
+      ./.
+  build-depends:
+      base
+    , bytes
+    , bytestring
+    , containers
+    , extra
+    , here
+    , lens
+    , monad-validate
+    , mtl
+    , sqlite-simple
+    , text
+    , transformers
+    , unison-codebase
+    , unison-codebase-sync
+    , unison-core
+    , unison-util
+    , unison-util-serialization
+    , unison-util-term
+    , unliftio
+    , vector
+  default-language: Haskell2010

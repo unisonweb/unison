@@ -1,0 +1,34 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 40c5460ecd0a04d3f1012c9848d442e889805f339ee3f9a20d46932e843d116d
+
+name:           unison-core
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+library
+  exposed-modules:
+      U.Core.ABT
+      U.Core.ABT.Var
+  other-modules:
+      Paths_unison_core
+  hs-source-dirs:
+      ./.
+  build-depends:
+      base
+    , containers
+    , prelude-extras
+    , text
+    , unison-util
+    , vector
+  default-language: Haskell2010

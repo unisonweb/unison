@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Main where
@@ -36,6 +37,9 @@ import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 import qualified Unison.Test.Git as Git
+import qualified Unison.Test.GitSync as GitSync
+import qualified Unison.Test.Codebase.Upgrade12 as Upgrade12
+-- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
 test = tests
@@ -66,6 +70,9 @@ test = tests
   , UriParser.test
   , Context.test
   , Git.test
+  , Upgrade12.test
+  , GitSync.test
+  -- , BaseUpgradePushPullTest.test -- slowwwwww test involving upgrading base, hard-coded to arya's filesystem
   , Name.test
   , VersionParser.test
   , Pretty.test
