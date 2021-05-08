@@ -4,6 +4,7 @@ import Data.Vector (Vector)
 import U.Codebase.Sqlite.Branch.Diff (LocalDiff)
 import U.Codebase.Sqlite.Branch.Full (LocalBranch)
 import U.Codebase.Sqlite.DbId (CausalHashId, BranchObjectId, ObjectId, PatchObjectId, TextId)
+import Data.ByteString (ByteString)
 
 -- |you can use the exact same `BranchLocalIds` when converting between `Full` and `Diff`
 data BranchFormat
@@ -18,3 +19,7 @@ data BranchLocalIds = LocalIds
     branchChildLookup :: Vector (BranchObjectId, CausalHashId)
   }
   deriving Show
+
+data SyncBranchFormat
+  = SyncFull BranchLocalIds ByteString
+  | SyncDiff BranchObjectId BranchLocalIds ByteString

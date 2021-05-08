@@ -4,6 +4,7 @@ import Data.Vector (Vector)
 import U.Codebase.Sqlite.DbId (HashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.Patch.Diff (LocalPatchDiff)
 import U.Codebase.Sqlite.Patch.Full (LocalPatch)
+import Data.ByteString (ByteString)
 
 data PatchFormat
   = Full PatchLocalIds LocalPatch
@@ -14,3 +15,7 @@ data PatchLocalIds = LocalIds
     patchHashLookup :: Vector HashId,
     patchDefnLookup :: Vector ObjectId
   }
+
+data SyncPatchFormat
+  = SyncFull PatchLocalIds ByteString
+  | SyncDiff PatchObjectId PatchLocalIds ByteString
