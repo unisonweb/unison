@@ -5,48 +5,50 @@
 
 module Main where
 
-import Unison.Prelude
-import           Control.Concurrent             ( mkWeakThreadId
-                                                , myThreadId
-                                                --, forkIO
-                                                )
-import           Control.Error.Safe             (rightMay)
-import           Control.Exception              ( throwTo
-                                                , AsyncException(UserInterrupt)
-                                                )
-import           Data.ByteString.Char8          ( unpack )
-import           Data.Configurator.Types        ( Config )
-import qualified Network.URI.Encode            as URI
-import           System.Directory               ( getCurrentDirectory
-                                                , removeDirectoryRecursive
-                                                )
-import           System.Environment             ( getArgs, getProgName )
-import           System.Mem.Weak                ( deRefWeak )
-import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Editor.VersionParser as VP
-import           Unison.Codebase.Execute        ( execute )
-import qualified Unison.Codebase.FileCodebase  as FileCodebase
-import           Unison.Codebase.FileCodebase.Common ( codebasePath )
-import           Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
-import           Unison.CommandLine             ( watchConfig )
-import qualified Unison.CommandLine.Main       as CommandLine
-import qualified Unison.Runtime.Interface      as RTI
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Util.Cache             as Cache
-import qualified Unison.Server.CodebaseServer as Server
-import qualified Version
-import qualified Unison.Codebase.TranscriptParser as TR
-import qualified System.Path as Path
-import qualified System.FilePath as FP
-import qualified System.IO.Temp as Temp
-import qualified System.Exit as Exit
-import System.IO.Error (catchIOError)
-import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Util.Pretty as P
-import qualified Unison.PrettyTerminal as PT
-import qualified Data.Text as Text
+import Control.Concurrent
+  ( mkWeakThreadId,
+    myThreadId,
+  )
+import Control.Error.Safe (rightMay)
+import Control.Exception
+  ( AsyncException (UserInterrupt),
+    throwTo,
+  )
+import Data.ByteString.Char8 (unpack)
 import qualified Data.Configurator as Config
+import Data.Configurator.Types (Config)
+import qualified Data.Text as Text
+import qualified Network.URI.Encode as URI
+import System.Directory
+  ( getCurrentDirectory,
+    removeDirectoryRecursive,
+  )
+import System.Environment (getArgs, getProgName)
+import qualified System.Exit as Exit
+import qualified System.FilePath as FP
+import System.IO.Error (catchIOError)
+import qualified System.IO.Temp as Temp
+import System.Mem.Weak (deRefWeak)
+import qualified System.Path as Path
 import Text.Megaparsec (runParser)
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Editor.Input as Input
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import qualified Unison.Codebase.Editor.VersionParser as VP
+import Unison.Codebase.Execute (execute)
+import qualified Unison.Codebase.FileCodebase as FileCodebase
+import Unison.Codebase.FileCodebase.Common (codebasePath)
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.CommandLine (watchConfig)
+import qualified Unison.CommandLine.Main as CommandLine
+import Unison.Prelude
+import qualified Unison.PrettyTerminal as PT
+import qualified Unison.Runtime.Interface as RTI
+import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Util.Cache as Cache
+import qualified Unison.Util.Pretty as P
+import qualified Version
 
 #if defined(mingw32_HOST_OS)
 import qualified GHC.ConsoleHandler as WinSig
@@ -190,14 +192,12 @@ main = do
     _ -> do
       theCodebase <- FileCodebase.getCodebaseOrExit branchCache mcodepath
       Server.start theCodebase $ \token port -> do
+        let url =
+             "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
         PT.putPrettyLn $ P.lines
-          ["I've started the codebase API server at "
-          , P.string $ "http://127.0.0.1:" <> show port <> "/api?"
-            <> URI.encode (unpack token)]
+          ["I've started the codebase API server at" , P.string $ url <> "/api"]
         PT.putPrettyLn $ P.lines
-          ["The Unison Codebase UI is running at"
-          , P.string $ "http://127.0.0.1:" <> show port <> "/ui?"
-            <> URI.encode (unpack token)]
+          ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
         launch currentDir config theCodebase branchCache []
 

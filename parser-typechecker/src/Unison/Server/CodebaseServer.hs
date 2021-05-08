@@ -201,7 +201,10 @@ ucmTokenVar = "UCM_TOKEN"
 
 -- The auth token required for accessing the server is passed to the function k
 start
-  :: Var v => Codebase IO v Ann -> (Strict.ByteString -> Port -> IO ()) -> IO ()
+  :: Var v
+  => Codebase IO v Ann
+  -> (Strict.ByteString -> Port -> IO ())
+  -> IO ()
 start codebase k = do
   envToken <- lookupEnv ucmTokenVar
   envHost  <- lookupEnv ucmHostVar
@@ -270,7 +273,8 @@ startServer codebase k envToken envHost envPort envUI = do
     Just p  -> do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
-      result <- race (runSettings settings' a) (waitFor started *> k token p)
+      result <- race (runSettings settings' a)
+                     (waitFor started *> k token p)
       case result of
         Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
         Right x  -> pure x
