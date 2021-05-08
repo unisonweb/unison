@@ -970,7 +970,7 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
     setRepoRoot root h = do
       conn <- unsafeGetConnection root
       let h2 = Cv.causalHash1to2 h
-          err = error "Called SqliteCodebase.setNamespaceRoot on unknown causal hash"
+          err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2
       flip runReaderT conn $ do
         chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
         Q.setNamespaceRoot chId

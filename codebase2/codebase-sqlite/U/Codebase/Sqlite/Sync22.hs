@@ -21,7 +21,6 @@ import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
 import Data.Foldable (for_, toList, traverse_)
@@ -30,14 +29,14 @@ import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Word (Word8)
 import Database.SQLite.Simple (Connection)
-import Debug.Trace (traceM)
+import Debug.Trace (traceM, trace)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import qualified U.Codebase.Sqlite.Term.Format as TL
 import qualified U.Codebase.Sqlite.Patch.Format as PL
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as Sqlite
@@ -63,8 +62,6 @@ data DecodeError
   | ErrDeclComponent
   | ErrBranchFormat
   | ErrPatchFormat
-  | ErrBranchBody Word8
-  | ErrPatchBody Word8
   | ErrWatchResult
   deriving (Show)
 
@@ -227,52 +224,32 @@ trySync tCache hCache oCache cCache = \case
                 >>= traverse (syncTypeIndexRow oId')
                 >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
             pure oId'
-          OT.Namespace -> case BS.uncons bytes of
-            -- full branch case
-            Just (fmt@0, bytes) -> do
-              (ids, body) <- case flip runGetS bytes S.decomposeBranchFull of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrBranchBody fmt) bytes s
+          OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
+            Right (BL.SyncFull ids body) -> do
               ids' <- syncBranchLocalIds ids
-              let bytes' = runPutS $ putWord8 0 *> S.recomposeBranchFull ids' body
+              let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncFull ids' body)
               oId' <- runDest $ Q.saveObject hId' objType bytes'
               pure oId'
-            -- branch diff case
-            Just (fmt@1, bytes) -> do
-              (boId, ids, body) <- case flip runGetS bytes S.decomposeBranchDiff of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrBranchBody fmt) bytes s
-              boId' <- syncLocalObjectId boId
+            Right (BL.SyncDiff boId ids body) -> do
+              boId' <- syncBranchObjectId boId
               ids' <- syncBranchLocalIds ids
-              let bytes' = runPutS $ putWord8 1 *> S.recomposeBranchDiff boId' ids' body
+              let bytes' = runPutS $ S.recomposeBranchFormat (BL.SyncDiff boId' ids' body)
               oId' <- runDest $ Q.saveObject hId' objType bytes'
               pure oId'
-            -- unrecognized tag case
-            Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized branch format tag: " ++ show tag)
-            Nothing -> throwError $ DecodeError ErrBranchFormat bytes "zero-byte branch object"
-          OT.Patch -> case BS.uncons bytes of
-            -- full branch case
-            Just (fmt@0, bytes) -> do
-              (ids, body) <- case flip runGetS bytes S.decomposePatchFull of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrPatchBody fmt) bytes s
+            Left s -> throwError $ DecodeError ErrBranchFormat bytes s
+          OT.Patch -> case flip runGetS bytes S.decomposePatchFormat of
+            Right (PL.SyncFull ids body) -> do
               ids' <- syncPatchLocalIds ids
-              let bytes' = runPutS $ putWord8 0 *> S.recomposePatchFull ids' body
+              let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncFull ids' body)
               oId' <- runDest $ Q.saveObject hId' objType bytes'
               pure oId'
-            -- branch diff case
-            Just (fmt@1, bytes) -> do
-              (poId, ids, body) <- case flip runGetS bytes S.decomposePatchDiff of
-                Right x -> pure x
-                Left s -> throwError $ DecodeError (ErrPatchBody fmt) bytes s
-              poId' <- syncLocalObjectId poId
+            Right (PL.SyncDiff poId ids body) -> do
+              poId' <- syncPatchObjectId poId
               ids' <- syncPatchLocalIds ids
-              let bytes' = runPutS $ putWord8 1 *> S.recomposePatchDiff poId' ids' body
+              let bytes' = runPutS $ S.recomposePatchFormat (PL.SyncDiff poId' ids' body)
               oId' <- runDest $ Q.saveObject hId' objType bytes'
               pure oId'
-            -- error cases
-            Just (tag, _) -> throwError $ DecodeError ErrBranchFormat bytes ("unrecognized patch format tag: " ++ show tag)
-            Nothing -> throwError $ DecodeError ErrPatchFormat bytes "zero-byte patch object"
+            Left s -> throwError $ DecodeError ErrPatchFormat bytes s
         case result of
           Left deps -> pure . Sync.Missing $ toList deps
           Right oId' -> do
@@ -287,6 +264,9 @@ trySync tCache hCache oCache cCache = \case
       lift (isSyncedObject oId) >>= \case
         Just oId' -> pure oId'
         Nothing -> Validate.refute . Set.singleton $ O oId
+
+    syncPatchObjectId :: PatchObjectId -> ValidateT (Set Entity) m PatchObjectId
+    syncPatchObjectId = fmap PatchObjectId . syncLocalObjectId . unPatchObjectId
 
     syncBranchObjectId :: BranchObjectId -> ValidateT (Set Entity) m BranchObjectId
     syncBranchObjectId = fmap BranchObjectId . syncLocalObjectId . unBranchObjectId
@@ -369,20 +349,18 @@ trySync tCache hCache oCache cCache = \case
       traverse syncCausal srcParents
 
     syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m (TrySyncResult Entity)
+    syncWatch wk r | debug && trace ("Sync22.syncWatch " ++ show wk ++ " " ++ show r) False = undefined
     syncWatch wk r = do
       r' <- traverse syncHashLiteral r
       doneKinds <- runDest (Q.loadWatchKindsByReference r')
       if (notElem wk doneKinds) then do
         runSrc (Q.loadWatch wk r) >>= traverse \blob -> do
-          (L.LocalIds tIds hIds, termBytes) <-
-            case runGetS S.decomposeWatchResult blob of
-              Right x -> pure x
-              Left s -> throwError $ DecodeError ErrWatchResult blob s
-          tIds' <- traverse syncTextLiteral tIds
-          hIds' <- traverse syncHashLiteral hIds
-          when debug $ traceM $ "LocalIds for Source watch result " ++ show r ++ ": " ++ show (tIds, hIds)
-          when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show (tIds', hIds')
-          let blob' = runPutS (S.recomposeWatchResult (L.LocalIds tIds' hIds', termBytes))
+          TL.SyncWatchResult li body <-
+            either (throwError . DecodeError ErrWatchResult blob) pure $ runGetS S.decomposeWatchFormat blob
+          li' <- bitraverse syncTextLiteral syncHashLiteral li
+          when debug $ traceM $ "LocalIds for Source watch result " ++ show r ++ ": " ++ show li
+          when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show li'
+          let blob' = runPutS $ S.recomposeWatchFormat (TL.SyncWatchResult li' body)
           runDest (Q.saveWatch wk r' blob')
         pure Sync.Done
       else pure Sync.PreviouslyDone
