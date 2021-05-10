@@ -64,6 +64,7 @@ import Servant
 import Servant.API
   ( Accept (..),
     Capture,
+    CaptureAll,
     Get,
     Headers,
     JSON,
@@ -117,11 +118,11 @@ type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
 type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
 
-type WebUI = ("static" :> Raw) :<|> Get '[HTML] RawHtml
+type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
 type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
 
-type AuthedServerAPI = Capture "token" Text :> ServerAPI
+type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI)
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -297,9 +298,9 @@ serveIndex path = do
     }
 
 serveUI :: Handler () -> Maybe FilePath -> Server WebUI
-serveUI tryAuth p =
+serveUI tryAuth p _ =
   let path = fromMaybe "ui" p
-  in  serveDirectoryWebApp (path </> "static") :<|> (tryAuth *> serveIndex path)
+  in  tryAuth *> serveIndex path
 
 server
   :: Var v
@@ -308,19 +309,19 @@ server
   -> Strict.ByteString
   -> Server AuthedServerAPI
 server codebase uiPath token =
-  (\t ->
-    serveUI (tryAuth t) uiPath
-      :<|> (
-               (   (serveNamespace (tryAuth t) codebase)
-                   :<|> (serveDefinitions (tryAuth t) codebase)
-                   :<|> (serveFuzzyFind (tryAuth t) codebase)
+  serveDirectoryWebApp (fromMaybe "ui" uiPath </> "static")
+    :<|> ((\t ->
+            serveUI (tryAuth t) uiPath
+              :<|> (    (    (serveNamespace (tryAuth t) codebase)
+                        :<|> (serveDefinitions (tryAuth t) codebase)
+                        :<|> (serveFuzzyFind (tryAuth t) codebase)
+                        )
+                   :<|> addHeader "*"
+                   <$>  serveOpenAPI
+                   :<|> Tagged serveDocs
                    )
-              :<|> addHeader "*"
-              <$>  serveOpenAPI
-              :<|> Tagged serveDocs
-
-           )
-  )
+          )
+         )
  where
   serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
   serveOpenAPI = pure openAPI
