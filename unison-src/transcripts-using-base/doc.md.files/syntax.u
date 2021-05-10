@@ -73,12 +73,12 @@ id x = x
 id (sqr 10)
 ``` 
 
-Use two backticks if you just want to include a snippet of code without evaluating it. 
+To include a typechecked snippet of code without evaluating it, you can do:
 
-``
+@typecheck ```
 cube : Nat -> Nat
 cube x = x * x * x
-``
+```
 
 }}
 

@@ -269,6 +269,17 @@ lexemes = lexemes' eof
     l <- S.gets layout
     pure $ replicate (length l + n) (Token Close p p)
 
+restoreStack :: String -> P [Token Lexeme] -> P [Token Lexeme]
+restoreStack lbl p = do
+  layout1 <- S.gets layout
+  p <- p
+  s2 <- S.get
+  let
+    (pos1,pos2) = foldl' (\_ b -> (start b, end b)) mempty p
+    unclosed = takeWhile (\(lbl',_) -> lbl' /= lbl) (layout s2)
+    closes = replicate (length unclosed) (Token Close pos1 pos2)
+  S.put (s2 { layout = layout1 })
+  pure $ p <> closes
 
 lexemes' :: P [Token Lexeme] -> P [Token Lexeme]
 lexemes' eof = P.optional space >> do
@@ -334,7 +345,7 @@ lexemes' eof = P.optional space >> do
 
     leafy ok = groupy ok gs
           where
-          gs = link <|> externalLink <|> example <|> expr
+          gs = link <|> externalLink <|> exampleInline <|> expr
            <|> boldOrItalicOrStrikethrough ok <|> verbatim
            <|> atDoc <|> wordy ok
 
@@ -414,23 +425,14 @@ lexemes' eof = P.optional space >> do
       dropNl ('\n':t) = t
       dropNl as = as
 
-    example = do
-      ts@(Token (Open "syntax.docExample") start stop : rest) <- ticked
-      spaces <- P.lookAhead (P.takeWhileP Nothing isSpace)
-      let hasBlank s = length (filter (== '\n') s) >= 2
-      if hasBlank spaces then
-        pure (Token (Open "syntax.docExampleBlock") start stop : rest)
-      else
-        pure ts
-      where
-        ticked =
-          P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
-          wrap "syntax.docExample" $ do
-            n <- P.try $ do _ <- lit "`"
-                            length <$> P.takeWhile1P (Just "backticks") (== '`')
-            let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
-            ex <- CP.space *> lexemes' end
-            pure ex
+    exampleInline =
+      P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
+      wrap "syntax.docExample" $ do
+        n <- P.try $ do _ <- lit "`"
+                        length <$> P.takeWhile1P (Just "backticks") (== '`')
+        let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
+        ex <- CP.space *> lexemes' end
+        pure ex
 
     docClose = [] <$ lit "}}"
     docOpen  = [] <$ lit "{{"
@@ -450,9 +452,9 @@ lexemes' eof = P.optional space >> do
 
     fencedBlock =
       P.label "block eval (syntax: a fenced code block)" $
-      unison <|> other
+      evalUnison <|> typecheckUnison <|> other
       where
-        unison = wrap "syntax.docEval" $ do
+        evalUnison = wrap "syntax.docEval" $ do
           -- commit after seeing that ``` is on its own line
           fence <- P.try $ do
             fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
@@ -461,6 +463,12 @@ lexemes' eof = P.optional space >> do
           CP.space *>
             local (\env -> env { inLayout = True, opening = Just "docEval" })
                   (lexemes' ([] <$ lit fence))
+
+        typecheckUnison = wrap "syntax.docExampleBlock" $ do
+          void $ lit "@typecheck" <* CP.space
+          fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
+          local (\env -> env { inLayout = True, opening = Just "docExampleBlock" })
+                (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
 
         other = wrap "syntax.docCodeBlock" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))

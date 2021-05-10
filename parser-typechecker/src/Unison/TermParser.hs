@@ -488,7 +488,7 @@ doc2Block =
       "syntax.docEvalInline" -> evalLike addDelay
       "syntax.docExampleBlock" -> do
         tm <- block'' False True "syntax.docExampleBlock" (pure (void t)) closeBlock
-        pure $ Term.apps' f [addDelay tm]
+        pure $ Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
       "syntax.docEval" -> do
         tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
@@ -965,6 +965,11 @@ data BlockElement v
   = Binding ((Ann, v), Term v Ann)
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
+
+instance Show v => Show (BlockElement v) where
+  show (Binding ((pos,name), _)) = show ("binding: ", pos, name)
+  show (DestructuringBind (pos, _)) = show ("destructuring bind: ", pos)
+  show (Action tm) = show ("action: ", ann tm)
 
 -- subst
 -- use Foo.Bar + blah

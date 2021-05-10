@@ -1279,6 +1279,8 @@ prettyDoc2 ppe ac tm = case tm of
         "@eval{" <> pretty0 ppe ac tm <> "}"
       (toDocExample ppe -> Just tm) ->
         PP.group $ "``" <> pretty0 ppe ac tm <> "``"
+      (toDocExampleBlock ppe -> Just tm) ->
+        PP.lines ["@typecheck ```", pretty0 ppe ac tm, "```"]
       (toDocSource ppe -> Just es) ->
         PP.group $ "    @source{" <> intercalateMap ", " go es <> "}"
         where
