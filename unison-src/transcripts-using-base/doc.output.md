@@ -256,6 +256,13 @@ and the rendered output using `display`:
       id x = x
       id (sqr 10)
       ```
+      
+      To include a typechecked snippet of code without
+      evaluating it, you can do:
+      
+      @typecheck ```
+      _ -> ()
+      ```
     }}
 
 .> display evaluation
@@ -270,6 +277,11 @@ and the rendered output using `display`:
         id (sqr 10)
         ⧨
         100
+  
+    To include a typechecked snippet of code without evaluating
+    it, you can do:
+  
+        ()
 
 .> view includingSource
 
@@ -600,6 +612,11 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           id (sqr 10)
           ⧨
           100
+    
+      To include a typechecked snippet of code without
+      evaluating it, you can do:
+    
+          ()
   
     # Including Unison source code
     
