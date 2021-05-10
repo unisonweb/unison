@@ -101,14 +101,16 @@ instance ToSample DefinitionDisplayResults where
 
 serveDefinitions
   :: Var v
-  => Codebase IO v Ann
+  => Handler ()
+  -> Codebase IO v Ann
   -> Maybe ShortBranchHash
   -> Maybe HashQualifiedName
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
   -> Handler DefinitionDisplayResults
-serveDefinitions codebase mayRoot relativePath hqns width suff = do
+serveDefinitions h codebase mayRoot relativePath hqns width suff = do
+  h
   rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
   ea  <- liftIO . runExceptT $ do
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot

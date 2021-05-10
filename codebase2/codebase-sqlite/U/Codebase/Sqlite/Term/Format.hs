@@ -2,6 +2,7 @@
 
 module U.Codebase.Sqlite.Term.Format where
 
+import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
@@ -42,3 +43,6 @@ data TermFormat
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term
+
+data SyncWatchResultFormat
+  = SyncWatchResult WatchLocalIds ByteString

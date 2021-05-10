@@ -27,14 +27,11 @@ import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
-import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as BranchFull
-import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.Decl.Format as DeclFormat
 import U.Codebase.Sqlite.LocalIds (LocalIds, LocalIds' (..), LocalTextId, WatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Diff as PatchDiff
-import U.Codebase.Sqlite.Patch.Format (PatchLocalIds)
 import qualified U.Codebase.Sqlite.Patch.Format as PatchFormat
 import qualified U.Codebase.Sqlite.Patch.Full as PatchFull
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
@@ -649,35 +646,40 @@ recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putLocalIds localIds
   putByteString bytes
 
-decomposeWatchResult :: MonadGet m => m (WatchLocalIds, BS.ByteString)
-decomposeWatchResult = (,) <$> getWatchLocalIds <*> getRemainingByteString
+decomposeWatchFormat :: MonadGet m => m TermFormat.SyncWatchResultFormat
+decomposeWatchFormat = getWord8 >>= \case
+  0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
+  x -> unknownTag "decomposeWatchFormat" x
 
-recomposeWatchResult :: MonadPut m => (WatchLocalIds, BS.ByteString) -> m ()
-recomposeWatchResult (wli, bs) = putLocalIds wli >> putByteString bs
+recomposeWatchFormat :: MonadPut m => TermFormat.SyncWatchResultFormat -> m ()
+recomposeWatchFormat (TermFormat.SyncWatchResult wli bs) =
+  putWord8 0 *> putLocalIds wli *> putByteString bs
 
-decomposePatchFull :: MonadGet m => m (PatchLocalIds, BS.ByteString)
-decomposePatchFull = (,) <$> getPatchLocalIds <*> getRemainingByteString
+decomposePatchFormat :: MonadGet m => m PatchFormat.SyncPatchFormat
+decomposePatchFormat = getWord8 >>= \case
+  0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getRemainingByteString
+  1 -> PatchFormat.SyncDiff <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
+  x -> unknownTag "decomposePatchFormat" x
 
-decomposePatchDiff :: MonadGet m => m (ObjectId, PatchLocalIds, BS.ByteString)
-decomposePatchDiff = (,,) <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
+recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
+recomposePatchFormat = \case
+  PatchFormat.SyncFull li bs ->
+    putWord8 0 *> putPatchLocalIds li *> putByteString bs
+  PatchFormat.SyncDiff id li bs ->
+    putWord8 1 *> putVarInt id *> putPatchLocalIds li *> putByteString bs
 
-decomposeBranchFull :: MonadGet m => m (BranchLocalIds, BS.ByteString)
-decomposeBranchFull = (,) <$> getBranchLocalIds <*> getRemainingByteString
+decomposeBranchFormat :: MonadGet m => m BranchFormat.SyncBranchFormat
+decomposeBranchFormat = getWord8 >>= \case
+  0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
+  1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+  x -> unknownTag "decomposeBranchFormat" x
 
-decomposeBranchDiff :: MonadGet m => m (ObjectId, BranchLocalIds, BS.ByteString)
-decomposeBranchDiff = (,,) <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
-
-recomposePatchFull :: MonadPut m => PatchLocalIds -> BS.ByteString -> m ()
-recomposePatchFull li bs = putPatchLocalIds li *> putByteString bs
-
-recomposePatchDiff :: MonadPut m => ObjectId -> PatchLocalIds -> BS.ByteString -> m ()
-recomposePatchDiff id li bs = putVarInt id *> putPatchLocalIds li *> putByteString bs
-
-recomposeBranchFull :: MonadPut m => BranchLocalIds -> BS.ByteString -> m ()
-recomposeBranchFull li bs = putBranchLocalIds li *> putByteString bs
-
-recomposeBranchDiff :: MonadPut m => ObjectId -> BranchLocalIds -> BS.ByteString -> m ()
-recomposeBranchDiff id li bs = putVarInt id *> putBranchLocalIds li *> putByteString bs
+recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
+recomposeBranchFormat = \case
+  BranchFormat.SyncFull li bs ->
+    putWord8 0 *> putBranchLocalIds li *> putByteString bs
+  BranchFormat.SyncDiff id li bs ->
+    putWord8 1 *> putVarInt id *> putBranchLocalIds li *> putByteString bs
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getVarInt <*> getText
