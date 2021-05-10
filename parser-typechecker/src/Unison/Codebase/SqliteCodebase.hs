@@ -524,19 +524,22 @@ sqliteCodebase root = do
               Nothing -> pure Nothing
 
           putBranch :: MonadIO m => Branch m -> m ()
-          putBranch branch1 =
-            runDB conn
-              . void
-              . Ops.saveBranch
-              . Cv.causalbranch1to2
-              $ Branch.transform (lift . lift) branch1
+          putBranch = runDB conn . putBranch'
+
+          putBranch' :: MonadIO m => Branch m -> ReaderT Connection (ExceptT Ops.Error m) ()
+          putBranch' branch1 =
+            void . Ops.saveBranch . Cv.causalbranch1to2 $
+              Branch.transform (lift . lift) branch1
 
           isCausalHash :: MonadIO m => Branch.Hash -> m Bool
-          isCausalHash (Causal.RawHash h) =
-            runDB conn $
+          isCausalHash = runDB conn . isCausalHash'
+
+          isCausalHash' :: MonadIO m => Branch.Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
+          isCausalHash' (Causal.RawHash h) =
               Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
                 Nothing -> pure False
                 Just hId -> Q.isCausalHash hId
+
 
           getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
           getPatch h =
@@ -562,16 +565,17 @@ sqliteCodebase root = do
                 =<< Ops.dependents (Cv.reference1to2 r)
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncFromDirectory srcRoot syncMode b =
-            flip State.evalStateT emptySyncProgressState $
-              syncToDirectory' syncProgress srcRoot root syncMode $
-                Branch.transform lift b
+          syncFromDirectory srcRoot _syncMode b =
+            flip State.evalStateT emptySyncProgressState $ do
+              srcConn <- unsafeGetConnection srcRoot
+              syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
           syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncToDirectory destRoot syncMode b =
-            flip State.evalStateT emptySyncProgressState $
-              syncToDirectory' syncProgress root destRoot syncMode $
-                Branch.transform lift b
+          syncToDirectory destRoot _syncMode b =
+            flip State.evalStateT emptySyncProgressState $ do
+              initSchemaIfNotExist destRoot
+              destConn <- unsafeGetConnection destRoot
+              syncInternal syncProgress conn destConn $ Branch.transform lift b
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
           watches w =
@@ -682,30 +686,17 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-          -- does destPath need to be a codebase?
-          syncToDirectory' ::
+          syncInternal ::
             forall m.
             MonadIO m =>
             Sync.Progress m Sync22.Entity ->
-            CodebasePath ->
-            CodebasePath ->
-            SyncMode ->
+            Connection ->
+            Connection ->
             Branch m ->
             m ()
-          syncToDirectory' progress srcPath destPath _mode b = do
+          syncInternal progress srcConn destConn b = do
             result <- runExceptT do
-              initSchemaIfNotExist destPath
-              syncEnv@(Sync22.Env srcConn _ _) <-
-                Sync22.Env
-                  <$> unsafeGetConnection srcPath
-                  <*> unsafeGetConnection destPath
-                  <*> pure (16 * 1024 * 1024)
-              src <-
-                lift (sqliteCodebase srcPath)
-                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.SrcWrongSchema
-              dest <-
-                lift (sqliteCodebase destPath)
-                  >>= Except.liftEither . Either.mapLeft SyncEphemeral.DestWrongSchema
+              let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
               -- we want to use sync22 wherever possible
               -- so for each branch, we'll check if it exists in the destination branch
               -- or if it exists in the source branch, then we can sync22 it
@@ -717,51 +708,49 @@ sqliteCodebase root = do
               let r :: forall m a. (ReaderT Sync22.Env m a -> m a)
                   r = flip runReaderT syncEnv
                   processBranches ::
-                    forall m v a.
+                    forall m.
                     MonadIO m =>
                     Sync.Sync (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
                     Sync.Progress (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
-                    Codebase1.Codebase m v a ->
-                    Codebase1.Codebase m v a ->
                     [Entity m] ->
                     ExceptT Sync22.Error m ()
-                  processBranches _ _ _ _ [] = pure ()
-                  processBranches sync progress src dest (B h mb : rest) = do
+                  processBranches _ _ [] = pure ()
+                  processBranches sync progress (B h mb : rest) = do
                     when debugProcessBranches $ traceM $ "processBranches B " ++ take 10 (show h)
                     ifM @(ExceptT Sync22.Error m)
-                      (lift $ Codebase1.branchExists dest h)
+                      (lift . runDB destConn $ isCausalHash' h)
                       do
-                          when debugProcessBranches $ traceM "  already exists in dest db"
-                          processBranches sync progress src dest rest
+                        when debugProcessBranches $ traceM "  already exists in dest db"
+                        processBranches sync progress rest
                       do
-                          when debugProcessBranches $ traceM "  doesn't exist in dest db"
-                          let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-                          lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
-                            Just chId -> do
-                              when debugProcessBranches $ traceM $ "  exists in source db, so delegating to direct sync"
-                              r $ Sync.sync sync progress [Sync22.C chId]
-                              processBranches sync progress src dest rest
-                            Nothing ->
-                              lift mb >>= \b -> do
-                                when debugProcessBranches $ traceM $ "  doesn't exist in either db, so delegating to Codebase.putBranch"
-                                let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                                if null branchDeps && null es && null ts && null ds
-                                  then lift $ Codebase1.putBranch dest b
-                                  else
-                                    let bs = map (uncurry B) branchDeps
-                                        os = map O (es <> ts <> ds)
-                                     in processBranches @m sync progress src dest (os ++ bs ++ B h mb : rest)
-                  processBranches sync progress src dest (O h : rest) = do
+                        when debugProcessBranches $ traceM "  doesn't exist in dest db"
+                        let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
+                        lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
+                          Just chId -> do
+                            when debugProcessBranches $ traceM $ "  exists in source db, so delegating to direct sync"
+                            r $ Sync.sync sync progress [Sync22.C chId]
+                            processBranches sync progress rest
+                          Nothing ->
+                            lift mb >>= \b -> do
+                              when debugProcessBranches $ traceM $ "  doesn't exist in either db, so delegating to Codebase.putBranch"
+                              let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
+                              if null branchDeps && null es && null ts && null ds
+                                then lift . runDB destConn $ putBranch' b
+                                else
+                                  let bs = map (uncurry B) branchDeps
+                                      os = map O (es <> ts <> ds)
+                                    in processBranches @m sync progress (os ++ bs ++ B h mb : rest)
+                  processBranches sync progress (O h : rest) = do
                     when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
                     (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
                       Left e -> error $ show e
                       Right oId -> do
                         r $ Sync.sync sync progress [Sync22.O oId]
-                        processBranches sync progress src dest rest
+                        processBranches sync progress rest
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
                   bHash = Branch.headHash b
-              se $ processBranches sync progress' src dest [B bHash (pure b)]
+              se $ processBranches sync progress' [B bHash (pure b)]
               testWatchRefs <- lift . fmap concat $ for [WK.TestWatch] \wk ->
                 fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
               se . r $ Sync.sync sync progress' testWatchRefs
