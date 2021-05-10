@@ -73,6 +73,13 @@ id x = x
 id (sqr 10)
 ``` 
 
+Use two backticks if you just want to include a snippet of code without evaluating it. 
+
+``
+cube : Nat -> Nat
+cube x = x * x * x
+``
+
 }}
 
 sqr x = x Nat.* x

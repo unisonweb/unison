@@ -486,6 +486,9 @@ doc2Block =
         tm -> Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
       "syntax.docTransclude" -> evalLike id
       "syntax.docEvalInline" -> evalLike addDelay
+      "syntax.docExampleBlock" -> do
+        tm <- block'' False True "syntax.docExampleBlock" (pure (void t)) closeBlock
+        pure $ Term.apps' f [addDelay tm]
       "syntax.docEval" -> do
         tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
@@ -984,15 +987,19 @@ substImports ns imports =
   Term.substTypeVars [ (suffix, Type.var () full)
     | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
 
-block'
+block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
+block' isTop = block'' isTop False
+
+block''
   :: forall v b
    . Var v
   => IsTop
+  -> Bool -- `True` means insert `()` at end of block if it ends with a statement
   -> String
   -> P v (L.Token ())
   -> P v b
   -> TermP v
-block' isTop s openBlock closeBlock = do
+block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
     open <- openBlock
     (names, imports) <- imports
     _ <- optional semi
@@ -1026,10 +1033,12 @@ block' isTop s openBlock closeBlock = do
               DestructuringBind (_, f) -> f body
           body bs = case reverse bs of
             Binding ((a, _v), _) : _ -> pure $
-              Term.var a (positionalVar a Var.missingResult)
+              if implicitUnitAtEnd then DD.unitTerm a
+              else Term.var a (positionalVar a Var.missingResult)
             Action e : _ -> pure e
             DestructuringBind (a, _) : _ -> pure $
-              Term.var a (positionalVar a Var.missingResult)
+              if implicitUnitAtEnd then DD.unitTerm a
+              else Term.var a (positionalVar a Var.missingResult)
             [] -> customFailure $ EmptyBlock (const s <$> open)
         in toTm bs
 

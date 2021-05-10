@@ -1371,16 +1371,20 @@ toDocEvalInline ppe (App' (Ref' r) (Delay' tm))
   | nameEndsWith ppe ".docEvalInline" r = Just tm
 toDocEvalInline _ _ = Nothing
 
-toDocExample :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocExample ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
-  | nameEndsWith ppe ".docExample" r,
+toDocExample, toDocExampleBlock :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocExample = toDocExample' ".docExample"
+toDocExampleBlock = toDocExample' ".docExampleBlock"
+
+toDocExample' :: Ord v => Text -> PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocExample' suffix ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
+  | nameEndsWith ppe suffix r,
     ABT.freeVars l == mempty,
     ok tm =
     Just (lam' (ABT.annotation l) (drop (fromIntegral n) vs) tm)
   where
     ok (Apps' f _) = ABT.freeVars f == mempty
     ok tm = ABT.freeVars tm == mempty
-toDocExample _ _ = Nothing
+toDocExample' _ _ _ = Nothing
 
 toDocTransclude :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocTransclude ppe (App' (Ref' r) tm)

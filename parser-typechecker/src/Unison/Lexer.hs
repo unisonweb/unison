@@ -334,7 +334,7 @@ lexemes' eof = P.optional space >> do
 
     leafy ok = groupy ok gs
           where
-          gs = link <|> externalLink <|> ticked <|> expr
+          gs = link <|> externalLink <|> example <|> expr
            <|> boldOrItalicOrStrikethrough ok <|> verbatim
            <|> atDoc <|> wordy ok
 
@@ -414,14 +414,23 @@ lexemes' eof = P.optional space >> do
       dropNl ('\n':t) = t
       dropNl as = as
 
-    ticked =
-      P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
-      wrap "syntax.docExample" $ do
-        n <- P.try $ do _ <- lit "`"
-                        length <$> P.takeWhile1P (Just "backticks") (== '`')
-        let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
-        ex <- CP.space *> lexemes' end
-        pure ex
+    example = do
+      ts@(Token (Open "syntax.docExample") start stop : rest) <- ticked
+      spaces <- P.lookAhead (P.takeWhileP Nothing isSpace)
+      let hasBlank s = length (filter (== '\n') s) >= 2
+      if hasBlank spaces then
+        pure (Token (Open "syntax.docExampleBlock") start stop : rest)
+      else
+        pure ts
+      where
+        ticked =
+          P.label "inline code (examples: ``List.map f xs``, ``[1] :+ 2``)" $
+          wrap "syntax.docExample" $ do
+            n <- P.try $ do _ <- lit "`"
+                            length <$> P.takeWhile1P (Just "backticks") (== '`')
+            let end :: P [Token Lexeme] = [] <$ lit (replicate (n+1) '`')
+            ex <- CP.space *> lexemes' end
+            pure ex
 
     docClose = [] <$ lit "}}"
     docOpen  = [] <$ lit "{{"
