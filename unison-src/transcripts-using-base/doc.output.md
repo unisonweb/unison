@@ -261,7 +261,7 @@ and the rendered output using `display`:
       evaluating it, you can do:
       
       @typecheck ```
-      _ -> ()
+      ()
       ```
     }}
 
@@ -316,7 +316,7 @@ and the rendered output using `display`:
            be clickable.
          * If your snippet expression is just a single function
            application, you can put it in double backticks, like
-           so: ``x -> sqr x``. This is equivalent to
+           so: ``sqr x``. This is equivalent to
            {{ docExample 1 '(x -> sqr x) }}.
     }}
 
