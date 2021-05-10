@@ -132,14 +132,16 @@ instance ToSample FoundResult where
 
 serveFuzzyFind
   :: forall v. Var v
-  => Codebase IO v Ann
+  => Handler ()
+  -> Codebase IO v Ann
   -> Maybe SBH.ShortBranchHash
   -> Maybe HashQualifiedName
   -> Maybe Int
   -> Maybe Width
   -> Maybe String
   -> Handler [(FZF.Alignment, FoundResult)]
-serveFuzzyFind codebase mayRoot relativePath limit typeWidth query = do
+serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query = do
+  h
   rel <-
     fromMaybe mempty
     .   fmap Path.fromPath'

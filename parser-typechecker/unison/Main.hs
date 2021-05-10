@@ -192,14 +192,12 @@ main = do
     _ -> do
       theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
       Server.start theCodebase $ \token port -> do
+        let url =
+             "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
         PT.putPrettyLn $ P.lines
-          ["I've started the codebase API server at "
-          , P.string $ "http://127.0.0.1:" <> show port <> "/api?"
-            <> URI.encode (unpack token)]
+          ["I've started the codebase API server at" , P.string $ url <> "/api"]
         PT.putPrettyLn $ P.lines
-          ["The Unison Codebase UI is running at"
-          , P.string $ "http://127.0.0.1:" <> show port <> "/ui?"
-            <> URI.encode (unpack token)]
+          ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
         launch currentDir config theCodebase []
 
