@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eb553f8d44e26dc6e4cf34d13fe54b626164d7c5c60146b417e27d6ece43c03f
+-- hash: 0babc973f878580f183d822979573027957f5eb855df002e8be9d7871c4a672a
 
 name:           unison-util
 version:        0.0.0
@@ -34,7 +34,7 @@ library
   other-modules:
       Paths_unison_util
   hs-source-dirs:
-      ./.
+      ./
   build-depends:
       base
     , bytestring

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 08b634642723a41ec97773c7481d4d7af6a31e527b06c0e800001677e64a955d
+-- hash: f891db08f545b5212d1a97c8eebc547c5f8bdd3f95020ff05af7f7fd3113a1b6
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -43,7 +43,7 @@ library
   other-modules:
       Paths_unison_codebase_sqlite
   hs-source-dirs:
-      ./.
+      ./
   build-depends:
       base
     , bytes

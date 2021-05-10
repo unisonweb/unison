@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f313cfc57110dcc277ac24eb79210d1dc8071221e3452971ad26e8a3e1d8abc4
+-- hash: a3d15e9e483a852609dc7b9c2177cdb29eca32e730651dbbbaac7247b615774b
 
 name:           unison-util-serialization
 version:        0.0.0
@@ -16,7 +16,7 @@ library
   other-modules:
       Paths_unison_util_serialization
   hs-source-dirs:
-      ./.
+      ./
   build-depends:
       base
     , bytes
