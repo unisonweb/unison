@@ -261,6 +261,10 @@ and the rendered output using `display`:
       evaluating it, you can do:
       
       @typecheck ```
+      cube : Nat -> Nat
+      cube x =
+        use Nat *
+        x * x * x
       ()
       ```
     }}
@@ -281,6 +285,9 @@ and the rendered output using `display`:
     To include a typechecked snippet of code without evaluating
     it, you can do:
   
+        cube x =
+          use Nat *
+          x * x * x
         ()
 
 .> view includingSource
@@ -616,6 +623,9 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube x =
+            use Nat *
+            x * x * x
           ()
   
     # Including Unison source code

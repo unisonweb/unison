@@ -1020,8 +1020,8 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
           toTm bs = do
-            body <- body bs
-            finish $ foldr step body (init bs)
+            (bs, body) <- body bs
+            finish $ foldr step body bs
             where
             step :: BlockElement v -> Term v Ann -> Term v Ann
             step elem body = case elem of
@@ -1038,12 +1038,12 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
               DestructuringBind (_, f) -> f body
           body bs = case reverse bs of
             Binding ((a, _v), _) : _ -> pure $
-              if implicitUnitAtEnd then DD.unitTerm a
-              else Term.var a (positionalVar a Var.missingResult)
-            Action e : _ -> pure e
+              if implicitUnitAtEnd then (bs, DD.unitTerm a)
+              else (bs, Term.var a (positionalVar a Var.missingResult))
+            Action e : bs -> pure (reverse bs, e)
             DestructuringBind (a, _) : _ -> pure $
-              if implicitUnitAtEnd then DD.unitTerm a
-              else Term.var a (positionalVar a Var.missingResult)
+              if implicitUnitAtEnd then (bs, DD.unitTerm a)
+              else (bs, Term.var a (positionalVar a Var.missingResult))
             [] -> customFailure $ EmptyBlock (const s <$> open)
         in toTm bs
 
