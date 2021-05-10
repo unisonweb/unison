@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 5e77fbdaa4e4dd9e6c0340ce6e920cdfa53278403b79c0082cf4d16f1249c479
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -165,7 +163,19 @@ library
       Paths_unison_parser_typechecker
   hs-source-dirs:
       src
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
@@ -276,7 +286,19 @@ executable prettyprintdemo
       Paths_unison_parser_typechecker
   hs-source-dirs:
       prettyprintdemo
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
@@ -330,7 +352,19 @@ executable tests
       Paths_unison_parser_typechecker
   hs-source-dirs:
       tests
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       async
@@ -369,7 +403,19 @@ executable transcripts
       Paths_unison_parser_typechecker
   hs-source-dirs:
       transcripts
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
       base
@@ -393,7 +439,19 @@ executable unison
       Paths_unison_parser_typechecker
   hs-source-dirs:
       unison
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       base
@@ -429,7 +487,19 @@ benchmark runtime
       Paths_unison_parser_typechecker
   hs-source-dirs:
       benchmarks/runtime
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
