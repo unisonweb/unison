@@ -287,7 +287,6 @@ and the rendered output using `display`:
         cube x =
           use Nat *
           x * x * x
-        ()
 
 .> view includingSource
 
@@ -625,7 +624,6 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           cube x =
             use Nat *
             x * x * x
-          ()
   
     # Including Unison source code
     

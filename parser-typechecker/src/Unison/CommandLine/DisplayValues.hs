@@ -41,7 +41,20 @@ displayTerm :: (Var v, Monad m)
            -> (Reference -> m (Maybe (DD.Decl v ())))
            -> Term v ()
            -> m Pretty
-displayTerm pped terms typeOf eval types = \case
+displayTerm = displayTerm' False
+
+type ElideUnit = Bool
+
+displayTerm' :: (Var v, Monad m)
+           => ElideUnit -- whether to elide printing of `()` from the end of the block
+           -> PPE.PrettyPrintEnvDecl
+           -> (Reference -> m (Maybe (Term v ())))
+           -> (Referent -> m (Maybe (Type v ())))
+           -> (Term v () -> m (Maybe (Term v ())))
+           -> (Reference -> m (Maybe (DD.Decl v ())))
+           -> Term v ()
+           -> m Pretty
+displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' typ _) _)
     | typ == DD.docRef             -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref            -> do
@@ -65,7 +78,7 @@ displayTerm pped terms typeOf eval types = \case
       P.wrap $ "Sadly, I don't know the error, but you can evaluate"
             <> "the above expression in a scratch file to see it."
       ]
-    src tm = TP.prettyBlock (PPE.suffixifiedPPE pped) tm
+    src tm = TP.prettyBlock elideUnit (PPE.suffixifiedPPE pped) tm
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
@@ -144,7 +157,7 @@ displayPretty pped terms typeOf eval types tm = go tm
 
     DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
       -- todo: maybe do something with `vs` to indicate the variables are free
-      P.indentN 4 <$> displayTerm pped terms typeOf eval types ex
+      P.indentN 4 <$> displayTerm' True pped terms typeOf eval types ex
       where ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
 
     -- Link (Either Link.Type Doc2.Term)

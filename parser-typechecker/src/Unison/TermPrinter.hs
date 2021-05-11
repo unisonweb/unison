@@ -50,8 +50,10 @@ import qualified Unison.ConstructorType as CT
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
-prettyBlock :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
-prettyBlock env = PP.syntaxToColor . pretty0 env emptyBlockAc . printAnnotate env
+prettyBlock :: Var v => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
+prettyBlock elideUnit env =
+  PP.syntaxToColor . pretty0 env (emptyBlockAc { elideUnit = elideUnit })
+                   . printAnnotate env
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
