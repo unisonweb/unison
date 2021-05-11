@@ -94,31 +94,32 @@ import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  openCodebase
-  createCodebase
+  ((fmap . fmap) (pure (),) . openCodebase)
+  ((fmap . fmap) (pure (),) . createCodebase)
   (</> Common.codebasePath)
 
+
 -- get the codebase in dir
-openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (m (), Codebase m Symbol Ann))
+openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (Codebase m Symbol Ann))
 openCodebase dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let theCodebase = codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
   ifM (codebaseExists dir)
-    (Right . (pure (),) <$> theCodebase)
+    (Right <$> theCodebase)
     (pure . Left $ "No FileCodebase structure found at " <> prettyDir)
 
 createCodebase ::
   forall m.
   (MonadIO m, MonadCatch m) =>
   CodebasePath ->
-  m (Either Codebase.CreateCodebaseError (m (), Codebase m Symbol Ann))
+  m (Either Codebase.CreateCodebaseError (Codebase m Symbol Ann))
 createCodebase dir = ifM
   (codebaseExists dir)
   (pure $ Left Codebase.CreateCodebaseAlreadyExists)
   (do
     codebase <- codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
     Codebase.putRootBranch codebase Branch.empty
-    pure $ Right (pure (), codebase))
+    pure $ Right codebase)
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
@@ -141,7 +142,8 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
   termCache <- Cache.semispaceCache 8192
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
-  let c =
+  let addDummyCleanup (a,b) = (pure (), a, b)
+      c =
         Codebase
           (Cache.applyDefined termCache $ getTerm getV getA path)
           (Cache.applyDefined typeOfTermCache $ getTypeOfTerm getV getA path)
@@ -160,7 +162,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
-          (runExceptT . fmap (\(a,b) -> (pure (), a, b)) . viewRemoteBranch' Cache.nullCache)
+          (runExceptT . fmap addDummyCleanup . viewRemoteBranch' Cache.nullCache)
           (\b r m -> runExceptT $
             pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
           watches
