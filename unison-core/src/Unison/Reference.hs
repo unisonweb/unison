@@ -195,5 +195,5 @@ instance Hashable.Hashable Reference where
 data Id' = Id' H.Hash Pos deriving (Eq, Ord)
 toId' :: Id -> Id'
 toId' (Id h p _) = Id' h p
-instance Eq Id where x == y = toId' x == toId' y
-instance Ord Id where x `compare` y = toId' x `compare` toId' y
+instance Eq Id where x == y = compare x y == EQ
+instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2
