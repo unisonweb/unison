@@ -269,6 +269,11 @@ lexemes = lexemes' eof
     l <- S.gets layout
     pure $ replicate (length l + n) (Token Close p p)
 
+-- Runs the parser `p`, then:
+--   1. resets the layout stack to be what it was before `p`.
+--   2. emits enough closing tokens to reach `lbl` but not pop it.
+--      (you can think of this as just dealing with a final "unclosed"
+--       block at the end of `p`)
 restoreStack :: String -> P [Token Lexeme] -> P [Token Lexeme]
 restoreStack lbl p = do
   layout1 <- S.gets layout
@@ -452,7 +457,7 @@ lexemes' eof = P.optional space >> do
 
     fencedBlock =
       P.label "block eval (syntax: a fenced code block)" $
-      evalUnison <|> typecheckUnison <|> other
+      evalUnison <|> exampleBlock <|> other
       where
         evalUnison = wrap "syntax.docEval" $ do
           -- commit after seeing that ``` is on its own line
@@ -464,7 +469,7 @@ lexemes' eof = P.optional space >> do
             local (\env -> env { inLayout = True, opening = Just "docEval" })
                   (lexemes' ([] <$ lit fence))
 
-        typecheckUnison = wrap "syntax.docExampleBlock" $ do
+        exampleBlock = wrap "syntax.docExampleBlock" $ do
           void $ lit "@typecheck" <* CP.space
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
           local (\env -> env { inLayout = True, opening = Just "docExampleBlock" })
