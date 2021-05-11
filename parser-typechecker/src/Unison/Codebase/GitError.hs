@@ -5,6 +5,7 @@ import Unison.Prelude
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+import U.Codebase.Sqlite.DbId (SchemaVersion)
 
 type CodebasePath = FilePath
 
@@ -21,6 +22,7 @@ data GitError = NoGit
               | CouldntLoadRootBranch RemoteRepo Branch.Hash
               | CouldntParseRootBranch RemoteRepo String
               | CouldntOpenCodebase RemoteRepo CodebasePath
+              | UnrecognizedSchemaVersion RemoteRepo CodebasePath SchemaVersion
               | SomeOtherError String
               | CouldntLoadSyncedBranch Branch.Hash
               deriving Show

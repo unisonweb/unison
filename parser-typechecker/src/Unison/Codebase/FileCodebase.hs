@@ -94,9 +94,10 @@ import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  openCodebase
-  createCodebase
+  ((fmap . fmap) (pure (),) . openCodebase)
+  ((fmap . fmap) (pure (),) . createCodebase)
   (</> Common.codebasePath)
+
 
 -- get the codebase in dir
 openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (Codebase m Symbol Ann))
@@ -141,7 +142,8 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
   termCache <- Cache.semispaceCache 8192
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
-  let c =
+  let addDummyCleanup (a,b) = (pure (), a, b)
+      c =
         Codebase
           (Cache.applyDefined termCache $ getTerm getV getA path)
           (Cache.applyDefined typeOfTermCache $ getTypeOfTerm getV getA path)
@@ -160,7 +162,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
-          (runExceptT . viewRemoteBranch' Cache.nullCache)
+          (runExceptT . fmap addDummyCleanup . viewRemoteBranch' Cache.nullCache)
           (\b r m -> runExceptT $
             pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
           watches

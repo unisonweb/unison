@@ -755,12 +755,15 @@ loop = do
         respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
       CreatePullRequestI baseRepo headRepo -> unlessGitError do
-        baseBranch <- viewRemoteBranch baseRepo
-        headBranch <- viewRemoteBranch headRepo
+        (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
+        (cleanupHead, headBranch) <- viewRemoteBranch headRepo
         lift do
           merged <- eval . Eval $ Branch.merge baseBranch headBranch
           (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
           respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
+          eval . Eval $ do
+            cleanupBase
+            cleanupHead
 
       LoadPullRequestI baseRepo headRepo dest0 -> do
         let desta = resolveToAbsolute dest0
@@ -1709,10 +1712,11 @@ loop = do
             resolveConfiguredGitUrl Push path (fmap expandRepo mayRepo)
           case sbh of
             Nothing -> lift $ unlessGitError do
-              remoteRoot <- viewRemoteBranch (repo, Nothing, Path.empty)
+              (cleanup, remoteRoot) <- viewRemoteBranch (repo, Nothing, Path.empty)
               newRemoteRoot <- lift . eval . Eval $
                 Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
               syncRemoteRootBranch repo newRemoteRoot syncMode
+              lift . eval $ Eval cleanup
               lift $ respond Success
             Just{} ->
               error $ "impossible match, resolveConfiguredGitUrl shouldn't return"

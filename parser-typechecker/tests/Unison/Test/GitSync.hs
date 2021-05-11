@@ -416,8 +416,7 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     authorOutput <- Ucm.runTranscript author (authorScript repo)
     user <- Ucm.initCodebase fmt
     userOutput <- Ucm.runTranscript user (userScript repo)
-    user' <- Ucm.lowLevel user
-    codebaseCheck user'
+    Ucm.lowLevel user codebaseCheck
 
     when writeTranscriptOutput $ writeFile
       ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
