@@ -50,8 +50,10 @@ import qualified Unison.ConstructorType as CT
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
-prettyBlock :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
-prettyBlock env = PP.syntaxToColor . pretty0 env emptyBlockAc . printAnnotate env
+prettyBlock :: Var v => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
+prettyBlock elideUnit env =
+  PP.syntaxToColor . pretty0 env (emptyBlockAc { elideUnit = elideUnit })
+                   . printAnnotate env
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
@@ -71,6 +73,7 @@ data AmbientContext = AmbientContext
   , infixContext :: InfixContext
   , imports :: Imports
   , docContext :: DocLiteralContext
+  , elideUnit :: Bool -- `True` if a `()` at the end of a block should be elided
   }
 
 -- Description of the position of this ABT node, when viewed in the
@@ -162,6 +165,7 @@ pretty0
   , infixContext = ic
   , imports = im
   , docContext = doc
+  , elideUnit = elideUnit
   }
   term
   -- Note: the set of places in this function that call calcImports has to be kept in sync
@@ -258,7 +262,7 @@ pretty0
       ]
     LetBlock bs e ->
       let (im', uses) = calcImports im term
-      in printLet bc bs e im' uses
+      in printLet elideUnit bc bs e im' uses
     -- Some matches are rendered as a destructuring bind, like
     --   match foo with (a,b) -> blah
     -- becomes
@@ -334,18 +338,20 @@ pretty0
   commaList = sepList (fmt S.DelimiterChar (l ",") <> PP.softbreak)
 
   printLet :: Var v
-           => BlockContext
+           => Bool -- elideUnit
+           -> BlockContext
            -> [(v, Term3 v PrintAnnotation)]
            -> Term3 v PrintAnnotation
            -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
-  printLet sc bs e im uses =
+  printLet elideUnit sc bs e im uses =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
-      $  (uses [(PP.lines (map printBinding bs ++
-                            [PP.group $ pretty0 n (ac 0 Normal im doc) e]))])
+      $  uses [PP.lines (map printBinding bs ++ body e)]
    where
+    body (Constructor' DD.UnitRef 0) | elideUnit = []
+    body e = [PP.group $ pretty0 n (ac 0 Normal im doc) e]
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty0 n (ac (-1) Normal im doc) binding
       else prettyBinding0 n (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
@@ -392,7 +398,7 @@ pretty0
       _ -> error "??"
     ps = join $ [r a f | (a, f) <- reverse xs ]
     r a f = [pretty0 n (ac 3 Normal im doc) a,
-             pretty0 n (AmbientContext 10 Normal Infix im doc) f]
+             pretty0 n (AmbientContext 10 Normal Infix im doc False) f]
 
 prettyPattern
   :: forall v loc . Var v
@@ -675,7 +681,7 @@ emptyBlockAc :: AmbientContext
 emptyBlockAc = ac (-1) Block Map.empty MaybeDoc
 
 ac :: Int -> BlockContext -> Imports -> DocLiteralContext -> AmbientContext
-ac prec bc im doc = AmbientContext prec bc NonInfix im doc
+ac prec bc im doc = AmbientContext prec bc NonInfix im doc False
 
 fmt :: (S.Element r) -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
@@ -1279,6 +1285,9 @@ prettyDoc2 ppe ac tm = case tm of
         "@eval{" <> pretty0 ppe ac tm <> "}"
       (toDocExample ppe -> Just tm) ->
         PP.group $ "``" <> pretty0 ppe ac tm <> "``"
+      (toDocExampleBlock ppe -> Just tm) ->
+        PP.lines ["@typecheck ```", pretty0 ppe ac' tm, "```"]
+        where ac' = ac { elideUnit = True }
       (toDocSource ppe -> Just es) ->
         PP.group $ "    @source{" <> intercalateMap ", " go es <> "}"
         where
@@ -1371,16 +1380,20 @@ toDocEvalInline ppe (App' (Ref' r) (Delay' tm))
   | nameEndsWith ppe ".docEvalInline" r = Just tm
 toDocEvalInline _ _ = Nothing
 
-toDocExample :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
-toDocExample ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
-  | nameEndsWith ppe ".docExample" r,
+toDocExample, toDocExampleBlock :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocExample = toDocExample' ".docExample"
+toDocExampleBlock = toDocExample' ".docExampleBlock"
+
+toDocExample' :: Ord v => Text -> PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
+toDocExample' suffix ppe (Apps' (Ref' r) [Nat' n, l@(LamsNamed' vs tm)])
+  | nameEndsWith ppe suffix r,
     ABT.freeVars l == mempty,
     ok tm =
-    Just (lam' (ABT.annotation l) (drop (fromIntegral n) vs) tm)
+    Just (lam' (ABT.annotation l) (drop (fromIntegral n + 1) vs) tm)
   where
     ok (Apps' f _) = ABT.freeVars f == mempty
     ok tm = ABT.freeVars tm == mempty
-toDocExample _ _ = Nothing
+toDocExample' _ _ _ = Nothing
 
 toDocTransclude :: PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocTransclude ppe (App' (Ref' r) tm)

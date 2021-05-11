@@ -73,6 +73,13 @@ id x = x
 id (sqr 10)
 ``` 
 
+To include a typechecked snippet of code without evaluating it, you can do:
+
+@typecheck ```
+cube : Nat -> Nat
+cube x = x * x * x
+```
+
 }}
 
 sqr x = x Nat.* x

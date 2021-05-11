@@ -486,6 +486,9 @@ doc2Block =
         tm -> Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
       "syntax.docTransclude" -> evalLike id
       "syntax.docEvalInline" -> evalLike addDelay
+      "syntax.docExampleBlock" -> do
+        tm <- block'' False True "syntax.docExampleBlock" (pure (void t)) closeBlock
+        pure $ Term.apps' f [Term.nat (ann tm) 0, addDelay tm]
       "syntax.docEval" -> do
         tm <- block' False "syntax.docEval" (pure (void t)) closeBlock
         pure $ Term.apps' f [addDelay tm]
@@ -963,6 +966,11 @@ data BlockElement v
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
 
+instance Show v => Show (BlockElement v) where
+  show (Binding ((pos,name), _)) = show ("binding: ", pos, name)
+  show (DestructuringBind (pos, _)) = show ("destructuring bind: ", pos)
+  show (Action tm) = show ("action: ", ann tm)
+
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
@@ -984,15 +992,19 @@ substImports ns imports =
   Term.substTypeVars [ (suffix, Type.var () full)
     | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
 
-block'
+block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
+block' isTop = block'' isTop False
+
+block''
   :: forall v b
    . Var v
   => IsTop
+  -> Bool -- `True` means insert `()` at end of block if it ends with a statement
   -> String
   -> P v (L.Token ())
   -> P v b
   -> TermP v
-block' isTop s openBlock closeBlock = do
+block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
     open <- openBlock
     (names, imports) <- imports
     _ <- optional semi
@@ -1008,8 +1020,8 @@ block' isTop s openBlock closeBlock = do
             Left dups -> customFailure $ DuplicateTermNames (toList dups)
             Right tm -> pure tm
           toTm bs = do
-            body <- body bs
-            finish $ foldr step body (init bs)
+            (bs, body) <- body bs
+            finish $ foldr step body bs
             where
             step :: BlockElement v -> Term v Ann -> Term v Ann
             step elem body = case elem of
@@ -1026,10 +1038,12 @@ block' isTop s openBlock closeBlock = do
               DestructuringBind (_, f) -> f body
           body bs = case reverse bs of
             Binding ((a, _v), _) : _ -> pure $
-              Term.var a (positionalVar a Var.missingResult)
-            Action e : _ -> pure e
+              if implicitUnitAtEnd then (bs, DD.unitTerm a)
+              else (bs, Term.var a (positionalVar a Var.missingResult))
+            Action e : bs -> pure (reverse bs, e)
             DestructuringBind (a, _) : _ -> pure $
-              Term.var a (positionalVar a Var.missingResult)
+              if implicitUnitAtEnd then (bs, DD.unitTerm a)
+              else (bs, Term.var a (positionalVar a Var.missingResult))
             [] -> customFailure $ EmptyBlock (const s <$> open)
         in toTm bs
 

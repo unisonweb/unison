@@ -111,6 +111,7 @@ pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
 doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
 doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.FoldedSource"
 doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
+doc2SpecialFormExampleBlockId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.ExampleBlock"
 doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
 doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
 doc2SpecialFormSignatureInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.SignatureInline"
@@ -122,6 +123,7 @@ doc2SpecialFormEmbedInlineId = constructorNamed doc2SpecialFormRef "Doc2.Special
 pattern Doc2SpecialFormSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSourceId -> True)) tm
 pattern Doc2SpecialFormFoldedSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormFoldedSourceId -> True)) tm
 pattern Doc2SpecialFormExample n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleId -> True)) [Term.Nat' n, tm]
+pattern Doc2SpecialFormExampleBlock n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleBlockId -> True)) [Term.Nat' n, tm]
 pattern Doc2SpecialFormLink tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormLinkId -> True)) tm
 pattern Doc2SpecialFormSignature tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureId -> True)) tm
 pattern Doc2SpecialFormSignatureInline tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureInlineId -> True)) tm
@@ -306,6 +308,8 @@ unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
   -- Ex: `Example 2 '(x y -> foo x y)` should render as `foo x y`.
   -- Ex: `Example 0 '(1 + 1)` should render as `42`.
   | Example Nat Doc2.Term
+  -- Same as `Example`, but as a block rather than inline element
+  | ExampleBlock Nat Doc2.Term
   -- {type Optional} or {List.map}
   | Link (Either Link.Type Doc2.Term)
   -- @signatures{List.map, List.filter, List.foldLeft}
@@ -538,6 +542,7 @@ syntax.docVerbatim c = CodeBlock "raw" c
 syntax.docEval d = Special (Eval (Doc2.term d))
 syntax.docEvalInline a = Special (EvalInline (Doc2.term a))
 syntax.docExample n a = Special (Example n (Doc2.term a))
+syntax.docExampleBlock n a = Special (ExampleBlock n (Doc2.term a))
 syntax.docLink t = Special (Link t)
 syntax.docTransclude d =
   guid = "b7a4fb87e34569319591130bf3ec6e24"
