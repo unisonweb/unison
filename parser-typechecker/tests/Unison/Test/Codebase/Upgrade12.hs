@@ -221,17 +221,18 @@ test = scope "codebase.upgrade12" $ tests [
         .> add
         ```
       |]
-      c1' <- Ucm.lowLevel c1
-      watches1@(_:_) <- Codebase.watches c1' TestWatch
-      watchTerms1 <- traverse (Codebase.getWatch c1' TestWatch) watches1
+      (watches1, watchTerms1) <- Ucm.lowLevel c1 \c1' -> do
+        watches1@(_:_) <- Codebase.watches c1' TestWatch
+        watchTerms1 <- traverse (Codebase.getWatch c1' TestWatch) watches1
+        pure (watches1, watchTerms1)
       Ucm.runTranscript c1 [i|
         ```unison
         test> pass = [Ok "Passed"]
         ```
       |]
       c2 <- Ucm.upgradeCodebase c1
-      c2' <- Ucm.lowLevel c2
-      watchTerms2 <- traverse (Codebase.getWatch c2' TestWatch) watches1
+      watchTerms2 <- Ucm.lowLevel c2 \c2' ->
+        traverse (Codebase.getWatch c2' TestWatch) watches1
       traceShowM watches1
       traceShowM watchTerms1
       traceShowM watchTerms2

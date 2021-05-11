@@ -112,6 +112,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -665,6 +666,10 @@ notifyUser dir o = case o of
     CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
       <> prettyRepoBranch repo <> "in the cache directory at"
       <> P.backticked' (P.string localPath) "."
+    UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
+      $ "I don't know how to interpret schema version " <> P.shown v
+      <> "in the repository at" <> prettyRepoBranch repo
+      <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
     CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
       <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
       <> P.group (prettyRepoBranch repo <> ".")

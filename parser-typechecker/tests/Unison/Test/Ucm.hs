@@ -28,10 +28,10 @@ import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (traceM)
+import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Util.Pretty as P
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
-import qualified Data.Either as Either
 
 data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
 
@@ -56,7 +56,7 @@ initCodebase fmt = do
       >>= flip Temp.createTempDirectory ("ucm-test")
   Codebase.Init.createCodebase cbInit tmp >>= \case
     Left e -> fail $ P.toANSI 80 e
-    Right {} -> pure ()
+    Right (close, _cb) -> close
   pure $ Codebase tmp fmt
 
 deleteCodebase :: Codebase -> IO ()
@@ -97,8 +97,9 @@ runTranscript (Codebase codebasePath fmt) transcript = do
   when debugTranscriptOutput $ traceM output
   pure output
 
-lowLevel :: Codebase -> IO (Codebase.Codebase IO Symbol Ann)
-lowLevel (Codebase root fmt) = do
+lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
+lowLevel (Codebase root fmt) f = do
   let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
-  Either.fromRight (error "This really should have loaded") <$>
-    Codebase.Init.openCodebase cbInit root
+  Codebase.Init.openCodebase cbInit root >>= \case
+    Left p -> PT.putPrettyLn p *> pure (error "This really should have loaded")
+    Right (close, cb) -> f cb <* close

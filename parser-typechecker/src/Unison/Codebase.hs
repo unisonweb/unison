@@ -85,7 +85,7 @@ data Codebase m v a =
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
-           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (Branch m, CodebasePath))
+           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
            , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
@@ -336,14 +336,14 @@ importRemoteBranch ::
   SyncMode ->
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode = runExceptT do
-  (branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
+  (cleanup, branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
   withStatus "Importing downloaded files into local codebase..." $
     time "SyncFromDirectory" $
       lift $ syncFromDirectory codebase cacheDir mode branch
   ExceptT
     let h = Branch.headHash branch
         err = Left $ GitError.CouldntLoadSyncedBranch h
-    in getBranchForHash codebase h <&> maybe err Right
+    in (getBranchForHash codebase h <&> maybe err Right) <* cleanup
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
@@ -351,5 +351,7 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   RemoteNamespace ->
-  m (Either GitError (Branch m))
-viewRemoteBranch cache = runExceptT . fmap fst . ExceptT . viewRemoteBranch' cache
+  m (Either GitError (m (), Branch m))
+viewRemoteBranch codebase ns = runExceptT do
+  (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
+  pure (cleanup, branch)

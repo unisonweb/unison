@@ -11,7 +11,7 @@ module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsa
 import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
+import Control.Monad.Except (ExceptT(ExceptT), MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM, (||^))
 import qualified Control.Monad.Extra as Monad
@@ -23,7 +23,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>))
+import Data.Functor (void, (<&>), ($>))
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -540,7 +540,6 @@ sqliteCodebase root = do
                 Nothing -> pure False
                 Just hId -> Q.isCausalHash hId
 
-
           getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
           getPatch h =
             runDB conn . runMaybeT $
@@ -804,7 +803,7 @@ sqliteCodebase root = do
             branchHashLength
             branchHashesByPrefix
         )
-    v -> pure . Left $ v
+    v -> liftIO $ Sqlite.close conn $> Left v
 
 runDB' :: MonadIO m => Connection -> MaybeT (ReaderT Connection (ExceptT Ops.Error m)) a -> m (Maybe a)
 runDB' conn = runDB conn . runMaybeT
@@ -905,33 +904,30 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   remotePath <- time "Git fetch" $ pullBranch repo
   ifM
     (codebaseExists remotePath)
-    do
-      (closeCodebase, codebase) <-
-        lift (sqliteCodebase remotePath)
-          >>= Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
-      -- try to load the requested branch from it
-      branch <- time "Git fetch (sbh)" $ case sbh of
-        -- load the root branch
-        Nothing ->
-          lift (Codebase1.getRootBranch codebase) >>= \case
-            Left Codebase1.NoRootBranch -> pure Branch.empty
-            Left (Codebase1.CouldntLoadRootBranch h) ->
-              throwError $ GitError.CouldntLoadRootBranch repo h
-            Left (Codebase1.CouldntParseRootBranch s) ->
-              throwError $ GitError.CouldntParseRootBranch repo s
-            Right b -> pure b
-        -- load from a specific `ShortBranchHash`
-        Just sbh -> do
-          branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
-          case toList branchCompletions of
-            [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-            [h] ->
-              (lift $ Codebase1.getBranchForHash codebase h) >>= \case
-                Just b -> pure b
-                Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-            _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-      pure (closeCodebase, Branch.getAt' path branch, remotePath)
-    -- else there's no initialized codebase at this repo; we pretend there's an empty one.
+    (lift (sqliteCodebase remotePath) >>= \case
+        Left sv -> ExceptT . pure . Left $ GitError.UnrecognizedSchemaVersion repo remotePath sv
+        Right (closeCodebase, codebase) -> do
+            branch <- time "Git fetch (sbh)" $ case sbh of
+              -- load the root branch
+              Nothing ->
+                lift (Codebase1.getRootBranch codebase) >>= \case
+                  -- this NoRootBranch case should probably be an error too.
+                  Left Codebase1.NoRootBranch -> pure Branch.empty
+                  Left (Codebase1.CouldntLoadRootBranch h) ->
+                    throwError $ GitError.CouldntLoadRootBranch repo h
+                  Left (Codebase1.CouldntParseRootBranch s) ->
+                    throwError $ GitError.CouldntParseRootBranch repo s
+                  Right b -> pure b
+              Just sbh -> do
+                branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
+                case toList branchCompletions of
+                  [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                  [h] ->
+                    (lift $ Codebase1.getBranchForHash codebase h) >>= \case
+                      Just b -> pure b
+                      Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                  _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+            pure (closeCodebase, Branch.getAt' path branch, remotePath))
     (pure (pure (), Branch.empty, remotePath))
 
 -- Given a branch that is "after" the existing root of a given git repo,
@@ -945,13 +941,13 @@ pushGitRootBranch ::
   m (Either GitError ())
 pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
-  (remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
-  ifM
+  (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
+  (ifM
     (pure (remoteRoot == Branch.empty) ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
     (stageAndPush remotePath)
-    (throwError $ GitError.PushDestinationHasNewStuff repo)
+    (throwError $ GitError.PushDestinationHasNewStuff repo)) <* lift cleanup
   where
     -- | this will bomb if `h` is not a causal in the codebase
     setRepoRoot :: MonadIO m => CodebasePath -> Branch.Hash -> m ()

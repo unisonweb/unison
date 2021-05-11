@@ -160,7 +160,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           dependents
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
-          (runExceptT . viewRemoteBranch' Cache.nullCache)
+          (runExceptT . fmap (\(a,b) -> (pure (), a, b)) . viewRemoteBranch' Cache.nullCache)
           (\b r m -> runExceptT $
             pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
           watches

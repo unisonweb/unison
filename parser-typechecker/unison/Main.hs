@@ -203,7 +203,7 @@ main = do
           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
         launch currentDir config theCodebase []
-      	closeCodebase
+        closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
