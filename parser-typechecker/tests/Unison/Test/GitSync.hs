@@ -426,7 +426,6 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     removeDirectoryRecursive repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
-
   ok
 
 

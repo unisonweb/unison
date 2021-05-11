@@ -100,9 +100,7 @@ syncComplete = scope "syncComplete" $ do
   observe "complete" expect files
 
   -- if we haven't crashed, clean up!
-  io do
-    cleanup
-    removeDirectoryRecursive tmp
+  io do cleanup; removeDirectoryRecursive tmp
 
   where
   files =

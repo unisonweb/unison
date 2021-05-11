@@ -904,30 +904,35 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   remotePath <- time "Git fetch" $ pullBranch repo
   ifM
     (codebaseExists remotePath)
-    (lift (sqliteCodebase remotePath) >>= \case
+    do
+      lift (sqliteCodebase remotePath) >>= \case
         Left sv -> ExceptT . pure . Left $ GitError.UnrecognizedSchemaVersion repo remotePath sv
         Right (closeCodebase, codebase) -> do
-            branch <- time "Git fetch (sbh)" $ case sbh of
-              -- load the root branch
-              Nothing ->
-                lift (Codebase1.getRootBranch codebase) >>= \case
-                  -- this NoRootBranch case should probably be an error too.
-                  Left Codebase1.NoRootBranch -> pure Branch.empty
-                  Left (Codebase1.CouldntLoadRootBranch h) ->
-                    throwError $ GitError.CouldntLoadRootBranch repo h
-                  Left (Codebase1.CouldntParseRootBranch s) ->
-                    throwError $ GitError.CouldntParseRootBranch repo s
-                  Right b -> pure b
-              Just sbh -> do
-                branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
-                case toList branchCompletions of
-                  [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                  [h] ->
-                    (lift $ Codebase1.getBranchForHash codebase h) >>= \case
-                      Just b -> pure b
-                      Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                  _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-            pure (closeCodebase, Branch.getAt' path branch, remotePath))
+          -- try to load the requested branch from it
+          branch <- time "Git fetch (sbh)" $ case sbh of
+            -- no sub-branch was specified, so use the root.
+            Nothing ->
+              lift (Codebase1.getRootBranch codebase) >>= \case
+                -- this NoRootBranch case should probably be an error too.
+                Left Codebase1.NoRootBranch -> pure Branch.empty
+                Left (Codebase1.CouldntLoadRootBranch h) ->
+                  throwError $ GitError.CouldntLoadRootBranch repo h
+                Left (Codebase1.CouldntParseRootBranch s) ->
+                  throwError $ GitError.CouldntParseRootBranch repo s
+                Right b -> pure b
+            -- load from a specific `ShortBranchHash`
+            Just sbh -> do
+              branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
+              case toList branchCompletions of
+                [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                [h] ->
+                  lift (Codebase1.getBranchForHash codebase h) >>= \case
+                    Just b -> pure b
+                    Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+          pure (closeCodebase, Branch.getAt' path branch, remotePath)
+    -- else there's no initialized codebase at this repo; we pretend there's an empty one.
+    -- I'm thinking we should probably return an error value instead.
     (pure (pure (), Branch.empty, remotePath))
 
 -- Given a branch that is "after" the existing root of a given git repo,
