@@ -168,7 +168,7 @@ decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
 decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
   , rf0 == rf
-  = if length ps == nfields
+  = if length ps + 1 == nfields
     then [ps ++ [pk]]
     else error err
   where
@@ -567,7 +567,7 @@ lookupAbil :: Reference -> DataSpec -> Either String Cons
 lookupAbil rf (Map.lookup rf -> Just econs)
   = case econs of
       Right _ -> Left $ "ability matching on data: " ++ show rf
-      Left cs -> Right cs
+      Left cs -> Right $ fmap (1+) cs
 lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
