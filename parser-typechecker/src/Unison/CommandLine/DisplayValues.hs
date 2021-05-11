@@ -43,10 +43,20 @@ displayTerm :: (Var v, Monad m)
            -> m Pretty
 displayTerm = displayTerm' False
 
+-- Whether to elide printing of `()` at the end of a block
+-- For instance, in:
+--
+--   id x = x
+--   ()
+--
+-- We could render it as above, with the `()` explicit, or just as:
+--
+--   id x = x
+--
 type ElideUnit = Bool
 
 displayTerm' :: (Var v, Monad m)
-           => ElideUnit -- whether to elide printing of `()` from the end of the block
+           => ElideUnit
            -> PPE.PrettyPrintEnvDecl
            -> (Reference -> m (Maybe (Term v ())))
            -> (Referent -> m (Maybe (Type v ())))
