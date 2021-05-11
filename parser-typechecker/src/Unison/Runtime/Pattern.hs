@@ -631,7 +631,9 @@ buildCasePure
 buildCasePure spec ctx0 (_, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = P.EffectPure () (P.Var ())
+  vp | [] <- vts = P.Unbound ()
+     | otherwise = P.Var ()
+  pat = P.EffectPure () vp
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 
