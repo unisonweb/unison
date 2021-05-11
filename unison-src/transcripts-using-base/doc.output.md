@@ -265,7 +265,6 @@ and the rendered output using `display`:
       cube x =
         use Nat *
         x * x * x
-      ()
       ```
     }}
 
