@@ -61,7 +61,7 @@ pattern Derived h i n = DerivedId (Id h i n)
 --{-# COMPLETE Builtin, Derived #-}
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
-data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+data Id = Id H.Hash Pos Size deriving (Generic)
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
@@ -190,3 +190,7 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+
+-- | Two references mustn't differ in cycle length only.
+instance Eq Id where x == y = compare x y == EQ
+instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2

@@ -258,7 +258,7 @@ sqliteCodebase root = do
           getCycleLen :: EDB m => String -> Hash -> m Reference.Size
           getCycleLen source h = do
             (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
-              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> error $ show e ++ " in " ++ source
+              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> pure . error $ show e ++ " in " ++ source
               e -> Except.throwError e
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
