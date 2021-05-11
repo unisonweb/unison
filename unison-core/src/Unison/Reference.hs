@@ -191,9 +191,6 @@ instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
 
--- | A simpler version of `Id` that we'll use for some derived instances.
-data Id' = Id' H.Hash Pos deriving (Eq, Ord)
-toId' :: Id -> Id'
-toId' (Id h p _) = Id' h p
+-- | Two references mustn't differ in cycle length only.
 instance Eq Id where x == y = compare x y == EQ
 instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2
