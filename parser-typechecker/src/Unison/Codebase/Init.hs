@@ -23,15 +23,15 @@ data CreateCodebaseError
 
 data Init m v a = Init
   { -- | open an existing codebase
-    openCodebase :: CodebasePath -> m (Either Pretty (Codebase m v a)),
+    openCodebase :: CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
     -- | create a new codebase
-    createCodebase' :: CodebasePath -> m (Either CreateCodebaseError (Codebase m v a)),
+    createCodebase' :: CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
     -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
 
-createCodebase :: MonadIO m => Init m v a -> CodebasePath -> m (Either Pretty (Codebase m v a))
+createCodebase :: MonadIO m => Init m v a -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
 createCodebase cbInit path = do
   prettyDir <- P.string <$> canonicalizePath path
   createCodebase' cbInit path <&> mapLeft \case
@@ -50,7 +50,7 @@ createCodebase cbInit path = do
 -- * compatibility stuff
 
 -- | load an existing codebase or exit.
-getCodebaseOrExit :: MonadIO m => Init m v a -> Maybe CodebasePath -> m (Codebase m v a)
+getCodebaseOrExit :: MonadIO m => Init m v a -> Maybe CodebasePath -> m (m (), Codebase m v a)
 getCodebaseOrExit init mdir = do
   dir <- Codebase.getCodebaseDir mdir
   openCodebase init dir >>= \case
@@ -81,19 +81,19 @@ getCodebaseOrExit init mdir = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> CodebasePath -> m (Codebase m Symbol Ann)
+openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> CodebasePath -> m (m (), Codebase m Symbol Ann)
 openNewUcmCodebaseOrExit cbInit path = do
   prettyDir <- P.string <$> canonicalizePath path
   createCodebase cbInit path >>= \case
     Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
-    Right codebase -> do
+    Right x@(_, codebase) -> do
       liftIO $
         PT.putPrettyLn'
           . P.wrap
           $ "Initializing a new codebase in: "
             <> prettyDir
       Codebase.installUcmDependencies codebase
-      pure codebase
+      pure x
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm -codebase dir init`)
 initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> Maybe CodebasePath -> m ()

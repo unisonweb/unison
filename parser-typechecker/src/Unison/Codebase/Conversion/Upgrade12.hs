@@ -34,8 +34,8 @@ syncWatchKinds = [WK.TestWatch]
 upgradeCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m ()
 upgradeCodebase root = do
   either (liftIO . CT.putPrettyLn) pure =<< runExceptT do
-    srcCB <- ExceptT $ Codebase.openCodebase FC.init root
-    destCB <- ExceptT $ Codebase.createCodebase SC.init root
+    (cleanupSrc, srcCB) <- ExceptT $ Codebase.openCodebase FC.init root
+    (cleanupDest, destCB) <- ExceptT $ Codebase.createCodebase SC.init root
     destDB <- SC.unsafeGetConnection root
     let env = Sync12.Env srcCB destCB destDB
     let initialState = (Sync12.emptyDoneCount, Sync12.emptyErrorCount, Sync12.emptyStatus)
@@ -62,6 +62,8 @@ upgradeCodebase root = do
           Just (Sync12.BranchReplaced _h' c') -> pure c'
           Nothing -> error "We didn't sync the root?"
         _ -> error "The root wasn't a causal?"
+    lift cleanupSrc
+    lift cleanupDest
     pure ()
   where
     lensStateT :: forall m s1 s2 a. Monad m => Lens' s2 s1 -> StateT s1 m a -> StateT s2 m a

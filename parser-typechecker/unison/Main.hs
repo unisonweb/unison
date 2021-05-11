@@ -159,27 +159,30 @@ main = do
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
     "run" : [mainName] -> do
-      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
+      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
       runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
+      closeCodebase
     "run.file" : file : [mainName] | isDotU file -> do
       e <- safeReadUtf8 file
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
+          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
+          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          closeCodebase
     "transcript" : args' ->
       case args' of
       "-save-codebase" : transcripts -> runTranscripts cbInit False True mcodepath transcripts
@@ -190,7 +193,7 @@ main = do
       _                              -> runTranscripts cbInit True False mcodepath args'
     ["upgrade-codebase"] -> upgradeCodebase mcodepath
     _ -> do
-      theCodebase <- Codebase.getCodebaseOrExit cbInit mcodepath
+      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
       Server.start theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
@@ -200,6 +203,7 @@ main = do
           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
         launch currentDir config theCodebase []
+      	closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
@@ -256,8 +260,9 @@ runTranscripts' cbInit mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              theCodebase <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
+              (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
               mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+              closeCodebase
               let out = currentDir FP.</>
                          FP.addExtension (FP.dropExtension arg ++ ".output")
                                          (FP.takeExtension md)

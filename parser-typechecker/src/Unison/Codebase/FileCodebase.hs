@@ -99,26 +99,26 @@ init = Codebase.Init
   (</> Common.codebasePath)
 
 -- get the codebase in dir
-openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (Codebase m Symbol Ann))
+openCodebase :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase.Pretty (m (), Codebase m Symbol Ann))
 openCodebase dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let theCodebase = codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
   ifM (codebaseExists dir)
-    (Right <$> theCodebase)
+    (Right . (pure (),) <$> theCodebase)
     (pure . Left $ "No FileCodebase structure found at " <> prettyDir)
 
 createCodebase ::
   forall m.
   (MonadIO m, MonadCatch m) =>
   CodebasePath ->
-  m (Either Codebase.CreateCodebaseError (Codebase m Symbol Ann))
+  m (Either Codebase.CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebase dir = ifM
   (codebaseExists dir)
   (pure $ Left Codebase.CreateCodebaseAlreadyExists)
   (do
     codebase <- codebase1 @m @Symbol @Ann Cache.nullCache V1.formatSymbol formatAnn dir
     Codebase.putRootBranch codebase Branch.empty
-    pure $ Right codebase)
+    pure $ Right (pure (), codebase))
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1

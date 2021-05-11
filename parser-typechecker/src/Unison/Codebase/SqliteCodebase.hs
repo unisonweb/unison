@@ -114,7 +114,7 @@ init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 createCodebaseOrError ::
   MonadIO m =>
   CodebasePath ->
-  m (Either Codebase1.CreateCodebaseError (Codebase m Symbol Ann))
+  m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebaseOrError dir = do
   prettyDir <- P.string <$> canonicalizePath dir
   let convertError = \case
@@ -133,7 +133,7 @@ data CreateCodebaseError
 createCodebaseOrError' ::
   MonadIO m =>
   CodebasePath ->
-  m (Either CreateCodebaseError (Codebase m Symbol Ann))
+  m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebaseOrError' path = do
   ifM
     (doesFileExist $ path </> codebasePath)
@@ -154,7 +154,7 @@ createCodebaseOrError' path = do
       fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase path)
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (Codebase m Symbol Ann))
+getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
 getCodebaseOrError dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
@@ -177,7 +177,7 @@ codebaseExists root = liftIO do
   Control.Exception.catch @Sqlite.SQLError
     ( sqliteCodebase root >>= \case
         Left _ -> pure False
-        Right _ -> pure True
+        Right (close, _codebase) -> close >> pure True
     )
     (const $ pure False)
 
@@ -237,7 +237,7 @@ unsafeGetConnection root = do
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (Codebase m Symbol Ann))
+sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
 sqliteCodebase root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
@@ -755,11 +755,9 @@ sqliteCodebase root = do
                 fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
               se . r $ Sync.sync sync progress' testWatchRefs
             pure $ Validation.valueOr (error . show) result
-
-      -- we don't currently have any good opportunity to call this sanity check;
-      -- at ucm shutdown
-      let _finalizer :: MonadIO m => m ()
-          _finalizer = do
+      let finalizer :: MonadIO m => m ()
+          finalizer = do
+            liftIO $ Sqlite.close conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
@@ -771,7 +769,8 @@ sqliteCodebase root = do
             printBuffer "Terms:" terms
 
       pure . Right $
-        ( Codebase1.Codebase
+        ( finalizer,
+          Codebase1.Codebase
             getTerm
             getTypeOfTermImpl
             getTypeDeclaration
@@ -900,40 +899,40 @@ viewRemoteBranch' ::
   forall m.
   MonadIO m =>
   RemoteNamespace ->
-  m (Either GitError (Branch m, CodebasePath))
+  m (Either GitError (m (), Branch m, CodebasePath))
 viewRemoteBranch' (repo, sbh, path) = runExceptT do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ pullBranch repo
   ifM
     (codebaseExists remotePath)
     do
-        codebase <-
-          lift (sqliteCodebase remotePath)
-            >>= Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
-        -- try to load the requested branch from it
-        branch <- time "Git fetch (sbh)" $ case sbh of
-          -- load the root branch
-          Nothing ->
-            lift (Codebase1.getRootBranch codebase) >>= \case
-              Left Codebase1.NoRootBranch -> pure Branch.empty
-              Left (Codebase1.CouldntLoadRootBranch h) ->
-                throwError $ GitError.CouldntLoadRootBranch repo h
-              Left (Codebase1.CouldntParseRootBranch s) ->
-                throwError $ GitError.CouldntParseRootBranch repo s
-              Right b -> pure b
-          -- load from a specific `ShortBranchHash`
-          Just sbh -> do
-            branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
-            case toList branchCompletions of
-              [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              [h] ->
-                (lift $ Codebase1.getBranchForHash codebase h) >>= \case
-                  Just b -> pure b
-                  Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-              _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-        pure (Branch.getAt' path branch, remotePath)
+      (closeCodebase, codebase) <-
+        lift (sqliteCodebase remotePath)
+          >>= Validation.valueOr (\_missingSchema -> throwError $ GitError.CouldntOpenCodebase repo remotePath) . fmap pure
+      -- try to load the requested branch from it
+      branch <- time "Git fetch (sbh)" $ case sbh of
+        -- load the root branch
+        Nothing ->
+          lift (Codebase1.getRootBranch codebase) >>= \case
+            Left Codebase1.NoRootBranch -> pure Branch.empty
+            Left (Codebase1.CouldntLoadRootBranch h) ->
+              throwError $ GitError.CouldntLoadRootBranch repo h
+            Left (Codebase1.CouldntParseRootBranch s) ->
+              throwError $ GitError.CouldntParseRootBranch repo s
+            Right b -> pure b
+        -- load from a specific `ShortBranchHash`
+        Just sbh -> do
+          branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
+          case toList branchCompletions of
+            [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            [h] ->
+              (lift $ Codebase1.getBranchForHash codebase h) >>= \case
+                Just b -> pure b
+                Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+            _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+      pure (closeCodebase, Branch.getAt' path branch, remotePath)
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.
-    (pure (Branch.empty, remotePath))
+    (pure (pure (), Branch.empty, remotePath))
 
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
