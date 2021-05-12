@@ -9,6 +9,8 @@ module Unison.Reference
      pattern Derived,
      pattern DerivedId,
    Id(..),
+   Pos,
+   Size,
    derivedBase32Hex,
    Component, members,
    components,
@@ -52,13 +54,14 @@ data Reference
   -- Using an ugly name so no one tempted to use this
   | DerivedId Id deriving (Eq,Ord,Generic)
 
+pattern Derived :: H.Hash -> Pos -> Size -> Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
-data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+data Id = Id H.Hash Pos Size deriving (Generic)
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
@@ -187,3 +190,7 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+
+-- | Two references mustn't differ in cycle length only.
+instance Eq Id where x == y = compare x y == EQ
+instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2

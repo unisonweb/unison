@@ -29,8 +29,12 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
 
+debug :: Bool
+debug = False
+
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = typecheckedFile'
+typecheckedFile = let x = typecheckedFile' in
+  if debug then trace ("IOSource.typecheckedFile = " ++ show x) x else x
 
 typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
 typecheckedFile' = let
@@ -68,11 +72,9 @@ abilityNamedId s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-bufferModeReference, eitherReference, ioModeReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
+eitherReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
   :: R.Reference
-bufferModeReference = typeNamed "io.BufferMode"
 eitherReference = typeNamed "Either"
-ioModeReference = typeNamed "io.Mode"
 optionReference = typeNamed "Optional"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
@@ -109,6 +111,7 @@ pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
 doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
 doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.FoldedSource"
 doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
+doc2SpecialFormExampleBlockId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.ExampleBlock"
 doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
 doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
 doc2SpecialFormSignatureInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.SignatureInline"
@@ -120,6 +123,7 @@ doc2SpecialFormEmbedInlineId = constructorNamed doc2SpecialFormRef "Doc2.Special
 pattern Doc2SpecialFormSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSourceId -> True)) tm
 pattern Doc2SpecialFormFoldedSource tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormFoldedSourceId -> True)) tm
 pattern Doc2SpecialFormExample n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleId -> True)) [Term.Nat' n, tm]
+pattern Doc2SpecialFormExampleBlock n tm <- Term.Apps' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormExampleBlockId -> True)) [Term.Nat' n, tm]
 pattern Doc2SpecialFormLink tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormLinkId -> True)) tm
 pattern Doc2SpecialFormSignature tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureId -> True)) tm
 pattern Doc2SpecialFormSignatureInline tm <- Term.App' (Term.Constructor' Doc2SpecialFormRef ((==) doc2SpecialFormSignatureInlineId -> True)) tm
@@ -283,14 +287,6 @@ unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
 metadata.isTest = IsTest.IsTest
 metadata.isPropagated = IsPropagated.IsPropagated
 
--- If the buffer size is not specified,
--- use an implementation-specific size.
-unique[e65de145a461a771de93d6c7885acae28552d77f8ae460bc8bf5de6f2a15ff77] type
-  io.BufferMode = Line | Block (Optional Nat)
-
--- IO Modes from the Haskell API
-type io.Mode = Read | Write | Append | ReadWrite
-
 -- Built-ins
 
 -- A newtype used when embedding term references in a Doc2
@@ -312,6 +308,8 @@ unique[da70bff6431da17fa515f3d18ded11852b6a745f] type Doc2.SpecialForm
   -- Ex: `Example 2 '(x y -> foo x y)` should render as `foo x y`.
   -- Ex: `Example 0 '(1 + 1)` should render as `42`.
   | Example Nat Doc2.Term
+  -- Same as `Example`, but as a block rather than inline element
+  | ExampleBlock Nat Doc2.Term
   -- {type Optional} or {List.map}
   | Link (Either Link.Type Doc2.Term)
   -- @signatures{List.map, List.filter, List.foldLeft}
@@ -544,6 +542,7 @@ syntax.docVerbatim c = CodeBlock "raw" c
 syntax.docEval d = Special (Eval (Doc2.term d))
 syntax.docEvalInline a = Special (EvalInline (Doc2.term a))
 syntax.docExample n a = Special (Example n (Doc2.term a))
+syntax.docExampleBlock n a = Special (ExampleBlock n (Doc2.term a))
 syntax.docLink t = Special (Link t)
 syntax.docTransclude d =
   guid = "b7a4fb87e34569319591130bf3ec6e24"

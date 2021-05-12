@@ -1,13 +1,14 @@
 {-# Language OverloadedStrings #-}
 {-# Language QuasiQuotes #-}
 
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Test.Git where
 
 import EasyTest
 import Data.List (intercalate)
 import Data.List.Split (splitOn)
 import qualified Data.Sequence as Seq
-import Data.String.Here (iTrim)
+import Data.String.Here (i)
 import Unison.Prelude
 import qualified Data.Text as Text
 import qualified System.IO.Temp as Temp
@@ -17,6 +18,7 @@ import System.Directory (doesFileExist, removeDirectoryRecursive, removeFile)
 
 import Unison.Codebase (BuiltinAnnotation, Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -27,11 +29,12 @@ import Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as SlimCopyRegenerat
 import Unison.Codebase.FileCodebase.Common (SyncToDir, formatAnn)
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
-import qualified Unison.Util.Cache as Cache
 import Unison.Var (Var)
+import qualified U.Util.Cache as Cache
+import U.Util.String (stripMargin)
 
 test :: Test ()
-test = scope "git" . tests $
+test = scope "git-fc" . tests $
   [ testPull
   , testPush
   , syncComplete
@@ -53,23 +56,22 @@ syncComplete = scope "syncComplete" $ do
     observe title expectation files = scope title . for_ files $ \path ->
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expectation
 
-  cache <- io Cache.nullCache
-  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase cache [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```unison
-pushComplete.a.x = 3
-pushComplete.b.c.y = x + 1
-```
-```ucm
-.> add
-.> history pushComplete.b
-```
-|]
+  runTranscript_ tmp codebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```unison
+    pushComplete.a.x = 3
+    pushComplete.b.c.y = x + 1
+    ```
+    ```ucm
+    .> add
+    .> history pushComplete.b
+    ```
+    |]
 
   -- sync pushComplete.b to targetDir
   -- observe that pushComplete.b.c and x exist
@@ -98,7 +100,7 @@ pushComplete.b.c.y = x + 1
   observe "complete" expect files
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do cleanup; removeDirectoryRecursive tmp
 
   where
   files =
@@ -113,10 +115,9 @@ syncTestResults = scope "syncTestResults" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "syncTestResults"
 
   targetDir <- io $ Temp.createTempDirectory tmp "target"
-  cache <- io Cache.nullCache
-  codebase <- io $ snd <$> initCodebase cache tmp "codebase"
+  (_, cleanup, codebase) <- io $ initCodebase tmp "codebase"
 
-  runTranscript_ tmp codebase cache [iTrim|
+  runTranscript_ tmp codebase [i|
 ```ucm
 .> builtins.merge
 ```
@@ -148,7 +149,9 @@ test> tests.x = [Ok "Great!"]
       scope (makeTitle path) $ io (doesFileExist $ targetDir </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do
+    cleanup
+    removeDirectoryRecursive tmp
   where
   targetShouldHave =
     [ ".unison/v1/paths/0bnfrk7cu44q0vvaj7a0osl90huv6nj01nkukplcsbgn3i09h6ggbthhrorm01gpqc088673nom2i491fh9rtbqcc6oud6iqq6oam88.ub"
@@ -161,7 +164,6 @@ test> tests.x = [Ok "Great!"]
 -- dependencies
 testPull :: Test ()
 testPull = scope "pull" $ do
-  branchCache <- io $ Branch.boundedCache 4096
   -- let's push a broader set of stuff, pull a narrower one (to a fresh codebase)
   -- and verify that we have the definitions we expected and don't have some of
   -- the ones we didn't expect.
@@ -170,34 +172,34 @@ testPull = scope "pull" $ do
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-pull"
 
   -- initialize author and user codebases
-  authorCodebase <- io $ snd <$> initCodebase branchCache tmp "author"
-  (userDir, userCodebase) <- io $ initCodebase branchCache tmp "user"
+  (_authorDir, cleanupAuthor, authorCodebase) <- io $ initCodebase tmp "author"
+  (userDir, cleanupUser, userCodebase) <- io $ initCodebase tmp "user"
 
   -- initialize git repo
   let repo = tmp </> "repo.git"
   io $ "git" ["init", "--bare", "--initial-branch=master", Text.pack repo]
 
   -- run author/push transcript
-  runTranscript_ tmp authorCodebase branchCache [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```unison
-unique type outside.A = A Nat
-unique type outside.B = B Nat Nat
-outside.c = 3
-outside.d = 4
+  runTranscript_ tmp authorCodebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```unison
+    unique type outside.A = A Nat
+    unique type outside.B = B Nat Nat
+    outside.c = 3
+    outside.d = 4
 
-unique type inside.X = X outside.A
-inside.y = c + c
-```
-```ucm
-.myLib> debug.file
-.myLib> add
-.myLib> push ${repo}
-```
-|]
+    unique type inside.X = X outside.A
+    inside.y = c + c
+    ```
+    ```ucm
+    .myLib> debug.file
+    .myLib> add
+    .myLib> push ${repo}
+    ```
+  |]
 
   -- check out the resulting repo so we can inspect it
   io $ "git" ["clone", Text.pack repo, Text.pack $ tmp </> "repo" ]
@@ -207,14 +209,14 @@ inside.y = c + c
       scope (makeTitle path) $ io (doesFileExist $ tmp </> "repo" </> path) >>= expect
 
   -- run user/pull transcript
-  runTranscript_ tmp userCodebase branchCache [iTrim|
-```ucm:hide
-.builtin> alias.type ##Nat Nat
-.builtin> alias.term ##Nat.+ Nat.+
-```
-```ucm
-.yourLib> pull ${repo}:.inside
-```
+  runTranscript_ tmp userCodebase [i|
+    ```ucm:hide
+    .builtin> alias.type ##Nat Nat
+    .builtin> alias.term ##Nat.+ Nat.+
+    ```
+    ```ucm
+    .yourLib> pull ${repo}:.inside
+    ```
   |]
 
   -- inspect user codebase
@@ -226,7 +228,10 @@ inside.y = c + c
       scope (makeTitle path) $ io (doesFileExist $ userDir </> path) >>= expect . not
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io $ do
+    cleanupAuthor
+    cleanupUser
+    removeDirectoryRecursive tmp
 
   where
   gitShouldHave = userShouldHave ++ userShouldNotHave
@@ -288,18 +293,15 @@ inside.y = c + c
     ]
 
 -- initialize a fresh codebase
-initCodebaseDir :: Branch.Cache IO -> FilePath -> String -> IO CodebasePath
-initCodebaseDir branchCache tmpDir name = fst <$> initCodebase branchCache tmpDir name
-
-initCodebase :: Branch.Cache IO -> FilePath -> String -> IO (CodebasePath, Codebase IO Symbol Ann)
-initCodebase branchCache tmpDir name = do
+initCodebase :: FilePath -> String -> IO (CodebasePath, IO (), Codebase IO Symbol Ann)
+initCodebase tmpDir name = do
   let codebaseDir = tmpDir </> name
-  c <- FC.initCodebase branchCache codebaseDir
-  pure (codebaseDir, c)
+  (cleanup, c) <- Codebase.openNewUcmCodebaseOrExit FC.init codebaseDir
+  pure (codebaseDir, cleanup, c)
 
 -- run a transcript on an existing codebase
-runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> Branch.Cache IO -> String -> m ()
-runTranscript_ tmpDir c branchCache transcript = do
+runTranscript_ :: MonadIO m => FilePath -> Codebase IO Symbol Ann -> String -> m ()
+runTranscript_ tmpDir c (stripMargin -> transcript) = do
   let configFile = tmpDir </> ".unisonConfig"
   -- transcript runner wants a "current directory" for I guess writing scratch files?
   let cwd = tmpDir </> "cwd"
@@ -307,7 +309,7 @@ runTranscript_ tmpDir c branchCache transcript = do
 
   -- parse and run the transcript
   flip (either err) (TR.parse "transcript" (Text.pack transcript)) $ \stanzas ->
-    void . liftIO $ TR.run cwd configFile stanzas c branchCache >>=
+    void . liftIO $ TR.run cwd configFile stanzas c >>=
                       when traceTranscriptOutput . traceM . Text.unpack
 
 -- goal of this test is to make sure that push works correctly:
@@ -316,15 +318,14 @@ runTranscript_ tmpDir c branchCache transcript = do
 -- dependents, type, and type mentions indices.
 testPush :: Test ()
 testPush = scope "push" $ do
-  branchCache <- io $ Branch.boundedCache 4096
   tmp <- io $ Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "git-push"
 
   -- initialize a fresh codebase named "c"
-  (codebasePath, c) <- io $ initCodebase branchCache tmp "c"
+  (codebasePath, cleanup, c) <- io $ initCodebase tmp "c"
 
   -- Run the "setup transcript" to do the adds and updates; everything short of
   -- pushing.
-  runTranscript_ tmp c branchCache setupTranscript
+  runTranscript_ tmp c setupTranscript
 
   -- now we'll try pushing multiple ways.
   for_ pushImplementations $ \(implName, impl) -> scope implName $ do
@@ -333,8 +334,8 @@ testPush = scope "push" $ do
     io $ "git" ["init", "--bare", "--initial-branch=master", Text.pack repoGit]
 
     -- push one way!
-    codebase <- io $ FC.codebase1' impl branchCache V1.formatSymbol formatAnn codebasePath
-    runTranscript_ tmp codebase branchCache (pushTranscript repoGit)
+    codebase <- io $ FC.codebase1' impl Cache.nullCache V1.formatSymbol formatAnn codebasePath
+    runTranscript_ tmp codebase (pushTranscript repoGit)
 
     -- check out the resulting repo so we can inspect it
     io $ "git" ["clone", Text.pack repoGit, Text.pack $ tmp </> implName ]
@@ -349,10 +350,12 @@ testPush = scope "push" $ do
         io (fmap not . doesFileExist $ tmp </> implName </> path) >>= expect
 
   -- if we haven't crashed, clean up!
-  io $ removeDirectoryRecursive tmp
+  io do
+    cleanup
+    removeDirectoryRecursive tmp
 
   where
-  setupTranscript = [iTrim|
+  setupTranscript = [i|
     ```ucm
     .> builtins.merge
     ```
@@ -390,7 +393,8 @@ testPush = scope "push" $ do
     .foo.inside> update
     ```
   |]
-  pushTranscript repo = [iTrim|
+
+  pushTranscript repo = [i|
     ```ucm
     .foo.inside> push ${repo}
     ```

@@ -843,6 +843,21 @@ unReqOrCtor _                         = Nothing
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
+termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
+termDependencies =
+  Set.fromList
+    . mapMaybe
+      ( LD.fold
+          (\_typeRef -> Nothing)
+          ( Referent.fold
+              (\termRef -> Just termRef)
+              (\_typeConRef _i _ct -> Nothing)
+          )
+      )
+    . toList
+    . labeledDependencies
+
+-- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
   Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
@@ -1117,7 +1132,6 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
 instance (Show v, Show a) => Show (F v a0 p a) where
   showsPrec = go
    where
-    showConstructor r n = shows r <> s "#" <> shows n
     go _ (Int     n    ) = (if n >= 0 then s "+" else s "") <> shows n
     go _ (Nat     n    ) = shows n
     go _ (Float   n    ) = shows n
@@ -1142,13 +1156,13 @@ instance (Show v, Show a) => Show (F v a0 p a) where
     go _ (Handle b body) = showParen
       True
       (s "handle " <> shows b <> s " in " <> shows body)
-    go _ (Constructor r         n    ) = showConstructor r n
+    go _ (Constructor r         n    ) = s "Con" <> shows r <> s "#" <> shows n
     go _ (Match       scrutinee cases) = showParen
       True
       (s "case " <> shows scrutinee <> s " of " <> shows cases)
     go _ (Text s     ) = shows s
     go _ (Char c     ) = shows c
-    go _ (Request r n) = showConstructor r n
+    go _ (Request r n) = s "Req" <> shows r <> s "#" <> shows n
     go p (If c t f) =
       showParen (p > 0)
         $  s "if "

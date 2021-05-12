@@ -256,6 +256,16 @@ and the rendered output using `display`:
       id x = x
       id (sqr 10)
       ```
+      
+      To include a typechecked snippet of code without
+      evaluating it, you can do:
+      
+      @typecheck ```
+      cube : Nat -> Nat
+      cube x =
+        use Nat *
+        x * x * x
+      ```
     }}
 
 .> display evaluation
@@ -270,6 +280,13 @@ and the rendered output using `display`:
         id (sqr 10)
         ⧨
         100
+  
+    To include a typechecked snippet of code without evaluating
+    it, you can do:
+  
+        cube x =
+          use Nat *
+          x * x * x
 
 .> view includingSource
 
@@ -304,7 +321,7 @@ and the rendered output using `display`:
            be clickable.
          * If your snippet expression is just a single function
            application, you can put it in double backticks, like
-           so: ``x -> sqr x``. This is equivalent to
+           so: ``sqr x``. This is equivalent to
            {{ docExample 1 '(x -> sqr x) }}.
     }}
 
@@ -451,7 +468,17 @@ and the rendered output using `display`:
     
     {{
     docTable
-      [ [{{ a }}, {{ b }}, {{ c }}],
+      [ [ {{
+      a
+      }},
+        {{
+      b
+      }},
+        {{
+      A longer paragraph that will split onto multiple lines,
+      such that this row occupies multiple lines in the rendered
+      table.
+      }} ],
         [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
     }}
 
@@ -488,7 +515,10 @@ and the rendered output using `display`:
   
   Hover over me
   
-  a           b           c
+  a           b           A longer paragraph that will split
+                          onto multiple lines, such that this
+                          row occupies multiple lines in the
+                          rendered table.
   Some text   More text   Zounds!
 
 ```
@@ -587,6 +617,13 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           id (sqr 10)
           ⧨
           100
+    
+      To include a typechecked snippet of code without
+      evaluating it, you can do:
+    
+          cube x =
+            use Nat *
+            x * x * x
   
     # Including Unison source code
     
@@ -684,7 +721,10 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
     Hover over me
     
-    a           b           c
+    a           b           A longer paragraph that will split
+                            onto multiple lines, such that this
+                            row occupies multiple lines in the
+                            rendered table.
     Some text   More text   Zounds!
 
 ```

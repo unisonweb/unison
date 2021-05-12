@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Codebase.Branch.Dependencies where
+module Unison.Codebase.FileCodebase.Branch.Dependencies where
 
 import Data.Set (Set)
 import Data.Foldable (toList)
@@ -39,7 +39,12 @@ data Dependencies' = Dependencies'
   { patches' :: [EditHash]
   , terms' :: [Reference.Id]
   , decls' :: [Reference.Id]
-  } deriving Show
+  }
+  deriving Show
+  deriving Generic
+  deriving Semigroup via GenericSemigroup Dependencies'
+  deriving Monoid via GenericMonoid Dependencies'
+
 
 to' :: Dependencies -> Dependencies'
 to' Dependencies{..} = Dependencies' (toList patches) (toList terms) (toList decls)

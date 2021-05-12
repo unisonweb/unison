@@ -5,20 +5,17 @@ module Unison.Codebase.Causal where
 
 import Unison.Prelude
 
-import           Prelude                 hiding ( head
-                                                , tail
-                                                , read
-                                                )
-import qualified Control.Monad.State           as State
-import           Control.Monad.State            ( StateT )
-import           Data.Sequence                  ( ViewL(..) )
-import qualified Data.Sequence                 as Seq
-import           Unison.Hash                    ( Hash )
-import qualified Unison.Hashable               as Hashable
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Util.Cache             as Cache
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
+import Control.Monad.State (StateT)
+import qualified Control.Monad.State as State
+import qualified Data.Map as Map
+import Data.Sequence (ViewL (..))
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
+import qualified U.Util.Cache as Cache
+import Unison.Hash (Hash)
+import Unison.Hashable (Hashable)
+import qualified Unison.Hashable as Hashable
+import Prelude hiding (head, read, tail)
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -295,8 +292,10 @@ one :: Hashable e => e -> Causal m h e
 one e = One (RawHash $ hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
-cons e tl =
-  Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
+cons e tl = cons' e (currentHash tl) (pure tl)
+
+cons' :: Hashable e => e -> RawHash h -> m (Causal m h e) -> Causal m h e
+cons' e ht mt = Cons (RawHash $ hash [hash e, unRawHash ht]) e (ht, mt)
 
 consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
 consDistinct e tl =

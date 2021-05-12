@@ -1,7 +1,6 @@
 module Main where
 
 import EasyTest
-import Control.Applicative
 import Control.Monad
 
 suite1 :: Test ()

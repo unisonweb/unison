@@ -158,10 +158,9 @@ main
   -> (Config, IO ())
   -> [Either Event Input]
   -> Codebase IO Symbol Ann
-  -> Branch.Cache IO
   -> String
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase branchCache version = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase version = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -243,7 +242,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase
                                      loadSourceFile
                                      codebase
                                      (const Random.getSystemDRG)
-                                     branchCache
                                      free
         case o of
           Nothing -> pure ()

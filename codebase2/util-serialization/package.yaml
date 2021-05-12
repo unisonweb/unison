@@ -1,0 +1,17 @@
+name: unison-util-serialization
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - bytes
+  - bytestring
+  - containers
+  - extra
+  - filepath
+  - text
+  - text-short
+  - unliftio
+  - vector
+  - unison-util

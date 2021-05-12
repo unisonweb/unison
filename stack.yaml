@@ -11,6 +11,13 @@ packages:
 - yaks/easytest
 - parser-typechecker
 - unison-core
+- codebase2/codebase
+- codebase2/codebase-sqlite
+- codebase2/codebase-sync
+- codebase2/core
+- codebase2/util
+- codebase2/util-serialization
+- codebase2/util-term
 
 #compiler-check: match-exact
 resolver: lts-17.5
@@ -36,7 +43,11 @@ extra-deps:
 - servant-0.18@sha256:2b5c81089540c208b1945b5ca0c3551c862138d71b224a39fa275a62852a5c75,5068
 - servant-server-0.18
 - servant-docs-0.11.6
+- servant-auth-server-0.4.6.0@sha256:b411b44f4252e91e5da2455d71a7113c8b5b8ff2d943d19b2ddedcfcf0392351,5111
+- servant-auth-0.4.0.0@sha256:01d02dfb7df4747fc96442517146d7d4ab0e575e597a124e238e8763036ea4ff,2125
 - ListLike-4.7.4
+- sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+- direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
 - random-1.2.0
 # remove these when stackage upgrades containers
 - containers-0.6.4.1
@@ -45,10 +56,11 @@ extra-deps:
 - parsec-3.1.14.0
 - Cabal-3.2.1.0
 - fuzzyfind-3.0.0
+- monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
 
 ghc-options:
  # All packages
- "$locals": -Werror -Wno-type-defaults #-freverse-errors
+ "$locals": -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info #-freverse-errors
 
  # See https://github.com/haskell/haskell-language-server/issues/208
  "$everything": -haddock

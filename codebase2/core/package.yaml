@@ -1,0 +1,13 @@
+name: unison-core
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - containers
+  - text
+  - vector
+  - prelude-extras # deprecated in favor of base
+  - unison-util

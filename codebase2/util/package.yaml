@@ -1,0 +1,18 @@
+name: unison-util
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - bytestring
+  - containers
+  - cryptonite
+  - extra
+  - lens
+  - memory
+  - safe
+  - sandi
+  - text
+  - unliftio

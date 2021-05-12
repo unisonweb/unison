@@ -174,10 +174,11 @@ data Command m i v a where
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    RemoteNamespace -> Command m i v (Either GitError (Branch m))
+    RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
   -- we want to import as little as possible, so we pass the SBH/path as part
-  -- of the `RemoteNamespace`.
+  -- of the `RemoteNamespace`.  The Branch that's returned should be fully
+  -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
     RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 

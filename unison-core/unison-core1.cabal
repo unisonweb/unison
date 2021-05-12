@@ -1,12 +1,12 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3356e1ce77d4b4994ed6bdc4110bda88d7cdce1a2385a15f89e8d9edf162e4ea
+-- hash: 25e073d1bb732e90d3e1d3999ec516185669150701345da4fcd35cb20389334d
 
-name:           unison-core
+name:           unison-core1
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -61,10 +61,22 @@ library
       Unison.Util.Set
       Unison.Var
   other-modules:
-      Paths_unison_core
+      Paths_unison_core1
   hs-source-dirs:
       src
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   build-depends:
       base

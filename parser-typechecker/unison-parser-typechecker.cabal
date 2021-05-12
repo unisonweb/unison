@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 55d5e8d2d6e3c011445b411e520e8d28138924b88e443f1df25712736d53754f
 
 name:           unison-parser-typechecker
 version:        0.0.0
@@ -30,12 +28,13 @@ library
       Unison.Builtin.Terms
       Unison.Codebase
       Unison.Codebase.Branch
-      Unison.Codebase.Branch.Dependencies
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
       Unison.Codebase.Causal
       Unison.Codebase.Classes
       Unison.Codebase.CodeLookup
+      Unison.Codebase.Conversion.Sync12
+      Unison.Codebase.Conversion.Upgrade12
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
@@ -55,9 +54,11 @@ library
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
+      Unison.Codebase.FileCodebase.Branch.Dependencies
       Unison.Codebase.FileCodebase.Common
       Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
       Unison.Codebase.GitError
+      Unison.Codebase.Init
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
       Unison.Codebase.NameEdit
@@ -69,6 +70,10 @@ library
       Unison.Codebase.Serialization.PutT
       Unison.Codebase.Serialization.V1
       Unison.Codebase.ShortBranchHash
+      Unison.Codebase.SqliteCodebase
+      Unison.Codebase.SqliteCodebase.Branch.Dependencies
+      Unison.Codebase.SqliteCodebase.Conversions
+      Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
       Unison.Codebase.TranscriptParser
@@ -103,7 +108,6 @@ library
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Interface
       Unison.Runtime.IOSource
-      Unison.Runtime.IR
       Unison.Runtime.Machine
       Unison.Runtime.MCode
       Unison.Runtime.Pattern
@@ -135,7 +139,6 @@ library
       Unison.UnisonFile
       Unison.Util.AnnotatedText
       Unison.Util.Bytes
-      Unison.Util.Cache
       Unison.Util.ColorText
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
@@ -151,10 +154,8 @@ library
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
-      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.SyntaxText
-      Unison.Util.Text
       Unison.Util.Timing
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
@@ -162,7 +163,19 @@ library
       Paths_unison_parser_typechecker
   hs-source-dirs:
       src
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
@@ -201,6 +214,7 @@ library
     , hashable
     , hashtables
     , haskeline
+    , http-media
     , http-types
     , io-streams
     , lens
@@ -208,13 +222,16 @@ library
     , memory
     , mmorph
     , monad-loops
+    , monad-validate
     , mtl
     , murmur-hash
     , mutable-containers
+    , natural-transformation
     , network
     , network-simple
     , nonempty-containers
     , openapi3
+    , optparse-applicative
     , pem
     , primitive
     , process
@@ -225,26 +242,34 @@ library
     , safe
     , safe-exceptions
     , servant
+    , servant-auth-server
     , servant-docs
     , servant-openapi3
     , servant-server
     , shellmet
     , split
+    , sqlite-simple
     , stm
     , strings
     , tagged
     , temporary
     , terminal-size
     , text
-    , text-short
     , time
     , tls
     , transformers
     , unicode-show
+    , unison-codebase
+    , unison-codebase-sqlite
+    , unison-codebase-sync
     , unison-core
+    , unison-core1
+    , unison-util
     , unliftio
     , unliftio-core
+    , utf8-string
     , util
+    , validation
     , vector
     , wai
     , warp
@@ -252,7 +277,7 @@ library
     , x509-store
     , x509-system
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
 executable prettyprintdemo
@@ -261,7 +286,19 @@ executable prettyprintdemo
       Paths_unison_parser_typechecker
   hs-source-dirs:
       prettyprintdemo
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
@@ -269,7 +306,7 @@ executable prettyprintdemo
     , text
     , unison-parser-typechecker
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
 executable tests
@@ -278,16 +315,19 @@ executable tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
+      Unison.Test.BaseUpgradePushPullTest
       Unison.Test.Cache
       Unison.Test.Codebase
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.FileCodebase
       Unison.Test.Codebase.Path
+      Unison.Test.Codebase.Upgrade12
       Unison.Test.ColorText
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
       Unison.Test.Git
+      Unison.Test.GitSync
       Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Range
@@ -301,6 +341,7 @@ executable tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.TypePrinter
+      Unison.Test.Ucm
       Unison.Test.UnisonSources
       Unison.Test.UriParser
       Unison.Test.Util.Bytes
@@ -311,7 +352,19 @@ executable tests
       Paths_unison_parser_typechecker
   hs-source-dirs:
       tests
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       async
@@ -321,6 +374,7 @@ executable tests
     , directory
     , easytest
     , errors
+    , exceptions
     , extra
     , filemanip
     , filepath
@@ -335,11 +389,12 @@ executable tests
     , temporary
     , text
     , transformers
-    , unison-core
+    , unison-core1
     , unison-parser-typechecker
+    , unison-util
     , unliftio
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
 executable transcripts
@@ -348,7 +403,19 @@ executable transcripts
       Paths_unison_parser_typechecker
   hs-source-dirs:
       transcripts
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-depends:
       base
@@ -358,10 +425,10 @@ executable transcripts
     , process
     , shellmet
     , text
-    , unison-core
+    , unison-core1
     , unison-parser-typechecker
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
 executable unison
@@ -372,7 +439,19 @@ executable unison
       Paths_unison_parser_typechecker
   hs-source-dirs:
       unison
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       base
@@ -382,6 +461,7 @@ executable unison
     , directory
     , errors
     , filepath
+    , lens
     , megaparsec
     , mtl
     , safe
@@ -389,11 +469,12 @@ executable unison
     , template-haskell
     , temporary
     , text
-    , unison-core
+    , unison-codebase-sync
+    , unison-core1
     , unison-parser-typechecker
     , uri-encode
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   if !os(windows)
     build-depends:
         unix
@@ -406,14 +487,26 @@ benchmark runtime
       Paths_unison_parser_typechecker
   hs-source-dirs:
       benchmarks/runtime
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses ScopedTypeVariables TupleSections TypeApplications
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
     , containers
     , criterion
-    , unison-core
+    , unison-core1
     , unison-parser-typechecker
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -02
+    ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

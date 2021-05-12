@@ -107,8 +107,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
-run dir configFile stanzas codebase branchCache = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $ P.lines [
     asciiartUnison, "",
@@ -299,7 +299,6 @@ run dir configFile stanzas codebase branchCache = do
                                      loadPreviousUnisonBlock
                                      codebase
                                      rng
-                                     branchCache
                                      free
         case o of
           Nothing -> do
