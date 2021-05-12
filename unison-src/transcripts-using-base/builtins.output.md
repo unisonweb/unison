@@ -133,7 +133,11 @@ test> Nat.tests.conversions =
         toText 32939 == "32939",
         toText 10 == "10",
         fromText "ooga" == None,
-        fromText "90" == Some 90
+        fromText "90" == Some 90,
+        unsnoc "abc" == Some ("ab", ?c),
+        uncons "abc" == Some (?a, "bc"),
+        unsnoc "" == None,
+        uncons "" == None
         ]
 ```
 
