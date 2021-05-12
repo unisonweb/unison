@@ -317,11 +317,14 @@ test = scope "gitsync22" . tests $
       .> builtins.merge
       ```
       ```unison
+      type A = A Nat
+      type B = B Int
       x = 3
       y = 4
       ```
       ```ucm
       .defns> add
+      .patches> replace.type .defns.A .defns.B
       .patches> replace.term .defns.x .defns.y
       .patches> push ${repo}
       ```
