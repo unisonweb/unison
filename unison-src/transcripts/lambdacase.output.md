@@ -123,8 +123,13 @@ blah = cases
   T, x -> "hi"
   x, F -> "bye"
 
+blorf = cases
+  x, T -> x
+  T, x -> x
+
 > blah T F
 > blah F F
+> blorf T F
 ```
 
 ```ucm
@@ -136,17 +141,22 @@ blah = cases
     ⍟ These new definitions are ok to `add`:
     
       type B
-      blah : B -> B -> Text
+      blah  : B -> B -> Text
+      blorf : B -> B -> B
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    7 | > blah T F
-          ⧩
-          "hi"
+    11 | > blah T F
+           ⧩
+           "hi"
   
-    8 | > blah F F
-          ⧩
-          "bye"
+    12 | > blah F F
+           ⧩
+           "bye"
+  
+    13 | > blorf T F
+           ⧩
+           F
 
 ```
