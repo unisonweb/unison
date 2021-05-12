@@ -537,9 +537,6 @@ prepareAs p u = pure $ u <$ p
 -- variables they bind are used as candidates for what that level of
 -- the pattern matches against.
 preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
-preparePattern (P.Unbound _) = P.Var <$> freshVar
-preparePattern (P.Var _) = P.Var <$> useVar
-preparePattern (P.As _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> P.Pattern ()
