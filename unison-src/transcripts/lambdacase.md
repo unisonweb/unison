@@ -79,6 +79,11 @@ blah = cases
   T, x -> "hi"
   x, F -> "bye"
 
+blorf = cases
+  x, T -> x
+  T, x -> x
+
 > blah T F
 > blah F F
+> blorf T F
 ```
