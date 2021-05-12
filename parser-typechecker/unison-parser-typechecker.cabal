@@ -154,8 +154,10 @@ library
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
+      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.SyntaxText
+      Unison.Util.Text
       Unison.Util.Timing
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
@@ -189,6 +191,7 @@ library
     , bifunctors
     , bytes
     , bytestring
+    , bytestring-to-vector
     , cereal
     , comonad
     , concurrent-supply
@@ -255,6 +258,7 @@ library
     , temporary
     , terminal-size
     , text
+    , text-short
     , time
     , tls
     , transformers

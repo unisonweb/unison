@@ -46,6 +46,9 @@ instance Sized (Rope a) where
 null :: Sized a => Rope a -> Bool
 null r = size r == 0
 
+flatten :: Monoid a => Rope a -> a
+flatten = mconcat . toList
+
 instance (Semigroup a) => Semigroup (Rope a) where (<>) = mappend
 instance (Semigroup a) => Monoid (Rope a) where
   mempty = Empty
@@ -72,10 +75,14 @@ threshold :: Int
 threshold = 256
 
 cons :: (Sized a, Semigroup a) => a -> Rope a -> Rope a
-cons a = cons' (size a) a
+cons a r =
+  if size a == 0 then r
+  else cons' (size a) a r
 
 snoc :: (Sized a, Semigroup a) => Rope a -> a -> Rope a
-snoc as a = snoc' as (size a) a
+snoc as a =
+  if size a == 0 then as
+  else snoc' as (size a) a
 
 cons' :: (Semigroup a) => Int -> a -> Rope a -> Rope a
 cons' sz0 a0 as = case as of

@@ -5,91 +5,111 @@
 module Unison.Util.Bytes where
 
 import Data.Char
-import Data.Memory.PtrMethods (memCompare, memEqual)
-import Data.Monoid (Sum(..))
-import Foreign.Ptr (plusPtr)
-import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
-import Basement.Block (Block)
-import qualified Data.ByteArray as B
+import qualified Data.ByteString as B
+import qualified Data.ByteArray as BA
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.FingerTree as T
 import qualified Data.Text as Text
 import qualified Unison.Util.Rope as R
+import qualified Data.Vector.Primitive as V
+import qualified Data.Vector.Storable as SV
+import qualified Data.Vector.Storable.ByteString as BSV
 
--- Block is just `newtype Block a = Block ByteArray#`
-type ByteString = Block Word8
+type ByteString = V.Vector Word8
 
--- Bytes type represented as a finger tree of ByteStrings.
--- Can be efficiently sliced and indexed, using the byte count
--- annotation at each subtree.
-newtype Bytes = Bytes (R.Rope (View ByteString)) deriving (Eq,Ord)
+-- Bytes type represented as a rope of ByteStrings
+type Bytes = R.Rope ByteString
+
+instance R.Sized ByteString where size = V.length
+instance R.Drop ByteString where drop = V.drop
+instance R.Take ByteString where take = V.take
+instance R.Index ByteString Word8 where index n bs = bs V.!? n
+instance R.Reverse ByteString where reverse = V.reverse
 
 null :: Bytes -> Bool
-null (Bytes bs) = R.null bs
+null = R.null
 
 empty :: Bytes
-empty = Bytes mempty
+empty = mempty
 
-fromArray :: B.ByteArrayAccess ba => ba -> Bytes
-fromArray = snoc empty
+isAscii :: Bytes -> Bool
+isAscii b = all (V.all (<= 0x7F)) (chunks b)
 
-toArray :: forall bo . B.ByteArray bo => Bytes -> bo
-toArray b = B.concat (map B.convert (chunks b) :: [bo])
+fromByteString :: B.ByteString -> Bytes
+fromByteString b = snoc empty (byteStringToChunk b)
 
-toView :: B.ByteArrayAccess ba => ba -> View ByteString
-toView b = view (B.convert b)
+toByteString :: Bytes -> B.ByteString
+toByteString b = B.concat (map chunkToByteString (chunks b))
 
-viewToArray :: B.ByteArray bo => View ByteString -> bo
-viewToArray = B.convert
+byteStringToChunk :: B.ByteString -> ByteString
+byteStringToChunk = fromStorable . BSV.byteStringToVector
+
+chunkToByteString :: ByteString -> B.ByteString
+chunkToByteString = BSV.vectorToByteString . toStorable
+
+fromStorable :: (V.Prim a, SV.Storable a) => SV.Vector a -> V.Vector a
+fromStorable v =
+  -- is there a more efficient implementation of this
+  V.generate (SV.length v) (SV.unsafeIndex v)
+{-# inline fromStorable #-}
+
+toStorable :: (V.Prim a, SV.Storable a) => V.Vector a -> SV.Vector a
+toStorable v =
+  -- is there a more efficient implementation of this
+  SV.generate (V.length v) (V.unsafeIndex v)
+{-# inline toStorable #-}
 
 toLazyByteString :: Bytes -> LB.ByteString
-toLazyByteString b = LB.fromChunks $ map B.convert $ chunks b
+toLazyByteString b = LB.fromChunks $ map chunkToByteString $ chunks b
 
 size :: Bytes -> Int
-size (Bytes bs) = R.size bs
+size = R.size
 
-chunks :: Bytes -> [View ByteString]
-chunks (Bytes b) = toList b
+chunks :: Bytes -> [ByteString]
+chunks = toList
 
-fromChunks :: [View ByteString] -> Bytes
-fromChunks = foldl' snocView empty
+fromChunks :: [ByteString] -> Bytes
+fromChunks = foldl' snoc empty
 
-snocView :: Bytes -> View ByteString -> Bytes
-snocView bs b | B.null b = bs
-snocView (Bytes bs) b = Bytes (bs `R.snoc` b)
+cons :: ByteString -> Bytes -> Bytes
+cons = R.cons
 
-cons :: B.ByteArrayAccess ba => ba -> Bytes -> Bytes
-cons b bs | B.null b = bs
-cons b (Bytes bs) = Bytes (view (B.convert b) `R.cons` bs)
-
-snoc :: B.ByteArrayAccess ba => Bytes -> ba -> Bytes
-snoc bs b | B.null b = bs
-snoc (Bytes bs) b = Bytes (bs `R.snoc` view (B.convert b))
+snoc :: Bytes -> ByteString -> Bytes
+snoc = R.snoc
 
 flatten :: Bytes -> Bytes
-flatten b = snoc mempty (B.concat (chunks b) :: ByteString)
+flatten b = snoc mempty (V.concat (chunks b))
 
 take :: Int -> Bytes -> Bytes
-take n (Bytes bs) = Bytes (R.take n bs)
+take = R.take
 
 drop :: Int -> Bytes -> Bytes
-drop n (Bytes bs) = Bytes (R.drop n bs)
+drop = R.drop
 
-at :: Int -> Bytes -> Maybe Word8
-at i (Bytes bs) = R.index i bs
+at, index :: Int -> Bytes -> Maybe Word8
+at = R.index
+index = R.index
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs) where
-  step bs b = snoc bs (BE.convertToBase BE.Base16 b :: ByteString)
+  step bs b = snoc bs (byteArrayToChunk $ BE.convertToBase BE.Base16 (chunkToByteArray b))
+
+-- todo: there's gotta be a more direct implementation than going through bytestring
+chunkToByteArray, byteArrayFromChunk :: ByteString -> BA.Bytes
+chunkToByteArray bs = BA.convert (chunkToByteString bs)
+byteArrayFromChunk = chunkToByteArray
+
+byteArrayToChunk, chunkFromByteArray :: BA.Bytes -> ByteString
+byteArrayToChunk bs = byteStringToChunk (BA.convert bs)
+chunkFromByteArray = byteArrayToChunk
 
 fromBase16 :: Bytes -> Either Text.Text Bytes
 fromBase16 bs = case traverse convert (chunks bs) of
   Left e -> Left (Text.pack e)
-  Right bs -> Right (fromChunks (map view bs))
+  Right bs -> Right (fromChunks bs)
   where
-    convert b = BE.convertFromBase BE.Base16 b :: Either String ByteString
+    convert b = BE.convertFromBase BE.Base16 (chunkToByteArray b) <&> byteArrayToChunk
 
 toBase32, toBase64, toBase64UrlUnpadded :: Bytes -> Bytes
 toBase32 = toBase BE.Base32
@@ -102,88 +122,19 @@ fromBase64 = fromBase BE.Base64
 fromBase64UrlUnpadded = fromBase BE.Base64URLUnpadded
 
 fromBase :: BE.Base -> Bytes -> Either Text.Text Bytes
-fromBase e bs = case BE.convertFromBase e (toArray bs :: ByteString) of
+fromBase e bs = case BE.convertFromBase e (chunkToByteArray $ R.flatten bs) of
   Left e -> Left (Text.pack e)
-  Right b -> Right $ snocView empty (view b)
+  Right b -> Right $ snoc empty (chunkFromByteArray b)
 
 toBase :: BE.Base -> Bytes -> Bytes
-toBase e bs = snoc empty (BE.convertToBase e (toArray bs :: ByteString) :: ByteString)
+toBase e bs =
+  snoc empty (byteArrayToChunk $ BE.convertToBase e (chunkToByteArray $ R.flatten bs))
 
 toWord8s :: Bytes -> [Word8]
-toWord8s bs = chunks bs >>= B.unpack
+toWord8s bs = chunks bs >>= V.toList
 
 fromWord8s :: [Word8] -> Bytes
-fromWord8s bs = fromArray (view $ B.pack bs :: View ByteString)
-
-instance Monoid Bytes where
-  mempty = Bytes mempty
-  mappend (Bytes b1) (Bytes b2) = Bytes (b1 `mappend` b2)
-
-instance Semigroup Bytes where (<>) = mappend
-
-instance T.Measured (Sum Int) (View ByteString) where
-  measure b = Sum (B.length b)
+fromWord8s bs = snoc empty (V.fromList bs)
 
 instance Show Bytes where
   show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]
-
---
--- Forked from: http://hackage.haskell.org/package/memory-0.15.0/docs/src/Data.ByteArray.View.html
--- which is already one of our dependencies. Forked because the view
--- type in the memory package doesn't expose its constructor which makes
--- it impossible to implement take and drop.
---
--- Module      : Data.ByteArray.View
--- License     : BSD-style
--- Maintainer  : Nicolas DI PRIMA <nicolas@di-prima.fr>
--- Stability   : stable
--- Portability : Good
-
-view :: B.ByteArrayAccess bs => bs -> View bs
-view bs = View 0 (B.length bs) bs
-
-instance R.Take (View bytes) where
-  take k (View i n bs) = View i (min k n) bs
-
-instance R.Drop (View bytes) where
-  drop k (View i n bs) = View (i + (k `min` n)) (n - (k `min` n)) bs
-
-data View bytes = View
-  { viewOffset :: !Int
-  , viewSize   :: !Int
-  , unView     :: !bytes
-  }
-
-instance B.ByteArrayAccess bytes => Eq (View bytes) where
-  v1 == v2 = viewSize v1 == viewSize v2 && unsafeDupablePerformIO (
-    B.withByteArray v1 $ \ptr1 ->
-    B.withByteArray v2 $ \ptr2 -> memEqual ptr1 ptr2 (viewSize v1))
-
-instance B.ByteArrayAccess bytes => Ord (View bytes) where
-  compare v1 v2 = unsafeDupablePerformIO $
-    B.withByteArray v1 $ \ptr1 ->
-    B.withByteArray v2 $ \ptr2 -> do
-      ret <- memCompare ptr1 ptr2 (min (viewSize v1) (viewSize v2))
-      return $ case ret of
-        EQ | B.length v1 >  B.length v2 -> GT
-           | B.length v1 <  B.length v2 -> LT
-           | B.length v1 == B.length v2 -> EQ
-        _                               -> ret
-
-instance Semigroup (View ByteString) where
-  b1 <> b2 = view (B.convert b1 <> B.convert b2 :: ByteString)
-
-instance B.ByteArrayAccess bytes => Show (View bytes) where
-  show v = show (B.unpack v)
-
-instance B.ByteArrayAccess bytes => B.ByteArrayAccess (View bytes) where
-  length = viewSize
-  withByteArray v f = B.withByteArray (unView v) $
-    \ptr -> f (ptr `plusPtr` (viewOffset v))
-
-instance B.ByteArrayAccess bytes => R.Sized (View bytes) where
-  size = B.length
-
-instance B.ByteArrayAccess bytes => R.Index (View bytes) Word8 where
-  index i a = if i >= 0 && i < R.size a then Just (B.index a i) else Nothing
-

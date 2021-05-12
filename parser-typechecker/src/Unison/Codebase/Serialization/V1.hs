@@ -817,8 +817,8 @@ getEdits = Patch <$> getRelation getReference getTermEdit
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
-putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
-putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
+putBlock :: MonadPut m => Bytes.ByteString -> m ()
+putBlock b = putLength (Bytes.size b) *> putByteString (BA.convert b)
 
 getBytes :: MonadGet m => m Bytes.Bytes
 getBytes = Bytes.fromChunks <$> getList getBlock

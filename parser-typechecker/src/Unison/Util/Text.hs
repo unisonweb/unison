@@ -6,20 +6,61 @@ module Unison.Util.Text where
 
 import Data.List (unfoldr)
 import qualified Data.Text
-import qualified Data.Text.Short as T
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.Vector.Unboxed as V
+import Data.Word
+import Data.Char (chr)
 
--- Text type represented as a finger tree of utf8 chunks.
-type Text = R.Rope T.ShortText
+-- Text type represented as a `Rope` of chunks
+type Text = R.Rope Chunk
 
-instance R.Sized T.ShortText where size = T.length
-instance R.Drop T.ShortText where drop = T.drop
-instance R.Take T.ShortText where take = T.take
-instance R.Index T.ShortText Char where index i t = T.indexMaybe t i
-instance R.Reverse T.ShortText where reverse = T.reverse
+data Chunk
+  = Word7s (V.Vector Word8)   -- All <= 127
+  | Word16s (V.Vector Word16) -- All <= maxBound
+  | Word32s (V.Vector Word32) -- All <= maxBound
+
+instance R.Sized Chunk where
+  size (Word7s cs) = V.length cs
+  size (Word16s cs) = V.length cs
+  size (Word32s cs) = V.length cs
+
+instance R.Drop Chunk where
+  drop n (Word7s cs) = Word7s (V.drop n cs)
+  drop n (Word16s cs) = Word16s (V.drop n cs)
+  drop n (Word32s cs) = Word32s (V.drop n cs)
+
+instance R.Take Chunk where
+  take n (Word7s cs) = Word7s (V.take n cs)
+  take n (Word16s cs) = Word16s (V.take n cs)
+  take n (Word32s cs) = Word32s (V.take n cs)
+
+instance R.Index Chunk Char where
+  index n (Word7s cs) = chr . fromIntegral <$> (cs V.!? n)
+  index n (Word16s cs) = chr . fromIntegral <$> (cs V.!? n)
+  index n (Word32s cs) = chr . fromIntegral <$> (cs V.!? n)
+
+instance R.Reverse Chunk where
+  reverse (Word7s cs) = Word7s (V.reverse cs)
+  reverse (Word16s cs) = Word16s (V.reverse cs)
+  reverse (Word32s cs) = Word32s (V.reverse cs)
+
+instance Semigroup Chunk where (<>) = mappend
+instance Monoid Chunk where
+  mempty = Word7s V.empty
+  mappend (Word7s cs) (Word7s cs2) = Word7s (cs <> cs2)
+  mappend (Word7s cs) (Word16s cs2) = Word16s (V.map fromIntegral cs <> cs2)
+  mappend (Word7s cs) (Word32s cs2) = Word32s (V.map fromIntegral cs <> cs2)
+
+  mappend (Word16s cs) (Word7s cs2) = Word16s (cs <> V.map fromIntegral cs2)
+  mappend (Word16s cs) (Word16s cs2) = Word16s (cs <> cs2)
+  mappend (Word16s cs) (Word32s cs2) = Word32s (V.map fromIntegral cs <> cs2)
+
+  mappend (Word32s cs) (Word32s cs2) = Word32s (cs <> cs2)
+  mappend (Word32s cs) (Word16s cs2) = Word32s (cs <> V.map fromIntegral cs2)
+  mappend (Word32s cs) (Word7s cs2) = Word32s (cs <> V.map fromIntegral cs2)
 
 take :: Int -> Text -> Text
 take = R.take
@@ -33,6 +74,20 @@ at = R.index
 reverse :: Text -> Text
 reverse = R.reverse
 
+fromUtf8 :: B.Bytes -> Maybe Text
+fromUtf8 bs =
+  if B.isAscii bs then Just (R.map toChunk (B.rope bs))
+  else undefined bs
+  where
+    toChunk c = Word7s (B.viewToArray c)
+
+  -- R.singleton <$>
+  -- (T.fromByteString .
+  --  ByteString.concat .
+  --  LazyByteString.toChunks .
+  --  B.toLazyByteString) bs
+
+{-
 dropWhile :: (Char -> Bool) -> Text -> Text
 dropWhile f = let
   go t = case R.uncons t of
@@ -107,3 +162,4 @@ fromUtf8 bs = R.singleton <$>
    ByteString.concat .
    LazyByteString.toChunks .
    B.toLazyByteString) bs
+-}
