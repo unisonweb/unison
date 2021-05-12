@@ -311,6 +311,29 @@ test = scope "gitsync22" . tests $
       ```
     |])
   ,
+  pushPullTest "lightweightPatch" fmt
+    (\repo -> [i|
+      ```ucm
+      .> builtins.merge
+      ```
+      ```unison
+      x = 3
+      y = 4
+      ```
+      ```ucm
+      .defns> add
+      .patches> replace.term .defns.x .defns.y
+      .patches> push ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .> builtins.merge
+      .> pull ${repo} patches
+      .> view.patch patches.patch
+      ```
+    |])
+  ,
   watchPushPullTest "test-watches" fmt
     (\repo -> [i|
         ```ucm
