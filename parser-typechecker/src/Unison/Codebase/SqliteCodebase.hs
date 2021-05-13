@@ -685,6 +685,20 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
+          lca :: MonadIO m => Branch m -> Branch m -> m (Maybe (Branch m))
+          lca b1 b2 = do
+            eb1 <- isCausalHash (Branch.headHash b1)
+            eb2 <- isCausalHash (Branch.headHash b2)
+            if eb1 && eb2 && False {- todo, remove this -} then do
+              h <- sqlLca (Branch.headHash b1) (Branch.headHash b2)
+              case h of
+                Nothing -> pure Nothing
+                Just h -> getBranchForHash h
+            else Branch.lca b1 b2
+            where
+              sqlLca :: Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
+              sqlLca h1 h2 = undefined h1 h2 -- insert sql wizardry
+
           syncInternal ::
             forall m.
             MonadIO m =>
@@ -802,6 +816,7 @@ sqliteCodebase root = do
             referentsByPrefix
             branchHashLength
             branchHashesByPrefix
+            lca
         )
     v -> liftIO $ Sqlite.close conn $> Left v
 

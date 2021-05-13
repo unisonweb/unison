@@ -237,14 +237,23 @@ squashMerge combine c1 c2 = do
 
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
-threeWayMerge
-  :: forall m h e
+threeWayMerge :: forall m h e
    . (Monad m, Hashable e)
   => (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-threeWayMerge combine c1 c2 = do
+threeWayMerge = threeWayMerge' lca
+
+threeWayMerge'
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+threeWayMerge' lca combine c1 c2 = do
   theLCA <- lca c1 c2
   case theLCA of
     Nothing -> done <$> combine Nothing (head c1) (head c2)
