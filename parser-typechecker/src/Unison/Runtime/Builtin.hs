@@ -427,22 +427,26 @@ dropt = binop0 1 $ \[x0,y,x]
 sizet = unop0 1 $ \[x,r]
      -> TLetD r UN (TPrm SIZT [x])
       $ TCon Ty.natRef 0 [r]
-unconst = unop0 5 $ \[x,t,c0,c,y,p]
+unconst = unop0 7 $ \[x,t,c0,c,y,p,u,yp]
      -> TLetD t UN (TPrm UCNS [x])
       . TMatch t . MatchSum $ mapFromList
       [ (0, ([], TCon Ty.optionalRef 0 []))
       , (1, ([UN,BX], TAbss [c0,y]
+                    . TLetD u BX (TCon Ty.unitRef 0 [])
+                    . TLetD yp BX (TCon Ty.pairRef 0 [y,u])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
-                    . TLetD p BX (TCon Ty.pairRef 0 [c,y])
+                    . TLetD p BX (TCon Ty.pairRef 0 [c,yp])
                     $ TCon Ty.optionalRef 1 [p]))
       ]
-unsnoct = unop0 5 $ \[x,t,c0,c,y,p]
+unsnoct = unop0 7 $ \[x,t,c0,c,y,p,u,cp]
      -> TLetD t UN (TPrm USNC [x])
       . TMatch t . MatchSum $ mapFromList
       [ (0, ([], TCon Ty.optionalRef 0 []))
       , (1, ([BX,UN], TAbss [y,c0]
+                    . TLetD u BX (TCon Ty.unitRef 0 [])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
-                    . TLetD p BX (TCon Ty.pairRef 0 [y,c])
+                    . TLetD cp BX (TCon Ty.pairRef 0 [c,u])
+                    . TLetD p BX (TCon Ty.pairRef 0 [y,cp])
                     $ TCon Ty.optionalRef 1 [p]))
       ]
 
