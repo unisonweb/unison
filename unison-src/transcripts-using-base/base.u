@@ -31,13 +31,6 @@ List.all f = cases
   [] -> true
   h +: t -> f h && all f t
 
-List.map : (a ->{m} b) -> [a] ->{m} [b]
-List.map f xs =
-  go acc = cases
-    [] -> acc
-    h +: t -> go (acc :+ f h) t
-  go [] xs
-
 List.filter: (a -> Boolean) -> [a] -> [a]
 List.filter f all =
   go acc = cases
