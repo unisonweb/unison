@@ -570,12 +570,15 @@ unique[de2e0ee924578939213c950dfd8e0ba1047703ae] type ANSI.Color
   | BrightBlack | BrightRed | BrightGreen | BrightYellow | BrightBlue
   | BrightMagenta | BrightCyan | BrightWhite
 
-List.map : (a ->{g} b) ->{} [a] ->{g} [b]
-List.map f as =
-  go acc = cases
-    [] -> acc
-    h +: t -> go (acc :+ f h) t
-  go [] as
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f a =
+  go i as acc =
+    match List.at i as with
+      None   -> acc
+      Some a ->
+        use Nat +
+        go (i + 1) as (acc :+ f a)
+  go 0 a []
 
 Text.alignRightWith : Nat -> Char -> Text -> Text
 Text.alignRightWith w padChar txt =
@@ -591,8 +594,8 @@ Text.alignLeftWith w padChar txt =
 
 Either.mapRight : (a -> b) -> Either e a -> Either e b
 Either.mapRight f = cases
-  Right a -> Right (f a)
   Left e -> Left e
+  Right a -> Right (f a)
 
 syntax.docFormatConsole : Doc2 -> Pretty (Either SpecialForm ConsoleText)
 syntax.docFormatConsole d =
