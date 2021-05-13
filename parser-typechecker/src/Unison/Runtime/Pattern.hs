@@ -168,7 +168,7 @@ decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
 decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
   , rf0 == rf
-  = if length ps == nfields
+  = if length ps + 1 == nfields
     then [ps ++ [pk]]
     else error err
   where
@@ -537,9 +537,6 @@ prepareAs p u = pure $ u <$ p
 -- variables they bind are used as candidates for what that level of
 -- the pattern matches against.
 preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
-preparePattern (P.Unbound _) = P.Var <$> freshVar
-preparePattern (P.Var _) = P.Var <$> useVar
-preparePattern (P.As _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> P.Pattern ()
@@ -567,7 +564,7 @@ lookupAbil :: Reference -> DataSpec -> Either String Cons
 lookupAbil rf (Map.lookup rf -> Just econs)
   = case econs of
       Right _ -> Left $ "ability matching on data: " ++ show rf
-      Left cs -> Right cs
+      Left cs -> Right $ fmap (1+) cs
 lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
@@ -631,7 +628,9 @@ buildCasePure
 buildCasePure spec ctx0 (_, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = P.EffectPure () (P.Var ())
+  vp | [] <- vts = P.Unbound ()
+     | otherwise = P.Var ()
+  pat = P.EffectPure () vp
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 
