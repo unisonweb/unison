@@ -15,7 +15,7 @@ module U.Codebase.Sqlite.Operations where
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
 import Control.Monad (MonadPlus (mzero), join, when, (<=<), unless)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, MonadIO (liftIO))
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.State (MonadState, StateT, evalStateT)
@@ -120,6 +120,7 @@ import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 import qualified U.Util.Type as TypeUtil
+import Database.SQLite.Simple (Connection)
 
 -- * Error handling
 
@@ -1227,6 +1228,13 @@ deserializePatchObject id = do
   when debug $ traceM $ "Operations.deserializePatchObject " ++ show id
   (liftQ . Q.loadObjectById) (Db.unPatchObjectId id)
     >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
+
+lca :: EDB m => CausalHash -> CausalHash -> Connection -> Connection -> m (Maybe CausalHash)
+lca h1 h2 c1 c2 = runMaybeT do
+  chId1 <- MaybeT $ Q.loadCausalHashIdByCausalHash h1
+  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
+  chId3 <- MaybeT . liftIO $ Q.lca chId1 chId2 c1 c2
+  liftQ $ Q.loadCausalHash chId3
 
 -- * Searches
 

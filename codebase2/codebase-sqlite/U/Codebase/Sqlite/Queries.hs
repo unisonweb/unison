@@ -17,6 +17,7 @@
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries where
 
+import qualified Control.Exception as Exception
 import Control.Monad (when)
 import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
@@ -33,6 +34,7 @@ import qualified Data.List.Extra as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Data.Maybe (fromJust)
+import qualified Data.Set as Set
 import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
@@ -48,7 +50,7 @@ import Database.SQLite.Simple.FromField (FromField (..))
 import Database.SQLite.Simple.ToField (ToField (..))
 import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
-import U.Codebase.HashTags (BranchHash, CausalHash, unBranchHash, unCausalHash)
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
@@ -167,6 +169,9 @@ loadCausalByCausalHash ch = runMaybeT do
 
 expectHashIdByHash :: EDB m => Hash -> m HashId
 expectHashIdByHash h = loadHashIdByHash h >>= orError (UnknownHash h)
+
+loadHashHashById :: EDB m => HashId -> m Hash
+loadHashHashById h = Hash.fromBase32Hex <$> loadHashById h
 
 loadHashById :: EDB m => HashId -> m Base32Hex
 loadHashById h = queryAtom sql (Only h) >>= orError (UnknownHashId h)
@@ -302,6 +307,9 @@ saveCausal self value = execute sql (self, value) where sql = [here|
 loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
 loadCausalValueHashId chId@(CausalHashId id) =
   loadMaybeCausalValueHashId (id) >>= orError (UnknownCausalHashId chId)
+
+loadCausalHash :: EDB m => CausalHashId -> m CausalHash
+loadCausalHash (CausalHashId id) = CausalHash <$> loadHashHashById id
 
 loadMaybeCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
 loadMaybeCausalValueHashId id =
@@ -557,6 +565,47 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
   WHERE base32 LIKE ?
 |]
 {- ORMOLU_ENABLE -}
+
+-- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
+lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
+lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
+lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
+  SQLite.bind sx (Only x)
+  SQLite.bind sy (Only y)
+  let getNext = (,) <$> SQLite.nextRow sx <*> SQLite.nextRow sy
+      loop2 seenX seenY =
+        getNext >>= \case
+          (Just (Only px), Just (Only py)) ->
+            let seenX' = Set.insert px seenX
+                seenY' = Set.insert py seenY
+              in if Set.member px seenY' then pure (Just px)
+              else if Set.member py seenX' then pure (Just py)
+              else loop2 seenX' seenY'
+          (Nothing, Nothing) -> pure Nothing
+          (Just (Only px), Nothing) -> loop1 (SQLite.nextRow sx) seenY px
+          (Nothing, Just (Only py)) -> loop1 (SQLite.nextRow sy) seenX py
+      loop1 getNext matches v =
+        if Set.member v matches then pure (Just v)
+        else getNext >>= \case
+          Just (Only v) -> loop1 getNext matches v
+          Nothing -> pure Nothing
+  loop2 (Set.singleton x) (Set.singleton y)
+  where
+    open = (,) <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
+    close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
+    sql = [here|
+      WITH RECURSIVE
+        found(id) AS (
+          SELECT self_hash_id
+            FROM causal
+            WHERE self_hash_id = ?
+          UNION ALL
+          SELECT parent_id
+            FROM causal_parent
+            INNER JOIN found ON found.id = causal_id
+        )
+      SELECT * FROM found;
+    |]
 
 -- * helper functions
 

@@ -739,7 +739,7 @@ loop = do
         if Branch.isEmpty srcb then branchNotFound src0
         else do
           destb <- getAt dest
-          merged <- eval . Eval $ Branch.merge srcb destb
+          merged <- eval $ Merge Branch.RegularMerge srcb destb
           if merged == destb
           then respond (PreviewMergeAlreadyUpToDate src0 dest0)
           else
@@ -758,7 +758,7 @@ loop = do
         (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
         (cleanupHead, headBranch) <- viewRemoteBranch headRepo
         lift do
-          merged <- eval . Eval $ Branch.merge baseBranch headBranch
+          merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
           (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
           respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
           eval . Eval $ do
@@ -773,8 +773,8 @@ loop = do
           baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
           headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
           lift $ do
-            mergedb <- eval . Eval $ Branch.merge baseb headb
-            squashedb <- eval . Eval $ Branch.merge' Branch.SquashMerge headb baseb
+            mergedb <- eval $ Merge Branch.RegularMerge baseb headb
+            squashedb <- eval $ Merge Branch.SquashMerge headb baseb
             stepManyAt
               [BranchUtil.makeSetBranch (dest, "base") baseb
               ,BranchUtil.makeSetBranch (dest, "head") headb
@@ -1661,7 +1661,7 @@ loop = do
         -- due to builtin terms; so we don't just reuse `uf` above.
         let srcb = BranchUtil.fromNames0 Builtin.names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
-               eval . Eval $ Branch.merge srcb destb
+               eval $ Merge Branch.RegularMerge srcb destb
         success
 
       MergeIOBuiltinsI -> do
@@ -1681,7 +1681,7 @@ loop = do
                      <> UF.typecheckedToNames0 @v IOSource.typecheckedFile'
         let srcb = BranchUtil.fromNames0 names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
-               eval . Eval $ Branch.merge srcb destb
+               eval $ Merge Branch.RegularMerge srcb destb
 
         success
 
@@ -1713,6 +1713,8 @@ loop = do
           case sbh of
             Nothing -> lift $ unlessGitError do
               (cleanup, remoteRoot) <- viewRemoteBranch (repo, Nothing, Path.empty)
+              -- todo : this needs rethinking - should do the work inside the
+              -- staged repo after calling syncToDirectory
               newRemoteRoot <- lift . eval . Eval $
                 Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
               syncRemoteRootBranch repo newRemoteRoot syncMode
@@ -2224,7 +2226,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     Branch.MergeMode -> InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
   mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
-    merged <- eval . Eval $ Branch.merge' mode srcb destb
+    merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
     for_ dest0 $ \dest0 ->
       diffHelper (Branch.head destb) (Branch.head merged) >>=

@@ -110,8 +110,8 @@ data Codebase m v a =
 
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
+           , lca :: Branch m -> Branch m -> m (Maybe (Branch m))
            }
-
 
 data GetRootBranchError
   = NoRootBranch

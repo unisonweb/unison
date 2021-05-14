@@ -180,6 +180,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (termReferentsByPrefix (getDecl getV getA) path)
           (pure 10)
           (branchHashesByPrefix path)
+          lca
    in pure c
   where
     dependents :: Reference -> m (Set Reference.Id)
@@ -188,6 +189,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
     getTermsOfType r = listDirAsReferents (typeIndexDir path r)
     getTermsMentioningType :: Reference -> m (Set Referent.Id)
     getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
+    lca b1 b2 = Branch.lca b1 b2
   -- todo: revisit these
     listDirAsIds :: FilePath -> m (Set Reference.Id)
     listDirAsIds d = do

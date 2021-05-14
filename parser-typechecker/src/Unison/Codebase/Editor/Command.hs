@@ -173,6 +173,9 @@ data Command m i v a where
   -- Like `LoadLocalRootBranch`.
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
+  -- Merge two branches, using the codebase for the LCA calculation where possible.
+  Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
+
   ViewRemoteBranch ::
     RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
@@ -262,6 +265,7 @@ commandName = \case
   LoadWatches{}               -> "LoadWatches"
   LoadLocalRootBranch         -> "LoadLocalRootBranch"
   LoadLocalBranch{}           -> "LoadLocalBranch"
+  Merge{}                     -> "Merge"
   ViewRemoteBranch{}          -> "ViewRemoteBranch"
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
