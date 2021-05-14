@@ -4,13 +4,13 @@
 
 module Unison.Util.Text where
 
-import Data.List (unfoldr)
-import qualified Data.Text
+-- import Data.List (unfoldr)
+-- import qualified Data.Text
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
-import qualified Data.ByteString as ByteString
-import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.Vector.Unboxed as V
+-- import qualified Data.ByteString as ByteString
+-- import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.Vector.Primitive as V
 import Data.Word
 import Data.Char (chr)
 
@@ -76,16 +76,11 @@ reverse = R.reverse
 
 fromUtf8 :: B.Bytes -> Maybe Text
 fromUtf8 bs =
-  if B.isAscii bs then Just (R.map toChunk (B.rope bs))
-  else undefined bs
-  where
-    toChunk c = Word7s (B.viewToArray c)
+  if B.isAscii bs then Just (R.map Word7s bs)
+  else undefined
 
-  -- R.singleton <$>
-  -- (T.fromByteString .
-  --  ByteString.concat .
-  --  LazyByteString.toChunks .
-  --  B.toLazyByteString) bs
+-- toUtf8 :: Text -> B.Bytes
+-- toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
 
 {-
 dropWhile :: (Char -> Bool) -> Text -> Text
@@ -150,16 +145,4 @@ fromText s = let
 
 toText :: Text -> Data.Text.Text
 toText t = Data.Text.concat (T.toText <$> unfoldr R.uncons t)
-
-toUtf8 :: Text -> B.Bytes
-toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
-
--- todo: there's a more direct but fiddly implementation of this
--- which doesn't go through strict bytestring
-fromUtf8 :: B.Bytes -> Maybe Text
-fromUtf8 bs = R.singleton <$>
-  (T.fromByteString .
-   ByteString.concat .
-   LazyByteString.toChunks .
-   B.toLazyByteString) bs
 -}

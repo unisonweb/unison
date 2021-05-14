@@ -7,8 +7,6 @@ import Unison.Prelude
 
 import Prelude hiding (getChar, putChar)
 
-import Basement.Block (Block)
-
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
 import           Unison.Pattern                 ( Pattern
@@ -22,7 +20,6 @@ import           Data.Bytes.Serial              ( serialize
                                                 , serializeBE
                                                 , deserializeBE
                                                 )
-import qualified Data.ByteArray                 as BA
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
 import qualified Data.Map                      as Map
@@ -818,10 +815,11 @@ putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
 putBlock :: MonadPut m => Bytes.ByteString -> m ()
-putBlock b = putLength (Bytes.size b) *> putByteString (BA.convert b)
+putBlock b = putLength (Bytes.chunkSize b)
+          *> putByteString (Bytes.chunkToByteString b)
 
 getBytes :: MonadGet m => m Bytes.Bytes
 getBytes = Bytes.fromChunks <$> getList getBlock
 
-getBlock :: MonadGet m => m (Bytes.View (Block Word8))
-getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString
+getBlock :: MonadGet m => m Bytes.ByteString
+getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString

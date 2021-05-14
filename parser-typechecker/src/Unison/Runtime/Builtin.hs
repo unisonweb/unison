@@ -1408,9 +1408,9 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromByteString <$> hGet h n
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toByteString bs)
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
@@ -1675,13 +1675,11 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
 
-  -- declareForeign ("crypto.hash") boxBoxDirect . mkForeign $ \(HashAlgorithm _ref _alg, _a :: Closure) ->
-  --   pure $ Bytes.empty -- todo : implement me
-
   declareForeign "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
         let ctx = Hash.hashInitWith alg
-        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.chunks b)
+            bs = Bytes.chunkToArray @BA.Bytes <$> Bytes.chunks b
+        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx bs
 
   declareForeign "crypto.hmacBytes" boxBoxBoxDirect
     . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
