@@ -323,8 +323,8 @@ startRuntime = do
        , evaluate = \cl ppe tm -> do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
-           writeIORef ctxVar ctx
            (ctx, init) <- prepareEvaluation tm ctx
+           writeIORef ctxVar ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
        , ioTestType = builtinTest External
