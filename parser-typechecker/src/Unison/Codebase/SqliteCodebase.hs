@@ -50,6 +50,7 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
+import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
 import qualified U.Util.Set as Set
@@ -241,6 +242,9 @@ sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (m (), Co
 sqliteCodebase root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
+  termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
+  typeOfTermCache <- Cache.semispaceCache 8192
+  declCache <- Cache.semispaceCache 1024
   runReaderT Q.schemaVersion conn >>= \case
     SchemaVersion 1 -> do
       rootBranchCache <- newTVarIO Nothing
@@ -789,9 +793,9 @@ sqliteCodebase root = do
       pure . Right $
         ( finalizer,
           Codebase1.Codebase
-            getTerm
-            getTypeOfTermImpl
-            getTypeDeclaration
+            (Cache.applyDefined termCache getTerm)
+            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
+            (Cache.applyDefined declCache getTypeDeclaration)
             putTerm
             putTypeDeclaration
             (getRootBranch rootBranchCache)
