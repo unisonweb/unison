@@ -568,17 +568,28 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
-lca x y cx cy = Exception.bracket open close \(sx,sy) -> do
-    SQLite.bind sx (Only x)
-    SQLite.bind sy (Only y)
-    let getNext = (,) <$> SQLite.nextRow sx <*> SQLite.nextRow sy
-        loop seenX seenY = getNext >>= \case
+lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
+lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
+  SQLite.bind sx (Only x)
+  SQLite.bind sy (Only y)
+  let getNext = (,) <$> SQLite.nextRow sx <*> SQLite.nextRow sy
+      loop2 seenX seenY =
+        getNext >>= \case
           (Just (Only px), Just (Only py)) ->
-            if px == py || Set.member px seenY then pure (Just px)
-            else if Set.member py seenX then pure (Just py)
-            else loop (Set.insert px seenX) (Set.insert py seenY)
-          _ -> pure Nothing
-    loop mempty mempty
+            let seenX' = Set.insert px seenX
+                seenY' = Set.insert py seenY
+              in if Set.member px seenY' then pure (Just px)
+              else if Set.member py seenX' then pure (Just py)
+              else loop2 seenX' seenY'
+          (Nothing, Nothing) -> pure Nothing
+          (Just (Only px), Nothing) -> loop1 (SQLite.nextRow sx) seenY px
+          (Nothing, Just (Only py)) -> loop1 (SQLite.nextRow sy) seenX py
+      loop1 getNext matches v =
+        if Set.member v matches then pure (Just v)
+        else getNext >>= \case
+          Just (Only v) -> loop1 getNext matches v
+          Nothing -> pure Nothing
+  loop2 (Set.singleton x) (Set.singleton y)
   where
     open = (,) <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
