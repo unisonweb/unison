@@ -685,11 +685,11 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-          lca :: MonadIO m => Branch m -> Branch m -> m (Maybe (Branch m))
+          lca :: forall m. MonadIO m => Branch m -> Branch m -> m (Maybe (Branch m))
           lca b1 b2 = do
             eb1 <- isCausalHash (Branch.headHash b1)
             eb2 <- isCausalHash (Branch.headHash b2)
-            if eb1 && eb2 && False {- todo, remove this -} then do
+            if eb1 && eb2 then do
               h <- sqlLca (Branch.headHash b1) (Branch.headHash b2)
               case h of
                 Nothing -> pure Nothing
@@ -697,8 +697,13 @@ sqliteCodebase root = do
             else Branch.lca b1 b2
             where
               sqlLca :: Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-              sqlLca h1 h2 = undefined h1 h2 -- insert sql wizardry
-
+              sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
+                runDB conn
+                  . (fmap . fmap) Cv.causalHash2to1
+                  $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
+                where
+                  open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
+                  close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
           syncInternal ::
             forall m.
             MonadIO m =>
