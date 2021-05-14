@@ -55,13 +55,14 @@ decompile topTerms (DataC rf _ [] [b]) | rf == anyRef
   = app () (builtin() "Any.Any") <$> decompile topTerms b
 decompile topTerms (DataC rf ct [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
-decompile topTerms (PApV (CIx _ rt k) [] bs)
+decompile topTerms (PApV (CIx rf rt k) [] bs)
   | Just t <- topTerms rt k
   = Term.etaReduceEtaVars . substitute t <$> traverse (decompile topTerms) bs
   | k > 0
-  = err "cannot decompile an application to a local recusive binding"
+  , Just _ <- topTerms rt 0
+  = err "cannot decompile an application to a local recursive binding"
   | otherwise
-  = err "reference to unknown combinator"
+  = err $ "reference to unknown combinator: " ++ show rf
 decompile _ cl@(PAp _ _ _)
   = err $ "cannot decompile a partial application to unboxed values: "
        ++ show cl
