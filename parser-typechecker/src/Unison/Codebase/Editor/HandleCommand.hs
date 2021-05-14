@@ -115,8 +115,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Evaluate1 ppe useCache term    -> lift $ eval1 ppe useCache term
     LoadLocalRootBranch        -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
     LoadLocalBranch h          -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
-    Merge b1 b2 ->
-      lift $ Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge b1 b2
+    Merge mode b1 b2 ->
+      lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
