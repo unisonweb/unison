@@ -158,7 +158,11 @@ getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1
 getCodebaseOrError dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
+  doesFileExist (dir </> codebasePath) >>= \case
+    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
+    -- Unison.Codebase.Init.getCodebaseOrExit).
+    False -> pure (Left "codebase doesn't exist")
+    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
