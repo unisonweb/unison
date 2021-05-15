@@ -815,7 +815,7 @@ sqliteCodebase root = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (pushGitRootBranch syncToDirectory)
+            (pushGitRootBranch lca syncToDirectory)
             watches
             getWatch
             putWatch
@@ -967,17 +967,18 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch ::
   MonadIO m =>
+  (Branch m -> Branch m -> m (Maybe (Branch m))) ->
   Codebase1.SyncToDir m ->
   Branch m ->
   RemoteRepo ->
   SyncMode ->
   m (Either GitError ())
-pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
+pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
   (ifM
     ((pure (remoteRoot == Branch.empty) ||^
-      lift (time "pushGitRootBranch Branch.before" $ remoteRoot `Branch.before` branch)) <*
+      lift (time "pushGitRootBranch Branch.before" $ Branch.before' lca remoteRoot branch)) <*
       lift cleanup)
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
