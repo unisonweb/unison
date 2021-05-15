@@ -976,11 +976,12 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
   (ifM
-    (pure (remoteRoot == Branch.empty) ||^ lift (remoteRoot `Branch.before` branch))
+    ((pure (remoteRoot == Branch.empty) ||^ lift (remoteRoot `Branch.before` branch)) <*
+      lift cleanup)
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
     (stageAndPush remotePath)
-    (throwError $ GitError.PushDestinationHasNewStuff repo)) <* lift cleanup
+    (throwError $ GitError.PushDestinationHasNewStuff repo))
   where
     -- | this will bomb if `h` is not a causal in the codebase
     setRepoRoot :: MonadIO m => CodebasePath -> Branch.Hash -> m ()
@@ -991,6 +992,7 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
       flip runReaderT conn $ do
         chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
         Q.setNamespaceRoot chId
+      liftIO $ Sqlite.close conn
 
     stageAndPush remotePath = do
       let repoString = Text.unpack $ printRepo repo
