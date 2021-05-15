@@ -122,9 +122,18 @@ createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
 
-setFlags :: DB m => m ()
-setFlags = execute_ "PRAGMA foreign_keys = ON;"
+useWAL :: Bool
+useWAL = True
 
+setFlags :: DB m => m ()
+setFlags = do
+  execute_ "PRAGMA foreign_keys = ON;"
+  when useWAL $
+    query_ "PRAGMA journal_mode=WAL;" >>= \case
+      [Only ("wal" :: String)] -> pure ()
+      x ->
+        liftIO . putStrLn $
+          "I couldn't set the codebase journal mode to WAL; it's set to " ++ show x ++ "."
 {- ORMOLU_DISABLE -}
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms sql () >>= \case
