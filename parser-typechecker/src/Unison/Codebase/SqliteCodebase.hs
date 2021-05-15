@@ -940,7 +940,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
           branch <- time "Git fetch (sbh)" $ case sbh of
             -- no sub-branch was specified, so use the root.
             Nothing ->
-              lift (Codebase1.getRootBranch codebase) >>= \case
+              lift (time "Get Root Branch" $ Codebase1.getRootBranch codebase) >>= \case
                 -- this NoRootBranch case should probably be an error too.
                 Left Codebase1.NoRootBranch -> pure Branch.empty
                 Left (Codebase1.CouldntLoadRootBranch h) ->
@@ -976,7 +976,8 @@ pushGitRootBranch syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
   (ifM
-    ((pure (remoteRoot == Branch.empty) ||^ lift (remoteRoot `Branch.before` branch)) <*
+    ((pure (remoteRoot == Branch.empty) ||^
+      lift (time "pushGitRootBranch Branch.before" $ remoteRoot `Branch.before` branch)) <*
       lift cleanup)
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
