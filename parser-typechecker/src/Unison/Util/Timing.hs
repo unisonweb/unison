@@ -10,7 +10,7 @@ import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Time.Clock (picosecondsToDiffTime)
 
 enabled :: Bool
-enabled = True
+enabled = False
 
 time :: MonadIO m => String -> m a -> m a
 time _ ma | not enabled = ma
