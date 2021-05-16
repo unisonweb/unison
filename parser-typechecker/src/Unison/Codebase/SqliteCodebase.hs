@@ -784,9 +784,11 @@ sqliteCodebase root = do
               se . r $ Sync.sync sync progress' testWatchRefs
             let
               onSuccess a = runDB destConn Q.commitTransaction *> pure a
-              onFailure e = if debugCommitFailedTransaction
-                then runDB destConn Q.commitTransaction
-                else runDB destConn Q.rollbackTransaction *> error (show e)
+              onFailure e = do
+                if debugCommitFailedTransaction
+                  then runDB destConn Q.commitTransaction
+                  else runDB destConn Q.rollbackTransaction
+                error (show e)
             runDB srcConn Q.rollbackTransaction -- (we don't write to the src anyway)
             either onFailure onSuccess result
       let finalizer :: MonadIO m => m ()
