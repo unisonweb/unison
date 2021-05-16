@@ -33,7 +33,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Traversable (for)
-import qualified Data.Validation as Validation
 import Data.Word (Word64)
 import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
@@ -99,9 +98,10 @@ import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirec
 import UnliftIO.STM
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
-debug, debugProcessBranches :: Bool
+debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
 debugProcessBranches = False
+debugCommitFailedTransaction = False
 
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
@@ -721,6 +721,7 @@ sqliteCodebase root = do
             Branch m ->
             m ()
           syncInternal progress srcConn destConn b = do
+            runDB destConn Q.beginImmediateTransaction
             result <- runExceptT do
               let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
               -- we want to use sync22 wherever possible
@@ -780,7 +781,12 @@ sqliteCodebase root = do
               testWatchRefs <- lift . fmap concat $ for [WK.TestWatch] \wk ->
                 fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
               se . r $ Sync.sync sync progress' testWatchRefs
-            pure $ Validation.valueOr (error . show) result
+            let
+              onSuccess a = runDB destConn Q.commitTransaction *> pure a
+              onFailure e = if debugCommitFailedTransaction
+                then runDB destConn Q.commitTransaction
+                else runDB destConn Q.rollbackTransaction *> error (show e)
+            either onFailure onSuccess result
       let finalizer :: MonadIO m => m ()
           finalizer = do
             liftIO $ Sqlite.close conn

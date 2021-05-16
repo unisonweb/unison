@@ -721,6 +721,14 @@ headMay :: [a] -> Maybe a
 headMay [] = Nothing
 headMay (a : _) = Just a
 
+-- | low-level transaction stuff
+beginTransaction, beginImmediateTransaction, beginExclusiveTransaction, commitTransaction, rollbackTransaction :: DB m => m ()
+beginTransaction = execute_ "BEGIN TRANSACTION"
+beginImmediateTransaction = execute_ "BEGIN IMMEDIATE TRANSACTION"
+beginExclusiveTransaction = execute_ "BEGIN EXCLUSIVE TRANSACTION"
+commitTransaction   = execute_ "COMMIT TRANSACTION"
+rollbackTransaction = execute_ "ROLLBACK TRANSACTION"
+
 -- * orphan instances
 
 deriving via Text instance ToField Base32Hex
