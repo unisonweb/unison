@@ -268,6 +268,13 @@ threeWayMerge' lca combine c1 c2 = do
   done newHead =
     Merge (RawHash (hash (newHead, Map.keys children))) newHead children
 
+before' :: Monad m
+        => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+        -> Causal m h e
+        -> Causal m h e
+        -> m Bool
+before' lca a b = (== Just a) <$> lca a b
+
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
 

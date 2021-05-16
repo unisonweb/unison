@@ -32,6 +32,7 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , before
+  , before'
   , findHistoricalHQs
   , findHistoricalRefs
   , findHistoricalRefs'
@@ -444,9 +445,17 @@ merge'' lca mode (Branch x) (Branch y) =
           }
     pure (H.accumulate' np, pure np)
 
+-- `before' lca b1 b2` is true if `b2` incorporates all of `b1`
+-- It's defined as: lca b1 b2 == Just b1
+before' :: Monad m => (Branch m -> Branch m -> m (Maybe (Branch m)))
+                   -> Branch m -> Branch m -> m Bool
+before' lca (Branch x) (Branch y) = Causal.before' lca' x y
+  where
+    lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
+
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
-before (Branch x) (Branch y) = Causal.before x y
+before (Branch b1) (Branch b2) = Causal.before b1 b2
 
 merge0 :: forall m. Monad m => (Branch m -> Branch m -> m (Maybe (Branch m)))
                             -> MergeMode -> Branch0 m -> Branch0 m -> m (Branch0 m)
