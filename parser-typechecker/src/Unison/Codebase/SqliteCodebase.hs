@@ -720,7 +720,8 @@ sqliteCodebase root = do
             Connection ->
             Branch m ->
             m ()
-          syncInternal progress srcConn destConn b = do
+          syncInternal progress srcConn destConn b = time "syncInternal" do
+            runDB srcConn Q.beginTransaction
             runDB destConn Q.beginImmediateTransaction
             result <- runExceptT do
               let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
@@ -786,6 +787,7 @@ sqliteCodebase root = do
               onFailure e = if debugCommitFailedTransaction
                 then runDB destConn Q.commitTransaction
                 else runDB destConn Q.rollbackTransaction *> error (show e)
+            runDB srcConn Q.rollbackTransaction -- (we don't write to the src anyway)
             either onFailure onSuccess result
       let finalizer :: MonadIO m => m ()
           finalizer = do
