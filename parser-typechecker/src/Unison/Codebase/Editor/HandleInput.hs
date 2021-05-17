@@ -104,7 +104,7 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
 import qualified Unison.Util.Relation4          as R4
-import           Unison.Util.Timing             (unsafeTime)
+import           U.Util.Timing             (unsafeTime)
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
