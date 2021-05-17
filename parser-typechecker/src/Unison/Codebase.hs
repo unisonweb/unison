@@ -343,7 +343,8 @@ importRemoteBranch codebase ns mode = runExceptT do
   ExceptT
     let h = Branch.headHash branch
         err = Left $ GitError.CouldntLoadSyncedBranch h
-    in (getBranchForHash codebase h <&> maybe err Right) <* cleanup
+    in time "load fresh local branch after sync" $
+      (getBranchForHash codebase h <&> maybe err Right) <* cleanup
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
