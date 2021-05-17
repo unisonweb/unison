@@ -39,7 +39,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
-import Unison.Util.Timing (time)
+import U.Util.Timing (time)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import UnliftIO.Directory (getHomeDirectory)

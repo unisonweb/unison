@@ -15,4 +15,5 @@ dependencies:
   - safe
   - sandi
   - text
+  - time
   - unliftio

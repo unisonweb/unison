@@ -42,7 +42,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
-import           Unison.Util.Timing (time)
+import           U.Util.Timing (time)
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common

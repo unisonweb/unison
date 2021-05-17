@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Unison.Util.Timing where
+module U.Util.Timing where
 
 import System.CPUTime (getCPUTime)
 import System.IO.Unsafe (unsafePerformIO)

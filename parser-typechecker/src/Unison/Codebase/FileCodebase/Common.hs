@@ -124,7 +124,7 @@ import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Monoid (foldMapM)
-import           Unison.Util.Timing             (time)
+import           U.Util.Timing             (time)
 import Data.Either.Extra (maybeToEither)
 
 data Err

@@ -87,7 +87,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as TQueue
-import Unison.Util.Timing (time)
+import U.Util.Timing (time)
 import Unison.Var (Var)
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import UnliftIO.STM (atomically)

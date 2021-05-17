@@ -93,7 +93,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
-import Unison.Util.Timing (time)
+import U.Util.Timing (time)
 import UnliftIO (MonadIO, catchIO, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM

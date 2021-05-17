@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0babc973f878580f183d822979573027957f5eb855df002e8be9d7871c4a672a
+-- hash: bc7f7157a2b554df63f114447a2a6798a365df3d483cec8e3b87c0770992ac36
 
 name:           unison-util
 version:        0.0.0
@@ -31,6 +31,7 @@ library
       U.Util.Set
       U.Util.String
       U.Util.Text
+      U.Util.Timing
   other-modules:
       Paths_unison_util
   hs-source-dirs:
@@ -46,5 +47,6 @@ library
     , safe
     , sandi
     , text
+    , time
     , unliftio
   default-language: Haskell2010
