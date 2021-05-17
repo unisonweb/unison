@@ -342,7 +342,7 @@ saturate dat = ABT.visitPure $ \case
 
 inlineAlias :: Var v => Monoid a => Term v a -> Term v a
 inlineAlias = ABT.visitPure $ \case
-  Let1Named' v b@(Var' u) e -> Just . inlineAlias $ ABT.subst v b e
+  Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
 minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
