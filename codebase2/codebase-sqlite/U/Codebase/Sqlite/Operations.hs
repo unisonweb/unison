@@ -121,7 +121,6 @@ import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 import qualified U.Util.Type as TypeUtil
 import Database.SQLite.Simple (Connection)
-import U.Util.Timing (time)
 
 -- * Error handling
 
@@ -1016,7 +1015,7 @@ loadCausalBranchByCausalHash hc = do
     Nothing -> pure Nothing
 
 loadCausalByCausalHashId :: EDB m => Db.CausalHashId -> m (C.Branch.Causal m)
-loadCausalByCausalHashId id = time ("Ops.loadCausalByCausalHashId " ++ show id) do
+loadCausalByCausalHashId id = do
   hc <- loadCausalHashById id
   hb <- loadValueHashByCausalHashId id
   let loadNamespace =
