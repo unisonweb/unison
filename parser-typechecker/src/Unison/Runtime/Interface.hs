@@ -223,6 +223,7 @@ intermediateTerm ctx tm
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
+  . inlineAlias
   $ tm
   where
   final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
