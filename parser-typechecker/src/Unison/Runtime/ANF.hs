@@ -39,6 +39,7 @@ module Unison.Runtime.ANF
   , saturate
   , float
   , lamLift
+  , inlineAlias
   , ANormalF(.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp)
   , ANormal
   , RTag
@@ -338,6 +339,11 @@ saturate dat = ABT.visitPure $ \case
     m = length args
     fvs = foldMap freeVars args
     args' = saturate dat <$> args
+
+inlineAlias :: Var v => Monoid a => Term v a -> Term v a
+inlineAlias = ABT.visitPure $ \case
+  Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
+  _ -> Nothing
 
 minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
