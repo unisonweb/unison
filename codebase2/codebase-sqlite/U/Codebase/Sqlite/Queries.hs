@@ -50,6 +50,7 @@ import Database.SQLite.Simple.FromField (FromField (..))
 import Database.SQLite.Simple.ToField (ToField (..))
 import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
+import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.DbId
@@ -717,9 +718,6 @@ withImmediateTransaction action = do
   c <- ask
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
 
-headMay :: [a] -> Maybe a
-headMay [] = Nothing
-headMay (a : _) = Just a
 
 -- | low-level transaction stuff
 beginTransaction, beginImmediateTransaction, beginExclusiveTransaction, commitTransaction, rollbackTransaction :: DB m => m ()

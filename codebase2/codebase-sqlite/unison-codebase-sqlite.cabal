@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f891db08f545b5212d1a97c8eebc547c5f8bdd3f95020ff05af7f7fd3113a1b6
+-- hash: 59ac3fbf7b58d65813bf86ad102b1d419e66838a0a87a60cbccd2c2affb9242e
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -54,6 +54,7 @@ library
     , lens
     , monad-validate
     , mtl
+    , safe
     , sqlite-simple
     , text
     , transformers
