@@ -258,6 +258,7 @@ sqliteCodebase root = do
       termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
       declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
       cycleLengthCache <- Cache.semispaceCache 8192
+      declTypeCache <- Cache.semispaceCache 2048
       let getTerm :: MonadIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
@@ -271,7 +272,7 @@ sqliteCodebase root = do
               e -> Except.throwError e
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
-          getDeclType = \case
+          getDeclType = Cache.apply declTypeCache \case
             C.Reference.ReferenceBuiltin t ->
               let err =
                     error $
