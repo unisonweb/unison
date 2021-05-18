@@ -30,7 +30,7 @@ import Unison.Reference (Reference)
 import Unison.Type (mvarRef, tvarRef, typeLinkRef)
 import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF (SuperGroup, Mem(..), Value)
+import Unison.Runtime.ANF (SuperGroup, Mem(..), Value, internalBug)
 import Unison.Runtime.MCode
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
@@ -47,9 +47,9 @@ data ForeignFunc where
 instance Show ForeignFunc where
   show _ = "ForeignFunc"
 instance Eq ForeignFunc where
-  _ == _ = error "Eq ForeignFunc"
+  _ == _ = internalBug "Eq ForeignFunc"
 instance Ord ForeignFunc where
-  compare _ _ = error "Ord ForeignFunc"
+  compare _ _ = internalBug "Ord ForeignFunc"
 
 class ForeignConvention a where
   readForeign
@@ -66,7 +66,8 @@ mkForeign ev = FF readArgs writeForeign ev
   readArgs ustk bstk (argsToLists -> (us,bs))
     = readForeign us bs ustk bstk >>= \case
         ([], [], a) -> pure a
-        _ -> die "mkForeign: too many arguments for foreign function"
+        _ -> internalBug
+               "mkForeign: too many arguments for foreign function"
 
 instance ForeignConvention Int where
   readForeign (i:us) bs ustk _ = (us,bs,) <$> peekOff ustk i
@@ -164,7 +165,7 @@ ioeDecode 4 = EOF
 ioeDecode 5 = IllegalOperation
 ioeDecode 6 = PermissionDenied
 ioeDecode 7 = UserError
-ioeDecode _ = error "ioeDecode"
+ioeDecode _ = internalBug "ioeDecode"
 
 ioeEncode :: IOErrorType -> Int
 ioeEncode AlreadyExists = 0
@@ -175,7 +176,7 @@ ioeEncode EOF = 4
 ioeEncode IllegalOperation = 5
 ioeEncode PermissionDenied = 6
 ioeEncode UserError = 7
-ioeEncode _ = error "ioeDecode"
+ioeEncode _ = internalBug "ioeDecode"
 
 instance ForeignConvention IOException where
   readForeign = readForeignAs (bld . ioeDecode)

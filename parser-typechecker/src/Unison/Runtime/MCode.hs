@@ -73,6 +73,7 @@ import Unison.Runtime.ANF
   , pattern TLets
   , pattern TName
   , pattern TMatch
+  , internalBug
   )
 import qualified Unison.Runtime.ANF as ANF
 
@@ -270,7 +271,7 @@ argsToLists (DArgR ui ul bi bl) = (take ul [ui..], take bl [bi..])
 argsToLists (BArgN bs) = ([], primArrayToList bs)
 argsToLists (UArgN us) = (primArrayToList us, [])
 argsToLists (DArgN us bs) = (primArrayToList us, primArrayToList bs)
-argsToLists (DArgV _ _) = error "argsToLists: DArgV"
+argsToLists (DArgV _ _) = internalBug "argsToLists: DArgV"
 
 ucount, bcount :: Args -> Int
 
@@ -488,7 +489,7 @@ data RefNums
 
 emptyRNs :: RefNums
 emptyRNs = RN mt mt
-  where mt _ = error "RefNums: empty"
+  where mt _ = internalBug "RefNums: empty"
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -756,11 +757,11 @@ emitSection rns grpn rec ctx (TMatch v bs)
   , MatchSum cs <- bs
   = emitSumMatching rns grpn rec ctx v i cs
   | Just (_,cc) <- ctxResolve ctx v
-  = error
+  = internalBug
   $ "emitSection: mismatched calling convention for match: "
   ++ matchCallingError cc bs
   | otherwise
-  = error
+  = internalBug
   $ "emitSection: could not resolve match variable: " ++ show (ctx,v)
 emitSection rns grpn rec ctx (THnd rs h b)
   | Just (i,BX) <- ctxResolve ctx h
@@ -777,11 +778,11 @@ emitSection rns grpn rec ctx (TShift r v e)
 emitSection _   _   _   ctx (TFrc v)
   | Just (i,BX) <- ctxResolve ctx v
   = countCtx ctx $ App False (Stk i) ZArgs
-  | Just _ <- ctxResolve ctx v = error
+  | Just _ <- ctxResolve ctx v = internalBug
   $ "emitSection: values to be forced must be boxed: " ++ show v
   | otherwise = emitSectionVErr v
 emitSection _   _ _ _ tm
-  = error $ "emitSection: unhandled code: " ++ show tm
+  = internalBug $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
 emitFunction
@@ -820,9 +821,9 @@ emitFunction rns _   _   _   (FReq r e) as
 emitFunction _   _   _   ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
-  | otherwise = error $ "emitFunction: continuations are boxed"
+  | otherwise = internalBug $ "emitFunction: continuations are boxed"
 emitFunction _ _ _ _ (FPrim _) _
-  = error "emitFunction: impossible"
+  = internalBug "emitFunction: impossible"
 
 -- Modify function arguments for packing into a request
 reqArgs :: Args -> Args
@@ -875,12 +876,12 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
-  = error
+  = internalBug
   $ "emitSection: could not resolve function variable: " ++ show v
 
 emitFunctionVErr :: (Var v, HasCallStack) => v -> a
 emitFunctionVErr v
-  = error
+  = internalBug
   $ "emitFunction: could not resolve function variable: " ++ show v
 
 litArg :: ANF.Lit -> Args
@@ -913,7 +914,7 @@ emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grp rec d vcs ctx bnd
   | Direct <- d
-  = error $ "unsupported compound direct let" ++ show bnd
+  = internalBug $ "unsupported compound direct let" ++ show bnd
   | Indirect w <- d
   = \esect ->
       f <$> emitSection rns grp rec (Block ctx) bnd
@@ -1064,16 +1065,16 @@ emitPOp ANF.EROR = emitBP2 THRO
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork i
-  _ -> error "fork takes exactly one boxed argument"
+  _ -> internalBug "fork takes exactly one boxed argument"
 emitPOp ANF.ATOM = \case
   BArg1 i -> Atomically i
-  _ -> error "atomically takes exactly one boxed argument"
+  _ -> internalBug "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i
-  _ -> error "print takes exactly one boxed argument"
+  _ -> internalBug "print takes exactly one boxed argument"
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
-  _ -> error "info takes no arguments"
+  _ -> internalBug "info takes no arguments"
 -- handled in emitSection because Die is not an instruction
 
 -- Emit machine code for ANF IO operations. These are all translated
@@ -1088,29 +1089,33 @@ emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 emitP1 :: UPrim1 -> Args -> Instr
 emitP1 p (UArg1 i) = UPrim1 p i
 emitP1 p a
-  = error $ "wrong number of args for unary unboxed primop: "
-         ++ show (p, a)
+  = internalBug
+      $ "wrong number of args for unary unboxed primop: "
+     ++ show (p, a)
 
 emitP2 :: UPrim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = UPrim2 p i j
 emitP2 p a
-  = error $ "wrong number of args for binary unboxed primop: "
-         ++ show (p, a)
+  = internalBug
+      $ "wrong number of args for binary unboxed primop: "
+     ++ show (p, a)
 
 emitBP1 :: BPrim1 -> Args -> Instr
 emitBP1 p (UArg1 i) = BPrim1 p i
 emitBP1 p (BArg1 i) = BPrim1 p i
 emitBP1 p a
-  = error $ "wrong number of args for unary boxed primop: "
-         ++ show (p,a)
+  = internalBug
+      $ "wrong number of args for unary boxed primop: "
+     ++ show (p,a)
 
 emitBP2 :: BPrim2 -> Args -> Instr
 emitBP2 p (UArg2 i j) = BPrim2 p i j
 emitBP2 p (BArg2 i j) = BPrim2 p i j
 emitBP2 p (DArg2 i j) = BPrim2 p i j
 emitBP2 p a
-  = error $ "wrong number of args for binary boxed primop: "
-         ++ show (p,a)
+  = internalBug
+      $ "wrong number of args for binary boxed primop: "
+     ++ show (p,a)
 
 emitDataMatching
   :: Var v
@@ -1231,13 +1236,13 @@ emitClosures grpn rec ctx args k
     | Just n <- rctxResolve rec a
     = Ins (Name (Env grpn n) ZArgs) <$> allocate (Var a BX ctx) as k
     | otherwise
-    = error $ "emitClosures: unknown reference: " ++ show a
+    = internalBug $ "emitClosures: unknown reference: " ++ show a
 
 emitArgs :: Var v => Word64 -> Ctx v -> [v] -> Args
 emitArgs grpn ctx args
   | Just l <- traverse (ctxResolve ctx) args = demuxArgs l
   | otherwise
-  = error $ "emitArgs[" ++ show grpn ++ "]: "
+  = internalBug $ "emitArgs[" ++ show grpn ++ "]: "
   ++ "could not resolve argument variables: " ++ show args
 
 -- Turns a list of stack positions and calling conventions into the

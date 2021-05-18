@@ -13,7 +13,7 @@ import GHC.Stack (HasCallStack)
 
 import Unison.Prelude (reportBug, maybeToList)
 import Control.Concurrent.STM as STM
-import Control.Exception (try)
+import Control.Exception (try, catch)
 import Control.Monad
 
 import Data.Bits (shiftL)
@@ -271,7 +271,7 @@ evalInContext ppe ctx w = do
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
-      prettyError (PE p) = p
+      prettyError (PE _ p) = p
       prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
   result <- traverse (const $ readIORef r)
           . first prettyError
@@ -316,12 +316,17 @@ sorryMsg
   <> "the location of the failure."
   <> "My makers plan to fix this in a future release. 😢"
 
+catchInternalErrors
+  :: IO (Either Error a)
+  -> IO (Either Error a)
+catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
+
 startRuntime :: IO (Runtime Symbol)
 startRuntime = do
   ctxVar <- newIORef =<< baseContext
   pure $ Runtime
        { terminate = pure ()
-       , evaluate = \cl ppe tm -> do
+       , evaluate = \cl ppe tm -> catchInternalErrors $ do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
            (ctx, init) <- prepareEvaluation tm ctx
