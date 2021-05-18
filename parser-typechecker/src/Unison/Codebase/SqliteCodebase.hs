@@ -41,9 +41,9 @@ import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
+import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Sqlite.ObjectType as OT
-import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
@@ -257,6 +257,7 @@ sqliteCodebase root = do
       -- the individual definitions until a complete component has been written.
       termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
       declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
+      cycleLengthCache <- Cache.semispaceCache 8192
       let getTerm :: MonadIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
@@ -264,7 +265,7 @@ sqliteCodebase root = do
               Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
 
           getCycleLen :: EDB m => String -> Hash -> m Reference.Size
-          getCycleLen source h = do
+          getCycleLen source = Cache.apply cycleLengthCache \h ->
             (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
               e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> pure . error $ show e ++ " in " ++ source
               e -> Except.throwError e

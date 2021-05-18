@@ -4,19 +4,26 @@
 module U.Util.Cache where
 
 import Prelude hiding (lookup)
+import Control.Monad.IO.Class (liftIO)
 import UnliftIO (MonadIO, newTVarIO, modifyTVar', writeTVar, atomically, readTVar, readTVarIO)
 import qualified Data.Map as Map
 import Data.Functor (($>))
 import Control.Monad (when)
 import Data.Foldable (for_)
 
-data Cache m k v =
-  Cache { lookup :: k -> m (Maybe v)
-        , insert :: k -> v -> m ()
+data Cache k v =
+  Cache { lookup_ :: k -> IO (Maybe v)
+        , insert_ :: k -> v -> IO ()
         }
 
+lookup :: MonadIO m => Cache k v -> k -> m (Maybe v)
+lookup c k = liftIO (lookup_ c k)
+
+insert :: MonadIO m => Cache k v -> k -> v -> m ()
+insert c k v = liftIO (insert_ c k v)
+
 -- Create a cache of unbounded size.
-cache :: (MonadIO m, Ord k) => m (Cache m k v)
+cache :: (MonadIO m, Ord k) => m (Cache k v)
 cache = do
   t <- newTVarIO Map.empty
   let
@@ -29,7 +36,7 @@ cache = do
 
   pure $ Cache lookup insert
 
-nullCache :: Applicative m => Cache m k v
+nullCache :: Cache k v
 nullCache = Cache (const (pure Nothing)) (\_ _ -> pure ())
 
 -- Create a cache of bounded size. Once the cache
@@ -37,7 +44,7 @@ nullCache = Cache (const (pure Nothing)) (\_ _ -> pure ())
 -- are evicted from the cache. Unlike LRU caching,
 -- where cache hits require updating LRU info,
 -- cache hits here are read-only and contention free.
-semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache m k v)
+semispaceCache :: (MonadIO m, Ord k) => Word -> m (Cache k v)
 semispaceCache 0 = pure nullCache
 semispaceCache maxSize = do
   -- Analogous to semispace GC, keep 2 maps: gen0 and gen1
@@ -67,7 +74,7 @@ semispaceCache maxSize = do
 
 -- Cached function application: if a key `k` is not in the cache,
 -- calls `f` and inserts `f k` results in the cache.
-apply :: Monad m => Cache m k v -> (k -> m v) -> k -> m v
+apply :: MonadIO m => Cache k v -> (k -> m v) -> k -> m v
 apply c f k = lookup c k >>= \case
   Just v -> pure v
   Nothing -> do
@@ -81,8 +88,8 @@ apply c f k = lookup c k >>= \case
 --
 -- Useful when we think that missing results for `f` may be
 -- later filled in so we don't want to cache missing results.
-applyDefined :: (Monad m, Applicative g, Traversable g)
-             => Cache m k v
+applyDefined :: (MonadIO m, Applicative g, Traversable g)
+             => Cache k v
              -> (k -> m (g v))
              -> k
              -> m (g v)
