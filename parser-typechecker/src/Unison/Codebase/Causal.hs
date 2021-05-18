@@ -106,8 +106,8 @@ data Tails h
 
 type Deserialize m h e = RawHash h -> m (Raw h e)
 
-cachedRead :: Monad m
-           => Cache.Cache m (RawHash h) (Causal m h e)
+cachedRead :: MonadIO m
+           => Cache.Cache (RawHash h) (Causal m h e)
            -> Deserialize m h e
            -> RawHash h -> m (Causal m h e)
 cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case

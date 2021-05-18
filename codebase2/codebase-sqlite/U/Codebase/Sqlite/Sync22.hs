@@ -104,10 +104,10 @@ sync22 = do
 trySync ::
   forall m.
   (MonadIO m, MonadError Error m, MonadReader Env m) =>
-  Cache m TextId TextId ->
-  Cache m HashId HashId ->
-  Cache m ObjectId ObjectId ->
-  Cache m CausalHashId CausalHashId ->
+  Cache TextId TextId ->
+  Cache HashId HashId ->
+  Cache ObjectId ObjectId ->
+  Cache CausalHashId CausalHashId ->
   Entity ->
   m (TrySyncResult Entity)
 trySync tCache hCache oCache cCache = \case
