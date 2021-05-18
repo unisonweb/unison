@@ -81,10 +81,10 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
+debugQuery, debugThread, debugConnection, debugFile :: Bool
 debugQuery = False
 debugThread = False
 debugConnection = False
-debugQuery, debugThread, debugConnection, debugFile :: Bool
 debugFile = False
 
 alwaysTraceOnCrash :: Bool
