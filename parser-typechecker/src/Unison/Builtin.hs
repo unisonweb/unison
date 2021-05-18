@@ -426,7 +426,7 @@ builtinsSrc =
   , B "Bytes.fromBase64" $ bytes --> eithert text bytes
   , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
 
-  , B "List.empty" $ forall1 "a" list
+  , D "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
   , Alias "List.cons" "List.+:"
   , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
