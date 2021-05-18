@@ -28,6 +28,8 @@ module Unison.Runtime.ANF
   , pattern TBinds
   , pattern TShift
   , pattern TMatch
+  , CompileExn(..)
+  , internalBug
   , Mem(..)
   , Lit(..)
   , Direction(..)
@@ -64,8 +66,11 @@ module Unison.Runtime.ANF
   , prettyGroup
   ) where
 
+import GHC.Stack (HasCallStack,CallStack,callStack)
+
 import Unison.Prelude
 
+import Control.Exception (throw)
 import Control.Monad.Reader (ReaderT(..), ask, local)
 import Control.Monad.State (State, runState, MonadState(..), modify, gets)
 import Control.Lens (snoc, unsnoc)
@@ -82,6 +87,7 @@ import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Bytes (Bytes)
+import qualified Unison.Util.Pretty as Pretty
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -95,6 +101,14 @@ import Unison.Pattern (SeqOp(..))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent, pattern Ref, pattern Con)
+
+-- For internal errors 
+data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
+  deriving (Show)
+instance Exception CompileExn
+
+internalBug :: HasCallStack => String -> a
+internalBug = throw . CE callStack . Pretty.lit . fromString
 
 closure :: Var v => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -348,8 +362,9 @@ inlineAlias = ABT.visitPure $ \case
 minimizeCyclesOrCrash :: Var v => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
-  Left e -> error $ "tried to minimize let rec with duplicate definitions: "
-                 ++ show (fst <$> toList e)
+  Left e -> internalBug
+          $ "tried to minimize let rec with duplicate definitions: "
+         ++ show (fst <$> toList e)
 
 data Mem = UN | BX deriving (Eq,Ord,Show,Enum)
 
@@ -394,12 +409,14 @@ unpackTags w = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
-  | n > 0xFFFFFFFFFFFF = error $ s ++ "@RTag: too large: " ++ show n
+  | n > 0xFFFFFFFFFFFF
+  = internalBug $ s ++ "@RTag: too large: " ++ show n
   | otherwise = x
 
 ensureCTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureCTag s n x
-  | n > 0xFFFF = error $ s ++ "@CTag: too large: " ++ show n
+  | n > 0xFFFF
+  = internalBug $ s ++ "@CTag: too large: " ++ show n
   | otherwise = x
 
 instance Enum RTag where
@@ -412,19 +429,19 @@ instance Enum CTag where
 
 instance Num RTag where
   fromInteger i = ensureRTag "fromInteger" i . RTag $ fromInteger i
-  (+) = error "RTag: +"
-  (*) = error "RTag: *"
-  abs = error "RTag: abs"
-  signum = error "RTag: signum"
-  negate = error "RTag: negate"
+  (+) = internalBug "RTag: +"
+  (*) = internalBug "RTag: *"
+  abs = internalBug "RTag: abs"
+  signum = internalBug "RTag: signum"
+  negate = internalBug "RTag: negate"
 
 instance Num CTag where
   fromInteger i = ensureCTag "fromInteger" i . CTag $ fromInteger i
-  (+) = error "CTag: +"
-  (*) = error "CTag: *"
-  abs = error "CTag: abs"
-  signum = error "CTag: signum"
-  negate = error "CTag: negate"
+  (+) = internalBug "CTag: +"
+  (*) = internalBug "CTag: *"
+  abs = internalBug "CTag: abs"
+  signum = internalBug "CTag: signum"
+  negate = internalBug "CTag: negate"
 
 instance Functor (ANormalF v) where
   fmap _ (AVar v) = AVar v
@@ -610,17 +627,18 @@ instance Semigroup (BranchAccum v) where
     = AccumSeqView el (eml <|> Just emr) cnl
   AccumSeqView el eml cnl <> AccumSeqView er emr _
     | el /= er
-    = error "AccumSeqView: trying to merge views of opposite ends"
+    = internalBug "AccumSeqView: trying to merge views of opposite ends"
     | otherwise = AccumSeqView el (eml <|> emr) cnl
   AccumSeqView _ _ _ <> AccumDefault _
-    = error "seq views may not have defaults"
+    = internalBug "seq views may not have defaults"
   AccumDefault _ <> AccumSeqView _ _ _
-    = error "seq views may not have defaults"
+    = internalBug "seq views may not have defaults"
   AccumSeqSplit el nl dl bl <> AccumSeqSplit er nr dr _
     | el /= er
-    = error "AccumSeqSplit: trying to merge splits at opposite ends"
+    = internalBug
+        "AccumSeqSplit: trying to merge splits at opposite ends"
     | nl /= nr
-    = error
+    = internalBug
         "AccumSeqSplit: trying to merge splits at different positions"
     | otherwise
     = AccumSeqSplit el nl (dl <|> dr) bl
@@ -628,7 +646,7 @@ instance Semigroup (BranchAccum v) where
     = AccumSeqSplit er nr (Just dl) br
   AccumSeqSplit el nl dl bl <> AccumDefault dr
     = AccumSeqSplit el nl (dl <|> Just dr) bl
-  _ <> _ = error $ "cannot merge data cases for different types"
+  _ <> _ = internalBug $ "cannot merge data cases for different types"
 
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
@@ -840,7 +858,7 @@ toSuperNormal :: Var v => Term v a -> ANFM v (SuperNormal v)
 toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
-    then error $ "free variables in supercombinator: " ++ show tm
+    then internalBug $ "free variables in supercombinator: " ++ show tm
     else Lambda (BX<$vs) . ABTN.TAbss vs . snd
            <$> bindLocal vs (anfTerm body)
   where
@@ -923,7 +941,7 @@ anfBlock (Handle' h body)
       (ctx, (_, TVar v)) | floatableCtx ctx -> do
         pure (hctx <> ctx, (Indirect (), TApp (FVar vh) [v]))
       p@(_, _) ->
-        error $ "handle body should be a simple call: " ++ show p
+        internalBug $ "handle body should be a simple call: " ++ show p
 anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
   (cx, v) <- contextualize sc
@@ -932,7 +950,7 @@ anfBlock (Match' scrut cas) = do
     AccumDefault (TBinds (directed -> dctx) df) -> do
       pure (sctx <> cx <> dctx, pure df)
     AccumRequest _ Nothing ->
-      error "anfBlock: AccumRequest without default"
+      internalBug "anfBlock: AccumRequest without default"
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us
       , TBinds (directed -> bx) bd <- bd
@@ -942,8 +960,8 @@ anfBlock (Match' scrut cas) = do
             pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
           (d0, [ST1 d1 _ BX tm]) ->
             pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
-          _ -> error "anfBlock|AccumPure: impossible"
-      | otherwise -> error "pure handler with too many variables"
+          _ -> internalBug "anfBlock|AccumPure: impossible"
+      | otherwise -> internalBug "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
         r <- fresh
@@ -956,7 +974,8 @@ anfBlock (Match' scrut cas) = do
       hv <- fresh
       let (d, msc)
             | (d, [ST1 _ _ BX tm]) <- cx = (d, tm)
-            | (_, [ST _ _ _ _]) <- cx = error "anfBlock: impossible"
+            | (_, [ST _ _ _ _]) <- cx
+            = internalBug "anfBlock: impossible"
             | otherwise = (Indirect (), TFrc v)
       pure ( sctx <> pure [LZ hv (Right r) vs]
            , (d, THnd (Map.keys abr) hv msc)
@@ -972,7 +991,7 @@ anfBlock (Match' scrut cas) = do
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
-      error "anfBlock: non-exhaustive AccumSeqEmpty"
+      internalBug "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
       r <- fresh
       let op | SLeft <- en = Builtin "List.viewl"
@@ -989,7 +1008,7 @@ anfBlock (Match' scrut cas) = do
                )
            )
     AccumSeqView {} ->
-      error "anfBlock: non-exhaustive AccumSeqView"
+      internalBug "anfBlock: non-exhaustive AccumSeqView"
     AccumSeqSplit en n mdf bd -> do
         i <- fresh
         r <- fresh
@@ -1047,7 +1066,7 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
   tms = toList as
-anfBlock t = error $ "anf: unhandled term: " ++ show t
+anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -1059,7 +1078,7 @@ anfInitCase
   -> MatchCase p (Term v a)
   -> ANFD v (BranchAccum v)
 anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
-  | Just _ <- guard = error "anfInitCase: unexpected guard"
+  | Just _ <- guard = internalBug "anfInitCase: unexpected guard"
   | P.Unbound _ <- p
   , [] <- vs
   = AccumDefault <$> anfBody bd
@@ -1067,7 +1086,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   , [v] <- vs
   = AccumDefault . ABTN.rename v u <$> anfBody bd
   | P.Var _ <- p
-  = error $ "vars: " ++ show (length vs)
+  = internalBug $ "vars: " ++ show (length vs)
   | P.Int _ (fromIntegral -> i) <- p
   = AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Nat _ i <- p
@@ -1098,7 +1117,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
          <*> anfBody bd
       <&> \(exp,kf,bd) ->
         let (us, uk)
-              = maybe (error "anfInitCase: unsnoc impossible") id
+              = maybe (internalBug "anfInitCase: unsnoc impossible") id
               $ unsnoc exp
             jn = Builtin "jumpCont"
          in flip AccumRequest Nothing
@@ -1128,7 +1147,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   where
   anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _)
-  = error $ "anfInitCase: unexpected pattern: " ++ show p
+  = internalBug $ "anfInitCase: unexpected pattern: " ++ show p
 
 valueTermLinks :: Value -> [Reference]
 valueTermLinks = Set.toList . valueLinks f
@@ -1237,7 +1256,7 @@ expandBindings' _ _ _
 expandBindings :: Var v => [P.Pattern p] -> [v] -> ANFD v [v]
 expandBindings ps vs
   = Compose . state $ \(fr,bnd,co) -> case expandBindings' fr ps vs of
-      Left err -> error $ err ++ " " ++ show (ps, vs)
+      Left err -> internalBug $ err ++ " " ++ show (ps, vs)
       Right (fr,l) -> (pure l, (fr,bnd,co))
 
 anfCases
@@ -1293,8 +1312,8 @@ prettyLVars (c:cs) (v:vs)
   . showParen True (pvar v . showString ":" . shows c)
   . prettyLVars cs vs
 
-prettyLVars [] (_:_) = error "more variables than conventions"
-prettyLVars (_:_) [] = error "more conventions than variables"
+prettyLVars [] (_:_) = internalBug "more variables than conventions"
+prettyLVars (_:_) [] = internalBug "more conventions than variables"
 
 prettyRBind :: Var v => [v] -> ShowS
 prettyRBind [] = showString "()"
