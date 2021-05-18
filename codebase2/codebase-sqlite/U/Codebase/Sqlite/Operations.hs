@@ -14,8 +14,8 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus (mzero), join, when, (<=<), unless)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, MonadIO (liftIO))
+import Control.Monad (MonadPlus (mzero), join, unless, when, (<=<))
+import Control.Monad.Except (ExceptT, MonadError, MonadIO (liftIO), runExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.State (MonadState, StateT, evalStateT)
@@ -43,10 +43,12 @@ import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Traversable (for)
 import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
+import Database.SQLite.Simple (Connection)
 import Debug.Trace
 import GHC.Stack (HasCallStack)
 import qualified U.Codebase.Branch as C.Branch
@@ -111,6 +113,7 @@ import qualified U.Codebase.TypeEdit as C
 import qualified U.Codebase.TypeEdit as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
+import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Lens as Lens
 import qualified U.Util.Map as Map
@@ -120,7 +123,6 @@ import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 import qualified U.Util.Type as TypeUtil
-import Database.SQLite.Simple (Connection)
 
 -- * Error handling
 
@@ -129,9 +131,10 @@ throwError = if crashOnError then error . show else Except.throwError
 
 debug, crashOnError :: Bool
 debug = False
-crashOnError = False
+
 -- | crashOnError can be helpful for debugging.
 -- If it is False, the errors will be delivered to the user elsewhere.
+crashOnError = False
 
 type Err m = (MonadError Error m, HasCallStack)
 
@@ -393,7 +396,7 @@ decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
 getCycleLen :: EDB m => H.Hash -> m Word64
 getCycleLen h = do
-  when debug $ traceM $ "getCycleLen " ++ show h
+  when debug $ traceM $ "\ngetCycleLen " ++ (Text.unpack . Base32Hex.toText $ H.toBase32Hex h)
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById

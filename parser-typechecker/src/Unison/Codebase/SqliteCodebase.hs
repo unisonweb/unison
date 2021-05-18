@@ -453,7 +453,7 @@ sqliteCodebase root = do
                       traceM $ "database was externally modified (" ++ show v ++ " -> " ++ show v' ++ ")"
                       forceReload
             where
-              forceReload = do
+              forceReload = time "Get root branch" do
                 b <- fmap (Either.mapLeft err)
                     . runExceptT
                     . flip runReaderT conn
@@ -952,7 +952,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
           branch <- time "Git fetch (sbh)" $ case sbh of
             -- no sub-branch was specified, so use the root.
             Nothing ->
-              lift (time "Get Root Branch" $ Codebase1.getRootBranch codebase) >>= \case
+              lift (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
                 -- this NoRootBranch case should probably be an error too.
                 Left Codebase1.NoRootBranch -> pure Branch.empty
                 Left (Codebase1.CouldntLoadRootBranch h) ->
