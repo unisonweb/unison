@@ -127,6 +127,31 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
 
 There's nothing really special here, `squash src dest` discards `src` history that comes after the LCA of `src` and `dest`, it's just that in the case of an empty namespace, that LCA is the beginning of time (the empty namespace), so all the history of `src` is discarded.
 
+## Checking for handling of deletes
+
+This checks to see that squashing correctly preserves deletions:
+
+```ucm
+.delete> builtins.merge
+.delete> fork builtin builtin2
+.delete> delete.term builtin2.Nat.+
+.delete> delete.term builtin2.Nat.*
+.delete> squash builtin2 builtin
+.delete> history builtin
+```
+
+Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
+
+Just confirming that those two definitions are in fact removed:
+
+```ucm:error
+.delete> view .delete.builtin.Nat.+
+```
+
+```ucm:error
+.delete> view .delete.builtin.Nat.*
+```
+
 ## Caveats
 
 If you `squash mystuff trunk`, you're discarding any history of `mystuff` and just cons'ing onto the history of `trunk`. Thus, don't expect to be able to `merge trunk mystuff` later and get great results. Squashing should only be used when you don't care about the history (and you know others haven't pulled and built on your line of history being discarded, so they don't care about the history either).

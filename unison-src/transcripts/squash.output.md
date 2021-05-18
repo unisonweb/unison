@@ -467,6 +467,97 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
 ```
 There's nothing really special here, `squash src dest` discards `src` history that comes after the LCA of `src` and `dest`, it's just that in the case of an empty namespace, that LCA is the beginning of time (the empty namespace), so all the history of `src` is discarded.
 
+## Checking for handling of deletes
+
+This checks to see that squashing correctly preserves deletions:
+
+```ucm
+  ☝️  The namespace .delete is empty.
+
+.delete> builtins.merge
+
+  Done.
+
+.delete> fork builtin builtin2
+
+  Done.
+
+.delete> delete.term builtin2.Nat.+
+
+  Name changes:
+  
+    Original                    Changes
+    1. builtin.Nat.+         ┐  2. delete.builtin2.Nat.+ (removed)
+    3. builtin2.Nat.+        │  
+    4. delete.builtin.Nat.+  │  
+    5. delete.builtin2.Nat.+ │  
+    6. mybuiltin.Nat.+       ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+.delete> delete.term builtin2.Nat.*
+
+  Name changes:
+  
+    Original                    Changes
+    1. builtin.Nat.*         ┐  2. delete.builtin2.Nat.* (removed)
+    3. builtin2.Nat.*        │  
+    4. delete.builtin.Nat.*  │  
+    5. delete.builtin2.Nat.* │  
+    6. mybuiltin.Nat.*       ┘  
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+.delete> squash builtin2 builtin
+
+  Here's what's changed in builtin after the merge:
+  
+  Removed definitions:
+  
+    1. Nat.* : Nat -> Nat -> Nat
+    2. Nat.+ : Nat -> Nat -> Nat
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.delete> history builtin
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #tq22u82aah
+  
+    - Deletes:
+    
+      Nat.* Nat.+
+  
+  □ #klkpbos013 (start of history)
+
+```
+Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
+
+Just confirming that those two definitions are in fact removed:
+
+```ucm
+.delete> view .delete.builtin.Nat.+
+
+  ⚠️
+  
+  The following names were not found in the codebase. Check your spelling.
+    .delete.builtin.Nat.+
+
+```
+```ucm
+.delete> view .delete.builtin.Nat.*
+
+  ⚠️
+  
+  The following names were not found in the codebase. Check your spelling.
+    .delete.builtin.Nat.*
+
+```
 ## Caveats
 
 If you `squash mystuff trunk`, you're discarding any history of `mystuff` and just cons'ing onto the history of `trunk`. Thus, don't expect to be able to `merge trunk mystuff later and get great results. Squashing should only be used when you don't care about the history (and you know others haven't pulled and built on your line of history being discarded, so they don't care about the history either).

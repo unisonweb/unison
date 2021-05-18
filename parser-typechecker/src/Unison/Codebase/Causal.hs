@@ -213,14 +213,15 @@ children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
 -- (or is equal to `c2` if `c1` changes nothing).
-squashMerge
+squashMerge'
   :: forall m h e
    . (Monad m, Hashable e, Eq e)
-  => (Maybe e -> e -> e -> m e)
+  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-squashMerge combine c1 c2 = do
+squashMerge' lca combine c1 c2 = do
   theLCA <- lca c1 c2
   let done newHead = consDistinct newHead c2
   case theLCA of
