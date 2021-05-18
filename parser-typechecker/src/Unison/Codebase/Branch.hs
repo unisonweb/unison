@@ -397,7 +397,7 @@ merge'' _ mode b1 b2 | isEmpty b2 = case mode of
 merge'' lca mode (Branch x) (Branch y) =
   Branch <$> case mode of
                RegularMerge -> Causal.threeWayMerge' lca' combine x y
-               SquashMerge  -> Causal.squashMerge combine x y
+               SquashMerge  -> Causal.squashMerge' lca' combine x y
  where
   lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
   combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
