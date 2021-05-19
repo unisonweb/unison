@@ -752,8 +752,9 @@ sqliteCodebase root = do
                     ExceptT Sync22.Error m ()
                   processBranches _ _ [] = pure ()
                   processBranches sync progress (b0@(B h mb) : rest) = do
-                    when debugProcessBranches $ traceM $ "processBranches " ++ show b0
-                    when debugProcessBranches $ traceM $ " queue: " ++ show rest
+                    when debugProcessBranches do
+                      traceM $ "processBranches " ++ show b0
+                      traceM $ " queue: " ++ show rest
                     ifM @(ExceptT Sync22.Error m)
                       (lift . runDB destConn $ isCausalHash' h)
                       do
@@ -771,10 +772,11 @@ sqliteCodebase root = do
                             lift mb >>= \b -> do
                               when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
                               let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                              when debugProcessBranches $ traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
-                              when debugProcessBranches $ traceM $ "  terms: " ++ show ts
-                              when debugProcessBranches $ traceM $ "  decls: " ++ show ds
-                              when debugProcessBranches $ traceM $ "  edits: " ++ show es
+                              when debugProcessBranches do
+                                traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
+                                traceM $ "  terms: " ++ show ts
+                                traceM $ "  decls: " ++ show ds
+                                traceM $ "  edits: " ++ show es
                               (cs, es, ts, ds) <- lift $ runDB destConn do
                                 cs <- filterM (fmap not . runDB destConn . isCausalHash' . fst) branchDeps
                                 es <- filterM (fmap not . runDB destConn . patchExists) es
