@@ -567,6 +567,12 @@ sqliteCodebase root = do
             runDB conn . fmap isJust $
               Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h)
 
+          -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
+          termExists, declExists :: MonadIO m => Hash -> m Bool
+          termExists h = runDB conn . fmap isJust $
+            Ops.primaryHashToMaybeObjectId (Cv.hash1to2 h)
+          declExists = termExists
+
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
@@ -745,26 +751,37 @@ sqliteCodebase root = do
                     [Entity m] ->
                     ExceptT Sync22.Error m ()
                   processBranches _ _ [] = pure ()
-                  processBranches sync progress (B h mb : rest) = do
-                    when debugProcessBranches $ traceM $ "processBranches B " ++ take 10 (show h)
+                  processBranches sync progress (b0@(B h mb) : rest) = do
+                    when debugProcessBranches $ traceM $ "processBranches " ++ show b0
+                    when debugProcessBranches $ traceM $ " queue: " ++ show rest
                     ifM @(ExceptT Sync22.Error m)
                       (lift . runDB destConn $ isCausalHash' h)
                       do
-                        when debugProcessBranches $ traceM "  already exists in dest db"
+                        when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
                         processBranches sync progress rest
                       do
-                        when debugProcessBranches $ traceM "  doesn't exist in dest db"
+                        when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
                         let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
                         lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
                           Just chId -> do
-                            when debugProcessBranches $ traceM $ "  exists in source db, so delegating to direct sync"
+                            when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
                             r $ Sync.sync sync progress [Sync22.C chId]
                             processBranches sync progress rest
                           Nothing ->
                             lift mb >>= \b -> do
-                              when debugProcessBranches $ traceM $ "  doesn't exist in either db, so delegating to Codebase.putBranch"
+                              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
                               let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                              if null branchDeps && null es && null ts && null ds
+                              when debugProcessBranches $ traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
+                              when debugProcessBranches $ traceM $ "  terms: " ++ show ts
+                              when debugProcessBranches $ traceM $ "  decls: " ++ show ds
+                              when debugProcessBranches $ traceM $ "  edits: " ++ show es
+                              (cs, es, ts, ds) <- lift $ runDB destConn do
+                                cs <- filterM (fmap not . runDB destConn . isCausalHash' . fst) branchDeps
+                                es <- filterM (fmap not . runDB destConn . patchExists) es
+                                ts <- filterM (fmap not . runDB destConn . termExists) ts
+                                ds <- filterM (fmap not . runDB destConn . declExists) ds
+                                pure (cs, es, ts, ds)
+                              if null cs && null es && null ts && null ds
                                 then lift . runDB destConn $ putBranch' b
                                 else
                                   let bs = map (uncurry B) branchDeps
@@ -780,8 +797,8 @@ sqliteCodebase root = do
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
                   bHash = Branch.headHash b
-              se $ processBranches sync progress' [B bHash (pure b)]
-              testWatchRefs <- lift . fmap concat $ for [WK.TestWatch] \wk ->
+              se $ time "SyncInternal.processBranches" $ processBranches sync progress' [B bHash (pure b)]
+              testWatchRefs <- time "SyncInternal enumerate testWatches" $ lift . fmap concat $ for [WK.TestWatch] \wk ->
                 fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
               se . r $ Sync.sync sync progress' testWatchRefs
             let
@@ -857,6 +874,10 @@ data Entity m
   = B Branch.Hash (m (Branch m))
   | O Hash
 
+instance Show (Entity m) where
+  show (B h _) = "B " ++ take 10 (show h)
+  show (O h) = "O " ++ take 10 (show h)
+
 data SyncProgressState = SyncProgressState
   { _needEntities :: Maybe (Set Sync22.Entity),
     _doneEntities :: Either Int (Set Sync22.Entity),
@@ -869,7 +890,7 @@ emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right m
 syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
 syncProgress = Sync.Progress need done warn allDone
   where
-    quiet = False
+    quiet = True
     maxTrackedHashCount = 1024 * 1024
     size :: SyncProgressState -> Int
     size = \case
@@ -987,14 +1008,14 @@ pushGitRootBranch ::
   m (Either GitError ())
 pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
-  (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ viewRemoteBranch' (repo, Nothing, Path.empty)
+  (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ time "SqliteCodebase.pushGitRootBranch.viewRemoteBranch'" $ viewRemoteBranch' (repo, Nothing, Path.empty)
   (ifM
     ((pure (remoteRoot == Branch.empty) ||^
       lift (time "pushGitRootBranch Branch.before" $ Branch.before' lca remoteRoot branch)) <*
       lift cleanup)
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
-    (stageAndPush remotePath)
+    (time "SqliteCodebase.pushGitRootBranch.stageAndPush" $ stageAndPush remotePath)
     (throwError $ GitError.PushDestinationHasNewStuff repo))
   where
     -- | this will bomb if `h` is not a causal in the codebase
@@ -1011,7 +1032,7 @@ pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
     stageAndPush remotePath = do
       let repoString = Text.unpack $ printRepo repo
       withStatus ("Staging files for upload to " ++ repoString ++ " ...") do
-        lift (syncToDirectory remotePath syncMode branch)
+        time "SqliteCodebase.pushGitRootBranch.stageAndPush.syncToDirectory" $ lift (syncToDirectory remotePath syncMode branch)
         setRepoRoot remotePath (Branch.headHash branch)
       -- push staging area to remote
       withStatus ("Uploading to " ++ repoString ++ " ...") $
@@ -1022,7 +1043,7 @@ pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
           (throwError $ GitError.PushNoOp repo)
     -- Commit our changes
     push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (GitRepo url gitbranch) = do
+    push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       status <- gitTextIn remotePath ["status", "--short"]
       if Text.null status
