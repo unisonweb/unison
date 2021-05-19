@@ -890,7 +890,7 @@ emptySyncProgressState = SyncProgressState (Just mempty) (Right mempty) (Right m
 syncProgress :: MonadState SyncProgressState m => MonadIO m => Sync.Progress m Sync22.Entity
 syncProgress = Sync.Progress need done warn allDone
   where
-    quiet = True
+    quiet = False
     maxTrackedHashCount = 1024 * 1024
     size :: SyncProgressState -> Int
     size = \case
