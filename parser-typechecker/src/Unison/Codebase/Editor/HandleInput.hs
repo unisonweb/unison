@@ -1712,12 +1712,13 @@ loop = do
             resolveConfiguredGitUrl Push path (fmap expandRepo mayRepo)
           case sbh of
             Nothing -> lift $ unlessGitError do
-              (cleanup, remoteRoot) <- viewRemoteBranch (repo, Nothing, Path.empty)
+              (cleanup, remoteRoot) <- unsafeTime "Push viewRemoteBranch" $
+                viewRemoteBranch (repo, Nothing, Path.empty)
               -- todo : this needs rethinking - should do the work inside the
               -- staged repo after calling syncToDirectory
-              newRemoteRoot <- lift . eval . Eval $
+              newRemoteRoot <- unsafeTime "Push merge" $ lift . eval . Eval $
                 Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
-              syncRemoteRootBranch repo newRemoteRoot syncMode
+              unsafeTime "Push syncRemoteRootBranch" $ syncRemoteRootBranch repo newRemoteRoot syncMode
               lift . eval $ Eval cleanup
               lift $ respond Success
             Just{} ->
