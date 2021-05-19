@@ -93,7 +93,7 @@ import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import U.Util.Timing (time)
-import UnliftIO (MonadIO, catchIO, liftIO)
+import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
@@ -766,7 +766,7 @@ sqliteCodebase root = do
                         lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
                           Just chId -> do
                             when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
-                            r $ Sync.sync sync progress [Sync22.C chId]
+                            r $ Sync.sync' sync progress [Sync22.C chId]
                             processBranches sync progress rest
                           Nothing ->
                             lift mb >>= \b -> do
@@ -794,7 +794,7 @@ sqliteCodebase root = do
                     (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
                       Left e -> error $ show e
                       Right oId -> do
-                        r $ Sync.sync sync progress [Sync22.O oId]
+                        r $ Sync.sync' sync progress [Sync22.O oId]
                         processBranches sync progress rest
               sync <- se . r $ Sync22.sync22
               let progress' = Sync.transformProgress (lift . lift) progress
@@ -936,12 +936,15 @@ syncProgress = Sync.Progress need done warn allDone
       unless quiet printSynced
 
     allDone = do
-      State.get >>= liftIO . putStr . renderState ("Done syncing ")
-      liftIO ANSI.showCursor
+      State.get >>= liftIO . putStrLn . renderState ("  " ++ "Done syncing ")
 
     printSynced :: (MonadState SyncProgressState m, MonadIO m) => m ()
-    printSynced = liftIO ANSI.hideCursor >> State.get >>= liftIO . putStr . (\s -> renderState "Synced " s)
+    printSynced = State.get >>= \s -> liftIO $
+        finally
+          do ANSI.hideCursor; putStr . renderState ("  " ++ "Synced ") $ s
+          ANSI.showCursor
 
+    renderState :: String -> SyncProgressState -> String
     renderState prefix = \case
       SyncProgressState Nothing (Left done) (Left warn) ->
         "\r" ++ prefix ++ show done ++ " entities" ++ if warn > 0 then " with " ++ show warn ++ " warnings." else "."
@@ -1033,7 +1036,7 @@ pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
 
     stageAndPush remotePath = do
       let repoString = Text.unpack $ printRepo repo
-      withStatus ("Staging files for upload to " ++ repoString ++ " ...") do
+      withStatus ("Staging codebase for upload to " ++ repoString ++ " ...") do
         time "SqliteCodebase.pushGitRootBranch.stageAndPush.syncToDirectory" $ lift (syncToDirectory remotePath syncMode branch)
         setRepoRoot remotePath (Branch.headHash branch)
       -- push staging area to remote
