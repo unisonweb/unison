@@ -33,8 +33,13 @@ transformProgress :: (forall a. m a -> n a) -> Progress m h -> Progress n h
 transformProgress f (Progress a b c d) = Progress (f . a) (f . b) (f . c) (f d)
 
 -- the Show constraint is just for debugging
-sync :: forall m h. (Monad m, Show h) => Sync m h -> Progress m h -> [h] -> m ()
-sync Sync {..} Progress {..} roots = go roots
+sync, sync' :: forall m h. (Monad m, Show h) => Sync m h -> Progress m h -> [h] -> m ()
+
+-- |Calls `allDone` at the end
+sync s p roots = sync' s p roots >> allDone p
+
+-- |Doesn't call `allDone` at the end, in case you plan to call sync more than once.
+sync' Sync {..} Progress {..} roots = go roots
   where
     go :: [h] -> m ()
     go (h : hs) = do
@@ -44,4 +49,4 @@ sync Sync {..} Progress {..} roots = go roots
         Done -> done h >> go hs
         PreviouslyDone -> go hs
         NonFatalError -> error h >> go hs
-    go [] = allDone
+    go [] = pure ()
