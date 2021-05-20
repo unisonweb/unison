@@ -531,6 +531,7 @@ ioBuiltins =
   , ("IO.createDirectory.impl.v3", text --> iof unit)
   , ("IO.removeDirectory.impl.v3", text --> iof unit)
   , ("IO.renameDirectory.impl.v3", text --> text --> iof unit)
+  , ("IO.directoryContents.impl.v3", text --> iof (list text))
   , ("IO.removeFile.impl.v3", text --> iof unit)
   , ("IO.renameFile.impl.v3", text --> text --> iof unit)
   , ("IO.getFileTimestamp.impl.v3", text --> iof nat)

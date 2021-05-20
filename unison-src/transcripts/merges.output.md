@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #tg218701if
+  ⊙ #ibrep12fs5
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #v5b0rlnuht
+  ⊙ #6nqh9ioel1
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #1e3n5kd05l
+  ⊙ #eeemit0oai
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #b2s99sn5bp
+  ⊙ #p4ssc273sb
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #g97hd92c33
+  ⊙ #n0tonurd41
   
     + Adds / updates:
     
       x
   
-  ⊙ #hs8pfrn2tf
+  ⊙ #rj8u1mrts8
   
     + Adds / updates:
     
@@ -254,8 +254,10 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.closeSocket.impl
       builtin.io2.IO.createDirectory.impl
       builtin.io2.IO.createTempDirectory.impl
-      builtin.io2.IO.delay.impl builtin.io2.IO.fileExists.impl
-      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering.impl
+      builtin.io2.IO.delay.impl
+      builtin.io2.IO.directoryContents.impl
+      builtin.io2.IO.fileExists.impl builtin.io2.IO.forkComp
+      builtin.io2.IO.getBuffering.impl
       builtin.io2.IO.getBytes.impl
       builtin.io2.IO.getCurrentDirectory.impl
       builtin.io2.IO.getFileSize.impl

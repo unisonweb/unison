@@ -110,6 +110,7 @@ import System.Directory as SYS
   , renameFile
   , createDirectoryIfMissing
   , removeDirectoryRecursive
+  , getDirectoryContents
   , getModificationTime
   , getFileSize
   )
@@ -1442,6 +1443,9 @@ declareForeigns = do
 
   declareForeign "IO.renameDirectory.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
+
+  declareForeign "IO.directoryContents.impl.v3" boxToEF0
+    $ mkForeignIOF $ getDirectoryContents
 
   declareForeign "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
