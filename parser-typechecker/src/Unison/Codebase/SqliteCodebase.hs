@@ -701,25 +701,15 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-          lca :: forall m. MonadIO m => Branch m -> Branch m -> m (Maybe (Branch m))
-          lca b1 b2 = do
-            eb1 <- isCausalHash (Branch.headHash b1)
-            eb2 <- isCausalHash (Branch.headHash b2)
-            if eb1 && eb2 then do
-              h <- sqlLca (Branch.headHash b1) (Branch.headHash b2)
-              case h of
-                Nothing -> pure Nothing
-                Just h -> getBranchForHash h
-            else Branch.lca b1 b2
+          sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
+          sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
+            runDB conn
+              . (fmap . fmap) Cv.causalHash2to1
+              $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
             where
-              sqlLca :: Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-              sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
-                runDB conn
-                  . (fmap . fmap) Cv.causalHash2to1
-                  $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
-                where
-                  open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
-                  close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
+              open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
+              close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
+
           syncInternal ::
             forall m.
             MonadIO m =>
@@ -827,7 +817,8 @@ sqliteCodebase root = do
 
       pure . Right $
         ( finalizer,
-          Codebase1.Codebase
+          let
+           code = Codebase1.Codebase
             (Cache.applyDefined termCache getTerm)
             (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
             (Cache.applyDefined declCache getTypeDeclaration)
@@ -846,7 +837,7 @@ sqliteCodebase root = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (pushGitRootBranch lca syncToDirectory)
+            (pushGitRootBranch (Codebase1.lca code) syncToDirectory)
             watches
             getWatch
             putWatch
@@ -860,7 +851,9 @@ sqliteCodebase root = do
             referentsByPrefix
             branchHashLength
             branchHashesByPrefix
-            lca
+            (\h1 h2 -> Just <$> sqlLca h1 h2)
+            (\h1 h2 -> Just . (Just h1 ==) <$> sqlLca h1 h2)
+          in code
         )
     v -> liftIO $ Sqlite.close conn $> Left v
 

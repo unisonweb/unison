@@ -110,8 +110,45 @@ data Codebase m v a =
 
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
-           , lca :: Branch m -> Branch m -> m (Maybe (Branch m))
+
+           -- returns `Nothing` to not implement, fallback to in-memory
+           --         `Just Nothing` if no LCA
+           --
+           --  Use `Codebase.lca` which wraps this in a nice API.
+           , lcaImpl :: Branch.Hash -> Branch.Hash -> m (Maybe (Maybe Branch.Hash))
+
+           -- `beforeImpl b1 b2` returns `Nothing` if not implemented by the codebase
+           --  crashes or returns `False` incorreclty if `b1` not in the codebase
+           --
+           --  Use `Codebase.before` which wraps this in a nice API.
+           , beforeImpl :: Branch.Hash -> Branch.Hash -> m (Maybe Bool)
            }
+
+lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
+lca code b1 b2 = do
+  eb1 <- branchExists code (Branch.headHash b1)
+  eb2 <- branchExists code (Branch.headHash b2)
+  if eb1 && eb2 then do
+    h <- lcaImpl code (Branch.headHash b1) (Branch.headHash b2)
+    case h of
+      Nothing -> Branch.lca b1 b2
+      Just Nothing ->
+        error $ "Buggy implementation of `Codebase.lcaImpl`"
+             <> "and/or `Codebase.branchExists`\n "
+             <> show [Branch.headHash b1, Branch.headHash b2]
+      Just (Just h) -> getBranchForHash code h
+  else Branch.lca b1 b2
+
+before :: Monad m => Codebase m v a -> Branch m -> Branch m -> m Bool
+before code b1 b2 = do
+  existsB1 <- branchExists code (Branch.headHash b1)
+  if existsB1 then do
+    o <- beforeImpl code (Branch.headHash b1) (Branch.headHash b2)
+    case o of
+      Nothing -> Branch.before b1 b2
+      Just b -> pure b
+  else
+    Branch.before b1 b2
 
 data GetRootBranchError
   = NoRootBranch
