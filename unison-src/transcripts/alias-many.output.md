@@ -367,7 +367,7 @@ Let's try it!
   300. io2.StdHandle.StdErr : StdHandle
   301. io2.StdHandle.StdIn : StdHandle
   302. io2.StdHandle.StdOut : StdHandle
-  303. io2.TLS.ClientConfig.ciphers.set : [##Tls.Cipher]
+  303. io2.TLS.ClientConfig.ciphers.set : [Cipher]
                                           -> ClientConfig
                                           -> ClientConfig
   304. builtin type io2.TVar
@@ -379,50 +379,52 @@ Let's try it!
   310. io2.TVar.write : TVar a -> a ->{STM} ()
   311. builtin type io2.ThreadId
   312. builtin type io2.Tls
-  313. builtin type io2.Tls.ClientConfig
-  314. io2.Tls.ClientConfig.certificates.set : [SignedCert]
+  313. builtin type io2.Tls.Cipher
+  314. builtin type io2.Tls.ClientConfig
+  315. io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                -> ClientConfig
                                                -> ClientConfig
-  315. io2.Tls.ClientConfig.default : Text
+  316. io2.Tls.ClientConfig.default : Text
                                       -> Bytes
                                       -> ClientConfig
-  316. io2.Tls.ClientConfig.versions.set : [##Tls.Version]
+  317. io2.Tls.ClientConfig.versions.set : [Version]
                                            -> ClientConfig
                                            -> ClientConfig
-  317. builtin type io2.Tls.PrivateKey
-  318. builtin type io2.Tls.ServerConfig
-  319. io2.Tls.ServerConfig.certificates.set : [SignedCert]
+  318. builtin type io2.Tls.PrivateKey
+  319. builtin type io2.Tls.ServerConfig
+  320. io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                -> ServerConfig
                                                -> ServerConfig
-  320. io2.Tls.ServerConfig.ciphers.set : [##Tls.Cipher]
+  321. io2.Tls.ServerConfig.ciphers.set : [Cipher]
                                           -> ServerConfig
                                           -> ServerConfig
-  321. io2.Tls.ServerConfig.default : [SignedCert]
+  322. io2.Tls.ServerConfig.default : [SignedCert]
                                       -> PrivateKey
                                       -> ServerConfig
-  322. io2.Tls.ServerConfig.versions.set : [##Tls.Version]
+  323. io2.Tls.ServerConfig.versions.set : [Version]
                                            -> ServerConfig
                                            -> ServerConfig
-  323. builtin type io2.Tls.SignedCert
-  324. io2.Tls.decodeCert.impl : Bytes
+  324. builtin type io2.Tls.SignedCert
+  325. builtin type io2.Tls.Version
+  326. io2.Tls.decodeCert.impl : Bytes
                                  -> Either Failure SignedCert
-  325. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
-  326. io2.Tls.encodeCert : SignedCert -> Bytes
-  327. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
-  328. io2.Tls.handshake.impl : Tls ->{IO} Either Failure ()
-  329. io2.Tls.newClient.impl : ClientConfig
+  327. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
+  328. io2.Tls.encodeCert : SignedCert -> Bytes
+  329. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
+  330. io2.Tls.handshake.impl : Tls ->{IO} Either Failure ()
+  331. io2.Tls.newClient.impl : ClientConfig
                                 -> Socket
                                 ->{IO} Either Failure Tls
-  330. io2.Tls.newServer.impl : ServerConfig
+  332. io2.Tls.newServer.impl : ServerConfig
                                 -> Socket
                                 ->{IO} Either Failure Tls
-  331. io2.Tls.receive.impl : Tls ->{IO} Either Failure Bytes
-  332. io2.Tls.send.impl : Tls -> Bytes ->{IO} Either Failure ()
-  333. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
-  334. unique type io2.TlsFailure
-  335. metadata.isPropagated : IsPropagated
-  336. metadata.isTest : IsTest
-  337. todo : a -> b
+  333. io2.Tls.receive.impl : Tls ->{IO} Either Failure Bytes
+  334. io2.Tls.send.impl : Tls -> Bytes ->{IO} Either Failure ()
+  335. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
+  336. unique type io2.TlsFailure
+  337. metadata.isPropagated : IsPropagated
+  338. metadata.isTest : IsTest
+  339. todo : a -> b
   
 
 .builtin> alias.many 94-104 .mylib
