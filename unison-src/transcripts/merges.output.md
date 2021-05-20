@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #dr7j21cpqp
+  ⊙ #tg218701if
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #0ct10skh45
+  ⊙ #v5b0rlnuht
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #8sknads6vj
+  ⊙ #1e3n5kd05l
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #hb8qfqt9ai
+  ⊙ #b2s99sn5bp
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #73mdo6cqdj
+  ⊙ #g97hd92c33
   
     + Adds / updates:
     
       x
   
-  ⊙ #q1npn63eti
+  ⊙ #hs8pfrn2tf
   
     + Adds / updates:
     
@@ -305,7 +305,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.TVar.read builtin.io2.TVar.readIO
       builtin.io2.TVar.swap builtin.io2.TVar.write
       builtin.io2.ThreadId builtin.io2.Tls
-      builtin.io2.Tls.ClientConfig
+      builtin.io2.Tls.Cipher builtin.io2.Tls.ClientConfig
       builtin.io2.Tls.ClientConfig.certificates.set
       builtin.io2.Tls.ClientConfig.default
       builtin.io2.Tls.ClientConfig.versions.set
@@ -314,7 +314,8 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.Tls.ServerConfig.ciphers.set
       builtin.io2.Tls.ServerConfig.default
       builtin.io2.Tls.ServerConfig.versions.set
-      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert.impl
+      builtin.io2.Tls.SignedCert builtin.io2.Tls.Version
+      builtin.io2.Tls.decodeCert.impl
       builtin.io2.Tls.decodePrivateKey
       builtin.io2.Tls.encodeCert
       builtin.io2.Tls.encodePrivateKey
