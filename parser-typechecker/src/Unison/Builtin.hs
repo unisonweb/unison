@@ -174,6 +174,8 @@ builtinTypesSrc =
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
   , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "Tls.Version" CT.Data, Rename' "Tls.Version" "io2.Tls.Version"
+  , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
   ]
