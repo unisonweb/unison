@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Codebase where
 
 import Control.Lens ((%=), _1, _2)
@@ -111,44 +112,39 @@ data Codebase m v a =
            , branchHashLength   :: m Int
            , branchHashesByPrefix :: ShortBranchHash -> m (Set Branch.Hash)
 
-           -- returns `Nothing` to not implement, fallback to in-memory
-           --         `Just Nothing` if no LCA
-           --
-           --  Use `Codebase.lca` which wraps this in a nice API.
-           , lcaImpl :: Branch.Hash -> Branch.Hash -> m (Maybe (Maybe Branch.Hash))
+           -- returns `Nothing` to not implemented, fallback to in-memory
+           --    also `Nothing` if no LCA
+           -- The result is undefined if the two hashes are not in the codebase.
+           -- Use `Codebase.lca` which wraps this in a nice API.
+           , lcaImpl :: Maybe (Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash))
 
-           -- `beforeImpl b1 b2` returns `Nothing` if not implemented by the codebase
-           --  crashes or returns `False` incorreclty if `b1` not in the codebase
+           -- `beforeImpl` returns `Nothing` if not implemented by the codebase
+           -- `beforeImpl b1 b2` is undefined if `b2` not in the codebase
            --
            --  Use `Codebase.before` which wraps this in a nice API.
-           , beforeImpl :: Branch.Hash -> Branch.Hash -> m (Maybe Bool)
+           , beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
            }
 
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
-lca code b1 b2 = do
-  eb1 <- branchExists code (Branch.headHash b1)
-  eb2 <- branchExists code (Branch.headHash b2)
-  if eb1 && eb2 then do
-    h <- lcaImpl code (Branch.headHash b1) (Branch.headHash b2)
-    case h of
-      Nothing -> Branch.lca b1 b2
-      Just Nothing ->
-        error $ "Buggy implementation of `Codebase.lcaImpl`"
-             <> "and/or `Codebase.branchExists`\n "
-             <> show [Branch.headHash b1, Branch.headHash b2]
-      Just (Just h) -> getBranchForHash code h
-  else Branch.lca b1 b2
+lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
+  Nothing -> Branch.lca b1 b2
+  Just lca -> do
+    eb1 <- branchExists code h1
+    eb2 <- branchExists code h2
+    if eb1 && eb2 then do
+      lca h1 h2 >>= \case
+        Just h -> getBranchForHash code h
+        Nothing -> pure Nothing -- no common ancestor
+    else Branch.lca b1 b2
 
 before :: Monad m => Codebase m v a -> Branch m -> Branch m -> m Bool
-before code b1 b2 = do
-  existsB1 <- branchExists code (Branch.headHash b1)
-  if existsB1 then do
-    o <- beforeImpl code (Branch.headHash b1) (Branch.headHash b2)
-    case o of
-      Nothing -> Branch.before b1 b2
-      Just b -> pure b
-  else
-    Branch.before b1 b2
+before code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case beforeImpl code of
+  Nothing -> Branch.before b1 b2
+  Just before ->
+    ifM
+      (branchExists code h2)
+      (before h1 h2)
+      (Branch.before b1 b2)
 
 data GetRootBranchError
   = NoRootBranch

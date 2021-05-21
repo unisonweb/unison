@@ -851,8 +851,8 @@ sqliteCodebase root = do
             referentsByPrefix
             branchHashLength
             branchHashesByPrefix
-            (\h1 h2 -> Just <$> sqlLca h1 h2)
-            (\h1 h2 -> Just . (Just h1 ==) <$> sqlLca h1 h2)
+            (Just sqlLca)
+            (Just $ \h1 h2 -> (Just h1 ==) <$> sqlLca h1 h2)
           in code
         )
     v -> liftIO $ Sqlite.close conn $> Left v
