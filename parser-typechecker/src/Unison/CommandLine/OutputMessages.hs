@@ -113,6 +113,7 @@ import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest(PushOnEmptyDest, AbortOnEmptyDest))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -315,10 +316,10 @@ notifyUser dir o = case o of
           , prettyPath' mergedPath ]
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
-        IP.makeExample IP.push
+        IP.makeExample (IP.push' AbortOnEmptyDest)
           [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
         "or" <>
-        IP.makeExample IP.push
+        IP.makeExample (IP.push' AbortOnEmptyDest)
           [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
         <> "to push the changes."
     ]
@@ -700,7 +701,7 @@ notifyUser dir o = case o of
             <> "is an empty namespace.",
       "",
       P.wrap $ "If you're trying to create a new namespace,"
-            <> "you can use the " <> IP.makeExample' IP.pushCreate
+            <> "you can use the " <> IP.makeExample' (IP.push' PushOnEmptyDest)
             <> "command."
       ]
     PushDestinationHasNewStuff repo ->

@@ -73,6 +73,7 @@ import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest(AbortOnEmptyDest))
 import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -292,15 +293,15 @@ pushGitRootBranch
   :: MonadIO m
   => Codebase.SyncToDir m
   -> Branch.Cache m
-  -> Bool
+  -> PushOnEmptyDest
   -> Branch m
   -> RemoteRepo
   -> SyncMode
   -> ExceptT GitError m ()
-pushGitRootBranch syncToDirectory cache allowCreate branch repo syncMode = do
+pushGitRootBranch syncToDirectory cache onEmptyDest branch repo syncMode = do
   -- Pull the remote repo into a staging directory
   (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
-  when (remoteRoot == Branch.empty && not allowCreate) $
+  when (remoteRoot == Branch.empty && onEmptyDest == AbortOnEmptyDest) $
     throwError $ GitError.PushDestinationIsEmpty repo
   ifM (pure (remoteRoot == Branch.empty)
         ||^ lift (remoteRoot `Branch.before` branch))

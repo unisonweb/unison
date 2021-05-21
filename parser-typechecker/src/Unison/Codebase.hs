@@ -19,6 +19,7 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo)
 import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.SyncMode (SyncMode)
@@ -91,8 +92,7 @@ data Codebase m v a =
            -- these are technically fast-forward merges but you often want
            -- to be explicit about when you're creating new remote branches,
            -- to avoid typos making a mess of your remote repo.
-           , pushGitRootBranch :: Bool -> Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
-
+           , pushGitRootBranch :: PushOnEmptyDest -> Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
            -- is the evaluated result of the expression, decompiled to a term.

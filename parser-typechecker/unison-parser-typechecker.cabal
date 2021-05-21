@@ -64,6 +64,7 @@ library
       Unison.Codebase.NameEdit
       Unison.Codebase.Patch
       Unison.Codebase.Path
+      Unison.Codebase.PushOnEmptyDest
       Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization

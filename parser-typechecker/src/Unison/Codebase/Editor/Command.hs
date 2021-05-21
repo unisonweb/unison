@@ -32,6 +32,7 @@ import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.GitError
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest)
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )
@@ -196,7 +197,7 @@ data Command m i v a where
 
   -- `Bool` is `True` if the push can be to an empty remote namespace
   SyncRemoteRootBranch ::
-    Bool -> RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+    PushOnEmptyDest -> RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
