@@ -117,6 +117,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     LoadLocalBranch h          -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
     Merge mode b1 b2 ->
       lift $ Branch.merge'' (Codebase.lca codebase) mode b1 b2
+    Before b1 b2 ->
+      lift $ Codebase.before codebase b1 b2
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch

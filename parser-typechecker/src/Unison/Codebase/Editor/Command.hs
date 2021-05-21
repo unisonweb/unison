@@ -176,6 +176,10 @@ data Command m i v a where
   -- Merge two branches, using the codebase for the LCA calculation where possible.
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
+  -- `Before old new` returns `Branch.before old new` but uses the codebase
+  -- for the calculation where possible.
+  Before :: Branch m -> Branch m -> Command m i v Bool
+
   ViewRemoteBranch ::
     RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
@@ -266,6 +270,7 @@ commandName = \case
   LoadLocalRootBranch         -> "LoadLocalRootBranch"
   LoadLocalBranch{}           -> "LoadLocalBranch"
   Merge{}                     -> "Merge"
+  Before{}                    -> "Before"
   ViewRemoteBranch{}          -> "ViewRemoteBranch"
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
