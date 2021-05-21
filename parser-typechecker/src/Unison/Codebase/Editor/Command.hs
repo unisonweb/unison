@@ -194,8 +194,9 @@ data Command m i v a where
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
+  -- `Bool` is `True` if the push can be to an empty remote namespace
   SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+    Bool -> RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 

@@ -1000,13 +1000,16 @@ pushGitRootBranch ::
   MonadIO m =>
   (Branch m -> Branch m -> m Bool) ->
   Codebase1.SyncToDir m ->
+  Bool ->
   Branch m ->
   RemoteRepo ->
   SyncMode ->
   m (Either GitError ())
-pushGitRootBranch before syncToDirectory branch repo syncMode = runExceptT do
+pushGitRootBranch before syncToDirectory allowCreate branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ time "SqliteCodebase.pushGitRootBranch.viewRemoteBranch'" $ viewRemoteBranch' (repo, Nothing, Path.empty)
+  when (remoteRoot == Branch.empty && not allowCreate) $
+    throwError $ GitError.PushDestinationIsEmpty repo
   (ifM
     ((pure (remoteRoot == Branch.empty) ||^
       lift (time "pushGitRootBranch Branch.before" $ before remoteRoot branch)) <*

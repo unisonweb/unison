@@ -495,8 +495,8 @@ loop = do
         unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
         viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
-        syncRemoteRootBranch repo b mode =
-          ExceptT . eval $ SyncRemoteRootBranch repo b mode
+        syncRemoteRootBranch allowCreate repo b mode =
+          ExceptT . eval $ SyncRemoteRootBranch allowCreate repo b mode
         loadSearchResults = eval . LoadSearchResults
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
@@ -1703,7 +1703,7 @@ loop = do
           let destAbs = resolveToAbsolute path
           lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
 
-      PushRemoteBranchI mayRepo path syncMode -> do
+      PushRemoteBranchI allowCreate mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
         srcb <- getAt srcAbs
         let expandRepo (r, rp) = (r, Nothing, rp)
@@ -1719,7 +1719,7 @@ loop = do
               -- or misses any new updates in `r` that aren't in `srcb` already.
               let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
               unsafeTime "Push syncRemoteRootBranch" $
-                syncRemoteRootBranch repo newRemoteRoot syncMode
+                syncRemoteRootBranch allowCreate repo newRemoteRoot syncMode
               lift . eval $ Eval cleanup
               lift $ respond Success
             Just{} ->

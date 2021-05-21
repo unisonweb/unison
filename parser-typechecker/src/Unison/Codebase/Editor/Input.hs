@@ -51,7 +51,7 @@ data Input
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
-    | PushRemoteBranchI (Maybe RemoteHead) Path' SyncMode
+    | PushRemoteBranchI AllowCreate (Maybe RemoteHead) Path' SyncMode
     | CreatePullRequestI RemoteNamespace RemoteNamespace
     | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
@@ -139,6 +139,9 @@ data Input
   | DebugDumpNamespacesI
   | QuitI
   deriving (Eq, Show)
+
+-- Whether `push` is allowed to create a new branch / push to an empty branch.
+type AllowCreate = Bool
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
