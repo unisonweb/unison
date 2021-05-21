@@ -51,7 +51,7 @@ showPatternHelp i = P.lines [
     (if not . null $ I.aliases i
      then " (or " <> intercalate ", " (I.aliases i) <> ")"
      else ""),
-  P.wrap $ I.help i ]
+  I.help i ]
 
 patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
@@ -764,49 +764,51 @@ pullExhaustive = InputPattern
     _ -> Left (I.help pull)
   )
 
-push :: InputPattern
-push = InputPattern
-  "push"
-  []
-  [(Required, gitUrlArg), (Optional, pathArg)]
-  (P.lines
-    [ P.wrap
-      "The `push` command merges a local namespace into a remote namespace."
-    , ""
-    , P.wrapColumn2
-      [ ( "`push remote local`"
-        , "merges the contents of the local namespace `local`"
-          <>  "into the remote namespace `remote`."
-        )
-      , ( "`push remote`"
-        , "publishes the current namespace into the remote namespace `remote`")
-      , ( "`push`"
-        , "publishes the current namespace"
+push, pushCreate :: InputPattern
+push = push' False
+pushCreate = push' True
+
+push' :: Bool -> InputPattern
+push' allowCreate = ip where
+  name = if allowCreate then "push.create" else "push"
+  ip = InputPattern
+    name
+    []
+    [(Required, gitUrlArg), (Optional, pathArg)]
+    (P.lines
+      [ P.wrap $ makeExample ip ["remote", "local"] <> "merges a local" <>
+         "namespace into a remote namespace. It will be rejected if" <>
+         "the remote has changes not known locally." <>
+             (if allowCreate then mempty
+             else "The destination namespace must also be non-empty.")
+      , ""
+      , P.blue $ makeExampleNoBackticks ip ["https://github.com/org/repo", "local"]
+        , P.indentN 2 . P.wrap $ "merges the contents of the local namespace `local`"
+        <> "into the root namespace at https://github.com/org/repo"
+      , ""
+      , P.blue $ makeExampleNoBackticks ip ["https://github.com/unisonweb/base:.trunk.List"]
+        , P.indentN 2 . P.wrap $
+          "merges the current namespace into a subpath of a remote namespace"
+      , ""
+      , P.blue $ makeExampleNoBackticks ip []
+      , P.indentN 2 . P.wrap $ "merges the current namespace"
         <> "into the remote namespace configured in `.unisonConfig`"
-        <> "with the key `GitUrl.ns` where `ns` is the current namespace")
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace"
       ]
-    , ""
-    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
-    <> "and an absolute remote path, such as:"
-    , P.indentN 2 . P.lines $
-      [P.backticked "https://github.com/org/repo"
-      ,P.backticked "https://github.com/org/repo:.some.remote.path"
-      ]
-    ]
-  )
-  (\case
-    []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
-    url : rest -> do
-      (repo, sbh, path) <- parseUri "url" url
-      when (isJust sbh)
-        $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
-        _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
-  )
+    )
+    (\case
+      []    ->
+        Right $ Input.PushRemoteBranchI allowCreate Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+      url : rest -> do
+        (repo, sbh, path) <- parseUri "url" url
+        when (isJust sbh)
+          $ Left "Can't push to a particular remote namespace hash."
+        p <- case rest of
+          [] -> Right Path.relativeEmpty'
+          [path] -> first fromString $ Path.parsePath' path
+          _ -> Left (I.help push)
+        Right $ Input.PushRemoteBranchI allowCreate (Just (repo, path)) p SyncMode.ShortCircuit
+    )
 
 pushExhaustive :: InputPattern
 pushExhaustive = InputPattern
@@ -823,7 +825,7 @@ pushExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PushRemoteBranchI True Nothing Path.relativeEmpty' SyncMode.Complete
     url : rest -> do
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
@@ -832,7 +834,7 @@ pushExhaustive = InputPattern
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
+      Right $ Input.PushRemoteBranchI True (Just (repo, path)) p SyncMode.Complete
   )
 
 createPullRequest :: InputPattern
@@ -1382,6 +1384,7 @@ validInputs =
   , diffNamespace
   , names
   , push
+  , pushCreate
   , pull
   , pushExhaustive
   , pullExhaustive
@@ -1559,15 +1562,16 @@ collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
 
 patternFromInput :: Input -> InputPattern
 patternFromInput = \case
-  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
-  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PushRemoteBranchI False _ _ SyncMode.ShortCircuit -> push
+  Input.PushRemoteBranchI True _ _ SyncMode.ShortCircuit -> pushCreate
+  Input.PushRemoteBranchI _ _ _ SyncMode.Complete -> pushExhaustive
   Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
-  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pullExhaustive
   _ -> error "todo: finish this function"
 
 inputStringFromInput :: IsString s => Input -> P.Pretty s
 inputStringFromInput = \case
-  i@(Input.PushRemoteBranchI rh p' _) ->
+  i@(Input.PushRemoteBranchI _ rh p' _) ->
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
       <> " " <> P.shown p'

@@ -86,7 +86,11 @@ data Codebase m v a =
            -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
            , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
-           , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
+           -- `Bool` is whether to allow pushes to an empty branch;
+           -- these are technically fast-forward merges but you often want
+           -- to be explicit about when you're creating new remote branches,
+           -- to avoid typos making a mess of your remote repo.
+           , pushGitRootBranch :: Bool -> Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`

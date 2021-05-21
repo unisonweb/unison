@@ -124,8 +124,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ Codebase.viewRemoteBranch codebase ns
     ImportRemoteBranch ns syncMode ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode
-    SyncRemoteRootBranch repo branch syncMode ->
-      lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
+    SyncRemoteRootBranch allowCreate repo branch syncMode ->
+      lift $ Codebase.pushGitRootBranch codebase allowCreate branch repo syncMode
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

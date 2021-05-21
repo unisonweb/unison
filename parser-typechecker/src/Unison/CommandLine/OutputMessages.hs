@@ -693,6 +693,16 @@ notifyUser dir o = case o of
       <> P.backticked (P.text uri) <> "into a cache directory at"
       <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
       <> "result as a git repository, so I'm not sure what to do next."
+    PushDestinationIsEmpty repo ->
+      P.callout "⏸" . P.lines $ [
+      P.wrap $ "The destination you're pushing to at"
+            <> prettyRepoRevision repo
+            <> "is an empty namespace.",
+      "",
+      P.wrap $ "If you're trying to create a new namespace,"
+            <> "you can use the " <> IP.makeExample' IP.pushCreate
+            <> "command."
+      ]
     PushDestinationHasNewStuff repo ->
       P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> prettyRepoRevision repo
