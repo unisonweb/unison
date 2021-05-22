@@ -521,6 +521,7 @@ ioBuiltins =
   , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
+  , ("IO.getLine.impl.v3", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
