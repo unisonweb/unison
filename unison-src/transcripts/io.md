@@ -191,3 +191,20 @@ testSystemTime _ =
 .> add
 .> io.test testSystemTime
 ```
+
+### Get directory contents
+
+```unison
+testDirContents : '{io2.IO} [Result]
+testDirContents _ = 
+  test = 'let
+    tempDir = newTempDir "dircontents"
+    c = reraise (directoryContents.impl tempDir)
+    check "directory size should be"  (size c == 2)
+  runTest test
+```
+```ucm
+.> add
+.> io.test testDirContents
+```
+

@@ -304,3 +304,44 @@ testSystemTime _ =
   Tip: Use view testSystemTime to view the source of a test.
 
 ```
+### Get directory contents
+
+```unison
+testDirContents : '{io2.IO} [Result]
+testDirContents _ = 
+  test = 'let
+    tempDir = newTempDir "dircontents"
+    c = reraise (directoryContents.impl tempDir)
+    check "directory size should be"  (size c == 2)
+  runTest test
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      testDirContents : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testDirContents : '{IO} [Result]
+
+.> io.test testDirContents
+
+    New test results:
+  
+  ◉ testDirContents   directory size should be
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view testDirContents to view the source of a test.
+
+```
