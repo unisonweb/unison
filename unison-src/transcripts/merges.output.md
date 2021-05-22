@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #tg218701if
+  ⊙ #7uthm3qs5g
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #v5b0rlnuht
+  ⊙ #tchfvvj7ut
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #1e3n5kd05l
+  ⊙ #8il3uid72d
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #b2s99sn5bp
+  ⊙ #tm0dncsa3p
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #g97hd92c33
+  ⊙ #kansnd6lph
   
     + Adds / updates:
     
       x
   
-  ⊙ #hs8pfrn2tf
+  ⊙ #6db5q956nc
   
     + Adds / updates:
     
@@ -254,12 +254,15 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.closeSocket.impl
       builtin.io2.IO.createDirectory.impl
       builtin.io2.IO.createTempDirectory.impl
-      builtin.io2.IO.delay.impl builtin.io2.IO.fileExists.impl
-      builtin.io2.IO.forkComp builtin.io2.IO.getBuffering.impl
+      builtin.io2.IO.delay.impl
+      builtin.io2.IO.directoryContents.impl
+      builtin.io2.IO.fileExists.impl builtin.io2.IO.forkComp
+      builtin.io2.IO.getBuffering.impl
       builtin.io2.IO.getBytes.impl
       builtin.io2.IO.getCurrentDirectory.impl
       builtin.io2.IO.getFileSize.impl
       builtin.io2.IO.getFileTimestamp.impl
+      builtin.io2.IO.getLine.impl
       builtin.io2.IO.getTempDirectory.impl
       builtin.io2.IO.handlePosition.impl
       builtin.io2.IO.isDirectory.impl

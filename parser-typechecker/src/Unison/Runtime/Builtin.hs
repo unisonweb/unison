@@ -80,6 +80,7 @@ import System.IO as SYS
   ( IOMode(..)
   , openFile
   , hClose
+  , hGetLine
   , hGetBuffering
   , hSetBuffering
   , hIsEOF
@@ -102,7 +103,6 @@ import System.Directory as SYS
   ( getCurrentDirectory
   , setCurrentDirectory
   , getTemporaryDirectory
-  -- , getDirectoryContents
   , doesPathExist
   , doesDirectoryExist
   , renameDirectory
@@ -110,6 +110,7 @@ import System.Directory as SYS
   , renameFile
   , createDirectoryIfMissing
   , removeDirectoryRecursive
+  , getDirectoryContents
   , getModificationTime
   , getFileSize
   )
@@ -1408,9 +1409,15 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getLine.impl.v3" boxToEFBox . mkForeignIOF
+    $ \h -> pack <$> hGetLine h
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+    $ \(h,n) -> Bytes.fromArray <$> hGet h n
+
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF
+    $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
@@ -1442,6 +1449,9 @@ declareForeigns = do
 
   declareForeign "IO.renameDirectory.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
+
+  declareForeign "IO.directoryContents.impl.v3" boxToEFBox
+    $ mkForeignIOF $ (fmap pack <$>) . getDirectoryContents
 
   declareForeign "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
