@@ -59,16 +59,16 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bfi38eb9mc .old`   to make an old namespace
+    `fork #qjglr8mt1q .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bfi38eb9mc`  to reset the root namespace and
+    `reset-root #qjglr8mt1q`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ais4hnnbti : add
-  2. #bfi38eb9mc : add
-  3. #rj8u1mrts8 : builtins.merge
+  1. #j4t5ma26n2 : add
+  2. #qjglr8mt1q : add
+  3. #6db5q956nc : builtins.merge
   4. #7asfbtqmoj : (initial reflogged namespace)
 
 ```

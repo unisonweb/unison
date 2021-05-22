@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ibrep12fs5
+  ⊙ #7uthm3qs5g
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #6nqh9ioel1
+  ⊙ #tchfvvj7ut
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #eeemit0oai
+  ⊙ #8il3uid72d
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #p4ssc273sb
+  ⊙ #tm0dncsa3p
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #n0tonurd41
+  ⊙ #kansnd6lph
   
     + Adds / updates:
     
       x
   
-  ⊙ #rj8u1mrts8
+  ⊙ #6db5q956nc
   
     + Adds / updates:
     
@@ -262,6 +262,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.io2.IO.getCurrentDirectory.impl
       builtin.io2.IO.getFileSize.impl
       builtin.io2.IO.getFileTimestamp.impl
+      builtin.io2.IO.getLine.impl
       builtin.io2.IO.getTempDirectory.impl
       builtin.io2.IO.handlePosition.impl
       builtin.io2.IO.isDirectory.impl
