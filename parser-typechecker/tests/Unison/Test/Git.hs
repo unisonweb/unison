@@ -197,7 +197,7 @@ testPull = scope "pull" $ do
     ```ucm
     .myLib> debug.file
     .myLib> add
-    .myLib> push ${repo}
+    .myLib> push.create ${repo}
     ```
   |]
 
@@ -396,7 +396,7 @@ testPush = scope "push" $ do
 
   pushTranscript repo = [i|
     ```ucm
-    .foo.inside> push ${repo}
+    .foo.inside> push.create ${repo}
     ```
   |]
 
