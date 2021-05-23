@@ -360,10 +360,15 @@ dataVersion = queryOne . fmap (fmap fromOnly) . fmap headMay $ query_ [here|
   |]
 
 loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot = queryAtoms sql () >>= \case
-  [] -> throwError NoNamespaceRoot
-  [id] -> pure id
-  ids -> throwError (MultipleNamespaceRoots ids)
+loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
+  Nothing -> throwError NoNamespaceRoot
+  Just id -> pure id
+
+loadMaybeNamespaceRoot :: EDB m => m (Maybe CausalHashId)
+loadMaybeNamespaceRoot = query_ sql >>= \case
+  [] -> pure Nothing
+  [Only id] -> pure (Just id)
+  (fmap fromOnly -> ids) -> throwError (MultipleNamespaceRoots ids)
  where sql = "SELECT causal_id FROM namespace_root"
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
@@ -578,7 +583,7 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId1, chId2)
-  where sql = fromString $ "? IN (" ++ ancestorsSql ++ ")"
+  where sql = fromString $ "SELECT ? IN (" ++ ancestorsSql ++ ")"
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
@@ -728,15 +733,11 @@ withImmediateTransaction action = do
 
 
 -- | low-level transaction stuff
-beginTransaction, beginImmediateTransaction, beginExclusiveTransaction, commitTransaction, rollbackTransaction :: DB m => m ()
-beginTransaction = execute_ "BEGIN TRANSACTION"
-beginImmediateTransaction = execute_ "BEGIN IMMEDIATE TRANSACTION"
-beginExclusiveTransaction = execute_ "BEGIN EXCLUSIVE TRANSACTION"
-commitTransaction   = execute_ "COMMIT TRANSACTION"
-rollbackTransaction = execute_ "ROLLBACK TRANSACTION"
-
--- savepoint name = execute "SAVEPOINT ?" (Only name)
-
+savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+release name = execute_ (fromString $ "RELEASE " ++ name)
+rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+rollbackRelease name = rollbackTo name *> release name
 
 -- * orphan instances
 

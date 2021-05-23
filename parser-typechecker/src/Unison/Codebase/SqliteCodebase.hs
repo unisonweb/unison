@@ -154,6 +154,14 @@ createCodebaseOrError' path = do
 
       fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase path)
 
+openOrCreateCodebaseConnection :: MonadIO m => FilePath -> m Connection
+openOrCreateCodebaseConnection path = do
+  unlessM
+    (doesFileExist $ path </> codebasePath)
+    (initSchemaIfNotExist path)
+  unsafeGetConnection path
+
+
 -- get the codebase in dir
 getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
 getCodebaseOrError dir = do
@@ -778,8 +786,8 @@ syncInternal ::
   Branch m ->
   m ()
 syncInternal progress srcConn destConn b = time "syncInternal" do
-  runDB srcConn Q.beginTransaction
-  runDB destConn Q.beginImmediateTransaction
+  runDB srcConn $ Q.savepoint "sync"
+  runDB destConn $ Q.savepoint "sync"
   result <- runExceptT do
     let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
     -- we want to use sync22 wherever possible
@@ -853,13 +861,13 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
       lift . fmap concat $ for [WK.TestWatch] \wk ->
         fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
     se . r $ Sync.sync sync progress' testWatchRefs
-  let onSuccess a = runDB destConn Q.commitTransaction *> pure a
+  let onSuccess a = runDB destConn (Q.release "sync") *> pure a
       onFailure e = do
         if debugCommitFailedTransaction
-          then runDB destConn Q.commitTransaction
-          else runDB destConn Q.rollbackTransaction
+          then runDB destConn (Q.release "sync")
+          else runDB destConn (Q.rollbackRelease "sync")
         error (show e)
-  runDB srcConn Q.rollbackTransaction -- (we don't write to the src anyway)
+  runDB srcConn $ Q.rollbackRelease "sync" -- (we don't write to the src anyway)
   either onFailure onSuccess result
 
 runDB' :: MonadIO m => Connection -> MaybeT (ReaderT Connection (ExceptT Ops.Error m)) a -> m (Maybe a)
@@ -1028,31 +1036,35 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
 
   -- set up the cache dir
   remotePath <- time "Git fetch" $ pullBranch repo
-  destConn <- unsafeGetConnection remotePath
+  destConn <- openOrCreateCodebaseConnection remotePath
 
-  -- todo: create a savepoint on destConn
+  flip runReaderT destConn $ Q.savepoint "push"
   lift . flip State.execStateT emptySyncProgressState $
     syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
   flip runReaderT destConn do
-    -- the call to runDB "handles" the possible DB error.
-    oldRootHash <- Cv.branchHash2to1 <$> runDB destConn Ops.loadRootCausalHash
     let newRootHash = Branch.headHash branch
-    before newRootHash oldRootHash >>= \case
-      Nothing ->
-        error $
-          "I couldn't find the hash " ++ show newRootHash
-            ++ " that I just synced to the cached copy of "
-            ++ repoString
-            ++ " in "
-            ++ show remotePath
-            ++ "."
-      Just False -> do
-        void $ error "todo: rollback the savepoint"
-        throwError $ GitError.PushDestinationHasNewStuff repo
-
-      Just True -> do
+    -- the call to runDB "handles" the possible DB error by bombing
+    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+      Nothing -> do
         setRepoRoot newRootHash
-        error "todo: release/commit the savepoint"
+        Q.release "push"
+      Just oldRootHash -> do
+        before oldRootHash newRootHash >>= \case
+          Nothing ->
+            error $
+              "I couldn't find the hash " ++ show newRootHash
+                ++ " that I just synced to the cached copy of "
+                ++ repoString
+                ++ " in "
+                ++ show remotePath
+                ++ "."
+          Just False -> do
+            Q.rollbackRelease "push"
+            throwError $ GitError.PushDestinationHasNewStuff repo
+
+          Just True -> do
+            setRepoRoot newRootHash
+            Q.release "push"
 
   liftIO do
     Sqlite.close destConn

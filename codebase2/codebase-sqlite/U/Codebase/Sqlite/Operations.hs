@@ -228,6 +228,10 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 loadRootCausalHash :: EDB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
 
+loadMaybeRootCausalHash :: EDB m => m (Maybe CausalHash)
+loadMaybeRootCausalHash = runMaybeT $
+  loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
+
 -- * Reference transformations
 
 -- ** read existing references
