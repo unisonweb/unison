@@ -576,6 +576,10 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 |]
 {- ORMOLU_ENABLE -}
 
+before :: DB m => CausalHashId -> CausalHashId -> m Bool
+before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId1, chId2)
+  where sql = fromString $ "? IN (" ++ ancestorsSql ++ ")"
+
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
 lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
@@ -601,21 +605,25 @@ lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
           Nothing -> pure Nothing
   loop2 (Set.singleton x) (Set.singleton y)
   where
-    open = (,) <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
+    open = (,) <$>
+      SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
-    sql = [here|
-      WITH RECURSIVE
-        found(id) AS (
-          SELECT self_hash_id
-            FROM causal
-            WHERE self_hash_id = ?
-          UNION ALL
-          SELECT parent_id
-            FROM causal_parent
-            INNER JOIN found ON found.id = causal_id
-        )
-      SELECT * FROM found;
-    |]
+    sql = fromString ancestorsSql
+
+ancestorsSql :: String
+ancestorsSql = [here|
+    WITH RECURSIVE
+      found(id) AS (
+        SELECT self_hash_id
+          FROM causal
+          WHERE self_hash_id = ?
+        UNION ALL
+        SELECT parent_id
+          FROM causal_parent
+          INNER JOIN found ON found.id = causal_id
+      )
+    SELECT * FROM found;
+  |]
 
 -- * helper functions
 
@@ -726,6 +734,9 @@ beginImmediateTransaction = execute_ "BEGIN IMMEDIATE TRANSACTION"
 beginExclusiveTransaction = execute_ "BEGIN EXCLUSIVE TRANSACTION"
 commitTransaction   = execute_ "COMMIT TRANSACTION"
 rollbackTransaction = execute_ "ROLLBACK TRANSACTION"
+
+-- savepoint name = execute "SAVEPOINT ?" (Only name)
+
 
 -- * orphan instances
 

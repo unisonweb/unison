@@ -138,13 +138,20 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl co
     else Branch.lca b1 b2
 
 before :: Monad m => Codebase m v a -> Branch m -> Branch m -> m Bool
-before code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case beforeImpl code of
+before code b1 b2 = case beforeImpl code of
   Nothing -> Branch.before b1 b2
-  Just before ->
-    ifM
-      (branchExists code h2)
+  Just before -> before' (branchExists code) before b1 b2
+
+before' :: Monad m => (Branch.Hash -> m Bool) -> (Branch.Hash -> Branch.Hash -> m Bool) -> Branch m -> Branch m -> m Bool
+before' branchExists before b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) =
+  ifM
+    (branchExists h2)
+    (ifM
+      (branchExists h2)
       (before h1 h2)
-      (Branch.before b1 b2)
+      (pure False))
+    (Branch.before b1 b2)
+
 
 data GetRootBranchError
   = NoRootBranch
