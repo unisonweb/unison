@@ -627,7 +627,7 @@ ancestorsSql = [here|
           FROM causal_parent
           INNER JOIN found ON found.id = causal_id
       )
-    SELECT * FROM found;
+    SELECT * FROM found
   |]
 
 -- * helper functions
