@@ -527,7 +527,11 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
+<<<<<<< HEAD
   ⊙ #8jcsn0thlb
+=======
+  ⊙ #eevgoo4bf5
+>>>>>>> a02768d3f (Add short-circuiting for `squash`)
   
     - Deletes:
     

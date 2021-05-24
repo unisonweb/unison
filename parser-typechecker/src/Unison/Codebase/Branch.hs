@@ -397,10 +397,8 @@ merge'' _ mode b1 b2 | isEmpty b2 = case mode of
     pure $ cons (discardHistory0 (head b1)) b2
 merge'' lca mode (Branch x) (Branch y) =
   Branch <$> case mode of
-               RegularMerge -> Causal.threeWayMerge' lca' combine x y
-               SquashMerge  -> do
-                 traceM "Squashin' ..."
-                 Causal.squashMerge' lca' combine x y
+    RegularMerge -> Causal.threeWayMerge' lca' combine x y
+    SquashMerge  -> Causal.squashMerge' lca' (pure . discardHistory0) combine x y
  where
   lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
   combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
@@ -408,9 +406,6 @@ merge'' lca mode (Branch x) (Branch y) =
   combine (Just ca) l r = do
     dl <- diff0 ca l
     dr <- diff0 ca r
-    traceM $ show (ca == l, ca == r, dl == mempty, dr == mempty)
-    traceM $ "\ndl: " ++ show dl
-    traceM $ "\ndr: " ++ show dr
     head0 <- apply ca (dl <> dr)
     children <- Map.mergeA
                   (Map.traverseMaybeMissing $ combineMissing ca)
