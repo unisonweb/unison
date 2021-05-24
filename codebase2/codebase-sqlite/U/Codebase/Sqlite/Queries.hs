@@ -582,8 +582,8 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 {- ORMOLU_ENABLE -}
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
-before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId1, chId2)
-  where sql = fromString $ "SELECT ? IN (" ++ ancestorsSql ++ ")"
+before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
+  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ "WHERE ancestor.id = ?)"
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
@@ -613,21 +613,21 @@ lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
     open = (,) <$>
       SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
-    sql = fromString ancestorsSql
+    sql = fromString ancestorSql
 
-ancestorsSql :: String
-ancestorsSql = [here|
+ancestorSql :: String
+ancestorSql = [here|
     WITH RECURSIVE
-      found(id) AS (
+      ancestor(id) AS (
         SELECT self_hash_id
           FROM causal
           WHERE self_hash_id = ?
         UNION ALL
         SELECT parent_id
           FROM causal_parent
-          INNER JOIN found ON found.id = causal_id
+          JOIN ancestor ON ancestor.id = causal_id
       )
-    SELECT * FROM found
+    SELECT * FROM ancestor
   |]
 
 -- * helper functions
