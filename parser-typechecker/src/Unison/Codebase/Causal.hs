@@ -170,24 +170,25 @@ instance Hashable (RawHash h) where
 
 -- Find the lowest common ancestor of two causals.
 lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
-lca a b =
-  lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
+lca a b = case (a, b) of
+  (One _ _, One _ _) -> pure $ if a == b then Just a else Nothing
+  _                  -> lca'' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
 
 -- `lca' xs ys` finds the lowest common ancestor of any element of `xs` and any
 -- element of `ys`.
 -- This is a breadth-first search used in the implementation of `lca a b`.
-lca'
+lca''
   :: Monad m
   => Seq (m (Causal m h e))
   -> Seq (m (Causal m h e))
   -> m (Maybe (Causal m h e))
-lca' = go Set.empty Set.empty where
+lca'' = go Set.empty Set.empty where
   go seenLeft seenRight remainingLeft remainingRight =
     case Seq.viewl remainingLeft of
       Seq.EmptyL -> search seenLeft remainingRight
       a :< as    -> do
         left <- a
-        if Set.member (currentHash left) seenRight
+        if Set.member (currentHash left) seenRight && not (isOne left)
           then pure $ Just left
           -- Note: swapping position of left and right when we recurse so that
           -- we search each side equally. This avoids having to case on both
@@ -200,7 +201,7 @@ lca' = go Set.empty Set.empty where
     Seq.EmptyL -> pure Nothing
     a :< as    -> do
       current <- a
-      if Set.member (currentHash current) seen
+      if Set.member (currentHash current) seen && not (isOne current)
         then pure $ Just current
         else search seen (as <> children current)
 
@@ -323,6 +324,10 @@ uncons :: Applicative m => Causal m h e -> m (Maybe (e, Causal m h e))
 uncons c = case c of
   Cons _ e (_,tl) -> fmap (e,) . Just <$> tl
   _ -> pure Nothing
+
+isOne :: Causal m h e -> Bool
+isOne (One _ _) = True
+isOne _ = False
 
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
