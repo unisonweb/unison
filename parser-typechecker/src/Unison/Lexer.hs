@@ -375,12 +375,12 @@ lexemes' eof = P.optional space >> do
           _ <- lit "}"
           pure (join s)
         signature = wrap "syntax.docSignature" $ do
-          _ <- lit "@signatures" *> (lit " {" <|> lit "{") *> CP.space
+          _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
           s <- join <$> P.sepBy1 signatureLink comma
           _ <- lit "}"
           pure s
         signatureInline = wrap "syntax.docSignatureInline" $ do
-          _ <- lit "@signature" *> (lit " {" <|> lit "{") *> CP.space
+          _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
           s <- signatureLink
           _ <- lit "}"
           pure s

@@ -96,10 +96,10 @@ Some rendering targets also support folded source:
 
 @foldedSource{type Optional, sqr}
 
-You can also include just a signature, inline, with @signature{sqr},
+You can also include just a signature, inline, with @inlineSignature{sqr},
 or you can include one or more signatures as a block:
 
-@signatures{sqr, Nat.+}
+@signature{sqr, Nat.+}
 
 ## Inline snippets
 
