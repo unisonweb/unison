@@ -360,10 +360,15 @@ dataVersion = queryOne . fmap (fmap fromOnly) . fmap headMay $ query_ [here|
   |]
 
 loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot = queryAtoms sql () >>= \case
-  [] -> throwError NoNamespaceRoot
-  [id] -> pure id
-  ids -> throwError (MultipleNamespaceRoots ids)
+loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
+  Nothing -> throwError NoNamespaceRoot
+  Just id -> pure id
+
+loadMaybeNamespaceRoot :: EDB m => m (Maybe CausalHashId)
+loadMaybeNamespaceRoot = query_ sql >>= \case
+  [] -> pure Nothing
+  [Only id] -> pure (Just id)
+  (fmap fromOnly -> ids) -> throwError (MultipleNamespaceRoots ids)
  where sql = "SELECT causal_id FROM namespace_root"
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
@@ -576,6 +581,10 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 |]
 {- ORMOLU_ENABLE -}
 
+before :: DB m => CausalHashId -> CausalHashId -> m Bool
+before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
+  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
+
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
 lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
@@ -601,21 +610,25 @@ lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
           Nothing -> pure Nothing
   loop2 (Set.singleton x) (Set.singleton y)
   where
-    open = (,) <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
+    open = (,) <$>
+      SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
-    sql = [here|
-      WITH RECURSIVE
-        found(id) AS (
-          SELECT self_hash_id
-            FROM causal
-            WHERE self_hash_id = ?
-          UNION ALL
-          SELECT parent_id
-            FROM causal_parent
-            INNER JOIN found ON found.id = causal_id
-        )
-      SELECT * FROM found;
-    |]
+    sql = fromString ancestorSql
+
+ancestorSql :: String
+ancestorSql = [here|
+    WITH RECURSIVE
+      ancestor(id) AS (
+        SELECT self_hash_id
+          FROM causal
+          WHERE self_hash_id = ?
+        UNION ALL
+        SELECT parent_id
+          FROM causal_parent
+          JOIN ancestor ON ancestor.id = causal_id
+      )
+    SELECT * FROM ancestor
+  |]
 
 -- * helper functions
 
@@ -720,12 +733,11 @@ withImmediateTransaction action = do
 
 
 -- | low-level transaction stuff
-beginTransaction, beginImmediateTransaction, beginExclusiveTransaction, commitTransaction, rollbackTransaction :: DB m => m ()
-beginTransaction = execute_ "BEGIN TRANSACTION"
-beginImmediateTransaction = execute_ "BEGIN IMMEDIATE TRANSACTION"
-beginExclusiveTransaction = execute_ "BEGIN EXCLUSIVE TRANSACTION"
-commitTransaction   = execute_ "COMMIT TRANSACTION"
-rollbackTransaction = execute_ "ROLLBACK TRANSACTION"
+savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+release name = execute_ (fromString $ "RELEASE " ++ name)
+rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+rollbackRelease name = rollbackTo name *> release name
 
 -- * orphan instances
 

@@ -228,6 +228,10 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 loadRootCausalHash :: EDB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
 
+loadMaybeRootCausalHash :: EDB m => m (Maybe CausalHash)
+loadMaybeRootCausalHash = runMaybeT $
+  loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
+
 -- * Reference transformations
 
 -- ** read existing references
@@ -1238,6 +1242,13 @@ lca h1 h2 c1 c2 = runMaybeT do
   chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
   chId3 <- MaybeT . liftIO $ Q.lca chId1 chId2 c1 c2
   liftQ $ Q.loadCausalHash chId3
+
+before :: DB m => CausalHash -> CausalHash -> m (Maybe Bool)
+before h1 h2 = runMaybeT do
+  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
+  lift (Q.loadCausalHashIdByCausalHash h1) >>= \case
+    Just chId1 -> lift (Q.before chId1 chId2)
+    Nothing -> pure False
 
 -- * Searches
 

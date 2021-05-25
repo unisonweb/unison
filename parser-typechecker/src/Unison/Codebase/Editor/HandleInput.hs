@@ -1714,11 +1714,12 @@ loop = do
             Nothing -> lift $ unlessGitError do
               (cleanup, remoteRoot) <- unsafeTime "Push viewRemoteBranch" $
                 viewRemoteBranch (repo, Nothing, Path.empty)
-              -- todo : this needs rethinking - should do the work inside the
-              -- staged repo after calling syncToDirectory
-              newRemoteRoot <- unsafeTime "Push merge" $ lift . eval . Eval $
-                Branch.modifyAtM remotePath (Branch.merge srcb) remoteRoot
-              unsafeTime "Push syncRemoteRootBranch" $ syncRemoteRootBranch repo newRemoteRoot syncMode
+              -- We don't merge `srcb` with the remote namespace, `r`, we just
+              -- replace it. The push will be rejected if this rewinds time
+              -- or misses any new updates in `r` that aren't in `srcb` already.
+              let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
+              unsafeTime "Push syncRemoteRootBranch" $
+                syncRemoteRootBranch repo newRemoteRoot syncMode
               lift . eval $ Eval cleanup
               lift $ respond Success
             Just{} ->

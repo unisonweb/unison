@@ -29,6 +29,8 @@ writeTranscriptOutput = False
 
 test :: Test ()
 test = scope "gitsync22" . tests $
+  fastForwardPush :
+  nonFastForwardPush :
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
   pushPullTest  "typeAlias" fmt
@@ -454,28 +456,35 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     Ucm.deleteCodebase user
   ok
 
+fastForwardPush :: Test ()
+fastForwardPush = scope "fastforward-push" do
+  io do
+    repo <- initGitRepo
+    author <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript author [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      .lib> alias.type ##Int Int
+      .lib> push ${repo}
+      ```
+    |]
+  ok
 
-  -- scope "test-watches" do
-  --   (watchTerms1, watchTerms2) <- io do
-  --     c1 <- Ucm.initCodebase Ucm.CodebaseFormat1
-  --     Ucm.runTranscript c1 [i|
-  --       ```unison
-  --       test> x = 4
-  --       ```
-  --       ```ucm
-  --       .> add
-  --       ```
-  --     |]
-  --     c1' <- Ucm.lowLevel c1
-  --     watches1 <- Codebase.watches c1' TestWatch
-  --     watchTerms1 <- traverse (Codebase.getWatch c1' TestWatch) watches1
-  --     c2 <- Ucm.upgradeCodebase c1
-  --     c2' <- Ucm.lowLevel c2
-  --     watchTerms2 <- traverse (Codebase.getWatch c2' TestWatch) watches1
-  --     pure (watchTerms1, watchTerms2)
-  --   expectJust watchTerms1
-  --   expectJust watchTerms2
-  --   ok
+nonFastForwardPush :: Test ()
+nonFastForwardPush = scope "non-fastforward-push" do
+  io do
+    repo <- initGitRepo
+    author <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript author [i|
+      ```ucm:error
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      .lib2> alias.type ##Int Int
+      .lib2> push ${repo}
+      ```
+    |]
+  ok
 
 initGitRepo :: IO FilePath
 initGitRepo = do
