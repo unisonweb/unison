@@ -175,9 +175,9 @@ scope :: String -> Test a -> Test a
 scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  let env' = env {messages = messages', allow = drop (length msg + 1) (allow env)}
   if null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env
-  then liftIO $
-    runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
+  then liftIO (runWrap env' t)
   else putResult Skipped >> pure Nothing
 
 -- | Log a message
@@ -357,7 +357,7 @@ crash msg = do
 nologging :: HasCallStack => Test a -> Test a
 nologging (Test t) = Test $ do
   env <- ask
-  liftIO $ runReaderT t (env {note_ = \_ -> pure ()})
+  liftIO $ runWrap (env {note_ = \_ -> pure ()}) t
 
 -- | Run a test under a new scope, without logs and suppressing all output
 attempt :: Test a -> Test (Maybe a)
