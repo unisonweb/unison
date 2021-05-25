@@ -73,6 +73,7 @@ import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest(AbortOnEmptyDest))
 import qualified Unison.Codebase.Reflog as Reflog
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -163,8 +164,8 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (flip (syncToDirectory fmtV fmtA) path)
           (syncToDirectory fmtV fmtA path)
           (runExceptT . fmap addDummyCleanup . viewRemoteBranch' Cache.nullCache)
-          (\b r m -> runExceptT $
-            pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
+          (\allowCreate b r m -> runExceptT $
+            pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache allowCreate b r m)
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
@@ -292,13 +293,16 @@ pushGitRootBranch
   :: MonadIO m
   => Codebase.SyncToDir m
   -> Branch.Cache m
+  -> PushOnEmptyDest
   -> Branch m
   -> RemoteRepo
   -> SyncMode
   -> ExceptT GitError m ()
-pushGitRootBranch syncToDirectory cache branch repo syncMode = do
+pushGitRootBranch syncToDirectory cache onEmptyDest branch repo syncMode = do
   -- Pull the remote repo into a staging directory
   (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
+  when (remoteRoot == Branch.empty && onEmptyDest == AbortOnEmptyDest) $
+    throwError $ GitError.PushDestinationIsEmpty repo
   ifM (pure (remoteRoot == Branch.empty)
         ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,

@@ -59,6 +59,7 @@ module Unison.Codebase.Branch
   , stepManyAt0
   , stepManyAtM
   , modifyAtM
+  , modifyAt
 
     -- * Branch terms/types/edits
     -- ** Term/type/edits lenses

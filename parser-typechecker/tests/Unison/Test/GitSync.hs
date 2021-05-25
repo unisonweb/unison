@@ -37,7 +37,7 @@ test = scope "gitsync22" . tests $
       .> alias.type ##Nat builtin.Nat
       .> history
       .> history builtin
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -58,7 +58,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> add
       .> history
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -83,7 +83,7 @@ test = scope "gitsync22" . tests $
           .> link doc y
           .> links y
           .> history
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -102,7 +102,7 @@ test = scope "gitsync22" . tests $
           .> add
           .> alias.type ##Nat Nat
           .> link doc Nat
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -123,7 +123,7 @@ test = scope "gitsync22" . tests $
           ```
           ```ucm
           .> add
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -159,7 +159,7 @@ test = scope "gitsync22" . tests $
           ```
           ```ucm
           .> view.patch patch
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -183,7 +183,7 @@ test = scope "gitsync22" . tests $
           ```ucm
           .> update
           .> history
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -205,7 +205,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> debug.file
       .> add
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
 -- simplest-user
@@ -228,7 +228,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> debug.file
       .myLib> add
-      .myLib> push ${repo}
+      .myLib> push.create ${repo}
       ```
       |])
 -- simplest-user
@@ -250,7 +250,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .myLib> debug.file
       .myLib> add
-      .myLib> push ${repo}
+      .myLib> push.create ${repo}
       ```
       |])
 -- simplest-user
@@ -284,7 +284,7 @@ test = scope "gitsync22" . tests $
       ```
       ```ucm
       .workaround1552.myLib.v2> update
-      .workaround1552.myLib> push ${repo}
+      .workaround1552.myLib> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -326,7 +326,7 @@ test = scope "gitsync22" . tests $
       .defns> add
       .patches> replace.type .defns.A .defns.B
       .patches> replace.term .defns.x .defns.y
-      .patches> push ${repo}
+      .patches> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -347,7 +347,7 @@ test = scope "gitsync22" . tests $
         ```
         ```ucm
         .> add
-        .> push ${repo}
+        .> push.create ${repo}
         ```
       |])
     (\repo -> [i|

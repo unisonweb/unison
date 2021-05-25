@@ -113,6 +113,7 @@ import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest(PushOnEmptyDest, AbortOnEmptyDest))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -315,10 +316,10 @@ notifyUser dir o = case o of
           , prettyPath' mergedPath ]
         <> "to see what work is remaining for the merge."
     , P.wrap $ "Use" <>
-        IP.makeExample IP.push
+        IP.makeExample (IP.push' AbortOnEmptyDest)
           [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
         "or" <>
-        IP.makeExample IP.push
+        IP.makeExample (IP.push' AbortOnEmptyDest)
           [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
         <> "to push the changes."
     ]
@@ -693,6 +694,16 @@ notifyUser dir o = case o of
       <> P.backticked (P.text uri) <> "into a cache directory at"
       <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
       <> "result as a git repository, so I'm not sure what to do next."
+    PushDestinationIsEmpty repo ->
+      P.callout "⏸" . P.lines $ [
+      P.wrap $ "The destination you're pushing to at"
+            <> prettyRepoRevision repo
+            <> "is an empty namespace.",
+      "",
+      P.wrap $ "If you're trying to create a new namespace,"
+            <> "you can use the " <> IP.makeExample' (IP.push' PushOnEmptyDest)
+            <> "command."
+      ]
     PushDestinationHasNewStuff repo ->
       P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> prettyRepoRevision repo

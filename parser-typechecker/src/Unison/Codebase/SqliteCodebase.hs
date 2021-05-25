@@ -67,6 +67,7 @@ import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest (AbortOnEmptyDest))
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -1007,13 +1008,16 @@ pushGitRootBranch ::
   MonadIO m =>
   (Branch m -> Branch m -> m (Maybe (Branch m))) ->
   Codebase1.SyncToDir m ->
+  PushOnEmptyDest ->
   Branch m ->
   RemoteRepo ->
   SyncMode ->
   m (Either GitError ())
-pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
+pushGitRootBranch lca syncToDirectory allowCreate branch repo syncMode = runExceptT do
   -- Pull the remote repo into a staging directory
   (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ time "SqliteCodebase.pushGitRootBranch.viewRemoteBranch'" $ viewRemoteBranch' (repo, Nothing, Path.empty)
+  when (remoteRoot == Branch.empty && allowCreate == AbortOnEmptyDest) $
+    throwError $ GitError.PushDestinationIsEmpty repo
   (ifM
     ((pure (remoteRoot == Branch.empty) ||^
       lift (time "pushGitRootBranch Branch.before" $ Branch.before' lca remoteRoot branch)) <*

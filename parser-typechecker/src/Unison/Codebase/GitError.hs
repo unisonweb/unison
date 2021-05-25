@@ -17,6 +17,7 @@ data GitError = NoGit
               | PushNoOp RemoteRepo
               -- url commit Diff of what would change on merge with remote
               | PushDestinationHasNewStuff RemoteRepo
+              | PushDestinationIsEmpty RemoteRepo
               | NoRemoteNamespaceWithHash RemoteRepo ShortBranchHash
               | RemoteNamespaceHashAmbiguous RemoteRepo ShortBranchHash (Set Branch.Hash)
               | CouldntLoadRootBranch RemoteRepo Branch.Hash

@@ -30,6 +30,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.PushOnEmptyDest (PushOnEmptyDest(PushOnEmptyDest, AbortOnEmptyDest))
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -51,7 +52,7 @@ showPatternHelp i = P.lines [
     (if not . null $ I.aliases i
      then " (or " <> intercalate ", " (I.aliases i) <> ")"
      else ""),
-  P.wrap $ I.help i ]
+  I.help i ]
 
 patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
@@ -764,49 +765,50 @@ pullExhaustive = InputPattern
     _ -> Left (I.help pull)
   )
 
-push :: InputPattern
-push = InputPattern
-  "push"
-  []
-  [(Required, gitUrlArg), (Optional, pathArg)]
-  (P.lines
-    [ P.wrap
-      "The `push` command merges a local namespace into a remote namespace."
-    , ""
-    , P.wrapColumn2
-      [ ( "`push remote local`"
-        , "merges the contents of the local namespace `local`"
-          <>  "into the remote namespace `remote`."
-        )
-      , ( "`push remote`"
-        , "publishes the current namespace into the remote namespace `remote`")
-      , ( "`push`"
-        , "publishes the current namespace"
+push' :: PushOnEmptyDest -> InputPattern
+push' onEmpty = ip where
+  name = case onEmpty of
+    PushOnEmptyDest -> "push.create"
+    AbortOnEmptyDest -> "push"
+  ip = InputPattern
+    name
+    []
+    [(Required, gitUrlArg), (Optional, pathArg)]
+    (P.lines
+      [ P.wrap $ makeExample ip ["remote", "local"] <> "merges a local" <>
+         "namespace into a remote namespace. It will be rejected if" <>
+         "the remote has changes not known locally." <>
+             (case onEmpty of
+               PushOnEmptyDest -> mempty
+               AbortOnEmptyDest -> "The destination namespace must also be non-empty.")
+      , ""
+      , P.blue $ makeExampleNoBackticks ip ["https://github.com/org/repo", "local"]
+        , P.indentN 2 . P.wrap $ "merges the contents of the local namespace `local`"
+        <> "into the root namespace at https://github.com/org/repo"
+      , ""
+      , P.blue $ makeExampleNoBackticks ip ["https://github.com/unisonweb/base:.trunk.List"]
+        , P.indentN 2 . P.wrap $
+          "merges the current namespace into a subpath of a remote namespace"
+      , ""
+      , P.blue $ makeExampleNoBackticks ip []
+      , P.indentN 2 . P.wrap $ "merges the current namespace"
         <> "into the remote namespace configured in `.unisonConfig`"
-        <> "with the key `GitUrl.ns` where `ns` is the current namespace")
+        <> "with the key `GitUrl.ns` where `ns` is the current namespace"
       ]
-    , ""
-    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
-    <> "and an absolute remote path, such as:"
-    , P.indentN 2 . P.lines $
-      [P.backticked "https://github.com/org/repo"
-      ,P.backticked "https://github.com/org/repo:.some.remote.path"
-      ]
-    ]
-  )
-  (\case
-    []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
-    url : rest -> do
-      (repo, sbh, path) <- parseUri "url" url
-      when (isJust sbh)
-        $ Left "Can't push to a particular remote namespace hash."
-      p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
-        _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
-  )
+    )
+    (\case
+      []    ->
+        Right $ Input.PushRemoteBranchI onEmpty Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+      url : rest -> do
+        (repo, sbh, path) <- parseUri "url" url
+        when (isJust sbh)
+          $ Left "Can't push to a particular remote namespace hash."
+        p <- case rest of
+          [] -> Right Path.relativeEmpty'
+          [path] -> first fromString $ Path.parsePath' path
+          _ -> Left (I.help (push' onEmpty))
+        Right $ Input.PushRemoteBranchI onEmpty (Just (repo, path)) p SyncMode.ShortCircuit
+    )
 
 pushExhaustive :: InputPattern
 pushExhaustive = InputPattern
@@ -816,14 +818,14 @@ pushExhaustive = InputPattern
   (P.lines
     [ P.wrap $
       "The " <> makeExample' pushExhaustive <> "command can be used in place of"
-        <> makeExample' push <> "to repair remote namespaces"
+        <> makeExample' (push' PushOnEmptyDest) <> "to repair remote namespaces"
         <> "which were pushed incompletely due to a bug in UCM"
         <> "versions M1l and earlier. It may be extra slow!"
     ]
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PushRemoteBranchI PushOnEmptyDest Nothing Path.relativeEmpty' SyncMode.Complete
     url : rest -> do
       (repo, sbh, path) <- parseUri "url" url
       when (isJust sbh)
@@ -831,8 +833,8 @@ pushExhaustive = InputPattern
       p <- case rest of
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
-        _ -> Left (I.help push)
-      Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
+        _ -> Left (I.help pushExhaustive)
+      Right $ Input.PushRemoteBranchI PushOnEmptyDest (Just (repo, path)) p SyncMode.Complete
   )
 
 createPullRequest :: InputPattern
@@ -1381,7 +1383,8 @@ validInputs =
   , previewMergeLocal
   , diffNamespace
   , names
-  , push
+  , push' PushOnEmptyDest
+  , push' AbortOnEmptyDest
   , pull
   , pushExhaustive
   , pullExhaustive
@@ -1559,15 +1562,15 @@ collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
 
 patternFromInput :: Input -> InputPattern
 patternFromInput = \case
-  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
-  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PushRemoteBranchI onEmpty _ _ SyncMode.ShortCircuit -> push' onEmpty
+  Input.PushRemoteBranchI _ _ _ SyncMode.Complete -> pushExhaustive
   Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
-  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pullExhaustive
   _ -> error "todo: finish this function"
 
 inputStringFromInput :: IsString s => Input -> P.Pretty s
 inputStringFromInput = \case
-  i@(Input.PushRemoteBranchI rh p' _) ->
+  i@(Input.PushRemoteBranchI _ rh p' _) ->
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
       <> " " <> P.shown p'
