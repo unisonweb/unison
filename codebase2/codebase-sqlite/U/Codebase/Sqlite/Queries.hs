@@ -583,7 +583,7 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
-  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ "WHERE ancestor.id = ?)"
+  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)

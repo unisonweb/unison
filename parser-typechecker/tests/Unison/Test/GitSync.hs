@@ -30,6 +30,7 @@ writeTranscriptOutput = False
 
 test :: Test ()
 test = scope "gitsync22" . tests $
+  fastForwardPush :
   nonFastForwardPush :
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
@@ -454,6 +455,19 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     removeDirectoryRecursive repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
+  ok
+
+fastForwardPush :: Test ()
+fastForwardPush = scope "fastforward-push" do
+  io do
+    repo <- initGitRepo
+    author <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript author [i|
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      .lib> alias.type ##Int Int
+      .lib> push ${repo}
+    |]
   ok
 
 nonFastForwardPush :: Test ()
