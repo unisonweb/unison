@@ -8,9 +8,9 @@ suite1 = tests
   [ scope "a" ok
   , scope "b.c" ok
   , scope "b" ok
-  -- leaving this commented out until we have a
-  -- `expectFailure :: Scope -> Test a -> Test a` or similar function
-  , scope "b" . scope "c" $ error "oh noes! - should fail with b.c scope"
+  -- leaving this commented out until we have a function like:
+  -- `expectFailure :: Scope -> Test a -> Test a`
+  -- , scope "b" . scope "c" $ error "oh noes! - should fail with b.c scope"
   , scope "b" . scope "c" . scope "d" $ ok
   , scope "c" ok ]
 
