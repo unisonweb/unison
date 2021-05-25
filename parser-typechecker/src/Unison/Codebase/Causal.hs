@@ -170,24 +170,25 @@ instance Hashable (RawHash h) where
 
 -- Find the lowest common ancestor of two causals.
 lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
-lca a b =
-  lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
+lca a b = case (a, b) of
+  (One _ _, One _ _) -> pure $ if a == b then Just a else Nothing
+  _                  -> lca'' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
 
 -- `lca' xs ys` finds the lowest common ancestor of any element of `xs` and any
 -- element of `ys`.
 -- This is a breadth-first search used in the implementation of `lca a b`.
-lca'
+lca''
   :: Monad m
   => Seq (m (Causal m h e))
   -> Seq (m (Causal m h e))
   -> m (Maybe (Causal m h e))
-lca' = go Set.empty Set.empty where
+lca'' = go Set.empty Set.empty where
   go seenLeft seenRight remainingLeft remainingRight =
     case Seq.viewl remainingLeft of
       Seq.EmptyL -> search seenLeft remainingRight
       a :< as    -> do
         left <- a
-        if Set.member (currentHash left) seenRight
+        if Set.member (currentHash left) seenRight && not (isOne left)
           then pure $ Just left
           -- Note: swapping position of left and right when we recurse so that
           -- we search each side equally. This avoids having to case on both
@@ -200,7 +201,7 @@ lca' = go Set.empty Set.empty where
     Seq.EmptyL -> pure Nothing
     a :< as    -> do
       current <- a
-      if Set.member (currentHash current) seen
+      if Set.member (currentHash current) seen && not (isOne current)
         then pure $ Just current
         else search seen (as <> children current)
 
@@ -217,25 +218,19 @@ squashMerge'
   :: forall m h e
    . (Monad m, Hashable e, Eq e)
   => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (e -> m e)
   -> (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-squashMerge' lca combine c1 c2 = do
+squashMerge' lca discardHistory combine c1 c2 = do
   theLCA <- lca c1 c2
   let done newHead = consDistinct newHead c2
   case theLCA of
     Nothing -> done <$> combine Nothing (head c1) (head c2)
     Just lca
       | lca == c1 -> pure c2
-
-      -- Pretty subtle: if we were to add this short circuit, then
-      -- the history of c1's children would still make it into the result
-      -- Calling `combine` will recursively call into `squashMerge`
-      -- for the children, discarding their history before calling `done`
-      -- on the parent.
-      --   | lca == c2 -> pure $ done c1
-
+      | lca == c2 -> done <$> discardHistory (head c1)
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
 threeWayMerge :: forall m h e
@@ -323,6 +318,10 @@ uncons :: Applicative m => Causal m h e -> m (Maybe (e, Causal m h e))
 uncons c = case c of
   Cons _ e (_,tl) -> fmap (e,) . Just <$> tl
   _ -> pure Nothing
+
+isOne :: Causal m h e -> Bool
+isOne (One _ _) = True
+isOne _ = False
 
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of

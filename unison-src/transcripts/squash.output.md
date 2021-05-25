@@ -527,7 +527,7 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #8jcsn0thlb
+  ⊙ #sasilta77k
   
     - Deletes:
     
