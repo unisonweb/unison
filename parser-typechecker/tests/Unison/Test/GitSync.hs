@@ -20,7 +20,6 @@ import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
 import Unison.UnisonFile (pattern TestWatch)
-import qualified Control.Monad.Catch as Catch
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
@@ -463,26 +462,29 @@ fastForwardPush = scope "fastforward-push" do
     repo <- initGitRepo
     author <- Ucm.initCodebase Ucm.CodebaseFormat2
     void $ Ucm.runTranscript author [i|
+      ```ucm
       .lib> alias.type ##Nat Nat
       .lib> push ${repo}
       .lib> alias.type ##Int Int
       .lib> push ${repo}
+      ```
     |]
   ok
 
 nonFastForwardPush :: Test ()
 nonFastForwardPush = scope "non-fastforward-push" do
-  void . expectLeft =<< Catch.try @_ @IOError do
-    io do
-      repo <- initGitRepo
-      author <- Ucm.initCodebase Ucm.CodebaseFormat2
-      void $ Ucm.runTranscript author [i|
-        .lib> alias.type ##Nat Nat
-        .lib> push ${repo}
-        .lib2> alias.type ##Int Int
-        .lib2> push ${repo}
-      |]
-    ok
+  io do
+    repo <- initGitRepo
+    author <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript author [i|
+      ```ucm:error
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      .lib2> alias.type ##Int Int
+      .lib2> push ${repo}
+      ```
+    |]
+  ok
 
 initGitRepo :: IO FilePath
 initGitRepo = do
