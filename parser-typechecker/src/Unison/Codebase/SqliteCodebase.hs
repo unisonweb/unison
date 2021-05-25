@@ -21,6 +21,7 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
+import Data.Bitraversable (bitraverse)
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, (<&>), ($>))
@@ -144,7 +145,7 @@ createCodebaseOrError' path = do
       liftIO $
         Control.Exception.bracket
           (unsafeGetConnection path)
-          Sqlite.close
+          (runReaderT Q.shutdown)
           (runReaderT do
             Q.createSchema
             runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
@@ -697,11 +698,11 @@ sqliteCodebase root = do
               $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
             where
               open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
-              close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
+              close = bitraverse (runReaderT Q.shutdown) (runReaderT Q.shutdown)
 
       let finalizer :: MonadIO m => m ()
           finalizer = do
-            liftIO $ Sqlite.close conn
+            runReaderT Q.shutdown conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
@@ -752,7 +753,7 @@ sqliteCodebase root = do
             (Just \l r -> runDB conn $ fromJust <$> before l r)
           in code
         )
-    v -> liftIO $ Sqlite.close conn $> Left v
+    v -> runReaderT Q.shutdown conn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1065,10 +1066,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
           Just True -> do
             setRepoRoot newRootHash
             Q.release "push"
-
-  liftIO do
-    Sqlite.close destConn
-    void $ push remotePath repo
+    Q.shutdown
+  void . liftIO $ push remotePath repo
 
   ------
 
