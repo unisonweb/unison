@@ -14,7 +14,7 @@ import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Posix.Signals as Sig
 #endif
 
-import Control.Concurrent (mkWeakThreadId, myThreadId)
+import Control.Concurrent (mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
@@ -192,7 +192,8 @@ main = do
       "-save-codebase" : transcripts -> runTranscripts cbInit True True mcodepath transcripts
       _                              -> runTranscripts cbInit True False mcodepath args'
     ["upgrade-codebase"] -> upgradeCodebase mcodepath
-    _ -> do
+    args -> do
+      let headless = listToMaybe args == Just "headless"
       (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
       Server.start theCodebase $ \token port -> do
         let url =
@@ -201,9 +202,14 @@ main = do
           ["I've started the codebase API server at" , P.string $ url <> "/api"]
         PT.putPrettyLn $ P.lines
           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
-        PT.putPrettyLn . P.string $ "Now starting the Unison Codebase Manager..."
-        launch currentDir config theCodebase []
-        closeCodebase
+        if headless then do
+          PT.putPrettyLn $ P.string "Running the codebase manager in headless mode."
+          mvar <- newEmptyMVar
+          takeMVar mvar
+        else do
+          PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
+          launch currentDir config theCodebase []
+          closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
