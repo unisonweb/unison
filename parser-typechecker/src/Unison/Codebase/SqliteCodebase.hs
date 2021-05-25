@@ -966,16 +966,6 @@ syncProgress = Sync.Progress need done warn allDone
       where
         v = const ()
 
--- This might be handy later, if only as a starting point for something that ultimately returns a Connection, else delete
--- getCodebaseForRepo :: forall m. MonadIO m => RemoteRepo -> m (Either GitError (m (), Codebase m Symbol Ann))
--- getCodebaseForRepo repo = runExceptT @GitError @m do
---   remotePath <- time "Git fetch" $ pullBranch repo
---   ifM @(ExceptT GitError m) @(m (), Codebase m Symbol Ann)
---     (codebaseExists remotePath)
---     (let mkErr = GitError.UnrecognizedSchemaVersion repo remotePath
---     in withExceptT mkErr . ExceptT $ sqliteCodebase remotePath)
---     (throwError $ GitError.CouldntOpenCodebase repo remotePath)
-
 viewRemoteBranch' ::
   forall m.
   MonadIO m =>
@@ -1028,7 +1018,7 @@ pushGitRootBranch ::
 pushGitRootBranch srcConn branch repo = runExceptT @GitError do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
-  -- ~~begin a transaction~~ create a savepoint on the staging codebase
+  -- create a savepoint on the staging codebase
   -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
   -- do a `before` check on the staging codebase
   -- if it passes, then release the savepoint (commit it), clean up, and git-push the result
@@ -1070,21 +1060,6 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
     Sqlite.close destConn
     void $ push remotePath repo
 
-  ------
-
-  -- -- Pull the remote repo into a staging directory
-  -- (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ time "SqliteCodebase.pushGitRootBranch.viewRemoteBranch'" $ viewRemoteBranch' (repo, Nothing, Path.empty)
-  -- ( ifM
-  --     ( ( pure (remoteRoot == Branch.empty)
-  --           ||^ lift (time "pushGitRootBranch Branch.before" $ before remoteRoot branch)
-  --       )
-  --         <* lift cleanup
-  --     )
-  --     -- ours is newer 👍, meaning this is a fast-forward push,
-  --     -- so sync branch to staging area
-  --     (time "SqliteCodebase.pushGitRootBranch.stageAndPush" $ stageAndPush remotePath)
-  --     (throwError $ GitError.PushDestinationHasNewStuff repo)
-  --   )
   where
     repoString = Text.unpack $ printRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
@@ -1094,18 +1069,6 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
       chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
       Q.setNamespaceRoot chId
 
-    -- stageAndPush remotePath = do
-    --   let repoString = Text.unpack $ printRepo repo
-    --   withStatus ("Staging codebase for upload to " ++ repoString ++ " ...") do
-    --     time "SqliteCodebase.pushGitRootBranch.stageAndPush.syncToDirectory" $ lift (syncToDirectory remotePath syncMode branch)
-    --     setRepoRoot remotePath (Branch.headHash branch)
-    --   -- push staging area to remote
-    --   withStatus ("Uploading to " ++ repoString ++ " ...") $
-    --     unlessM
-    --       ( push remotePath repo
-    --           `withIOError` (throwError . GitError.PushException repo . show)
-    --       )
-    --       (throwError $ GitError.PushNoOp repo)
     -- Commit our changes
     push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
     push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
