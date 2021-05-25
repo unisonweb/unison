@@ -99,6 +99,9 @@ usage executableStr = P.callout "🌻" $ P.lines [
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
   "",
+  P.bold $ exetutable <> " headless",
+  "Runs the codebase server without the command-line interface.",
+  "",
   P.bold $ executable <> " version",
   "Prints version of Unison then quits.",
   "",
