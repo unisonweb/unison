@@ -101,24 +101,23 @@ instance ToSample DefinitionDisplayResults where
 
 serveDefinitions
   :: Var v
-  => Handler ()
-  -> Codebase IO v Ann
-  -> Maybe ShortBranchHash
+  => Maybe ShortBranchHash
   -> Maybe HashQualifiedName
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
-  -> Handler DefinitionDisplayResults
-serveDefinitions h codebase mayRoot relativePath hqns width suff = do
-  h
+  -> AppM v DefinitionDisplayResults
+serveDefinitions mayRoot relativePath hqns width suff = do
+  tryAuth
   rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
   ea  <- liftIO . runExceptT $ do
     root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    cb <- view codebase
     Backend.prettyDefinitionsBySuffixes rel
                                         root
                                         width
                                         (fromMaybe (Suffixify True) suff)
-                                        codebase
+                                        cb
       $   HQ.unsafeFromText
       <$> hqns
   errFromEither backendError ea

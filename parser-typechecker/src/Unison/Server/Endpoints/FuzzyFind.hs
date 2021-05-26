@@ -131,15 +131,14 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind
-  :: forall v. Var v
-  => Handler ()
-  -> Codebase IO v Ann
-  -> Maybe SBH.ShortBranchHash
+  :: forall v
+   . Var v
+  => Maybe SBH.ShortBranchHash
   -> Maybe HashQualifiedName
   -> Maybe Int
   -> Maybe Width
   -> Maybe String
-  -> Handler [(FZF.Alignment, FoundResult)]
+  -> AppM v [(FZF.Alignment, FoundResult)]
 serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query = do
   h
   rel <-
@@ -159,37 +158,43 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query = do
     join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
   errFromEither backendError ea
  where
-  loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) = traverse
-    (\case
-      Backend.FoundTermRef r ->
-        (\te ->
-            ( a
-            , FoundTermResult
-              . FoundTerm (Backend.bestNameForTerm @v ppe (mayDefault typeWidth) r)
-              $ Backend.termEntryToNamedTerm ppe typeWidth te
+  loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
+    traverse
+      (\case
+        Backend.FoundTermRef r ->
+          (\te ->
+              ( a
+              , FoundTermResult
+                . FoundTerm
+                    (Backend.bestNameForTerm @v ppe (mayDefault typeWidth) r)
+                $ Backend.termEntryToNamedTerm ppe typeWidth te
+              )
             )
-          )
-          <$> Backend.termListEntry codebase b0 r n
-      Backend.FoundTypeRef r -> do
-        te                              <- Backend.typeListEntry codebase r n
-        DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
-          rel
-          root
-          typeWidth
-          (Suffixify True)
-          codebase
-          [HQ.HashOnly $ Reference.toShortHash r]
-        let
-          t  = Map.lookup (Reference.toText r) ts
-          td = case t of
-            Just t -> t
-            Nothing ->
-              TypeDefinition mempty mempty Nothing
-                . MissingObject
-                $ Reference.toShortHash r
-          namedType = Backend.typeEntryToNamedType te
-        pure ( a, FoundTypeResult $ FoundType (bestTypeName td) (typeDefinition td) namedType)
-    )
-    refs
+            <$> Backend.termListEntry codebase b0 r n
+        Backend.FoundTypeRef r -> do
+          te                              <- Backend.typeListEntry codebase r n
+          DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
+            rel
+            root
+            typeWidth
+            (Suffixify True)
+            codebase
+            [HQ.HashOnly $ Reference.toShortHash r]
+          let
+            t  = Map.lookup (Reference.toText r) ts
+            td = case t of
+              Just t -> t
+              Nothing ->
+                TypeDefinition mempty mempty Nothing
+                  . MissingObject
+                  $ Reference.toShortHash r
+            namedType = Backend.typeEntryToNamedType te
+          pure
+            ( a
+            , FoundTypeResult
+              $ FoundType (bestTypeName td) (typeDefinition td) namedType
+            )
+      )
+      refs
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
   errFromEither f = either (throwError . f) pure

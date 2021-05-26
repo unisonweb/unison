@@ -9,55 +9,60 @@
 
 module Unison.Server.Endpoints.ListNamespace where
 
-import           Control.Error                  ( runExceptT )
-import           Data.Aeson
-import           Data.OpenApi                   ( ToSchema )
-import           Servant                        ( Get
-                                                , JSON
-                                                , QueryParam
-                                                , ServerError(errBody)
-                                                , err400
-                                                , throwError
-                                                , (:>)
-                                                )
-import           Servant.Docs                   ( DocQueryParam(..)
-                                                , ParamKind(Normal)
-                                                , ToParam(..)
-                                                , ToSample(..)
-                                                )
-import           Servant.OpenApi                ( )
-import           Servant.Server                 ( Handler )
-import           Unison.Prelude
-import           Unison.Codebase                ( Codebase )
-import qualified Unison.Codebase               as Codebase
-import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Causal        as Causal
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Hash                   as Hash
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.Name                   as Name
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.Parser                  ( Ann )
-import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.Server.Backend         as Backend
-import           Unison.Server.Errors           ( backendError
-                                                , badHQN
-                                                , badNamespace
-                                                , rootBranchError
-                                                )
-import           Unison.Server.Types            ( HashQualifiedName
-                                                , Size
-                                                , UnisonHash
-                                                , UnisonName
-                                                , NamedTerm(..)
-                                                , NamedType(..)
-                                                )
-import           Unison.Util.Pretty             ( Width )
-import           Unison.Var                     ( Var )
-import qualified Unison.Codebase.ShortBranchHash
-                                               as SBH
-import qualified Unison.ShortHash              as ShortHash
-import qualified Data.Text                     as Text
+import Control.Error (runExceptT)
+import Control.Lens (view)
+import Data.Aeson
+import Data.OpenApi (ToSchema)
+import qualified Data.Text as Text
+import Servant
+  ( Get,
+    JSON,
+    QueryParam,
+    ServerError (errBody),
+    err400,
+    throwError,
+    (:>),
+  )
+import Servant.Docs
+  ( DocQueryParam (..),
+    ParamKind (Normal),
+    ToParam (..),
+    ToSample (..),
+  )
+import Servant.OpenApi ()
+import Servant.Server (Handler)
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Hash as Hash
+import qualified Unison.HashQualified as HQ
+import qualified Unison.Name as Name
+import qualified Unison.NameSegment as NameSegment
+import Unison.Parser (Ann)
+import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.AppState (AppM, codebase, getRootBranch, tryAuth)
+import qualified Unison.Server.Backend as Backend
+import Unison.Server.Errors
+  ( backendError,
+    badHQN,
+    badNamespace,
+    rootBranchError,
+  )
+import Unison.Server.Types
+  ( HashQualifiedName,
+    NamedTerm (..),
+    NamedType (..),
+    Size,
+    UnisonHash,
+    UnisonName,
+  )
+import qualified Unison.ShortHash as ShortHash
+import Unison.Util.Pretty (Width)
+import Unison.Var (Var)
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
@@ -154,20 +159,18 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
 
 serveNamespace
   :: Var v
-  => Handler ()
-  -> Codebase IO v Ann
-  -> Maybe HashQualifiedName
-  -> Handler NamespaceListing
-serveNamespace tryAuth codebase mayHQN = tryAuth *> case mayHQN of
-  Nothing  -> serveNamespace tryAuth codebase $ Just "."
+  => Maybe HashQualifiedName
+  -> AppM v NamespaceListing
+serveNamespace mayHQN = tryAuth *> case mayHQN of
+  Nothing  -> serveNamespace $ Just "."
   Just hqn -> do
     parsedName <- parseHQN hqn
-    hashLength <- liftIO $ Codebase.hashLength codebase
+    cb <- view codebase
+    hashLength <- liftIO $ Codebase.hashLength cb
     case parsedName of
       HQ.NameOnly n -> do
-        path'      <- parsePath $ Name.toString n
-        gotRoot    <- liftIO $ Codebase.getRootBranch codebase
-        root       <- errFromEither rootBranchError gotRoot
+        path' <- parsePath $ Name.toString n
+        root  <- getRootBranch
         let
           p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
           ppe =
@@ -184,9 +187,9 @@ serveNamespace tryAuth codebase mayHQN = tryAuth *> case mayHQN of
             . badNamespace "Malformed branch hash."
             $ ShortHash.toString sh
         Just h -> doBackend $ do
-          hash    <- Backend.expandShortBranchHash codebase h
-          branch  <- Backend.resolveBranchHash (Just hash) codebase
-          entries <- Backend.findShallowInBranch codebase branch
+          hash    <- Backend.expandShortBranchHash cb h
+          branch  <- Backend.resolveBranchHash hash cb
+          entries <- Backend.findShallowInBranch cb branch
           let ppe = Backend.basicSuffixifiedNames hashLength branch mempty
               sbh = Text.pack . show $ SBH.fullFromHash hash
           processEntries ppe Nothing sbh entries
@@ -199,7 +202,7 @@ serveNamespace tryAuth codebase mayHQN = tryAuth *> case mayHQN of
   doBackend a = do
     ea <- liftIO $ runExceptT a
     errFromEither backendError ea
-  findShallow p = doBackend $ Backend.findShallow codebase p
+  findShallow p = doBackend $ Backend.findShallow cb p
   processEntries ppe name hash entries =
     pure . NamespaceListing name hash $ fmap
       (backendListEntryToNamespaceObject ppe Nothing)

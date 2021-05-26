@@ -10,8 +10,7 @@ import Control.Applicative
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
-import Control.Lens ((&), (.~))
-import Control.Monad.IO.Class (liftIO)
+import Control.Lens (makeLenses, view, (&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as Base64
@@ -79,6 +78,7 @@ import Servant.Server
     Handler,
     Server,
     ServerError (..),
+    ServerT,
     Tagged (Tagged),
     err401,
     err404,
@@ -91,6 +91,8 @@ import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Text.Read (readMaybe)
 import Unison.Codebase (Codebase)
 import Unison.Parser (Ann)
+import Unison.Prelude
+import Unison.Server.AppState (AppM, AppState)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -297,24 +299,19 @@ serveIndex path = do
       <> " environment variable to the directory where the UI is installed."
     }
 
-serveUI :: Handler () -> Maybe FilePath -> Server WebUI
-serveUI tryAuth p _ =
+serveUI :: Maybe FilePath -> ServerT WebUI (AppM v)
+serveUI p _ =
   let path = fromMaybe "ui" p
-  in  tryAuth *> serveIndex path
+  in  tryAuth *> lift (serveIndex path)
 
-server
-  :: Var v
-  => Codebase IO v Ann
-  -> Maybe FilePath
-  -> Strict.ByteString
-  -> Server AuthedServerAPI
-server codebase uiPath token =
+server :: Var v => Maybe FilePath -> ServerT AuthedServerAPI (AppM v)
+server uiPath =
   serveDirectoryWebApp (fromMaybe "ui" uiPath </> "static")
     :<|> ((\t ->
-            serveUI (tryAuth t) uiPath
-              :<|> (    (    (serveNamespace (tryAuth t) codebase)
-                        :<|> (serveDefinitions (tryAuth t) codebase)
-                        :<|> (serveFuzzyFind (tryAuth t) codebase)
+            serveUI uiPath
+              :<|> (    (    serveNamespace
+                        :<|> serveDefinitions
+                        :<|> serveFuzzyFind
                         )
                    :<|> addHeader "*"
                    <$>  serveOpenAPI
@@ -326,5 +323,4 @@ server codebase uiPath token =
   serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
   serveOpenAPI = pure openAPI
   plain        = ("Content-Type", "text/plain")
-  tryAuth      = handleAuth token
 
