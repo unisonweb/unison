@@ -1567,12 +1567,12 @@ patternFromInput = \case
 
 inputStringFromInput :: IsString s => Input -> P.Pretty s
 inputStringFromInput = \case
-  i@(Input.PushRemoteBranchI rh p' _) ->
-    (P.string . I.patternName $ patternFromInput i)
+  Input.PushRemoteBranchI rh p' _ ->
+    (P.string . I.patternName $ pull)
       <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
-      <> " " <> P.shown p'
+      <> (if null $ show p' then "" else " " <> P.shown p')
   i@(Input.PullRemoteBranchI ns p' _) ->
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
-      <> " " <> P.shown p'
+      <> (if null $ show p' then "" else " " <> P.shown p')
   _ -> error "todo: finish this function"
