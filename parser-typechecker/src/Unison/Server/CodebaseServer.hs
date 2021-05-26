@@ -41,16 +41,19 @@ import Network.Wai.Handler.Warp
     withApplicationSettings,
   )
 import Options.Applicative
-  ( auto,
+  ( argument,
+    auto,
     defaultPrefs,
     execParserPure,
     forwardOptions,
     getParseResult,
     help,
     info,
+    internal,
     long,
     metavar,
     option,
+    str,
     strOption,
   )
 import Servant
@@ -216,8 +219,9 @@ start codebase k = do
   args     <- getArgs
   let
     p =
-      (,,,)
-        <$> (   (<|> envToken)
+      (,,,,)
+        <$> ( many $ argument str internal )
+        <*> (   (<|> envToken)
             <$> (  optional
                 .  strOption
                 $  long "token"
@@ -249,7 +253,7 @@ start codebase k = do
     mayOpts =
       getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
   case mayOpts of
-    Just (token, host, port, ui) -> startServer codebase k token host port ui
+    Just (_, token, host, port, ui) -> startServer codebase k token host port ui
     Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
 
 startServer

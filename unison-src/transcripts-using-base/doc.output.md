@@ -305,10 +305,14 @@ and the rendered output using `display`:
           @foldedSource{type Optional, sqr}
       
       You can also include just a signature, inline, with
-      @signature{sqr}, or you can include one or more signatures
-      as a block:
+      @inlineSignature{sqr}, or you can include one or more
+      signatures as a block:
       
           @signatures{sqr, +}
+      
+      Or alternately:
+      
+          @signature{List.map}
       
       ## Inline snippets
       
@@ -352,6 +356,10 @@ and the rendered output using `display`:
         sqr : Nat -> Nat
     
         Nat.+ : Nat -> Nat -> Nat
+  
+    Or alternately:
+  
+        List.map : (a ->{e} b) -> [a] ->{e} [b]
   
     # Inline snippets
     
@@ -650,6 +658,10 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           sqr : Nat -> Nat
       
           Nat.+ : Nat -> Nat -> Nat
+    
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
     
       # Inline snippets
       

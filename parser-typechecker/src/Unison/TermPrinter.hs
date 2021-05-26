@@ -1299,9 +1299,10 @@ prettyDoc2 ppe ac tm = case tm of
           go (Left r, _anns) = "type " <> tyName r
           go (Right r, _anns) = tmName r
       (toDocSignatureInline ppe -> Just tm) ->
-        PP.group $ "@signature{" <> tmName tm <> "}"
+        PP.group $ "@inlineSignature{" <> tmName tm <> "}"
       (toDocSignature ppe -> Just tms) ->
-        PP.group $ "    @signatures{" <> intercalateMap ", " tmName tms <> "}"
+        let name = if length tms == 1 then "@signature" else "@signatures"
+        in PP.group $ "    " <> name <> "{" <> intercalateMap ", " tmName tms <> "}"
       (toDocCodeBlock ppe -> Just (typ, txt)) ->
         PP.group $
           PP.lines
