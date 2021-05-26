@@ -9,9 +9,6 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison
-```
-
 ## Basic File Functions
 
 ### Creating/Deleting/Renaming Directories
@@ -308,25 +305,15 @@ testSystemTime _ =
 
 ```unison
 testDirContents : '{io2.IO} [Result]
-testDirContents _ = 
+testDirContents _ =
   test = 'let
     tempDir = newTempDir "dircontents"
     c = reraise (directoryContents.impl tempDir)
     check "directory size should be"  (size c == 2)
+    check "directory contents should have current directory and parent" (c == [".", ".."])
   runTest test
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      testDirContents : '{IO} [Result]
-
-```
 ```ucm
 .> add
 
@@ -339,8 +326,9 @@ testDirContents _ =
     New test results:
   
   ◉ testDirContents   directory size should be
+  ◉ testDirContents   directory contents should have current directory and parent
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
   Tip: Use view testDirContents to view the source of a test.
 
