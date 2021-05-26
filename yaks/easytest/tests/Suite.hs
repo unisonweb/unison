@@ -8,13 +8,16 @@ suite1 = tests
   [ scope "a" ok
   , scope "b.c" ok
   , scope "b" ok
+  -- leaving this commented out until we have a function like:
+  -- `expectFailure :: Scope -> Test a -> Test a`
+  -- , scope "b" . scope "c" $ error "oh noes! - should fail with b.c scope"
   , scope "b" . scope "c" . scope "d" $ ok
   , scope "c" ok ]
 
 suite2 :: Test ()
 suite2 = tests
   [ scope "pending.failure" (pending (expectEqual True False))
-  --, scope "pending.success" (pending ok) 
+  --, scope "pending.success" (pending ok)
   ]
 
 reverseTest :: Test ()

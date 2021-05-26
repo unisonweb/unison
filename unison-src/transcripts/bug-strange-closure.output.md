@@ -110,6 +110,10 @@ We can display the guide before and after adding it to the codebase:
       
           Nat.+ : Nat -> Nat -> Nat
     
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
+    
       # Inline snippets
       
         You can include typechecked code snippets inline, for
@@ -306,6 +310,10 @@ We can display the guide before and after adding it to the codebase:
           sqr : Nat -> Nat
       
           Nat.+ : Nat -> Nat -> Nat
+    
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
     
       # Inline snippets
       
@@ -510,6 +518,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       
           Nat.+ : Nat -> Nat -> Nat
     
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
+    
       # Inline snippets
       
         You can include typechecked code snippets inline, for
@@ -699,6 +711,10 @@ rendered = Pretty.get (docFormatConsole doc.guide)
           sqr : Nat -> Nat
       
           Nat.+ : Nat -> Nat -> Nat
+    
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
     
       # Inline snippets
       
@@ -1963,6 +1979,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     [ Term.Term (Any (_ -> sqr)),
                                       Term.Term
                                       (Any (_ -> (Nat.+))) ]))))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Wrap
+                              (!Annotated.Append
+                                [ !Lit (Right (Plain "Or")),
+                                  !Lit
+                                  (Right (Plain "alternately:")) ]))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Wrap
+                              (!Lit
+                                (Left
+                                  (SpecialForm.Signature
+                                    [ Term.Term
+                                      (Any (_ -> List.map)) ]))))),
                           !Lit (Right (Plain "\n")),
                           !Lit (Right (Plain "\n")),
                           !Indent

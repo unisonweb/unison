@@ -286,7 +286,7 @@ isFailure o = case o of
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered{} -> False
-  TodoOutput _ todo -> TO.todoScore todo /= 0
+  TodoOutput _ todo -> TO.todoScore todo /= 0 && not (TO.noConflicts todo)
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
