@@ -159,8 +159,7 @@ extend n ca = do
 
 lcaPair :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
 lcaPair = do
-  h <- int64
-  let base = Causal.cons h (one 0)
+  base <- one <$> int64
   ll <- int' 0 20
   lr <- int' 0 20
   (,) <$> extend ll base <*> extend lr base
@@ -212,9 +211,10 @@ setPatch :: Applicative m => Ord a => Set a -> (Set a, Set a) -> m (Set a)
 setPatch s (added, removed) = pure (added <> Set.difference s removed)
 
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course
-testIdempotent :: Causal Identity Hash (Set Int64) -> Bool
+testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
 testIdempotent causal =
-     runIdentity (threeWayMerge' causal causal) == causal
+     runIdentity (threeWayMerge' causal causal)
+  == causal
 
 -- prop_mergeIdempotent :: Bool
 -- prop_mergeIdempotent = and (map testIdempotent (take 1000 generateRandomCausals))

@@ -71,16 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
+  ⊙ #lirpkqt68j
   
+    > Moves:
+    
+      Original name  New name
+      Nat.frobnicate Nat.+
   
-  This segment of history starts with a merge. Use
-  `history #som3n4m3space` to view history starting from a given
-  namespace hash.
+  ⊙ #p2m2k852al
   
-  ⊙ #ogo0j1ucnr
-  ⑃
-  #6hs3tdioa1
-  #lirpkqt68j
+    > Moves:
+    
+      Original name New name
+      Nat.+         Nat.frobnicate
+  
+  □ #6hs3tdioa1 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -522,7 +527,7 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #8jcsn0thlb
+  ⊙ #sasilta77k
   
     - Deletes:
     
