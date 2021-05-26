@@ -14,7 +14,7 @@ import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Posix.Signals as Sig
 #endif
 
-import Control.Concurrent (mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
+import Control.Concurrent (MVar, mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
@@ -31,12 +31,14 @@ import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Init as Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import qualified Unison.Codebase.FileCodebase as FC
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
@@ -50,7 +52,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
-import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -156,6 +157,7 @@ main = do
   config <-
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
+  rootVar <- newEmptyMVar
   case restargs of
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
@@ -173,7 +175,8 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config rootVar theCodebase
+            [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
@@ -182,8 +185,7 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch
-            currentDir config theCodebase
+          launch currentDir config rootVar theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "transcript" : args' ->
@@ -198,7 +200,7 @@ main = do
     args -> do
       let headless = listToMaybe args == Just "headless"
       (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
-      Server.start theCodebase $ \token port -> do
+      Server.start theCodebase rootVar $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
         PT.putPrettyLn $ P.lines
@@ -211,7 +213,7 @@ main = do
           takeMVar mvar
         else do
           PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
-          launch currentDir config theCodebase []
+          launch currentDir config rootVar theCodebase []
           closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
@@ -320,11 +322,19 @@ initialPath = Path.absoluteEmpty
 launch
   :: FilePath
   -> (Config, IO ())
+  -> MVar (Branch IO)
   -> _
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir config code inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs code Version.gitDescribe
+launch dir config rootVar code inputs =
+  CommandLine.main dir
+    defaultBaseLib
+    initialPath
+    config
+    rootVar
+    inputs
+    code
+    Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

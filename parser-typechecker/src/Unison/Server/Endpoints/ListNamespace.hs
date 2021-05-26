@@ -9,7 +9,6 @@
 
 module Unison.Server.Endpoints.ListNamespace where
 
-import Control.Error (runExceptT)
 import Control.Lens (view)
 import Data.Aeson
 import Data.OpenApi (ToSchema)
@@ -30,8 +29,6 @@ import Servant.Docs
     ToSample (..),
   )
 import Servant.OpenApi ()
-import Servant.Server (Handler)
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
@@ -41,16 +38,15 @@ import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
-import Unison.Parser (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Server.AppState (AppM, codebase, getRootBranch, tryAuth)
+import Unison.Server.AppState (AppM, codebase, doBackend, getRootBranch, tryAuth)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
-  ( backendError,
-    badHQN,
+  ( badHQN,
     badNamespace,
-    rootBranchError,
+    errFromEither,
+    errFromMaybe,
   )
 import Unison.Server.Types
   ( HashQualifiedName,
@@ -187,22 +183,17 @@ serveNamespace mayHQN = tryAuth *> case mayHQN of
             . badNamespace "Malformed branch hash."
             $ ShortHash.toString sh
         Just h -> doBackend $ do
-          hash    <- Backend.expandShortBranchHash cb h
-          branch  <- Backend.resolveBranchHash hash cb
-          entries <- Backend.findShallowInBranch cb branch
+          hash    <- Backend.expandShortBranchHash h
+          branch  <- Backend.resolveBranchHash hash
+          entries <- Backend.findShallowInBranch branch
           let ppe = Backend.basicSuffixifiedNames hashLength branch mempty
               sbh = Text.pack . show $ SBH.fullFromHash hash
           processEntries ppe Nothing sbh entries
       HQ.HashQualified _ _ -> hashQualifiedNotSupported
  where
-  errFromMaybe e = maybe (throwError e) pure
-  errFromEither f = either (throwError . f) pure
   parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  doBackend a = do
-    ea <- liftIO $ runExceptT a
-    errFromEither backendError ea
-  findShallow p = doBackend $ Backend.findShallow cb p
+  findShallow p = doBackend $ Backend.findShallow p
   processEntries ppe name hash entries =
     pure . NamespaceListing name hash $ fmap
       (backendListEntryToNamespaceObject ppe Nothing)

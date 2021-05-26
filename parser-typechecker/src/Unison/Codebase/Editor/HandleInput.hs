@@ -1212,7 +1212,7 @@ loop = do
                            sbhLength
                            root'
                            (Path.fromPath' pathArg)
-        res <- eval $ FindShallow pathArgAbs
+        res <- eval $ FindShallow pathArgAbs root'
         case res of
           Left e -> handleBackendError e
           Right entries -> do

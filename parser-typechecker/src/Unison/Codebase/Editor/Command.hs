@@ -95,6 +95,7 @@ data Command m i v a where
 
   FindShallow
     :: Path.Absolute
+    -> Branch m
     -> Command m i v (Either BackendError [ShallowListEntry v Ann])
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)

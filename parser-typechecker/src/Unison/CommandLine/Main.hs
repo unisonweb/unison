@@ -6,45 +6,44 @@ module Unison.CommandLine.Main where
 
 import Unison.Prelude
 
+import Control.Concurrent (MVar, readMVar, tryPutMVar, tryTakeMVar)
+import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
+import Control.Exception (AsyncException (UserInterrupt), asyncExceptionFromException, catch, finally)
+import Control.Lens (view)
 import Control.Monad.State (runStateT)
+import qualified Crypto.Random as Random
 import Data.Configurator.Types (Config)
 import Data.IORef
-import Data.Tuple.Extra (uncurry3)
-import Prelude hiding (readFile, writeFile)
-import System.IO.Error (isDoesNotExistError)
-import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.Input (Input (..), Event)
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
-import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import Unison.Codebase.Editor.Command (LoadSourceResult(..))
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
-import Unison.Codebase (Codebase)
-import Unison.CommandLine
-import Unison.PrettyTerminal
-import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
-import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
-import Unison.Parser (Ann)
-import Unison.Symbol (Symbol)
-import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO
+import Data.Tuple.Extra (uncurry3)
 import qualified System.Console.Haskeline as Line
-import qualified Crypto.Random        as Random
+import System.IO.Error (isDoesNotExistError)
+import Text.Regex.TDFA
+import Unison.Codebase (Codebase)
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Editor.Command (LoadSourceResult (..))
+import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
+import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import Unison.Codebase.Editor.Input (Event, Input (..))
+import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase as Codebase
+import Unison.CommandLine
+import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Interface      as RTI
+import Unison.CommandLine.InputPatterns (validInputs)
+import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, shortenDirectory)
+import Unison.Parser (Ann)
+import Unison.PrettyTerminal
+import qualified Unison.Runtime.Interface as RTI
+import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
-import Text.Regex.TDFA
-import Control.Lens (view)
-import Control.Error (rightMay)
+import Prelude hiding (readFile, writeFile)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -156,13 +155,17 @@ main
   -> Maybe RemoteNamespace
   -> Path.Absolute
   -> (Config, IO ())
+  -> MVar (Branch IO)
   -> [Either Event Input]
   -> Codebase IO Symbol Ann
   -> String
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase version = do
+main dir defaultBaseLib initialPath (config, cancelConfig) rootVar initialInputs codebase version = do
   dir' <- shortenDirectory dir
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  -- We expect this to have been set for us.
+  -- This avoids loading the root branch twice.
+  -- (was: root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase)
+  root <- readMVar rootVar
   putPrettyLn $ case defaultBaseLib of
       Just ns | Branch.isOne root ->
         welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
@@ -234,7 +237,12 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
         (o, state') <- HandleCommand.commandLine config awaitInput
-                                     (writeIORef rootRef)
+                                     (\b -> do
+                                       -- Make sure CLI loop gets updated root
+                                       writeIORef rootRef b
+                                       -- Notify UCM server of new root.
+                                       void $ tryTakeMVar rootVar *> tryPutMVar rootVar b
+                                     )
                                      runtime
                                      notify
                                      (\o -> let (p, args) = notifyNumbered o in

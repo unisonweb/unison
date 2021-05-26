@@ -5,7 +5,7 @@
 
 module Unison.Server.Errors where
 
-import Data.Set (Set)
+import Control.Monad.Except (MonadError(..))
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
@@ -13,6 +13,7 @@ import Servant (ServerError (..), err400, err404, err500)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Types
@@ -21,6 +22,12 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
+
+errFromMaybe :: MonadError e m => e -> Maybe a -> m a
+errFromMaybe e = maybe (throwError e) pure
+
+errFromEither :: MonadError e m => (a -> e) -> Either a b -> m b
+errFromEither f = either (throwError . f) pure
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn = err400

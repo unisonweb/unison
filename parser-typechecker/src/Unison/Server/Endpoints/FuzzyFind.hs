@@ -10,58 +10,55 @@
 
 module Unison.Server.Endpoints.FuzzyFind where
 
-import           Control.Lens                   ( view, _1 )
-import           Control.Error                  ( runExceptT )
-import           Data.Function                  ( on )
-import           Data.Aeson
-import           Data.List                      ( sortBy )
-import           Data.Ord                       ( Down(..) )
-import           Data.OpenApi                   ( ToSchema )
-import           Servant                        ( Get
-                                                , JSON
-                                                , QueryParam
-                                                , throwError
-                                                , (:>)
-                                                )
-import           Servant.Docs                   ( DocQueryParam(..)
-                                                , ParamKind(Normal)
-                                                , ToParam(..)
-                                                , ToSample(..)
-                                                , noSamples
-                                                )
-import           Servant.OpenApi                ( )
-import           Servant.Server                 ( Handler )
-import           Unison.Prelude
-import           Unison.Codebase                ( Codebase )
-import qualified Unison.Codebase               as Codebase
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.HashQualified'         as HQ'
-import qualified Unison.HashQualified          as HQ
-import           Unison.Parser                  ( Ann )
-import qualified Unison.Server.Backend         as Backend
-import           Unison.Server.Errors           ( backendError
-                                                , badNamespace
-                                                )
-import           Unison.Server.Types            ( mayDefault
-                                                , HashQualifiedName
-                                                , NamedTerm
-                                                , NamedType
-                                                , DefinitionDisplayResults(..)
-                                                , TypeDefinition(..)
-                                                , Suffixify(..)
-                                                )
-import           Unison.Util.Pretty             ( Width )
-import           Unison.Var                     ( Var )
-import qualified Unison.Codebase.ShortBranchHash
-                                               as SBH
-import qualified Data.Text                     as Text
+import Control.Lens (view, _1)
+import Data.Aeson
+import Data.Function (on)
+import Data.List (sortBy)
+import qualified Data.Map as Map
+import Data.OpenApi (ToSchema)
+import Data.Ord (Down (..))
+import qualified Data.Text as Text
+import Servant
+  ( Get,
+    JSON,
+    QueryParam,
+    throwError,
+    (:>),
+  )
+import Servant.Docs
+  ( DocQueryParam (..),
+    ParamKind (Normal),
+    ToParam (..),
+    ToSample (..),
+    noSamples,
+  )
+import Servant.OpenApi ()
 import qualified Text.FuzzyFind as FZF
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import Unison.NameSegment
-import           Unison.Server.Syntax           ( SyntaxText )
-import qualified Unison.Reference              as Reference
-import qualified Data.Map                      as Map
 import Unison.Codebase.Editor.DisplayObject
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import Unison.NameSegment
+import Unison.Prelude
+import qualified Unison.Reference as Reference
+import Unison.Server.AppState (AppM, doBackend, tryAuth)
+import qualified Unison.Server.Backend as Backend
+import Unison.Server.Errors (badNamespace)
+import Unison.Server.Syntax (SyntaxText)
+import Unison.Server.Types
+  ( DefinitionDisplayResults (..),
+    HashQualifiedName,
+    NamedTerm,
+    NamedType,
+    Suffixify (..),
+    TypeDefinition (..),
+    mayDefault,
+  )
+import Unison.Util.Pretty (Width)
+import Unison.Var (Var)
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
@@ -139,24 +136,28 @@ serveFuzzyFind
   -> Maybe Width
   -> Maybe String
   -> AppM v [(FZF.Alignment, FoundResult)]
-serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query = do
-  h
+serveFuzzyFind mayRoot relativePath limit typeWidth query = do
+  tryAuth
   rel <-
     fromMaybe mempty
     .   fmap Path.fromPath'
     <$> traverse (parsePath . Text.unpack) relativePath
-  hashLength <- liftIO $ Codebase.hashLength codebase
-  ea         <- liftIO . runExceptT $ do
-    root   <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    branch <- Backend.resolveBranchHash root codebase
-    let b0 = Branch.head branch
+  doBackend $ do
+    hashLength <- Backend.withCodebase $ Codebase.hashLength
+    mayBranch  <- traverse
+      (Backend.expandShortBranchHash >=> Backend.resolveBranchHash)
+      mayRoot
+    root <- view Backend.currentRoot
+    let branch = fromMaybe root mayBranch
+        b0     = Branch.head branch
         alignments =
           take (fromMaybe 10 limit)
             . sortBy (compare `on` (Down . FZF.score . (view _1)))
             $ Backend.fuzzyFind rel branch (fromMaybe "" query)
         ppe = Backend.basicSuffixifiedNames hashLength branch rel
-    join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
-  errFromEither backendError ea
+    join
+      <$> traverse (loadEntry (Just $ Branch.headHash branch) (Just rel) ppe b0)
+                   alignments
  where
   loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
     traverse
@@ -170,15 +171,14 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query = do
                 $ Backend.termEntryToNamedTerm ppe typeWidth te
               )
             )
-            <$> Backend.termListEntry codebase b0 r n
+            <$> Backend.termListEntry b0 r n
         Backend.FoundTypeRef r -> do
-          te                              <- Backend.typeListEntry codebase r n
+          te                              <- Backend.typeListEntry r n
           DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
             rel
             root
             typeWidth
             (Suffixify True)
-            codebase
             [HQ.HashOnly $ Reference.toShortHash r]
           let
             t  = Map.lookup (Reference.toText r) ts

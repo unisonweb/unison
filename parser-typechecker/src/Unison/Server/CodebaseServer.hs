@@ -7,24 +7,21 @@
 module Unison.Server.CodebaseServer where
 
 import Control.Applicative
-import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent (MVar, newEmptyMVar, putMVar, readMVar, tryPutMVar, tryTakeMVar)
 import Control.Concurrent.Async (race)
+import Control.Error.Safe (rightMay)
 import Control.Exception (ErrorCall (..), throwIO)
-import Control.Lens (makeLenses, view, (&), (.~))
+import Control.Lens (locally, (&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.UTF8 as BLU
-import Data.Foldable (Foldable (toList))
-import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo (..), appEndo)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import qualified Data.OpenApi.Lens as OpenApi
 import Data.Proxy (Proxy (..))
-import Data.String (fromString)
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
@@ -60,6 +57,7 @@ import Servant
   ( Header,
     MimeRender (..),
     addHeader,
+    hoistServer,
     serve,
     throwError,
   )
@@ -79,7 +77,6 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
     Handler,
-    Server,
     ServerError (..),
     ServerT,
     Tagged (Tagged),
@@ -91,11 +88,13 @@ import System.Directory (doesFileExist)
 import System.Environment (getArgs, lookupEnv)
 import System.FilePath.Posix ((</>))
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
-import Text.Read (readMaybe)
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import Unison.Parser (Ann)
 import Unison.Prelude
-import Unison.Server.AppState (AppM, AppState)
+import Unison.Server.AppState (AppM, authHandler, provideAppState, tryAuth)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -125,9 +124,9 @@ type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
-type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
+type AuthedServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
 
-type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI)
+type ServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> AuthedServerAPI)
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -161,7 +160,10 @@ docAPI = Proxy
 api :: Proxy UnisonAPI
 api = Proxy
 
-serverAPI :: Proxy AuthedServerAPI
+authedServerAPI :: Proxy AuthedServerAPI
+authedServerAPI = Proxy
+
+serverAPI :: Proxy ServerAPI
 serverAPI = Proxy
 
 app
@@ -169,9 +171,16 @@ app
   => Codebase IO v Ann
   -> Maybe FilePath
   -> Strict.ByteString
+  -> MVar (Branch IO)
   -> Application
-app codebase uiPath expectedToken =
-  serve serverAPI $ server codebase uiPath expectedToken
+app codebase uiPath expectedToken rootVar =
+  serve serverAPI
+    $ hoistServer serverAPI (provideAppState handler codebase rootVar)
+    $ server uiPath expectedToken
+  where
+    -- This handler fails unless the expected token is empty.
+    -- The app replaces this handler once it receives a token on the URL.
+        handler = handleAuth expectedToken mempty
 
 genToken :: IO Strict.ByteString
 genToken = do
@@ -209,9 +218,10 @@ ucmTokenVar = "UCM_TOKEN"
 start
   :: Var v
   => Codebase IO v Ann
+  -> MVar (Branch IO)
   -> (Strict.ByteString -> Port -> IO ())
   -> IO ()
-start codebase k = do
+start codebase rootVar k = do
   envToken <- lookupEnv ucmTokenVar
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
@@ -220,7 +230,7 @@ start codebase k = do
   let
     p =
       (,,,,)
-        <$> ( many $ argument str internal )
+        <$> (many $ argument str internal)
         <*> (   (<|> envToken)
             <$> (  optional
                 .  strOption
@@ -253,28 +263,32 @@ start codebase k = do
     mayOpts =
       getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
   case mayOpts of
-    Just (_, token, host, port, ui) -> startServer codebase k token host port ui
-    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
+    Just (_, token, host, port, ui) ->
+      startServer codebase rootVar k token host port ui
+    Nothing -> startServer codebase rootVar k Nothing Nothing Nothing Nothing
 
 startServer
   :: Var v
   => Codebase IO v Ann
+  -> MVar (Branch IO)
   -> (Strict.ByteString -> Port -> IO ())
   -> Maybe String
   -> Maybe String
   -> Maybe Port
   -> Maybe String
   -> IO ()
-startServer codebase k envToken envHost envPort envUI = do
+startServer codebase rootVar k envToken envHost envPort envUI = do
   token <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
+  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  void $ tryTakeMVar rootVar *> tryPutMVar rootVar root
   let settings = appEndo
         (  foldMap (Endo . setPort)              envPort
         <> foldMap (Endo . setHost . fromString) envHost
         )
         defaultSettings
-      a = app codebase envUI token
+      a = app codebase envUI token rootVar
   case envPort of
     Nothing -> withApplicationSettings settings (pure a) (k token)
     Just p  -> do
@@ -308,15 +322,16 @@ serveUI p _ =
   let path = fromMaybe "ui" p
   in  tryAuth *> lift (serveIndex path)
 
-server :: Var v => Maybe FilePath -> ServerT AuthedServerAPI (AppM v)
-server uiPath =
+server
+  :: Var v => Maybe FilePath -> Strict.ByteString -> ServerT ServerAPI (AppM v)
+server uiPath expectedToken =
   serveDirectoryWebApp (fromMaybe "ui" uiPath </> "static")
     :<|> ((\t ->
-            serveUI uiPath
-              :<|> (    (    serveNamespace
-                        :<|> serveDefinitions
-                        :<|> serveFuzzyFind
-                        )
+            hoistServer
+                authedServerAPI
+                (locally authHandler (const $ handleAuth expectedToken t))
+              $    serveUI uiPath
+              :<|> ((serveNamespace :<|> serveDefinitions :<|> serveFuzzyFind)
                    :<|> addHeader "*"
                    <$>  serveOpenAPI
                    :<|> Tagged serveDocs
