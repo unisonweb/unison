@@ -679,10 +679,14 @@ isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
-step f = over history (Causal.stepDistinct f)
+step f = \case
+  Branch (Causal.One _h e) | e == empty0 -> Branch (Causal.one (f empty0))
+  b -> over history (Causal.stepDistinct f) b
 
 stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepM f = mapMOf history (Causal.stepDistinctM f)
+stepM f = \case
+  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
