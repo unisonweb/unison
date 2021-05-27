@@ -485,7 +485,7 @@ loop = do
             Monoid.unlessM (Path.isRoot' p) (p' p) <> "." <> Text.pack (show hq)
           hqs (p, hq) = hqs' (Path' . Right . Path.Relative $ p, hq)
           ps' = p' . Path.unsplit'
-        stepAt = Unison.Codebase.Editor.HandleInput.stepAt inputDescription
+        stepAtM' = Unison.Codebase.Editor.HandleInput.stepAtM inputDescription
         stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
         stepManyAtNoSync =
           Unison.Codebase.Editor.HandleInput.stepManyAtNoSync
@@ -1659,7 +1659,7 @@ loop = do
         eval $ AddDefsToCodebase uf
         -- add the names; note, there are more names than definitions
         -- due to builtin terms; so we don't just reuse `uf` above.
-        let srcb = BranchUtil.fromNames0 Builtin.names0
+        srcb <- eval . Eval $ BranchUtil.fromNames0 Builtin.names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                eval $ Merge Branch.RegularMerge srcb destb
         success
@@ -1679,7 +1679,7 @@ loop = do
         -- due to builtin terms; so we don't just reuse `uf` above.
         let names0 = Builtin.names0
                      <> UF.typecheckedToNames0 @v IOSource.typecheckedFile'
-        let srcb = BranchUtil.fromNames0 names0
+        srcb <- eval . Eval $ BranchUtil.fromNames0 names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                eval $ Merge Branch.RegularMerge srcb destb
 
@@ -2264,16 +2264,8 @@ updateAtM reason (Path.Absolute p) f = do
   updateRoot b' reason
   pure $ b /= b'
 
-stepAt
-  :: forall m i v
-   . Monad m
-  => InputDescription
-  -> (Path, Branch0 m -> Branch0 m)
-  -> Action m i v ()
-stepAt cause = stepManyAt @m @[] cause . pure
-
 stepAtNoSync :: forall m i v. Monad m
-       => (Path, Branch0 m -> Branch0 m)
+       => (Path, Branch0 m -> m (Branch0 m))
        -> Action m i v ()
 stepAtNoSync = stepManyAtNoSync @m @[] . pure
 
@@ -2301,7 +2293,7 @@ stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
 stepManyAt
   :: (Monad m, Foldable f)
   => InputDescription
-  -> f (Path, Branch0 m -> Branch0 m)
+  -> f (Path, Branch0 m -> m (Branch0 m))
   -> Action m i v ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
@@ -2311,11 +2303,11 @@ stepManyAt reason actions = do
 -- Like stepManyAt, but doesn't update the root
 stepManyAtNoSync
   :: (Monad m, Foldable f)
-  => f (Path, Branch0 m -> Branch0 m)
+  => f (Path, Branch0 m -> m (Branch0 m))
   -> Action m i v ()
 stepManyAtNoSync actions = do
   b <- use root
-  let new = Branch.stepManyAt actions b
+  new <- eval . Eval $ Branch.stepManyAtM' id actions b
   root .= new
 
 stepManyAtM :: (Monad m, Foldable f)
@@ -2332,7 +2324,7 @@ stepManyAtMNoSync :: (Monad m, Foldable f)
            -> Action m i v ()
 stepManyAtMNoSync actions = do
     b <- use root
-    b' <- eval . Eval $ Branch.stepManyAtM actions b
+    b' <- eval . Eval $ Branch.stepManyAtM' id actions b
     root .= b'
 
 stepManyAtM' :: (Monad m, Foldable f)
@@ -2341,7 +2333,7 @@ stepManyAtM' :: (Monad m, Foldable f)
            -> Action m i v Bool
 stepManyAtM' reason actions = do
     b <- use root
-    b' <- Branch.stepManyAtM actions b
+    b' <- Branch.stepManyAtM' (eval . Eval) actions b
     updateRoot b' reason
     pure (b /= b')
 
@@ -2350,7 +2342,7 @@ stepManyAtMNoSync' :: (Monad m, Foldable f)
            -> Action m i v Bool
 stepManyAtMNoSync' actions = do
     b <- use root
-    b' <- Branch.stepManyAtM actions b
+    b' <- Branch.stepManyAtM' (eval . Eval) actions b
     root .= b'
     pure (b /= b')
 
@@ -2595,7 +2587,7 @@ filterBySlurpResult SlurpResult{..}
 doSlurpAdds :: forall m v. (Monad m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
-            -> (Branch0 m -> Branch0 m)
+            -> (Branch0 m -> m (Branch0 m))
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
@@ -2630,7 +2622,7 @@ doSlurpUpdates :: Monad m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
                -> [(Name, Referent)]
-               -> (Branch0 m -> Branch0 m)
+               -> (Branch0 m -> m (Branch0 m))
 doSlurpUpdates typeEdits termEdits deprecated b0 =
   Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
   where
