@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #tg218701if
+  ⊙ #2jco1r5hnt
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #v5b0rlnuht
+  ⊙ #i6647e9qs1
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #1e3n5kd05l
+  ⊙ #7qej0br1o8
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #b2s99sn5bp
+  ⊙ #cpuj77kb6k
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #g97hd92c33
+  ⊙ #eftegpgcs3
   
     + Adds / updates:
     
       x
   
-  ⊙ #hs8pfrn2tf
+  ⊙ #k9dtcmvom0
   
     + Adds / updates:
     
@@ -169,11 +169,12 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       builtin.Debug.watch builtin.Doc builtin.Doc.Blob
       builtin.Doc.Evaluate builtin.Doc.Join builtin.Doc.Link
       builtin.Doc.Signature builtin.Doc.Source builtin.Either
-      builtin.Either.Left builtin.Either.Right builtin.Float
-      builtin.Float.* builtin.Float.+ builtin.Float.-
-      builtin.Float./ builtin.Float.abs builtin.Float.acos
-      builtin.Float.acosh builtin.Float.asin builtin.Float.asinh
-      builtin.Float.atan builtin.Float.atan2 builtin.Float.atanh
+      builtin.Either.Left builtin.Either.Right builtin.Exception
+      builtin.Exception.raise builtin.Float builtin.Float.*
+      builtin.Float.+ builtin.Float.- builtin.Float./
+      builtin.Float.abs builtin.Float.acos builtin.Float.acosh
+      builtin.Float.asin builtin.Float.asinh builtin.Float.atan
+      builtin.Float.atan2 builtin.Float.atanh
       builtin.Float.ceiling builtin.Float.cos builtin.Float.cosh
       builtin.Float.eq builtin.Float.exp builtin.Float.floor
       builtin.Float.fromText builtin.Float.gt builtin.Float.gteq

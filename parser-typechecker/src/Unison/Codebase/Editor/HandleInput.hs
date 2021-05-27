@@ -1633,7 +1633,7 @@ loop = do
                [Referent.Ref ref] -> do
                  typ <- loadTypeOfTerm (Referent.Ref ref)
                  case typ of
-                   Just typ | Typechecker.isSubtype testType typ -> do
+                   Just typ | Typechecker.isSubtype typ testType -> do
                      let a = ABT.annotation tm
                          tm = DD.forceTerm a a (Term.ref a ref) in do
                          --                          v Don't cache IO tests

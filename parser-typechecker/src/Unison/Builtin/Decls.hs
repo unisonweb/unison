@@ -34,8 +34,14 @@ lookupDeclRef str
   | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ] <>
-            [ (a,b) | (a,b,_) <- builtinEffectDecls ]
+    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ]
+
+lookupEffectRef :: Text -> Reference
+lookupEffectRef str
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
+  where
+    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls @Symbol ]
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -53,7 +59,7 @@ docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
-exceptionRef = lookupDeclRef "Exception"
+exceptionRef = lookupEffectRef "Exception"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
@@ -300,11 +306,12 @@ builtinEffectDecls =
     v = Var.named
     var name = Type.var () (v name)
     arr  = Type.arrow'
+    self t = Type.cleanupAbilityLists $ Type.effect () [var "Exception"] t
     exception = DataDeclaration
       Structural
       ()
       []
-      [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` var "x"))
+      [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
       ]
 
 pattern UnitRef <- (unUnitRef -> True)
