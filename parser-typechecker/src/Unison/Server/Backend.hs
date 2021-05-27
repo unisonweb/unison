@@ -23,6 +23,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
 import qualified Text.FuzzyFind as FZF
+import U.Util.Cache (Cache, nullCache)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -85,9 +86,14 @@ import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 
 data BackendState m v = BackendState
-  { _currentRoot :: Branch m,
-    _backendCodebase :: Codebase m v Ann
+  { _backendCodebase :: Codebase m v Ann
+  , _branchCache :: Cache Branch.Hash (Branch IO)
+  , _ppeCache :: Cache (Path, Branch.Hash, Int) (Branch IO)
+  , _basicNamesCache :: Cache (Path, Branch.Hash) (Names0, Names0)
   }
+
+stateWithNoCache :: Codebase m v Ann -> BackendState m v
+stateWithNoCache c = BackendState c nullCache nullCache nullCache
 
 makeLenses ''BackendState
 
@@ -207,18 +213,25 @@ fuzzyFind path branch query =
   fzfNames   = Names.fuzzyFind (words query) printNames
   printNames = basicPrettyPrintNames0 branch path
 
+getCurrentRootBranch :: Monad m => Backend m v (Branch m)
+getCurrentRootBranch = do
+  ea <- withCodebase Codebase.getRootBranch
+  case ea of
+    Left e -> throwError $ BadRootBranch e
+    Right b -> pure b
+
 -- List the immediate children of a namespace
 findShallow
   :: (Monad m, Var v)
   => Path.Absolute
+  -> Branch m
   -> Backend m v [ShallowListEntry v Ann]
-findShallow path' = do
-  let path = Path.unabsolute path'
-  root <- view currentRoot
-  let mayb = Branch.getAt path root
-  case mayb of
-    Nothing -> pure []
-    Just b  -> findShallowInBranch b
+findShallow path' root = case mayb of
+  Nothing -> pure []
+  Just b  -> findShallowInBranch b
+ where
+  path = Path.unabsolute path'
+  mayb = Branch.getAt path root
 
 termListEntry
   :: Monad m
@@ -543,7 +556,7 @@ prettyDefinitionsBySuffixes
 prettyDefinitionsBySuffixes relativeTo requestedRoot renderWidth suffixifyBindings query
   = do
     mayBranch  <- traverse resolveBranchHash requestedRoot
-    latestRoot <- view currentRoot
+    latestRoot <- getCurrentRootBranch
     let branch = fromMaybe latestRoot mayBranch
     DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
                                                                   branch

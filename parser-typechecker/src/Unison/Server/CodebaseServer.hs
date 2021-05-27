@@ -7,9 +7,8 @@
 module Unison.Server.CodebaseServer where
 
 import Control.Applicative
-import Control.Concurrent (MVar, newEmptyMVar, putMVar, readMVar, tryPutMVar, tryTakeMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
-import Control.Error.Safe (rightMay)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens (locally, (&), (.~))
 import Data.Aeson ()
@@ -89,9 +88,6 @@ import System.Environment (getArgs, lookupEnv)
 import System.FilePath.Posix ((</>))
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
-import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Server.AppState (AppM, authHandler, provideAppState, tryAuth)
@@ -171,11 +167,10 @@ app
   => Codebase IO v Ann
   -> Maybe FilePath
   -> Strict.ByteString
-  -> MVar (Branch IO)
   -> Application
-app codebase uiPath expectedToken rootVar =
+app codebase uiPath expectedToken =
   serve serverAPI
-    $ hoistServer serverAPI (provideAppState handler codebase rootVar)
+    $ hoistServer serverAPI (provideAppState handler codebase)
     $ server uiPath expectedToken
   where
     -- This handler fails unless the expected token is empty.
@@ -218,10 +213,9 @@ ucmTokenVar = "UCM_TOKEN"
 start
   :: Var v
   => Codebase IO v Ann
-  -> MVar (Branch IO)
   -> (Strict.ByteString -> Port -> IO ())
   -> IO ()
-start codebase rootVar k = do
+start codebase k = do
   envToken <- lookupEnv ucmTokenVar
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
@@ -264,31 +258,28 @@ start codebase rootVar k = do
       getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
   case mayOpts of
     Just (_, token, host, port, ui) ->
-      startServer codebase rootVar k token host port ui
-    Nothing -> startServer codebase rootVar k Nothing Nothing Nothing Nothing
+      startServer codebase k token host port ui
+    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
 
 startServer
   :: Var v
   => Codebase IO v Ann
-  -> MVar (Branch IO)
   -> (Strict.ByteString -> Port -> IO ())
   -> Maybe String
   -> Maybe String
   -> Maybe Port
   -> Maybe String
   -> IO ()
-startServer codebase rootVar k envToken envHost envPort envUI = do
+startServer codebase k envToken envHost envPort envUI = do
   token <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  void $ tryTakeMVar rootVar *> tryPutMVar rootVar root
   let settings = appEndo
         (  foldMap (Endo . setPort)              envPort
         <> foldMap (Endo . setHost . fromString) envHost
         )
         defaultSettings
-      a = app codebase envUI token rootVar
+      a = app codebase envUI token
   case envPort of
     Nothing -> withApplicationSettings settings (pure a) (k token)
     Just p  -> do

@@ -6,6 +6,7 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
+import U.Util.Timing
 import qualified Data.Text as Text
 import Servant
   ( Get,
@@ -108,12 +109,12 @@ serveDefinitions
   -> Maybe Width
   -> Maybe Suffixify
   -> AppM v DefinitionDisplayResults
-serveDefinitions mayRoot relativePath hqns width suff = do
-  tryAuth
+serveDefinitions mayRoot relativePath hqns width suff = time "serveDefinitions" $ do
+  time "authenticating" tryAuth
   rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
   doBackend $ do
-    root <- traverse (Backend.expandShortBranchHash) mayRoot
-    Backend.prettyDefinitionsBySuffixes rel
+    root <- traverse (time "expandShortBranchHash" . Backend.expandShortBranchHash) mayRoot
+    time "prettyDefinitions" $ Backend.prettyDefinitionsBySuffixes rel
                                         root
                                         width
                                         (fromMaybe (Suffixify True) suff)

@@ -147,7 +147,7 @@ serveFuzzyFind mayRoot relativePath limit typeWidth query = do
     mayBranch  <- traverse
       (Backend.expandShortBranchHash >=> Backend.resolveBranchHash)
       mayRoot
-    root <- view Backend.currentRoot
+    root <- Backend.getCurrentRootBranch
     let branch = fromMaybe root mayBranch
         b0     = Branch.head branch
         alignments =

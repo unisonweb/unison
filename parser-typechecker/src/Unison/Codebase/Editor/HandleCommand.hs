@@ -178,10 +178,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetDefinitionsBySuffixes mayPath branch query ->
       lift . runReaderT (runExceptT $
         Backend.definitionsBySuffixes mayPath branch query) $
-          Backend.BackendState branch codebase
+          Backend.stateWithNoCache codebase
     FindShallow path branch ->
-      lift . runReaderT (runExceptT $ Backend.findShallow path) $
-        Backend.BackendState branch codebase
+      lift . runReaderT (runExceptT $ Backend.findShallow path branch) $
+        Backend.stateWithNoCache codebase
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase UF.RegularWatch h

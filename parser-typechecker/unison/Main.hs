@@ -14,7 +14,7 @@ import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Posix.Signals as Sig
 #endif
 
-import Control.Concurrent (MVar, mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
+import Control.Concurrent (mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
@@ -31,7 +31,6 @@ import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
@@ -157,7 +156,6 @@ main = do
   config <-
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
-  rootVar <- newEmptyMVar
   case restargs of
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
@@ -175,7 +173,7 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config rootVar theCodebase
+          launch currentDir config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "run.pipe" : [mainName] -> do
@@ -185,7 +183,7 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch currentDir config rootVar theCodebase
+          launch currentDir config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "transcript" : args' ->
@@ -200,7 +198,7 @@ main = do
     args -> do
       let headless = listToMaybe args == Just "headless"
       (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
-      Server.start theCodebase rootVar $ \token port -> do
+      Server.start theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
         PT.putPrettyLn $ P.lines
@@ -213,7 +211,7 @@ main = do
           takeMVar mvar
         else do
           PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
-          launch currentDir config rootVar theCodebase []
+          launch currentDir config theCodebase []
           closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
@@ -319,19 +317,18 @@ runTranscripts cbInit inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-launch
-  :: FilePath
-  -> (Config, IO ())
-  -> MVar (Branch IO)
-  -> _
-  -> [Either Input.Event Input.Input]
-  -> IO ()
-launch dir config rootVar code inputs =
-  CommandLine.main dir
+launch ::
+  FilePath ->
+  (Config, IO ()) ->
+  _ ->
+  [Either Input.Event Input.Input] ->
+  IO ()
+launch dir config code inputs =
+  CommandLine.main
+    dir
     defaultBaseLib
     initialPath
     config
-    rootVar
     inputs
     code
     Version.gitDescribe

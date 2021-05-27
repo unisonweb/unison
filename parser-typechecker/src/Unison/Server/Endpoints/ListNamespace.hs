@@ -40,13 +40,14 @@ import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Server.AppState (AppM, codebase, doBackend, getRootBranch, tryAuth)
+import Unison.Server.AppState (AppM, codebase, doBackend, tryAuth)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
   ( badHQN,
     badNamespace,
     errFromEither,
     errFromMaybe,
+    rootBranchError,
   )
 import Unison.Server.Types
   ( HashQualifiedName,
@@ -153,25 +154,23 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
 
-serveNamespace
-  :: Var v
-  => Maybe HashQualifiedName
-  -> AppM v NamespaceListing
+serveNamespace :: Var v => Maybe HashQualifiedName -> AppM v NamespaceListing
 serveNamespace mayHQN = tryAuth *> case mayHQN of
   Nothing  -> serveNamespace $ Just "."
   Just hqn -> do
     parsedName <- parseHQN hqn
-    cb <- view codebase
+    cb         <- view codebase
     hashLength <- liftIO $ Codebase.hashLength cb
     case parsedName of
       HQ.NameOnly n -> do
         path' <- parsePath $ Name.toString n
-        root  <- getRootBranch
+        er <- liftIO $ Codebase.getRootBranch cb
+        root <- either (throwError . rootBranchError) pure er
         let
           p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
           ppe =
             Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
-        entries <- findShallow p
+        entries <- findShallow p root
         processEntries
           ppe
           (Just $ Name.toText n)
@@ -193,7 +192,7 @@ serveNamespace mayHQN = tryAuth *> case mayHQN of
  where
   parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  findShallow p = doBackend $ Backend.findShallow p
+  findShallow p r = doBackend $ Backend.findShallow p r
   processEntries ppe name hash entries =
     pure . NamespaceListing name hash $ fmap
       (backendListEntryToNamespaceObject ppe Nothing)
