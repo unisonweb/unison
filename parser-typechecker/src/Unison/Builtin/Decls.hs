@@ -4,6 +4,7 @@
 
 module Unison.Builtin.Decls where
 
+import Control.Lens (_3,over)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
@@ -30,10 +31,17 @@ import qualified Unison.Var as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
-  | [(_, d, _)] <- filter (\(v, _, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = builtinDataDecls @Symbol
+    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ]
+
+lookupEffectRef :: Text -> Reference
+lookupEffectRef str
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
+  where
+    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls @Symbol ]
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -41,7 +49,7 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
 isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
@@ -51,6 +59,7 @@ docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
+exceptionRef = lookupEffectRef "Exception"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
@@ -288,8 +297,22 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration v ())]
-builtinEffectDecls = []
+builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
+builtinEffectDecls =
+  case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
+    Right a -> over _3 DD.EffectDeclaration <$> a
+    Left e -> error $ "builtinEffectDecls: " <> show e
+  where
+    v = Var.named
+    var name = Type.var () (v name)
+    arr  = Type.arrow'
+    self t = Type.cleanupAbilityLists $ Type.effect () [var "Exception"] t
+    exception = DataDeclaration
+      Structural
+      ()
+      []
+      [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+      ]
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
@@ -338,7 +361,7 @@ pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
   eitherType, ioErrorType, fileModeType, filePathType, bufferModeType, seekModeType,
-  stdHandleType, failureType
+  stdHandleType, failureType, exceptionType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
@@ -352,6 +375,7 @@ bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
+exceptionType a = Type.ref a exceptionRef
 
 tlsSignedCertType :: Var v => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef
