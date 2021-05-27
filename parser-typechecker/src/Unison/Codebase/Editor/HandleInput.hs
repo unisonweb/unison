@@ -1610,6 +1610,7 @@ loop = do
             Right _ -> pure () -- TODO
 
       IOTestI main -> do
+        -- todo - allow this to run tests from scratch file, using addRunMain
         testType <- eval RuntimeTest
         parseNames0 <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0A
         ppe <- prettyPrintEnv parseNames0
@@ -1642,8 +1643,8 @@ loop = do
                            Left e -> respond (EvaluationFailure e)
                            Right tm' ->
                                respond $ TestResults Output.NewlyComputed ppe True True (oks [(ref, tm')]) (fails [(ref, tm')])
-                   _ -> respond $ NoMainFunction "main" ppe [testType]
-               _ -> respond $ NoMainFunction "main" ppe [testType]
+                   _ -> respond $ NoMainFunction (HQ.toString main) ppe [testType]
+               _ -> respond $ NoMainFunction (HQ.toString main) ppe [testType]
 
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
