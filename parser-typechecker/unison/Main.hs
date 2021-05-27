@@ -201,8 +201,9 @@ main = do
       Server.start theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
-        PT.putPrettyLn $ P.lines
-          ["I've started the codebase API server at" , P.string $ url <> "/api"]
+        when headless $
+          PT.putPrettyLn $ P.lines
+            ["I've started the codebase API server at" , P.string $ url <> "/api"]
         PT.putPrettyLn $ P.lines
           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         if headless then do
