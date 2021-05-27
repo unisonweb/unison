@@ -4,6 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 
+{-# LANGUAGE TypeOperators #-}
 module Unison.Codebase.Branch
   ( -- * Branch types
     Branch(..)
@@ -57,7 +58,7 @@ module Unison.Codebase.Branch
   , setChildBranch
   , stepManyAt
   , stepManyAt0
-  , stepManyAtM
+  , stepManyAtM'
   , modifyAtM
   , modifyAt
 
@@ -161,6 +162,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.HashQualified (HashQualified)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import Control.Natural (type (~>))
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -707,8 +709,8 @@ stepAt p f = modifyAt p g where
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
 stepManyAt :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
-stepManyAt actions = step (stepManyAt0 actions)
+           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> m (Branch m)
+stepManyAt actions = stepM (stepManyAt0 actions)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
@@ -720,9 +722,13 @@ stepAtM p f = modifyAtM p g where
     b0' <- f (Causal.head b)
     pure $ Branch . Causal.consDistinct b0' $ b
 
-stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepManyAtM actions = stepM (stepManyAt0M actions)
+-- stepManyAtM :: (Monad m, Monad n, Foldable f)
+--             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+-- stepManyAtM actions = stepM (stepManyAt0M actions)
+
+stepManyAtM' :: (Monad m, Monad n, Foldable f)
+            => (m ~> n) -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepManyAtM' t actions = stepM (join . fmap t . stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -803,37 +809,69 @@ modifyAtM path f b = case Path.uncons path of
 -- stepManyAt0 consolidates several changes into a single step
 stepManyAt0 :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
-           -> Branch0 m -> Branch0 m
+           -> Branch0 m -> m (Branch0 m)
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
+-- stepManyAt0M consolidates several changes into a single step
 stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
              => f (Path, Branch0 m -> n (Branch0 m))
-             -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = go (toList actions) b where
-  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
-  go actions b = let
-    -- combines the functions that apply to this level of the tree
-    currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
+             -> Branch0 m -> n (m (Branch0 m))
+stepManyAt0M actions _b | trace ("Branch.stepManyAt0M " ++ show (fst <$> toList actions)) False = undefined
+stepManyAt0M actions b = do
+  b' <- foldM (\b (p, f) -> stepAt0M p f b) b actions
+  pure $ traverseOf children squash b'
+  where
+    squash :: Map NameSegment (Branch m) -> m (Map NameSegment (Branch m))
+    squash new =
+      let old = b ^. children in
+      Map.mergeA
+        (Map.traverseMissing (const squashMissing))
+        (Map.traverseMissing (const squashMissing))
+        (Map.zipWithAMatched (const $ merge' SquashMerge))
+        old new
+    squashMissing :: forall m. Monad m => Branch m -> m (Branch m)
+    squashMissing = merge' SquashMerge empty
+    stepAt0M :: forall n m. (Functor n, Applicative m)
+         => Path
+         -> (Branch0 m -> n (Branch0 m))
+         -> Branch0 m -> n (Branch0 m)
+    stepAt0M p f b = case Path.uncons p of
+      Nothing -> f b
+      Just (seg, path) -> do
+        let child = getChildBranch seg b
+        child0' <- stepAt0M path f (head child)
+        pure $ setChildBranch seg (cons child0' child) b
 
-    -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
-    childActions =
-      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+-- stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
+--              => f (Path, Branch0 m -> n (Branch0 m))
+--              -> Branch0 m -> n (Branch0 m)
+-- stepManyAt0M actions _b | trace ("Branch.stepManyAt0M " ++ show (fst <$> toList actions)) False = undefined
+-- stepManyAt0M actions b = traceShowId <$> go (toList actions) b where
+--   go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+--   go actions b | trace ("stepManyAt0M.go " ++ show (fst <$> actions) ++ " " ++ show b) False = undefined
+--   go actions b = let
+--     -- combines the functions that apply to this level of the tree
+--     currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
-    -- alters the children of `b` based on the `childActions` map
-    stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
-    stepChildren children0 = foldM g children0 $ Map.toList childActions
-      where
-      g children (seg, actions) = do
-        -- Recursively applies the relevant actions to the child branch
-        -- The `findWithDefault` is important - it allows the stepManyAt
-        -- to create new children at paths that don't previously exist.
-        child <- stepM (go actions) (Map.findWithDefault empty seg children0)
-        pure $ updateChildren seg child children
-    in do
-      c2 <- stepChildren (view children b)
-      currentAction (set children c2 b)
+--     -- groups the actions based on the child they apply to
+--     childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
+--     childActions =
+--       List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+
+--     -- alters the children of `b` based on the `childActions` map
+--     stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
+--     stepChildren children0 = foldM g children0 $ Map.toList childActions
+--       where
+--       g children (seg, actions) = do
+--         -- Recursively applies the relevant actions to the child branch
+--         -- The `findWithDefault` is important - it allows the stepManyAt
+--         -- to create new children at paths that don't previously exist.
+--         child <- stepM (go actions) (Map.findWithDefault empty seg children0)
+--         pure $ updateChildren seg child children
+--     in do
+--       c2 <- stepChildren (view children b)
+--       currentAction (set children c2 b)
 
 instance Hashable (Branch0 m) where
   tokens b =
