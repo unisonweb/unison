@@ -87,9 +87,10 @@ import Servant.Server
     err404,
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
-import System.Directory (doesFileExist)
-import System.Environment (getArgs, lookupEnv)
-import System.FilePath.Posix ((</>))
+import System.Directory (doesFileExist, canonicalizePath)
+import System.Environment (getArgs, lookupEnv, getExecutablePath)
+import System.FilePath ((</>))
+import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Text.Read (readMaybe)
 import Unison.Codebase (Codebase)
@@ -165,7 +166,7 @@ serverAPI = Proxy
 app
   :: Var v
   => Codebase IO v Ann
-  -> Maybe FilePath
+  -> FilePath
   -> Strict.ByteString
   -> Application
 app codebase uiPath expectedToken =
@@ -263,7 +264,10 @@ startServer
   -> Maybe Port
   -> Maybe String
   -> IO ()
-startServer codebase k envToken envHost envPort envUI = do
+startServer codebase k envToken envHost envPort envUI0 = do
+  -- the `canonicalizePath` resolves symlinks
+  exePath <- canonicalizePath =<< getExecutablePath
+  envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") envUI0
   token <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
@@ -301,19 +305,17 @@ serveIndex path = do
       <> " environment variable to the directory where the UI is installed."
     }
 
-serveUI :: Handler () -> Maybe FilePath -> Server WebUI
-serveUI tryAuth p _ =
-  let path = fromMaybe "ui" p
-  in  tryAuth *> serveIndex path
+serveUI :: Handler () -> FilePath -> Server WebUI
+serveUI tryAuth path _ = tryAuth *> serveIndex path
 
 server
   :: Var v
   => Codebase IO v Ann
-  -> Maybe FilePath
+  -> FilePath
   -> Strict.ByteString
   -> Server AuthedServerAPI
 server codebase uiPath token =
-  serveDirectoryWebApp (fromMaybe "ui" uiPath </> "static")
+  serveDirectoryWebApp (uiPath </> "static")
     :<|> ((\t ->
             serveUI (tryAuth t) uiPath
               :<|> (    (    (serveNamespace (tryAuth t) codebase)
