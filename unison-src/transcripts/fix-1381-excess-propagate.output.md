@@ -35,13 +35,13 @@ As of the time of this writing, the history for `X` should be a single node, `#4
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #4eeuo5bsfr
+  ⊙ #hughlr8cbt
   
     + Adds / updates:
     
       foo
   
-  □ #7asfbtqmoj (start of history)
+  □ #sjg2v58vn2 (start of history)
 
 ```
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
