@@ -325,7 +325,6 @@ executable tests
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
-      Unison.Test.Git
       Unison.Test.GitSync
       Unison.Test.Lexer
       Unison.Test.MCode

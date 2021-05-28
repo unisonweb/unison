@@ -72,16 +72,12 @@ abilityNamedId s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-eitherReference, optionReference, isTestReference, isPropagatedReference, failureReference, tlsFailureReference, ioFailureReference
+eitherReference, optionReference, isTestReference, isPropagatedReference
   :: R.Reference
 eitherReference = typeNamed "Either"
 optionReference = typeNamed "Optional"
 isTestReference = typeNamed "IsTest"
 isPropagatedReference = typeNamed "IsPropagated"
-
-failureReference = typeNamed "io2.Failure"
-tlsFailureReference = typeNamed "io2.TlsFailure"
-ioFailureReference = typeNamed "io2.IOFailure"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "metadata.isTest")
