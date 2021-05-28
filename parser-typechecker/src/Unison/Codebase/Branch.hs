@@ -840,6 +840,7 @@ instance Hashable (Branch0 m) where
     [ H.accumulateToken (_terms b)
     , H.accumulateToken (_types b)
     , H.accumulateToken (headHash <$> _children b)
+    , H.accumulateToken (fst <$> _edits b)
     ]
 
 -- getLocalBranch :: Hash -> IO Branch
