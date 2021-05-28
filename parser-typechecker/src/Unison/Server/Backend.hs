@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
 import qualified Text.FuzzyFind as FZF
 import U.Util.Cache (Cache, nullCache)
+import qualified U.Util.Cache as Cache
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -122,6 +123,18 @@ data BackendError
 
 type Backend m v a = ExceptT BackendError (ReaderT (BackendState m v) m) a
 
+-- Caches names in the application state
+basicNames0 :: MonadIO m => Branch m -> Path -> Backend m v (Names0, Names0)
+basicNames0 root path = do
+  cache <- view basicNamesCache
+  mayNames <- Cache.lookup cache (path, Branch.headHash root)
+  case mayNames of
+    Nothing -> do
+      let p = basicNames0' root path
+      Cache.insert cache (path, Branch.headHash root) p
+      pure p
+    Just (p, q) -> pure (p, q)
+
 -- implementation detail of basicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Branch m -> Path -> (Names0, Names0)
 basicNames0' root path = (parseNames00, prettyPrintNames00)
@@ -148,16 +161,17 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
     -- pretty-printing should use local names where available
     prettyPrintNames00 = currentAndExternalNames0
 
-basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength root path =
-  let names0 = basicPrettyPrintNames0 root path
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
+suffixifiedNames
+  :: MonadIO m => Int -> Branch m -> Path -> Backend m v PPE.PrettyPrintEnv
+suffixifiedNames hashLength root path = do
+  names0 <- prettyPrintNames root path
+  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
 
-basicPrettyPrintNames0 :: Branch m -> Path -> Names0
-basicPrettyPrintNames0 root = snd . basicNames0' root
+prettyPrintNames :: MonadIO m => Branch m -> Path -> Backend m v Names0
+prettyPrintNames root = (snd <$>) . basicNames0 root
 
-basicParseNames0 :: Branch m -> Path -> Names0
-basicParseNames0 root = fst . basicNames0' root
+parseNames :: MonadIO m => Branch m -> Path -> Backend m v Names0
+parseNames root = (fst <$>) . basicNames0 root
 
 loadReferentType ::
   (Applicative m, Var v) =>
@@ -200,18 +214,18 @@ data FoundRef = FoundTermRef Referent
   deriving (Eq, Ord, Show, Generic)
 
 fuzzyFind
-  :: Monad m
+  :: MonadIO m
   => Path
   -> Branch m
   -> String
-  -> [(FZF.Alignment, UnisonName, [FoundRef])]
-fuzzyFind path branch query =
-  fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+  -> Backend m v [(FZF.Alignment, UnisonName, [FoundRef])]
+fuzzyFind path branch query = do
+  printNames <- prettyPrintNames branch path
+  let fzfNames = Names.fuzzyFind (words query) printNames
+  pure
+    $   fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
     .   (over _2 Name.toText)
     <$> fzfNames
- where
-  fzfNames   = Names.fuzzyFind (words query) printNames
-  printNames = basicPrettyPrintNames0 branch path
 
 getCurrentRootBranch :: Monad m => Backend m v (Branch m)
 getCurrentRootBranch = do
@@ -355,12 +369,15 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames0 :: Path -> Names0
 -- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
 
-getCurrentPrettyNames :: Path -> Branch m -> Names
-getCurrentPrettyNames path root =
-  Names (basicPrettyPrintNames0 root path) mempty
+getCurrentPrettyNames :: MonadIO m => Path -> Branch m -> Backend m v Names
+getCurrentPrettyNames path root = do
+  names <- prettyPrintNames root path
+  pure $ Names names mempty
 
-getCurrentParseNames :: Path -> Branch m -> Names
-getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+getCurrentParseNames :: MonadIO m => Path -> Branch m -> Backend m v Names
+getCurrentParseNames path root = do
+  names <- parseNames root path
+  pure $ Names names mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -421,31 +438,30 @@ searchBranchExact len names queries =
     [ searchTypes q <> searchTerms q | q <- queries ]
 
 hqNameQuery'
-  :: Monad m
+  :: MonadIO m
   => Bool
   -> Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+  -> Backend m v QueryResult
+hqNameQuery' doSuffixify relativeTo root hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
   -- Find the terms with those hashes.
   termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (termReferentsByShortHash codebase)
+    (withCodebase . flip termReferentsByShortHash)
     (catMaybes (HQ.toHash <$> hashes))
   -- Find types with those hashes.
   typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (typeReferencesByShortHash codebase)
+    (withCodebase . flip typeReferencesByShortHash)
     (catMaybes (HQ.toHash <$> hashes))
   -- Now do the name queries.
   -- The hq-name search needs a hash-qualifier length
-  hqLength <- Codebase.hashLength codebase
+  hqLength <- withCodebase Codebase.hashLength
   -- We need to construct the names that we want to use / search by.
   let currentPath = fromMaybe Path.empty relativeTo
-      parseNames0 = getCurrentParseNames currentPath root
-      mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
+  parseNames0 <- getCurrentParseNames currentPath root
+  let mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
       mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
       -- Transform the hash results a bit
       termResults =
@@ -473,21 +489,19 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
   pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
 
 hqNameQuery
-  :: Monad m
+  :: MonadIO m
   => Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
+  -> Backend m v QueryResult
 hqNameQuery = hqNameQuery' False
 
 hqNameQuerySuffixify
-  :: Monad m
+  :: MonadIO m
   => Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
+  -> Backend m v QueryResult
 hqNameQuerySuffixify = hqNameQuery' True
 
 -- TODO: Move this to its own module
@@ -545,7 +559,7 @@ mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
   :: forall v m
-   . Monad m
+   . MonadIO m
   => Var v
   => Maybe Path
   -> Maybe Branch.Hash
@@ -565,11 +579,11 @@ prettyDefinitionsBySuffixes relativeTo requestedRoot renderWidth suffixifyBindin
     -- We might like to make sure that the user search terms get used as
     -- the names in the pretty-printer, but the current implementation
     -- doesn't.
+    printNames <-
+      getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+    parseNames <-
+      getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
     let
-      printNames =
-        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
-      parseNames =
-        getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
       width = mayDefault renderWidth
       termFqns :: Map Reference (Set Text)
@@ -652,7 +666,7 @@ resolveBranchHash h = do
 
 definitionsBySuffixes
   :: forall m v
-   . Monad m
+   . MonadIO m
   => Var v
   => Maybe Path
   -> Branch m
@@ -660,8 +674,7 @@ definitionsBySuffixes
   -> Backend m v (DefinitionResults v)
 definitionsBySuffixes relativeTo branch query = do
   -- First find the hashes by name and note any query misses.
-  QueryResult misses results <- withCodebase
-    $ \c -> hqNameQuerySuffixify relativeTo branch c query
+  QueryResult misses results <- hqNameQuerySuffixify relativeTo branch query
   -- Now load the terms/types for those hashes.
   results' <- withCodebase $ flip loadSearchResults results
   let termTypes :: Map.Map Reference (Type v Ann)

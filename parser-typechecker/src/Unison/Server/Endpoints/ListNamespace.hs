@@ -166,10 +166,8 @@ serveNamespace mayHQN = tryAuth *> case mayHQN of
         path' <- parsePath $ Name.toString n
         er <- liftIO $ Codebase.getRootBranch cb
         root <- either (throwError . rootBranchError) pure er
-        let
-          p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-          ppe =
-            Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
+        ppe <- doBackend . Backend.suffixifiedNames hashLength root $ Path.fromPath' path'
+        let p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
         entries <- findShallow p root
         processEntries
           ppe
@@ -185,8 +183,8 @@ serveNamespace mayHQN = tryAuth *> case mayHQN of
           hash    <- Backend.expandShortBranchHash h
           branch  <- Backend.resolveBranchHash hash
           entries <- Backend.findShallowInBranch branch
-          let ppe = Backend.basicSuffixifiedNames hashLength branch mempty
-              sbh = Text.pack . show $ SBH.fullFromHash hash
+          ppe <- Backend.suffixifiedNames hashLength branch mempty
+          let sbh = Text.pack . show $ SBH.fullFromHash hash
           processEntries ppe Nothing sbh entries
       HQ.HashQualified _ _ -> hashQualifiedNotSupported
  where

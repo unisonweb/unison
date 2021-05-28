@@ -15,6 +15,10 @@ import Unison.Codebase.Editor.Command
 import qualified Unison.Builtin                as B
 
 import qualified Unison.Server.Backend         as Backend
+import           Unison.Server.Backend          ( Backend
+                                                , BackendError
+                                                , BackendState
+                                                )
 import qualified Crypto.Random                 as Random
 import           Control.Monad.Except           ( runExceptT )
 import           Control.Monad.Reader           ( runReaderT )
@@ -84,17 +88,22 @@ commandLine
   -> (Output v -> IO ())
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
-  -> Codebase IO v Ann
+  -> BackendState IO v
   -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
- flip State.evalStateT 0 . Free.fold go
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered
+            loadSource backendState rngGen
+  = flip State.evalStateT 0 . Free.fold go
  where
+  codebase = Backend._backendCodebase backendState
+  runBackend :: forall x. Backend IO v x -> State.StateT Int IO (Either BackendError x)
+  runBackend m = lift $ runReaderT (runExceptT m) backendState
   go :: forall x . Command IO i v x -> State.StateT Int IO x
   go x = case x of
+    BackendOp m   -> runBackend m
+    Eval m        -> lift m
     -- Wait until we get either user input or a unison file update
-    Eval m        -> lift $ m
     Input         -> lift $ awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output
@@ -173,15 +182,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
     HQNameQuery mayPath branch query ->
-      lift $ Backend.hqNameQuery mayPath branch codebase query
+      runBackend $ Backend.hqNameQuery mayPath branch query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
     GetDefinitionsBySuffixes mayPath branch query ->
-      lift . runReaderT (runExceptT $
-        Backend.definitionsBySuffixes mayPath branch query) $
-          Backend.stateWithNoCache codebase
+      runBackend $ Backend.definitionsBySuffixes mayPath branch query
     FindShallow path branch ->
-      lift . runReaderT (runExceptT $ Backend.findShallow path branch) $
-        Backend.stateWithNoCache codebase
+      runBackend $ Backend.findShallow path branch
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase UF.RegularWatch h

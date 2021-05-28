@@ -150,11 +150,11 @@ serveFuzzyFind mayRoot relativePath limit typeWidth query = do
     root <- Backend.getCurrentRootBranch
     let branch = fromMaybe root mayBranch
         b0     = Branch.head branch
-        alignments =
+    ppe <- Backend.suffixifiedNames hashLength branch rel
+    alignments <-
           take (fromMaybe 10 limit)
             . sortBy (compare `on` (Down . FZF.score . (view _1)))
-            $ Backend.fuzzyFind rel branch (fromMaybe "" query)
-        ppe = Backend.basicSuffixifiedNames hashLength branch rel
+            <$> Backend.fuzzyFind rel branch (fromMaybe "" query)
     join
       <$> traverse (loadEntry (Just $ Branch.headHash branch) (Just rel) ppe b0)
                    alignments
