@@ -82,11 +82,12 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
-debugQuery, debugThread, debugConnection, debugFile :: Bool
+debugQuery, debugThread, debugConnection, debugFile, debugPragmaOptimize :: Bool
 debugQuery = False
 debugThread = False
 debugConnection = False
 debugFile = False
+debugPragmaOptimize = False
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -135,6 +136,16 @@ setFlags = do
       x ->
         liftIO . putStrLn $
           "I couldn't set the codebase journal mode to WAL; it's set to " ++ show x ++ "."
+
+shutdown :: DB m => m ()
+shutdown = do
+  when debugPragmaOptimize do
+    traceM "--- pragma optimize(-1) ---"
+    traceM =<<
+        (SQLite.fromOnly @String . head) <$>
+        (query_ "pragma optimize(0xffff)")
+  execute_ "pragma optimize"
+
 {- ORMOLU_DISABLE -}
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms sql () >>= \case
