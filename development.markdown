@@ -8,9 +8,13 @@ _Disclaimer_ If you have trouble getting started, please get in touch via [Slack
 
 To get cracking with Unison:
 
-* [Install `stack`](https://docs.haskellstack.org/en/stable/README/#how-to-install).
-* Build the project with `stack build`. This builds all executables.
-* After building, `stack exec unison` will fire up the codebase editor, create a codebase in the current directory, and watch for `.u` file changes.  If you want to run it in a different directory, just add `unison` to your `PATH`, after finding it with `find .stack-work -name unison -type f`.  (For me, this finds two, they both work, but have different contents.  ¯\\\_(ツ)\_/¯ )
+1. [Install `stack`](https://docs.haskellstack.org/en/stable/README/#how-to-install).
+2. Build the project with `stack build`. This builds all executables.
+3. (Optional) Run `./dev-ui-install.hs` to fetch the latest release of the codebase UI. If you don't care about running the codebase UI locally you can ignore this step.
+4. After building do `stack exec unison -- init` will initialize a codebase in your home directory (in `~/.unison`). This only needs to be done once.
+5. `stack exec unison` starts Unison and watches for `.u` file changes in the current directory. If you want to run it in a different directory, just add `unison` to your `PATH`, after finding it with `stack exec which unison`.
+
+On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
 ## Running Tests
 
