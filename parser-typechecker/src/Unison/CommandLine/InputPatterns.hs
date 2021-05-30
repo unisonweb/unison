@@ -1570,7 +1570,7 @@ inputStringFromInput = \case
   Input.PushRemoteBranchI rh p' _ ->
     (P.string . I.patternName $ pull)
       <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
-      <> (if null $ show p' then "" else " " <> P.shown p')
+      <> (if Path.isCurrentPath p' then "" else " " <> P.shown p')
   i@(Input.PullRemoteBranchI ns p' _) ->
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
