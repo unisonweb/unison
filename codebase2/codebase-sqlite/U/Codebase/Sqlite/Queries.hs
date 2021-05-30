@@ -27,6 +27,7 @@ import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Monad.Writer as Writer
 import Data.ByteString (ByteString)
+import qualified Data.Char as Char
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Int (Int8)
@@ -62,6 +63,8 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
+import U.Codebase.Sqlite.JournalMode (JournalMode)
+import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -123,18 +126,22 @@ createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
 
-useWAL :: Bool
-useWAL = True
+setJournalMode :: DB m => JournalMode -> m ()
+setJournalMode m =
+  let s = Char.toLower <$> show m
+  in map (fromOnly @String)
+    <$> query_ (fromString $ "PRAGMA journal_mode = " ++ s) >>= \case
+      [y] | y == s -> pure ()
+      y ->
+        liftIO . putStrLn $
+          "I couldn't set the codebase journal mode to " ++ s ++
+          "; it's set to " ++ show y ++ "."
 
 setFlags :: DB m => m ()
 setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
-  when useWAL $
-    query_ "PRAGMA journal_mode=WAL;" >>= \case
-      [Only ("wal" :: String)] -> pure ()
-      x ->
-        liftIO . putStrLn $
-          "I couldn't set the codebase journal mode to WAL; it's set to " ++ show x ++ "."
+  setJournalMode JournalMode.WAL
+
 {- ORMOLU_DISABLE -}
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms sql () >>= \case
