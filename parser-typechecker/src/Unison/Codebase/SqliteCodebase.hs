@@ -44,6 +44,7 @@ import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -1055,6 +1056,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
           Just True -> do
             setRepoRoot newRootHash
             Q.release "push"
+
+    Q.setJournalMode JournalMode.DELETE
 
   liftIO do
     Sqlite.close destConn
