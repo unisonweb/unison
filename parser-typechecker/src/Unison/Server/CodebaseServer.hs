@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,26 +8,20 @@
 
 module Unison.Server.CodebaseServer where
 
-import Control.Applicative
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens ((&), (.~))
-import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.UTF8 as BLU
-import Data.Foldable (Foldable (toList))
-import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo (..), appEndo)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import qualified Data.OpenApi.Lens as OpenApi
 import Data.Proxy (Proxy (..))
-import Data.String (fromString)
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
@@ -58,9 +54,7 @@ import Options.Applicative
     strOption,
   )
 import Servant
-  ( Header,
-    MimeRender (..),
-    addHeader,
+  ( MimeRender (..),
     serve,
     throwError,
   )
@@ -69,13 +63,18 @@ import Servant.API
     Capture,
     CaptureAll,
     Get,
-    Headers,
     JSON,
     Raw,
     (:>),
     type (:<|>) (..),
   )
-import Servant.Docs (DocIntro (DocIntro), docsWithIntros, markdown)
+import Servant.Docs
+  ( DocIntro (DocIntro),
+    ToSample (..),
+    docsWithIntros,
+    markdown,
+    singleSample,
+  )
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
@@ -87,14 +86,14 @@ import Servant.Server
     err404,
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
-import System.Directory (doesFileExist, canonicalizePath)
-import System.Environment (getArgs, lookupEnv, getExecutablePath)
+import System.Directory (canonicalizePath, doesFileExist)
+import System.Environment (getArgs, getExecutablePath, lookupEnv)
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
-import Text.Read (readMaybe)
 import Unison.Codebase (Codebase)
 import Unison.Parser (Ann)
+import Unison.Prelude
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -115,8 +114,7 @@ instance Accept HTML where
 instance MimeRender HTML RawHtml where
   mimeRender _ = unRaw
 
-type OpenApiJSON = "openapi.json"
-  :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
+type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
@@ -127,6 +125,9 @@ type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
 
 type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI)
+
+instance ToSample Char where
+  toSamples _ = singleSample 'x'
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -322,12 +323,12 @@ server codebase uiPath token =
                         :<|> (serveDefinitions (tryAuth t) codebase)
                         :<|> (serveFuzzyFind (tryAuth t) codebase)
                         )
-                   :<|> addHeader "*"
-                   <$>  serveOpenAPI
+                   :<|> serveOpenAPI
                    :<|> Tagged serveDocs
                    )
           )
          )
+
  where
   serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
   serveOpenAPI = pure openAPI
