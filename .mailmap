@@ -1,0 +1,75 @@
+# Name <email>                  :use Name when <email>
+# Name1 <email1> <email2>       :use Name1 <email1> when <email2>
+# <email1> <email2>             :use <email1> when <email2> but doesn't or affect name or stack with previous
+# Name1 <email1> Name2          :use Name1 <email1> when Name2 <email1>
+# Name1 <email1> Name2 <email2> :use Name1 <email1> when Name2 <email2>
+# <anything else>               :no-op
+
+0xflotus <0xflotus@gmail.com>
+Aaron Novstrup <aaron.novstrup@gmail.com> <anovstrup@stottlerhenke.com>
+Alex Zolotko <azolotko@gmail.com>
+Alvaro Carrasco <simplepic@gmail.com>
+Andre Popovitch <andre@popovit.ch>
+Arya Irani <arya.irani@gmail.com> <refried@users.noreply.github.com>
+Arya Irani <arya.irani@gmail.com> <538571+aryairani@users.noreply.github.com>
+Aycan Irican <iricanaycan@gmail.com>
+Ben Fradet <benjamin.fradet@gmail.com>
+Billy Kaplan <billy1kaplan@gmail.com>
+Chris Gibbs <atacratic@users.noreply.github.com>
+Cody Allen <ceedubs@gmail.com>
+Dan Doel <dan.doel@gmail.com>
+Daniël Heres <danielheres@gmail.com>
+Dave Nicponski <dave.nicponski@gmail.com>
+Evan Burchard <evan.burchard@gmail.com>
+exw <ewu120@protonmail.com>
+Francis De Brabandere <francisdb@gmail.com>
+Gabriel Volpe <volpegabriel@gmail.com>
+George Marrows <george.marrows@gmail.com>
+Hakim Cassimally <hakim.cassimally@gmail.com>
+Hans Schuster <johannes.huster@web.de>
+Hardy Jones <jones3.hardy@gmail.com>
+Ian Davidson <bontaq@gmail.com>
+Ian Davidson <bontaq@gmail.com> <ian.davidson@onepeloton.com>
+Ian Denhardt <ian@zenhack.net>
+Ian Grant Jeffries <mail@ianjeffries.net> <ian@housejeffries.com>
+Ilan Godik <ilan3580@gmail.com>
+James Sully <sullyj3@gmail.com>
+Jan Hrček <honza.hrk@gmail.com>
+Jared Forsyth <jared@jaredforsyth.com>
+John Ericson <Ericson2314@Yahoo.com> <john.ericson@delphix.com>
+Jonas De Vuyst <jdv@foobar.be>
+Joseph Thomas <jsthomas@protonmail.com>
+Josh Cough <jcough@localytics.com>
+Ludvig Sundstrom <ludvig.sundstroem@innoq.com>
+Martin Mauch <martin.mauch@gmail.com>
+Matt Dziuban <mrdziuban@gmail.com>
+Matthew Ess <mess@purdue.edu> <mess@yelp.com>
+Mitchell Rosen <mitchellwrosen@gmail.com> <mitchell@simspace.com>
+Mohamed Elsharnouby <sharnoby3@gmail.com>
+Moses Alexander <esotericgravity@gmail.com>
+Noah Haasis <haasis_noah@yahoo.de>
+Owen Parry <oparry@twitter.com>
+Paul Chiusano <paul.chiusano@gmail.com>
+Paul Kinsky <paul.kinsky@takt.com>
+Paul Phillips <psp@brb.fyi>
+Pete Tsamouris <pete_t@tutanota.com>
+Pete Tsamouris<pete_t@tutanota.com> <pete.tsamouris@worldpay.com>
+Peter Becich <peterbecich@gmail.com>
+Prat T <banqfirn@gmail.com> <pt2121@users.noreply.github.com>
+Rúnar Bjarnason <runarorama@gmail.com>
+Rúnar Bjarnason <runarorama@gmail.com> Rúnar Óli Bjarnason <runar@Unison-One.local>
+Sam Griffin <sam.griffin@gmail.com>
+Sam Roberts <samgqroberts@gmail.com>
+Scott Christopher <schristopher@konputa.com> <scott.christopher@finder.com>
+Simon Højberg <r.hackr@gmail.com>
+Steve Shogren <steve.a.shogren@gmail.com>
+Stew O'Connor <stew@vireo.org>
+SunriseM <sunrisem.js@gmail.com>
+The Gitter Badger <badger@gitter.im>
+Tim McIver <tim@timmciver.com>
+Tomas Mikula <tomas.mikula@gmail.com>
+Vladislav Zavialov <vlad.z.4096@gmail.com>
+Will Badart <will@willbadart.com> <Badart_William@bah.com>
+William Carroll <wpcarro@gmail.com>
+hepin1989 <hepin1989@gmail.com>
+nini-faroux <nfarrel1@tcd.ie>
