@@ -22,7 +22,7 @@ import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import qualified Network.URI.Encode as URI
-import System.Directory (getCurrentDirectory, removeDirectoryRecursive)
+import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getArgs, getProgName)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
@@ -133,6 +133,12 @@ installSignalHandlers = do
 
   return ()
 
+
+data CodebaseFormat = V1 | V2 deriving (Eq)
+
+cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
+cbInitFor = \case V1 -> FC.init; V2 -> SC.init
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -147,11 +153,11 @@ main = do
   let (mcodepath, restargs0) = case args of
            "-codebase" : codepath : restargs -> (Just codepath, restargs)
            _                                 -> (Nothing, args)
-      (fromMaybe True -> newCodebase, restargs) = case restargs0 of
-           "--new-codebase" : rest -> (Just True, rest)
-           "--old-codebase" : rest -> (Just False, rest)
+      (fromMaybe V2 -> cbFormat, restargs) = case restargs0 of
+           "--new-codebase" : rest -> (Just V2, rest)
+           "--old-codebase" : rest -> (Just V1, rest)
            _ -> (Nothing, restargs0)
-      cbInit = if newCodebase then SC.init else FC.init
+      cbInit = case cbFormat of V1 -> FC.init; V2 -> SC.init
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config <-
@@ -163,7 +169,7 @@ main = do
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
     ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
     "run" : [mainName] -> do
-      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+      (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
       runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
       closeCodebase
@@ -172,7 +178,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
-          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+          (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
           launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
@@ -181,7 +187,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+          (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config theCodebase
@@ -189,16 +195,16 @@ main = do
           closeCodebase
     "transcript" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts cbInit False True mcodepath transcripts
-      _                              -> runTranscripts cbInit False False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts cbFormat False True mcodepath transcripts
+      _                              -> runTranscripts cbFormat False False mcodepath args'
     "transcript.fork" : args' ->
       case args' of
-      "-save-codebase" : transcripts -> runTranscripts cbInit True True mcodepath transcripts
-      _                              -> runTranscripts cbInit True False mcodepath args'
+      "-save-codebase" : transcripts -> runTranscripts cbFormat True True mcodepath transcripts
+      _                              -> runTranscripts cbFormat True False mcodepath args'
     ["upgrade-codebase"] -> upgradeCodebase mcodepath
     args -> do
       let headless = listToMaybe args == Just "headless"
-      (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit mcodepath
+      (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
       Server.start theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
@@ -237,12 +243,12 @@ upgradeCodebase mcodepath =
       <> "but there's no rush.  You can access the old codebase again by passing the"
       <> P.backticked "--old-codebase" <> "flag at startup."
 
-prepareTranscriptDir :: Codebase.Init IO Symbol Ann -> Bool -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir cbInit inFork mcodepath = do
+prepareTranscriptDir :: CodebaseFormat -> Bool -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir cbFormat inFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
-
+  let cbInit = cbInitFor cbFormat
   if inFork then
-    Codebase.getCodebaseOrExit cbInit mcodepath >> do
+    getCodebaseOrExit cbFormat mcodepath >> do
     path <- Codebase.getCodebaseDir mcodepath
     PT.putPrettyLn $ P.lines [
       P.wrap "Transcript will be run on a copy of the codebase at: ", "",
@@ -255,12 +261,12 @@ prepareTranscriptDir cbInit inFork mcodepath = do
   pure tmp
 
 runTranscripts'
-  :: Codebase.Init IO Symbol Ann
+  :: CodebaseFormat
   -> Maybe FilePath
   -> FilePath
   -> [String]
   -> IO Bool
-runTranscripts' cbInit mcodepath transcriptDir args = do
+runTranscripts' codebaseFormat mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   case args of
     args@(_:_) -> do
@@ -275,7 +281,7 @@ runTranscripts' cbInit mcodepath transcriptDir args = do
                   P.indentN 2 $ P.string err])
             Right stanzas -> do
               configFilePath <- getConfigFilePath mcodepath
-              (closeCodebase, theCodebase) <- Codebase.getCodebaseOrExit cbInit $ Just transcriptDir
+              (closeCodebase, theCodebase) <- getCodebaseOrExit codebaseFormat $ Just transcriptDir
               mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
               closeCodebase
               let out = currentDir FP.</>
@@ -293,17 +299,17 @@ runTranscripts' cbInit mcodepath transcriptDir args = do
       pure False
 
 runTranscripts
-  :: Codebase.Init IO Symbol Ann
+  :: CodebaseFormat
   -> Bool
   -> Bool
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts cbInit inFork keepTemp mcodepath args = do
+runTranscripts cbFormat inFork keepTemp mcodepath args = do
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir cbInit inFork mcodepath
+  transcriptDir <- prepareTranscriptDir cbFormat inFork mcodepath
   completed <-
-    runTranscripts' cbInit (Just transcriptDir) transcriptDir args
+    runTranscripts' cbFormat (Just transcriptDir) transcriptDir args
   when completed $ do
     unless keepTemp $ removeDirectoryRecursive transcriptDir
     when keepTemp $ PT.putPrettyLn $
@@ -352,3 +358,73 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 defaultBaseLib :: Maybe RemoteNamespace
 defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
+
+-- | load an existing codebase or exit.
+getCodebaseOrExit :: CodebaseFormat -> Maybe Codebase.CodebasePath -> IO (IO (), Codebase.Codebase IO Symbol Ann)
+getCodebaseOrExit cbFormat mdir = do
+  let cbInit = cbInitFor cbFormat
+  dir <- Codebase.getCodebaseDir mdir
+  Codebase.openCodebase cbInit dir >>= \case
+    Left _errRequestedVersion -> do
+      let
+        sayNoCodebase = noCodebaseMsg <$> prettyExe <*> prettyDir <*> pure (fmap P.string mdir)
+        suggestUpgrade = suggestUpgradeMessage <$> prettyExe <*> prettyDir <*> pure (fmap P.string mdir)
+        prettyExe = P.text . Text.pack <$> getProgName
+        prettyDir = P.string <$> canonicalizePath dir
+      PT.putPrettyLn' =<< case cbFormat of
+        V1 -> sayNoCodebase
+        V2 -> Codebase.openCodebase FC.init dir >>= \case
+          Left _errV1 -> sayNoCodebase
+          Right (cleanup, _) -> do cleanup; suggestUpgrade
+      Exit.exitFailure
+    Right x -> pure x
+  where
+    noCodebaseMsg :: _
+    noCodebaseMsg executable prettyDir mdir =
+      let secondLine =
+            case mdir of
+              Just dir ->
+                "Run `" <> executable <> " -codebase " <> dir
+                  <> " init` to create one, then try again!"
+              Nothing ->
+                "Run `" <> executable <> " init` to create one there,"
+                  <> " then try again;"
+                  <> " or `"
+                  <> executable
+                  <> " -codebase <dir>` to load a codebase from someplace else!"
+       in P.lines
+            [ "No codebase exists in " <> prettyDir <> ".",
+              secondLine
+            ]
+    suggestUpgradeMessage exec resolvedDir specifiedDir =
+      P.lines
+        ( P.wrap
+            <$> [ "I looked for a" <> prettyFmt V2 <> " codebase in " <> P.backticked' resolvedDir ","
+                    <> "but found only a"
+                    <> prettyFmt V1
+                    <> "codebase there.",
+                  "",
+                  "You can use:"
+                ]
+        )
+        <> P.newline
+        <> P.bulleted
+          ( P.wrap
+              <$> [ P.backticked (P.wrap $ exec <> maybe mempty ("-codebase" <>) specifiedDir <> "upgrade-codebase")
+                      <> "to update it to"
+                      <> P.group (prettyFmt V2 <> ","),
+                    P.backticked (P.wrap $ exec <> maybe mempty ("-codebase" <>) specifiedDir <> "init")
+                      <> "to create a new"
+                      <> prettyFmt V2
+                      <> "codebase alongside it, or",
+                    P.backticked (P.wrap $ exec <> "-codebase <dir>")
+                      <> "to load a"
+                      <> prettyFmt V2
+                      <> "codebase from elsewhere."
+                  ]
+          )
+
+
+
+    prettyFmt :: IsString s => CodebaseFormat -> P.Pretty s
+    prettyFmt = \case V1 -> "v1"; V2 -> "v2"
