@@ -62,7 +62,7 @@ usage executableStr = P.callout "🌻" $ P.lines [
   P.wrap "Starts Unison interactively, using the codebase in the home directory.",
   "",
   P.bold $ executable <> " -codebase path/to/codebase",
-  P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set for any of the below commands.",
+  P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set before any of the below commands.",
   "",
   P.bold $ executable <> " run .mylib.mymain",
   P.wrap "Executes the definition `.mylib.mymain` from the codebase, then exits.",
@@ -99,6 +99,9 @@ usage executableStr = P.callout "🌻" $ P.lines [
         <> "and saves the resulting codebase to a new directory on disk."
         <> "Multiple transcript files may be provided; they are processed in sequence"
         <> "starting from the same codebase.",
+  "",
+  P.bold $ executable <> " upgrade-codebase",
+  "Upgrades a v1 codebase to a v2 codebase.",
   "",
   P.bold $ executable <> " headless",
   "Runs the codebase server without the command-line interface.",
