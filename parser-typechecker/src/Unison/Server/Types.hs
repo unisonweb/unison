@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -8,32 +9,52 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
-import           Unison.Prelude
-import           Data.Aeson
-import qualified Data.ByteString.Lazy          as LZ
-import qualified Data.Text.Lazy                as Text
-import qualified Data.Text.Lazy.Encoding       as Text
-import           Data.OpenApi                   ( ToSchema(..)
-                                                , ToParamSchema(..)
-                                                )
-import           Servant.API                    ( FromHttpApiData )
-import qualified Unison.HashQualified          as HQ
-import           Unison.ConstructorType         ( ConstructorType )
-import           Unison.Name                    ( Name )
-import           Unison.ShortHash               ( ShortHash )
-import           Unison.Codebase.ShortBranchHash
-                                                ( ShortBranchHash(..) )
-import           Unison.Util.Pretty             ( Width(..)
-                                                , render
-                                                )
-import           Unison.Var                     ( Var )
-import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Type                    ( Type )
-import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Codebase.Editor.DisplayObject
-                                                ( DisplayObject )
-import           Unison.Server.Syntax           ( SyntaxText )
-import qualified Unison.Server.Syntax          as Syntax
+import Data.Aeson
+import qualified Data.ByteString.Lazy as LZ
+import Data.OpenApi
+  ( ToParamSchema (..),
+    ToSchema (..),
+  )
+import qualified Data.Text.Lazy as Text
+import qualified Data.Text.Lazy.Encoding as Text
+import Servant.API
+  ( FromHttpApiData,
+    Get,
+    Header,
+    Headers,
+    JSON,
+    addHeader,
+  )
+import Unison.Codebase.Editor.DisplayObject
+  ( DisplayObject,
+  )
+import Unison.Codebase.ShortBranchHash
+  ( ShortBranchHash (..),
+  )
+import Unison.ConstructorType (ConstructorType)
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Prelude
+import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.Syntax (SyntaxText)
+import qualified Unison.Server.Syntax as Syntax
+import Unison.ShortHash (ShortHash)
+import Unison.Type (Type)
+import qualified Unison.TypePrinter as TypePrinter
+import Unison.Util.Pretty
+  ( Width (..),
+    render,
+  )
+import Unison.Var (Var)
+
+type APIHeaders x =
+  Headers
+    '[ Header "Access-Control-Allow-Origin" String,
+       Header "Cache-Control" String
+     ]
+    x
+
+type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
 
@@ -197,3 +218,5 @@ discard = const $ pure ()
 mayDefault :: Maybe Width -> Width
 mayDefault = fromMaybe defaultWidth
 
+addHeaders :: v -> APIHeaders v
+addHeaders = addHeader "*" . addHeader "public"
