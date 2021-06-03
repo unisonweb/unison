@@ -1115,6 +1115,10 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
     push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
     push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
+      -- note: -uall recursively shows status for all files in untracked directories
+      --   we want this so that we see
+      --     `??  .unison/v2/unison.sqlite3` and not
+      --     `??  .unison/`
       status <- gitTextIn remotePath ["status", "--short", "-uall"]
       if Text.null status
         then pure False
