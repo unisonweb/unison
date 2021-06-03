@@ -62,7 +62,7 @@ jobs:
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "${{ env.RELEASE_VERSION }}-${{runner.os}}"
-          prerelease: true
-          title: "Development Build"
+          automatic_release_tag: "release/${{ env.RELEASE_VERSION }}-${{runner.os}}"
+          prerelease: false
+          title: "Release Build"
           files: "unison-${{runner.os}}.tar.gz"
