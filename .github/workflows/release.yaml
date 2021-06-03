@@ -1,0 +1,69 @@
+name: "release"
+
+on:
+  push:
+    tags:
+      - "v*"
+jobs:
+  release:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+
+      matrix:
+        os:
+          - ubuntu-20.04
+          - macOS-10.15
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stack (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+      - name: install stack (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+
+
+      # One of the transcripts fails if the user's git name hasn't been set.
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: remove ~/.stack/setup-exe-cache on macOS
+        if: runner.os == 'macOS'
+        run: rm -rf ~/.stack/setup-exe-cache
+
+      - name: build
+        run: stack --no-terminal build --ghc-options -O2
+
+
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
+          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          tar -c -z -f unison-${{runner.os}}.tar.gz -C /tmp/ucm .
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "${{ env.RELEASE_VERSION }}-${{runner.os}}"
+          prerelease: true
+          title: "Development Build"
+          files: "unison-${{runner.os}}.tar.gz"
