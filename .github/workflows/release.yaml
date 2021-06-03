@@ -8,7 +8,6 @@ jobs:
   release:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     strategy:
       # Run each build to completion, regardless of if any have failed
