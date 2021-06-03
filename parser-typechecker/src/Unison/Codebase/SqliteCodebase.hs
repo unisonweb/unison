@@ -1100,16 +1100,16 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
       else Nothing
       where
         statusLines = Text.unpack <$> Text.lines status
-        okLine ('?':'?':(trimStart -> ".unison/v2/unison.sqlite3")) = True
-        okLine ('M':(trimStart -> ".unison/v2/unison.sqlite3")) = True
+        t = dropWhile Char.isSpace
+        okLine (t -> '?':'?':(t -> ".unison/v2/unison.sqlite3")) = True
+        okLine (t -> 'M':(t -> ".unison/v2/unison.sqlite3")) = True
         okLine line = isWalDelete line || isShmDelete line
-        isWalDelete ('D':(trimStart -> ".unison/v2/unison.sqlite3-wal")) = True
+        isWalDelete (t -> 'D':(t -> ".unison/v2/unison.sqlite3-wal")) = True
         isWalDelete _ = False
-        isShmDelete ('D':(trimStart -> ".unison/v2/unison.sqlite3-shm")) = True
+        isShmDelete (t -> 'D':(t -> ".unison/v2/unison.sqlite3-shm")) = True
         isShmDelete _ = False
         hasDeleteWal = any isWalDelete statusLines
         hasDeleteShm = any isShmDelete statusLines
-        trimStart = dropWhile Char.isSpace
 
     -- Commit our changes
     push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
