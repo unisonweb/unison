@@ -20,6 +20,7 @@ import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
 import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
+import qualified GHC.Conc
 import qualified Network.URI.Encode as URI
 import System.Directory (getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getArgs, getProgName)
@@ -41,7 +42,7 @@ import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
-import Unison.CommandLine (watchConfig)
+import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.Parser (Ann)
 import Unison.Prelude
@@ -201,12 +202,17 @@ main = do
       Server.start theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
-        PT.putPrettyLn $ P.lines
-          ["I've started the codebase API server at" , P.string $ url <> "/api"]
+        when headless $
+          PT.putPrettyLn $ P.lines
+            ["I've started the codebase API server at" , P.string $ url <> "/api"]
         PT.putPrettyLn $ P.lines
           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
         if headless then do
-          PT.putPrettyLn $ P.string "Running the codebase manager in headless mode."
+          PT.putPrettyLn $ P.string "Running the codebase manager headless with "
+            <> P.shown GHC.Conc.numCapabilities
+            <> " "
+            <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+            <> "."
           mvar <- newEmptyMVar
           takeMVar mvar
         else do

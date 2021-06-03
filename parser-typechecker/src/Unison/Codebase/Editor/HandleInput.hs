@@ -24,7 +24,7 @@ import           Unison.Prelude
 -- TODO: Don't import backend. Backend functionality should be hidden behind Command
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Backend
-  ( BackendError (..),
+  ( BackendError,
     ShallowListEntry (..),
     TermEntry (..),
     TypeEntry (..),
@@ -151,7 +151,7 @@ import Control.Monad.Morph (hoist)
 type F m i v = Free (Command m i v)
 
 -- type (Action m i v) a
-type Action m i v = MaybeT (StateT (LoopState m v) (ContT () (F m i v)))
+type Action m i v = MaybeT (StateT (LoopState m v) (ExceptT BackendError (F m i v)))
 type Action'' m v = MaybeT (StateT (LoopState m v) (F m (Either Event Input) v))
 
 class (Monad t, Var v, MonadState (LoopState t v) m, MonadFree (Command t i v) m, MonadCont m)

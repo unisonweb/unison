@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,7 +8,6 @@
 
 module Unison.Server.CodebaseServer where
 
-import Control.Applicative
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
@@ -53,9 +54,7 @@ import Options.Applicative
     strOption,
   )
 import Servant
-  ( Header,
-    MimeRender (..),
-    addHeader,
+  ( MimeRender (..),
     hoistServer,
     serve,
     throwError,
@@ -65,13 +64,18 @@ import Servant.API
     Capture,
     CaptureAll,
     Get,
-    Headers,
     JSON,
     Raw,
     (:>),
     type (:<|>) (..),
   )
-import Servant.Docs (DocIntro (DocIntro), docsWithIntros, markdown)
+import Servant.Docs
+  ( DocIntro (DocIntro),
+    ToSample (..),
+    docsWithIntros,
+    markdown,
+    singleSample,
+  )
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
@@ -83,9 +87,10 @@ import Servant.Server
     err404,
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
-import System.Directory (doesFileExist)
-import System.Environment (getArgs, lookupEnv)
-import System.FilePath.Posix ((</>))
+import System.Directory (canonicalizePath, doesFileExist)
+import System.Environment (getArgs, getExecutablePath, lookupEnv)
+import System.FilePath ((</>))
+import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
 import Unison.Parser (Ann)
@@ -111,8 +116,7 @@ instance Accept HTML where
 instance MimeRender HTML RawHtml where
   mimeRender _ = unRaw
 
-type OpenApiJSON = "openapi.json"
-  :> Get '[JSON] (Headers '[Header "Access-Control-Allow-Origin" String] OpenApi)
+type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
@@ -123,6 +127,9 @@ type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 type AuthedServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
 
 type ServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> AuthedServerAPI)
+
+instance ToSample Char where
+  toSamples _ = singleSample 'x'
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -165,7 +172,7 @@ serverAPI = Proxy
 app
   :: Var v
   => Codebase IO v Ann
-  -> Maybe FilePath
+  -> FilePath
   -> Strict.ByteString
   -> Application
 app codebase uiPath expectedToken =
@@ -270,7 +277,10 @@ startServer
   -> Maybe Port
   -> Maybe String
   -> IO ()
-startServer codebase k envToken envHost envPort envUI = do
+startServer codebase k envToken envHost envPort envUI0 = do
+  -- the `canonicalizePath` resolves symlinks
+  exePath <- canonicalizePath =<< getExecutablePath
+  envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") envUI0
   token <- case envToken of
     Just t -> return $ C8.pack t
     _      -> genToken
@@ -308,23 +318,21 @@ serveIndex path = do
       <> " environment variable to the directory where the UI is installed."
     }
 
-serveUI :: Maybe FilePath -> ServerT WebUI (AppM v)
-serveUI p _ =
-  let path = fromMaybe "ui" p
-  in  tryAuth *> lift (serveIndex path)
+serveUI :: FilePath -> ServerT WebUI (AppM v)
+serveUI path _ =
+  tryAuth *> lift (serveIndex path)
 
 server
-  :: Var v => Maybe FilePath -> Strict.ByteString -> ServerT ServerAPI (AppM v)
+  :: Var v => FilePath -> Strict.ByteString -> ServerT ServerAPI (AppM v)
 server uiPath expectedToken =
-  serveDirectoryWebApp (fromMaybe "ui" uiPath </> "static")
+  serveDirectoryWebApp (uiPath </> "static")
     :<|> ((\t ->
             hoistServer
                 authedServerAPI
                 (locally authHandler (const $ handleAuth expectedToken t))
               $    serveUI uiPath
               :<|> ((serveNamespace :<|> serveDefinitions :<|> serveFuzzyFind)
-                   :<|> addHeader "*"
-                   <$>  serveOpenAPI
+                   :<|> serveOpenAPI
                    :<|> Tagged serveDocs
                    )
           )

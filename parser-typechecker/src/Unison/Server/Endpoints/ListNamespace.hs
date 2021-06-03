@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -14,9 +15,7 @@ import Data.Aeson
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant
-  ( Get,
-    JSON,
-    QueryParam,
+  ( QueryParam,
     ServerError (errBody),
     err400,
     throwError,
@@ -50,12 +49,15 @@ import Unison.Server.Errors
     rootBranchError,
   )
 import Unison.Server.Types
-  ( HashQualifiedName,
+  ( APIGet,
+    APIHeaders,
+    HashQualifiedName,
     NamedTerm (..),
     NamedType (..),
     Size,
     UnisonHash,
     UnisonName,
+    addHeaders,
   )
 import qualified Unison.ShortHash as ShortHash
 import Unison.Util.Pretty (Width)
@@ -63,7 +65,7 @@ import Unison.Var (Var)
 
 type NamespaceAPI =
   "list" :> QueryParam "namespace" HashQualifiedName
-    :> Get '[JSON] NamespaceListing
+    :> APIGet NamespaceListing
 
 instance ToParam (QueryParam "namespace" Text) where
   toParam _ =
@@ -154,40 +156,48 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
 
-serveNamespace :: Var v => Maybe HashQualifiedName -> AppM v NamespaceListing
-serveNamespace mayHQN = tryAuth *> case mayHQN of
-  Nothing  -> serveNamespace $ Just "."
-  Just hqn -> do
-    parsedName <- parseHQN hqn
-    cb         <- view codebase
-    hashLength <- liftIO $ Codebase.hashLength cb
-    case parsedName of
-      HQ.NameOnly n -> do
-        path' <- parsePath $ Name.toString n
-        er <- liftIO $ Codebase.getRootBranch cb
-        root <- either (throwError . rootBranchError) pure er
-        ppe <- doBackend . Backend.suffixifiedNames hashLength root $ Path.fromPath' path'
-        let p = either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-        entries <- findShallow p root
-        processEntries
-          ppe
-          (Just $ Name.toText n)
-          (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash root)
-          entries
-      HQ.HashOnly sh -> case SBH.fromText $ ShortHash.toText sh of
-        Nothing ->
-          throwError
-            . badNamespace "Malformed branch hash."
-            $ ShortHash.toString sh
-        Just h -> doBackend $ do
-          hash    <- Backend.expandShortBranchHash h
-          branch  <- Backend.resolveBranchHash hash
-          entries <- Backend.findShallowInBranch branch
-          ppe <- Backend.suffixifiedNames hashLength branch mempty
-          let sbh = Text.pack . show $ SBH.fullFromHash hash
-          processEntries ppe Nothing sbh entries
-      HQ.HashQualified _ _ -> hashQualifiedNotSupported
+serveNamespace
+  :: forall v. Var v => Maybe HashQualifiedName -> AppM v (APIHeaders NamespaceListing)
+serveNamespace mayHQN = addHeaders <$> (tryAuth *> go mayHQN)
  where
+  go :: Maybe HashQualifiedName -> AppM v (NamespaceListing)
+  go mayHQN = case mayHQN of
+    Nothing  -> go $ Just "."
+    Just hqn -> do
+      parsedName <- parseHQN hqn
+      cb         <- view codebase
+      hashLength <- liftIO $ Codebase.hashLength cb
+      case parsedName of
+        HQ.NameOnly n -> do
+          path' <- parsePath $ Name.toString n
+          er    <- liftIO $ Codebase.getRootBranch cb
+          root  <- either (throwError . rootBranchError) pure er
+          ppe   <-
+            doBackend
+            . Backend.suffixifiedNames hashLength root
+            $ Path.fromPath' path'
+          let p =
+                either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+          entries <- findShallow p root
+          processEntries
+            ppe
+            (Just $ Name.toText n)
+            (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash root
+            )
+            entries
+        HQ.HashOnly sh -> case SBH.fromText $ ShortHash.toText sh of
+          Nothing ->
+            throwError
+              . badNamespace "Malformed branch hash."
+              $ ShortHash.toString sh
+          Just h -> doBackend $ do
+            hash    <- Backend.expandShortBranchHash h
+            branch  <- Backend.resolveBranchHash hash
+            entries <- Backend.findShallowInBranch branch
+            ppe     <- Backend.suffixifiedNames hashLength branch mempty
+            let sbh = Text.pack . show $ SBH.fullFromHash hash
+            processEntries ppe Nothing sbh entries
+        HQ.HashQualified _ _ -> hashQualifiedNotSupported
   parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
   findShallow p r = doBackend $ Backend.findShallow p r
@@ -195,6 +205,7 @@ serveNamespace mayHQN = tryAuth *> case mayHQN of
     pure . NamespaceListing name hash $ fmap
       (backendListEntryToNamespaceObject ppe Nothing)
       entries
+  hashQualifiedNotSupported :: forall x. AppM v x
   hashQualifiedNotSupported = throwError $ err400
     { errBody = "This server does not yet support searching namespaces by "
                   <> "hash-qualified name."

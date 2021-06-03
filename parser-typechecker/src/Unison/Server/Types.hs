@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -16,7 +17,14 @@ import Data.OpenApi
   )
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import Servant.API (FromHttpApiData)
+import Servant.API
+  ( FromHttpApiData,
+    Get,
+    Header,
+    Headers,
+    JSON,
+    addHeader,
+  )
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
@@ -38,6 +46,15 @@ import Unison.Util.Pretty
     render,
   )
 import Unison.Var (Var)
+
+type APIHeaders x =
+  Headers
+    '[ Header "Access-Control-Allow-Origin" String,
+       Header "Cache-Control" String
+     ]
+    x
+
+type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
 
@@ -201,3 +218,5 @@ discard = const $ pure ()
 mayDefault :: Maybe Width -> Width
 mayDefault = fromMaybe defaultWidth
 
+addHeaders :: v -> APIHeaders v
+addHeaders = addHeader "*" . addHeader "public"

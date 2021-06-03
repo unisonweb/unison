@@ -19,9 +19,7 @@ import Data.OpenApi (ToSchema)
 import Data.Ord (Down (..))
 import qualified Data.Text as Text
 import Servant
-  ( Get,
-    JSON,
-    QueryParam,
+  ( QueryParam,
     throwError,
     (:>),
   )
@@ -46,15 +44,20 @@ import Unison.Prelude
 import qualified Unison.Reference as Reference
 import Unison.Server.AppState (AppM, doBackend, tryAuth)
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors (badNamespace)
+import Unison.Server.Errors
+  ( badNamespace,
+  )
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
-  ( DefinitionDisplayResults (..),
+  ( APIGet,
+    APIHeaders,
+    DefinitionDisplayResults (..),
     HashQualifiedName,
     NamedTerm,
     NamedType,
     Suffixify (..),
     TypeDefinition (..),
+    addHeaders,
     mayDefault,
   )
 import Unison.Util.Pretty (Width)
@@ -66,7 +69,7 @@ type FuzzyFindAPI =
          :> QueryParam "limit" Int
          :> QueryParam "renderWidth" Width
          :> QueryParam "query" String
-         :> Get '[JSON] [(FZF.Alignment, FoundResult)]
+         :> APIGet [(FZF.Alignment, FoundResult)]
 
 instance ToSample FZF.Alignment where
   toSamples _ = noSamples
@@ -135,8 +138,8 @@ serveFuzzyFind
   -> Maybe Int
   -> Maybe Width
   -> Maybe String
-  -> AppM v [(FZF.Alignment, FoundResult)]
-serveFuzzyFind mayRoot relativePath limit typeWidth query = do
+  -> AppM v (APIHeaders [(FZF.Alignment, FoundResult)])
+serveFuzzyFind mayRoot relativePath limit typeWidth query = addHeaders <$> do
   tryAuth
   rel <-
     fromMaybe mempty

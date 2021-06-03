@@ -6,12 +6,9 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
-import U.Util.Timing
 import qualified Data.Text as Text
 import Servant
-  ( Get,
-    JSON,
-    QueryParam,
+  ( QueryParam,
     QueryParams,
     (:>),
   )
@@ -22,6 +19,7 @@ import Servant.Docs
     ToSample (..),
     noSamples,
   )
+import U.Util.Timing
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
@@ -35,9 +33,12 @@ import Unison.Server.Errors
     errFromEither,
   )
 import Unison.Server.Types
-  ( DefinitionDisplayResults,
+  ( APIGet,
+    APIHeaders,
+    DefinitionDisplayResults,
     HashQualifiedName,
     Suffixify (..),
+    addHeaders,
     defaultWidth,
   )
 import Unison.Util.Pretty (Width)
@@ -49,7 +50,7 @@ type DefinitionsAPI =
                   :> QueryParams "names" HashQualifiedName
                   :> QueryParam "renderWidth" Width
                   :> QueryParam "suffixifyBindings" Suffixify
-  :> Get '[JSON] DefinitionDisplayResults
+  :> APIGet DefinitionDisplayResults
 
 instance ToParam (QueryParam "renderWidth" Width) where
   toParam _ = DocQueryParam
@@ -108,16 +109,22 @@ serveDefinitions
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
-  -> AppM v DefinitionDisplayResults
-serveDefinitions mayRoot relativePath hqns width suff = time "serveDefinitions" $ do
-  time "authenticating" tryAuth
-  rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
-  doBackend $ do
-    root <- traverse (time "expandShortBranchHash" . Backend.expandShortBranchHash) mayRoot
-    time "prettyDefinitions" $ Backend.prettyDefinitionsBySuffixes rel
-                                        root
-                                        width
-                                        (fromMaybe (Suffixify True) suff)
-      $   HQ.unsafeFromText
-      <$> hqns
+  -> AppM v (APIHeaders DefinitionDisplayResults)
+serveDefinitions mayRoot relativePath hqns width suff =
+  time "serveDefinitions" $ addHeaders <$> do
+    time "authenticating" tryAuth
+    rel <-
+      fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
+    doBackend $ do
+      root <- traverse
+        (time "expandShortBranchHash" . Backend.expandShortBranchHash)
+        mayRoot
+      time "prettyDefinitions"
+        $   Backend.prettyDefinitionsBySuffixes
+              rel
+              root
+              width
+              (fromMaybe (Suffixify True) suff)
+        $   HQ.unsafeFromText
+        <$> hqns
   where parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
