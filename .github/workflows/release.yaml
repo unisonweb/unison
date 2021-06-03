@@ -3,12 +3,11 @@ name: "release"
 on:
   push:
     tags:
-      - "release*"
+      - "release/*"
 jobs:
   release:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -45,7 +44,7 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - name: build
-        run: stack --no-terminal build --ghc-options -O2
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
 
       - name: fetch latest codebase-ui and package with ucm
@@ -58,7 +57,7 @@ jobs:
           tar -c -z -f unison-${{runner.os}}.tar.gz -C /tmp/ucm .
 
       - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/release/*/}" >> $GITHUB_ENV
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
