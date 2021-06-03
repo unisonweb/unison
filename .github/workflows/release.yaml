@@ -44,7 +44,7 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+        run: stack --no-terminal build --ghc-options -O2 --flag unison-parser-typechecker:optimized
 
 
       - name: fetch latest codebase-ui and package with ucm
