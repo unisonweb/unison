@@ -21,7 +21,7 @@ ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synony
 flags:
   optimized:
     manual: true
-    default: false
+    default: true
 
 when:
   - condition: flag(optimized)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 25e073d1bb732e90d3e1d3999ec516185669150701345da4fcd35cb20389334d
+-- hash: 6eae706c8674f4a7f22bb4bff150798cdaba8aa9186b3d94a6a8467a9cc23d06
 
 name:           unison-core1
 version:        0.0.0
@@ -98,5 +98,5 @@ library
     , util
     , vector
   if flag(optimized)
-    ghc-options: -funbox-strict-fields
+    ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
