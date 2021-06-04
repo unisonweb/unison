@@ -1,9 +1,11 @@
-name: "release"
+name: "upload-release-artifacts"
 
 on:
-  push:
-    tags:
-      - "release/*"
+  workflow_run:
+    workflows: ["create-release"]
+    types:
+      - completed
+
 jobs:
   release:
     name: ${{ matrix.os }}
@@ -64,8 +66,11 @@ jobs:
         if: runner.os != 'macOS'
         run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{matrix.os}}" >> $GITHUB_ENV
 
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - name: "Upload ${{matrix.os}}"
+        uses: "actions/upload-artifact@v2"
         with:
+          path: "unison-${{runner.os}}.tar.gz"
+
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "${{ env.RELEASE_VERSION }}"
           prerelease: false
