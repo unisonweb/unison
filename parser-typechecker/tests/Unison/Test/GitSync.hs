@@ -371,9 +371,8 @@ CallStack (from HasCallStack):
      -}
     (\repo -> [i|
       ```ucm
-      .> builtins.merge
-      .> alias.type builtin.Nat builtin.Nat2
-      .> alias.type builtin.Int builtin.Int2
+      .> alias.type ##Nat builtin.Nat2
+      .> alias.type ##Int builtin.Int2
       .> push ${repo}:.foo.bar
       ```
     |])
@@ -394,9 +393,8 @@ CallStack (from HasCallStack):
      -}
     (\repo -> [i|
       ```ucm
-      .> builtins.merge
-      .> alias.type builtin.Nat builtin.Nat2
-      .> alias.type builtin.Int builtin.Int2
+      .> alias.type ##Nat builtin.Nat2
+      .> alias.type ##Int builtin.Int2
       .> push ${repo}
       .> push ${repo}:.foo.bar
       ```
