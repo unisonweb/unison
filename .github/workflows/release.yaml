@@ -16,6 +16,7 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - ubuntu-18.04
           - macOS-10.15
 
     steps:
@@ -46,7 +47,6 @@ jobs:
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-
       - name: fetch latest codebase-ui and package with ucm
         run: |
           mkdir -p /tmp/ucm/ui
@@ -57,12 +57,17 @@ jobs:
           tar -c -z -f unison-${{runner.os}}.tar.gz -C /tmp/ucm .
 
       - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/release/*}" >> $GITHUB_ENV
+        if: runner.os == 'macOS'
+        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{runner.os}}" >> $GITHUB_ENV
+
+      - name: Set env
+        if: runner.os != 'macOS'
+        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{matrix.os}}" >> $GITHUB_ENV
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "release/${{ env.RELEASE_VERSION }}-${{runner.os}}"
+          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
           prerelease: false
-          title: "Release Build"
+          title: "Release Build for ${{runner.os}}"
           files: "unison-${{runner.os}}.tar.gz"
