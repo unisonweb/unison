@@ -837,19 +837,19 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                       traceM $ "  decls: " ++ show ds
                       traceM $ "  edits: " ++ show es
                     (cs, es, ts, ds) <- lift $ runDB destConn do
-                      cs <- filterM (fmap not . runDB destConn . isCausalHash' . fst) branchDeps
-                      es <- filterM (fmap not . runDB destConn . patchExists') es
-                      ts <- filterM (fmap not . runDB destConn . termExists') ts
-                      ds <- filterM (fmap not . runDB destConn . declExists') ds
+                      cs <- filterM (fmap not . isCausalHash' . fst) branchDeps
+                      es <- filterM (fmap not . patchExists') es
+                      ts <- filterM (fmap not . termExists') ts
+                      ds <- filterM (fmap not . declExists') ds
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
                       then do
                         lift . runDB destConn $ putBranch' b
                         processBranches @m sync progress rest
                       else do
-                        let bs = map (uncurry B) branchDeps
+                        let bs = map (uncurry B) cs
                             os = map O (es <> ts <> ds)
-                        processBranches @m sync progress (os ++ bs ++ B h mb : rest)
+                        processBranches @m sync progress (os ++ bs ++ b0 : rest)
         processBranches sync progress (O h : rest) = do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
           (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
