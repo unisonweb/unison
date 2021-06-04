@@ -843,11 +843,13 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                       ds <- filterM (fmap not . runDB destConn . declExists') ds
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
-                      then lift . runDB destConn $ putBranch' b
-                      else
+                      then do
+                        lift . runDB destConn $ putBranch' b
+                        processBranches @m sync progress rest
+                      else do
                         let bs = map (uncurry B) branchDeps
                             os = map O (es <> ts <> ds)
-                         in processBranches @m sync progress (os ++ bs ++ B h mb : rest)
+                        processBranches @m sync progress (os ++ bs ++ B h mb : rest)
         processBranches sync progress (O h : rest) = do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
           (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
