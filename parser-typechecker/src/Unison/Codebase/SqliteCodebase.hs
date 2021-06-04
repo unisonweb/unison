@@ -1103,12 +1103,12 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
       where
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?':'?':(t -> ".unison/v2/unison.sqlite3")) = True
-        okLine (t -> 'M':(t -> ".unison/v2/unison.sqlite3")) = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
+        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
         okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D':(t -> ".unison/v2/unison.sqlite3-wal")) = True
+        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
         isWalDelete _ = False
-        isShmDelete (t -> 'D':(t -> ".unison/v2/unison.sqlite3-shm")) = True
+        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
         isShmDelete _ = False
         hasDeleteWal = any isWalDelete statusLines
         hasDeleteShm = any isShmDelete statusLines
