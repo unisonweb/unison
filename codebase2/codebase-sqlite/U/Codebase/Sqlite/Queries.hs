@@ -23,6 +23,7 @@ import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
+import qualified Control.Monad.Reader as Reader
 import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Monad.Writer as Writer
@@ -40,8 +41,7 @@ import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Database.SQLite.Simple
-  ( Connection,
-    FromRow,
+  ( FromRow,
     Only (..),
     ToRow (..),
     (:.) (..),
@@ -54,6 +54,8 @@ import GHC.Stack (HasCallStack)
 import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference')
+import U.Codebase.Sqlite.Connection (Connection)
+import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -76,7 +78,6 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
-
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -85,11 +86,10 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
-debugQuery, debugThread, debugConnection, debugFile :: Bool
+debugQuery, debugThread, debugConnection :: Bool
 debugQuery = False
 debugThread = False
 debugConnection = False
-debugFile = False
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -595,7 +595,7 @@ before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
 lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
-lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
+lca x y (Connection.underlying -> cx) (Connection.underlying -> cy) = Exception.bracket open close \(sx, sy) -> do
   SQLite.bind sx (Only x)
   SQLite.bind sy (Only y)
   let getNext = (,) <$> SQLite.nextRow sx <*> SQLite.nextRow sy
@@ -658,23 +658,21 @@ queryOne = fmap fromJust
 -- | composite input, composite List output
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " query") q r $ SQLite.query c q r
 
 -- | no input, composite List output
 query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " query") q $ SQLite.query_ c q
 
 debugHeader :: DB m => m String
 debugHeader = fmap (List.intercalate ", ") $ Writer.execWriterT do
   when debugThread $ Writer.tell . pure . show =<< myThreadId
-  when debugConnection $ Writer.tell . pure . show . SQLite.connectionHandle =<< ask
+  when debugConnection $ Writer.tell . pure . show =<< ask
 
 queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m = do
@@ -706,36 +704,33 @@ queryTrace_ title query m =
 
 traceConnectionFile :: DB m => m ()
 traceConnectionFile = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   liftIO (SQLite.query_ c "PRAGMA database_list;") >>= \case
     [(_seq :: Int, _name :: String, file)] -> traceM file
     x -> error $ show x
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
 execute q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "execute") q r $ SQLite.execute c q r
 
 execute_ :: DB m => SQLite.Query -> m ()
 execute_ q = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " " ++ "execute_") q $ SQLite.execute_ c q
 
 executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
 executeMany q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
 
 -- | transaction that blocks
 withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
 withImmediateTransaction action = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
 
 

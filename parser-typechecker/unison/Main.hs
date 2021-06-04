@@ -173,7 +173,7 @@ main = do
     [version] | isFlag "version" version ->
       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
     [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
-    ["init"] -> Codebase.initCodebaseAndExit cbInit mcodepath
+    ["init"] -> Codebase.initCodebaseAndExit cbInit "main.init" mcodepath
     "run" : [mainName] -> do
       (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
       runtime <- RTI.startRuntime
@@ -263,7 +263,7 @@ prepareTranscriptDir cbFormat inFork mcodepath = do
     Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
   else do
     PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    void $ Codebase.openNewUcmCodebaseOrExit cbInit tmp
+    void $ Codebase.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
   pure tmp
 
 runTranscripts'
@@ -370,7 +370,7 @@ getCodebaseOrExit :: CodebaseFormat -> Maybe Codebase.CodebasePath -> IO (IO (),
 getCodebaseOrExit cbFormat mdir = do
   let cbInit = cbInitFor cbFormat
   dir <- Codebase.getCodebaseDir mdir
-  Codebase.openCodebase cbInit dir >>= \case
+  Codebase.openCodebase cbInit "main" dir >>= \case
     Left _errRequestedVersion -> do
       let
         sayNoCodebase = noCodebaseMsg <$> prettyExe <*> prettyDir <*> pure (fmap P.string mdir)
@@ -379,9 +379,9 @@ getCodebaseOrExit cbFormat mdir = do
         prettyDir = P.string <$> canonicalizePath dir
       PT.putPrettyLn' =<< case cbFormat of
         V1 -> sayNoCodebase
-        V2 -> Codebase.openCodebase FC.init dir >>= \case
-          Left _errV1 -> sayNoCodebase
-          Right (cleanup, _) -> do cleanup; suggestUpgrade
+        V2 -> FC.openCodebase dir >>= \case
+          Left {} -> sayNoCodebase
+          Right {} -> suggestUpgrade
       Exit.exitFailure
     Right x -> pure x
   where
