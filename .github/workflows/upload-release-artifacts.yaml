@@ -70,9 +70,5 @@ jobs:
         uses: "actions/upload-artifact@v2"
         with:
           path: "unison-${{runner.os}}.tar.gz"
-
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
-          prerelease: false
-          title: "Release Build for ${{runner.os}}"
-          files: "unison-${{runner.os}}.tar.gz"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
