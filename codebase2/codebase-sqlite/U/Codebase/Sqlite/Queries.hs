@@ -144,7 +144,7 @@ setFlags = do
 
 {- ORMOLU_DISABLE -}
 schemaVersion :: DB m => m SchemaVersion
-schemaVersion = queryAtoms sql () >>= \case
+schemaVersion = queryAtoms_ sql >>= \case
   [] -> error $ show NoSchemaVersion
   [v] -> pure v
   vs -> error $ show (MultipleSchemaVersions vs)
@@ -643,6 +643,10 @@ ancestorSql = [here|
 queryAtoms :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f [b]
 queryAtoms q r = map fromOnly <$> query q r
 
+-- | no input, atomic List output
+queryAtoms_ :: (DB f, FromField b, Show b) => SQLite.Query -> f [b]
+queryAtoms_ q = map fromOnly <$> query_ q
+
 -- | composite input, composite Maybe output
 queryMaybe :: (DB f, ToRow q, FromRow b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
 queryMaybe q r = headMay <$> query q r
@@ -682,7 +686,8 @@ queryTrace title query input m = do
      do
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          when debugQuery . traceM $ showInput ++ "\n output: " ++ show a
+          when debugQuery . traceM $ showInput ++
+            if " execute" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ showInput ++ "\n(and crashed)\n"
@@ -695,7 +700,8 @@ queryTrace_ title query m =
     then
       tryAny @_ m >>= \case
         Right a -> do
-          when debugQuery . traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
+          when debugQuery . traceM $ title ++ " " ++ show query ++
+            if " execute_" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ title ++ " " ++ show query ++ "\n(and crashed)\n"
