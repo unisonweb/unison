@@ -6,7 +6,12 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsafeGetConnection) where
+module Unison.Codebase.SqliteCodebase
+  ( Unison.Codebase.SqliteCodebase.init,
+    unsafeGetConnection,
+    shutdownConnection,
+  )
+where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
@@ -36,7 +41,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Traversable (for)
 import Data.Word (Word64)
-import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
@@ -45,6 +49,8 @@ import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Reference as C.Reference
+import U.Codebase.Sqlite.Connection (Connection (Connection))
+import qualified U.Codebase.Sqlite.Connection as Connection
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -116,9 +122,10 @@ init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 
 createCodebaseOrError ::
   MonadIO m =>
+  Codebase.DebugName ->
   CodebasePath ->
   m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError dir = do
+createCodebaseOrError debugName dir = do
   prettyDir <- P.string <$> canonicalizePath dir
   let convertError = \case
         CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
@@ -126,7 +133,7 @@ createCodebaseOrError dir = do
       prettyError :: SchemaVersion -> Codebase1.Pretty
       prettyError v = P.wrap $
         "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' dir
+  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
@@ -135,9 +142,10 @@ data CreateCodebaseError
 
 createCodebaseOrError' ::
   MonadIO m =>
+  Codebase.DebugName ->
   CodebasePath ->
   m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError' path = do
+createCodebaseOrError' debugName path = do
   ifM
     (doesFileExist $ path </> codebasePath)
     (pure $ Left CreateCodebaseAlreadyExists)
@@ -145,8 +153,8 @@ createCodebaseOrError' path = do
       createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
       liftIO $
         Control.Exception.bracket
-          (unsafeGetConnection path)
-          Sqlite.close
+          (unsafeGetConnection (debugName ++ ".createSchema") path)
+          shutdownConnection
           (runReaderT do
             Q.createSchema
             runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
@@ -154,26 +162,25 @@ createCodebaseOrError' path = do
               Right () -> pure ()
             )
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase path)
+      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path)
 
-openOrCreateCodebaseConnection :: MonadIO m => FilePath -> m Connection
-openOrCreateCodebaseConnection path = do
+openOrCreateCodebaseConnection :: MonadIO m => Codebase.DebugName -> FilePath -> m Connection
+openOrCreateCodebaseConnection debugName path = do
   unlessM
     (doesFileExist $ path </> codebasePath)
     (initSchemaIfNotExist path)
-  unsafeGetConnection path
-
+  unsafeGetConnection debugName path
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
-getCodebaseOrError dir = do
+getCodebaseOrError :: forall m. MonadIO m => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError debugName dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (dir </> codebasePath) >>= \case
     -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
     -- Unison.Codebase.Init.getCodebaseOrExit).
     False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
+    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -181,8 +188,8 @@ initSchemaIfNotExist path = liftIO do
     createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
   unlessM (doesFileExist $ path </> codebasePath) $
     Control.Exception.bracket
-      (unsafeGetConnection path)
-      Sqlite.close
+      (unsafeGetConnection "initSchemaIfNotExist" path)
+      shutdownConnection
       (runReaderT Q.createSchema)
 
 -- checks if a db exists at `path` with the minimum schema
@@ -190,9 +197,9 @@ codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root = liftIO do
   Monad.when debug $ traceM $ "codebaseExists " ++ root
   Control.Exception.catch @Sqlite.SQLError
-    ( sqliteCodebase root >>= \case
+    ( sqliteCodebase "codebaseExists" root >>= \case
         Left _ -> pure False
-        Right (close, _codebase) -> close >> pure True
+        Right (close, _codebase) -> close $> True
     )
     (const $ pure False)
 
@@ -245,17 +252,23 @@ type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
-unsafeGetConnection :: MonadIO m => CodebasePath -> m Sqlite.Connection
-unsafeGetConnection root = do
-  Monad.when debug $ traceM $ "unsafeGetconnection " ++ root ++ " -> " ++ (root </> codebasePath)
-  conn <- liftIO . Sqlite.open $ root </> codebasePath
+unsafeGetConnection :: MonadIO m => Codebase.DebugName -> CodebasePath -> m Connection
+unsafeGetConnection name root = do
+  let path = root </> codebasePath
+  Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
+  (Connection name path -> conn) <- liftIO $ Sqlite.open path
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
-sqliteCodebase root = do
-  Monad.when debug $ traceM $ "sqliteCodebase " ++ root
-  conn <- unsafeGetConnection root
+shutdownConnection :: MonadIO m => Connection -> m ()
+shutdownConnection conn = do
+  Monad.when debug $ traceM $ "shutdown connection " ++ show conn
+  liftIO $ Sqlite.close (Connection.underlying conn)
+
+sqliteCodebase :: MonadIO m => Codebase.DebugName -> CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
+sqliteCodebase debugName root = do
+  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
+  conn <- unsafeGetConnection debugName root
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
@@ -573,14 +586,14 @@ sqliteCodebase root = do
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
-              srcConn <- unsafeGetConnection srcRoot
+              srcConn <- unsafeGetConnection (debugName ++ ".sync.src") srcRoot
               syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
           syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncToDirectory destRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
               initSchemaIfNotExist destRoot
-              destConn <- unsafeGetConnection destRoot
+              destConn <- unsafeGetConnection (debugName ++ ".sync.dest") destRoot
               syncInternal syncProgress conn destConn $ Branch.transform lift b
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
@@ -698,12 +711,13 @@ sqliteCodebase root = do
               . (fmap . fmap) Cv.causalHash2to1
               $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
             where
-              open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
-              close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
+              open = (,) <$> unsafeGetConnection (debugName ++ ".lca.left") root
+                         <*> unsafeGetConnection (debugName ++ ".lca.left") root
+              close (c1, c2) = shutdownConnection c1 *> shutdownConnection c2
 
       let finalizer :: MonadIO m => m ()
           finalizer = do
-            liftIO $ Sqlite.close conn
+            shutdownConnection conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
@@ -754,7 +768,7 @@ sqliteCodebase root = do
             (Just \l r -> runDB conn $ fromJust <$> before l r)
           in code
         )
-    v -> liftIO $ Sqlite.close conn $> Left v
+    v -> shutdownConnection conn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -981,7 +995,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   ifM
     (codebaseExists remotePath)
     do
-      lift (sqliteCodebase remotePath) >>= \case
+      lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath) >>= \case
         Left sv -> ExceptT . pure . Left $ GitError.UnrecognizedSchemaVersion repo remotePath sv
         Right (closeCodebase, codebase) -> do
           -- try to load the requested branch from it
@@ -1030,7 +1044,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
 
   -- set up the cache dir
   remotePath <- time "Git fetch" $ pullBranch repo
-  destConn <- openOrCreateCodebaseConnection remotePath
+  destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
 
   flip runReaderT destConn $ Q.savepoint "push"
   lift . flip State.execStateT emptySyncProgressState $
@@ -1063,9 +1077,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
     Q.setJournalMode JournalMode.DELETE
 
   liftIO do
-    Sqlite.close destConn
+    shutdownConnection destConn
     void $ push remotePath repo
-
   where
     repoString = Text.unpack $ printRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()

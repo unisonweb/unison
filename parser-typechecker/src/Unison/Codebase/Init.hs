@@ -19,20 +19,22 @@ data CreateCodebaseError
   = CreateCodebaseAlreadyExists
   | CreateCodebaseOther Pretty
 
+type DebugName = String
+
 data Init m v a = Init
   { -- | open an existing codebase
-    openCodebase :: CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
+    openCodebase :: DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
     -- | create a new codebase
-    createCodebase' :: CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
+    createCodebase' :: DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
     -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
 
-createCodebase :: MonadIO m => Init m v a -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
-createCodebase cbInit path = do
+createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
+createCodebase debugName cbInit path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase' cbInit path <&> mapLeft \case
+  createCodebase' debugName cbInit path <&> mapLeft \case
     CreateCodebaseAlreadyExists ->
       P.wrap $
         "It looks like there's already a codebase in: "
@@ -49,10 +51,10 @@ createCodebase cbInit path = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> CodebasePath -> m (m (), Codebase m Symbol Ann)
-openNewUcmCodebaseOrExit cbInit path = do
+openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> m (m (), Codebase m Symbol Ann)
+openNewUcmCodebaseOrExit debugName cbInit path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase cbInit path >>= \case
+  createCodebase debugName cbInit path >>= \case
     Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
     Right x@(_, codebase) -> do
       liftIO $
@@ -64,6 +66,6 @@ openNewUcmCodebaseOrExit cbInit path = do
       pure x
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm -codebase dir init`)
-initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> Maybe CodebasePath -> m ()
-initCodebaseAndExit i mdir =
-  void $ openNewUcmCodebaseOrExit i =<< Codebase.getCodebaseDir mdir
+initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m ()
+initCodebaseAndExit i debugName mdir =
+  void $ openNewUcmCodebaseOrExit i debugName =<< Codebase.getCodebaseDir mdir
