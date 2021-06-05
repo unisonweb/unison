@@ -129,8 +129,9 @@ import qualified U.Util.Type as TypeUtil
 throwError :: Err m => Error -> m a
 throwError = if crashOnError then error . show else Except.throwError
 
-debug, crashOnError :: Bool
+debug, debugSaveBranch, crashOnError :: Bool
 debug = False
+debugSaveBranch = False
 
 -- | crashOnError can be helpful for debugging.
 -- If it is False, the errors will be delivered to the user elsewhere.
@@ -899,14 +900,19 @@ saveRootBranch c = do
 
 saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
-  when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
-
+  let debugHash = (take 5 . Text.unpack . Base32Hex.toText . H.toBase32Hex $ unCausalHash hc)
+        ++ "/" ++ (take 5 . Text.unpack . Base32Hex.toText . H.toBase32Hex $ unBranchHash he)
+  when (debug || debugSaveBranch) $ traceM $ "Operations.saveBranch " ++ debugHash ++ " parents = " ++ show (Map.keys parents)
   (chId, bhId) <- flip Monad.fromMaybeM (liftQ $ Q.loadCausalByCausalHash hc) do
     -- if not exist, create these
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") create hash for causal"
     chId <- liftQ (Q.saveCausalHash hc)
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") create hash for branch object"
     bhId <- liftQ (Q.saveBranchHash he)
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") create causal entry"
     liftQ (Q.saveCausal chId bhId)
     -- save the link between child and parents
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") find or save parents"
     parentCausalHashIds <-
       -- so try to save each parent (recursively) before continuing to save hc
       for (Map.toList parents) $ \(parentHash, mcausal) ->
@@ -915,12 +921,19 @@ saveBranch (C.Causal hc he parents me) = do
         (flip Monad.fromMaybeM)
           (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
           (mcausal >>= fmap snd . saveBranch)
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") create causal parent entries " ++ show parentCausalHashIds
     unless (null parentCausalHashIds) $
       liftQ (Q.saveCausalParents chId parentCausalHashIds)
     pure (chId, bhId)
+  when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") look up oid for branch object"
   boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
-    (li, lBranch) <- c2lBranch =<< me
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") couldn't find oid for branch object, so preparing to save it"
+    m <- me
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") localize branch"
+    (li, lBranch) <- c2lBranch m
+    when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") save the blob to the db"
     saveBranchObject bhId li lBranch
+  when debugSaveBranch $ traceM $ "(" ++ debugHash ++ ") saved branch " ++ debugHash ++ " with " ++ show (boId, chId)
   pure (boId, chId)
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
@@ -992,13 +1005,15 @@ saveBranch (C.Causal hc he parents me) = do
     startState = mempty @BranchSavingState
     saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
     saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
-      when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
+      when debugSaveBranch $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
       let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
       oId <- Q.saveObject hashId OT.Namespace bytes
       pure $ Db.BranchObjectId oId
     done :: (EDB m, Show a) => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
     done (lBranch, written@(textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
-      when debug $ traceM $ "saveBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written
+      let debugHash = (take 5 . show . Base32Hex.toText . H.toBase32Hex $ unCausalHash hc)
+            ++ "/" ++ (take 5 . show . Base32Hex.toText . H.toBase32Hex $ unBranchHash he)
+      when debugSaveBranch $ traceM $ "saveBranch.done " ++ debugHash ++ "\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written
       textIds <- liftQ $ traverse Q.saveText textValues
       defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes
       let ids =

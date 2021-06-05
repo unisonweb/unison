@@ -198,10 +198,17 @@ codebaseExists root = liftIO do
   Monad.when debug $ traceM $ "codebaseExists " ++ root
   Control.Exception.catch @Sqlite.SQLError
     ( sqliteCodebase "codebaseExists" root >>= \case
-        Left _ -> pure False
-        Right (close, _codebase) -> close $> True
+        Left _ -> do
+          Monad.when debug $ traceM $ "codebaseExists (wrong schema version)" ++ root
+          pure False
+        Right (close, _codebase) -> do
+          Monad.when debug $ traceM $ "codebaseExists (about to close)" ++ root
+          close $> True
     )
-    (const $ pure False)
+    ( const do
+        Monad.when debug $ traceM $ "codebaseExists (caught exception)" ++ root
+        pure False
+    )
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -717,6 +724,7 @@ sqliteCodebase debugName root = do
 
       let finalizer :: MonadIO m => m ()
           finalizer = do
+            when debug $ traceM $ "close sqliteCodebase " ++ debugName ++ " " ++ root ++ " " ++ show conn
             shutdownConnection conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
@@ -843,7 +851,7 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                   processBranches sync progress rest
                 Nothing ->
                   lift mb >>= \b -> do
-                    when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
+                    when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to putBranch' (below)"
                     let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
                     when debugProcessBranches do
                       traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
@@ -858,11 +866,15 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                       pure (cs, es, ts, ds)
                     if null cs && null es && null ts && null ds
                       then do
+                        when debugProcessBranches $ traceM $ "sync.processbranches.putBranch' " ++ show b0
                         lift . runDB destConn $ putBranch' b
+                        when debugProcessBranches $ traceM $ "sync.processbranches.putBranch' " ++ show b0 ++ " (done)"
                         processBranches @m sync progress rest
                       else do
                         let bs = map (uncurry B) cs
                             os = map O (es <> ts <> ds)
+                        when debugProcessBranches do
+                          traceM $ "sync.processbranches.putBranch' " ++ show b0 ++ " — just kidding! postponing until after " ++ show (os, bs)
                         processBranches @m sync progress (os ++ bs ++ b0 : rest)
         processBranches sync progress (O h : rest) = do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
