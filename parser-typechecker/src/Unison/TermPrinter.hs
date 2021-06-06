@@ -122,6 +122,8 @@ data DocLiteralContext
 
      >=10
        10f 10x 10y ...
+       termLink t
+       typeLink t
 
      >=3
        x -> 2y
@@ -177,11 +179,13 @@ pretty0
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Reference r) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
-    TermLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "termLink " <> styleHashQualified'' (fmt $ S.Referent r) name
+    TermLink' r -> paren (p >= 10) $
+      fmt S.LinkKeyword "termLink " <>
+      (parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Referent r) name)
       where name = elideFQN im $ PrettyPrintEnv.termName n r
-    TypeLink' r -> parenIfInfix name ic $
-      fmt S.LinkKeyword "typeLink " <> styleHashQualified'' (fmt $ S.Reference r) name
+    TypeLink' r -> paren (p >= 10) $
+      fmt S.LinkKeyword "typeLink " <>
+      (parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Reference r) name)
       where name = elideFQN im $ PrettyPrintEnv.typeName n r
     Ann' tm t ->
       paren (p >= 0)
