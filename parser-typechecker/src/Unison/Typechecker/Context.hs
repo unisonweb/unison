@@ -379,6 +379,13 @@ data Info v loc =
 context0 :: Context v loc
 context0 = Context []
 
+occursAnn :: Var v => Ord loc => TypeVar v loc -> Context v loc -> Bool
+occursAnn v (Context eis) = any p es
+  where
+  es = fst <$> eis
+  p (Ann _ ty) = v `Set.member` ABT.freeVars (applyCtx es ty)
+  p _ = False
+
 -- | Focuses on the first element in the list that satisfies the predicate.
 -- Returns `(prefix, focusedElem, suffix)`, where `prefix` is in reverse order.
 focusAt :: (a -> Bool) -> [a] -> Maybe ([a], a, [a])
@@ -1598,7 +1605,25 @@ coalesceWanted (n:new) old
     new <- expandAbilities new
     old <- expandAbilities old
     coalesceWanted new old
+  | Type.Var' u <- n = do
+    ctx <- getContext
+    (new, old) <-
+      -- Only add existential variables to the wanted list if they
+      -- occur in a type we're trying to infer in the context. If
+      -- they don't, they were added as instantiations of polymorphic
+      -- types that might as well just be instantiated to {}.
+      if keep ctx u
+        then pure (new, n:old)
+        else do
+          defaultAbility n
+          new <- expandAbilities new
+          old <- expandAbilities old
+          pure (new, old)
+    coalesceWanted new old
   | otherwise = coalesceWanted new (n:old)
+  where
+  keep ctx u@TypeVar.Existential{} = occursAnn u ctx
+  keep _ _ = True
 
 coalesceWanteds
   :: Var v => Ord loc => [[Type v loc]] -> M v loc [Type v loc]
