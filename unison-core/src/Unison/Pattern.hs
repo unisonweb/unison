@@ -35,7 +35,7 @@ data Pattern loc
 data SeqOp = Cons
            | Snoc
            | Concat
-           deriving (Eq, Show, Ord)
+           deriving (Eq, Show, Ord, Generic)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]
@@ -147,8 +147,8 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
       EffectPure _ _        -> [effectType Type.effectRef]
       EffectBind _ r cid _ _ ->
         [effectType Type.effectRef, effectType r, effectConstructor r cid]
-      SequenceLiteral _ _ -> [literalType Type.vectorRef]
-      SequenceOp {}        -> [literalType Type.vectorRef]
+      SequenceLiteral _ _ -> [literalType Type.listRef]
+      SequenceOp {}        -> [literalType Type.listRef]
       Boolean _ _         -> [literalType Type.booleanRef]
       Int     _ _         -> [literalType Type.intRef]
       Nat     _ _         -> [literalType Type.natRef]

@@ -43,6 +43,21 @@ ab2 =
     with nh
   with abh
 
+ability C where
+  n : Nat
+  i : Int
 
-> (a1, ab1, ab2) -- should be (42, 53, 43)
+f = cases
+  { r } -> r
+  { i -> _ } -> 5
+
+g = cases
+  { i -> _ } -> 6
+  { n -> _ } -> 7
+
+x = 'let
+  j = i
+  3
+
+> (a1, ab1, ab2, (handle !x with f), (handle !x with g))
 

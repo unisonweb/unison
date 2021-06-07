@@ -849,7 +849,7 @@ vectorConstructorOfArity :: (Var v, Ord loc) => loc -> Int -> M v loc (Type v lo
 vectorConstructorOfArity loc arity = do
   let elementVar = Var.named "elem"
       args = replicate arity (loc, Type.var loc elementVar)
-      resultType = Type.app loc (Type.vector loc) (Type.var loc elementVar)
+      resultType = Type.app loc (Type.list loc) (Type.var loc elementVar)
       vt = Type.forall loc elementVar (Type.arrows args resultType)
   pure vt
 
@@ -1043,7 +1043,7 @@ synthesizeWanted e
     appendContext [Var (TypeVar.Existential blank v Invariant)]
     pure (existential' l blank v, [])
 
-  | Term.Sequence' v <- e = do
+  | Term.List' v <- e = do
     ft <- vectorConstructorOfArity l (Foldable.length v)
     case Foldable.toList v of
       [] -> pure (ft, [])
@@ -1194,7 +1194,7 @@ checkPattern scrutineeType0 p =
         let vt = existentialp loc v
         appendContext [existential v]
         -- ['a] <: scrutineeType, where 'a is fresh existential
-        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        subtype (Type.app loc (Type.list loc) vt) scrutineeType
         applyM vt
       join <$> traverse (checkPattern vt) ps
     Pattern.SequenceOp loc l op r -> do
@@ -1203,20 +1203,20 @@ checkPattern scrutineeType0 p =
         v <- freshenVar Var.inferOther
         let vt = existentialp loc v
         appendContext [existential v]
-        -- todo: `Type.vector loc` is super-probably wrong;
+        -- todo: `Type.list loc` is super-probably wrong;
         -- I'm thinking it should be Ann.Intrinsic, but we don't
         -- have access to that here.
-        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        subtype (Type.app loc (Type.list loc) vt) scrutineeType
         applyM vt
       case op of
         Pattern.Cons -> do
           lvs <- checkPattern vt l
-          -- todo: same `Type.vector loc` thing
-          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
+          -- todo: same `Type.list loc` thing
+          rvs <- checkPattern (Type.app locR (Type.list locR) vt) r
           pure $ lvs ++ rvs
         Pattern.Snoc -> do
-          -- todo: same `Type.vector loc` thing
-          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
+          -- todo: same `Type.list loc` thing
+          lvs <- checkPattern (Type.app locL (Type.list locL) vt) l
           rvs <- checkPattern vt r
           pure $ lvs ++ rvs
         Pattern.Concat ->
@@ -1224,11 +1224,11 @@ checkPattern scrutineeType0 p =
             (p, _) | isConstLen p -> f
             (_, p) | isConstLen p -> f
             (_, _) -> lift . failWith $
-              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.vector loc) vt)
+              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.list loc) vt)
           where
             f = liftA2 (++) (g locL l) (g locR r)
-            -- todo: same `Type.vector loc` thing
-            g l p = checkPattern (Type.app l (Type.vector l) vt) p
+            -- todo: same `Type.list loc` thing
+            g l p = checkPattern (Type.app l (Type.list l) vt) p
 
             -- Only pertains to sequences, returns False if not a sequence
             isConstLen :: Pattern loc -> Bool

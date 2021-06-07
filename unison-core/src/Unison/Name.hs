@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -5,6 +6,8 @@
 
 module Unison.Name
   ( Name(Name)
+  , Convert(..)
+  , Parse(..)
   , endsWithSegments
   , fromString
   , isPrefixOf
@@ -18,6 +21,7 @@ module Unison.Name
   , stripNamePrefix
   , stripPrefixes
   , segments
+  , countSegments
   , segments'
   , suffixes
   , toString
@@ -47,7 +51,8 @@ import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
-newtype Name = Name { toText :: Text } deriving (Eq, Ord, Monoid, Semigroup)
+newtype Name = Name { toText :: Text }
+  deriving (Eq, Ord, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
@@ -117,7 +122,7 @@ stripNamePrefix prefix name =
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
-stripPrefixes = fromSegment . last . segments
+stripPrefixes = maybe "" fromSegment . lastMay . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -149,7 +154,7 @@ suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
   where up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
-unqualified' = last . segments'
+unqualified' = fromMaybe "" . lastMay . segments'
 
 makeAbsolute :: Name -> Name
 makeAbsolute n | toText n == "."                = Name ".."
@@ -172,6 +177,27 @@ fromSegment = unsafeFromText . NameSegment.toText
 -- e.g. split `base..` into `[base,.]`
 segments :: Name -> [NameSegment]
 segments (Name n) = NameSegment <$> segments' n
+
+countSegments :: Name -> Int
+countSegments n = length (segments n)
+
+class Convert a b where
+  convert :: a -> b
+
+class Parse a b where
+  parse :: a -> Maybe b
+
+instance Convert Name Text where convert = toText
+instance Convert Name [NameSegment] where convert = segments
+instance Convert NameSegment Name where convert = fromSegment
+
+instance Parse Text NameSegment where
+  parse txt = case NameSegment.segments' txt of
+    [n] -> Just (NameSegment.NameSegment n)
+    _ -> Nothing
+
+instance (Parse a a2, Parse b b2) => Parse (a,b) (a2,b2) where
+  parse (a,b) = (,) <$> parse a <*> parse b
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
   _Snoc = Lens.prism snoc unsnoc

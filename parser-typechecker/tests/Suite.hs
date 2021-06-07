@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Main where
@@ -15,9 +16,7 @@ import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
--- import qualified Unison.Test.Git as Git
 import qualified Unison.Test.Lexer as Lexer
-import qualified Unison.Test.IO as TestIO
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.Referent as Referent
 import qualified Unison.Test.Term as Term
@@ -37,9 +36,12 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
+import qualified Unison.Test.GitSync as GitSync
+import qualified Unison.Test.Codebase.Upgrade12 as Upgrade12
+-- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
-test :: Bool -> Test ()
-test rt = tests
+test :: Test ()
+test = tests
   [ Cache.test
   , Lexer.test
   , Term.test
@@ -48,7 +50,7 @@ test rt = tests
   , Type.test
   , TypeError.test
   , TypePrinter.test
-  , UnisonSources.test rt
+  , UnisonSources.test
   , FileParser.test
   , DataDeclaration.test
   , Range.test
@@ -66,8 +68,9 @@ test rt = tests
   , Typechecker.test
   , UriParser.test
   , Context.test
-  -- , Git.test
-  , TestIO.test
+  , Upgrade12.test
+  , GitSync.test
+  -- , BaseUpgradePushPullTest.test -- slowwwwww test involving upgrading base, hard-coded to arya's filesystem
   , Name.test
   , VersionParser.test
   , Pretty.test
@@ -76,12 +79,9 @@ test rt = tests
 
 main :: IO ()
 main = do
-  args0 <- getArgs
-  let (rt, args)
-        | "--new-runtime":rest <- args0 = (True, rest)
-        | otherwise = (False, args0)
+  args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of
-    [] -> runOnly "" (test rt)
-    [prefix] -> runOnly prefix (test rt)
-    [seed, prefix] -> rerunOnly (read seed) prefix (test rt)
+    [] -> runOnly "" test
+    [prefix] -> runOnly prefix test
+    [seed, prefix] -> rerunOnly (read seed) prefix test

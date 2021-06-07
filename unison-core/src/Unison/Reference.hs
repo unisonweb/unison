@@ -9,6 +9,8 @@ module Unison.Reference
      pattern Derived,
      pattern DerivedId,
    Id(..),
+   Pos,
+   Size,
    derivedBase32Hex,
    Component, members,
    components,
@@ -25,7 +27,8 @@ module Unison.Reference
    toId,
    toText,
    unsafeId,
-   toShortHash) where
+   toShortHash,
+   idToShortHash) where
 
 import Unison.Prelude
 
@@ -38,6 +41,11 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
 
+-- | Either a builtin or a user defined (hashed) top-level declaration.
+--
+-- Used for both terms and types. Doesn't distinguish between them.
+--
+-- Other used defined things like local variables don't get @Reference@s.
 data Reference
   = Builtin Text.Text
   -- `Derived` can be part of a strongly connected component.
@@ -46,17 +54,22 @@ data Reference
   -- Using an ugly name so no one tempted to use this
   | DerivedId Id deriving (Eq,Ord,Generic)
 
+pattern Derived :: H.Hash -> Pos -> Size -> Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
 -- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
 --{-# COMPLETE Builtin, Derived #-}
 
-data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+-- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
+data Id = Id H.Hash Pos Size deriving (Generic)
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
 unsafeId (DerivedId x) = x
+
+idToShortHash :: Id -> ShortHash
+idToShortHash = toShortHash . DerivedId
 
 -- todo: move these to ShortHash module?
 -- but Show Reference currently depends on SH
@@ -177,3 +190,7 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+
+-- | Two references mustn't differ in cycle length only.
+instance Eq Id where x == y = compare x y == EQ
+instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2

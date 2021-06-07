@@ -1,4 +1,3 @@
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 
@@ -61,7 +60,7 @@ names0 = Names3.names0 terms types where
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
-    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i)) 
+    Rel.fromList [ (Name.fromVar v, Referent.Ref (R.DerivedId i))
                  | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, R.DerivedId r)
@@ -170,13 +169,13 @@ builtinTypesSrc =
   , B' "Value" CT.Data
   , B' "Any" CT.Data
   , B' "crypto.HashAlgorithm" CT.Data
-  , B' "IOFailure" CT.Data, Rename' "IOFailure" "io2.IOFailure"
-  , B' "TlsFailure" CT.Data, Rename' "TlsFailure" "io2.TlsFailure"
   , B' "Tls" CT.Data, Rename' "Tls" "io2.Tls"
   , B' "Tls.ClientConfig" CT.Data, Rename' "Tls.ClientConfig" "io2.Tls.ClientConfig"
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
   , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "Tls.Version" CT.Data, Rename' "Tls.Version" "io2.Tls.Version"
+  , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
   ]
@@ -384,6 +383,7 @@ builtinsSrc =
   , B "Text.take" $ nat --> text --> text
   , B "Text.drop" $ nat --> text --> text
   , B "Text.size" $ text --> nat
+  , B "Text.repeat" $ nat --> text --> text
   , B "Text.==" $ text --> text --> boolean
   , D "Text.!=" $ text --> text --> boolean
   , B "Text.<=" $ text --> text --> boolean
@@ -395,8 +395,9 @@ builtinsSrc =
   , B "Text.toCharList" $ text --> list char
   , B "Text.fromCharList" $ list char --> text
   , B "Text.toUtf8" $ text --> bytes
-  , B "Text.fromUtf8.v3" $ bytes --> eithert failure text
+  , B "Text.fromUtf8.impl.v3" $ bytes --> eithert failure text
   , B "Char.toNat" $ char --> nat
+  , B "Char.toText" $ char --> text
   , B "Char.fromNat" $ nat --> char
 
   , B "Bytes.empty" bytes
@@ -427,7 +428,7 @@ builtinsSrc =
   , B "Bytes.fromBase64" $ bytes --> eithert text bytes
   , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
 
-  , B "List.empty" $ forall1 "a" list
+  , D "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
   , Alias "List.cons" "List.+:"
   , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
@@ -509,55 +510,54 @@ hashBuiltins =
 
 ioBuiltins :: Var v => [(Text, Type v)]
 ioBuiltins =
-  [ ("IO.openFile.v3", text --> fmode --> iof handle)
-  , ("IO.closeFile.v3", handle --> iof unit)
-  , ("IO.isFileEOF.v3", handle --> iof boolean)
-  , ("IO.isFileOpen.v3", handle --> iof boolean)
-  , ("IO.isSeekable.v3", handle --> iof boolean)
-  , ("IO.seekHandle.v3", handle --> smode --> int --> iof unit)
-  , ("IO.handlePosition.v3", handle --> iof nat)
-  , ("IO.getBuffering.v3", handle --> iof bmode)
-  , ("IO.setBuffering.v3", handle --> bmode --> iof unit)
-  , ("IO.getBytes.v3", handle --> nat --> iof bytes)
-  , ("IO.putBytes.v3", handle --> bytes --> iof unit)
-  , ("IO.systemTime.v3", unit --> iof nat)
-  , ("IO.getTempDirectory.v3", unit --> iof text)
-  , ("IO.createTempDirectory", text --> iof text)
-  , ("IO.getCurrentDirectory.v3", unit --> iof text)
-  , ("IO.setCurrentDirectory.v3", text --> iof unit)
-  , ("IO.fileExists.v3", text --> iof boolean)
-  , ("IO.isDirectory.v3", text --> iof boolean)
-  , ("IO.createDirectory.v3", text --> iof unit)
-  , ("IO.removeDirectory.v3", text --> iof unit)
-  , ("IO.renameDirectory.v3", text --> text --> iof unit)
-  , ("IO.removeFile.v3", text --> iof unit)
-  , ("IO.renameFile.v3", text --> text --> iof unit)
-  , ("IO.getFileTimestamp.v3", text --> iof nat)
-  , ("IO.getFileSize.v3", text --> iof nat)
-  , ("IO.serverSocket.v3", optionalt text --> text --> iof socket)
-  , ("IO.listen.v3", socket --> iof unit)
-  , ("IO.clientSocket.v3", text --> text --> iof socket)
-  , ("IO.closeSocket.v3", socket --> iof unit)
-  , ("IO.socketPort", socket --> iof nat)
-  , ("IO.socketAccept.v3", socket --> iof socket)
-  , ("IO.socketSend.v3", socket --> bytes --> iof unit)
-  , ("IO.socketReceive.v3", socket --> nat --> iof bytes)
-  , ("IO.forkComp.v2"
-    , forall1 "a" $ \a -> (unit --> io a) --> io threadId)
+  [ ("IO.openFile.impl.v3", text --> fmode --> iof handle)
+  , ("IO.closeFile.impl.v3", handle --> iof unit)
+  , ("IO.isFileEOF.impl.v3", handle --> iof boolean)
+  , ("IO.isFileOpen.impl.v3", handle --> iof boolean)
+  , ("IO.isSeekable.impl.v3", handle --> iof boolean)
+  , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
+  , ("IO.handlePosition.impl.v3", handle --> iof nat)
+  , ("IO.getBuffering.impl.v3", handle --> iof bmode)
+  , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
+  , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
+  , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
+  , ("IO.systemTime.impl.v3", unit --> iof nat)
+  , ("IO.getTempDirectory.impl.v3", unit --> iof text)
+  , ("IO.createTempDirectory.impl.v3", text --> iof text)
+  , ("IO.getCurrentDirectory.impl.v3", unit --> iof text)
+  , ("IO.setCurrentDirectory.impl.v3", text --> iof unit)
+  , ("IO.fileExists.impl.v3", text --> iof boolean)
+  , ("IO.isDirectory.impl.v3", text --> iof boolean)
+  , ("IO.createDirectory.impl.v3", text --> iof unit)
+  , ("IO.removeDirectory.impl.v3", text --> iof unit)
+  , ("IO.renameDirectory.impl.v3", text --> text --> iof unit)
+  , ("IO.removeFile.impl.v3", text --> iof unit)
+  , ("IO.renameFile.impl.v3", text --> text --> iof unit)
+  , ("IO.getFileTimestamp.impl.v3", text --> iof nat)
+  , ("IO.getFileSize.impl.v3", text --> iof nat)
+  , ("IO.serverSocket.impl.v3", optionalt text --> text --> iof socket)
+  , ("IO.listen.impl.v3", socket --> iof unit)
+  , ("IO.clientSocket.impl.v3", text --> text --> iof socket)
+  , ("IO.closeSocket.impl.v3", socket --> iof unit)
+  , ("IO.socketPort.impl.v3", socket --> iof nat)
+  , ("IO.socketAccept.impl.v3", socket --> iof socket)
+  , ("IO.socketSend.impl.v3", socket --> bytes --> iof unit)
+  , ("IO.socketReceive.impl.v3", socket --> nat --> iof bytes)
+  , ("IO.forkComp.v2", forall1 "a" $ \a -> (unit --> io a) --> io threadId)
   , ("IO.stdHandle", stdhandle --> handle)
 
-  , ("IO.delay.v3", nat --> iof unit)
-  , ("IO.kill.v3", threadId --> iof unit)
-  , ("Tls.newClient", tlsClientConfig --> socket --> iof tls)
-  , ("Tls.newServer", tlsServerConfig --> socket --> iof tls)
-  , ("Tls.handshake", tls --> iof unit)
-  , ("Tls.send", tls --> bytes --> iof unit)
-  , ("Tls.decodeCert", bytes --> eithert failure tlsSignedCert)
+  , ("IO.delay.impl.v3", nat --> iof unit)
+  , ("IO.kill.impl.v3", threadId --> iof unit)
+  , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
+  , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
+  , ("Tls.handshake.impl.v3", tls --> iof unit)
+  , ("Tls.send.impl.v3", tls --> bytes --> iof unit)
+  , ("Tls.decodeCert.impl.v3", bytes --> eithert failure tlsSignedCert)
   , ("Tls.encodeCert", tlsSignedCert --> bytes)
   , ("Tls.decodePrivateKey", bytes --> list tlsPrivateKey)
   , ("Tls.encodePrivateKey", tlsPrivateKey --> bytes)
-  , ("Tls.receive", tls --> iof bytes)
-  , ("Tls.terminate", tls --> iof unit)
+  , ("Tls.receive.impl.v3", tls --> iof bytes)
+  , ("Tls.terminate.impl.v3", tls --> iof unit)
   , ("Tls.ClientConfig.default", text --> bytes --> tlsClientConfig)
   , ("Tls.ServerConfig.default", list tlsSignedCert --> tlsPrivateKey --> tlsServerConfig)
   , ("TLS.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig)
@@ -573,14 +573,14 @@ mvarBuiltins :: forall v. Var v => [(Text, Type v)]
 mvarBuiltins =
   [ ("MVar.new", forall1 "a" $ \a -> a --> io (mvar a))
   , ("MVar.newEmpty.v2", forall1 "a" $ \a -> unit --> io (mvar a))
-  , ("MVar.take.v3", forall1 "a" $ \a -> mvar a --> iof a)
+  , ("MVar.take.impl.v3", forall1 "a" $ \a -> mvar a --> iof a)
   , ("MVar.tryTake", forall1 "a" $ \a -> mvar a --> io (optionalt a))
-  , ("MVar.put.v3", forall1 "a" $ \a -> mvar a --> a --> iof unit)
-  , ("MVar.tryPut", forall1 "a" $ \a -> mvar a --> a --> io boolean)
-  , ("MVar.swap.v3", forall1 "a" $ \a -> mvar a --> a --> iof a)
+  , ("MVar.put.impl.v3", forall1 "a" $ \a -> mvar a --> a --> iof unit)
+  , ("MVar.tryPut.impl.v3", forall1 "a" $ \a -> mvar a --> a --> iof boolean)
+  , ("MVar.swap.impl.v3", forall1 "a" $ \a -> mvar a --> a --> iof a)
   , ("MVar.isEmpty", forall1 "a" $ \a -> mvar a --> io boolean)
-  , ("MVar.read.v3", forall1 "a" $ \a -> mvar a --> iof a)
-  , ("MVar.tryRead", forall1 "a" $ \a -> mvar a --> io (optionalt a))
+  , ("MVar.read.impl.v3", forall1 "a" $ \a -> mvar a --> iof a)
+  , ("MVar.tryRead.impl.v3", forall1 "a" $ \a -> mvar a --> iof (optionalt a))
   ]
   where
   mvar :: Type v -> Type v
@@ -624,7 +624,7 @@ app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()
 
 list :: Ord v => Type v -> Type v
-list arg = Type.vector () `app` arg
+list arg = Type.list () `app` arg
 
 optionalt :: Ord v => Type v -> Type v
 optionalt arg = DD.optionalType () `app` arg

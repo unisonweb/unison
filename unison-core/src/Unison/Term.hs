@@ -72,7 +72,7 @@ data F typeVar typeAnn patternAnn a
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
-  | Sequence (Seq a)
+  | List (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -246,7 +246,7 @@ extraMap vtf atf apf = \case
   Handle x y -> Handle x y
   App x y -> App x y
   Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
-  Sequence x -> Sequence x
+  List x -> List x
   If x y z -> If x y z
   And x y -> And x y
   Or x y -> Or x y
@@ -434,8 +434,17 @@ pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 -- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
-pattern Sequence' xs <- (ABT.out -> ABT.Tm (Sequence xs))
+pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+
+pattern Delay' body <- (unDelay -> Just body)
+unDelay :: Ord v => Term2 vt at ap v a -> Maybe (Term2 vt at ap v a)
+unDelay tm = case ABT.out tm of
+  ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body)))
+    |  Set.notMember v (ABT.freeVars body)
+    -> Just body
+  _ -> Nothing
+
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
@@ -467,6 +476,14 @@ var' = var() . Var.named
 
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
+
+pattern Referent' r <- (unReferent -> Just r)
+
+unReferent :: Term2 vt at ap v a -> Maybe Referent
+unReferent (Ref' r) = Just $ Referent.Ref r
+unReferent (Constructor' r cid) = Just $ Referent.Con r cid CT.Data
+unReferent (Request' r cid) = Just $ Referent.Con r cid CT.Effect
+unReferent _ = Nothing
 
 refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
 refId a = ref a . Reference.DerivedId
@@ -540,11 +557,11 @@ and a x y = ABT.tm' a (And x y)
 or :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 or a x y = ABT.tm' a (Or x y)
 
-seq :: Ord v => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
-seq a es = seq' a (Sequence.fromList es)
+list :: Ord v => a -> [Term2 vt at ap v a] -> Term2 vt at ap v a
+list a es = list' a (Sequence.fromList es)
 
-seq' :: Ord v => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
-seq' a es = ABT.tm' a (Sequence es)
+list' :: Ord v => a -> Seq (Term2 vt at ap v a) -> Term2 vt at ap v a
+list' a es = ABT.tm' a (List es)
 
 apps
   :: Ord v
@@ -576,6 +593,10 @@ ann a e t = ABT.tm' a (Ann e t)
 -- arya: are we sure we want the two annotations to be the same?
 lam :: Ord v => a -> v -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
+
+delay :: Var v => a -> Term2 vt at ap v a -> Term2 vt at ap v a
+delay a body =
+  ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.named "_")) body))
 
 lam' :: Ord v => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
 lam' a vs body = foldr (lam a) body vs
@@ -822,6 +843,21 @@ unReqOrCtor _                         = Nothing
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
+termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
+termDependencies =
+  Set.fromList
+    . mapMaybe
+      ( LD.fold
+          (\_typeRef -> Nothing)
+          ( Referent.fold
+              (\termRef -> Just termRef)
+              (\_typeConRef _i _ct -> Nothing)
+          )
+      )
+    . toList
+    . labeledDependencies
+
+-- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
   Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
@@ -866,7 +902,7 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
   f t@(Float    _) = Writer.tell [literalType Type.floatRef] $> t
   f t@(Boolean  _) = Writer.tell [literalType Type.booleanRef] $> t
   f t@(Text     _) = Writer.tell [literalType Type.textRef] $> t
-  f t@(Sequence _) = Writer.tell [literalType Type.vectorRef] $> t
+  f t@(List _) = Writer.tell [literalType Type.listRef] $> t
   f t@(Constructor r cid) =
     Writer.tell [dataType r, dataConstructor r cid] $> t
   f t@(Request r cid) =
@@ -918,9 +954,23 @@ betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f)
 betaNormalForm e = e
 
 -- x -> f x => f
-etaNormalForm :: Eq v => Term0 v -> Term0 v
-etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
-etaNormalForm t = t
+etaNormalForm :: Ord v => Term0 v -> Term0 v
+etaNormalForm tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
+    where
+      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step tm = tm
+  _ -> tm
+
+-- x -> f x => f as long as `x` is a variable of type `Var.Eta`
+etaReduceEtaVars :: Var v => Term0 v -> Term0 v
+etaReduceEtaVars tm = case tm of
+  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+    where
+      ok v v' = v == v' && Var.typeOf v == Var.Eta
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      step tm = tm
+  _ -> tm
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
@@ -1016,7 +1066,7 @@ instance Var v => Hashable1 (F v a p) where
                     error "handled above, but GHC can't figure this out"
                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-                  Sequence as -> tag 5 : varint (Sequence.length as) : map
+                  List as -> tag 5 : varint (Sequence.length as) : map
                     (hashed . hash)
                     (toList as)
                   Lam a         -> [tag 6, hashed (hash a)]
@@ -1067,7 +1117,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
-  Sequence v == Sequence v2 = v == v2
+  List v == List v2 = v == v2
   If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
   And a b == And a2 b2 = a == a2 && b == b2
   Or a b == Or a2 b2 = a == a2 && b == b2
@@ -1082,7 +1132,6 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
 instance (Show v, Show a) => Show (F v a0 p a) where
   showsPrec = go
    where
-    showConstructor r n = shows r <> s "#" <> shows n
     go _ (Int     n    ) = (if n >= 0 then s "+" else s "") <> shows n
     go _ (Nat     n    ) = shows n
     go _ (Float   n    ) = shows n
@@ -1091,7 +1140,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
     go p (Ann t k) = showParen (p > 1) $ shows t <> s ":" <> shows k
     go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
     go _ (Lam    body  ) = showParen True (s "λ " <> shows body)
-    go _ (Sequence vs    ) = showListWith shows (toList vs)
+    go _ (List vs    ) = showListWith shows (toList vs)
     go _ (Blank  b     ) = case b of
       B.Blank                        -> s "_"
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
@@ -1107,13 +1156,13 @@ instance (Show v, Show a) => Show (F v a0 p a) where
     go _ (Handle b body) = showParen
       True
       (s "handle " <> shows b <> s " in " <> shows body)
-    go _ (Constructor r         n    ) = showConstructor r n
+    go _ (Constructor r         n    ) = s "Con" <> shows r <> s "#" <> shows n
     go _ (Match       scrutinee cases) = showParen
       True
       (s "case " <> shows scrutinee <> s " of " <> shows cases)
     go _ (Text s     ) = shows s
     go _ (Char c     ) = shows c
-    go _ (Request r n) = showConstructor r n
+    go _ (Request r n) = s "Req" <> shows r <> s "#" <> shows n
     go p (If c t f) =
       showParen (p > 0)
         $  s "if "

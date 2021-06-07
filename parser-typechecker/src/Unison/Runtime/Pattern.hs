@@ -22,12 +22,13 @@ import Data.Set (Set, member)
 import qualified Data.Set as Set
 
 import Unison.ABT
-  (absChain', visitPure, pattern AbsN', changeVars)
+  (absChain', visitPure, pattern AbsN', renames)
 import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
 import Unison.DataDeclaration (declFields)
 import Unison.Pattern
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
+import Unison.Runtime.ANF (internalBug)
 import Unison.Symbol (Symbol)
 import Unison.Term hiding (Term)
 import qualified Unison.Term as Tm
@@ -58,7 +59,7 @@ instance Semigroup PType where
   t@(PData l) <> PData r
     | l == r = t
   PReq l <> PReq r = PReq (l <> r)
-  _ <> _ = error "inconsistent pattern matching types"
+  _ <> _ = internalBug "inconsistent pattern matching types"
 
 instance Monoid PType where
   mempty = Unknown
@@ -93,7 +94,14 @@ builtinDataSpec = Map.fromList decls
 -- should be matched against when decomposing a matrix.
 data PatternMatrix v
   = PM { _rows :: [PatternRow v] }
-  deriving Show
+  deriving (Show)
+
+usedVars :: Ord v => PatternMatrix v -> Set v
+usedVars (PM rs) = foldMap usedR rs
+  where
+  usedR (PR ps g b)
+    = foldMap usedP ps <> foldMap freeVars g <> freeVars b
+  usedP = foldMap Set.singleton
 
 -- Heuristics guide the pattern compilation. They inspect the
 -- pattern matrix and (may) choose a variable to split on next.
@@ -103,7 +111,8 @@ type Heuristic v = PatternMatrix v -> Maybe v
 
 choose :: [Heuristic v] -> PatternMatrix v -> v
 choose [] (PM (PR (p:_) _ _ : _)) = loc p
-choose [] _ = error "pattern matching: failed to choose a splitting"
+choose [] _
+  = internalBug "pattern matching: failed to choose a splitting"
 choose (h:hs) m
   | Just i <- h m = i
   | otherwise = choose hs m
@@ -154,16 +163,16 @@ decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   , rf0 == rf
   = if length ps == nfields
     then [ps]
-    else error err
+    else internalBug err
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
 decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
   , rf0 == rf
-  = if length ps == nfields
+  = if length ps + 1 == nfields
     then [ps ++ [pk]]
-    else error err
+    else internalBug err
   where
   err = "decomposePattern: wrong number of ability fields: "
      ++ show (nfields, p)
@@ -174,7 +183,7 @@ decomposePattern _ _ nfields (P.Var _)
 decomposePattern _ _ nfields (P.Unbound _)
   = [replicate nfields (P.Unbound (typed Pattern))]
 decomposePattern _ _ _ (P.SequenceLiteral _ _)
-  = error "decomposePattern: sequence literal"
+  = internalBug "decomposePattern: sequence literal"
 decomposePattern _ _ _ _ = []
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
@@ -226,7 +235,7 @@ decideSeqPat = go False
   go b (P.Unbound _ : ps) = go b ps
   go b (P.Var _ : ps) = go b ps
   go _ (p:_)
-    = error $ "Cannot process sequence pattern: " ++ show p
+    = internalBug $ "Cannot process sequence pattern: " ++ show p
 
 -- Represents the possible correspondences between a sequence pattern
 -- and a sequence matching compilation target. Unlike data matching,
@@ -334,18 +343,19 @@ splitRowBuiltin _ r = [(P.Unbound (), [([], r)])]
 -- failure.
 splitRowSeq
   :: Var v
-  => v
+  => Set v
+  -> v
   -> SeqMatch
   -> PatternRow v
   -> [([P.Pattern v], PatternRow v)]
-splitRowSeq v m r@(PR (break ((==v).loc) -> (pl, sp : pr)) g b)
+splitRowSeq avoid0 v m r@(PR (break ((==v).loc) -> (pl, sp : pr)) g b)
   = case decomposeSeqP avoid m sp of
       Cover sps -> 
         [(sps, PR (pl ++ filter refutable sps ++ pr) g b)]
       Disjoint -> []
       Overlap -> [([], r)]
-  where avoid = maybe mempty freeVars g <> freeVars b
-splitRowSeq _ _ r = [([], r)]
+  where avoid = avoid0 <> maybe mempty freeVars g <> freeVars b
+splitRowSeq _ _ _ r = [([], r)]
 
 -- Renames the variables annotating the patterns in a row, for once a
 -- canonical choice has been made.
@@ -356,8 +366,8 @@ renameRow m (PR p0 g0 b0) = PR p g b
     | Just v <- Map.lookup k m = v
     | otherwise = k
   p = (fmap.fmap) access p0
-  g = changeVars m <$> g0
-  b = changeVars m b0
+  g = renames m <$> g0
+  b = renames m b0
 
 -- Chooses a common set of variables for use when decomposing
 -- patterns into multiple sub-patterns. It is too naive to simply use
@@ -422,18 +432,19 @@ matchPattern vrs = \case
 -- matricies for subsequent compilation.
 splitMatrixSeq
   :: Var v
-  => v
+  => Set v
+  -> v
   -> PatternMatrix v
   -> [(P.Pattern (), [(v,PType)], PatternMatrix v)]
-splitMatrixSeq v (PM rs)
+splitMatrixSeq avoid v (PM rs)
   = cases
   where
   ms = decideSeqPat $ take 1 . dropWhile ((/=v).loc) . matches =<< rs
   hint m vrs
     | m `elem` [E,C,S] = vrs
-    | otherwise = (fmap.fmap) (const $ PData Rf.vectorRef) vrs
+    | otherwise = (fmap.fmap) (const $ PData Rf.listRef) vrs
   cases = ms <&> \m ->
-    let frs = rs >>= splitRowSeq v m
+    let frs = rs >>= splitRowSeq avoid v m
         (vrs, pm) = buildMatrix frs
     in (matchPattern vrs m, hint m vrs, pm)
 
@@ -469,7 +480,7 @@ renameTo :: Var v => v -> v -> PPM v ()
 renameTo to from
   = modify $ \(avoid, vs, rn) ->
       ( avoid, vs
-      , insertWith (error "renameTo: duplicate rename") from to rn
+      , insertWith (internalBug "renameTo: duplicate rename") from to rn
       )
 
 -- Tries to rewrite sequence patterns into a format that can be
@@ -504,7 +515,7 @@ normalizeSeqP p = p
 -- redundant names (like with the pattern u@v) into renamings.
 prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
 prepareAs (P.Unbound _) u = pure $ P.Var u
-prepareAs (P.As _ p) u = prepareAs p u <* (renameTo u =<< useVar)
+prepareAs (P.As _ p) u = (useVar >>= renameTo u) *> prepareAs p u
 prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
 prepareAs (P.Constructor _ r i ps) u = do
   P.Constructor u r i <$> traverse preparePattern ps
@@ -528,14 +539,11 @@ prepareAs p u = pure $ u <$ p
 -- variables they bind are used as candidates for what that level of
 -- the pattern matches against.
 preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
-preparePattern (P.Unbound _) = P.Var <$> freshVar
-preparePattern (P.Var _) = P.Var <$> useVar
-preparePattern (P.As _ p) = prepareAs p =<< useVar
 preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> Reference -> Int -> [v] -> Int -> P.Pattern ()
 buildPattern effect r t vs nfields
-  | effect, [] <- vps = error "too few patterns for effect bind"
+  | effect, [] <- vps = internalBug "too few patterns for effect bind"
   | effect = P.EffectBind () r t (init vps) (last vps)
   | otherwise = P.Constructor () r t vps
   where
@@ -558,21 +566,21 @@ lookupAbil :: Reference -> DataSpec -> Either String Cons
 lookupAbil rf (Map.lookup rf -> Just econs)
   = case econs of
       Right _ -> Left $ "ability matching on data: " ++ show rf
-      Left cs -> Right cs
+      Left cs -> Right $ fmap (1+) cs
 lookupAbil rf _ = Left $ "unknown ability reference: " ++ show rf
 
 compile :: Var v => DataSpec -> Ctx v -> PatternMatrix v -> Term v
-compile _ _ (PM []) = blank ()
+compile _ _ (PM []) = placeholder () "pattern match failure"
 compile spec ctx m@(PM (r:rs))
   | rowIrrefutable r
   = case guard r of
       Nothing -> body r
       Just g -> iff mempty g (body r) $ compile spec ctx (PM rs)
   | PData rf <- ty
-  , rf == Rf.vectorRef
+  , rf == Rf.listRef
   = match () (var () v)
       $ buildCaseBuiltin spec ctx
-     <$> splitMatrixSeq v m
+     <$> splitMatrixSeq (Map.keysSet ctx <> usedVars m) v m
   | PData rf <- ty
   , rf `member` builtinCase
   = match () (var () v)
@@ -584,7 +592,7 @@ compile spec ctx m@(PM (r:rs))
         match () (var () v)
           $ buildCase spec rf False cons ctx
          <$> splitMatrix v rf (numberCons cons) m
-      Left err -> error err
+      Left err -> internalBug err
   | PReq rfs <- ty
   = match () (var () v) $
       [ buildCasePure spec ctx tup
@@ -596,7 +604,7 @@ compile spec ctx m@(PM (r:rs))
       , tup <- splitMatrix v rf (numberCons cons) m
       ]
   | Unknown <- ty
-  = error "unknown pattern compilation type"
+  = internalBug "unknown pattern compilation type"
   where
   v = choose heuristics m
   ty = Map.findWithDefault Unknown v ctx
@@ -622,7 +630,9 @@ buildCasePure
 buildCasePure spec ctx0 (_, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = P.EffectPure () (P.Var ())
+  vp | [] <- vts = P.Unbound ()
+     | otherwise = P.Var ()
+  pat = P.EffectPure () vp
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 
@@ -651,17 +661,18 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b))
   = state $ \w -> case runState (prepareAs p0 sv) (w, vs, mempty) of
       (p, (w, [], rn)) -> (,w)
         $ PR (filter refutable [p])
-             (changeVars rn <$> g)
-             (changeVars rn b)
-      _ -> error "mkRow: not all variables used"
+             (renames rn <$> g)
+             (renames rn b)
+      _ -> internalBug "mkRow: not all variables used"
   where
   g = case g0 of
         Just (AbsN' us g)
           | us == vs -> Just g
-          | otherwise -> error "mkRow: guard variables do not match body"
+          | otherwise ->
+              internalBug "mkRow: guard variables do not match body"
         Nothing -> Nothing
-        _ -> error "mkRow: impossible"
-mkRow _ _ = error "mkRow: impossible"
+        _ -> internalBug "mkRow: impossible"
+mkRow _ _ = internalBug "mkRow: impossible"
 
 initialize
   :: Var v
@@ -716,8 +727,8 @@ determineType = foldMap f
   f P.Boolean{} = PData Rf.booleanRef
   f P.Text{} = PData Rf.textRef
   f P.Char{} = PData Rf.charRef
-  f P.SequenceLiteral{} = PData Rf.vectorRef
-  f P.SequenceOp{} = PData Rf.vectorRef
+  f P.SequenceLiteral{} = PData Rf.listRef
+  f P.SequenceOp{} = PData Rf.listRef
   f (P.Constructor _ r _ _) = PData r
   f (P.EffectBind _ r _ _ _) = PReq $ Set.singleton r
   f P.EffectPure{} = PReq mempty

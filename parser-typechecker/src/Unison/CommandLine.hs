@@ -28,7 +28,7 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Causal          ( Causal )
 import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
-import qualified Unison.Codebase.SearchResult    as SR
+import qualified Unison.Server.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified'           as HQ
@@ -38,6 +38,10 @@ import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
+import qualified Data.Configurator as Config
+
+disableWatchConfig :: Bool
+disableWatchConfig = False
 
 allow :: FilePath -> Bool
 allow p =
@@ -46,7 +50,7 @@ allow p =
   (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchConfig :: FilePath -> IO (Config, IO ())
-watchConfig path = do
+watchConfig path = if disableWatchConfig then pure (Config.empty, pure ()) else do
   (config, t) <- autoReload autoConfig [Optional path]
   pure (config, killThread t)
 

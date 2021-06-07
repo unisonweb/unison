@@ -58,6 +58,7 @@ testLift s = case cs of !_ -> ok
   where
   cs = emitCombs (RN (const 0) (const 0)) 0
      . superNormalize
+     . fst
      . lamLift
      $ tm s
 
@@ -147,6 +148,8 @@ denormalizeMatch b
     | otherwise = P.Int () $ fromIntegral i
   dpat r n t = P.Constructor () r (fromEnum t) (replicate n $ P.Var ())
 
+denormalizeBranch :: (Num a, Var v) =>
+                     Term ANormalF v -> (a, ABT.Term (Term.F v () ()) v ())
 denormalizeBranch (TAbs v br) = (n+1, ABT.abs v dbr)
  where (n, dbr) = denormalizeBranch br
 denormalizeBranch tm = (0, denormalize tm)

@@ -34,7 +34,6 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified System.IO as IO
-import qualified Data.Configurator as Config
 import qualified Crypto.Random as Random
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
@@ -44,7 +43,6 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
@@ -109,8 +107,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: Maybe Bool -> FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> Branch.Cache IO -> IO Text
-run newRt dir configFile stanzas codebase branchCache = do
+run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $ P.lines [
     asciiartUnison, "",
@@ -132,9 +130,7 @@ run newRt dir configFile stanzas codebase branchCache = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- do
-      b <- maybe (Config.lookupDefault False config "new-runtime") pure newRt
-      if b then RTI.startRuntime else pure Rt1.runtime
+    runtime                  <- RTI.startRuntime
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList
@@ -227,7 +223,14 @@ run newRt dir configFile stanzas codebase branchCache = do
           Just uf ->
             return (LoadSuccess uf)
           Nothing ->
-            return InvalidSourceNameError
+            -- This lets transcripts use the `load` command, as in:
+            --
+            -- .> load someFile.u
+            --
+            -- Important for Unison syntax that can't be embedded in
+            -- transcripts (like docs, which use ``` in their syntax).
+            let f = LoadSuccess <$> readUtf8 (Text.unpack name)
+            in f <|> pure InvalidSourceNameError
 
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
@@ -296,7 +299,6 @@ run newRt dir configFile stanzas codebase branchCache = do
                                      loadPreviousUnisonBlock
                                      codebase
                                      rng
-                                     branchCache
                                      free
         case o of
           Nothing -> do

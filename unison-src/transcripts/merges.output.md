@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #rq3jrbg57r
+  ⊙ #suu4oq8rrh
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #64jmhloeht
+  ⊙ #4i78gb0s9r
   
     + Adds / updates:
     
@@ -129,193 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #ncr9hv1q57
+  ⊙ #qer1fcccts
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #bbcrond13i
+  ⊙ #548hfmj536
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #311k7aet5l
+  ⊙ #nm19spfvg0
   
     + Adds / updates:
     
       x
   
-  ⊙ #e3bhlpkn5h
-  
-    + Adds / updates:
-    
-      builtin.Any builtin.Any.Any builtin.Boolean
-      builtin.Boolean.not builtin.Bytes builtin.Bytes.++
-      builtin.Bytes.at builtin.Bytes.drop builtin.Bytes.empty
-      builtin.Bytes.flatten builtin.Bytes.fromBase16
-      builtin.Bytes.fromBase32 builtin.Bytes.fromBase64
-      builtin.Bytes.fromBase64UrlUnpadded builtin.Bytes.fromList
-      builtin.Bytes.size builtin.Bytes.take
-      builtin.Bytes.toBase16 builtin.Bytes.toBase32
-      builtin.Bytes.toBase64 builtin.Bytes.toBase64UrlUnpadded
-      builtin.Bytes.toList builtin.Char builtin.Char.fromNat
-      builtin.Char.toNat builtin.Code builtin.Code.cache_
-      builtin.Code.dependencies builtin.Code.deserialize
-      builtin.Code.isMissing builtin.Code.lookup
-      builtin.Code.serialize builtin.Debug.watch builtin.Doc
-      builtin.Doc.Blob builtin.Doc.Evaluate builtin.Doc.Join
-      builtin.Doc.Link builtin.Doc.Signature builtin.Doc.Source
-      builtin.Either builtin.Either.Left builtin.Either.Right
-      builtin.Float builtin.Float.* builtin.Float.+
-      builtin.Float.- builtin.Float./ builtin.Float.abs
-      builtin.Float.acos builtin.Float.acosh builtin.Float.asin
-      builtin.Float.asinh builtin.Float.atan builtin.Float.atan2
-      builtin.Float.atanh builtin.Float.ceiling
-      builtin.Float.cos builtin.Float.cosh builtin.Float.eq
-      builtin.Float.exp builtin.Float.floor
-      builtin.Float.fromText builtin.Float.gt builtin.Float.gteq
-      builtin.Float.log builtin.Float.logBase builtin.Float.lt
-      builtin.Float.lteq builtin.Float.max builtin.Float.min
-      builtin.Float.pow builtin.Float.round builtin.Float.sin
-      builtin.Float.sinh builtin.Float.sqrt builtin.Float.tan
-      builtin.Float.tanh builtin.Float.toText
-      builtin.Float.truncate builtin.Int builtin.Int.*
-      builtin.Int.+ builtin.Int.- builtin.Int./ builtin.Int.and
-      builtin.Int.complement builtin.Int.eq builtin.Int.fromText
-      builtin.Int.gt builtin.Int.gteq builtin.Int.increment
-      builtin.Int.isEven builtin.Int.isOdd
-      builtin.Int.leadingZeros builtin.Int.lt builtin.Int.lteq
-      builtin.Int.mod builtin.Int.negate builtin.Int.or
-      builtin.Int.popCount builtin.Int.pow builtin.Int.shiftLeft
-      builtin.Int.shiftRight builtin.Int.signum
-      builtin.Int.toFloat builtin.Int.toText
-      builtin.Int.trailingZeros builtin.Int.truncate0
-      builtin.Int.xor builtin.IsPropagated
-      builtin.IsPropagated.IsPropagated builtin.IsTest
-      builtin.IsTest.IsTest builtin.Link
-      builtin.Link.Term##Link.Term builtin.Link.Term#quh#0
-      builtin.Link.Type##Link.Type builtin.Link.Type#quh#1
-      builtin.List builtin.List.++ builtin.List.+:
-      builtin.List.:+ builtin.List.at builtin.List.cons
-      builtin.List.drop builtin.List.empty builtin.List.size
-      builtin.List.snoc builtin.List.take builtin.Nat
-      builtin.Nat.* builtin.Nat.+ builtin.Nat./ builtin.Nat.and
-      builtin.Nat.complement builtin.Nat.drop builtin.Nat.eq
-      builtin.Nat.fromText builtin.Nat.gt builtin.Nat.gteq
-      builtin.Nat.increment builtin.Nat.isEven builtin.Nat.isOdd
-      builtin.Nat.leadingZeros builtin.Nat.lt builtin.Nat.lteq
-      builtin.Nat.mod builtin.Nat.or builtin.Nat.popCount
-      builtin.Nat.pow builtin.Nat.shiftLeft
-      builtin.Nat.shiftRight builtin.Nat.sub builtin.Nat.toFloat
-      builtin.Nat.toInt builtin.Nat.toText
-      builtin.Nat.trailingZeros builtin.Nat.xor builtin.Optional
-      builtin.Optional.None builtin.Optional.Some
-      builtin.Request builtin.SeqView builtin.SeqView.VElem
-      builtin.SeqView.VEmpty builtin.Test.Result
-      builtin.Test.Result.Fail builtin.Test.Result.Ok
-      builtin.Text builtin.Text.!= builtin.Text.++
-      builtin.Text.drop builtin.Text.empty builtin.Text.eq
-      builtin.Text.fromCharList builtin.Text.fromUtf8
-      builtin.Text.gt builtin.Text.gteq builtin.Text.lt
-      builtin.Text.lteq builtin.Text.size builtin.Text.take
-      builtin.Text.toCharList builtin.Text.toUtf8
-      builtin.Text.uncons builtin.Text.unsnoc builtin.Tuple
-      builtin.Tuple.Cons builtin.Unit builtin.Unit.Unit
-      builtin.Universal.< builtin.Universal.<=
-      builtin.Universal.== builtin.Universal.>
-      builtin.Universal.>= builtin.Universal.compare
-      builtin.Value builtin.Value.dependencies
-      builtin.Value.deserialize builtin.Value.load
-      builtin.Value.serialize builtin.Value.value builtin.bug
-      builtin.crypto.HashAlgorithm
-      builtin.crypto.HashAlgorithm.Blake2b_256
-      builtin.crypto.HashAlgorithm.Blake2b_512
-      builtin.crypto.HashAlgorithm.Blake2s_256
-      builtin.crypto.HashAlgorithm.Sha2_256
-      builtin.crypto.HashAlgorithm.Sha2_512
-      builtin.crypto.HashAlgorithm.Sha3_256
-      builtin.crypto.HashAlgorithm.Sha3_512 builtin.crypto.hash
-      builtin.crypto.hashBytes builtin.crypto.hmac
-      builtin.crypto.hmacBytes builtin.io2.BufferMode
-      builtin.io2.BufferMode.BlockBuffering
-      builtin.io2.BufferMode.LineBuffering
-      builtin.io2.BufferMode.NoBuffering
-      builtin.io2.BufferMode.SizedBlockBuffering
-      builtin.io2.Failure builtin.io2.Failure.Failure
-      builtin.io2.FileMode builtin.io2.FileMode.Append
-      builtin.io2.FileMode.Read builtin.io2.FileMode.ReadWrite
-      builtin.io2.FileMode.Write builtin.io2.Handle
-      builtin.io2.IO builtin.io2.IO.clientSocket
-      builtin.io2.IO.closeFile builtin.io2.IO.closeSocket
-      builtin.io2.IO.createDirectory
-      builtin.io2.IO.createTempDirectory builtin.io2.IO.delay
-      builtin.io2.IO.fileExists builtin.io2.IO.forkComp
-      builtin.io2.IO.getBuffering builtin.io2.IO.getBytes
-      builtin.io2.IO.getCurrentDirectory
-      builtin.io2.IO.getFileSize builtin.io2.IO.getFileTimestamp
-      builtin.io2.IO.getTempDirectory
-      builtin.io2.IO.handlePosition builtin.io2.IO.isDirectory
-      builtin.io2.IO.isFileEOF builtin.io2.IO.isFileOpen
-      builtin.io2.IO.isSeekable builtin.io2.IO.kill
-      builtin.io2.IO.listen builtin.io2.IO.openFile
-      builtin.io2.IO.putBytes builtin.io2.IO.removeDirectory
-      builtin.io2.IO.removeFile builtin.io2.IO.renameDirectory
-      builtin.io2.IO.renameFile builtin.io2.IO.seekHandle
-      builtin.io2.IO.serverSocket builtin.io2.IO.setBuffering
-      builtin.io2.IO.setCurrentDirectory
-      builtin.io2.IO.socketAccept builtin.io2.IO.socketPort
-      builtin.io2.IO.socketReceive builtin.io2.IO.socketSend
-      builtin.io2.IO.stdHandle builtin.io2.IO.systemTime
-      builtin.io2.IOError builtin.io2.IOError.AlreadyExists
-      builtin.io2.IOError.EOF
-      builtin.io2.IOError.IllegalOperation
-      builtin.io2.IOError.NoSuchThing
-      builtin.io2.IOError.PermissionDenied
-      builtin.io2.IOError.ResourceBusy
-      builtin.io2.IOError.ResourceExhausted
-      builtin.io2.IOError.UserError
-      builtin.io2.IOFailure##IOFailure builtin.io2.IOFailure#gro
-      builtin.io2.MVar builtin.io2.MVar.isEmpty
-      builtin.io2.MVar.new builtin.io2.MVar.newEmpty
-      builtin.io2.MVar.put builtin.io2.MVar.read
-      builtin.io2.MVar.swap builtin.io2.MVar.take
-      builtin.io2.MVar.tryPut builtin.io2.MVar.tryRead
-      builtin.io2.MVar.tryTake builtin.io2.STM
-      builtin.io2.STM.atomically builtin.io2.STM.retry
-      builtin.io2.SeekMode builtin.io2.SeekMode.AbsoluteSeek
-      builtin.io2.SeekMode.RelativeSeek
-      builtin.io2.SeekMode.SeekFromEnd builtin.io2.Socket
-      builtin.io2.StdHandle builtin.io2.StdHandle.StdErr
-      builtin.io2.StdHandle.StdIn builtin.io2.StdHandle.StdOut
-      builtin.io2.TLS.ClientConfig.ciphers.set builtin.io2.TVar
-      builtin.io2.TVar.new builtin.io2.TVar.newIO
-      builtin.io2.TVar.read builtin.io2.TVar.readIO
-      builtin.io2.TVar.swap builtin.io2.TVar.write
-      builtin.io2.ThreadId builtin.io2.Tls
-      builtin.io2.Tls.ClientConfig
-      builtin.io2.Tls.ClientConfig.certificates.set
-      builtin.io2.Tls.ClientConfig.default
-      builtin.io2.Tls.ClientConfig.versions.set
-      builtin.io2.Tls.PrivateKey builtin.io2.Tls.ServerConfig
-      builtin.io2.Tls.ServerConfig.certificates.set
-      builtin.io2.Tls.ServerConfig.ciphers.set
-      builtin.io2.Tls.ServerConfig.default
-      builtin.io2.Tls.ServerConfig.versions.set
-      builtin.io2.Tls.SignedCert builtin.io2.Tls.decodeCert
-      builtin.io2.Tls.decodePrivateKey
-      builtin.io2.Tls.encodeCert
-      builtin.io2.Tls.encodePrivateKey builtin.io2.Tls.handshake
-      builtin.io2.Tls.newClient builtin.io2.Tls.newServer
-      builtin.io2.Tls.receive builtin.io2.Tls.send
-      builtin.io2.Tls.terminate
-      builtin.io2.TlsFailure##TlsFailure
-      builtin.io2.TlsFailure#o6b builtin.metadata.isPropagated
-      builtin.metadata.isTest builtin.todo
-  
-  □ #7asfbtqmoj (start of history)
+  □ #f40nqgbsui (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.

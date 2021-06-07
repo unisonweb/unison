@@ -1,0 +1,102 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 6eae706c8674f4a7f22bb4bff150798cdaba8aa9186b3d94a6a8467a9cc23d06
+
+name:           unison-core1
+version:        0.0.0
+homepage:       https://github.com/unisonweb/unison#readme
+bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/unisonweb/unison
+
+flag optimized
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      Unison.ABT
+      Unison.ABT.Normalized
+      Unison.Blank
+      Unison.ConstructorType
+      Unison.DataDeclaration
+      Unison.Hash
+      Unison.Hashable
+      Unison.HashQualified
+      Unison.HashQualified'
+      Unison.Kind
+      Unison.LabeledDependency
+      Unison.Name
+      Unison.Names2
+      Unison.Names3
+      Unison.NameSegment
+      Unison.Paths
+      Unison.Pattern
+      Unison.PatternCompat
+      Unison.Prelude
+      Unison.Reference
+      Unison.Reference.Util
+      Unison.Referent
+      Unison.Settings
+      Unison.ShortHash
+      Unison.Symbol
+      Unison.Term
+      Unison.Type
+      Unison.Util.Components
+      Unison.Util.List
+      Unison.Util.Monoid
+      Unison.Util.Relation
+      Unison.Util.Relation3
+      Unison.Util.Relation4
+      Unison.Util.Set
+      Unison.Var
+  other-modules:
+      Paths_unison_core1
+  hs-source-dirs:
+      src
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
+  build-depends:
+      base
+    , bytestring
+    , containers >=0.6.3
+    , cryptonite
+    , either
+    , extra
+    , fuzzyfind
+    , lens
+    , memory
+    , mtl
+    , prelude-extras
+    , rfc5051
+    , safe
+    , sandi
+    , text
+    , transformers
+    , util
+    , vector
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
+  default-language: Haskell2010

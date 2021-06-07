@@ -1,38 +1,39 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Builtin.Decls where
 
-import           Data.List                      ( elemIndex, find )
-import qualified Data.Map                       as Map
-import           Data.Text                      (Text,unpack)
+import Data.List (elemIndex, find)
+import qualified Data.Map as Map
+import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
-import qualified Unison.ConstructorType         as CT
+import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration
+  ( DataDeclaration (..),
+    Modifier (Structural, Unique),
+    hashDecls,
+  )
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration         ( DataDeclaration(..)
-                                                , Modifier(Structural, Unique)
-                                                , hashDecls )
-import qualified Unison.Pattern                 as Pattern
-import           Unison.Reference               (Reference)
-import qualified Unison.Reference               as Reference
-import           Unison.Referent                (Referent)
-import qualified Unison.Referent                as Referent
-import           Unison.Symbol                  (Symbol)
-import           Unison.Term                    (ConstructorId, Term, Term2)
-import qualified Unison.Term                    as Term
-import qualified Unison.Type                    as Type
-import           Unison.Type                    (Type)
-import qualified Unison.Var                     as Var
-import           Unison.Var                     (Var)
+import qualified Unison.Pattern as Pattern
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
+import Unison.Term (ConstructorId, Term, Term2)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
-  | [(_, d, _)] <- filter (\(v,_,_) -> v == Var.named str) decls
-  = Reference.DerivedId d
-  | otherwise
-  = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
-  where decls = builtinDataDecls @Symbol
+  | [(_, d, _)] <- filter (\(v, _, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
+  where
+    decls = builtinDataDecls @Symbol
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -40,8 +41,11 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+failureRef, ioFailureRef, tlsFailureRef :: Reference
+tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
+
 isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
 testResultRef = lookupDeclRef "Test.Result"
@@ -50,6 +54,8 @@ docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
+ioFailureRef = lookupDeclRef "io2.IOFailure"
+tlsFailureRef = lookupDeclRef "io2.TlsFailure"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
@@ -69,8 +75,8 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId :: ConstructorId
-isPropagatedConstructorId, isTestConstructorId :: ConstructorId 
+okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
+isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
@@ -83,6 +89,13 @@ Just docEvaluateId = constructorId docRef "Doc.Evaluate"
 Just docJoinId = constructorId docRef "Doc.Join"
 Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
+Just eitherRightId = constructorId eitherRef "Either.Right"
+Just eitherLeftId = constructorId eitherRef "Either.Left"
+
+Just bufferModeNoBufferingId = constructorId bufferModeRef "io2.BufferMode.NoBuffering"
+Just bufferModeLineBufferingId = constructorId bufferModeRef "io2.BufferMode.LineBuffering"
+Just bufferModeBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.BlockBuffering"
+Just bufferModeSizedBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
@@ -270,7 +283,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Doc.Signature", Type.termLink () `arr` var "Doc")
     , ((), v "Doc.Source", Type.refId () linkRef `arr` var "Doc")
     , ((), v "Doc.Evaluate", Type.termLink () `arr` var "Doc")
-    , ((), v "Doc.Join", Type.app () (Type.vector()) (var "Doc") `arr` var "Doc")
+    , ((), v "Doc.Join", Type.app () (Type.list()) (var "Doc") `arr` var "Doc")
     ]
   link = DataDeclaration
     (Unique "a5803524366ead2d7f3780871d48771e8142a3b48802f34a96120e230939c46bd5e182fcbe1fa64e9bff9bf741f3c04")
@@ -285,14 +298,31 @@ builtinEffectDecls = []
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
+pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
+pattern EitherLeft' tm <- (unLeftTerm -> Just tm)
+pattern EitherRight' tm <- (unRightTerm -> Just tm)
+pattern EitherLeftId <- ((==) eitherLeftId -> True)
+pattern EitherRightId <- ((==) eitherRightId -> True)
+
+unLeftTerm, unRightTerm
+  :: Term.Term2 vt at ap v a
+  -> Maybe (Term.Term2 vt at ap v a)
+unRightTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherRightId) tm ->
+    Just tm
+  _                           -> Nothing
+unLeftTerm t = case t of
+  Term.App' (Term.Constructor' EitherRef EitherLeftId) tm ->
+    Just tm
+  _                           -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
 pattern DocRef <- ((== docRef) -> True)
-pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.Sequence' segs)
+pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.List' segs)
 pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
 pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
 pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
@@ -317,7 +347,7 @@ unitType, pairType, optionalType, testResultType,
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
-testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
+testResultType a = Type.app a (Type.list a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 eitherType a = Type.ref a eitherRef
 ioErrorType a = Type.ref a ioErrorRef
@@ -377,4 +407,3 @@ unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool
 unUnitRef = (== unitRef)
 unPairRef = (== pairRef)
 unOptionalRef = (== optionalRef)
-

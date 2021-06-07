@@ -29,7 +29,7 @@ import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 )
 import qualified Unison.Codebase.Branch         as Branch
-import qualified Unison.Codebase.Branch.Dependencies as BD
+import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
                                                 , unRawHash
@@ -512,7 +512,7 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 9 *> putChild f *> putChild arg
     Term.Ann e t
       -> putWord8 10 *> putChild e *> putType putVar putA t
-    Term.Sequence vs
+    Term.List vs
       -> putWord8 11 *> putFoldable putChild vs
     Term.If cond t f
       -> putWord8 12 *> putChild cond *> putChild t *> putChild f
@@ -554,7 +554,7 @@ getTerm getVar getA = getABT getVar getA go where
     8 -> Term.Handle <$> getChild <*> getChild
     9 -> Term.App <$> getChild <*> getChild
     10 -> Term.Ann <$> getChild <*> getType getVar getA
-    11 -> Term.Sequence . Sequence.fromList <$> getList getChild
+    11 -> Term.List . Sequence.fromList <$> getList getChild
     12 -> Term.If <$> getChild <*> getChild <*> getChild
     13 -> Term.And <$> getChild <*> getChild
     14 -> Term.Or <$> getChild <*> getChild

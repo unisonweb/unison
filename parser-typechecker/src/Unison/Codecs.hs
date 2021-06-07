@@ -103,7 +103,7 @@ serializeTerm x = do
         putWord8 6
         serializeBoolean b
         incPosition
-      Sequence v -> do
+      List v -> do
         elementPositions <- traverse serializeTerm v
         putTag
         putWord8 7

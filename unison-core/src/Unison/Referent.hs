@@ -17,6 +17,10 @@ import qualified Unison.ShortHash       as SH
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
 
+-- | Specifies a term.
+--
+-- Either a term 'Reference', a data constructor, or an effect constructor.
+--
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
 type Referent = Referent' Reference
@@ -26,8 +30,12 @@ pattern Con :: Reference -> Int -> ConstructorType -> Referent
 pattern Con r i t = Con' r i t
 {-# COMPLETE Ref, Con #-}
 
+-- | Cannot be a builtin.
 type Id = Referent' R.Id
 
+-- | When @Ref'@ then @r@ represents a term.
+--
+-- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' r Int ConstructorType
   deriving (Show, Ord, Eq, Functor)
 
@@ -42,7 +50,7 @@ toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
-  
+
 toShortHashId :: Id -> ShortHash
 toShortHashId = toShortHash . fromId
 
@@ -84,9 +92,9 @@ toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
   Con' r _i _t -> r
-  
+
 fromId :: Id -> Referent
-fromId = fmap R.DerivedId  
+fromId = fmap R.DerivedId
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case
@@ -122,6 +130,11 @@ fromText t = either (const Nothing) Just $
     refPart = Text.dropWhileEnd (/= '#') t
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
+
+fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
+fold fr fc = \case
+  Ref' r -> fr r
+  Con' r i ct -> fc r i ct
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r

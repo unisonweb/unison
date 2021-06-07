@@ -1,25 +1,29 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Unison.Util.SyntaxText where
 
 import Unison.Prelude
+import Unison.Name (Name)
 import Unison.Reference (Reference)
-import Unison.Referent (Referent)
+import Unison.Referent (Referent')
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
-import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
+import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, segment)
 
-type SyntaxText = AnnotatedText Element
+type SyntaxText = SyntaxText' Reference
+type SyntaxText' r = AnnotatedText (Element r)
 
 -- The elements of the Unison grammar, for syntax highlighting purposes
-data Element = NumericLiteral
+data Element r = NumericLiteral
              | TextLiteral
              | BytesLiteral
              | CharLiteral
              | BooleanLiteral
              | Blank
              | Var
-             | Reference Reference
-             | Referent Referent
+             | Reference r
+             | Referent (Referent' r)
              | Op SeqOp
              | Constructor
              | Request
@@ -40,7 +44,7 @@ data Element = NumericLiteral
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             | HashQualifier HashQualified
+             | HashQualifier (HashQualified Name)
              | DelayForceChar
              -- ? , ` [ ] @ |
              -- Currently not all commas in the pretty-print output are marked up as DelimiterChar - we miss
@@ -53,11 +57,12 @@ data Element = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Show)
+             deriving (Eq, Ord, Show, Generic, Functor)
 
-syntax :: Element -> SyntaxText -> SyntaxText
+syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate
 
 -- Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlain :: SyntaxText -> String
-toPlain (AnnotatedText at) = join (toList $ fst <$> at)
+toPlain :: SyntaxText' r -> String
+toPlain (AnnotatedText at) = join (toList $ segment <$> at)
+

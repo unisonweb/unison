@@ -1,5 +1,8 @@
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
+{-# language NamedFieldPuns #-}
+{-# language ParallelListComp #-}
+{-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
@@ -8,11 +11,12 @@ module Unison.Runtime.Interface
 
 import GHC.Stack (HasCallStack)
 
-import Unison.Prelude (reportBug)
+import Unison.Prelude (reportBug, maybeToList)
 import Control.Concurrent.STM as STM
-import Control.Exception (try)
+import Control.Exception (try, catch)
 import Control.Monad
 
+import Data.Bits (shiftL)
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
@@ -20,6 +24,7 @@ import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Traversable (for)
+import Data.Text (Text)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
@@ -40,6 +45,7 @@ import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 
 import Unison.Parser (Ann(External))
 import Unison.PrettyPrintEnv
+import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter
 
@@ -60,7 +66,7 @@ type Term v = Tm.Term v ()
 data EvalCtx
   = ECtx
   { dspec :: DataSpec
-  , decompTm :: Map.Map Reference (Term Symbol)
+  , decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol))
   , ccache :: CCache
   }
 
@@ -75,7 +81,7 @@ baseContext = baseCCache <&> \cc
      { dspec = builtinDataSpec
      , decompTm = Map.fromList $
          Map.keys builtinTermNumbering
-           <&> \r -> (r, Tm.ref () r)
+           <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
      , ccache = cc
      }
 
@@ -154,6 +160,12 @@ collectDeps cl tm = do
       <$> getTypeDeclaration cl i
   getDecl r = pure (r,Right [])
 
+backrefAdd
+  :: Map.Map Reference (Map.Map Word64 (Term Symbol))
+  -> EvalCtx -> EvalCtx
+backrefAdd m ctx@ECtx{ decompTm }
+  = ctx { decompTm = m <> decompTm }
+
 loadDeps
   :: CodeLookup Symbol IO ()
   -> EvalCtx
@@ -171,29 +183,58 @@ loadDeps cl ctx tm = do
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   rtms <- traverse (\r -> (,) r <$> resolveTermRef cl r)
             $ Prelude.filter q tmrs
-  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
-  let rint = second (intermediateTerm ctx) <$> rtms
+  let (rgrp, rbkr) = intermediateTerms ctx rtms
       tyAdd = Set.fromList $ fst <$> tyrs
-  cacheAdd0 tyAdd rint (ccache ctx)
-  pure ctx
+  backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
+
+backrefLifted
+  :: Term Symbol
+  -> [(Symbol, Term Symbol)]
+  -> Map.Map Word64 (Term Symbol)
+backrefLifted tm@(Tm.LetRecNamed' bs _) dcmp
+  = Map.fromList . ((0,tm):) $
+  [ (ix, dc)
+  | ix <- ixs
+  | (v, _) <- reverse bs
+  , dc <- maybeToList $ Prelude.lookup v dcmp
+  ]
+  where
+  ixs = fmap (`shiftL` 16) [1..]
+backrefLifted tm _ = Map.singleton 0 tm
+
+intermediateTerms
+  :: HasCallStack
+  => EvalCtx
+  -> [(Reference, Term Symbol)]
+  -> ( [(Reference, SuperGroup Symbol)]
+     , Map.Map Reference (Map.Map Word64 (Term Symbol))
+     )
+intermediateTerms ctx rtms
+  = ((fmap.second) fst rint, Map.fromList $ (fmap.second) snd rint)
+  where rint = second (intermediateTerm ctx) <$> rtms
 
 intermediateTerm
-  :: HasCallStack => EvalCtx -> Term Symbol -> SuperGroup Symbol
+  :: HasCallStack
+  => EvalCtx
+  -> Term Symbol
+  -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
 intermediateTerm ctx tm
-  = superNormalize
+  = final
   . lamLift
   . splitPatterns (dspec ctx)
   . saturate (uncurryDspec $ dspec ctx)
+  . inlineAlias
   $ tm
+  where
+  final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
 
 prepareEvaluation
   :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)
 prepareEvaluation tm ctx = do
-  ctx <- pure $ ctx { decompTm = Map.fromList rtms <> decompTm ctx }
-  missing <- cacheAdd rint (ccache ctx)
+  missing <- cacheAdd rgrp (ccache ctx)
   when (not . null $ missing) . fail $
     reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
-  (,) ctx <$> refNumTm (ccache ctx) rmn
+  (,) (backrefAdd rbkr ctx) <$> refNumTm (ccache ctx) rmn
   where
   (rmn, rtms)
     | Tm.LetRecNamed' bs mn0 <- tm
@@ -206,16 +247,19 @@ prepareEvaluation tm ctx = do
     | rmn <- RF.DerivedId $ Tm.hashClosedTerm tm
     = (rmn, [(rmn, tm)])
 
-  rint = second (intermediateTerm ctx) <$> rtms
+  (rgrp, rbkr) = intermediateTerms ctx rtms
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
 
 backReferenceTm
   :: EnumMap Word64 Reference
-  -> Map.Map Reference (Term Symbol)
-  -> Word64 -> Maybe (Term Symbol)
-backReferenceTm ws rs = (`Map.lookup` rs) <=< (`EC.lookup` ws)
+  -> Map.Map Reference (Map.Map Word64 (Term Symbol))
+  -> Word64 -> Word64 -> Maybe (Term Symbol)
+backReferenceTm ws rs c i = do
+  r <- EC.lookup c ws
+  bs <- Map.lookup r rs
+  Map.lookup i bs
 
 evalInContext
   :: PrettyPrintEnv
@@ -227,23 +271,66 @@ evalInContext ppe ctx w = do
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
-      prettyError (PE p) = p
-      prettyError (BU c) = either id (pretty ppe) $ decom c
+      prettyError (PE _ p) = p
+      prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
   result <- traverse (const $ readIORef r)
           . first prettyError
         <=< try $ apply0 (Just hook) (ccache ctx) w
   pure $ decom =<< result
+
+bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
+
+bugMsg ppe name tm
+  | name == "blank expression" = P.callout icon . P.lines $
+  [ P.wrap ("I encountered a" <> P.red (P.text name)
+      <> "with the following name/message:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , sorryMsg
+  ]
+  | name == "pattern match failure" = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a" <> P.red (P.text name)
+      <> "while scrutinizing:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , "This happens when calling a function that doesn't handle all \
+    \possible inputs"
+  , sorryMsg
+  ]
+bugMsg ppe name tm = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
+      <> "with the following value:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  , ""
+  , sorryMsg
+  ]
+  where
+icon, sorryMsg  :: Pretty ColorText
+icon = "💔💥"
+sorryMsg
+  = P.wrap
+  $ "I'm sorry this message doesn't have more detail about"
+  <> "the location of the failure."
+  <> "My makers plan to fix this in a future release. 😢"
+
+catchInternalErrors
+  :: IO (Either Error a)
+  -> IO (Either Error a)
+catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
 
 startRuntime :: IO (Runtime Symbol)
 startRuntime = do
   ctxVar <- newIORef =<< baseContext
   pure $ Runtime
        { terminate = pure ()
-       , evaluate = \cl ppe tm -> do
+       , evaluate = \cl ppe tm -> catchInternalErrors $ do
            ctx <- readIORef ctxVar
            ctx <- loadDeps cl ctx tm
-           writeIORef ctxVar ctx
            (ctx, init) <- prepareEvaluation tm ctx
+           writeIORef ctxVar ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
        , ioTestType = builtinTest External

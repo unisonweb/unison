@@ -9,6 +9,8 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
+import Control.Monad.Catch (MonadCatch, MonadThrow(throwM))
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
@@ -173,9 +175,9 @@ scope :: String -> Test a -> Test a
 scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  let env' = env {messages = messages', allow = drop (length msg + 1) (allow env)}
   if null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env
-  then liftIO $
-    runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
+  then liftIO (runWrap env' t)
   else putResult Skipped >> pure Nothing
 
 -- | Log a message
@@ -259,6 +261,7 @@ word8' = random'
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
 pick as = let n = length as; ind = picker n as in do
+  _ <- if (n > 0) then ok else crash "pick called with empty list"
   i <- int' 0 (n - 1)
   Just a <- pure (ind i)
   pure a
@@ -354,7 +357,7 @@ crash msg = do
 nologging :: HasCallStack => Test a -> Test a
 nologging (Test t) = Test $ do
   env <- ask
-  liftIO $ runReaderT t (env {note_ = \_ -> pure ()})
+  liftIO $ runWrap (env {note_ = \_ -> pure ()}) t
 
 -- | Run a test under a new scope, without logs and suppressing all output
 attempt :: Test a -> Test (Maybe a)
@@ -402,6 +405,13 @@ instance Monad Test where
 
 instance MonadFail Test where
   fail = crash
+
+instance MonadThrow Test where
+  throwM = Test . throwM
+
+instance MonadCatch Test where
+  catch (Test m) f =
+    Test $ Catch.catch m (\e -> case f e of Test m' -> m')
 
 instance Functor Test where
   fmap = liftM

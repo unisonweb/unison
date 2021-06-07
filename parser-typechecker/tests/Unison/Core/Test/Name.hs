@@ -20,10 +20,8 @@ test = scope "name" $ tests
     , scope "terms named `.`" $ expectEqual (suffixes "base..") ["base..", "."]
     ]
   , scope "segments" $ do
-    numDots <- int' 0 10
-    numSegs <- int' 0 10
-    n       <- int' 0 10
-    segs <- listOf n . pick $ replicate numDots "." ++ replicate numSegs "foo"
+    n    <- int' 0 10
+    segs <- listOf n $ pick [".", "foo"]
     expectEqual (segments $ Name . pack $ intercalate "." segs)
                 (NameSegment . pack <$> segs)
   ]

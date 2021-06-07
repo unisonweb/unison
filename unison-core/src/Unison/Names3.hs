@@ -123,7 +123,7 @@ makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
 -- do a prefix match on currentNames and, if no match, then check oldNames.
-lookupHQType :: HashQualified -> Names -> Set Reference
+lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
   HQ.NameOnly n -> R.lookupDom n (Names.types currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
@@ -143,7 +143,7 @@ hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
 hasTypeNamed :: Name -> Names -> Bool
 hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 
-lookupHQTerm :: HashQualified -> Names -> Set Referent
+lookupHQTerm :: HashQualified Name -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
   HQ.NameOnly n -> R.lookupDom n (Names.terms currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
@@ -160,7 +160,7 @@ lookupHQTerm hq Names{..} = case hq of
 -- If `r` is in "current" names, look up each of its names, and hash-qualify
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up
 -- each of its "old" names and hash-qualify them.
-typeName :: Int -> Reference -> Names -> Set HQ'.HashQualified
+typeName :: Int -> Reference -> Names -> Set (HQ'.HashQualified Name)
 typeName length r Names{..} =
   if R.memberRan r . Names.types $ currentNames
   then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
@@ -169,7 +169,21 @@ typeName length r Names{..} =
   where hq n = HQ'.take length (HQ'.fromNamedReference n r)
         isConflicted n = R.manyDom n (Names.types currentNames)
 
-termName :: Int -> Referent -> Names -> Set HQ'.HashQualified
+-- List of names for a referent, longer names (by number of segments) first.
+termNamesByLength :: Int -> Referent -> Names -> [HQ'.HashQualified Name]
+termNamesByLength length r ns =
+  sortOn len (toList $ termName length r ns)
+  where len (HQ'.NameOnly n) = Name.countSegments n
+        len (HQ'.HashQualified n _) = Name.countSegments n
+
+-- The longest term name (by segment count) for a `Referent`.
+longestTermName :: Int -> Referent -> Names -> HQ.HashQualified Name
+longestTermName length r ns =
+  case reverse (termNamesByLength length r ns) of
+    [] -> HQ.take length (HQ.fromReferent r)
+    (h : _) -> Name.convert h
+
+termName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
 termName length r Names{..} =
   if R.memberRan r . Names.terms $ currentNames
   then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
@@ -183,7 +197,7 @@ termName length r Names{..} =
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
 lookupHQPattern
-  :: HQ.HashQualified
+  :: HQ.HashQualified Name
   -> CT.ConstructorType
   -> Names
   -> Set (Reference, Int)

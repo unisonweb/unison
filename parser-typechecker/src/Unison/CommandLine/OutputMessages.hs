@@ -11,13 +11,14 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Prelude hiding (unlessM)
 
+import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output           as E
 import qualified Unison.Codebase.Editor.Output           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
-import qualified Unison.Codebase.Editor.SearchResult'    as SR'
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-
+import qualified Unison.Server.SearchResult' as SR'
+import Unison.Server.Backend (ShallowListEntry(..), TermEntry(..), TypeEntry(..))
 
 import           Control.Lens
 import qualified Control.Monad.State.Strict    as State
@@ -99,7 +100,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
-import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
+import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
@@ -111,6 +112,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -249,7 +251,23 @@ prettyRemoteNamespace =
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
-  Success     -> pure $ P.bold "Done."
+  Success         -> pure $ P.bold "Done."
+  BadRootBranch e -> case e of
+    Codebase.NoRootBranch ->
+      pure . P.fatalCallout $ "I couldn't find the codebase root!"
+    Codebase.CouldntParseRootBranch s ->
+      pure
+        .  P.warnCallout
+        $  "I coulnd't parse a valid namespace from "
+        <> P.string (show s)
+        <> "."
+    Codebase.CouldntLoadRootBranch h ->
+      pure
+        .  P.warnCallout
+        $  "I couldn't find a root namespace with the hash "
+        <> prettySBH (SBH.fullFromHash h)
+        <> "."
+
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"
@@ -347,6 +365,15 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
     pure mempty
 
+  TermMissingType ref ->
+    pure . P.fatalCallout . P.lines $ [
+      P.wrap $ "The type signature for reference "
+        <> P.blue (P.text (Reference.toText ref))
+        <> " is missing from the codebase! This means something might be wrong "
+        <> " with the codebase, or the term was deleted just now "
+        <> " by someone else. Trying your command again might fix it."
+    ]
+
   MetadataMissingType ppe ref -> pure . P.fatalCallout . P.lines $ [
     P.wrap $ "The metadata value " <> P.red (prettyTermName ppe ref)
           <> "is missing a type signature in the codebase.",
@@ -407,6 +434,15 @@ notifyUser dir o = case o of
   NoMainFunction main ppe ts -> pure . P.callout "😶" $ P.lines [
     P.wrap $ "I looked for a function" <> P.backticked (P.string main)
           <> "in the most recently typechecked file and codebase but couldn't find one. It has to have the type:",
+    "",
+    P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
+    ]
+  BadMainFunction main ty ppe ts -> pure . P.callout "😶" $ P.lines [
+    P.string "I found this function:",
+    "",
+    P.indentN 2 $ P.string main <> " : " <> TypePrinter.pretty ppe ty,
+    "",
+    P.wrap $ P.string "but in order for me to" <> P.backticked (P.string "run") <> "it it needs to have the type:",
     "",
     P.indentN 2 $ P.lines [ P.string main <> " : " <> TypePrinter.pretty ppe t | t <- ts ]
     ]
@@ -494,10 +530,10 @@ notifyUser dir o = case o of
   --
   --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
-  ListShallow ppe entries -> pure $
+  ListShallow ppe entries ->
     -- todo: make a version of prettyNumberedResult to support 3-columns
-    if null entries then P.lit "nothing to show"
-    else numberedEntries entries
+    pure $ if null entries then P.lit "nothing to show"
+            else numberedEntries entries
     where
     numberedEntries :: [ShallowListEntry v a] -> P.Pretty P.ColorText
     numberedEntries entries =
@@ -506,16 +542,16 @@ notifyUser dir o = case o of
       f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
-      ShallowTermEntry _r hq ot ->
+      ShallowTermEntry (TermEntry _r hq ot _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
-      ShallowTypeEntry r hq ->
+      ShallowTypeEntry (TypeEntry r hq _) ->
         (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
         ,isBuiltin r)
-      ShallowBranchEntry ns count ->
+      ShallowBranchEntry ns _ count ->
         ((P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/"
         ,case count of
-          1 -> P.lit ("(1 definition)")
+          1 -> P.lit "(1 definition)"
           _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
         ((P.syntaxToColor . prettyName . Name.fromSegment) ns
@@ -523,7 +559,6 @@ notifyUser dir o = case o of
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"
       Reference.DerivedId{} -> P.lit "(type)"
-
   SlurpOutput input ppe s -> let
     isPast = case input of Input.AddI{} -> True
                            Input.UpdateI{} -> True
@@ -628,9 +663,18 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
+    CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
+      <> prettyRepoBranch repo <> "in the cache directory at"
+      <> P.backticked' (P.string localPath) "."
+    UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
+      $ "I don't know how to interpret schema version " <> P.shown v
+      <> "in the repository at" <> prettyRepoBranch repo
+      <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
     CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
       <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
       <> P.group (prettyRepoBranch repo <> ".")
+    CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
+      <> P.red (P.shown h) <> "but now I can't find it."
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
     CloneException repo msg -> P.wrap $
@@ -1077,7 +1121,7 @@ prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff :: (Show tm, Show typ) =>
-  [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> Pretty
+  [(HQ.HashQualified Name, tm)] -> [(HQ.HashQualified Name, typ)] -> Pretty
 formatMissingStuff terms types =
   (unlessM (null terms) . P.fatalCallout $
     P.wrap "The following terms have a missing or corrupted type signature:"
@@ -1090,8 +1134,8 @@ formatMissingStuff terms types =
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayThing (Term v a1))
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Term v a1))
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
@@ -1104,14 +1148,14 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
               $ Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
   go ((n, r), dt) =
     case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+      MissingObject r -> missing n r
+      BuiltinObject -> builtin n
+      UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing decl -> case decl of
+      MissingObject r -> missing n r
+      BuiltinObject -> builtin n
+      UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
         Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
@@ -1148,8 +1192,8 @@ displayRendered outputLoc pp =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayThing (Term v a1))
+  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Term v a1))
   -> IO Pretty
 displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
@@ -1256,17 +1300,17 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified, Reference.Reference, DisplayThing (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayObject (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
-   MissingThing _ -> mempty -- these need to be handled elsewhere
-   RegularThing decl -> case decl of
+   BuiltinObject -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
+   MissingObject _ -> mempty -- these need to be handled elsewhere
+   UserObject decl -> case decl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 prettyDeclPair :: Var v =>
-  PPE.PrettyPrintEnv -> (Reference, DisplayThing (DD.Decl v a))
+  PPE.PrettyPrintEnv -> (Reference, DisplayObject (DD.Decl v a))
   -> Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
@@ -1334,7 +1378,7 @@ todoOutput ppe todo =
   corruptTerms =
     [ (PPE.termName ppeu (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
   corruptTypes =
-    [ (PPE.typeName ppeu r, r) | (r, MissingThing _) <- frontierTypes ]
+    [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
     [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
@@ -1397,7 +1441,7 @@ listOfDefinitions ppe detailed results =
   pure $ listOfDefinitions' ppe detailed results
 
 listOfLinks ::
-  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified, Maybe (Type v a))] -> IO Pretty
+  Var v => PPE.PrettyPrintEnv -> [(HQ.HashQualified Name, Maybe (Type v a))] -> IO Pretty
 listOfLinks _ [] = pure . P.callout "😶" . P.wrap $
   "No results. Try using the " <>
   IP.makeExample IP.link [] <>
@@ -1523,11 +1567,17 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
                       (types `zip` [0..])
          <*> traverse prettyGroup (terms `zip` [length types ..])
     where
-        leftNamePad :: Int = foldl1' max $
-          map (foldl1' max . map HQ'.nameLength . toList . view _3) terms <>
-          map (foldl1' max . map HQ'.nameLength . toList . view _3) types
-        prettyGroup :: ((Referent, b, Set HQ'.HashQualified, Set HQ'.HashQualified), Int)
-                    -> Numbered Pretty
+        leftNamePad :: P.Width =
+          foldl1' max
+            $  map (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                   terms
+            <> map (foldl1' max . map (P.Width . HQ'.nameLength) . toList . view _3)
+                   types
+        prettyGroup
+          :: ( (Referent, b, Set (HQ'.HashQualified Name), Set (HQ'.HashQualified Name))
+             , Int
+             )
+          -> Numbered Pretty
         prettyGroup ((r, _, olds, news),i) = let
           -- [ "peach  ┐"
           -- , "peach' ┘"]
@@ -1612,7 +1662,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       let (nums, decls) = unzip pairs
       let boxLeft = case hqmds of _:_:_ -> P.boxLeft; _ -> id
       pure . P.column2 $ zip nums (boxLeft decls)
-    prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
+    prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) -> Numbered (Pretty, Pretty)
     prettyLine r odecl (hq, mds) = do
       n <- numHQ' newPath hq (Referent.Ref r)
       pure . (n,) $ prettyDecl hq odecl <> case length mds of
@@ -1703,29 +1753,38 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
 
   -- + 2. MIT               : License
   -- - 3. AllRightsReserved : License
-  mdTermLine :: Path.Absolute -> Int -> OBD.TermDisplay v a -> Numbered (Pretty, Pretty)
+  mdTermLine
+    :: Path.Absolute
+    -> P.Width
+    -> OBD.TermDisplay v a
+    -> Numbered (Pretty, Pretty)
   mdTermLine p namesWidth (hq, r, otype, mddiff) = do
     n <- numHQ' p hq r
-    fmap ((n,) . P.linesNonEmpty) . sequence $
-      [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
-      , prettyMetadataDiff mddiff ]
-      -- , P.indentN 2 <$> prettyMetadataDiff mddiff ]
+    fmap ((n, ) . P.linesNonEmpty)
+      . sequence
+      $ [ pure $ P.rightPad namesWidth (phq' hq) <> " : " <> prettyType otype
+        , prettyMetadataDiff mddiff
+        ]
 
   prettyUpdateTerm :: OBD.UpdateTermDisplay v a -> Numbered Pretty
-  prettyUpdateTerm (Nothing, newTerms) =
-    if null newTerms then error "Super invalid UpdateTermDisplay" else
-    fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
-    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) newTerms
-  prettyUpdateTerm (Just olds, news) =
-    fmap P.column2 $ do
-      olds <- traverse (mdTermLine oldPath namesWidth) [ (name,r,typ,mempty) | (name,r,typ) <- olds ]
-      news <- traverse (mdTermLine newPath namesWidth) news
-      let (oldnums, olddatas) = unzip olds
-      let (newnums, newdatas) = unzip news
-      pure $ zip (oldnums <> [""] <> newnums)
-                 (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
-    where namesWidth = foldl1' max $ fmap (HQ'.nameLength . view _1) news
-                                   <> fmap (HQ'.nameLength . view _1) olds
+  prettyUpdateTerm (Nothing, newTerms) = if null newTerms
+    then error "Super invalid UpdateTermDisplay"
+    else fmap P.column2 $ traverse (mdTermLine newPath namesWidth) newTerms
+   where
+    namesWidth = foldl1' max $ fmap (P.Width . HQ'.nameLength . view _1) newTerms
+  prettyUpdateTerm (Just olds, news) = fmap P.column2 $ do
+    olds <- traverse (mdTermLine oldPath namesWidth)
+                     [ (name, r, typ, mempty) | (name, r, typ) <- olds ]
+    news <- traverse (mdTermLine newPath namesWidth) news
+    let (oldnums, olddatas) = unzip olds
+    let (newnums, newdatas) = unzip news
+    pure $ zip (oldnums <> [""] <> newnums)
+               (P.boxLeft olddatas <> [downArrow] <> P.boxLeft newdatas)
+   where
+    namesWidth =
+      foldl1' max
+        $  fmap (P.Width . HQ'.nameLength . view _1) news
+        <> fmap (P.Width . HQ'.nameLength . view _1) olds
 
   prettyMetadataDiff :: OBD.MetadataDiff (OBD.MetadataDisplay v a) -> Numbered Pretty
   prettyMetadataDiff OBD.MetadataDiff{..} = P.column2M $
@@ -1748,12 +1807,12 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
 
-  numHQ :: Path.Absolute -> HQ.HashQualified -> Referent -> Numbered Pretty
+  numHQ :: Path.Absolute -> HQ.HashQualified Name -> Referent -> Numbered Pretty
   numHQ prefix hq r = addNumberedArg (HQ.toString hq')
     where
     hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
 
-  numHQ' :: Path.Absolute -> HQ'.HashQualified -> Referent -> Numbered Pretty
+  numHQ' :: Path.Absolute -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
   numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
@@ -1769,56 +1828,67 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   padNumber :: Int -> Pretty
   padNumber n = P.hiBlack . P.rightPad leftNumsWidth $ P.shown n <> "."
 
-  leftNumsWidth = length (show menuSize) + length ("."  :: String)
+  leftNumsWidth = P.Width $ length (show menuSize) + length ("."  :: String)
 
 noResults :: Pretty
 noResults = P.callout "😶" $
     P.wrap $ "No results. Check your spelling, or try using tab completion "
           <> "to supply command arguments."
 
-listOfDefinitions' :: Var v
-                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
-                   -> E.ListDetailed
-                   -> [SR'.SearchResult' v a]
-                   -> Pretty
-listOfDefinitions' ppe detailed results =
-  if null results then noResults
-  else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [formatMissingStuff termsWithMissingTypes missingTypes
-    ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
-      "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
-        P.column2 ( (P.bold "Name", P.bold "Built-in")
-                  -- : ("-", "-")
-                  : fmap (bimap (P.syntaxToColor . prettyHashQualified)
-                                (P.text . Referent.toText)) missingBuiltins)
-    ]
-  where
+listOfDefinitions'
+  :: Var v
+  => PPE.PrettyPrintEnv -- for printing types of terms :-\
+  -> E.ListDetailed
+  -> [SR'.SearchResult' v a]
+  -> Pretty
+listOfDefinitions' ppe detailed results = if null results
+  then noResults
+  else
+    P.lines
+    . P.nonEmpty
+    $ prettyNumberedResults
+    : [ formatMissingStuff termsWithMissingTypes missingTypes
+      , unlessM (null missingBuiltins)
+      .        bigproblem
+      $        P.wrap
+                 "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:"
+      `P.hang` P.column2
+                 ( (P.bold "Name", P.bold "Built-in")
+                                                          -- : ("-", "-")
+                 : fmap
+                     (bimap (P.syntaxToColor . prettyHashQualified)
+                            (P.text . Referent.toText)
+                     )
+                     missingBuiltins
+                 )
+      ]
+ where
   prettyNumberedResults = P.numberedList prettyResults
   -- todo: group this by namespace
-  prettyResults =
-    map (SR'.foldResult' renderTerm renderType)
-        (filter (not.missingType) results)
-    where
-      (renderTerm, renderType) =
-        if detailed then
-          (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
-        else
-          (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
-  missingType (SR'.Tm _ Nothing _ _)          = True
-  missingType (SR'.Tp _ (MissingThing _) _ _) = True
-  missingType _                             = False
+  prettyResults         = map (SR'.foldResult' renderTerm renderType)
+                              (filter (not . missingType) results)
+   where
+    (renderTerm, renderType) = if detailed
+      then (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
+      else (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
+  missingType (SR'.Tm _ Nothing _ _) = True
+  missingType (SR'.Tp _ (MissingObject _) _ _) = True
+  missingType _ = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (HQ'.toHQ name, r)
-    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
-  missingTypes = nubOrdOn snd $
-    [ (HQ'.toHQ name, Reference.DerivedId r)
-    | SR'.Tp name (MissingThing r) _ _ <- results ] <>
-    [ (HQ'.toHQ name, r)
-    | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
+    [ (HQ'.toHQ name, Reference.idToShortHash r)
+    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
+    ]
+  missingTypes =
+    nubOrdOn snd
+      $  [ (HQ'.toHQ name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
+      <> [ (HQ'.toHQ name, Reference.toShortHash r)
+         | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
+         ]
   missingBuiltins = results >>= \case
-    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
+    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ ->
+      [(HQ'.toHQ name, r)]
     _ -> []
 
 watchPrinter
@@ -1857,12 +1927,12 @@ watchPrinter src ppe ann kind term isHit =
         P.lines
           [ fromString (show lineNum) <> " | " <> P.text line
           , case (kind, term) of
-            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            (UF.TestWatch, Term.List' tests) -> foldMap renderTest tests
             _ -> P.lines
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra
               <> (if isHit then id else P.purple) "⧩"
-              , P.indentN (lineNumWidth + length extra)
+              , P.indentN (P.Width (lineNumWidth + length extra))
               . (if isHit then id else P.bold)
               $ TermPrinter.pretty ppe term
               ]
@@ -1975,7 +2045,7 @@ prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
-  Term.Sequence' ts -> all isSuccess ts where
+  Term.List' ts -> all isSuccess ts where
     isSuccess (Term.App' (Term.Constructor' ref cid) _) =
       cid == DD.okConstructorId &&
       ref == DD.testResultRef

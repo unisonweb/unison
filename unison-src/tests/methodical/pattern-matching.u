@@ -32,6 +32,10 @@ ipat = cases
   -1 -> +1
   _ -> +0
 
+apat = cases
+  [] -> ([], 0, [])
+  xs@(y +: ys) -> (xs, y, ys)
+
 > (pat1 0 1 (2, 3),
    pat2 0 1 "hi",
    pat3 0 1 (2, 3),
@@ -45,4 +49,5 @@ ipat = cases
    npat 33,
    ipat +1,
    ipat -1,
-   ipat -33)
+   ipat -33,
+   apat [1,2,3])

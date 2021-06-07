@@ -21,7 +21,6 @@ import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
-import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
@@ -29,7 +28,7 @@ import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
 import Unison.Parser (Ann)
-import Unison.Var (Var)
+import Unison.Symbol (Symbol)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -40,6 +39,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
+import qualified Unison.Runtime.Interface      as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
@@ -74,23 +74,23 @@ getUserInput
   -> Path.Absolute
   -> [String]
   -> m Input
-getUserInput patterns codebase branch currentPath numberedArgs =
-  Line.runInputT settings go
+getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
+  settings
+  go
  where
   go = do
-    line <- Line.getInputLine $
-      P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
+    line <- Line.getInputLine
+      $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
-      Just l ->
-        case words l of
-          [] -> go
-          ws ->
-            case parseInput patterns . (>>= expandNumber numberedArgs) $ ws  of
-              Left msg -> do
-                liftIO $ putPrettyLn msg
-                go
-              Right i -> pure i
+      Just l  -> case words l of
+        [] -> go
+        ws ->
+          case parseInput patterns . (>>= expandNumber numberedArgs) $ ws of
+            Left msg -> do
+              liftIO $ putPrettyLn msg
+              go
+            Right i -> pure i
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -152,19 +152,15 @@ hintFreshCodebase ns =
     <> "to set up the default base library. 🏗"
 
 main
-  :: forall v
-  . Var v
-  => FilePath
+  :: FilePath
   -> Maybe RemoteNamespace
   -> Path.Absolute
   -> (Config, IO ())
   -> [Either Event Input]
-  -> IO (Runtime v)
-  -> Codebase IO v Ann
-  -> Branch.Cache IO
+  -> Codebase IO Symbol Ann
   -> String
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRuntime codebase branchCache version = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase version = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -173,7 +169,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
       _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
-    runtime                  <- startRuntime
+    runtime                  <- RTI.startRuntime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
@@ -228,7 +224,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
                 writeIORef pageOutput True
                 pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-      interruptHandler _ = pure $ Right QuitI
+      interruptHandler e = error (show e)
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -237,7 +233,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
@@ -247,7 +242,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs startRun
                                      loadSourceFile
                                      codebase
                                      (const Random.getSystemDRG)
-                                     branchCache
                                      free
         case o of
           Nothing -> pure ()

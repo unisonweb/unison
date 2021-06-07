@@ -1,13 +1,21 @@
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Util.ColorText (
   ColorText, Color(..), style, toANSI, toPlain, toHTML, defaultColors,
-  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline,
+  black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite,
+  bold, underline, invert, background, unstyled,
   module Unison.Util.AnnotatedText)
 where
 
 import Unison.Prelude
 
 import qualified System.Console.ANSI       as ANSI
-import           Unison.Util.AnnotatedText (AnnotatedText(..), annotate)
+import           Unison.Util.AnnotatedText      ( AnnotatedText(..)
+                                                , annotate
+                                                , Segment(..)
+                                                , toPair
+                                                )
 import qualified Unison.Util.SyntaxText    as ST hiding (toPlain)
 
 type ColorText = AnnotatedText Color
@@ -15,8 +23,8 @@ type ColorText = AnnotatedText Color
 data Color
   =  Black | Red | Green | Yellow | Blue | Purple | Cyan | White
   | HiBlack| HiRed | HiGreen | HiYellow | HiBlue | HiPurple | HiCyan | HiWhite
-  | Bold | Underline
-  deriving (Eq, Ord, Bounded, Enum, Show, Read)
+  | Bold | Underline | Invert Color | Background Color Color | Default
+  deriving (Eq, Ord, Show, Read)
 
 black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline :: ColorText -> ColorText
 black = style Black
@@ -38,12 +46,21 @@ hiWhite = style HiWhite
 bold = style Bold
 underline = style Underline
 
+unstyled :: ColorText -> ColorText
+unstyled = style Default
+
+background :: Color -> ColorText -> ColorText
+background c ct = ct <&> Background c
+
+invert :: ColorText -> ColorText
+invert ct = ct <&> Invert
+
 style :: Color -> ColorText -> ColorText
 style = annotate
 
 toHTML :: String -> ColorText -> String
 toHTML cssPrefix (AnnotatedText at) = toList at >>= \case
-  (s, color) -> wrap color (s >>= newlineToBreak)
+  Segment s color -> wrap color (s >>= newlineToBreak)
   where
   newlineToBreak '\n' = "<br/>\n"
   newlineToBreak ch   = [ch]
@@ -54,7 +71,7 @@ toHTML cssPrefix (AnnotatedText at) = toList at >>= \case
 
 -- Convert a `ColorText` to a `String`, ignoring colors
 toPlain :: ColorText -> String
-toPlain (AnnotatedText at) = join (toList $ fst <$> at)
+toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
 -- Convert a `ColorText` to a `String`, using ANSI codes to produce colors
 toANSI :: ColorText -> String
@@ -63,9 +80,9 @@ toANSI (AnnotatedText chunks) =
  where
   go
     :: (Maybe Color, Seq String)
-    -> (String, Maybe Color)
+    -> Segment Color
     -> (Maybe Color, Seq String)
-  go (prev, r) (text, new) = if prev == new
+  go (prev, r) (toPair -> (text, new)) = if prev == new
     then (prev, r <> pure text)
     else
       ( new
@@ -75,7 +92,16 @@ toANSI (AnnotatedText chunks) =
       )
   resetANSI = pure . ANSI.setSGRCode $ [ANSI.Reset]
   toANSI :: Color -> Seq String
-  toANSI c = pure . ANSI.setSGRCode $ case c of
+  toANSI c = pure $ ANSI.setSGRCode (toANSI' c)
+
+  toANSI' :: Color -> [ANSI.SGR]
+  toANSI' c = case c of
+    Default  -> []
+    Background c c2 -> (setBg <$> toANSI' c) <> toANSI' c2 where
+      setBg (ANSI.SetColor ANSI.Foreground intensity color) =
+             ANSI.SetColor ANSI.Background intensity color
+      setBg sgr = sgr
+    Invert c -> [ANSI.SetSwapForegroundBackground True] <> toANSI' c
     Black    -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Black]
     Red      -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Red]
     Green    -> [ANSI.SetColor ANSI.Foreground ANSI.Dull ANSI.Green]
@@ -95,7 +121,7 @@ toANSI (AnnotatedText chunks) =
     Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
     Underline -> [ANSI.SetUnderlining ANSI.SingleUnderline]
 
-defaultColors :: ST.Element -> Maybe Color
+defaultColors :: ST.Element r -> Maybe Color
 defaultColors = \case
   ST.NumericLiteral      -> Nothing
   ST.TextLiteral         -> Nothing

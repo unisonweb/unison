@@ -1141,8 +1141,6 @@ bprim1 !ustk !bstk FLTB i = do
   bstk <- bump bstk
   pokeBi bstk $ By.flatten b
   pure (ustk, bstk)
-bprim1 !_    !bstk THRO i
-  = throwIO . BU =<< peekOff bstk i
 -- impossible
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
@@ -1291,7 +1289,7 @@ bprim2 !ustk !bstk IDXB i j = do
     Just x -> do
       poke ustk $ fromIntegral x
       ustk <- bump ustk
-      ustk <$ poke ustk 0
+      ustk <$ poke ustk 1
   pure (ustk, bstk)
 bprim2 !ustk !bstk CATB i j = do
   l <- peekOffBi bstk i
@@ -1299,6 +1297,10 @@ bprim2 !ustk !bstk CATB i j = do
   bstk <- bump bstk
   pokeBi bstk (l <> r :: By.Bytes)
   pure (ustk, bstk)
+bprim2 !_    !bstk THRO i j = do
+  name <- peekOffBi bstk i
+  x <- peekOff bstk j
+  throwIO (BU name x)
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
@@ -1313,9 +1315,11 @@ yield !env !denv !ustk !bstk !k = leap denv k
    poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
    apply env denv ustk bstk k False (BArg1 0) clo
  leap !denv (Push ufsz bfsz uasz basz cix k) = do
-   Lam _ _ _ _ nx <- combSection env cix
+   Lam _ _ uf bf nx <- combSection env cix
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
+   ustk <- ensure ustk uf
+   bstk <- ensure bstk bf
    eval env denv ustk bstk k nx
  leap _ (CB (Hook f)) = f ustk bstk
  leap _ KE = pure ()
@@ -1508,7 +1512,7 @@ reflectValue rty = goV
     = pure (ANF.Text t)
     | Just b <- maybeUnwrapBuiltin f
     = pure (ANF.Bytes b)
-    | Just s <- maybeUnwrapForeign Rf.vectorRef f
+    | Just s <- maybeUnwrapForeign Rf.listRef f
     = ANF.List <$> traverse goV s
     | Just l <- maybeUnwrapForeign Rf.termLinkRef f
     = pure (ANF.TmLink l)
@@ -1569,7 +1573,7 @@ reifyValue0 (rty, rtm) = goV
         <$> (goIx gr) <*> goK k
 
   goL (ANF.Text t) = pure . Foreign $ Wrap Rf.textRef t
-  goL (ANF.List l) = Foreign . Wrap Rf.vectorRef <$> traverse goV l
+  goL (ANF.List l) = Foreign . Wrap Rf.listRef <$> traverse goV l
   goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
   goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
   goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b

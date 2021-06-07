@@ -17,6 +17,7 @@ module Unison.Names2
   , filterByHQs
   , filterBySHs
   , filterTypes
+  , fuzzyFind
   , hqName
   , hqTermName
   , hqTypeName
@@ -46,6 +47,7 @@ where
 
 import Unison.Prelude
 
+import qualified Data.Map                     as Map
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
 import           Unison.HashQualified'        (HashQualified)
@@ -60,6 +62,7 @@ import           Unison.Util.Relation         (Relation)
 import qualified Unison.Util.Relation         as R
 import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
+import qualified Text.FuzzyFind               as FZF
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -70,8 +73,33 @@ data Names' n = Names
   , types :: Relation n Reference
   } deriving (Eq,Ord)
 
-type Names = Names' HashQualified
+type Names = Names' (HashQualified Name)
 type Names0 = Names' Name
+
+-- Finds names that are supersequences of all the given strings, ordered by
+-- score and grouped by name.
+fuzzyFind
+  :: [String]
+  -> Names0
+  -> [(FZF.Alignment, Name, Set (Either Referent Reference))]
+fuzzyFind query names =
+  fmap flatten
+    .  fuzzyFinds (Name.toString . fst) query
+    .  Map.toList
+    $  R.toMultimap (R.mapRan Left $ terms names)
+    <> R.toMultimap (R.mapRan Right $ types names)
+ where
+  flatten (a, (b, c)) = (a, b, c)
+  fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]
+  fuzzyFinds f query d =
+      d
+      >>= (\s ->
+            toList
+              $   (, s)
+              <$> foldl' (\a q -> (<>) <$> a <*> FZF.bestMatch q (f s))
+                         (Just mempty)
+                         query
+          )
 
 names0ToNames :: Names0 -> Names
 names0ToNames names0 = Names terms' types' where
@@ -219,7 +247,7 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified' n
+hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
 hqName b n = \case
   Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
   Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
@@ -228,48 +256,48 @@ hqName b n = \case
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified' n
+hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified' n
+hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
 hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName' hqLen n r
   else HQ.fromName n
 
-_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName b n r = if Set.size (termsNamed b n) > 1
   then _hqTermName' b n r
   else HQ.fromName n
 
-_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then _hqTypeName' b n r
   else HQ.fromName n
 
 _hqTypeAliases ::
-  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified' n)
+  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
+_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
 -- References in this Names0.
-hqTermName' :: Int -> n -> Referent -> HQ.HashQualified' n
+hqTermName' :: Int -> n -> Referent -> HQ.HashQualified n
 hqTermName' hqLen n r =
   HQ.take hqLen $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified' n
+hqTypeName' :: Int -> n -> Reference -> HQ.HashQualified n
 hqTypeName' hqLen n r =
   HQ.take hqLen $ HQ.fromNamedReference n r
 
-_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
+_hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
+_hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
@@ -288,7 +316,7 @@ filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
-filterByHQs :: Set HashQualified -> Names0 -> Names0
+filterByHQs :: Set (HashQualified Name) -> Names0 -> Names0
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types

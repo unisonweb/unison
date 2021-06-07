@@ -24,10 +24,11 @@ import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import           Unison.Name                  ( Name )
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
-import           Unison.Referent              (Referent, pattern Ref')
+import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
 import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
@@ -105,7 +106,7 @@ style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
 
 stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
-stylePretty sty str = Pr.map (AT.annotate sty) str
+stylePretty = Pr.map . AT.annotate
 
 describeStyle :: Color -> Pretty ColorText
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -187,14 +188,13 @@ renderTypeError e env src = case e of
           <> " has to be"
 
   ExistentialMismatch {..} -> mconcat
-    [ Pr.wrap $ mconcat
-        [ preamble
-        , " "
-        , "Here, one is "
-        , style Type1 (renderType' env expectedType)
-        , " and another is "
-        , style Type2 (renderType' env foundType)
-        , ":"]
+    [ Pr.lines
+        [ Pr.wrap preamble
+        , ""
+        , "Here, one   is:  " <> style Type1 (renderType' env expectedType)
+        , "and another is:  " <> style Type2 (renderType' env foundType)
+        , ""
+        ]
     , Pr.lineSkip
     , showSourceMaybes src [mismatchSiteS, expectedLocS]
     , fromOverHere' src
@@ -253,39 +253,33 @@ renderTypeError e env src = case e of
          showVar (v, _t) = Set.member v fteFreeVars
          solvedVars' = filter showVar solvedVars
        in
-         mconcat
-           [ "The "
-           , ordinal argNum
-           , " argument to the function "
-           , style ErrorSite (renderTerm env f)
-           , " is "
-           , style Type2 (renderType' env foundType)
-           , ", but I was expecting "
-           , style Type1 (renderType' env expectedType)
-           , ":\n\n"
+         mconcat [ Pr.lines
+           [  Pr.wrap $
+                "The " <> ordinal argNum <> " argument to " <>
+                Pr.backticked (style ErrorSite (renderTerm env f)),
+              "",
+              "          has type:  " <> style Type2 (renderType' env foundType),
+              "    but I expected:  " <> style Type1 (renderType' env expectedType)
+           , ""
            , showSourceMaybes src
              [ (, Type1) <$> rangeForAnnotated expectedType
              , (, Type2) <$> rangeForAnnotated foundType
              , (, Type2) <$> rangeForAnnotated arg
-             , (, ErrorSite) <$> rangeForAnnotated f ]
+             , (, ErrorSite) <$> rangeForAnnotated f ] ]
            , intLiteralSyntaxTip arg expectedType
          -- todo: factor this out and use in ExistentialMismatch and any other
          --       "recursive subtypes" situations
            , case leafs of
              Nothing                        -> mempty
-             Just (foundLeaf, expectedLeaf) -> mconcat
-               [ "\n"
-               , "More specifically, I found "
-               , style Type2 (renderType' env foundLeaf)
-               , " where I was expecting "
-               , style Type1 (renderType' env expectedLeaf)
-               , ":\n\n"
-               , showSourceMaybes
-                 src
+             Just (foundLeaf, expectedLeaf) -> Pr.lines
+               [ "" , "The mismatch is because these types differ:\n"
+               , Pr.indentN 2 $ style Type2 (renderType' env foundLeaf)
+               , Pr.indentN 2 $ style Type1 (renderType' env expectedLeaf)
+               , ""
+               ] <> showSourceMaybes src
                  [ (, Type1) <$> rangeForAnnotated expectedLeaf
                  , (, Type2) <$> rangeForAnnotated foundLeaf
                  ]
-               ]
            , case solvedVars' of
              _ : _ ->
                let
@@ -330,11 +324,10 @@ renderTypeError e env src = case e of
            , debugSummary note
            ]
   Mismatch {..} -> mconcat
-    [ "I found a value of type "
-    , style Type1 (renderType' env foundLeaf)
-    , " where I expected to find one of type "
-    , style Type2 (renderType' env expectedLeaf)
-    , ":\n\n"
+    [ Pr.lines [
+        "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
+        "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf) ]
+    , "\n\n"
     , showSourceMaybes
       src
       [ -- these are overwriting the colored ranges for some reason?
@@ -739,7 +732,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
     ]
   C.UnknownTermReference rf ->
     [ "UnknownTermReference:\n"
-    , showTermRef env (Ref' rf)
+    , showTermRef env (Ref rf)
     ]
   C.UnknownExistentialVariable v ctx ->
     [ "UnknownExistentialVariable:\n"
@@ -1218,6 +1211,13 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
+  go Parser.EmptyMatch = mconcat
+    ["I expected some patterns after a "
+    , style ErrorSite "match"
+    , "/"
+    , style ErrorSite "with"
+    , " but I didn't find any."
+    ]
   go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
@@ -1260,7 +1260,7 @@ prettyParseError s = \case
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
-    :: String -> L.Token HashQualified -> Pretty ColorText
+    :: String -> L.Token (HashQualified Name) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [
     (Pr.wrap . mconcat) [ "I don't know about any "
     , fromString ctorType

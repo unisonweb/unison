@@ -21,7 +21,7 @@ import           Unison.Codebase                ( CodebasePath )
 import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch(..) )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.Branch.Dependencies as BD
+import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.Patch         as Patch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1 as V1
@@ -42,7 +42,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Util.Relation           ( Relation )
 import           Unison.Util.Monoid (foldMapM)
-import           Unison.Util.Timing (time)
+import           U.Util.Timing (time)
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common

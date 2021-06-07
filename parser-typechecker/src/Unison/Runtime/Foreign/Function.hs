@@ -16,6 +16,7 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
+import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -29,11 +30,12 @@ import Unison.Reference (Reference)
 import Unison.Type (mvarRef, tvarRef, typeLinkRef)
 import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF (SuperGroup, Mem(..), Value)
+import Unison.Runtime.ANF (SuperGroup, Mem(..), Value, internalBug)
 import Unison.Runtime.MCode
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign
 import Unison.Runtime.Stack
+import qualified Unison.Builtin.Decls as Ty
 
 -- Foreign functions operating on stacks
 data ForeignFunc where
@@ -45,9 +47,9 @@ data ForeignFunc where
 instance Show ForeignFunc where
   show _ = "ForeignFunc"
 instance Eq ForeignFunc where
-  _ == _ = error "Eq ForeignFunc"
+  _ == _ = internalBug "Eq ForeignFunc"
 instance Ord ForeignFunc where
-  compare _ _ = error "Ord ForeignFunc"
+  compare _ _ = internalBug "Ord ForeignFunc"
 
 class ForeignConvention a where
   readForeign
@@ -64,7 +66,8 @@ mkForeign ev = FF readArgs writeForeign ev
   readArgs ustk bstk (argsToLists -> (us,bs))
     = readForeign us bs ustk bstk >>= \case
         ([], [], a) -> pure a
-        _ -> die "mkForeign: too many arguments for foreign function"
+        _ -> internalBug
+               "mkForeign: too many arguments for foreign function"
 
 instance ForeignConvention Int where
   readForeign (i:us) bs ustk _ = (us,bs,) <$> peekOff ustk i
@@ -79,6 +82,13 @@ instance ForeignConvention Word64 where
   writeForeign ustk bstk n = do
     ustk <- bump ustk
     (ustk, bstk) <$ pokeN ustk n
+
+instance ForeignConvention Char where
+  readForeign (i:us) bs ustk _ = (us,bs,) . Char.chr <$> peekOff ustk i
+  readForeign [] _ _ _ = foreignCCError "Char"
+  writeForeign ustk bstk ch = do
+    ustk <- bump ustk
+    (ustk, bstk) <$ poke ustk (Char.ord ch)
 
 instance ForeignConvention Closure where
   readForeign us (i:bs) _ bstk = (us,bs,) <$> peekOff bstk i
@@ -155,7 +165,7 @@ ioeDecode 4 = EOF
 ioeDecode 5 = IllegalOperation
 ioeDecode 6 = PermissionDenied
 ioeDecode 7 = UserError
-ioeDecode _ = error "ioeDecode"
+ioeDecode _ = internalBug "ioeDecode"
 
 ioeEncode :: IOErrorType -> Int
 ioeEncode AlreadyExists = 0
@@ -166,7 +176,7 @@ ioeEncode EOF = 4
 ioeEncode IllegalOperation = 5
 ioeEncode PermissionDenied = 6
 ioeEncode UserError = 7
-ioeEncode _ = error "ioeDecode"
+ioeEncode _ = internalBug "ioeDecode"
 
 instance ForeignConvention IOException where
   readForeign = readForeignAs (bld . ioeDecode)
@@ -287,25 +297,35 @@ instance ( ForeignConvention a
     (ustk,bstk) <- writeForeign ustk bstk b
     writeForeign ustk bstk a
 
+no'buf, line'buf, block'buf, sblock'buf :: Int
+no'buf = Ty.bufferModeNoBufferingId
+line'buf = Ty.bufferModeLineBufferingId
+block'buf = Ty.bufferModeBlockBufferingId
+sblock'buf = Ty.bufferModeSizedBlockBufferingId
+
 instance ForeignConvention BufferMode where
   readForeign (i:us) bs ustk bstk
     = peekOff ustk i >>= \case
-        0 -> pure (us, bs, NoBuffering)
-        1 -> pure (us, bs, LineBuffering)
-        2 -> pure (us, bs, BlockBuffering Nothing)
-        3 -> fmap (BlockBuffering . Just)
-               <$> readForeign us bs ustk bstk
-        _ -> foreignCCError "BufferMode"
-  readForeign _ _ _ _ = foreignCCError "BufferMode"
+        t | t == no'buf -> pure (us, bs, NoBuffering)
+          | t == line'buf -> pure (us, bs, LineBuffering)
+          | t == block'buf -> pure (us, bs, BlockBuffering Nothing)
+          | t == sblock'buf
+            -> fmap (BlockBuffering . Just)
+           <$> readForeign us bs ustk bstk
+          | otherwise
+            -> foreignCCError
+             $ "BufferMode (unknown tag: " <> show t <> ")"
+  readForeign _ _ _ _ = foreignCCError $ "BufferMode (empty stack)"
+
   writeForeign ustk bstk bm = bump ustk >>= \ustk ->
     case bm of
-      NoBuffering -> (ustk,bstk) <$ poke ustk 0
-      LineBuffering -> (ustk,bstk) <$ poke ustk 1
-      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk 2
+      NoBuffering -> (ustk,bstk) <$ poke ustk no'buf
+      LineBuffering -> (ustk,bstk) <$ poke ustk line'buf
+      BlockBuffering Nothing -> (ustk,bstk) <$ poke ustk block'buf
       BlockBuffering (Just n) -> do
         poke ustk n
         ustk <- bump ustk
-        (ustk,bstk) <$ poke ustk 3
+        (ustk,bstk) <$ poke ustk sblock'buf
 
 instance ForeignConvention [Closure] where
   readForeign us (i:bs) _ bstk

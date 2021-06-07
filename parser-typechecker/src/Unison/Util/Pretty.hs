@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -8,6 +10,7 @@ module Unison.Util.Pretty (
    align,
    align',
    alternations,
+   background,
    backticked,
    backticked',
    boxForkLeft,
@@ -50,6 +53,7 @@ module Unison.Util.Pretty (
    indentN,
    indentNonEmptyN,
    indentNAfterNewline,
+   invert,
    isMultiLine,
    leftPad,
    lines,
@@ -88,6 +92,7 @@ module Unison.Util.Pretty (
    string,
    surroundCommas,
    syntaxToColor,
+   table,
    text,
    toANSI,
    toAnsiUnbroken,
@@ -97,11 +102,12 @@ module Unison.Util.Pretty (
    underline,
    withSyntax,
    wrap,
+   wrap',
    wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
    border,
-   Width,
+   Width(..),
    -- * Exported for testing
    delta,
    Delta,
@@ -114,6 +120,7 @@ import           Data.Char                      ( isSpace )
 import           Data.List                      ( intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
+import qualified Unison.Util.AnnotatedText     as AT
 import qualified Unison.Util.ColorText         as CT
 import qualified Unison.Util.SyntaxText        as ST
 import           Unison.Util.Monoid             ( intercalateMap )
@@ -122,7 +129,9 @@ import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 import Control.Monad.Identity (runIdentity, Identity(..))
 
-type Width = Int
+newtype Width = Width {widthToInt :: Int}
+  deriving (Eq, Ord, Show, Generic, Num, Bounded)
+
 type ColorText = CT.ColorText
 
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) } deriving Eq
@@ -195,8 +204,8 @@ wrapString s = wrap (lit $ fromString s)
 paragraphyText :: (LL.ListLike s Char, IsString s) => Text -> Pretty s
 paragraphyText = sep "\n" . fmap (wrapPreserveSpaces . text) . Text.splitOn "\n"
 
-wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-wrap p = wrapImpl (toLeaves [p]) where
+wrap' :: IsString s => (s -> [Pretty s]) -> Pretty s -> Pretty s
+wrap' wordify p = wrapImpl (toLeaves [p]) where
   toLeaves [] = []
   toLeaves (hd:tl) = case out hd of
     Empty -> toLeaves tl
@@ -205,6 +214,10 @@ wrap p = wrapImpl (toLeaves [p]) where
     OrElse a _ -> toLeaves (a:tl)
     Wrap _ -> hd : toLeaves tl
     Append hds -> toLeaves (toList hds ++ tl)
+
+wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrap = wrap' wordify
+  where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
@@ -260,7 +273,8 @@ syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
 -- set the syntax, overriding any present syntax
-withSyntax :: ST.Element -> Pretty ST.SyntaxText -> Pretty ST.SyntaxText
+withSyntax
+  :: ST.Element r -> Pretty (ST.SyntaxText' r) -> Pretty (ST.SyntaxText' r)
 withSyntax e = fmap $ ST.syntax e
 
 renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
@@ -381,7 +395,7 @@ surroundCommas start stop fs =
     <> spaceIfBreak
     <> intercalateMap ("," <> softbreak <> align) id fs
     <> stop
-  where align = spacesIfBreak (preferredWidth start + 1)
+  where align = spacesIfBreak (widthToInt $ preferredWidth start + 1)
 
 sepSpaced :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepSpaced between = sep (between <> softbreak)
@@ -486,13 +500,13 @@ numberedColumn2Header num ps = numberedHeader (maybe mempty num) (align $ toList
 numberedList :: Foldable f => f (Pretty ColorText) -> Pretty ColorText
 numberedList = numbered (\i -> hiBlack . fromString $ show i <> ".")
 
-leftPad, rightPad :: IsString s => Int -> Pretty s -> Pretty s
+leftPad, rightPad :: IsString s => Width -> Pretty s -> Pretty s
 leftPad n p =
   let rem = n - preferredWidth p
-  in  if rem > 0 then fromString (replicate rem ' ') <> p else p
+  in  if rem > 0 then fromString (replicate (widthToInt rem) ' ') <> p else p
 rightPad n p =
   let rem = n - preferredWidth p
-  in  if rem > 0 then p <> fromString (replicate rem ' ') else p
+  in  if rem > 0 then p <> fromString (replicate (widthToInt rem) ' ') else p
 
 excerptColumn2Headed
   :: (LL.ListLike s Char, IsString s)
@@ -515,6 +529,20 @@ excerptColumn2 max cols = case max of
   Just max | len > max -> lines [column2 cols, "... " <> shown (len - max)]
   _                    -> column2 cols
   where len = length cols
+
+table :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> Pretty s
+table rows = lines (table' rows)
+
+table' :: (IsString s, LL.ListLike s Char) => [[Pretty s]] -> [Pretty s]
+table' [] = mempty
+table' rows = case maximum (Prelude.length <$> rows) of
+  1 -> rows >>= \case
+    [] -> [mempty]
+    hd : _ -> [hd]
+  _ -> let
+    colHd = [ h | (h:_) <- rows ]
+    colTl = [ t | (_:t) <- rows ]
+    in align (fmap (<> "  ") colHd `zip` (table' colTl))
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
@@ -588,12 +616,14 @@ column3sep sep rows = let
   abc = group <$> align [(a,sep <> bc) | ((a,_,_),bc) <- rows `zip` bc ]
   in lines abc
 
-wrapColumn2 ::
-  (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
+wrapColumn2
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 wrapColumn2 rows = lines (align rows) where
-  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
-    in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
-       | (l, r) <- rows]
+  align rows =
+    let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
+    in  [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
+        | (l, r) <- rows
+        ]
 
 align
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
@@ -621,8 +651,7 @@ align' rows = alignedRows
   col0Width = foldl' max 0 [ preferredWidth col1 | (col1, Just _) <- rows ] + 1
   alignedRows =
     [ case col1 of
-        Just s  ->
-          (rightPad col0Width col0, indentNAfterNewline col0Width s)
+        Just s  -> (rightPad col0Width col0, indentNAfterNewline col0Width s)
         Nothing -> (col0, mempty)
     | (col0, col1) <- rows
     ]
@@ -673,15 +702,17 @@ indent :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indent by p = by <> indentAfterNewline by p
 
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentN by = indent (fromString $ replicate by ' ')
+indentN by = indent (fromString $ replicate (widthToInt by) ' ')
 
-indentNonEmptyN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentNonEmptyN _ (out -> Empty) = mempty
-indentNonEmptyN by p = indentN by p
+indentNonEmptyN
+  :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNonEmptyN _  (out -> Empty) = mempty
+indentNonEmptyN by p              = indentN by p
 
 indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
-indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
+indentNAfterNewline by =
+  indentAfterNewline (fromString $ replicate (widthToInt by) ' ')
 
 indentAfterNewline
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
@@ -773,6 +804,18 @@ hiWhite = map CT.hiWhite
 bold = map CT.bold
 underline = map CT.underline
 
+-- invert the foreground and background colors
+invert :: Pretty CT.ColorText -> Pretty CT.ColorText
+invert = map CT.invert
+
+-- set the background color, ex: `background hiBlue`, `background yellow`
+background :: (Pretty CT.ColorText -> Pretty CT.ColorText) -> Pretty CT.ColorText -> Pretty CT.ColorText
+background f p =
+  -- hack: discover the color of `f` by calling it on a dummy string
+  case f (Pretty mempty (Lit "-")) of
+    Pretty _ (Lit (AT.AnnotatedText (toList -> [AT.Segment _ (Just c)]))) -> map (CT.background c) p
+    _ -> p
+
 plural :: Foldable f
        => f a -> Pretty ColorText -> Pretty ColorText
 plural f p = case length f of
@@ -783,7 +826,7 @@ plural f p = case length f of
     's' : _ -> "es"
     _ -> "s"
 
-border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
+border :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 border n p = "\n" <> indentN n p <> "\n"
 
 callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s

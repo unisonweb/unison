@@ -10,6 +10,7 @@ import qualified Unison.Util.Star3 as Star3
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import Unison.Util.Relation4 (Relation4)
+import qualified Unison.Util.Relation3 as R3
 import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Util.List as List
 
@@ -31,6 +32,13 @@ starToR4 = R4.fromList . fmap (\(r,n,_,(t,v)) -> (r,n,t,v)) . Star3.toList
 
 hasMetadata :: Ord a => a -> Type -> Value -> Star a n -> Bool
 hasMetadata a t v = Set.member (t, v) . R.lookupDom a . Star3.d3
+
+hasMetadataWithType' :: Ord a => a -> Type -> R4 a n -> Bool
+hasMetadataWithType' a t r =
+  fromMaybe False $ Set.member t . R3.d2s <$> (Map.lookup a $ R4.d1 r)
+
+hasMetadataWithType :: Ord a => a -> Type -> Star a n -> Bool
+hasMetadataWithType a t = Set.member t . R.lookupDom a . Star3.d2
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
