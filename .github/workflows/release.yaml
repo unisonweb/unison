@@ -6,11 +6,11 @@ on:
       - "release/*"
 
 jobs:
-  release:
-    name: "release"
+  create_release:
+    name: "create_release"
     runs-on: "ubuntu-latest"
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      upload_url: "${{ steps.create_release.outputs.upload_url }}"
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
@@ -26,7 +26,7 @@ jobs:
   build:
     name: "build ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
-    needs: "release"
+    needs: "create_release"
 
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -44,7 +44,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
       - name: install stack (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -80,12 +79,12 @@ jobs:
           tar -c -z -f ${{matrix.archive}} -C /tmp/ucm .
 
       - name: "Upload ${{matrix.archive}}"
-        uses: "actions/upload-release-asset@v1"
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
+          upload_url: "${{ needs.create_release.outputs.upload_url }}"
           asset_path: "${{ matrix.archive }}"
           asset_name: "${{ matrix.archive }}"
-          upload_url: "${{ needs.release.outputs.upload_url }}"
           asset_content_type: "application/gzip"
 
