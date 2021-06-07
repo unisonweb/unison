@@ -1,15 +1,31 @@
-name: "upload-release-artifacts"
+name: "release"
 
 on:
-  workflow_run:
-    workflows: ["create-release"]
-    types:
-      - completed
+  push:
+    tags:
+      - "release/*"
 
 jobs:
   release:
-    name: ${{ matrix.os }}
+    name: "release"
+    runs-on: "ubuntu-latest"
+
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+    steps:
+      - name: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          tag_name: "${{github.ref}}"
+          release_name: "${{github.ref}}"
+
+  build:
+    name: "build ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
+    needs: "release"
 
     strategy:
       # Run each build to completion, regardless of if any have failed
@@ -17,9 +33,13 @@ jobs:
 
       matrix:
         os:
-          - ubuntu-20.04
           - ubuntu-18.04
           - macOS-10.15
+        include:
+          - os: ubuntu-20.04
+            archive: ucm-linux.tar.gz
+          - os: macOS-10.15
+            archive: ucm-macos.tar.gz
 
     steps:
       - uses: actions/checkout@v2
@@ -56,19 +76,15 @@ jobs:
           cp $UCM /tmp/ucm/ucm
           wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
           unzip -d /tmp/ucm/ui /tmp/ucm.zip
-          tar -c -z -f unison-${{runner.os}}.tar.gz -C /tmp/ucm .
+          tar -c -z -f ${{matrix.archive}} -C /tmp/ucm .
 
-      - name: Set env
-        if: runner.os == 'macOS'
-        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{runner.os}}" >> $GITHUB_ENV
-
-      - name: Set env
-        if: runner.os != 'macOS'
-        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{matrix.os}}" >> $GITHUB_ENV
-
-      - name: "Upload ${{matrix.os}}"
-        uses: "actions/upload-artifact@v2"
-        with:
-          path: "unison-${{runner.os}}.tar.gz"
+      - name: "Upload ${{matrix.archive}}"
+        uses: "actions/upload-release-asset@v1"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          asset_path: "${{ matrix.archive }}"
+          asset_name: "${{ matrix.archive }}"
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_content_type: "application/gzip"
+
