@@ -1,4 +1,4 @@
-name: "create-release"
+name: "release"
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: "create-release"
+    name: "release"
     runs-on: "ubuntu-latest"
 
     strategy:
@@ -83,6 +83,7 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
+          tag_name: "${{github.ref}}"
           asset_path: "${{ matrix.archive }}"
           asset_name: "${{ matrix.archive }}"
           upload_url: ${{ needs.create-release.outputs.upload_url }}
