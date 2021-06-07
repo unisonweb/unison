@@ -25,7 +25,7 @@ jobs:
   build:
     name: "build ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
-    needs: "create-release"
+    needs: "release"
 
     strategy:
       # Run each build to completion, regardless of if any have failed
