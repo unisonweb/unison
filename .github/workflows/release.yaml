@@ -36,7 +36,7 @@ jobs:
           - ubuntu-18.04
           - macOS-10.15
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-18.04
             archive: ucm-linux.tar.gz
           - os: macOS-10.15
             archive: ucm-macos.tar.gz
