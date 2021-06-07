@@ -97,6 +97,7 @@ import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Control.Exception.Safe (MonadCatch)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -109,11 +110,11 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 v2dir :: FilePath -> FilePath
 v2dir root = root </> ".unison" </> "v2"
 
-init :: HasCallStack => MonadIO m => Codebase.Init m Symbol Ann
+init :: HasCallStack => (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 
 createCodebaseOrError ::
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
   CodebasePath ->
   m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebaseOrError dir = do
@@ -132,7 +133,7 @@ data CreateCodebaseError
   deriving (Show)
 
 createCodebaseOrError' ::
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
   CodebasePath ->
   m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
 createCodebaseOrError' path = do
@@ -163,7 +164,7 @@ openOrCreateCodebaseConnection path = do
 
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError :: forall m. (MonadIO m, MonadCatch m) => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
 getCodebaseOrError dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
@@ -250,7 +251,7 @@ unsafeGetConnection root = do
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
+sqliteCodebase :: (MonadIO m, MonadCatch m) => CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
 sqliteCodebase root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ root
   conn <- unsafeGetConnection root
@@ -968,7 +969,7 @@ syncProgress = Sync.Progress need done warn allDone
 
 viewRemoteBranch' ::
   forall m.
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
   RemoteNamespace ->
   m (Either GitError (m (), Branch m, CodebasePath))
 viewRemoteBranch' (repo, sbh, path) = runExceptT do
@@ -1010,7 +1011,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch ::
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
   Connection ->
   Branch m ->
   RemoteRepo ->

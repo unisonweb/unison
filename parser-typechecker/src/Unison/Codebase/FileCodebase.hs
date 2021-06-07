@@ -260,7 +260,7 @@ branchHeadUpdates root = do
 
 -- * Git stuff
 
-viewRemoteBranch' :: forall m. MonadIO m
+viewRemoteBranch' :: forall m. (MonadIO m, MonadCatch m)
   => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
 viewRemoteBranch' cache (repo, sbh, path) = do
   -- set up the cache dir
@@ -289,7 +289,7 @@ viewRemoteBranch' cache (repo, sbh, path) = do
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch
-  :: MonadIO m
+  :: (MonadIO m, MonadCatch m)
   => Codebase.SyncToDir m
   -> Branch.Cache m
   -> Branch m
