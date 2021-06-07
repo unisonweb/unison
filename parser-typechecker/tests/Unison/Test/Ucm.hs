@@ -53,8 +53,8 @@ initCodebase fmt = do
   let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
   tmp <-
     Temp.getCanonicalTemporaryDirectory
-      >>= flip Temp.createTempDirectory ("ucm-test")
-  Codebase.Init.createCodebase cbInit tmp >>= \case
+      >>= flip Temp.createTempDirectory "ucm-test"
+  Codebase.Init.createCodebase cbInit "ucm-test" tmp >>= \case
     Left e -> fail $ P.toANSI 80 e
     Right (close, _cb) -> close
   pure $ Codebase tmp fmt
@@ -80,7 +80,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
   let err err = fail $ "Parse error: \n" <> show err
       cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
   (closeCodebase, codebase) <-
-    Codebase.Init.openCodebase cbInit codebasePath >>= \case
+    Codebase.Init.openCodebase cbInit "transcript" codebasePath >>= \case
       Left e -> fail $ P.toANSI 80 e
       Right x -> pure x
   Codebase.installUcmDependencies codebase
@@ -100,6 +100,6 @@ runTranscript (Codebase codebasePath fmt) transcript = do
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) f = do
   let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
-  Codebase.Init.openCodebase cbInit root >>= \case
+  Codebase.Init.openCodebase cbInit "lowLevel" root >>= \case
     Left p -> PT.putPrettyLn p *> pure (error "This really should have loaded")
     Right (close, cb) -> f cb <* close

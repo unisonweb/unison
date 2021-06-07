@@ -1028,7 +1028,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                         (Left
                                           (SpecialForm.Link
                                             (Left
-                                              typeLink Optional))),
+                                              (typeLink Optional)))),
                                         !Lit
                                         (Right (Plain "is")),
                                         !Lit (Right (Plain "a")),
@@ -1890,7 +1890,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                               (!Lit
                                 (Left
                                   (SpecialForm.Source
-                                    [ (Left typeLink Optional,
+                                    [ (Left (typeLink Optional),
                                     []),
                                       (Right
                                       (Term.Term
@@ -1922,7 +1922,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                               (!Lit
                                 (Left
                                   (FoldedSource
-                                    [ (Left typeLink Optional,
+                                    [ (Left (typeLink Optional),
                                     []),
                                       (Right
                                       (Term.Term

@@ -19,7 +19,7 @@ source-repository head
 
 flag optimized
   manual: True
-  default: False
+  default: True
 
 library
   exposed-modules:

@@ -1,0 +1,74 @@
+name: "upload-release-artifacts"
+
+on:
+  workflow_run:
+    workflows: ["create-release"]
+    types:
+      - completed
+
+jobs:
+  release:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Run each build to completion, regardless of if any have failed
+      fail-fast: false
+
+      matrix:
+        os:
+          - ubuntu-20.04
+          - ubuntu-18.04
+          - macOS-10.15
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stack (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+      - name: install stack (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+
+
+      # One of the transcripts fails if the user's git name hasn't been set.
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: remove ~/.stack/setup-exe-cache on macOS
+        if: runner.os == 'macOS'
+        run: rm -rf ~/.stack/setup-exe-cache
+
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
+          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          tar -c -z -f unison-${{runner.os}}.tar.gz -C /tmp/ucm .
+
+      - name: Set env
+        if: runner.os == 'macOS'
+        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{runner.os}}" >> $GITHUB_ENV
+
+      - name: Set env
+        if: runner.os != 'macOS'
+        run: echo "RELEASE_VERSION=release/${GITHUB_REF#refs/tags/release/*}-${{matrix.os}}" >> $GITHUB_ENV
+
+      - name: "Upload ${{matrix.os}}"
+        uses: "actions/upload-artifact@v2"
+        with:
+          path: "unison-${{runner.os}}.tar.gz"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

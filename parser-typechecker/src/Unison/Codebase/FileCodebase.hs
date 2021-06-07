@@ -9,6 +9,7 @@ module Unison.Codebase.FileCodebase
   (
     codebase1', -- used by Test/Git
     Unison.Codebase.FileCodebase.init,
+    openCodebase -- since init requires a bunch of irrelevant args now
   )
 where
 
@@ -94,8 +95,8 @@ import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  ((fmap . fmap) (pure (),) . openCodebase)
-  ((fmap . fmap) (pure (),) . createCodebase)
+  (const $ (fmap . fmap) (pure (),) . openCodebase)
+  (const $ (fmap . fmap) (pure (),) . createCodebase)
   (</> Common.codebasePath)
 
 
