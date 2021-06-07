@@ -9,12 +9,13 @@ jobs:
   release:
     name: "release"
     runs-on: "ubuntu-latest"
-
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     strategy:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
     steps:
-      - name: create-release
+      - name: "create_release"
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -85,6 +86,6 @@ jobs:
         with:
           asset_path: "${{ matrix.archive }}"
           asset_name: "${{ matrix.archive }}"
-          upload_url: ${{ needs.release.outputs.upload_url }}
+          upload_url: "${{ needs.release.outputs.upload_url }}"
           asset_content_type: "application/gzip"
 
