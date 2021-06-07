@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Test.GitSync where
 
@@ -31,6 +32,7 @@ test :: Test ()
 test = scope "gitsync22" . tests $
   fastForwardPush :
   nonFastForwardPush :
+  destroyedRemote :
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
   pushPullTest  "typeAlias" fmt
@@ -530,6 +532,30 @@ nonFastForwardPush = scope "non-fastforward-push" do
       ```
     |]
   ok
+
+destroyedRemote :: Test()
+destroyedRemote = scope "destroyed-remote" do
+  io do
+    repo <- initGitRepo
+    codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      ```
+    |]
+    reinitRepo repo
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> push ${repo}
+      ```
+    |]
+  ok
+  where
+    reinitRepo (Text.pack -> repo) = do
+      "rm" ["-rf", repo]
+      "git" ["init", "--bare", repo]
+
 
 initGitRepo :: IO FilePath
 initGitRepo = do
