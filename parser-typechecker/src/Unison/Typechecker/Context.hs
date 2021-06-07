@@ -822,7 +822,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     (o,) <$> checkWantedScoped es arg i
   -- todo: reviewme should we use polarity info here?
   go (Type.Var' (TypeVar.Existential b a _p)) = do -- a^App
-    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthesizeApp-refined-effect", Var.named "o"]
+    [i,e,o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]
     let it = existential' (loc ft) B.Blank i
         ot = existential' (loc ft) B.Blank o
         et = existential' (loc ft) B.Blank e
