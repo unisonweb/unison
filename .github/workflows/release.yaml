@@ -14,7 +14,7 @@ jobs:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
     steps:
-      - name: Create Release
+      - name: create-release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -83,9 +83,8 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
-          tag_name: "${{github.ref}}"
           asset_path: "${{ matrix.archive }}"
           asset_name: "${{ matrix.archive }}"
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          upload_url: ${{ needs.release.outputs.upload_url }}
           asset_content_type: "application/gzip"
-          
+
