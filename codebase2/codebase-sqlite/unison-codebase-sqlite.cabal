@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1ebfb83fff5576c08030523940c272f5edfa0f42248d67da4edc9aa6d887cf5f
+-- hash: 3106bd32bedf162883882818669a81a3e1ca7c60af26ec9cd945fadb39f0d5aa
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -23,6 +23,7 @@ library
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
+      U.Codebase.Sqlite.Connection
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.JournalMode

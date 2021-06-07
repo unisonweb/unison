@@ -9,6 +9,7 @@ module Unison.Codebase.FileCodebase
   (
     codebase1', -- used by Test/Git
     Unison.Codebase.FileCodebase.init,
+    openCodebase -- since init requires a bunch of irrelevant args now
   )
 where
 
@@ -94,8 +95,8 @@ import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  ((fmap . fmap) (pure (),) . openCodebase)
-  ((fmap . fmap) (pure (),) . createCodebase)
+  (const $ (fmap . fmap) (pure (),) . openCodebase)
+  (const $ (fmap . fmap) (pure (),) . createCodebase)
   (</> Common.codebasePath)
 
 
@@ -260,7 +261,7 @@ branchHeadUpdates root = do
 
 -- * Git stuff
 
-viewRemoteBranch' :: forall m. MonadIO m
+viewRemoteBranch' :: forall m. (MonadIO m, MonadCatch m)
   => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
 viewRemoteBranch' cache (repo, sbh, path) = do
   -- set up the cache dir
@@ -289,7 +290,7 @@ viewRemoteBranch' cache (repo, sbh, path) = do
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch
-  :: MonadIO m
+  :: (MonadIO m, MonadCatch m)
   => Codebase.SyncToDir m
   -> Branch.Cache m
   -> Branch m
