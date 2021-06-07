@@ -6,14 +6,86 @@ on:
       - "release/*"
 
 jobs:
-  create_release:
+  build_linux:
+    name: "build_linux"
+    runs-on: ubuntu-18.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stack
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
+
+      # One of the transcripts fails if the user's git name hasn't been set.
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized --flag unison-core:optimized
+
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
+          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
+
+      - name: Upload linux artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-linux
+          path: ucm-linux.tar.gz
+  
+  build_macos:
+    name: "build_macos"
+    runs-on: macos-10.15
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stack
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+
+      # One of the transcripts fails if the user's git name hasn't been set.
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: remove ~/.stack/setup-exe-cache on macOS
+        run: rm -rf ~/.stack/setup-exe-cache
+
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized --flag unison-core:optimized
+
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
+          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
+
+      - name: Upload macos artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-macos
+          path: ucm-macos.tar.gz
+
+  release:
     name: "create_release"
     runs-on: "ubuntu-latest"
-    outputs:
-      upload_url: "${{ steps.create_release.outputs.upload_url }}"
-    strategy:
-      # Run each build to completion, regardless of if any have failed
-      fail-fast: false
+    needs:
+      - build-linux
+      - build-macos
+
     steps:
       - name: "create_release"
         uses: actions/create-release@v1
@@ -23,68 +95,35 @@ jobs:
           tag_name: "${{github.ref}}"
           release_name: "${{github.ref}}"
 
-  build:
-    name: "build ${{ matrix.os }}"
-    runs-on: ${{ matrix.os }}
-    needs: "create_release"
+      - name: "download linux build"
+        uses: actions/download-artifact@v2
+        with:
+          name: build-linux
+          path: ucm-linux.tar.gz
 
-    strategy:
-      # Run each build to completion, regardless of if any have failed
-      fail-fast: false
+      - name: "download macos build"
+        uses: actions/download-artifact@v2
+        with:
+          name: build-macos
+          path: ucm-macos.tar.gz
 
-      matrix:
-        os:
-          - ubuntu-18.04
-          - macOS-10.15
-        include:
-          - os: ubuntu-18.04
-            archive: ucm-linux.tar.gz
-          - os: macOS-10.15
-            archive: ucm-macos.tar.gz
-
-    steps:
-      - uses: actions/checkout@v2
-      - name: install stack (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
-      - name: install stack (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
-
-
-      # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
-      - name: remove ~/.stack/setup-exe-cache on macOS
-        if: runner.os == 'macOS'
-        run: rm -rf ~/.stack/setup-exe-cache
-
-      - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
-
-      - name: fetch latest codebase-ui and package with ucm
-        run: |
-          mkdir -p /tmp/ucm/ui
-          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-          cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
-          unzip -d /tmp/ucm/ui /tmp/ucm.zip
-          tar -c -z -f ${{matrix.archive}} -C /tmp/ucm .
-
-      - name: "Upload ${{matrix.archive}}"
+      - name: "Upload ucm-linux.tar.gz"
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
-          upload_url: "${{ needs.create_release.outputs.upload_url }}"
-          asset_path: "${{ matrix.archive }}"
-          asset_name: "${{ matrix.archive }}"
+          upload_url: "${{ steps.create_release.outputs.upload_url }}"
+          asset_path: "ucm-linux.tar.gz"
+          asset_name: "ucm-linux.tar.gz"
+          asset_content_type: "application/gzip"
+
+      - name: "Upload ucm-macos.tar.gz"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          upload_url: "${{ steps.create_release.outputs.upload_url }}"
+          asset_path: "ucm-macos.tar.gz"
+          asset_name: "ucm-macos.tar.gz"
           asset_content_type: "application/gzip"
 
