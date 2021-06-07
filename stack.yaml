@@ -1,4 +1,6 @@
-flags: {}
+flags:
+  haskeline: 
+    terminfo: false
 
 allow-newer: true # async package has needlessly strict upper bound
 
