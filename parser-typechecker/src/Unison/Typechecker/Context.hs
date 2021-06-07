@@ -1840,10 +1840,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     -- (conservatively) that it's invariant, see
     -- discussion https://github.com/unisonweb/unison/issues/512
     y1 <- applyM y1; y2 <- applyM y2
-    subtype y1 y2
-    y1 <- applyM y1; y2 <- applyM y2
-    -- performing the subtype check in both directions means the types must be equal
-    subtype y2 y1
+    equate y1 y2
   go _ t (Type.Forall' t2) = do
     v <- ABT.freshen t2 freshenTypeVar
     markThenRetract0 v $ do
@@ -1884,6 +1881,14 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     Type.App' _ _ -> True
     Type.Ref' _ -> True
     _ -> False
+
+equate :: Var v => Ord loc => Type v loc -> Type v loc -> M v loc ()
+equate y1 y2 = do
+  subtype y1 y2
+  y1 <- applyM y1; y2 <- applyM y2
+  -- performing the subtype check in both directions means
+  -- the types must be equal
+  subtype y2 y1
 
 
 -- | Instantiate the given existential such that it is
