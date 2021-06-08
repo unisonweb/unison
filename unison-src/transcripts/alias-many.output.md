@@ -455,11 +455,11 @@ I want to incorporate a few more from another namespace:
 .runar> find
 
   1.  List.adjacentPairs : [a] -> [(a, a)]
-  2.  List.all : (a ->{g} Boolean) ->{g} [a] ->{g} Boolean
-  3.  List.any : (a ->{g} Boolean) ->{g} [a] ->{g} Boolean
+  2.  List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  3.  List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
   4.  List.chunk : Nat -> [a] -> [[a]]
   5.  List.chunksOf : Nat -> [a] -> [[a]]
-  6.  List.dropWhile : (a ->{g} Boolean) ->{g} [a] ->{g} [a]
+  6.  List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
   7.  List.first : [a] -> Optional a
   8.  List.init : [a] -> Optional [a]
   9.  List.intersperse : a -> [a] -> [a]
@@ -479,16 +479,14 @@ I want to incorporate a few more from another namespace:
   
     1.  List.adjacentPairs : [a] -> [(a, a)]
     2.  List.all           : (a ->{g} Boolean)
-                           ->{g} [a]
+                           -> [a]
                            ->{g} Boolean
     3.  List.any           : (a ->{g} Boolean)
-                           ->{g} [a]
+                           -> [a]
                            ->{g} Boolean
     4.  List.chunk         : Nat -> [a] -> [[a]]
     5.  List.chunksOf      : Nat -> [a] -> [[a]]
-    6.  List.dropWhile     : (a ->{g} Boolean)
-                           ->{g} [a]
-                           ->{g} [a]
+    6.  List.dropWhile     : (a ->{g} Boolean) -> [a] ->{g} [a]
     7.  List.first         : [a] -> Optional a
     8.  List.init          : [a] -> Optional [a]
     9.  List.intersperse   : a -> [a] -> [a]
@@ -517,11 +515,11 @@ I want to incorporate a few more from another namespace:
   10. Int.pow : Int -> Nat -> Int
   11. Int.shiftLeft : Int -> Nat -> Int
   12. List.adjacentPairs : [a] -> [(a, a)]
-  13. List.all : (a ->{g} Boolean) ->{g} [a] ->{g} Boolean
-  14. List.any : (a ->{g} Boolean) ->{g} [a] ->{g} Boolean
+  13. List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean
+  14. List.any : (a ->{g} Boolean) -> [a] ->{g} Boolean
   15. List.chunk : Nat -> [a] -> [[a]]
   16. List.chunksOf : Nat -> [a] -> [[a]]
-  17. List.dropWhile : (a ->{g} Boolean) ->{g} [a] ->{g} [a]
+  17. List.dropWhile : (a ->{g} Boolean) -> [a] ->{g} [a]
   18. List.first : [a] -> Optional a
   19. List.init : [a] -> Optional [a]
   20. List.intersperse : a -> [a] -> [a]
