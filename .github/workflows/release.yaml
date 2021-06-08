@@ -24,7 +24,7 @@ jobs:
           git config --global user.email "actions@github.com"
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized --flag unison-core:optimized
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest codebase-ui and package with ucm
         run: |
@@ -62,7 +62,7 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 
       - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized --flag unison-core:optimized
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest codebase-ui and package with ucm
         run: |
