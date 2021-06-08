@@ -296,7 +296,7 @@ lexemes' eof = P.optional space >> do
      <|> token symbolyId <|> token blank <|> token wordyId
      <|> (asum . map token) [ semi, textual, backticks, hash ]
 
-  wordySep c = isSpace c || not (isAlphaNum c)
+  wordySep c = isSpace c || not (wordyIdChar c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
   tok :: P a -> P [Token a]
