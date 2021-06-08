@@ -431,6 +431,7 @@ clearWatches :: DB m => m ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
   execute_ "DELETE FROM watch"
+  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
