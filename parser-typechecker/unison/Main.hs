@@ -32,12 +32,13 @@ import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Init as Codebase
+import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import qualified Unison.Codebase.FileCodebase as FC
+import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
@@ -51,7 +52,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
-import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -186,7 +186,8 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config theCodebase
+            [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
@@ -195,8 +196,7 @@ main = do
         Right contents -> do
           (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch
-            currentDir config theCodebase
+          launch currentDir config theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "transcript" : args' ->
@@ -335,14 +335,21 @@ runTranscripts cbFormat inFork keepTemp mcodepath args = do
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty
 
-launch
-  :: FilePath
-  -> (Config, IO ())
-  -> _
-  -> [Either Input.Event Input.Input]
-  -> IO ()
+launch ::
+  FilePath ->
+  (Config, IO ()) ->
+  _ ->
+  [Either Input.Event Input.Input] ->
+  IO ()
 launch dir config code inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs code Version.gitDescribe
+  CommandLine.main
+    dir
+    defaultBaseLib
+    initialPath
+    config
+    inputs
+    code
+    Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

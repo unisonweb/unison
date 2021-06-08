@@ -64,6 +64,7 @@ data Causal m h e
           , head :: e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
+  deriving Generic
 
 -- Convert the Causal to an adjacency matrix for debugging purposes.
 toGraph

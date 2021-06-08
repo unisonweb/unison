@@ -114,6 +114,7 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
+      Unison.Server.AppState
       Unison.Server.Backend
       Unison.Server.CodebaseServer
       Unison.Server.Endpoints.FuzzyFind

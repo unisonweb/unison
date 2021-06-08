@@ -22,6 +22,7 @@ import Control.Lens (_5,view)
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
+                                                , Backend
                                                 )
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
@@ -75,14 +76,17 @@ type TypecheckingResult v =
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
-  -- Escape hatch.
+  -- Escape hatch for backend things
+  BackendOp :: (Backend m v a) -> Command m i v (Either BackendError a)
+
+  -- Escape hatch for the underlying I/O layer
   Eval :: m a -> Command m i v a
 
   HQNameQuery
     :: Maybe Path
     -> Branch m
     -> [HQ.HashQualified Name]
-    -> Command m i v QueryResult
+    -> Command m i v (Either BackendError QueryResult)
 
   LoadSearchResults
     :: [SR.SearchResult] -> Command m i v [SR'.SearchResult' v Ann]
@@ -95,6 +99,7 @@ data Command m i v a where
 
   FindShallow
     :: Path.Absolute
+    -> Branch m
     -> Command m i v (Either BackendError [ShallowListEntry v Ann])
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
@@ -290,3 +295,4 @@ commandName = \case
   LoadSearchResults{}         -> "LoadSearchResults"
   GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
   FindShallow{}               -> "FindShallow"
+  BackendOp{}                 -> "BackendOp"

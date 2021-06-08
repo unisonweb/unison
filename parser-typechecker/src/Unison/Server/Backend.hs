@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
@@ -8,12 +9,13 @@
 
 module Unison.Server.Backend where
 
-import Control.Lens (_2, over)
 import Control.Error.Util ((??))
+import Control.Lens (makeLenses, over, view, _2)
 import Control.Monad.Except
   ( ExceptT (..),
     throwError,
   )
+import Control.Monad.Reader (ReaderT)
 import Data.Bifunctor (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -21,6 +23,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
 import qualified Text.FuzzyFind as FZF
+import U.Util.Cache (Cache, nullCache)
+import qualified U.Util.Cache as Cache
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
@@ -45,7 +49,7 @@ import Unison.Name as Name
   ( unsafeFromText,
   )
 import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment(..))
+import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
 import Unison.Names3
@@ -82,6 +86,18 @@ import Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 
+data BackendState m v = BackendState
+  { _backendCodebase :: Codebase m v Ann
+  , _branchCache :: Cache Branch.Hash (Branch IO)
+  , _ppeCache :: Cache (Path, Branch.Hash, Int) (Branch IO)
+  , _basicNamesCache :: Cache (Path, Branch.Hash) (Names0, Names0)
+  }
+
+stateWithNoCache :: Codebase m v Ann -> BackendState m v
+stateWithNoCache c = BackendState c nullCache nullCache nullCache
+
+makeLenses ''BackendState
+
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
   | ShallowTypeEntry TypeEntry
@@ -105,7 +121,19 @@ data BackendError
   | NoBranchForHash Branch.Hash
   | MissingSignatureForTerm Reference
 
-type Backend m a = ExceptT BackendError m a
+type Backend m v a = ExceptT BackendError (ReaderT (BackendState m v) m) a
+
+-- Caches names in the application state
+basicNames0 :: MonadIO m => Branch m -> Path -> Backend m v (Names0, Names0)
+basicNames0 root path = do
+  cache <- view basicNamesCache
+  mayNames <- Cache.lookup cache (path, Branch.headHash root)
+  case mayNames of
+    Nothing -> do
+      let p = basicNames0' root path
+      Cache.insert cache (path, Branch.headHash root) p
+      pure p
+    Just (p, q) -> pure (p, q)
 
 -- implementation detail of basicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Branch m -> Path -> (Names0, Names0)
@@ -133,16 +161,17 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
     -- pretty-printing should use local names where available
     prettyPrintNames00 = currentAndExternalNames0
 
-basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength root path =
-  let names0 = basicPrettyPrintNames0 root path
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
+suffixifiedNames
+  :: MonadIO m => Int -> Branch m -> Path -> Backend m v PPE.PrettyPrintEnv
+suffixifiedNames hashLength root path = do
+  names0 <- prettyPrintNames root path
+  pure $ PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
 
-basicPrettyPrintNames0 :: Branch m -> Path -> Names0
-basicPrettyPrintNames0 root = snd . basicNames0' root
+prettyPrintNames :: MonadIO m => Branch m -> Path -> Backend m v Names0
+prettyPrintNames root = (snd <$>) . basicNames0 root
 
-basicParseNames0 :: Branch m -> Path -> Names0
-basicParseNames0 root = fst . basicNames0' root
+parseNames :: MonadIO m => Branch m -> Path -> Backend m v Names0
+parseNames root = (fst <$>) . basicNames0 root
 
 loadReferentType ::
   (Applicative m, Var v) =>
@@ -165,10 +194,6 @@ loadReferentType codebase = \case
           ++ " "
           ++ show cid
 
-getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
-getRootBranch =
-  ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
-
 data TermEntry v a = TermEntry
   { termEntryReferent :: Referent,
     termEntryName :: HQ'.HQSegment,
@@ -189,43 +214,48 @@ data FoundRef = FoundTermRef Referent
   deriving (Eq, Ord, Show, Generic)
 
 fuzzyFind
-  :: Monad m
+  :: MonadIO m
   => Path
   -> Branch m
   -> String
-  -> [(FZF.Alignment, UnisonName, [FoundRef])]
-fuzzyFind path branch query =
-  fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+  -> Backend m v [(FZF.Alignment, UnisonName, [FoundRef])]
+fuzzyFind path branch query = do
+  printNames <- prettyPrintNames branch path
+  let fzfNames = Names.fuzzyFind (words query) printNames
+  pure
+    $   fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
     .   (over _2 Name.toText)
     <$> fzfNames
- where
-  fzfNames   = Names.fuzzyFind (words query) printNames
-  printNames = basicPrettyPrintNames0 branch path
+
+getCurrentRootBranch :: Monad m => Backend m v (Branch m)
+getCurrentRootBranch = do
+  ea <- withCodebase Codebase.getRootBranch
+  case ea of
+    Left e -> throwError $ BadRootBranch e
+    Right b -> pure b
 
 -- List the immediate children of a namespace
 findShallow
   :: (Monad m, Var v)
-  => Codebase m v Ann
-  -> Path.Absolute
-  -> Backend m [ShallowListEntry v Ann]
-findShallow codebase path' = do
-  let path = Path.unabsolute path'
-  root <- getRootBranch codebase
-  let mayb = Branch.getAt path root
-  case mayb of
-    Nothing -> pure []
-    Just b  -> findShallowInBranch codebase b
+  => Path.Absolute
+  -> Branch m
+  -> Backend m v [ShallowListEntry v Ann]
+findShallow path' root = case mayb of
+  Nothing -> pure []
+  Just b  -> findShallowInBranch b
+ where
+  path = Path.unabsolute path'
+  mayb = Branch.getAt path root
 
 termListEntry
   :: Monad m
   => Var v
-  => Codebase m v Ann
-  -> Branch0 m
+  => Branch0 m
   -> Referent
   -> HQ'.HQSegment
-  -> Backend m (TermEntry v Ann)
-termListEntry codebase b0 r n = do
-  ot <- lift $ loadReferentType codebase r
+  -> Backend m v (TermEntry v Ann)
+termListEntry b0 r n = do
+  ot <- withCodebase $ flip loadReferentType r
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case ot of
         Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
@@ -239,15 +269,14 @@ termListEntry codebase b0 r n = do
 typeListEntry
   :: Monad m
   => Var v
-  => Codebase m v Ann
-  -> Reference
+  => Reference
   -> HQ'.HQSegment
-  -> Backend m TypeEntry
-typeListEntry codebase r n = do
+  -> Backend m v TypeEntry
+typeListEntry r n = do
   -- The tag indicates whether the type is a data declaration or an ability.
   tag <- case Reference.toId r of
     Just r -> do
-      decl <- lift $ Codebase.getTypeDeclaration codebase r
+      decl <- withCodebase $ flip Codebase.getTypeDeclaration r
       pure $ case decl of
         Just (Left _) -> Ability
         _             -> Data
@@ -272,11 +301,10 @@ typeEntryToNamedType (TypeEntry r name tag) = NamedType
 
 findShallowInBranch
   :: (Monad m, Var v)
-  => Codebase m v Ann
-  -> Branch m
-  -> Backend m [ShallowListEntry v Ann]
-findShallowInBranch codebase b = do
-  hashLength <- lift $ Codebase.hashLength codebase
+  => Branch m
+  -> Backend m v [ShallowListEntry v Ann]
+findShallowInBranch b = do
+  hashLength <- withCodebase Codebase.hashLength
   let hqTerm b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._terms $ b0
         in  case length refs of
@@ -292,9 +320,9 @@ findShallowInBranch codebase b = do
           + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
   termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
-    ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
+    ShallowTermEntry <$> termListEntry b0 r (hqTerm b0 ns r)
   typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0)
-    $ \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
+    $ \(r, ns) -> ShallowTypeEntry <$> typeListEntry r (hqType b0 ns r)
   let
     branchEntries =
       [ ShallowBranchEntry ns
@@ -341,12 +369,15 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames0 :: Path -> Names0
 -- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
 
-getCurrentPrettyNames :: Path -> Branch m -> Names
-getCurrentPrettyNames path root =
-  Names (basicPrettyPrintNames0 root path) mempty
+getCurrentPrettyNames :: MonadIO m => Path -> Branch m -> Backend m v Names
+getCurrentPrettyNames path root = do
+  names <- prettyPrintNames root path
+  pure $ Names names mempty
 
-getCurrentParseNames :: Path -> Branch m -> Names
-getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+getCurrentParseNames :: MonadIO m => Path -> Branch m -> Backend m v Names
+getCurrentParseNames path root = do
+  names <- parseNames root path
+  pure $ Names names mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -407,31 +438,30 @@ searchBranchExact len names queries =
     [ searchTypes q <> searchTerms q | q <- queries ]
 
 hqNameQuery'
-  :: Monad m
+  :: MonadIO m
   => Bool
   -> Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+  -> Backend m v QueryResult
+hqNameQuery' doSuffixify relativeTo root hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
   -- Find the terms with those hashes.
   termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (termReferentsByShortHash codebase)
+    (withCodebase . flip termReferentsByShortHash)
     (catMaybes (HQ.toHash <$> hashes))
   -- Find types with those hashes.
   typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
-    (typeReferencesByShortHash codebase)
+    (withCodebase . flip typeReferencesByShortHash)
     (catMaybes (HQ.toHash <$> hashes))
   -- Now do the name queries.
   -- The hq-name search needs a hash-qualifier length
-  hqLength <- Codebase.hashLength codebase
+  hqLength <- withCodebase Codebase.hashLength
   -- We need to construct the names that we want to use / search by.
   let currentPath = fromMaybe Path.empty relativeTo
-      parseNames0 = getCurrentParseNames currentPath root
-      mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
+  parseNames0 <- getCurrentParseNames currentPath root
+  let mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
       mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
       -- Transform the hash results a bit
       termResults =
@@ -459,21 +489,19 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
   pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
 
 hqNameQuery
-  :: Monad m
+  :: MonadIO m
   => Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
+  -> Backend m v QueryResult
 hqNameQuery = hqNameQuery' False
 
 hqNameQuerySuffixify
-  :: Monad m
+  :: MonadIO m
   => Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> m QueryResult
+  -> Backend m v QueryResult
 hqNameQuerySuffixify = hqNameQuery' True
 
 -- TODO: Move this to its own module
@@ -498,11 +526,15 @@ collateReferences (toList -> types) (toList -> terms) =
       types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
-expandShortBranchHash
-  :: Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.Hash
-expandShortBranchHash codebase hash = do
-  hashSet <- lift $ Codebase.branchHashesByPrefix codebase hash
-  len     <- lift $ Codebase.branchHashLength codebase
+withCodebase :: Monad m => (Codebase m v Ann -> m a) -> Backend m v a
+withCodebase f = do
+  codebase <- view backendCodebase
+  lift . lift $ f codebase
+
+expandShortBranchHash :: Monad m => ShortBranchHash -> Backend m v Branch.Hash
+expandShortBranchHash hash = do
+  hashSet <- withCodebase $ flip Codebase.branchHashesByPrefix hash
+  len     <- withCodebase Codebase.branchHashLength
   case Set.toList hashSet of
     []  -> throwError $ CouldntExpandBranchHash hash
     [h] -> pure h
@@ -527,31 +559,31 @@ mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
   :: forall v m
-   . Monad m
+   . MonadIO m
   => Var v
   => Maybe Path
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> Backend m DefinitionDisplayResults
-prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codebase query
+  -> Backend m v DefinitionDisplayResults
+prettyDefinitionsBySuffixes relativeTo requestedRoot renderWidth suffixifyBindings query
   = do
-    branch                               <- resolveBranchHash root codebase
+    mayBranch  <- traverse resolveBranchHash requestedRoot
+    latestRoot <- getCurrentRootBranch
+    let branch = fromMaybe latestRoot mayBranch
     DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
                                                                   branch
-                                                                  codebase
                                                                   query
-    hqLength <- lift $ Codebase.hashLength codebase
+    hqLength <- withCodebase Codebase.hashLength
     -- We might like to make sure that the user search terms get used as
     -- the names in the pretty-printer, but the current implementation
     -- doesn't.
+    printNames <-
+      getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+    parseNames <-
+      getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
     let
-      printNames =
-        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
-      parseNames =
-        getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
       width = mayDefault renderWidth
       termFqns :: Map Reference (Set Text)
@@ -574,11 +606,10 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
             $ currentNames parseNames
       flatten = Set.toList . fromMaybe Set.empty
       mkTermDefinition r tm = do
-        ts <- lift (Codebase.getTypeOfTerm codebase r)
+        ts <- withCodebase $ flip Codebase.getTypeOfTerm r
         let bn =
               bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
-        tag <- termEntryTag <$> termListEntry codebase
-                                              (Branch.head branch)
+        tag <- termEntryTag <$> termListEntry (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
         mk ts bn tag
@@ -594,7 +625,6 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
         tag <- Just . typeEntryTag <$> typeListEntry
-          codebase
           r
           (HQ'.NameOnly (NameSegment bn))
         pure . TypeDefinition (flatten $ Map.lookup r typeFqns) bn tag $ fmap
@@ -629,29 +659,24 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-resolveBranchHash
-  :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
-resolveBranchHash h codebase = case h of
-  Nothing    -> getRootBranch codebase
-  Just bhash -> do
-    mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
-    mayBranch ?? NoBranchForHash bhash
+resolveBranchHash :: Monad m => Branch.Hash -> Backend m v (Branch m)
+resolveBranchHash h = do
+  mayBranch <- withCodebase $ flip Codebase.getBranchForHash h
+  mayBranch ?? NoBranchForHash h
 
 definitionsBySuffixes
   :: forall m v
-   . Monad m
+   . MonadIO m
   => Var v
   => Maybe Path
   -> Branch m
-  -> Codebase m v Ann
   -> [HQ.HashQualified Name]
-  -> Backend m (DefinitionResults v)
-definitionsBySuffixes relativeTo branch codebase query = do
+  -> Backend m v (DefinitionResults v)
+definitionsBySuffixes relativeTo branch query = do
   -- First find the hashes by name and note any query misses.
-  QueryResult misses results <- lift
-    $ hqNameQuerySuffixify relativeTo branch codebase query
+  QueryResult misses results <- hqNameQuerySuffixify relativeTo branch query
   -- Now load the terms/types for those hashes.
-  results' <- lift $ loadSearchResults codebase results
+  results' <- withCodebase $ flip loadSearchResults results
   let termTypes :: Map.Map Reference (Type v Ann)
       termTypes = Map.fromList
         [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
@@ -660,15 +685,14 @@ definitionsBySuffixes relativeTo branch codebase query = do
         (mapMaybe SR'.tmReferent results')
   -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
   -- for later
-  loadedDerivedTerms <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
-      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm codebase i
+  loadedDerivedTerms <- withCodebase $ \c ->
+    fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
+      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm c i
       Reference.Builtin{}   -> pure Nothing
-  loadedDerivedTypes <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
-      Reference.DerivedId i ->
-        fmap (i, ) <$> Codebase.getTypeDeclaration codebase i
-      Reference.Builtin{} -> pure Nothing
+  loadedDerivedTypes <- withCodebase $ \c ->
+    fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
+      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTypeDeclaration c i
+      Reference.Builtin{}   -> pure Nothing
   -- Populate DisplayObjects for the search results, in anticipation of
   -- rendering the definitions.
   loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case

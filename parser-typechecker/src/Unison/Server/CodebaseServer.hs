@@ -11,7 +11,7 @@ module Unison.Server.CodebaseServer where
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
 import Control.Exception (ErrorCall (..), throwIO)
-import Control.Lens ((&), (.~))
+import Control.Lens (locally, (&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as Base64
@@ -55,6 +55,7 @@ import Options.Applicative
   )
 import Servant
   ( MimeRender (..),
+    hoistServer,
     serve,
     throwError,
   )
@@ -79,8 +80,8 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
   ( Application,
     Handler,
-    Server,
     ServerError (..),
+    ServerT,
     Tagged (Tagged),
     err401,
     err404,
@@ -94,6 +95,7 @@ import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
 import Unison.Parser (Ann)
 import Unison.Prelude
+import Unison.Server.AppState (AppM, authHandler, provideAppState, tryAuth)
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -122,9 +124,9 @@ type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
-type ServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
+type AuthedServerAPI = ("ui" :> WebUI) :<|> ("api" :> DocAPI)
 
-type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI)
+type ServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> AuthedServerAPI)
 
 instance ToSample Char where
   toSamples _ = singleSample 'x'
@@ -161,7 +163,10 @@ docAPI = Proxy
 api :: Proxy UnisonAPI
 api = Proxy
 
-serverAPI :: Proxy AuthedServerAPI
+authedServerAPI :: Proxy AuthedServerAPI
+authedServerAPI = Proxy
+
+serverAPI :: Proxy ServerAPI
 serverAPI = Proxy
 
 app
@@ -171,7 +176,13 @@ app
   -> Strict.ByteString
   -> Application
 app codebase uiPath expectedToken =
-  serve serverAPI $ server codebase uiPath expectedToken
+  serve serverAPI
+    $ hoistServer serverAPI (provideAppState handler codebase)
+    $ server uiPath expectedToken
+  where
+    -- This handler fails unless the expected token is empty.
+    -- The app replaces this handler once it receives a token on the URL.
+        handler = handleAuth expectedToken mempty
 
 genToken :: IO Strict.ByteString
 genToken = do
@@ -220,7 +231,7 @@ start codebase k = do
   let
     p =
       (,,,,)
-        <$> ( many $ argument str internal )
+        <$> (many $ argument str internal)
         <*> (   (<|> envToken)
             <$> (  optional
                 .  strOption
@@ -253,7 +264,8 @@ start codebase k = do
     mayOpts =
       getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
   case mayOpts of
-    Just (_, token, host, port, ui) -> startServer codebase k token host port ui
+    Just (_, token, host, port, ui) ->
+      startServer codebase k token host port ui
     Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
 
 startServer
@@ -306,32 +318,27 @@ serveIndex path = do
       <> " environment variable to the directory where the UI is installed."
     }
 
-serveUI :: Handler () -> FilePath -> Server WebUI
-serveUI tryAuth path _ = tryAuth *> serveIndex path
+serveUI :: FilePath -> ServerT WebUI (AppM v)
+serveUI path _ =
+  tryAuth *> lift (serveIndex path)
 
 server
-  :: Var v
-  => Codebase IO v Ann
-  -> FilePath
-  -> Strict.ByteString
-  -> Server AuthedServerAPI
-server codebase uiPath token =
+  :: Var v => FilePath -> Strict.ByteString -> ServerT ServerAPI (AppM v)
+server uiPath expectedToken =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> ((\t ->
-            serveUI (tryAuth t) uiPath
-              :<|> (    (    (serveNamespace (tryAuth t) codebase)
-                        :<|> (serveDefinitions (tryAuth t) codebase)
-                        :<|> (serveFuzzyFind (tryAuth t) codebase)
-                        )
+            hoistServer
+                authedServerAPI
+                (locally authHandler (const $ handleAuth expectedToken t))
+              $    serveUI uiPath
+              :<|> ((serveNamespace :<|> serveDefinitions :<|> serveFuzzyFind)
                    :<|> serveOpenAPI
                    :<|> Tagged serveDocs
                    )
           )
          )
-
  where
   serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
   serveOpenAPI = pure openAPI
   plain        = ("Content-Type", "text/plain")
-  tryAuth      = handleAuth token
 

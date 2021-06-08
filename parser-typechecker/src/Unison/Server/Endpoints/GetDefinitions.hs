@@ -6,12 +6,10 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
-import Control.Error (runExceptT)
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
     QueryParams,
-    throwError,
     (:>),
   )
 import Servant.Docs
@@ -21,19 +19,18 @@ import Servant.Docs
     ToSample (..),
     noSamples,
   )
-import Servant.Server (Handler)
-import Unison.Codebase (Codebase)
+import U.Util.Timing
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
 import qualified Unison.HashQualified as HQ
-import Unison.Parser (Ann)
 import Unison.Prelude
+import Unison.Server.AppState (AppM, doBackend, tryAuth)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
-  ( backendError,
-    badNamespace,
+  ( badNamespace,
+    errFromEither,
   )
 import Unison.Server.Types
   ( APIGet,
@@ -107,29 +104,27 @@ instance ToSample DefinitionDisplayResults where
 
 serveDefinitions
   :: Var v
-  => Handler ()
-  -> Codebase IO v Ann
-  -> Maybe ShortBranchHash
+  => Maybe ShortBranchHash
   -> Maybe HashQualifiedName
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
-  -> Handler (APIHeaders DefinitionDisplayResults)
-serveDefinitions h codebase mayRoot relativePath hqns width suff =
-  addHeaders <$> do
-    h
+  -> AppM v (APIHeaders DefinitionDisplayResults)
+serveDefinitions mayRoot relativePath hqns width suff =
+  time "serveDefinitions" $ addHeaders <$> do
+    time "authenticating" tryAuth
     rel <-
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
-    ea <- liftIO . runExceptT $ do
-      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      Backend.prettyDefinitionsBySuffixes rel
-                                          root
-                                          width
-                                          (fromMaybe (Suffixify True) suff)
-                                          codebase
+    doBackend $ do
+      root <- traverse
+        (time "expandShortBranchHash" . Backend.expandShortBranchHash)
+        mayRoot
+      time "prettyDefinitions"
+        $   Backend.prettyDefinitionsBySuffixes
+              rel
+              root
+              width
+              (fromMaybe (Suffixify True) suff)
         $   HQ.unsafeFromText
         <$> hqns
-    errFromEither backendError ea
- where
-  parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  errFromEither f = either (throwError . f) pure
+  where parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p

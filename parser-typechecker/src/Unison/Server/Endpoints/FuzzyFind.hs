@@ -10,7 +10,6 @@
 
 module Unison.Server.Endpoints.FuzzyFind where
 
-import Control.Error (runExceptT)
 import Control.Lens (view, _1)
 import Data.Aeson
 import Data.Function (on)
@@ -32,9 +31,7 @@ import Servant.Docs
     noSamples,
   )
 import Servant.OpenApi ()
-import Servant.Server (Handler)
 import qualified Text.FuzzyFind as FZF
-import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject
@@ -43,13 +40,12 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
-import Unison.Parser (Ann)
 import Unison.Prelude
 import qualified Unison.Reference as Reference
+import Unison.Server.AppState (AppM, doBackend, tryAuth)
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
-  ( backendError,
-    badNamespace,
+  ( badNamespace,
   )
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
@@ -137,33 +133,34 @@ instance ToSample FoundResult where
 serveFuzzyFind
   :: forall v
    . Var v
-  => Handler ()
-  -> Codebase IO v Ann
-  -> Maybe SBH.ShortBranchHash
+  => Maybe SBH.ShortBranchHash
   -> Maybe HashQualifiedName
   -> Maybe Int
   -> Maybe Width
   -> Maybe String
-  -> Handler (APIHeaders [(FZF.Alignment, FoundResult)])
-serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
-  addHeaders <$> do
-    h
-    rel <-
-      fromMaybe mempty
-      .   fmap Path.fromPath'
-      <$> traverse (parsePath . Text.unpack) relativePath
-    hashLength <- liftIO $ Codebase.hashLength codebase
-    ea         <- liftIO . runExceptT $ do
-      root   <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      branch <- Backend.resolveBranchHash root codebase
-      let b0 = Branch.head branch
-          alignments =
-            take (fromMaybe 10 limit)
-              . sortBy (compare `on` (Down . FZF.score . (view _1)))
-              $ Backend.fuzzyFind rel branch (fromMaybe "" query)
-          ppe = Backend.basicSuffixifiedNames hashLength branch rel
-      join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
-    errFromEither backendError ea
+  -> AppM v (APIHeaders [(FZF.Alignment, FoundResult)])
+serveFuzzyFind mayRoot relativePath limit typeWidth query = addHeaders <$> do
+  tryAuth
+  rel <-
+    fromMaybe mempty
+    .   fmap Path.fromPath'
+    <$> traverse (parsePath . Text.unpack) relativePath
+  doBackend $ do
+    hashLength <- Backend.withCodebase $ Codebase.hashLength
+    mayBranch  <- traverse
+      (Backend.expandShortBranchHash >=> Backend.resolveBranchHash)
+      mayRoot
+    root <- Backend.getCurrentRootBranch
+    let branch = fromMaybe root mayBranch
+        b0     = Branch.head branch
+    ppe <- Backend.suffixifiedNames hashLength branch rel
+    alignments <-
+          take (fromMaybe 10 limit)
+            . sortBy (compare `on` (Down . FZF.score . (view _1)))
+            <$> Backend.fuzzyFind rel branch (fromMaybe "" query)
+    join
+      <$> traverse (loadEntry (Just $ Branch.headHash branch) (Just rel) ppe b0)
+                   alignments
  where
   loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
     traverse
@@ -177,15 +174,14 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
                 $ Backend.termEntryToNamedTerm ppe typeWidth te
               )
             )
-            <$> Backend.termListEntry codebase b0 r n
+            <$> Backend.termListEntry b0 r n
         Backend.FoundTypeRef r -> do
-          te                              <- Backend.typeListEntry codebase r n
+          te                              <- Backend.typeListEntry r n
           DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
             rel
             root
             typeWidth
             (Suffixify True)
-            codebase
             [HQ.HashOnly $ Reference.toShortHash r]
           let
             t  = Map.lookup (Reference.toText r) ts
