@@ -38,6 +38,7 @@ jobs:
       - name: Upload linux artifact
         uses: actions/upload-artifact@v2
         with:
+          if-no-files-found: error
           name: build-linux
           path: ucm-linux.tar.gz
   
@@ -76,6 +77,7 @@ jobs:
       - name: Upload macos artifact
         uses: actions/upload-artifact@v2
         with:
+          if-no-files-found: error
           name: build-macos
           path: ucm-macos.tar.gz
 
@@ -87,6 +89,8 @@ jobs:
       - build_macos
 
     steps:
+      - uses: actions/checkout@v2
+
       - name: "create_release"
         uses: actions/create-release@v1
         env:
@@ -98,11 +102,16 @@ jobs:
       - name: echo upload_url
         run: "echo ${{ steps.create_release.outputs.upload_url }}"
 
-      - name: "download linux build"
+      - name: make download dir
+        run: "mkdir /tmp/ucm"
+
+      - name: "download artifacts"
         uses: actions/download-artifact@v2
         with:
-          name: build-linux
-          path: ucm-linux.tar.gz
+          path: /tmp/ucm
+
+      - name: "see what we got"
+        run: "ls -R /tmp/ucm"
 
       - name: "download macos build"
         uses: actions/download-artifact@v2
@@ -115,6 +124,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            ucm-linux.tar.gz
-            ucm-macos.tar.gz
+          files: /tmp/ucm/**/*.tar.gz
