@@ -231,6 +231,8 @@ data Command m i v a where
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
 
+  ClearWatchCache :: Command m i v ()
+
 type UseCache = Bool
 
 type EvalResult v =
@@ -290,3 +292,4 @@ commandName = \case
   LoadSearchResults{}         -> "LoadSearchResults"
   GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
   FindShallow{}               -> "FindShallow"
+  ClearWatchCache{}           -> "ClearWatchCache"
