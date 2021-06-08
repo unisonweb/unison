@@ -95,6 +95,9 @@ jobs:
           tag_name: "${{github.ref}}"
           release_name: "${{github.ref}}"
 
+      - name: echo upload_url
+        run: "echo ${{ steps.create_release.outputs.upload_url }}"
+
       - name: "download linux build"
         uses: actions/download-artifact@v2
         with:
@@ -107,23 +110,11 @@ jobs:
           name: build-macos
           path: ucm-macos.tar.gz
 
-      - name: "Upload ucm-linux.tar.gz"
-        uses: actions/upload-release-asset@v1
+      - name: make a release
+        uses: softprops/action-gh-release@v1
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: "${{ steps.create_release.outputs.upload_url }}"
-          asset_path: "ucm-linux.tar.gz"
-          asset_name: "ucm-linux.tar.gz"
-          asset_content_type: "application/gzip"
-
-      - name: "Upload ucm-macos.tar.gz"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        with:
-          upload_url: "${{ steps.create_release.outputs.upload_url }}"
-          asset_path: "ucm-macos.tar.gz"
-          asset_name: "ucm-macos.tar.gz"
-          asset_content_type: "application/gzip"
-
+          files: |
+            ucm-linux.tar.gz
+            ucm-macos.tar.gz
