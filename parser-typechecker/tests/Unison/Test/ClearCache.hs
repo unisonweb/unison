@@ -12,7 +12,7 @@ import qualified Unison.Var as WatchKind
 
 test :: Test ()
 test = scope "clearWatchCache" $
-  for_ [minBound .. maxBound] \fmt -> scope (show fmt) do
+  for_ [minBound @Ucm.CodebaseFormat ..] \fmt -> scope (show fmt) do
     c <- io $ Ucm.initCodebase fmt
     let listWatches = io $ Ucm.lowLevel c \c ->
           Codebase.watches c WatchKind.RegularWatch
