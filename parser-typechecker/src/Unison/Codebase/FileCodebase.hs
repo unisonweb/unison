@@ -67,7 +67,7 @@ import Unison.Codebase.FileCodebase.Common
     typeMentionsIndexDir,
     typeReferencesByPrefix,
     updateCausalHead,
-    watchesDir,
+    watchesDir, codebasePath
   )
 import qualified Unison.Codebase.FileCodebase.Common as Common
 import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
@@ -90,7 +90,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as TQueue
 import U.Util.Timing (time)
 import Unison.Var (Var)
-import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, removeDirectoryRecursive)
 import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
@@ -169,6 +169,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
+          (removeDirectoryRecursive $ path </> codebasePath </> "watches")
           getReflog
           appendReflog
           getTermsOfType

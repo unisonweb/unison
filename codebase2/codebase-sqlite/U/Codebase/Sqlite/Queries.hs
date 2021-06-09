@@ -427,6 +427,12 @@ loadWatchesByWatchKind k = query sql (Only k) where sql = [here|
   SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
+clearWatches :: DB m => m ()
+clearWatches = do
+  execute_ "DELETE FROM watch_result"
+  execute_ "DELETE FROM watch"
+  execute_ "VACUUM"
+
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
 addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
