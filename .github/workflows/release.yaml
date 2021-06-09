@@ -91,17 +91,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: "create_release"
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        with:
-          tag_name: "${{github.ref}}"
-          release_name: "${{github.ref}}"
-
-      - name: echo upload_url
-        run: "echo ${{ steps.create_release.outputs.upload_url }}"
-
       - name: make download dir
         run: "mkdir /tmp/ucm"
 
@@ -109,15 +98,6 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           path: /tmp/ucm
-
-      - name: "see what we got"
-        run: "ls -R /tmp/ucm"
-
-      - name: "download macos build"
-        uses: actions/download-artifact@v2
-        with:
-          name: build-macos
-          path: ucm-macos.tar.gz
 
       - name: make a release
         uses: softprops/action-gh-release@v1

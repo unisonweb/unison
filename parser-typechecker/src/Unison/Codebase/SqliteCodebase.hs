@@ -623,6 +623,9 @@ sqliteCodebase debugName root = do
                   (Cv.term1to2 h tm)
           putWatch _unknownKind _ _ = pure ()
 
+          clearWatches :: MonadIO m => m ()
+          clearWatches = runDB conn Ops.clearWatches
+
           getReflog :: MonadIO m => m [Reflog.Entry]
           getReflog =
             liftIO $
@@ -755,6 +758,7 @@ sqliteCodebase debugName root = do
             watches
             getWatch
             putWatch
+            clearWatches
             getReflog
             appendReflog
             termsOfTypeImpl

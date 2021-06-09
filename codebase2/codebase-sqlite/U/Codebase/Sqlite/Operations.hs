@@ -717,6 +717,9 @@ saveWatch w r t = do
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
 
+clearWatches :: DB m => m ()
+clearWatches = Q.clearWatches
+
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
 c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 

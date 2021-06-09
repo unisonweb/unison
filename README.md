@@ -43,7 +43,7 @@ Codebase Server
 
 When `ucm` starts it starts a Codebase web server that is used by the 
 [Codebase UI](https://github.com/unisonweb/codebase-ui). It selects a random
-port and a unique token that most be used when starting the UI to correctly
+port and a unique token that must be used when starting the UI to correctly
 connect to the server.
 
 The port, host and token can all be configured by providing environment

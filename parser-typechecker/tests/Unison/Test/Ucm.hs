@@ -33,7 +33,7 @@ import qualified Unison.Util.Pretty as P
 import Unison.Parser (Ann)
 import Unison.Symbol (Symbol)
 
-data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show)
+data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show, Enum, Bounded)
 
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 

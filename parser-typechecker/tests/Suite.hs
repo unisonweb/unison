@@ -9,6 +9,7 @@ import           System.IO
 import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
+import qualified Unison.Test.ClearCache as ClearCache
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
@@ -65,6 +66,7 @@ test = tests
   , MCode.test
   , Var.test
   , Codebase.test
+  , ClearCache.test
   , Typechecker.test
   , UriParser.test
   , Context.test

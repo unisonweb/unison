@@ -95,6 +95,7 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           , clearWatches       :: m ()
 
            , getReflog          :: m [Reflog.Entry]
            , appendReflog       :: Text -> Branch m -> Branch m -> m ()
