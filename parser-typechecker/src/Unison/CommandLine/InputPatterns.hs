@@ -859,18 +859,18 @@ createPullRequest2 :: InputPattern
 createPullRequest2 = InputPattern "pull-request.create2" ["pr.create2"]
   [(Required, noCompletions), (Required, pathArg), (Required, pathArg)]
   (P.group $ P.lines
-    [ P.wrap $ makeExample createPullRequest2 ["file", "base", "head"]
-        <> "will generate a request to merge the namespace `head`"
-        <> "into the namespace `base`."
+    [ P.wrap $ makeExample createPullRequest2 ["file", "src", "dest"]
+        <> "will generate a request to merge the namespace `src`"
+        <> "into the namespace `dest`."
     , ""
     , "example: " <>
-      makeExampleNoBackticks createPullRequest2 [".libs.bestlib", ".forks.bestlib.mytopic"]
+      makeExampleNoBackticks createPullRequest2 [".forks.bestlib.mytopic", ".libs.bestlib"]
     ])
   (\case
-    [path, base, head] -> do
-      base <- first fromString $ Path.parsePath' base
-      head <- first fromString $ Path.parsePath' head
-      pure $ Input.CreatePullRequest2I path base head
+    [path, src, dest] -> do
+      src <- first fromString $ Path.parsePath' src
+      dest <- first fromString $ Path.parsePath' dest
+      pure $ Input.CreatePullRequest2I path src dest
     _ -> Left (I.help createPullRequest2)
   )
 

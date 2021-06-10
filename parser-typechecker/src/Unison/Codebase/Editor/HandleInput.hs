@@ -767,14 +767,14 @@ loop = do
             cleanupBase
             cleanupHead
 
-      CreatePullRequest2I filePath basePath headPath -> unlessGitError do
+      CreatePullRequest2I filePath srcPath destPath -> unlessGitError do
         lift do
-          baseBranch <- getAt $ resolveToAbsolute basePath
-          headBranch <- getAt $ resolveToAbsolute headPath
-          merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+          srcBranch <- getAt $ resolveToAbsolute srcPath
+          destBranch <- getAt $ resolveToAbsolute destPath
+          merged <- eval $ Merge Branch.RegularMerge srcBranch destBranch
           unlessGitError $ ExceptT do
-            eval $ SyncPrBundle filePath (Branch.headHash baseBranch) headBranch
-            (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+            eval $ CreatePrBundle filePath srcBranch (Branch.headHash destBranch)
+            (ppe, diff) <- diffHelper (Branch.head destBranch) (Branch.head merged)
             error "print a nice diff" $ respondNumbered $ ShowDiffAfterCreatePR undefined undefined ppe diff
 
       LoadPullRequestI baseRepo headRepo dest0 -> do

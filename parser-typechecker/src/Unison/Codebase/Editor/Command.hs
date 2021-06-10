@@ -193,8 +193,8 @@ data Command m i v a where
   SyncRemoteRootBranch ::
     RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
-  SyncPrBundle ::
-    FilePath -> Branch.Hash -> Branch m -> Command m i v ()
+  CreatePrBundle ::
+    FilePath -> Branch m -> Branch.Hash -> Command m i v ()
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
@@ -275,7 +275,7 @@ commandName = \case
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
   SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
-  SyncPrBundle{}              -> "SyncPrBundle"
+  CreatePrBundle{}            -> "CreatePrBundle"
   AppendToReflog{}            -> "AppendToReflog"
   LoadReflog                  -> "LoadReflog"
   LoadTerm{}                  -> "LoadTerm"

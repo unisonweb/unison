@@ -134,13 +134,13 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ Codebase.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
       lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
-    SyncPrBundle file baseHash headBranch -> liftIO do
+    CreatePrBundle file srcBranch destBranchHash -> liftIO do
       -- todo: abort if `file` or `file.upr` already exist
       createDirectoryIfMissing True file
       LBS.writeFile (file </> "pr.json") $
-        Aeson.encode (PrBundle1.Header 1 $ Hash.base32Hex $ Causal.unRawHash baseHash)
+        Aeson.encode (PrBundle1.Header 1 (Hash.base32Hex $ Causal.unRawHash destBranchHash))
       let syncModeGripe = error "what even is a sync mode here; it probably should've been a separate API"
-      Codebase.syncToDirectory codebase file syncModeGripe headBranch
+      Codebase.syncToDirectory codebase file syncModeGripe srcBranch
       Zip.createArchive (file ++ ".upr") do
         Zip.packDirRecur Zip.Deflate Zip.mkEntrySelector file
       removeDirectoryRecursive file
