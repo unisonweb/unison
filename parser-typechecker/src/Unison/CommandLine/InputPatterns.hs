@@ -855,6 +855,25 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
     _ -> Left (I.help createPullRequest)
   )
 
+createPullRequest2 :: InputPattern
+createPullRequest2 = InputPattern "pull-request.create2" ["pr.create2"]
+  [(Required, noCompletions), (Required, pathArg), (Required, pathArg)]
+  (P.group $ P.lines
+    [ P.wrap $ makeExample createPullRequest2 ["file", "base", "head"]
+        <> "will generate a request to merge the namespace `head`"
+        <> "into the namespace `base`."
+    , ""
+    , "example: " <>
+      makeExampleNoBackticks createPullRequest2 [".libs.bestlib", ".forks.bestlib.mytopic"]
+    ])
+  (\case
+    [path, base, head] -> do
+      base <- first fromString $ Path.parsePath' base
+      head <- first fromString $ Path.parsePath' head
+      pure $ Input.CreatePullRequest2I path base head
+    _ -> Left (I.help createPullRequest2)
+  )
+
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
   [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
@@ -1392,6 +1411,7 @@ validInputs =
   , pushExhaustive
   , pullExhaustive
   , createPullRequest
+  , createPullRequest2
   , loadPullRequest
   , cd
   , back

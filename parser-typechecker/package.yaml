@@ -129,6 +129,7 @@ library:
     - unison-core
     - unison-core1
     - unison-util
+    - zip
 
 executables:
   unison:

@@ -16,16 +16,24 @@ import qualified Unison.Builtin                as B
 
 import qualified Unison.Server.Backend         as Backend
 import qualified Crypto.Random                 as Random
+import qualified Codec.Archive.Zip as Zip
 import           Control.Monad.Except           ( runExceptT )
 import qualified Control.Monad.State           as State
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
+import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
+import System.FilePath ((</>))
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.PrBundle1 as PrBundle1
+import qualified Unison.Hash as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
@@ -126,6 +134,16 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ Codebase.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->
       lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
+    SyncPrBundle file baseHash headBranch -> liftIO do
+      -- todo: abort if `file` or `file.upr` already exist
+      createDirectoryIfMissing True file
+      LBS.writeFile (file </> "pr.json") $
+        Aeson.encode (PrBundle1.Header 1 $ Hash.base32Hex $ Causal.unRawHash baseHash)
+      let syncModeGripe = error "what even is a sync mode here; it probably should've been a separate API"
+      Codebase.syncToDirectory codebase file syncModeGripe headBranch
+      Zip.createArchive (file ++ ".upr") do
+        Zip.packDirRecur Zip.Deflate Zip.mkEntrySelector file
+      removeDirectoryRecursive file
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

@@ -193,6 +193,9 @@ data Command m i v a where
   SyncRemoteRootBranch ::
     RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
+  SyncPrBundle ::
+    FilePath -> Branch.Hash -> Branch m -> Command m i v ()
+
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
   -- load the reflog in file (chronological) order
@@ -272,6 +275,7 @@ commandName = \case
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
   SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
+  SyncPrBundle{}              -> "SyncPrBundle"
   AppendToReflog{}            -> "AppendToReflog"
   LoadReflog                  -> "LoadReflog"
   LoadTerm{}                  -> "LoadTerm"

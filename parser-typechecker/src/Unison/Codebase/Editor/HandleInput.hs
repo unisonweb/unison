@@ -434,6 +434,7 @@ loop = do
           PreviewUpdateI{} -> wat
           CreateAuthorI (NameSegment id) name -> "create.author " <> id <> " " <> name
           CreatePullRequestI{} -> wat
+          CreatePullRequest2I{} -> wat
           LoadPullRequestI base head dest ->
             "pr.load "
               <> uncurry3 printNamespace base
@@ -765,6 +766,16 @@ loop = do
           eval . Eval $ do
             cleanupBase
             cleanupHead
+
+      CreatePullRequest2I filePath basePath headPath -> unlessGitError do
+        lift do
+          baseBranch <- getAt $ resolveToAbsolute basePath
+          headBranch <- getAt $ resolveToAbsolute headPath
+          merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+          unlessGitError $ ExceptT do
+            eval $ SyncPrBundle filePath (Branch.headHash baseBranch) headBranch
+            (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+            error "print a nice diff" $ respondNumbered $ ShowDiffAfterCreatePR undefined undefined ppe diff
 
       LoadPullRequestI baseRepo headRepo dest0 -> do
         let desta = resolveToAbsolute dest0

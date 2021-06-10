@@ -53,6 +53,7 @@ data Input
     | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
     | PushRemoteBranchI (Maybe RemoteHead) Path' SyncMode
     | CreatePullRequestI RemoteNamespace RemoteNamespace
+    | CreatePullRequest2I FilePath Path' Path'
     | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
