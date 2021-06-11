@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -29,9 +30,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term )
-import           Unison.Util.Free               ( Free
-                                                , eval
-                                                )
+import           Unison.Util.Free               ( MonadFreer(..) )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
@@ -49,8 +48,6 @@ import qualified Unison.Typechecker            as Typechecker
 import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
 
-type F m i v = Free (Command m i v)
-
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit
   -- same info as `termEdits` but in more efficient form for calling `Term.updateDependencies`
@@ -67,11 +64,11 @@ noEdits :: Edits v
 noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 
 propagateAndApply
-  :: forall m i v
-   . (Applicative m, Var v)
+  :: forall m i v t
+   . (Var v, Applicative m, MonadFreer (Command m i v) t)
   => Patch
   -> Branch0 m
-  -> F m i v (Branch0 m)
+  -> t (Branch0 m)
 propagateAndApply patch branch = do
   edits <- propagate patch branch
   f     <- applyPropagate patch edits
@@ -130,14 +127,14 @@ generateConstructorMapping oldComponent newComponent = Map.fromList
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
 propagate
-  :: forall m i v
-   . (Applicative m, Var v)
+  :: forall m i v t
+   . (MonadFreer (Command m i v) t, Var v)
   => Patch
   -> Branch0 m
-  -> F m i v (Edits v)
+  -> t (Edits v)
 propagate patch b = case validatePatch patch of
   Nothing -> do
-    eval $ Notify PatchNeedsToBeConflictFree
+    evalF $ Notify PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     let
@@ -147,7 +144,7 @@ propagate patch b = case validatePatch patch of
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
     initialDirty <-
-      R.dom <$> computeFrontier (eval . GetDependents) patch names0
+      R.dom <$> computeFrontier (evalF . GetDependents) patch names0
     order <- sortDependentsGraph initialDirty entireBranch
     let
 
@@ -155,11 +152,11 @@ propagate patch b = case validatePatch patch of
       getOrdered rs =
         Map.fromList [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
       collectEdits
-        :: (Applicative m, Var v)
+        :: (MonadFreer (Command m i v) t, Var v)
         => Edits v
         -> Set Reference
         -> Map Int Reference
-        -> F m i v (Edits v)
+        -> t (Edits v)
       collectEdits es@Edits {..} seen todo = case Map.minView todo of
         Nothing        -> pure es
         Just (r, todo) -> case r of
@@ -174,8 +171,8 @@ propagate patch b = case validatePatch patch of
             collectEdits es seen todo
           else
             do
-              haveType <- eval $ IsType r
-              haveTerm <- eval $ IsTerm r
+              haveType <- evalF $ IsType r
+              haveTerm <- evalF $ IsTerm r
               let message =
                     "This reference is not a term nor a type " <> show r
                   mmayEdits | haveTerm  = doTerm r
@@ -188,13 +185,13 @@ propagate patch b = case validatePatch patch of
                   -- plan to update the dependents of this component too
                   dependents <-
                     fmap Set.unions
-                    . traverse (eval . GetDependents)
+                    . traverse (evalF . GetDependents)
                     . toList
                     . Reference.members
                     $ Reference.componentFor r
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
-        doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+        doType :: Reference -> t (Maybe (Edits v), Set Reference)
         doType r = do
           componentMap <- unhashTypeComponent r
           let componentMap' =
@@ -237,7 +234,7 @@ propagate patch b = case validatePatch patch of
               )
             seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
             writeTypes =
-              traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
+              traverse_ (\(Reference.DerivedId id, tp) -> evalF $ PutDecl id tp)
             constructorMapping =
               constructorReplacements
                 <> generateConstructorMapping componentMap hashedComponents'
@@ -252,7 +249,7 @@ propagate patch b = case validatePatch patch of
                            constructorMapping
             , seen'
             )
-        doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
+        doTerm :: Reference -> t (Maybe (Edits v), Set Reference)
         doTerm r = do
           componentMap <- unhashTermComponent r
           let componentMap' =
@@ -289,7 +286,7 @@ propagate patch b = case validatePatch patch of
                 writeTerms =
                   traverse_
                     (\(Reference.DerivedId id, (tm, tp)) ->
-                      eval $ PutTerm id tm tp
+                      evalF $ PutTerm id tm tp
                     )
               writeTerms
                 [ (r, (tm, ty)) | (_old, r, tm, _oldTy, ty) <- joinedStuff ]
@@ -318,9 +315,9 @@ propagate patch b = case validatePatch patch of
   sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
   sortDependentsGraph dependencies restrictTo = do
     closure <- transitiveClosure
-      (fmap (Set.intersection restrictTo) . eval . GetDependents)
+      (fmap (Set.intersection restrictTo) . evalF . GetDependents)
       dependencies
-    dependents <- traverse (\r -> (r, ) <$> (eval . GetDependents) r)
+    dependents <- traverse (\r -> (r, ) <$> (evalF . GetDependents) r)
                            (toList closure)
     let graphEdges = [ (r, r, toList deps) | (r, deps) <- toList dependents ]
         (graph, getReference, _) = Graph.graphFromEdges graphEdges
@@ -340,22 +337,22 @@ propagate patch b = case validatePatch patch of
   -- However, if we want this to be parametric in the annotation type, then
   -- Command would have to be made parametric in the annotation type too.
   unhashTermComponent
-    :: forall m v
-     . (Applicative m, Var v)
+    :: forall m v t
+     . (MonadFreer (Command m i v) t, Var v)
     => Reference
-    -> F m i v (Map v (Reference, Term v _, Type v _))
+    -> t (Map v (Reference, Term v _, Type v _))
   unhashTermComponent ref = do
     let component = Reference.members $ Reference.componentFor ref
         termInfo
-          :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
+          :: Reference -> t (Maybe (Reference, (Term v Ann, Type v Ann)))
         termInfo termRef = do
-          tpm <- eval $ LoadTypeOfTerm termRef
+          tpm <- evalF $ LoadTypeOfTerm termRef
           tp  <- maybe (error $ "Missing type for term " <> show termRef)
                        pure
                        tpm
           case termRef of
             Reference.DerivedId id -> do
-              mtm <- eval $ LoadTerm id
+              mtm <- evalF $ LoadTerm id
               tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
               pure $ Just (termRef, (tm, tp))
             Reference.Builtin{} -> pure Nothing
@@ -366,17 +363,17 @@ propagate patch b = case validatePatch patch of
                 [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
   unhashTypeComponent
-    :: forall m v
-     . (Applicative m, Var v)
+    :: forall m v t
+     . (MonadFreer (Command m i v) t, Var v)
     => Reference
-    -> F m i v (Map v (Reference, Decl v _))
+    -> t (Map v (Reference, Decl v _))
   unhashTypeComponent ref = do
     let
       component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
+      typeInfo :: Reference -> t (Maybe (Reference, Decl v Ann))
       typeInfo typeRef = case typeRef of
         Reference.DerivedId id -> do
-          declm <- eval $ LoadType id
+          declm <- evalF $ LoadType id
           decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
                          pure
                          declm
@@ -389,7 +386,7 @@ propagate patch b = case validatePatch patch of
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
-    -> F m i v (Maybe (Map v (Reference, Term v _, Type v _)))
+    -> t (Maybe (Map v (Reference, Term v _, Type v _)))
   verifyTermComponent componentMap Edits {..} = do
     -- If the term contains references to old patterns, we can't update it.
     -- If the term had a redunant type signature, it's discarded and a new type
@@ -412,7 +409,7 @@ propagate patch b = case validatePatch patch of
               mempty
               (Map.toList $ (\(_, tm, _) -> tm) <$> componentMap)
               mempty
-        typecheckResult <- eval $ TypecheckFile file []
+        typecheckResult <- evalF $ TypecheckFile file []
         pure
           .   fmap UF.hashTerms
           $   runIdentity (Result.toMaybe typecheckResult)
@@ -437,10 +434,15 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate
-  :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
+  :: Var v
+  => MonadFreer (Command m i v) t
+  => Applicative m
+  => Patch
+  -> Edits v
+  -> t (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
-  let termRefs = Map.mapMaybe TermEdit.toReference termEdits
-      typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
+  let termRefs  = Map.mapMaybe TermEdit.toReference termEdits
+      typeRefs  = Map.mapMaybe TypeEdit.toReference typeEdits
       termTypes = Map.map (Type.toReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs termTypes)
@@ -451,11 +453,14 @@ applyPropagate patch Edits {..} = do
     -> Map Reference Reference
     -> Branch0 m
     -> Branch0 m
-  updateLevel termEdits typeEdits termTypes Branch0 {..} =
-    Branch.branch0 termsWithCons types _children _edits
+  updateLevel termEdits typeEdits termTypes Branch0 {..} = Branch.branch0
+    termsWithCons
+    types
+    _children
+    _edits
    where
-    isPropagated = (`Set.notMember` allPatchTargets) where
-      allPatchTargets = Patch.allReferenceTargets patch
+    isPropagated = (`Set.notMember` allPatchTargets)
+      where allPatchTargets = Patch.allReferenceTargets patch
 
     terms = foldl' replaceTerm _terms (Map.toList termEdits)
     types = foldl' replaceType _types (Map.toList typeEdits)
