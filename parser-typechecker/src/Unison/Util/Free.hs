@@ -1,8 +1,18 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# Language ExistentialQuantification, Rank2Types #-}
 
 module Unison.Util.Free where
 
-import Unison.Prelude hiding (fold)
+import Control.Monad
+import Control.Monad.Free (MonadFree (..))
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Cont
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Reader
+import qualified Control.Monad.Trans.State.Lazy as Lazy
+import qualified Control.Monad.Trans.State.Strict as Strict
 
 -- We would use another package for this if we knew of one.
 -- Neither http://hackage.haskell.org/package/free
@@ -14,6 +24,10 @@ data Free f a = Pure a | forall x . Bind (f x) (x -> Free f a)
 
 eval :: f a -> Free f a
 eval fa = Bind fa Pure
+
+retract :: Monad f => Free f a -> f a
+retract (Pure a   ) = pure a
+retract (Bind fx k) = fx >>= (retract . k)
 
 -- unfold :: (v -> f (Either a v)) -> v -> Free f a
 
@@ -60,9 +74,48 @@ instance Monad (Free f) where
   Pure a >>= f = f a
   Bind fx f >>= g = Bind fx (f >=> g)
 
-
 instance Applicative (Free f) where
   pure = Pure
   (<*>) = ap
 
 instance MonadTrans Free where lift = eval
+
+instance MonadFree f (Free f) where
+  wrap = join . eval
+  {-# INLINE wrap #-}
+
+class Monad m => MonadFreer f m | m -> f where
+  wrapF :: f (m a) -> m a
+  evalF :: f a -> m a
+
+-- A version of MonadFree that doesn't require Functor
+instance MonadFreer f (Free f) where
+  wrapF = join . eval
+  {-# INLINE wrapF #-}
+  evalF = eval
+  {-# INLINE evalF #-}
+
+instance MonadFreer f m => MonadFreer f (ReaderT e m) where
+  wrapF fm = ReaderT $ \e -> join $ flip runReaderT e <$> evalF fm
+  evalF fa = lift $ evalF fa
+
+instance MonadFreer f m => MonadFreer f (Lazy.StateT s m) where
+  wrapF fm = Lazy.StateT $ \s -> join $ flip Lazy.runStateT s <$> evalF fm
+  evalF fa = lift $ evalF fa
+
+instance MonadFreer f m => MonadFreer f (Strict.StateT s m) where
+  wrapF fm = Strict.StateT $ \s -> join $ flip Strict.runStateT s <$> evalF fm
+  evalF fa = lift $ evalF fa
+
+instance MonadFreer f m => MonadFreer f (ContT r m) where
+  wrapF fm = ContT $ \h -> join $ flip runContT h <$> evalF fm
+  evalF fa = lift $ evalF fa
+
+instance MonadFreer f m => MonadFreer f (MaybeT m) where
+  wrapF fm = MaybeT . join $ runMaybeT <$> evalF fm
+  evalF fa = lift $ evalF fa
+
+instance MonadFreer f m => MonadFreer f (ExceptT e m) where
+  wrapF fm = ExceptT . join $ runExceptT <$> evalF fm
+  evalF fa = lift $ evalF fa
+
