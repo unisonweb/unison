@@ -410,7 +410,7 @@ splitMatrixBuiltin v (PM rs)
   = fmap (\(a,(b,c)) -> (a,b,c))
   . toList
   . fmap buildMatrix
-  . fromListWith (++)
+  . fromListWith (flip (++))
   $ splitRowBuiltin v =<< rs
 
 matchPattern :: [(v,PType)] -> SeqMatch -> P.Pattern ()
