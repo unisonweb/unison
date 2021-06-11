@@ -466,6 +466,7 @@ loop = do
           DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
           DebugDumpNamespacesI{} -> wat
+          DebugClearWatchI {} -> wat
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
           DeprecateTypeI{} -> undefined
@@ -1822,6 +1823,7 @@ loop = do
                 prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                   P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
         void . eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
+      DebugClearWatchI {} -> eval ClearWatchCache
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       RemoveTermReplacementI from patchPath ->

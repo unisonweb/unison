@@ -9,6 +9,7 @@ module Unison.Codebase.FileCodebase
   (
     codebase1', -- used by Test/Git
     Unison.Codebase.FileCodebase.init,
+    openCodebase -- since init requires a bunch of irrelevant args now
   )
 where
 
@@ -66,7 +67,7 @@ import Unison.Codebase.FileCodebase.Common
     typeMentionsIndexDir,
     typeReferencesByPrefix,
     updateCausalHead,
-    watchesDir,
+    watchesDir, codebasePath
   )
 import qualified Unison.Codebase.FileCodebase.Common as Common
 import qualified Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex as Sync
@@ -89,13 +90,13 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as TQueue
 import U.Util.Timing (time)
 import Unison.Var (Var)
-import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, removeDirectoryRecursive)
 import UnliftIO.STM (atomically)
 
 init :: (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  ((fmap . fmap) (pure (),) . openCodebase)
-  ((fmap . fmap) (pure (),) . createCodebase)
+  (const $ (fmap . fmap) (pure (),) . openCodebase)
+  (const $ (fmap . fmap) (pure (),) . createCodebase)
   (</> Common.codebasePath)
 
 
@@ -168,6 +169,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
+          (removeDirectoryRecursive $ path </> codebasePath </> "watches")
           getReflog
           appendReflog
           getTermsOfType
@@ -260,7 +262,7 @@ branchHeadUpdates root = do
 
 -- * Git stuff
 
-viewRemoteBranch' :: forall m. MonadIO m
+viewRemoteBranch' :: forall m. (MonadIO m, MonadCatch m)
   => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
 viewRemoteBranch' cache (repo, sbh, path) = do
   -- set up the cache dir
@@ -289,7 +291,7 @@ viewRemoteBranch' cache (repo, sbh, path) = do
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch
-  :: MonadIO m
+  :: (MonadIO m, MonadCatch m)
   => Codebase.SyncToDir m
   -> Branch.Cache m
   -> Branch m

@@ -9,6 +9,7 @@ import           System.IO
 import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
+import qualified Unison.Test.ClearCache as ClearCache
 import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
@@ -36,7 +37,6 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
-import qualified Unison.Test.Git as Git
 import qualified Unison.Test.GitSync as GitSync
 import qualified Unison.Test.Codebase.Upgrade12 as Upgrade12
 -- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
@@ -66,10 +66,10 @@ test = tests
   , MCode.test
   , Var.test
   , Codebase.test
+  , ClearCache.test
   , Typechecker.test
   , UriParser.test
   , Context.test
-  , Git.test
   , Upgrade12.test
   , GitSync.test
   -- , BaseUpgradePushPullTest.test -- slowwwwww test involving upgrading base, hard-coded to arya's filesystem

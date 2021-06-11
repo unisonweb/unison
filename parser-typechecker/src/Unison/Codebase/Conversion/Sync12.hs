@@ -33,10 +33,10 @@ import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import qualified Data.Set as Set
 import Data.Traversable (for)
-import Database.SQLite.Simple (Connection)
 import Debug.Trace (traceM)
 import System.IO (stdout)
 import System.IO.Extra (hFlush)
+import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Util.Monoid as Monoid

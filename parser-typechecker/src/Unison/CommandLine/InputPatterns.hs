@@ -1309,6 +1309,12 @@ debugDumpNamespace = InputPattern
   "Dump the namespace to a text file"
   (const $ Right Input.DebugDumpNamespacesI)
 
+debugClearWatchCache :: InputPattern
+debugClearWatchCache = InputPattern
+  "debug.clear-cache" [] [(Required, noCompletions)]
+  "Clear the watch expression cache"
+  (const $ Right Input.DebugClearWatchI)
+
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1437,6 +1443,7 @@ validInputs =
   , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
+  , debugClearWatchCache
   ]
 
 commandNames :: [String]

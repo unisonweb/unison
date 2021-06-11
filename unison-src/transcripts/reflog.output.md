@@ -59,17 +59,17 @@ y = 2
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bfi38eb9mc .old`   to make an old namespace
+    `fork #a1o5i1c7jp .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bfi38eb9mc`  to reset the root namespace and
+    `reset-root #a1o5i1c7jp`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ais4hnnbti : add
-  2. #bfi38eb9mc : add
-  3. #rj8u1mrts8 : builtins.merge
-  4. #7asfbtqmoj : (initial reflogged namespace)
+  1. #befer6tgmi : add
+  2. #a1o5i1c7jp : add
+  3. #orvf5un0jq : builtins.merge
+  4. #sjg2v58vn2 : (initial reflogged namespace)
 
 ```
 If we `reset-root` to its previous value, `y` disappears.

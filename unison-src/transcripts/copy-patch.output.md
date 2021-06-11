@@ -5,17 +5,6 @@ x = 1
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      x : ##Nat
-
-```
-```ucm
 .> add
 
   ⍟ I've added these definitions:
@@ -29,18 +18,6 @@ Change the definition of `x` so something goes in our patch:
 x = 2
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      x : ##Nat
-
-```
 ```ucm
 .> update foo.patch
 
@@ -56,6 +33,10 @@ Copy the patch and make sure it's still there.
 
   Done.
 
+.> ls foo
+
+  1. patch (patch)
+
 .> view.patch foo.patch
 
   Edited Terms: #jk19sm5bf8 -> x
@@ -63,6 +44,10 @@ Copy the patch and make sure it's still there.
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
        appropriate.
+
+.> ls bar
+
+  1. patch (patch)
 
 .> view.patch bar.patch
 
@@ -87,5 +72,9 @@ The moved patch should be gone.
 .> view.patch foo.patch
 
   This patch is empty.
+
+.> ls foo
+
+  nothing to show
 
 ```

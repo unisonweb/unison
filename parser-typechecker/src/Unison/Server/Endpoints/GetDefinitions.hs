@@ -6,40 +6,46 @@
 
 module Unison.Server.Endpoints.GetDefinitions where
 
-import           Control.Error                  ( runExceptT )
-import qualified Data.Text                     as Text
-import           Servant                        ( Get
-                                                , JSON
-                                                , QueryParam
-                                                , QueryParams
-                                                , throwError
-                                                , (:>)
-                                                )
-import           Servant.Docs                   ( DocQueryParam(..)
-                                                , ParamKind(..)
-                                                , ToParam(..)
-                                                , ToSample(..)
-                                                , noSamples
-                                                )
-import           Servant.Server                 ( Handler )
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.HashQualified          as HQ
-import           Unison.Parser                  ( Ann )
-import qualified Unison.Server.Backend         as Backend
-import           Unison.Server.Types            ( HashQualifiedName
-                                                , DefinitionDisplayResults
-                                                , defaultWidth
-                                                , Suffixify(..)
-                                                )
-import           Unison.Server.Errors           ( backendError
-                                                , badNamespace
-                                                )
-import           Unison.Util.Pretty             ( Width )
-import           Unison.Var                     ( Var )
-import           Unison.Codebase                ( Codebase )
-import           Unison.Codebase.ShortBranchHash
-                                                ( ShortBranchHash )
-import           Unison.Prelude
+import Control.Error (runExceptT)
+import qualified Data.Text as Text
+import Servant
+  ( QueryParam,
+    QueryParams,
+    throwError,
+    (:>),
+  )
+import Servant.Docs
+  ( DocQueryParam (..),
+    ParamKind (..),
+    ToParam (..),
+    ToSample (..),
+    noSamples,
+  )
+import Servant.Server (Handler)
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.ShortBranchHash
+  ( ShortBranchHash,
+  )
+import qualified Unison.HashQualified as HQ
+import Unison.Parser (Ann)
+import Unison.Prelude
+import qualified Unison.Server.Backend as Backend
+import Unison.Server.Errors
+  ( backendError,
+    badNamespace,
+  )
+import Unison.Server.Types
+  ( APIGet,
+    APIHeaders,
+    DefinitionDisplayResults,
+    HashQualifiedName,
+    Suffixify (..),
+    addHeaders,
+    defaultWidth,
+  )
+import Unison.Util.Pretty (Width)
+import Unison.Var (Var)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
@@ -47,7 +53,7 @@ type DefinitionsAPI =
                   :> QueryParams "names" HashQualifiedName
                   :> QueryParam "renderWidth" Width
                   :> QueryParam "suffixifyBindings" Suffixify
-  :> Get '[JSON] DefinitionDisplayResults
+  :> APIGet DefinitionDisplayResults
 
 instance ToParam (QueryParam "renderWidth" Width) where
   toParam _ = DocQueryParam
@@ -108,20 +114,22 @@ serveDefinitions
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
-  -> Handler DefinitionDisplayResults
-serveDefinitions h codebase mayRoot relativePath hqns width suff = do
-  h
-  rel <- fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
-  ea  <- liftIO . runExceptT $ do
-    root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-    Backend.prettyDefinitionsBySuffixes rel
-                                        root
-                                        width
-                                        (fromMaybe (Suffixify True) suff)
-                                        codebase
-      $   HQ.unsafeFromText
-      <$> hqns
-  errFromEither backendError ea
+  -> Handler (APIHeaders DefinitionDisplayResults)
+serveDefinitions h codebase mayRoot relativePath hqns width suff =
+  addHeaders <$> do
+    h
+    rel <-
+      fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
+    ea <- liftIO . runExceptT $ do
+      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+      Backend.prettyDefinitionsBySuffixes rel
+                                          root
+                                          width
+                                          (fromMaybe (Suffixify True) suff)
+                                          codebase
+        $   HQ.unsafeFromText
+        <$> hqns
+    errFromEither backendError ea
  where
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
   errFromEither f = either (throwError . f) pure

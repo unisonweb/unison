@@ -48,7 +48,6 @@ import Data.Traversable (for)
 import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
-import Database.SQLite.Simple (Connection)
 import Debug.Trace
 import GHC.Stack (HasCallStack)
 import qualified U.Codebase.Branch as C.Branch
@@ -71,6 +70,7 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
@@ -716,6 +716,9 @@ saveWatch w r t = do
   wterm <- c2wTerm t
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
+
+clearWatches :: DB m => m ()
+clearWatches = Q.clearWatches
 
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
 c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)

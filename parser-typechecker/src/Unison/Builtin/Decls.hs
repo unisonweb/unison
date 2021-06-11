@@ -41,8 +41,11 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+failureRef, ioFailureRef, tlsFailureRef :: Reference
+tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
+
 isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
 testResultRef = lookupDeclRef "Test.Result"
@@ -51,6 +54,8 @@ docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
+ioFailureRef = lookupDeclRef "io2.IOFailure"
+tlsFailureRef = lookupDeclRef "io2.TlsFailure"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 

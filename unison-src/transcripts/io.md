@@ -196,7 +196,8 @@ testDirContents _ =
     tempDir = newTempDir "dircontents"
     c = reraise (directoryContents.impl tempDir)
     check "directory size should be"  (size c == 2)
-    check "directory contents should have current directory and parent" (c == [".", ".."])
+    check "directory contents should have current directory and parent" let
+      (c == [".", ".."]) || (c == ["..", "."])
   runTest test
 ```
 ```ucm
