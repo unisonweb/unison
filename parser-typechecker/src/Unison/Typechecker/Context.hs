@@ -87,6 +87,8 @@ type Term v loc = Term.Term' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
 type RedundantTypeAnnotation = Bool
 
+type Wanted v loc = [Type v loc]
+
 pattern Universal v = Var (TypeVar.Universal v)
 pattern Existential b v <- Var (TypeVar.Existential b v _)
 
@@ -786,8 +788,8 @@ withEffects
   :: Var v
   => Ord loc
   => [Type v loc]
-  -> M v loc [Type v loc]
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
+  -> M v loc (Wanted v loc)
 withEffects handled act = do
   want <- expandAbilities =<< act
   handled <- expandAbilities handled
@@ -796,7 +798,7 @@ withEffects handled act = do
 synthesizeApps
   :: (Foldable f, Var v, Ord loc)
   => Type v loc
-  -> f (Term v loc) -> M v loc (Type v loc, [Type v loc])
+  -> f (Term v loc) -> M v loc (Type v loc, Wanted v loc)
 synthesizeApps ft args =
   foldM go (ft, []) $ Foldable.toList args `zip` [1..]
   where go (ft, want) arg = do
@@ -812,7 +814,7 @@ synthesizeApp
   :: (Var v, Ord loc)
   => Type v loc
   -> (Term v loc, Int)
-  -> M v loc (Type v loc, [Type v loc])
+  -> M v loc (Type v loc, Wanted v loc)
 synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ do
@@ -910,7 +912,7 @@ synthesize
   :: Var v
   => Ord loc
   => Term v loc
-  -> M v loc (Type v loc, [Type v loc])
+  -> M v loc (Type v loc, Wanted v loc)
 synthesize e | debugShow ("synthesize"::String, e) = undefined
 synthesize e = scope (InSynthesize e) $
   case minimize' e of
@@ -928,7 +930,7 @@ synthesizeWanted
   :: Var v
   => Ord loc
   => Term v loc
-  -> M v loc (Type v loc, [Type v loc])
+  -> M v loc (Type v loc, Wanted v loc)
 synthesizeWanted (Term.Var' v) = getContext >>= \ctx ->
   case lookupAnn ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
@@ -1103,7 +1105,7 @@ checkCases
   => Type v loc
   -> Type v loc
   -> [Term.MatchCase loc (Term v loc)]
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
 checkCases _ _ [] = pure []
 checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
   = scope (InMatch (ABT.annotation t)) $ do
@@ -1143,7 +1145,7 @@ checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
           -> Type v loc
           -> Term.MatchCase loc (Term v loc)
-          -> M v loc [Type v loc]
+          -> M v loc (Wanted v loc)
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   scrutineeType <- applyM scrutineeType
   outputType <- applyM outputType
@@ -1558,7 +1560,7 @@ variableP _ = Nothing
 checkScoped
   :: forall v loc
    . (Var v, Ord loc)
-  => Term v loc -> Type v loc -> M v loc (Type v loc, [Type v loc])
+  => Term v loc -> Type v loc -> M v loc (Type v loc, Wanted v loc)
 checkScoped e (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
   ((ty, want), pop) <- markThenRetract v $ do
@@ -1586,17 +1588,17 @@ markThenRetractWanted
   :: Var v
   => Ord loc
   => v
-  -> M v loc [Type v loc]
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
+  -> M v loc (Wanted v loc)
 markThenRetractWanted v m
   = markThenRetract v m >>= uncurry substAndDefaultWanted
 
 coalesceWanted
   :: Var v
   => Ord loc
-  => [Type v loc]
-  -> [Type v loc]
-  -> M v loc [Type v loc]
+  => Wanted v loc
+  -> Wanted v loc
+  -> M v loc (Wanted v loc)
 -- TODO: Might need fleshing out to ensure complete lack of duplication.
 coalesceWanted [] old = pure old
 coalesceWanted (n:new) old
@@ -1626,7 +1628,7 @@ coalesceWanted (n:new) old
   keep _ _ = True
 
 coalesceWanteds
-  :: Var v => Ord loc => [[Type v loc]] -> M v loc [Type v loc]
+  :: Var v => Ord loc => [Wanted v loc] -> M v loc (Wanted v loc)
 coalesceWanteds = foldM (flip coalesceWanted) []
 
 -- | This implements the subtraction of handled effects from the
@@ -1637,10 +1639,10 @@ coalesceWanteds = foldM (flip coalesceWanted) []
 pruneWanted
   :: Var v
   => Ord loc
-  => [Type v loc]
-  -> [Type v loc]
-  -> [Type v loc]
-  -> M v loc [Type v loc]
+  => Wanted v loc
+  -> Wanted v loc
+  -> Wanted v loc
+  -> M v loc (Wanted v loc)
 pruneWanted acc [] _ = pure acc
 pruneWanted acc (w:want) handled
   | Just h <- find (headMatch w) handled = do
@@ -1662,9 +1664,9 @@ pruneWanted acc (w:want) handled
 substAndDefaultWanted
   :: Var v
   => Ord loc
-  => [Type v loc]
+  => Wanted v loc
   -> [Element v loc]
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
 substAndDefaultWanted want ctx
   | want <- fmap (applyCtx ctx) want
   , want <- filter q want
@@ -1727,20 +1729,20 @@ discardCovariant gens ty
 checkWantedScoped
   :: Var v
   => Ord loc
-  => [Type v loc]
+  => Wanted v loc
   -> Term v loc
   -> Type v loc
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
 checkWantedScoped want m ty
   = scope (InCheck m ty) $ checkWanted want m ty
 
 checkWanted
   :: Var v
   => Ord loc
-  => [Type v loc]
+  => Wanted v loc
   -> Term v loc
   -> Type v loc
-  -> M v loc [Type v loc]
+  -> M v loc (Wanted v loc)
 -- ForallI
 checkWanted want m (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
