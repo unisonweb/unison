@@ -36,6 +36,8 @@ import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.Doc (Doc)
+import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 import Unison.ShortHash (ShortHash)
@@ -119,6 +121,7 @@ data TermDefinition = TermDefinition
   , defnTermTag :: Maybe TermTag
   , termDefinition :: DisplayObject SyntaxText
   , signature :: SyntaxText
+  , termDocs :: [(HashQualifiedName, UnisonHash, Doc.Doc)]
   } deriving (Eq, Show, Generic)
 
 data TypeDefinition = TypeDefinition
@@ -126,6 +129,7 @@ data TypeDefinition = TypeDefinition
   , bestTypeName :: HashQualifiedName
   , defnTypeTag :: Maybe TypeTag
   , typeDefinition :: DisplayObject SyntaxText
+  , typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data DefinitionDisplayResults =
