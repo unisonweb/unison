@@ -203,6 +203,9 @@ deriving instance ToSchema TypeTag
 instance ToJSON Doc where
 instance ToJSON Doc.SpecialForm where
 instance ToJSON Doc.Src where
+instance ToSchema Doc where
+instance ToSchema Doc.SpecialForm where
+instance ToSchema Doc.Src where
 
 formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType ppe w =
