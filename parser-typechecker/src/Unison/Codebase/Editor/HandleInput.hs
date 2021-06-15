@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
@@ -110,7 +111,6 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Find              as Find
 import Unison.Util.Free
   ( Free,
-    retract,
     MonadFreer,
     wrapF,
     evalF
@@ -226,6 +226,20 @@ frontendLoop =
   MaybeT (sequence <$> runExceptT (runMaybeT backendLoop))
     >>= either handleBackendError pure
 
+resolveSplit' :: MonadState (LoopState t v) m => (Path', a) -> m (Path, a)
+resolveSplit' p = do
+  currentPath' <- use currentPath
+  pure $ Path.fromAbsoluteSplit $ Path.toAbsoluteSplit currentPath' p
+
+getAtSplit'
+  :: MonadState (LoopState t v) m => Path.Split' -> m (Maybe (Branch m))
+getAtSplit' p = getAtSplit <$> resolveSplit' p
+
+getAtSplit :: MonadState (LoopState t v) m => Path.Split -> t (Maybe (Branch m))
+getAtSplit p = do
+  root' <- use root
+  pure . BranchUtil.getBranch p $ Branch.head root'
+
 backendLoop
   :: forall m v. Var v => MonadIO m => BackendAction m (Either Event Input) v ()
 backendLoop = do
@@ -238,12 +252,8 @@ backendLoop = do
   hqLength       <- evalF CodebaseHashLength
   sbhLength      <- evalF BranchHashLength
   let currentPath'' = Path.unabsolute currentPath'
-      inBackend :: Backend m v a -> BackendAction m (Either Event Input) v a
-      inBackend b = do
-        ea <- evalF $ BackendOp b
-        handleBackend ea
-  basicPrettyPrintNames0 <- inBackend $ Backend.prettyPrintNames root' $ Path.unabsolute
-    currentPath'
+  basicPrettyPrintNames0 <-
+    inBackend $ Backend.prettyPrintNames root' $ Path.unabsolute currentPath'
   pure ()
   let
     hqNameQuery q = evalF $ HQNameQuery (Just currentPath'') root' q
@@ -252,14 +262,8 @@ backendLoop = do
     currentBranch0 = Branch.head currentBranch'
     defaultPatchPath :: PatchPath
     defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
-    resolveSplit' :: (Path', a) -> (Path, a)
-    resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
     resolveToAbsolute :: Path' -> Path.Absolute
     resolveToAbsolute = Path.resolve currentPath'
-    getAtSplit :: Path.Split -> Maybe (Branch m)
-    getAtSplit p = BranchUtil.getBranch p root0
-    getAtSplit' :: Path.Split' -> Maybe (Branch m)
-    getAtSplit' = getAtSplit . resolveSplit'
     getPatchAtSplit' :: Path.Split' -> Action m v (Maybe Patch)
     getPatchAtSplit' s = do
       let (p, seg) = Path.toAbsoluteSplit currentPath' s
@@ -297,7 +301,7 @@ backendLoop = do
     getTypes = getHQ'Types . fmap HQ'.NameOnly
     getTerms :: Path.Split' -> Set Referent
     getTerms = getHQ'Terms . fmap HQ'.NameOnly
-    getPatchAt :: Path.Split' -> Action m v Patch
+    getPatchAt :: MonadAction m i v t => PatchPath -> t Patch
     getPatchAt patchPath' = do
       let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
       b <- getAt p
@@ -314,28 +318,25 @@ backendLoop = do
           L.Hash sh -> Just (HQ.HashOnly sh)
           _         -> Nothing
         hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-      ea <- evalF . BackendOp $ Backend.getCurrentParseNames currentPath'' root'
-      case ea of
-        Left e -> handleBackendError e
-        Right parseNames -> do
-          latestFile .= Just (Text.unpack sourceName, False)
-          latestTypecheckedFile .= Nothing
-          Result notes r <- evalF $ Typecheck ambient parseNames sourceName lexed
-          case r of
-            -- Parsing failed
-            Nothing -> respond $
-              ParseErrors text [ err | Result.Parsing err <- toList notes ]
-            Just (Left errNames) -> do
-              ns <- makeShadowedPrintNamesFromHQ hqs errNames
-              ppe <- prettyPrintEnv (Names3.suffixify ns)
-              let tes = [ err | Result.TypeError err <- toList notes ]
-                  cbs = [ bug
-                        | Result.CompilerBug (Result.TypecheckerBug bug)
-                            <- toList notes
-                        ]
-              when (not $ null tes) . respond $ TypeErrors text ppe tes
-              when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
-            Just (Right uf) -> k uf
+      parseNames <- inBackend $ Backend.getCurrentParseNames currentPath'' root'
+      latestFile .= Just (Text.unpack sourceName, False)
+      latestTypecheckedFile .= Nothing
+      Result notes r <- evalF $ Typecheck ambient parseNames sourceName lexed
+      case r of
+        -- Parsing failed
+        Nothing -> respond $
+          ParseErrors text [ err | Result.Parsing err <- toList notes ]
+        Just (Left errNames) -> do
+          ns <- makeShadowedPrintNamesFromHQ hqs errNames
+          ppe <- prettyPrintEnv (Names3.suffixify ns)
+          let tes = [ err | Result.TypeError err <- toList notes ]
+              cbs = [ bug
+                    | Result.CompilerBug (Result.TypecheckerBug bug)
+                        <- toList notes
+                    ]
+          when (not $ null tes) . respond $ TypeErrors text ppe tes
+          when (not $ null cbs) . respond $ CompilerBugs text ppe cbs
+        Just (Right uf) -> k uf
     loadUnisonFile sourceName text = do
       let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
       withFile [] sourceName (text, lexed) $ \unisonFile -> do
@@ -362,7 +363,7 @@ backendLoop = do
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
         then modifying latestFile (fmap (const False) <$>)
-        else lift $ loadUnisonFile sourceName text
+        else loadUnisonFile sourceName text
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
@@ -388,36 +389,40 @@ backendLoop = do
           [ r | SR.Tm (SR.TermResult _ (Referent.Ref r) _) <- rs ]
         termResults rs = [ r | SR.Tm r <- rs ]
         typeResults rs = [ r | SR.Tp r <- rs ]
+        doRemoveReplacement
+          :: MonadAction m i v t
+          => HQ.HashQualified Name
+          -> Maybe PatchPath
+          -> Bool
+          -> t ()
         doRemoveReplacement from patchPath isTerm = do
-          let patchPath' = fromMaybe defaultPatchPath patchPath
+          let
+            patchPath' :: PatchPath
+            patchPath' = fromMaybe defaultPatchPath patchPath
           patch <- getPatchAt patchPath'
-          ea <- hqNameQuery [from]
-          case ea of
-            Left e -> handleBackendError e
-            Right (QueryResult misses' hits) -> do
-              let tpRefs = Set.fromList $ typeReferences hits
-                  tmRefs = Set.fromList $ termReferences hits
-                  misses = Set.difference (Set.fromList misses') if isTerm
-                    then Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
-                    else Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
-                  go :: Reference -> BackendAction m (Either Event Input) v ()
-                  go fr = do
-                    let termPatch =
-                          over Patch.termEdits (R.deleteDom fr) patch
-                        typePatch =
-                          over Patch.typeEdits (R.deleteDom fr) patch
-                        (patchPath'', patchName) = resolveSplit' patchPath'
-                      -- Save the modified patch
-                    stepAtM inputDescription
-                              (patchPath'',
-                               Branch.modifyPatches
-                                 patchName
-                                 (const (if isTerm then termPatch else typePatch)))
-                    -- Say something
-                    success
-              unless (Set.null misses) $
-                respond $ SearchTermsNotFound (Set.toList misses)
-              traverse_ go (if isTerm then tmRefs else tpRefs)
+          QueryResult misses' hits <- inBackend $ hqNameQuery [from]
+          let tpRefs = Set.fromList $ typeReferences hits
+              tmRefs = Set.fromList $ termReferences hits
+              misses = Set.difference (Set.fromList misses') if isTerm
+                then Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
+                else Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
+              go fr = do
+                let termPatch =
+                      over Patch.termEdits (R.deleteDom fr) patch
+                    typePatch =
+                      over Patch.typeEdits (R.deleteDom fr) patch
+                    (patchPath'', patchName :: NameSegment) = resolveSplit'  patchPath'
+                  -- Save the modified patch
+                stepAtM inputDescription
+                          (patchPath'',
+                           Branch.modifyPatches
+                             patchName
+                             (const (if isTerm then termPatch else typePatch)))
+                -- Say something
+                success
+          unless (Set.null misses) $
+            respond $ SearchTermsNotFound (Set.toList misses)
+          traverse_ go (if isTerm then tmRefs else tpRefs)
         branchExists dest _x = respond $ BranchAlreadyExists dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists dest
@@ -1886,7 +1891,7 @@ backendLoop = do
           notImplemented = evalF $ Notify NotImplemented
           success = respond Success
 
-          resolveDefaultMetadata :: Path.Absolute -> Action m v [String]
+          resolveDefaultMetadata :: Path.Absolute -> BackendAction m i v [String]
           resolveDefaultMetadata path = do
             let superpaths = Path.ancestors path
             xs <- for
@@ -2245,11 +2250,15 @@ searchBranchScored names0 score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
-handleBackend :: Either BackendError a -> BackendAction m i v a
+inBackend :: MonadAction m i v t => Backend m v a -> t a
+inBackend b = do
+  ea <- evalF $ BackendOp b
+  handleBackend ea
+
+handleBackend :: MonadAction m i v t => Either BackendError a -> t a
 handleBackend = either throwError pure
 
-handleBackendError
-  :: Var v => MonadIO m => BackendError -> FrontendAction m i v ()
+handleBackendError :: MonadAction m i v t => BackendError -> t ()
 handleBackendError = \case
   Backend.NoSuchNamespace path ->
     respond . BranchNotFound $ Path.absoluteToPath' path
@@ -2271,10 +2280,10 @@ respondNumbered output = do
   unless (null args) $
     numberedArgs .= toList args
 
-unlessError :: ExceptT (Output v) (Action m v) () -> Action m v ()
+unlessError :: MonadAction m i v t => ExceptT (Output v) t () -> t ()
 unlessError ma = runExceptT ma >>= either (evalF . Notify) pure
 
-unlessError' :: (e -> Output v) -> ExceptT e (Action m v) () -> Action m v ()
+unlessError' :: MonadAction m i v t => (e -> Output v) -> ExceptT e t () -> t ()
 unlessError' f ma = unlessError $ withExceptT f ma
 
 -- | supply `dest0` if you want to print diff messages
@@ -2814,7 +2823,7 @@ lexedSource name src = do
   parseNames <- makeHistoricalParsingNames hqs
   pure (parseNames, (src, tokens))
 
-prettyPrintEnv :: Names -> Action m v PPE.PrettyPrintEnv
+prettyPrintEnv :: MonadAction m i v t => Names -> t PPE.PrettyPrintEnv
 prettyPrintEnv ns = evalF CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: (MonadIO m, Var v)
@@ -2838,12 +2847,12 @@ parseType input src = do
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled
-  :: MonadIO m => Var v => Set LabeledDependency -> Names0 -> Action m v Names
+  :: MonadAction m i v t => Set LabeledDependency -> Names0 -> t Names
 makeShadowedPrintNamesFromLabeled deps shadowing =
   Names3.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
 makePrintNamesFromLabeled'
-  :: MonadIO m => Var v => Set LabeledDependency -> Action m v Names
+  :: MonadAction m i v t => Set LabeledDependency -> t Names
 makePrintNamesFromLabeled' deps = do
   root                           <- use root
   currentPath                    <- use currentPath
@@ -2867,9 +2876,12 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action m v Names0
+findHistoricalHQs
+  :: MonadAction m (Either Event Input) v t
+  => Set (HQ.HashQualified Name)
+  -> t Names0
 findHistoricalHQs lexedHQs0 = do
-  root <- use root
+  root        <- use root
   currentPath <- use currentPath
   let
     -- omg this nightmare name-to-path parsing code is littered everywhere.
@@ -2878,33 +2890,36 @@ findHistoricalHQs lexedHQs0 = do
     -- Anyway, this function takes a name, tries to determine whether it is
     -- relative or absolute, and tries to return the corresponding name that is
     -- /relative/ to the root.
-    preprocess n = case Name.toString n of
-      -- some absolute name that isn't just "."
-      '.' : t@(_:_)  -> Name.unsafeFromString t
-      -- something in current path
-      _ ->  if Path.isRoot currentPath then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
-
-    lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
-  (_missing, rawHistoricalNames) <- evalF . Eval $ Branch.findHistoricalHQs lexedHQs root
+      preprocess n = case Name.toString n of
+        -- some absolute name that isn't just "."
+        '.' : t@(_ : _) -> Name.unsafeFromString t
+        -- something in current path
+        _               -> if Path.isRoot currentPath
+          then n
+          else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
+      lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
+  (_missing, rawHistoricalNames) <- evalF . Eval $ Branch.findHistoricalHQs
+    lexedHQs
+    root
   pure rawHistoricalNames
 
 basicPrettyPrintNames0A :: MonadAction m i v t => t Names0
 basicPrettyPrintNames0A = snd <$> basicNames0'
 
 makeShadowedPrintNamesFromHQ
-  :: MonadIO m
-  => Var v => Set (HQ.HashQualified Name) -> Names0 -> Action m v Names
+  :: MonadAction m (Either Event Input) v t
+  => Set (HQ.HashQualified Name)
+  -> Names0
+  -> t Names
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicPrettyPrintNames0A
-  currentPath <- use currentPath
+  basicNames0        <- basicPrettyPrintNames0A
+  currentPath        <- use currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
-  pure $
-    Names3.shadowing
-      shadowing
-      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+  pure $ Names3.shadowing
+    shadowing
+    (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
 basicParseNames0, slurpResultNames0 :: MonadAction m i v t => t Names0
 basicParseNames0 = fst <$> basicNames0'
@@ -3005,14 +3020,10 @@ executePPE unisonFile =
   prettyPrintEnv =<< displayNames unisonFile
 
 -- Produce a `Names` needed to display all the hashes used in the given file.
-displayNames :: (Var v, MonadIO m)
-  => TypecheckedUnisonFile v a
-  -> Action m v Names
-displayNames unisonFile =
-  -- voodoo
-  makeShadowedPrintNamesFromLabeled
-    (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames0 unisonFile)
+displayNames :: MonadAction m v i t => TypecheckedUnisonFile v a -> t Names
+displayNames unisonFile = makeShadowedPrintNamesFromLabeled
+  (UF.termSignatureExternalLabeledDependencies unisonFile)
+  (UF.typecheckedToNames0 unisonFile)
 
 diffHelper
   :: MonadAction m (Either Event Input) v t
