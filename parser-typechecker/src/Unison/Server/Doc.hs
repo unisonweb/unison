@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Unison.Server.Doc where
 
 import Data.Text (Text)
 import Data.Word
+import GHC.Generics (Generic)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Server.Syntax (SyntaxText)
 
@@ -36,11 +39,11 @@ data Doc
   | UntitledSection [Doc]
   | Column [Doc]
   | Group Doc
-  deriving (Eq,Show)
+  deriving (Eq,Show,Generic)
 
 data SpecialForm
-  = Source [DisplayObject (SyntaxText,SyntaxText)] -- unfolded, folded
-  | FoldedSource [DisplayObject (SyntaxText, SyntaxText)]
+  = Source [DisplayObject Src] -- unfolded, folded
+  | FoldedSource [DisplayObject Src]
   | Example SyntaxText
   | ExampleBlock SyntaxText
   | Link SyntaxText
@@ -50,4 +53,7 @@ data SpecialForm
   | EvalInline SyntaxText SyntaxText
   | Embed SyntaxText
   | EmbedInline SyntaxText
-  deriving (Eq,Show)
+  deriving (Eq,Show,Generic)
+
+-- `Src unfolded folded`
+data Src = Src SyntaxText SyntaxText deriving (Eq,Show,Generic)
