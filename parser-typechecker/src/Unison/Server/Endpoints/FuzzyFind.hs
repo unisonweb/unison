@@ -192,9 +192,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
             td = case t of
               Just t -> t
               Nothing ->
-                TypeDefinition mempty mempty Nothing
-                  . MissingObject
-                  $ Reference.toShortHash r
+                TypeDefinition mempty mempty Nothing (MissingObject (Reference.toShortHash r)) mempty
             namedType = Backend.typeEntryToNamedType te
           pure
             ( a

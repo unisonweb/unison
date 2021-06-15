@@ -585,21 +585,24 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
        where
         mk Nothing _ _ = throwError $ MissingSignatureForTerm r
         mk (Just typeSig) bn tag =
-          pure
-            . TermDefinition (flatten $ Map.lookup r termFqns)
+          pure $
+            TermDefinition (flatten $ Map.lookup r termFqns)
                              bn
                              tag
                              (fmap mungeSyntaxText tm)
-            $ prettyType width ppe typeSig
+                             (prettyType width ppe typeSig)
+                             (error "todo - term definition docs")
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
         tag <- Just . typeEntryTag <$> typeListEntry
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        pure . TypeDefinition (flatten $ Map.lookup r typeFqns) bn tag $ fmap
-          mungeSyntaxText
-          tp
+        pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
+                              bn
+                              tag
+                              (fmap mungeSyntaxText tp)
+                              (error "todo - type definition docs")
     typeDefinitions <- Map.traverseWithKey mkTypeDefinition
       $ typesToSyntax suffixifyBindings width ppe types
     termDefinitions <- Map.traverseWithKey mkTermDefinition
