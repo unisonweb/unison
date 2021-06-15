@@ -1,4 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module Unison.Server.Doc where
 
@@ -43,7 +46,7 @@ data Doc
 
 type UnisonHash = Text
 
-data Ref a = Term a | Type a deriving (Eq,Show,Generic)
+data Ref a = Term a | Type a deriving (Eq,Show,Generic,Functor,Foldable,Traversable)
 
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject Src)]
