@@ -41,9 +41,13 @@ data Doc
   | Group Doc
   deriving (Eq,Show,Generic)
 
+type UnisonHash = Text
+
+data Ref a = Term a | Type a deriving (Eq,Show,Generic)
+
 data SpecialForm
-  = Source [DisplayObject Src] -- unfolded, folded
-  | FoldedSource [DisplayObject Src]
+  = Source [Ref (UnisonHash, DisplayObject Src)]
+  | FoldedSource [Ref (UnisonHash, DisplayObject Src)]
   | Example SyntaxText
   | ExampleBlock SyntaxText
   | Link SyntaxText
