@@ -177,9 +177,9 @@ renderTypeError e env src = case e of
           <> style ErrorSite "if"
           <> "-expression has to be"
       AndMismatch ->
-        "The arguments to " <> style ErrorSite "and" <> " have to be"
+        "The arguments to " <> style ErrorSite "&&" <> " have to be"
       OrMismatch ->
-        "The arguments to " <> style ErrorSite "or" <> " have to be"
+        "The arguments to " <> style ErrorSite "||" <> " have to be"
       GuardMismatch ->
         "The guard expression for a "
           <> style ErrorSite "match"
