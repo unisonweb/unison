@@ -805,7 +805,116 @@ renderDoc pped terms typeOf eval types = go where
     DD.Doc2Folded isFolded d d2 -> Doc.Folded isFolded <$> go d <*> go d2
     DD.Doc2Paragraph ds -> Doc.Paragraph <$> traverse go ds
     DD.Doc2BulletedList ds -> Doc.BulletedList <$> traverse go ds
-    -- DD.Doc2Section title ds -> Doc.
-    -- DD.Doc2
-    _ -> undefined pped terms typeOf eval types
-    -- _ -> mzero
+    DD.Doc2Section title ds -> Doc.Section <$> go title <*> traverse go ds
+    DD.Doc2NamedLink d1 d2 -> Doc.NamedLink <$> go d1 <*> go d2
+    DD.Doc2Image d1 d2 Decls.OptionalNone' -> Doc.Image <$> go d1 <*> go d2 <*> pure Nothing
+    DD.Doc2Image d1 d2 (Decls.OptionalSome' d) -> Doc.Image <$> go d1 <*> go d2 <*> (Just <$> go d)
+    DD.Doc2Special sf -> goSpecial sf
+    DD.Doc2Join ds -> Doc.Join <$> traverse go ds
+    DD.Doc2UntitledSection ds -> Doc.UntitledSection <$> traverse go ds
+    DD.Doc2Column ds -> Doc.Column <$> traverse go ds
+    DD.Doc2Group d -> Doc.Group <$> go d
+    _ -> mzero
+
+  goSpecial = undefined
+  {-
+  goSpecial = \case
+
+    DD.Doc2SpecialFormFoldedSource (Term.List' es) -> goSrc es
+
+    -- Source [Either Link.Type Doc2.Term]
+    DD.Doc2SpecialFormSource (Term.List' es) -> goSrc es
+
+    -- Example Nat Doc2.Term
+    -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
+    -- 2 is the number of variables that should be dropped from the rendering.
+    -- So this will render as `foo x y`.
+    DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
+      P.backticked <$> displayTerm pped terms typeOf eval types ex
+      where ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+
+    DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
+      -- todo: maybe do something with `vs` to indicate the variables are free
+      P.indentN 4 <$> displayTerm' True pped terms typeOf eval types ex
+      where ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+
+    -- Link (Either Link.Type Doc2.Term)
+    DD.Doc2SpecialFormLink e -> let
+      ppe = PPE.suffixifiedPPE pped
+      go = pure . P.underline . P.syntaxToColor . NP.prettyHashQualified
+      in case e of
+        DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
+        DD.EitherRight' (DD.Doc2Term (Term.Ref' ref)) -> go $ PPE.termName ppe (Referent.Ref ref)
+        DD.EitherRight' (DD.Doc2Term (Term.Request' ref cid)) ->
+          go $ PPE.termName ppe (Referent.Con ref cid CT.Effect)
+        DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref cid)) ->
+          go $ PPE.termName ppe (Referent.Con ref cid CT.Data)
+        _ -> P.red <$> displayTerm pped terms typeOf eval types e
+
+    -- Signature [Doc2.Term]
+    DD.Doc2SpecialFormSignature (Term.List' tms) ->
+      let referents = [ r | DD.Doc2Term (toReferent -> Just r) <- toList tms ]
+          go r = P.indentN 4 <$> goSignature r
+      in P.group . P.sep "\n\n" <$> traverse go referents
+
+    -- SignatureInline Doc2.Term
+    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
+      Just r -> goSignature r
+      _ -> displayTerm pped terms typeOf eval types tm
+
+    -- Eval Doc2.Term
+    DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> eval tm >>= \case
+      Nothing -> do
+        p <- displayTerm pped terms typeOf eval types tm
+        pure . P.indentN 4 $ P.lines [p, "⧨", P.red "🆘  An error occured during evaluation"]
+      Just result -> do
+        p1 <- displayTerm pped terms typeOf eval types tm
+        p2 <- displayTerm pped terms typeOf eval types result
+        pure . P.indentN 4 $ P.lines [p1, "⧨", P.green p2]
+
+    -- EvalInline Doc2.Term
+    DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> eval tm >>= \case
+      Nothing -> pure . P.backticked . P.red $ "🆘  An error occurred during evaluation"
+      Just result -> P.backticked <$> displayTerm pped terms typeOf eval types result
+
+    -- Embed Any
+    DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
+      displayTerm pped terms typeOf eval types any <&> \p ->
+        P.indentN 2 $ "\n" <> "{{ embed {{" <> p <> "}} }}" <> "\n"
+
+    -- EmbedInline Any
+    DD.Doc2SpecialFormEmbedInline any ->
+      displayTerm pped terms typeOf eval types any <&> \p ->
+        "{{ embed {{" <> p <> "}} }}"
+
+    _ -> mzero
+
+  goSrc es = do
+    -- we ignore the annotations; but this could be extended later
+    -- to do some ascii art rendering
+    let tys = [ ref | DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref),_anns] <- toList es ]
+        toRef (Term.Ref' r) = Just r
+        toRef (Term.RequestOrCtor' r _) = Just r
+        toRef _ = Nothing
+        tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
+    typeMap <- let
+      -- todo: populate the variable names / kind once BuiltinObject supports that
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref = (ref,) <$> do
+        decl <- types ref
+        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+        pure $ maybe missing DO.UserObject decl
+      in Map.fromList <$> traverse go tys
+    termMap <- let
+      -- todo: populate the type signature once BuiltinObject supports that
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref = (ref,) <$> do
+        tm <- terms ref
+        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+        pure $ maybe missing DO.UserObject tm
+      in Map.fromList <$> traverse go tms
+    -- in docs, we use suffixed names everywhere
+    let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }
+    pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
+  -}
+

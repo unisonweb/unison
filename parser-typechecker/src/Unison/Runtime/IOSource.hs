@@ -156,9 +156,9 @@ pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2
 pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NamedLinkId -> True)) [name, dest]
 pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2ImageId -> True)) [alt, link, caption]
 pattern Doc2Special sf <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2SpecialId -> True)) sf
-pattern Doc2Join ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2JoinId -> True)) (Term.List' ds)
-pattern Doc2UntitledSection ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2UntitledSectionId -> True)) (Term.List' ds)
-pattern Doc2Column ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ColumnId -> True)) (Term.List' ds)
+pattern Doc2Join ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2JoinId -> True)) (Term.List' (toList -> ds))
+pattern Doc2UntitledSection ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2UntitledSectionId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Column ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ColumnId -> True)) (Term.List' (toList -> ds))
 pattern Doc2Group d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2GroupId -> True)) d
 
 pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
