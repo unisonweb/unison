@@ -1,10 +1,29 @@
-packages: unison-core/ parser-typechecker/ yaks/easytest/ yaks/haskeline/
+packages:
+    yaks/easytest
+    parser-typechecker
+    unison-core
+    codebase2/codebase
+    codebase2/codebase-sqlite
+    codebase2/codebase-sync
+    codebase2/core
+    codebase2/util
+    codebase2/util-serialization
+    codebase2/util-term
 
-allow-newer: base, directory, filepath
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/configurator.git
+  tag: e47e9e9fe1f576f8c835183b9def52d73c01327a
 
-package unison-core
-  ghc-options: -Werror -Wno-type-defaults
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/haskeline.git
+  tag: 2944b11d19ee034c48276edc991736105c9d6143
 
-package unison-parser-typechecker
-  ghc-options: -Werror -Wno-type-defaults
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/megaparsec.git
+  tag: c4463124c578e8d1074c04518779b5ce5957af6b
 
+allow-newer: 
+  haskeline:base
