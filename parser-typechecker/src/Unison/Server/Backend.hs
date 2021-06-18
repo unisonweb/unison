@@ -557,21 +557,19 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
-        f k _ =
-          R.lookupRan (Referent.Ref' k)
-            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+        rel = R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
             . R.mapDom Name.toText
             . Names.terms
             $ currentNames parseNames
+        f k _ = R.lookupRan (Referent.Ref' k) rel
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
-        f k _ =
-          R.lookupRan k
-            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
+        rel = R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
             . R.mapDom Name.toText
             . Names.types
             $ currentNames parseNames
+        f k _ = R.lookupRan k rel
       flatten = Set.toList . fromMaybe Set.empty
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
