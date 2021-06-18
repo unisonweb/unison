@@ -328,7 +328,7 @@ test = scope "gitsync22" . tests $
       ```
       ```ucm
       .defns> add
-      .patches> replace.term .defns.A .defns.B
+      .patches> replace.type .defns.A .defns.B
       .patches> replace.term .defns.x .defns.y
       .patches> push ${repo}
       ```

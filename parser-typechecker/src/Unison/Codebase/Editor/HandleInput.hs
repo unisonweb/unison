@@ -1312,12 +1312,12 @@ loop = do
             termFromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
             termToMisses = toMisses'
-                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults toHits)
             -- -- Term hits are type misses
             typeFromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
             typeToMisses = toMisses'
-                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+                       <> (HQ'.toHQ . SR.termName <$> termResults toHits)
 
             termMisses = termFromMisses <> termToMisses
             typeMisses = typeFromMisses <> typeToMisses
