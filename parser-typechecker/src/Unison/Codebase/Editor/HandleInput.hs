@@ -398,7 +398,7 @@ loop = do
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
           ReplaceI src target p ->
-            "replace "      <> HQ.toText src <> " "
+            "replace.any "  <> HQ.toText src <> " "
                             <> HQ.toText target <> " "
                             <> opatch p
           ReplaceTermI src target p ->
