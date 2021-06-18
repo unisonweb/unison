@@ -1296,17 +1296,36 @@ loop = do
         patch <- getPatchAt patchPath'
         QueryResult fromMisses' fromHits <- hqNameQuery [from]
         QueryResult toMisses' toHits <- hqNameQuery [to]
-        let fromRefs = termReferences fromHits
-            toRefs = termReferences toHits
+        let termsFromRefs = termReferences fromHits
+            termsToRefs = termReferences toHits
+            typesFromRefs = typeReferences fromHits
+            typesToRefs = typeReferences toHits
+            --- Here are all the kinds of misses
+            --- [X] [X]
+            --- [Type] [Term]
+            --- [Term] [Type]
+            --- [Type] [X]
+            --- [Term] [X]
+            --- [X] [Type]
+            --- [X] [Term]
             -- Type hits are term misses
-            fromMisses = fromMisses'
+            termFromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
-            toMisses = toMisses'
+            termToMisses = toMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
-            go :: Reference
+            -- -- Term hits are type misses
+            typeFromMisses = fromMisses'
+                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+            typeToMisses = toMisses'
+                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+
+            termMisses = termFromMisses <> termToMisses
+            typeMisses = typeFromMisses <> typeToMisses
+
+            replaceTerms :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
-            go fr tr = do
+            replaceTerms fr tr = do
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
               let termNotFound = respond . TermNotFound'
@@ -1325,21 +1344,39 @@ loop = do
                           patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   saveAndApplyPatch patchPath'' patchName patch'
-            misses = fromMisses <> toMisses
+            replaceTypes :: Reference
+               -> Reference
+               -> Action m (Either Event Input) v ()
+            replaceTypes fr tr = do
+              let patch' =
+                    -- The modified patch
+                    over Patch.typeEdits
+                      (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
+                  (patchPath'', patchName) = resolveSplit' patchPath'
+              saveAndApplyPatch patchPath'' patchName patch'
             ambiguous t rs =
               let rs' = Set.map Referent.Ref $ Set.fromList rs
               in  case t of
                     HQ.HashOnly h ->
                       hashConflicted h rs'
-                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
+                    (Path.parseHQSplit' . HQ.toString -> Right n) -> 
                       termConflicted n rs'
                     _ -> respond . BadName $ HQ.toString t
-        unless (null misses) $
-          respond $ SearchTermsNotFound misses
-        case (fromRefs, toRefs) of
-          ([fr], [tr]) -> go fr tr
-          ([_], tos) -> ambiguous to tos
-          (frs, _) -> ambiguous from frs
+
+        case (termsFromRefs, termsToRefs, typesFromRefs, typesToRefs) of
+          ([], [], [], []) -> respond $ SearchTermsNotFound termMisses
+          ([_], [], _, _) -> respond $ SearchTermsNotFound termMisses
+          ([], [_], _, _) -> respond $ SearchTermsNotFound termMisses
+          (_, _, [_], []) -> respond $ SearchTermsNotFound typeMisses
+          (_, _, [], [_]) -> respond $ SearchTermsNotFound typeMisses
+          ([fr], [tr], [], []) -> replaceTerms fr tr
+          ([], [], [fr], [tr]) -> replaceTypes fr tr
+          (froms, [_], [], []) -> ambiguous from froms
+          ([], [], froms, [_]) -> ambiguous from froms
+          ([_], tos, [], []) -> ambiguous to tos
+          ([], [], [_], tos) -> ambiguous to tos
+          (_, _, _, _) -> error "shouldn't happen but just in case!"
+
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         QueryResult fromMisses' fromHits <- hqNameQuery [from]
@@ -2951,3 +2988,4 @@ declOrBuiltin r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
+
