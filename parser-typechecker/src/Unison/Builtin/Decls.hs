@@ -75,8 +75,10 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
+noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
+Just noneId = constructorId optionalRef "Optional.None"
+Just someId = constructorId optionalRef "Optional.Some"
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
@@ -300,6 +302,8 @@ pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
 pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
+pattern OptionalNone' <- Term.Constructor' OptionalRef ((==) noneId -> True)
+pattern OptionalSome' d <- Term.App' (Term.Constructor' OptionalRef ((==) someId -> True)) d
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)

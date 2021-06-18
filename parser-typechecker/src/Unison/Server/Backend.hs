@@ -24,6 +24,7 @@ import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
+import qualified Unison.Runtime.IOSource as DD
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -81,6 +82,9 @@ import qualified Unison.Util.Star3 as Star3
 import Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
+import qualified Unison.Server.Doc as Doc
+import Unison.Server.Doc (Doc, SpecialForm)
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -228,7 +232,8 @@ termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
+        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
+                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
       -- A term is a test if it has a link of type `IsTest`.
       isTest =
@@ -768,3 +773,39 @@ loadTypeDisplayObject c = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
 
+renderDoc :: (Var v, Monad m)
+          => PPE.PrettyPrintEnvDecl
+          -> (Reference -> m (Maybe (Term v ())))
+          -> (Referent -> m (Maybe (Type v ())))
+          -> (Term v () -> m (Maybe (Term v ())))
+          -> (Reference -> m (Maybe (DD.Decl v ())))
+          -> Term v ()
+          -> MaybeT m Doc
+renderDoc pped terms typeOf eval types = go where
+  go = \case
+    DD.Doc2Word txt -> pure $ Doc.Word txt
+    DD.Doc2Code d -> Doc.Code <$> go d
+    DD.Doc2CodeBlock lang d -> Doc.CodeBlock lang <$> go d
+    DD.Doc2Bold d -> Doc.Bold <$> go d
+    DD.Doc2Italic d -> Doc.Italic <$> go d
+    DD.Doc2Strikethrough d -> Doc.Strikethrough <$> go d
+    DD.Doc2Style s d -> Doc.Style s <$> go d
+    DD.Doc2Anchor id d -> Doc.Anchor id <$> go d
+    DD.Doc2Blockquote d -> Doc.Blockquote <$> go d
+    DD.Doc2Blankline -> pure Doc.Blankline
+    DD.Doc2Linebreak -> pure Doc.Linebreak
+    DD.Doc2SectionBreak -> pure Doc.SectionBreak
+    DD.Doc2Tooltip d1 d2 -> Doc.Tooltip <$> go d1 <*> go d2
+    DD.Doc2Aside d -> Doc.Aside <$> go d
+    DD.Doc2Callout Decls.OptionalNone' d -> Doc.Callout Nothing <$> go d
+    DD.Doc2Callout (Decls.OptionalSome' icon) d -> Doc.Callout <$> (Just <$> go icon) <*> go d
+    DD.Doc2Table rows -> Doc.Table <$> traverse r rows
+      where r (Term.List' ds) = traverse go (toList ds)
+            r _ = mzero
+    DD.Doc2Folded isFolded d d2 -> Doc.Folded isFolded <$> go d <*> go d2
+    DD.Doc2Paragraph ds -> Doc.Paragraph <$> traverse go ds
+    DD.Doc2BulletedList ds -> Doc.BulletedList <$> traverse go ds
+    -- DD.Doc2Section title ds -> Doc.
+    -- DD.Doc2
+    _ -> undefined pped terms typeOf eval types
+    -- _ -> mzero

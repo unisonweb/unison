@@ -139,8 +139,8 @@ pattern Doc2CodeBlock lang d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2
 pattern Doc2Bold d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BoldId -> True)) d
 pattern Doc2Italic d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ItalicId -> True)) d
 pattern Doc2Strikethrough d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2StrikethroughId -> True)) d
-pattern Doc2Style lang d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2StyleId -> True)) [Term.Text' lang, d]
-pattern Doc2Anchor lang d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2AnchorId -> True)) [Term.Text' lang, d]
+pattern Doc2Style s d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2StyleId -> True)) [Term.Text' s, d]
+pattern Doc2Anchor id d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2AnchorId -> True)) [Term.Text' id, d]
 pattern Doc2Blockquote d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BlockquoteId -> True)) d
 pattern Doc2Blankline <- Term.Constructor' Doc2Ref ((==) doc2BlanklineId -> True)
 pattern Doc2Linebreak <- Term.Constructor' Doc2Ref ((==) doc2LinebreakId -> True)
@@ -148,11 +148,11 @@ pattern Doc2SectionBreak <- Term.Constructor' Doc2Ref ((==) doc2SectionBreakId -
 pattern Doc2Tooltip d tip <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2TooltipId -> True)) [d, tip]
 pattern Doc2Aside d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2AsideId -> True)) d
 pattern Doc2Callout icon d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2CalloutId -> True)) [icon, d]
-pattern Doc2Table ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2TableId -> True)) (Term.List' ds)
+pattern Doc2Table ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2TableId -> True)) (Term.List' (toList -> ds))
 pattern Doc2Folded isFolded d d2 <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2FoldedId -> True)) [Term.Boolean' isFolded, d, d2]
-pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ParagraphId -> True)) (Term.List' ds)
-pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BulletedListId -> True)) (Term.List' ds)
-pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2SectionId -> True)) [title, Term.List' ds]
+pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ParagraphId -> True)) (Term.List' (toList -> ds))
+pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BulletedListId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2SectionId -> True)) [title, Term.List' (toList -> ds)]
 pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NamedLinkId -> True)) [name, dest]
 pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2ImageId -> True)) [alt, link, caption]
 pattern Doc2Special sf <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2SpecialId -> True)) sf
