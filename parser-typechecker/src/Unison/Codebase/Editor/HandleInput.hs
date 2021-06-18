@@ -397,6 +397,10 @@ loop = do
           DeleteTypeI def -> "delete.type " <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
+          ReplaceI src target p ->
+            "replace "      <> HQ.toText src <> " "
+                            <> HQ.toText target <> " "
+                            <> opatch p
           ReplaceTermI src target p ->
             "replace.term " <> HQ.toText src <> " "
                             <> HQ.toText target <> " "
@@ -1291,7 +1295,7 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ReplaceTermI from to patchPath -> do
+      ReplaceI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         QueryResult fromMisses' fromHits <- hqNameQuery [from]
@@ -1377,6 +1381,55 @@ loop = do
           ([], [], [_], tos) -> ambiguous to tos
           (_, _, _, _) -> error "shouldn't happen but just in case!"
 
+      ReplaceTermI from to patchPath -> do
+        let patchPath' = fromMaybe defaultPatchPath patchPath
+        patch <- getPatchAt patchPath'
+        QueryResult fromMisses' fromHits <- hqNameQuery [from]
+        QueryResult toMisses' toHits <- hqNameQuery [to]
+        let fromRefs = termReferences fromHits
+            toRefs = termReferences toHits
+            -- Type hits are term misses
+            fromMisses = fromMisses'
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
+            toMisses = toMisses'
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
+            go :: Reference
+               -> Reference
+               -> Action m (Either Event Input) v ()
+            go fr tr = do
+              mft <- eval $ LoadTypeOfTerm fr
+              mtt <- eval $ LoadTypeOfTerm tr
+              let termNotFound = respond . TermNotFound'
+                                         . SH.take hqLength
+                                         . Reference.toShortHash
+              case (mft, mtt) of
+                (Nothing, _) -> termNotFound fr
+                (_, Nothing) -> termNotFound tr
+                (Just ft, Just tt) -> do
+                  let
+                      patch' =
+                        -- The modified patch
+                        over Patch.termEdits
+                          (R.insert fr (Replace tr (TermEdit.typing tt ft))
+                           . R.deleteDom fr)
+                          patch
+                      (patchPath'', patchName) = resolveSplit' patchPath'
+                  saveAndApplyPatch patchPath'' patchName patch'
+            misses = fromMisses <> toMisses
+            ambiguous t rs =
+              let rs' = Set.map Referent.Ref $ Set.fromList rs
+              in  case t of
+                    HQ.HashOnly h ->
+                      hashConflicted h rs'
+                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
+                      termConflicted n rs'
+                    _ -> respond . BadName $ HQ.toString t
+        unless (null misses) $
+          respond $ SearchTermsNotFound misses
+        case (fromRefs, toRefs) of
+          ([fr], [tr]) -> go fr tr
+          ([_], tos) -> ambiguous to tos
+          (frs, _) -> ambiguous from frs
       ReplaceTypeI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         QueryResult fromMisses' fromHits <- hqNameQuery [from]

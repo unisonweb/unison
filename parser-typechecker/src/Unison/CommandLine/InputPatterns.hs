@@ -1014,6 +1014,9 @@ replaceEdit f s = self
       _ -> Left $ I.help self
     )
 
+replace :: InputPattern
+replace = replaceEdit Input.ReplaceI "any"
+
 replaceType :: InputPattern
 replaceType = replaceEdit Input.ReplaceTypeI "type"
 
@@ -1425,6 +1428,7 @@ validInputs =
   , unlink
   , links
   , createAuthor
+  , replace
   , replaceTerm
   , replaceType
   , deleteTermReplacement
