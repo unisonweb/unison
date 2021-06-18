@@ -1317,7 +1317,7 @@ loop = do
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
             termToMisses = toMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults toHits)
-            -- -- Term hits are type misses
+            -- Term hits are type misses
             typeFromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
             typeToMisses = toMisses'
@@ -1368,18 +1368,18 @@ loop = do
                     _ -> respond . BadName $ HQ.toString t
 
         case (termsFromRefs, termsToRefs, typesFromRefs, typesToRefs) of
-          ([], [], [], []) -> respond $ SearchTermsNotFound termMisses
-          ([_], [], _, _) -> respond $ SearchTermsNotFound termMisses
-          ([], [_], _, _) -> respond $ SearchTermsNotFound termMisses
-          (_, _, [_], []) -> respond $ SearchTermsNotFound typeMisses
-          (_, _, [], [_]) -> respond $ SearchTermsNotFound typeMisses
+          ([], [], [], [])     -> respond $ SearchTermsNotFound termMisses
+          ([_], [], _, _)      -> respond $ SearchTermsNotFound termMisses
+          ([], [_], _, _)      -> respond $ SearchTermsNotFound termMisses
+          (_, _, [_], [])      -> respond $ SearchTermsNotFound typeMisses
+          (_, _, [], [_])      -> respond $ SearchTermsNotFound typeMisses
           ([fr], [tr], [], []) -> replaceTerms fr tr
           ([], [], [fr], [tr]) -> replaceTypes fr tr
           (froms, [_], [], []) -> ambiguous from froms
           ([], [], froms, [_]) -> ambiguous from froms
-          ([_], tos, [], []) -> ambiguous to tos
-          ([], [], [_], tos) -> ambiguous to tos
-          (_, _, _, _) -> error "shouldn't happen but just in case!"
+          ([_], tos, [], [])   -> ambiguous to tos
+          ([], [], [_], tos)   -> ambiguous to tos
+          (_, _, _, _)         -> error "unpossible"
 
       ReplaceTermI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
