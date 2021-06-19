@@ -242,8 +242,7 @@ symbol2to1 :: V2.Symbol -> V1.Symbol
 symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
 
 symbol1to2 :: V1.Symbol -> V2.Symbol
-symbol1to2 (V1.Symbol i (Var.User t)) = V2.Symbol i t
-symbol1to2 x = error $ "unimplemented: symbol1to2 " ++ show x
+symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
 
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
