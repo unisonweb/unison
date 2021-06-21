@@ -953,13 +953,13 @@ uprim2 !ustk EQLF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x == y then 1 else 0)
+  poke ustk (if x == y then 1 else 0)
   pure ustk
 uprim2 !ustk LEQF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x <= y then 1 else 0)
+  poke ustk (if x <= y then 1 else 0)
   pure ustk
 uprim2 !ustk ATN2 !i !j = do
   x <- peekOffD ustk i
