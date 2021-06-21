@@ -1,10 +1,62 @@
-packages: unison-core/ parser-typechecker/ yaks/easytest/ yaks/haskeline/
+packages:
+    yaks/easytest
+    parser-typechecker
+    unison-core
+    codebase2/codebase
+    codebase2/codebase-sqlite
+    codebase2/codebase-sync
+    codebase2/core
+    codebase2/util
+    codebase2/util-serialization
+    codebase2/util-term
 
-allow-newer: base, directory, filepath
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/configurator.git
+  tag: e47e9e9fe1f576f8c835183b9def52d73c01327a
 
-package unison-core
-  ghc-options: -Werror -Wno-type-defaults
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/haskeline.git
+  tag: 2944b11d19ee034c48276edc991736105c9d6143
 
-package unison-parser-typechecker
-  ghc-options: -Werror -Wno-type-defaults
+source-repository-package
+  type: git
+  location: https://github.com/unisonweb/megaparsec.git
+  tag: c4463124c578e8d1074c04518779b5ce5957af6b
 
+allow-newer: 
+  haskeline:base
+
+-- For now there is no way to apply ghc-options for all local packages
+-- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
+package easytest
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package parser-typechecker
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package codebase
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package codebase-sqlite
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package codebase-sync
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package core
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package util
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package util-serialization
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+package util-term
+  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+
+-- This options are applied to all packages, local ones and also external dependencies.
+package *
+  ghc-options: -haddock
