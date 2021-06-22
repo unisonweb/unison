@@ -121,6 +121,7 @@ data Output v
   | TermNotFound Path.HQSplit'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
+  | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
   | SearchTermsNotFound [HQ.HashQualified Name]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -267,6 +268,7 @@ isFailure o = case o of
   TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
+  TypeTermMismatch{} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation{} -> False
   CantDelete{} -> True

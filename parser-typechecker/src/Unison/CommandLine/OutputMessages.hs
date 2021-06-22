@@ -395,6 +395,13 @@ notifyUser dir o = case o of
     ]
 
   EvaluationFailure err -> pure err
+  TypeTermMismatch typeName termName ->
+    pure
+      $  P.warnCallout "I was expecting either two types or two terms but was given a type "
+      <> P.syntaxToColor (prettyHashQualified typeName)
+      <> " and a term "
+      <> P.syntaxToColor (prettyHashQualified termName)
+      <> "."
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure

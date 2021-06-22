@@ -66,8 +66,7 @@ Try with a type/term mismatch
 
   ⚠️
   
-  The following names were not found in the codebase. Check your spelling.
-    X
+  I was expecting either two types or two terms but was given a type X and a term x.
 
 ```
 ```ucm
@@ -75,8 +74,7 @@ Try with a type/term mismatch
 
   ⚠️
   
-  The following names were not found in the codebase. Check your spelling.
-    Y
+  I was expecting either two types or two terms but was given a type Y and a term y.
 
 ```
 Try with missing references

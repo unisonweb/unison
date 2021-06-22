@@ -1340,6 +1340,7 @@ loop = do
                           patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   saveAndApplyPatch patchPath'' patchName patch'
+
             replaceTypes :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
@@ -1350,6 +1351,7 @@ loop = do
                       (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               saveAndApplyPatch patchPath'' patchName patch'
+
             ambiguous t rs =
               let rs' = Set.map Referent.Ref $ Set.fromList rs
               in  case t of
@@ -1359,8 +1361,13 @@ loop = do
                       termConflicted n rs'
                     _ -> respond . BadName $ HQ.toString t
 
+            mismatch typeName termName = respond $ TypeTermMismatch typeName termName
+
+
         case (termsFromRefs, termsToRefs, typesFromRefs, typesToRefs) of
           ([], [], [], [])     -> respond $ SearchTermsNotFound termMisses
+          ([_], [], [], [_])   -> mismatch to from
+          ([], [_], [_], [])   -> mismatch from to
           ([_], [], _, _)      -> respond $ SearchTermsNotFound termMisses
           ([], [_], _, _)      -> respond $ SearchTermsNotFound termMisses
           (_, _, [_], [])      -> respond $ SearchTermsNotFound typeMisses
