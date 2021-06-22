@@ -20,37 +20,37 @@ type Y = Two Nat Nat
 
 Test that replace works with terms
 ```ucm
-.scratch> replace.any x y
+.scratch> replace x y
 .scratch> view x
 ```
 
 Test that replace works with types
 ```ucm
-.scratch> replace.any X Y
+.scratch> replace X Y
 .scratch> view X
 ```
 
 Try with a type/term mismatch
 ```ucm:error
-.scratch> replace.any X x
+.scratch> replace X x
 ```
 ```ucm:error
-.scratch> replace.any y Y 
+.scratch> replace y Y 
 ```
 
 Try with missing references
 ```ucm:error
-.scratch> replace.any X NOPE
+.scratch> replace X NOPE
 ```
 ```ucm:error
-.scratch> replace.any y nope
+.scratch> replace y nope
 ```
 ```ucm:error
-.scratch> replace.any nope X
+.scratch> replace nope X
 ```
 ```ucm:error
-.scratch> replace.any nope y
+.scratch> replace nope y
 ```
 ```ucm:error
-.scratch> replace.any nope nope
+.scratch> replace nope nope
 ```

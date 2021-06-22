@@ -39,7 +39,7 @@ type Y = Two Nat Nat
 ```
 Test that replace works with terms
 ```ucm
-.scratch> replace.any x y
+.scratch> replace x y
 
   Done.
 
@@ -51,7 +51,7 @@ Test that replace works with terms
 ```
 Test that replace works with types
 ```ucm
-.scratch> replace.any X Y
+.scratch> replace X Y
 
   Done.
 
@@ -62,7 +62,7 @@ Test that replace works with types
 ```
 Try with a type/term mismatch
 ```ucm
-.scratch> replace.any X x
+.scratch> replace X x
 
   ⚠️
   
@@ -71,7 +71,7 @@ Try with a type/term mismatch
 
 ```
 ```ucm
-.scratch> replace.any y Y 
+.scratch> replace y Y 
 
   ⚠️
   
@@ -81,7 +81,7 @@ Try with a type/term mismatch
 ```
 Try with missing references
 ```ucm
-.scratch> replace.any X NOPE
+.scratch> replace X NOPE
 
   ⚠️
   
@@ -90,7 +90,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace.any y nope
+.scratch> replace y nope
 
   ⚠️
   
@@ -99,7 +99,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace.any nope X
+.scratch> replace nope X
 
   ⚠️
   
@@ -108,7 +108,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace.any nope y
+.scratch> replace nope y
 
   ⚠️
   
@@ -117,7 +117,7 @@ Try with missing references
 
 ```
 ```ucm
-.scratch> replace.any nope nope
+.scratch> replace nope nope
 
   ⚠️
   
