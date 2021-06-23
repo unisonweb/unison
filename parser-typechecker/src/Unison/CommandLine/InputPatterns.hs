@@ -975,12 +975,11 @@ replaceEdit
      -> Maybe Input.PatchPath
      -> Input
      )
-  -> String
   -> InputPattern
-replaceEdit f s = self
+replaceEdit f = self
  where
   self = InputPattern
-    ("replace." <> s)
+    "replace"
     []
     [ (Required, definitionQueryArg)
     , (Required, definitionQueryArg)
@@ -988,17 +987,10 @@ replaceEdit f s = self
     ]
     (P.wrapColumn2
       [ ( makeExample self ["<from>", "<to>", "<patch>"]
-        , "Replace the "
-        <> P.string s
-        <> " <from> in the given patch "
-        <> "with the "
-        <> P.string s
-        <> " <to>."
+        , "Replace the term/type <from> in the given patch with the term/type <to>."
         )
       , ( makeExample self ["<from>", "<to>"]
-        , "Replace the "
-        <> P.string s
-        <> "<from> with <to> in the default patch."
+        , "Replace the term/type <from> with <to> in the default patch."
         )
       ]
     )
@@ -1014,11 +1006,8 @@ replaceEdit f s = self
       _ -> Left $ I.help self
     )
 
-replaceType :: InputPattern
-replaceType = replaceEdit Input.ReplaceTypeI "type"
-
-replaceTerm :: InputPattern
-replaceTerm = replaceEdit Input.ReplaceTermI "term"
+replace :: InputPattern
+replace = replaceEdit Input.ReplaceI
 
 viewReflog :: InputPattern
 viewReflog = InputPattern
@@ -1425,8 +1414,7 @@ validInputs =
   , unlink
   , links
   , createAuthor
-  , replaceTerm
-  , replaceType
+  , replace
   , deleteTermReplacement
   , deleteTypeReplacement
   , test

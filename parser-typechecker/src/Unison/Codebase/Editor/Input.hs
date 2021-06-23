@@ -98,8 +98,7 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | ReplaceTermI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
-    | ReplaceTypeI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
+    | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
   | UndoI
