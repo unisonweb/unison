@@ -54,3 +54,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Joseph Morag (@jmorag)
 * Tavish Pegram (@tapegram)
 * Javier Neira (@jneira)
+* Simon Højberg (@hojberg)
