@@ -1328,7 +1328,7 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
     showConflictedNames "terms" conflictedTermNames,
     tip $ "This occurs when merging branches that both independently introduce the same name. Use "
         <> makeExample IP.view (prettyName <$> take 3 allNames)
-        <> "to see the conflicting defintions, then use "
+        <> "to see the conflicting definitions, then use "
         <> makeExample' (if (not . null) conflictedTypeNames
                          then IP.renameType else IP.renameTerm)
         <> "to resolve the conflicts."

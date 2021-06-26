@@ -231,7 +231,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `view foo` to see the
-       conflicting defintions, then use `move.term` to resolve
+       conflicting definitions, then use `move.term` to resolve
        the conflicts.
 
 ```
