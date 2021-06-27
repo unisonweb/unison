@@ -61,7 +61,7 @@ unique type Date =
   , year: Nat
   }
 ```
-
+#### Decision 1 - Record Types
 Our employee is a record type consisting of an `id`, `name`, and a `birthday`. In Unison, the record type syntax is actually equivalent to a normal data type like
 ```unison
 type Employee = Employee EmployeeId Name Date
@@ -107,4 +107,179 @@ except the compiler will automatically generate a collection of functions (lens)
 
 `Name` and `Date` are record types as well.
 
+#### Decision 2 - Nominal vs Structural Typing
 Also note that we have opted in to using nominal typing (with the `unique` keyword) instead of structural typing. If we had left out `unique` the compiler would consider `EmployeeId`, `FirstName`, and `LastName` all to be the same type. For our current use case, we want to make sure that the compiler considers all of these different types, so we can prevent mistakes like accidentally passing in a `LastName` where an `EmployeeId` should go.
+
+#### Decision 3 - Avoiding Primitives
+We could have also modeled the Employee like this (or any other similar way)
+```unison
+unique type Employee  = 
+  { id: Text
+  , name: Name
+  , birthday: Date 
+  }
+
+unique type Name = 
+  { first: Text
+  , last: Text
+  }
+
+unique type Date = 
+  { day: Nat
+  , month: Nat
+  , year: Nat
+  }
+```
+
+When deciding whether to use primitives or to wrap them in more rich domain types we should consider some tradeoffs
+1) Using primitive types gives the compiler less context on what you are attempting to model. For example, using `Text` for the id, the first name, and the last name, means the compiler wouldn't catch an easy mistake like
+```unison
+foo = 
+    id = "12345"
+    firstName = "John"
+    lastName = "Lennon"
+    employee = Employee id (Name lastName firstName) (Date 1 1 1991)
+```
+(We've transposed the employees name!)
+Or even worse, maybe we accidentally swap the id and last name! However, the compiler would catch this problem.
+
+```unison
+foo = 
+    id = EmployeeId "12345"
+    firstName = FirstName "John"
+    lastName = LastName "Lennon"
+    employee = Employee id (Name lastName firstName) (Date 1 1 1991)
+    ()
+```
+```ucm
+  The 1st argument to `Name`
+  
+            has type:  LastName
+      but I expected:  FirstName
+  
+      9 | unique type LastName = LastName Text
+     10 | unique type Name = 
+     11 |   { first: FirstName
+      .
+     23 |     employee = Employee id (Name lastName firstName) (Date 1 1 1991)
+```
+Of course, you can still make a mistake like
+```unison
+firstName = LastName "Lennon"
+```
+But it's much harder to make this mistake. If we are ok with the extra types and the overhead of deconstructing them, we can catch many more typos/bugs at compile time, which means fewer tests are necessary to ensure correctness!
+
+2) In the future, Unison may introduce the ability to make to make data constructors private and/or refined types. Doing so would allow us to to avoid another huge source of bugs when using primitive types directly, which is that the set of possible values is much larger than what we are attempting to model. You can see this in our model for `Date`
+
+```unison
+unique type Date = 
+  { day: Nat
+  , month: Nat
+  , year: Nat
+  }
+```
+
+By modelling day/month/year all as `Nat` we have introduced the possibility of an illegal state into our system. For example, in this model, we could have illegal dates like `0/500/99999999999999`. In fact, lets try to restrict the possible values a bit, to reduce the surface area for future bugs. This means more tests and more runtime validation (and runtime validation failures).
+
+Lets try to contrain the possible values a bit.
+```unison
+unique type Date = 
+  { day: Day
+  , month: Month
+  , year: Year
+  }
+unique type Month 
+  = January
+  | February
+  | March
+  | April
+  | May
+  | June
+  | July
+  | August
+  | September
+  | October
+  | November
+  | December
+unique type Day = Day Nat
+unique type Year = Year Nat
+```
+
+It is really easy for us to just enumerate all of the possible months. Now we have eliminated the possiblity of an invalid month appearing in our system! Now we have to decide how far we want to go to make illegal state unrepresentable. Maybe `Nat` is ok for year if we don't care about `BCE` and we are ok with possibly talking about birthdays millions of years in the future (not ideal). But it would be nice to disallow days of months that don't exist, and this is where refined types, dependent types, or private constructors could be leveraged. Hopefully, we will have those one day!
+
+### Email
+Let's apply some similar decision making to get an Email.
+```unison
+unique type Email = 
+  { to: EmailAddress
+  , subject: Subject
+  , body: Body
+  }
+
+unique type EmailAddress = EmailAddress Text
+unique type Subject = Subject Text
+unique type Body = Body Text
+```
+
+It would be nice to add some constraints to the email address (like a regex to ensure only valid email addresses can exist) but this is pretty good so far!
+
+But maybe we can build a little bit toward the future here. The prompt told us the future will likely include sending birthday messages via other platforms, like SMS or robocalls.
+
+Maybe our model should actually be about a `Message` of which there is some relationship with an `Email`. One possible way to model this would be
+```unison
+unique type Message 
+  = Email EmailAddress Subject Body
+```
+which would give us the option of extending it in the future as needed
+```unison
+unique type Message 
+  = Email EmailAddress Subject Body
+  | SMS PhoneNumber Body
+  | TwitterDM TwitterHandle Body
+```
+
+### Summary
+There isn't one "best" way to model this, but this is one possible way:
+```unison
+unique type Employee = 
+  { id: EmployeeId
+  , name: Name
+  , birthday: Date 
+  }
+
+unique type EmployeeId = EmployeeId Text
+unique type FirstName = FirstName Text
+unique type LastName = LastName Text
+unique type Name = 
+  { first: FirstName
+  , last: LastName
+  }
+
+unique type Date = 
+  { day: Day
+  , month: Month
+  , year: Year
+  }
+unique type Month 
+  = January
+  | February
+  | March
+  | April
+  | May
+  | June
+  | July
+  | August
+  | September
+  | October
+  | November
+  | December
+unique type Day = Day Nat
+unique type Year = Year Nat
+
+unique type Message 
+  = Email EmailAddress Subject Body
+
+unique type EmailAddress = EmailAddress Text
+unique type Subject = Subject Text
+unique type Body = Body Text
+```
