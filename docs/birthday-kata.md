@@ -283,3 +283,103 @@ unique type EmailAddress = EmailAddress Text
 unique type Subject = Subject Text
 unique type Body = Body Text
 ```
+
+## Abilities
+Now that we have our model, let's quickly talk about the effects/infrastructure we know we will need.
+
+One of the goals of this exercise (and generally working as a software engineer) is to decouple infrastructure from our business logic (which is often approximately the same thing as spearating pure and impure code). In OO we would use interfaces to define contracts and dependency inject in whatever implementations we need (be it postgres, aws, in memory, mocks, etc).
+
+In Unison, we leverage Abilities (also called Algebraic Effects) to accomplish something similar. See [the abilities documentation](ability-typechecking.markdown) for a more detailed overview of Abilities.
+
+In our case, let's limit ourselves to the following effects: sending a message, fetching employees from somewhere (a flatfile, a db, an api, anything), and fetching the current date. For the sake of simplicity let's ignore an exception throwing ability (and failures in general) or any other abilities that may make sense to add in a real production system.
+
+```unison
+ability MessageService where
+  send: Message ->{MessageService} Message
+
+ability EmployeeRepository where
+  fetchAllByBirthday: (Day, Month) ->{EmployeeRepository} [Employee]
+
+ability Calendar where
+  today: '{Calendar} Date
+```
+
+Abilities can sort of be thought of as providing interfaces, and interfaces in turn can be thought of as providing commands.
+
+Let's walk through what these abilities are doing:
+1) `MessageService` is an ability that provides the interface for a single command `send`. `send`'s type signature can be read as "a function that takes a message and returns that same message, requiring the `MessageService` ability. The compiler is now aware of side effects in the type signature of functions!
+2) `EmployeeRepository` provides the interface `fetchAllByBirthday` which takes a `Day` and a `Month` pair and returns a list of `Employees`, requiring the `EmployeeRepository` ability.
+3) `Calendar` provides the interface `today` which is a function that takes no arguments and returns a `Date`, requiring the `Calendar` ability.
+
+Note that abilities 
+1) can provide multiple interfaces if we wanted
+```unison
+ability EmployeeRepository where
+  fetchAllByBirthday: Day -> Month ->{EmployeeRepository} [Employee]
+  fetchAll: '{EmployeeRepository} [Employee]
+  findById: EmployeeId -> {EmployeeRepository} {Employee}
+```
+2) have there behavior defined elsewhere (using handler syntax we will get to later)
+3) are composable (hence "algebraic effects")
+4) require that any calling function provide the ability in their type signature, which bubbles all the way to the top of the call stack (until it finds a handler).
+
+So let's scaffold our main function for this exercise and see this stuff in action.
+
+```unison
+sendBirthdayEmails : '[Message]
+sendBirthdayEmails = 
+  todo "get the current date"
+  todo "fetch all the employees with birthdays today"
+  todo "create happy birthday messages"
+  todo "send and return the messages"
+```
+Let's say we want a function we can call that will find all the employees whose birthday is today, create emails for them, send those emails, and then return those emails so we can see what was created and sent.
+
+As an aside, let's avoid modeling failures simply because it will clutter this exercise a bit. In real life, many of our effects would have type signatures with `Either` so we could model possible failures, but let's just naively pretend everything always works.
+
+So let's do some more scaffolding!
+```unison
+sendBirthdayEmails : '[Message]
+sendBirthdayEmails = 
+  today' = today
+  employees = fetchAllByBirthday (Date.day today', Date.month today')
+  messages = map (Employee.toBirthdayMessage) employees
+  map (send) messages
+
+Employee.toBirthdayMessage : Employee -> Message
+Employee.toBirthdayMessage _ = todo "
+```
+So we will grab the date, use that fetch all the employees with birthdays today, map those employees to messages, and then send out (and return) those messages.
+
+Uh oh! The compiler is mad!
+```ucm
+The expression in red needs the {EmployeeRepository} ability, but this location does not have access to any abilities.
+  
+     64 |   employees = fetchAllByBirthday (Date.day today', Date.month today')
+```
+
+Ah, turns out that any function with an ability in its signature can only be called by another function with that ability available in its signature. So we need to add all our abilities to the function signature. So let's just go ahead and add all three.
+
+```unison
+sendBirthdayEmails : '{MessageService, EmployeeRepository, Calendar} [Message]
+```
+
+But we are stil getting the same error :(
+
+Well, it turns out that these effects can actually only be run in the context of a handler. Until we wire that up, we can instead just defer the computation (so all affects become deferred).
+
+```unison
+sendBirthdayEmails : '[Message]
+sendBirthdayEmails =  'let
+  today' = !today
+  employees = fetchAllByBirthday (Date.day today', Date.month today')
+  messages = map (Employee.toBirthdayMessage) employees
+  map (send) messages
+
+Employee.toBirthdayMessage : Employee -> Message
+Employee.toBirthdayMessage _ = todo ""
+```
+
+And the compiler seems happy so far! Note that we just deferred the entire computation by putting the `'let` at the beginning. Additionally, we had to add the `!` in order to apply the `today` function within the context of the deferred code block. But everything type-checks!
+
+Let's move on applying TDD in order to implement the remaining code.
