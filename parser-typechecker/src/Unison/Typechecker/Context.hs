@@ -1882,9 +1882,8 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   go ctx t (Type.Var' (TypeVar.Existential b v _p)) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t b v
-  go ctx (Type.Effects' es1) (Type.Effects' es2)
+  go _ (Type.Effects' es1) (Type.Effects' es2)
     = subAbilities ((,) Nothing <$> es1) es2
-        `orElse` failWith (TypeMismatch ctx)
   go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
   go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
