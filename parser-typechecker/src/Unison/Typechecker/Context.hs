@@ -76,7 +76,6 @@ import qualified Unison.Type                   as Type
 import           Unison.Typechecker.Components  ( minimize' )
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.TypeVar    as TypeVar
-import           Unison.Typechecker.TypeVar     (Polarity(Positive, Negative, Invariant))
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.TypePrinter            as TP
@@ -90,13 +89,13 @@ type RedundantTypeAnnotation = Bool
 type Wanted v loc = [(Maybe (Term v loc), Type v loc)]
 
 pattern Universal v = Var (TypeVar.Universal v)
-pattern Existential b v <- Var (TypeVar.Existential b v _)
+pattern Existential b v <- Var (TypeVar.Existential b v)
 
 existential :: v -> Element v loc
-existential v = Var (TypeVar.Existential B.Blank v Invariant)
+existential v = Var (TypeVar.Existential B.Blank v)
 
 existential' :: Ord v => a -> B.Blank loc -> v -> Type.Type (TypeVar v loc) a
-existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v Invariant)
+existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
 
 existentialp :: Ord v => a -> v -> Type v a
 existentialp a = existential' a B.Blank
@@ -583,7 +582,7 @@ freeVars e = do
 -- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
 wellformedType :: Var v => Context v loc -> Type v loc -> Bool
 wellformedType c t = case t of
-  Type.Var' (TypeVar.Existential _ v _) -> Set.member v (existentials c)
+  Type.Var' (TypeVar.Existential _ v) -> Set.member v (existentials c)
   Type.Var' (TypeVar.Universal v) -> Set.member v (universals c)
   Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
@@ -622,7 +621,7 @@ extend' e c@(Context ctx) = Context . (:ctx) . (e,) <$> i' where
         then pure $ Info es ses (Set.insert v us) uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
-      TypeVar.Existential _ v _ -> if Set.notMember v vs
+      TypeVar.Existential _ v -> if Set.notMember v vs
         then pure $ Info (Set.insert v es) ses us uas (Set.insert v vs) pvs
         else crash $ "variable " <> show v <> " already defined in the context"
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
@@ -735,23 +734,20 @@ extendUniversal v = do
   extendContext (Universal v')
   pure v'
 
-extendExistentialWithPolarity :: (Var v) => Polarity -> v -> M v loc v
-extendExistentialWithPolarity p v = do
+extendExistential :: (Var v) => v -> M v loc v
+extendExistential v = do
   v' <- freshenVar v
-  extendContext (Var (TypeVar.Existential B.Blank v' p))
+  extendContext (Var (TypeVar.Existential B.Blank v'))
   pure v'
 
-extendExistential :: (Var v) => v -> M v loc v
-extendExistential = extendExistentialWithPolarity Invariant -- todo: reviewme
-
-extendExistentialTV :: Var v => Polarity -> v -> M v loc (TypeVar v loc)
-extendExistentialTV p v =
-  TypeVar.Existential B.Blank <$> extendExistentialWithPolarity p v <*> pure p
+extendExistentialTV :: Var v => v -> M v loc (TypeVar v loc)
+extendExistentialTV v =
+  TypeVar.Existential B.Blank <$> extendExistential v
 
 notMember :: (Var v, Ord loc) => v -> Set (TypeVar v loc) -> Bool
 notMember v s =
   Set.notMember (TypeVar.Universal v) s &&
-  Set.notMember (TypeVar.Existential B.Blank v Invariant) s
+  Set.notMember (TypeVar.Existential B.Blank v) s
 
 -- | Replace any existentials with their solution in the context
 apply :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
@@ -767,7 +763,7 @@ apply' solvedExistentials t = go t where
   go t = case t of
     Type.Var' (TypeVar.Universal _) -> t
     Type.Ref' _ -> t
-    Type.Var' (TypeVar.Existential _ v _) ->
+    Type.Var' (TypeVar.Existential _ v) ->
       maybe t (\(Type.Monotype t') -> go t') (Map.lookup v solvedExistentials)
     Type.Arrow' i o -> Type.arrow a (go i) (go o)
     Type.App' x y -> Type.app a (go x) (go y)
@@ -833,8 +829,7 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
   go (Type.Arrow' i o0) = do -- ->App
     let (es, o) = Type.stripEffect o0
     (o,) <$> checkWantedScoped ((Just fun,) <$> es) arg i
-  -- todo: reviewme should we use polarity info here?
-  go (Type.Var' (TypeVar.Existential b a _p)) = do -- a^App
+  go (Type.Var' (TypeVar.Existential b a)) = do -- a^App
     [i,e,o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]
     let it = existential' (loc ft) B.Blank i
         ot = existential' (loc ft) B.Blank o
@@ -1011,9 +1006,8 @@ synthesizeWanted (Term.Handle' h body) = do
       pure (o', want)
     -- degenerate case, like `handle x -> 10 in ...`
     -- todo: reviewme - I think just generate a type error in this case
-    --       reviewme - if keeping this, should we use polarity info?
     -- Currently assuming no effects are handled.
-    Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing) _))) o -> do
+    Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing)))) o -> do
       r <- extendExistential v
       let rt = existentialp (loc i) r
           e0 = Type.apps (Type.ref (loc i) Type.effectRef)
@@ -1051,7 +1045,7 @@ synthesizeWanted e
   | Term.Blank' blank <- e = do
     v <- freshenVar Var.blank
     -- todo: reviewme for use of Polarity
-    appendContext [Var (TypeVar.Existential blank v Invariant)]
+    appendContext [Var (TypeVar.Existential blank v)]
     pure (existential' l blank v, [])
 
   | Term.List' v <- e = do
@@ -1469,10 +1463,8 @@ existentialFunctionTypeFor e = do
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
-  -- todo: reviewme
-  let positiveVar = extendExistentialTV Positive Var.inferAbility
-  let negativeVar = extendExistentialTV Negative Var.inferAbility
-  t <- Type.existentializeArrows positiveVar negativeVar t
+  let newVar = extendExistentialTV Var.inferAbility
+  t <- Type.existentializeArrows newVar t
   pure t
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
@@ -1553,13 +1545,13 @@ generalizeP p ctx0 ty = foldr gen (applyCtx ctx0 ty) ctx
     | otherwise = t
 
 existentialP :: Element v loc -> Maybe (TypeVar v loc, v)
-existentialP (Var (TypeVar.Existential _ v p)) -- reviewme
-  = Just (TypeVar.Existential B.Blank v p, v)
+existentialP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
 existentialP _ = Nothing
 
 variableP :: Element v loc -> Maybe (TypeVar v loc, v)
-variableP (Var (TypeVar.Existential _ v p)) -- reviewme
-  = Just (TypeVar.Existential B.Blank v p, v)
+variableP (Var (TypeVar.Existential _ v))
+  = Just (TypeVar.Existential B.Blank v, v)
 variableP (Var tv@(TypeVar.Universal v)) = Just (tv, v)
 variableP _ = Nothing
 
@@ -1692,7 +1684,7 @@ substAndDefaultWanted want ctx
 
 -- Defaults unsolved ability variables to the empty row
 defaultAbility :: Var v => Ord loc => Type v loc -> M v loc Bool
-defaultAbility e@(Type.Var' (TypeVar.Existential b v _))
+defaultAbility e@(Type.Var' (TypeVar.Existential b v))
   = (True <$ instantiateL b v eff0) `orElse` pure False
   where
   eff0 = Type.effects (loc e) []
@@ -1718,10 +1710,10 @@ discardCovariant gens ty
   keepVarsT pos (Type.IntroOuterNamed' _ t) = keepVarsT pos t
   keepVarsT _ t = foldMap exi $ Type.freeVars t
 
-  exi (TypeVar.Existential _ v _) = Set.singleton v
+  exi (TypeVar.Existential _ v) = Set.singleton v
   exi _ = mempty
 
-  keepVarsE pos (Type.Var' (TypeVar.Existential _ v _))
+  keepVarsE pos (Type.Var' (TypeVar.Existential _ v))
     | pos, v `Set.member` gens = mempty
     | otherwise = Set.singleton v
   keepVarsE pos e = keepVarsT pos e
@@ -1732,7 +1724,7 @@ discardCovariant gens ty
 
   discard keep es = filter p es
     where
-    p (Type.Var' (TypeVar.Existential _ v _)) = v `Set.member` keep
+    p (Type.Var' (TypeVar.Existential _ v)) = v `Set.member` keep
     p _ = True
 
 checkWantedScoped
@@ -1838,8 +1830,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   go ctx t1@(Type.Var' (TypeVar.Universal v1)) t2@(Type.Var' (TypeVar.Universal v2)) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
-  -- todo: reviewme - I think it's correct not to care about polarity here
-  go ctx t1@(Type.Var' (TypeVar.Existential _ v1 _)) t2@(Type.Var' (TypeVar.Existential _ v2 _)) -- `Exvar`
+  go ctx t1@(Type.Var' (TypeVar.Existential _ v1)) t2@(Type.Var' (TypeVar.Existential _ v2)) -- `Exvar`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
   go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
@@ -1873,12 +1864,10 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   go _ (Type.Effect1' es a) a2 = do
      subtype es (Type.effects (loc es) [])
      subtype a a2
-  -- todo: reviewme should this use polarity in some way?
-  go ctx (Type.Var' (TypeVar.Existential b v _p)) t -- `InstantiateL`
+  go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL b v t
-  -- todo: reviewme should this use polarity in some way?
-  go ctx t (Type.Var' (TypeVar.Existential b v _p)) -- `InstantiateR`
+  go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t b v
   go _ (Type.Effects' es1) (Type.Effects' es2)
@@ -1916,8 +1905,7 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
     Nothing -> go ctx
   where
     go ctx = case t of
-      -- todo: reviewme - should use use polarity here?
-      Type.Var' (TypeVar.Existential _ v2 _p) | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
+      Type.Var' (TypeVar.Existential _ v2) | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
         solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
           maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstLArr
@@ -2004,8 +1992,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
     Nothing -> go ctx
   where
     go ctx = case t of
-      -- todo: reviewme - should we use polarity _p here?
-      Type.Var' (TypeVar.Existential _ v2 _p) | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
+      Type.Var' (TypeVar.Existential _ v2) | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
           maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstRArrow
@@ -2144,7 +2131,7 @@ subAbilities want have = do
       refineEffectVar (loc w) (snd <$> want) b ve -- `orElse` die src w
     ((src, w):_, _) -> die src w
   where
-  ex (Type.Var' (TypeVar.Existential b v _)) = Just (b, v)
+  ex (Type.Var' (TypeVar.Existential b v)) = Just (b, v)
   ex _ = Nothing
   die src w = maybe id (scope . InSynthesize) src do
     ctx <- getContext
@@ -2178,8 +2165,7 @@ subAmbient die ambient r
   | otherwise = die
   where
   unsolveds = (ambient >>= Type.flattenEffects >>= vars)
-  vars (Type.Var' (TypeVar.Existential b v _p)) = [(b,v)]
-  -- ^ todo: reviewme should polarity be used here?
+  vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
   vars _ = []
 
 abilityCheckSingle
@@ -2198,7 +2184,7 @@ abilityCheckSingle die ambient r
   | Just a <- find (headMatch r) ambient
   = subtype a r `orElse` die
   -- It's an unsolved existential, instantiate it to all of ambient
-  | Type.Var' tv@(TypeVar.Existential b v _) <- r
+  | Type.Var' tv@(TypeVar.Existential b v) <- r
   = let et2 = Type.effects (loc r) ambient
         acyclic
           | Set.member tv (Type.freeVars et2)

@@ -311,7 +311,7 @@ typeDirectedNameResolution oldNotes oldType env = do
   relax t = relax' v t
     where
     fvs = foldMap f $ Type.freeVars t
-    f (TypeVar.Existential _ v _) = Set.singleton v
+    f (TypeVar.Existential _ v) = Set.singleton v
     f _ = mempty
     v = ABT.freshIn fvs $ Var.inferAbility
 
@@ -331,7 +331,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     open (Type.Var' (TypeVar.Existential{})) = True
     open _ = False
     loc = ABT.annotation t
-    tv = Type.var loc (TypeVar.Existential B.Blank v TypeVar.Invariant)
+    tv = Type.var loc (TypeVar.Existential B.Blank v)
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

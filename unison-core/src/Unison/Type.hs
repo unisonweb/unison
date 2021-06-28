@@ -490,29 +490,23 @@ freeEffectVars t =
 -- Becomes
 --
 --   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
---
--- Uses either `positiveVar` or `negativeVar` to create
--- the variable, based on whether the variable is in
--- positive or negative position.
-existentializeArrows :: (Ord v, Monad m) => m v -> m v -> Type v a -> m (Type v a)
-existentializeArrows positiveVar negativeVar t = ABT.visit go t
+existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
+existentializeArrows newVar t = ABT.visit go t
  where
   go t@(Arrow' a b) = case b of
     -- If an arrow already has attached abilities,
     -- leave it alone. Ex: `a ->{e} b` is kept as is.
     Effect1' _ _ -> Just $ do
-      -- Note: Flip roles of negative/positiveVar
-      -- when descending to the left of an arrow!
-      a <- existentializeArrows negativeVar positiveVar a -- flip!
-      b <- existentializeArrows positiveVar negativeVar b
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
       pure $ arrow (ABT.annotation t) a b
     -- For unadorned arrows, make up a fresh variable.
     -- So `a -> b` becomes `a ->{e} b`, using the
-    -- `positiveVar` variable generator.
+    -- `newVar` variable generator.
     _            -> Just $ do
-      e <- positiveVar
-      a <- existentializeArrows negativeVar positiveVar a -- flip!
-      b <- existentializeArrows positiveVar negativeVar b
+      e <- newVar
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing

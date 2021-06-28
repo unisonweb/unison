@@ -10,41 +10,27 @@ import           Unison.Type (Type)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-data Polarity = Positive | Negative | Invariant deriving (Eq,Ord)
-
-instance Show Polarity where
-  show Positive = "+"
-  show Negative = "-"
-  show Invariant = ""
-
 -- note: polarity doesn't factor into equality or ordering
-data TypeVar b v = Universal v | Existential b v Polarity deriving (Functor)
-
-flipPolarity :: TypeVar b v -> TypeVar b v
-flipPolarity (Existential b v p) = Existential b v $ case p of
-  Positive -> Negative
-  Negative -> Positive
-  Invariant -> Invariant
-flipPolarity t@Universal{} = t
+data TypeVar b v = Universal v | Existential b v deriving (Functor)
 
 instance Eq v => Eq (TypeVar b v) where
   Universal v == Universal v2 = v == v2
-  Existential _ v _ == Existential _ v2 _ = v == v2
+  Existential _ v == Existential _ v2 = v == v2
   _ == _ = False
 
 instance Ord v => Ord (TypeVar b v) where
   Universal v `compare` Universal v2 = compare v v2
-  Existential _ v _ `compare` Existential _ v2 _ = compare v v2
-  Universal _ `compare` Existential _ _ _ = LT
+  Existential _ v `compare` Existential _ v2 = compare v v2
+  Universal _ `compare` Existential _ _ = LT
   _ `compare` _ = GT
 
 underlying :: TypeVar b v -> v
 underlying (Universal v) = v
-underlying (Existential _ v _) = v
+underlying (Existential _ v) = v
 
 instance Show v => Show (TypeVar b v) where
   show (Universal v) = show v
-  show (Existential _ v polarity) = "'" ++ show polarity ++ show v
+  show (Existential _ v) = "'" ++ show v
 
 instance ABT.Var v => ABT.Var (TypeVar b v) where
   freshIn s v = ABT.freshIn (Set.map underlying s) <$> v
