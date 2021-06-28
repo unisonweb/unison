@@ -221,6 +221,16 @@ unique type Subject = Subject Text
 unique type Body = Body Text
 ```
 
+Let's also update `Employee` to have an email address
+```unison
+unique type Employee  = 
+  { id: EmployeeId
+  , name: Name
+  , birthday: Date 
+  , email: EmailAddress
+  }
+```
+
 It would be nice to add some constraints to the email address (like a regex to ensure only valid email addresses can exist) but this is pretty good so far!
 
 But maybe we can build a little bit toward the future here. The prompt told us the future will likely include sending birthday messages via other platforms, like SMS or robocalls.
@@ -377,7 +387,7 @@ sendBirthdayEmails =  'let
   map (send) messages
 
 Employee.toBirthdayMessage : Employee -> Message
-Employee.toBirthdayMessage _ = todo ""
+Employee.toBirthdayMessage _ = todo "toBirthdayMessage"
 ```
 
 And the compiler seems happy so far! Note that we just deferred the entire computation by putting the `'let` at the beginning.
@@ -469,3 +479,412 @@ Calendar.handler.mock date k =
 5) we have a base `resume` pattern where we are basically saying "if this is any other behavior, just bubble this request up in case another handler knows how to handle it."
 
 In summary, `Calendar.handler.mock` takes a `Date`, and any function it handles that calls `today` will return that date.
+
+Now let's look at the `EmployeeRepository`:
+```unison
+EmployeeRepository.handler.mock : [Employee] -> k -> k
+EmployeeRepository.handler.mock employees k =
+  h : Request {EmployeeRepository} k -> k
+  h = cases
+    { fetchAllByBirthday birthday -> resume } ->
+      birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
+      handle resume birthdays with h
+    { resume } -> resume
+  handle k with h
+```
+
+This is another mock to make it easy to test.
+1) This handler takes a list of employees, which it uses to generate the return value for `fetchAllByBirthday`.
+2) Our `h` take a request with the `EmployeeRepository` ability.
+3) We match on the `fetchAllByBirthday` method and it's argument `birthday`.
+4) When we match on that method, we filter the provided list of employees based on the `birthday` arg, and resume the computation with those employees as the return value.
+5) In real life, we might read from a DB here.
+6) Otherwise we bubble up the function in case other handlers know how to handle it.
+
+
+And finally
+```unison
+MessageService.handler.mock : k -> k
+MessageService.handler.mock k =
+  h : Request {MessageService} k -> k
+  h = cases
+    { send message -> resume } -> handle resume message with h
+    { resume } -> resume
+  handle k with h
+```
+
+1) This handler does not take any args because it doesn't need any outside info to handle the `send` function.
+2) We match on the `send` function and its message argument and resume the computation with that same message as a return value
+3) A real version of this might instead reach out to Twilio or some external service to perform an effect before continuing.
+4) And we bubble up any functions we don't care about.
+
+Great! And then we just wrap all these handlers around our birthday function.
+```unison
+test> sendBirthdayEmails.tests.noBirthdaysToday = 
+  check let
+    actual = 
+      handle 
+        handle 
+          handle 
+            !sendBirthdayEmails 
+          with (Calendar.handler.mock (Date (Day 1) January (Year 1991)))
+        with (EmployeeRepository.handler.mock [])
+      with MessageService.handler.mock
+    expected = []
+    if expected === actual
+    then true
+    else bug (expected, actual)
+```
+
+And thats how we do "dependency injection" in unison! We can easily swap out these handlers with other behaviors at the boundary of our system!
+
+Now that we have a passing test, let's take a minute to refactor a bit before we add some more interesting test cases.
+
+All these nested handlers are kind of gross. Let's combine them into a single "multihandler".
+```unison
+sendBirthdayEmails.handlers.mock : Date -> [Employee] -> k -> k
+sendBirthdayEmails.handlers.mock date employees k =
+  h : Request {Calendar, EmployeeRepository, MessageService} k -> k
+  h = cases
+    {today -> resume} -> handle resume date with h
+    { send message -> resume } -> handle resume message with h
+    { fetchAllByBirthday birthday -> resume } ->
+      birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
+      handle resume birthdays with h
+    { resume } -> resume
+  handle k with h
+
+test> sendBirthdayEmails.tests.noBirthdaysToday = 
+check let
+  actual = 
+    handle 
+      !sendBirthdayEmails 
+    with sendBirthdayEmails.handlers.mock (Date (Day 1) January (Year 1991)) []
+  expected = []
+  if expected === actual
+  then true
+  else bug (expected, actual)
+```
+
+Alright lets test with the next test case, a single birthday today!
+```unison
+test> sendBirthdayEmails.tests.oneBirthdayToday = 
+  check let
+    employees = 
+      [
+        Employee 
+        (EmployeeId "1") 
+        (Name (FirstName "John") (LastName "Smith")) 
+        (Date (Day 1) January (Year 1991))
+        (EmailAddress "john@smith.com")
+      , Employee 
+        (EmployeeId "2") 
+        (Name (FirstName "Fred") (LastName "Smith")) 
+        (Date (Day 2) March (Year 1991))
+        (EmailAddress "fred@smith.com")
+      ]
+    birthday = (Date (Day 1) January (Year 1991)) 
+    actual = 
+      handle 
+        !sendBirthdayEmails 
+      with sendBirthdayEmails.handlers.mock birthday employees
+
+    expected =
+      [
+        Email 
+        (EmailAddress "john@smith.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      ]
+    if expected === actual
+    then true
+    else bug (expected, actual)
+```
+
+```ucm
+  💔💥
+  
+  I've encountered a call to builtin.todo with the following value:
+  
+    "toBirthdayMessage"
+```
+
+That's a good failure! Let's fix it!
+```unison
+Employee.toBirthdayMessage : Employee -> Message
+Employee.toBirthdayMessage employee =
+  Email (Employee.email employee) (Subject "Happy Birthday!") (Body "Congrats! Love, HR.")
+```
+
+```ucm
+    70 |   check let
+    
+    ✅ Passed : Proved.
+  
+    81 |   check let
+    
+    ✅ Passed : Proved.
+```
+
+It's working! Let's do one more test case just to be sure.
+
+```unison
+test> sendBirthdayEmails.tests.twoBirthdaysToday = 
+  check let
+    employees = 
+      [
+        Employee 
+        (EmployeeId "1") 
+        (Name (FirstName "John") (LastName "Smith")) 
+        (Date (Day 1) January (Year 1991))
+        (EmailAddress "john@smith.com")
+      , Employee 
+        (EmployeeId "2") 
+        (Name (FirstName "Fred") (LastName "Smith")) 
+        (Date (Day 2) March (Year 1991))
+        (EmailAddress "fred@smith.com")
+      , Employee 
+        (EmployeeId "3") 
+        (Name (FirstName "Abe") (LastName "Lincoln")) 
+        (Date (Day 2) March (Year 1776))
+        (EmailAddress "abe@lincoln.com")
+      ]
+    today = (Date (Day 2) March (Year 2021)) 
+    actual = 
+      handle 
+        !sendBirthdayEmails 
+      with sendBirthdayEmails.handlers.mock today employees
+
+    expected =
+      [
+        Email 
+        (EmailAddress "fred@smith.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      , Email 
+        (EmailAddress "abe@lincoln.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      ]
+    if expected === actual
+    then true
+    else bug (expected, actual)
+```
+
+``ucm
+    70 |   check let
+    
+    ✅ Passed : Proved.
+  
+    81 |   check let
+    
+    ✅ Passed : Proved.
+  
+    113 |   check let
+    
+    ✅ Passed : Proved.
+```
+
+Great! And of course there a ton more tests you can add to make sure this is working for various corner cases, but this seems pretty good for now!
+
+So let's go back and refactor our main function a bit now that we have the stability of some tests.
+```unison
+sendBirthdayEmails : '[Message]
+sendBirthdayEmails =  'let
+  today
+    |> toDayMonthPair
+    |> fetchAllByBirthday
+    |> toBDayMessages
+    |> sendAll
+
+toDayMonthPair : Date -> (Day, Month)
+toDayMonthPair = cases
+  Date day month _ -> (day, month)
+
+toBDayMessages : [Employee] -> [Message]
+toBDayMessages employees = 
+  map (Employee.toBirthdayMessage) employees
+
+sendAll : [Message] ->{MessageService} [Message]
+sendAll messages =
+  map (send) messages
+```
+
+Looks a lot cleaner, its easier to read, and its composed of a bunch of small modular easy to understand functions!
+
+## Conclusion
+Let's see it all together!
+```unison
+unique type Employee  = 
+  { id: EmployeeId
+  , name: Name
+  , birthday: Date 
+  , email: EmailAddress
+  }
+
+unique type EmployeeId = EmployeeId Text
+unique type FirstName = FirstName Text
+unique type LastName = LastName Text
+unique type Name = 
+  { first: FirstName
+  , last: LastName
+  }
+
+
+unique type Date = 
+  { day: Day
+  , month: Month
+  , year: Year
+  }
+unique type Month 
+  = January
+  | February
+  | March
+  | April
+  | May
+  | June
+  | July
+  | August
+  | September
+  | October
+  | November
+  | December
+unique type Day = Day Nat
+unique type Year = Year Nat
+
+unique type Message 
+  = Email EmailAddress Subject Body
+
+unique type EmailAddress = EmailAddress Text
+unique type Subject = Subject Text
+unique type Body = Body Text
+
+ability MessageService where
+  send: Message -> Message
+
+ability EmployeeRepository where
+  fetchAllByBirthday: (Day, Month) -> [Employee]
+
+ability Calendar where
+  today: Date
+
+sendBirthdayEmails : '[Message]
+sendBirthdayEmails =  'let
+  today
+    |> toDayMonthPair
+    |> fetchAllByBirthday
+    |> toBDayMessages
+    |> sendAll
+
+toDayMonthPair : Date -> (Day, Month)
+toDayMonthPair = cases
+  Date day month _ -> (day, month)
+
+toBDayMessages : [Employee] -> [Message]
+toBDayMessages employees = 
+  map (Employee.toBirthdayMessage) employees
+
+sendAll : [Message] ->{MessageService} [Message]
+sendAll messages =
+  map (send) messages
+
+Employee.toBirthdayMessage : Employee -> Message
+Employee.toBirthdayMessage employee =
+  Email (Employee.email employee) (Subject "Happy Birthday!") (Body "Congrats! Love, HR.")
+
+sendBirthdayEmails.handlers.mock : Date -> [Employee] -> k -> k
+sendBirthdayEmails.handlers.mock date employees k =
+  h : Request {Calendar, EmployeeRepository, MessageService} k -> k
+  h = cases
+    {today -> resume} -> handle resume date with h
+    { send message -> resume } -> handle resume message with h
+    { fetchAllByBirthday birthday -> resume } ->
+      birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
+      handle resume birthdays with h
+    { resume } -> resume
+  handle k with h
+
+test> sendBirthdayEmails.tests.noBirthdaysToday = 
+  check let
+    actual = 
+      handle 
+        !sendBirthdayEmails 
+      with sendBirthdayEmails.handlers.mock (Date (Day 1) January (Year 2021)) []
+    expected = []
+    if expected === actual
+    then true
+    else bug (expected, actual)
+
+test> sendBirthdayEmails.tests.oneBirthdayToday = 
+  check let
+    employees = 
+      [
+        Employee 
+        (EmployeeId "1") 
+        (Name (FirstName "John") (LastName "Smith")) 
+        (Date (Day 1) January (Year 1991))
+        (EmailAddress "john@smith.com")
+      , Employee 
+        (EmployeeId "2") 
+        (Name (FirstName "Fred") (LastName "Smith")) 
+        (Date (Day 2) March (Year 1991))
+        (EmailAddress "fred@smith.com")
+      ]
+    today = (Date (Day 1) January (Year 2021)) 
+    actual = 
+      handle 
+        !sendBirthdayEmails 
+      with sendBirthdayEmails.handlers.mock today employees
+
+    expected =
+      [
+        Email 
+        (EmailAddress "john@smith.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      ]
+    if expected === actual
+    then true
+    else bug (expected, actual)
+
+test> sendBirthdayEmails.tests.twoBirthdaysToday = 
+  check let
+    employees = 
+      [
+        Employee 
+        (EmployeeId "1") 
+        (Name (FirstName "John") (LastName "Smith")) 
+        (Date (Day 1) January (Year 1991))
+        (EmailAddress "john@smith.com")
+      , Employee 
+        (EmployeeId "2") 
+        (Name (FirstName "Fred") (LastName "Smith")) 
+        (Date (Day 2) March (Year 1991))
+        (EmailAddress "fred@smith.com")
+      , Employee 
+        (EmployeeId "3") 
+        (Name (FirstName "Abe") (LastName "Lincoln")) 
+        (Date (Day 2) March (Year 1776))
+        (EmailAddress "abe@lincoln.com")
+      ]
+    today = (Date (Day 2) March (Year 2021)) 
+    actual = 
+      handle 
+        !sendBirthdayEmails 
+      with sendBirthdayEmails.handlers.mock today employees
+
+    expected =
+      [
+        Email 
+        (EmailAddress "fred@smith.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      , Email 
+        (EmailAddress "abe@lincoln.com")
+        (Subject "Happy Birthday!")
+        (Body "Congrats! Love, HR.")
+      ]
+    if expected === actual
+    then true
+    else bug (expected, actual)
+```
