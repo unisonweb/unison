@@ -359,6 +359,26 @@ renderTypeError e env src = case e of
       ]
     , debugSummary note
     ]
+  AbilityCheckFailure {..}
+    | C.InSubtype{} :<| _ <- C.path note -> mconcat
+    [ "The expression "
+    , describeStyle ErrorSite
+    , "\n\n"
+    , "              needs the abilities: {"
+    , commas (renderType' env) requested
+    , "}\n"
+    , "  but was assumed to only require: {"
+    , commas (renderType' env) ambient
+    , "}"
+    , "\n\n"
+    , "This is likely a result of using an un-annotated "
+    , "function as an argument with concrete abilities. "
+    , "Try adding an annotation to the function definition whose "
+    , "body is red."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
+    , debugSummary note
+    ]
   AbilityCheckFailure {..} -> mconcat
     [ "The expression "
     , describeStyle ErrorSite
