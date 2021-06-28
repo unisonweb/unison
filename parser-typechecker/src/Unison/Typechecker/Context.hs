@@ -1692,9 +1692,8 @@ substAndDefaultWanted want ctx
 
 -- Defaults unsolved ability variables to the empty row
 defaultAbility :: Var v => Ord loc => Type v loc -> M v loc Bool
-defaultAbility e@(Type.Var' (TypeVar.Existential b v _)) = do
-  instantiateL b v eff0 `orElse` pure ()
-  pure True
+defaultAbility e@(Type.Var' (TypeVar.Existential b v _))
+  = (True <$ instantiateL b v eff0) `orElse` pure False
   where
   eff0 = Type.effects (loc e) []
 defaultAbility _ = pure False
