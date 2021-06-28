@@ -1044,7 +1044,6 @@ synthesizeWanted e
 
   | Term.Blank' blank <- e = do
     v <- freshenVar Var.blank
-    -- todo: reviewme for use of Polarity
     appendContext [Var (TypeVar.Existential blank v)]
     pure (existential' l blank v, [])
 
@@ -2192,9 +2191,6 @@ abilityCheckSingle die ambient r
           = getContext >>= failWith . TypeMismatch
           | otherwise = instantiateR et2 b v
     in -- instantiate it to `{}` if can't cover all of ambient
-       --
-       -- todo: reviewme to decide if should do something with
-       -- polarity here
        acyclic
          `orElse` instantiateR (Type.effects (loc r) []) b v
          `orElse` die

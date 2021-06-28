@@ -10,7 +10,6 @@ import           Unison.Type (Type)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
--- note: polarity doesn't factor into equality or ordering
 data TypeVar b v = Universal v | Existential b v deriving (Functor)
 
 instance Eq v => Eq (TypeVar b v) where
