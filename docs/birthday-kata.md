@@ -295,19 +295,19 @@ In our case, let's limit ourselves to the following effects: sending a message, 
 
 ```unison
 ability MessageService where
-  send: Message ->{MessageService} Message
+  send: Message -> Message
 
 ability EmployeeRepository where
-  fetchAllByBirthday: (Day, Month) ->{EmployeeRepository} [Employee]
+  fetchAllByBirthday: (Day, Month) -> [Employee]
 
 ability Calendar where
-  today: '{Calendar} Date
+  today: Date
 ```
 
 Abilities can sort of be thought of as providing interfaces, and interfaces in turn can be thought of as providing commands.
 
 Let's walk through what these abilities are doing:
-1) `MessageService` is an ability that provides the interface for a single command `send`. `send`'s type signature can be read as "a function that takes a message and returns that same message, requiring the `MessageService` ability. The compiler is now aware of side effects in the type signature of functions!
+1) `MessageService` is an ability that provides the interface for a single command `send`. `send`'s type signature can be read as "a function that takes a message and returns a (same) message, requiring the `MessageService` ability."
 2) `EmployeeRepository` provides the interface `fetchAllByBirthday` which takes a `Day` and a `Month` pair and returns a list of `Employees`, requiring the `EmployeeRepository` ability.
 3) `Calendar` provides the interface `today` which is a function that takes no arguments and returns a `Date`, requiring the `Calendar` ability.
 
@@ -315,9 +315,9 @@ Note that abilities
 1) can provide multiple interfaces if we wanted
 ```unison
 ability EmployeeRepository where
-  fetchAllByBirthday: Day -> Month ->{EmployeeRepository} [Employee]
-  fetchAll: '{EmployeeRepository} [Employee]
-  findById: EmployeeId -> {EmployeeRepository} {Employee}
+  fetchAllByBirthday: (Day, Month) -> [Employee]
+  fetchAll: [Employee]
+  findById: EmployeeId -> {Employee}
 ```
 2) have there behavior defined elsewhere (using handler syntax we will get to later)
 3) are composable (hence "algebraic effects")
@@ -353,9 +353,9 @@ So we will grab the date, use that fetch all the employees with birthdays today,
 
 Uh oh! The compiler is mad!
 ```ucm
-The expression in red needs the {EmployeeRepository} ability, but this location does not have access to any abilities.
+The expression in red needs the {Calendar} ability, but this location does not have access to any abilities.
   
-     64 |   employees = fetchAllByBirthday (Date.day today', Date.month today')
+    136 |   today' = today)
 ```
 
 Ah, turns out that any function with an ability in its signature can only be called by another function with that ability available in its signature. So we need to add all our abilities to the function signature. So let's just go ahead and add all three.
@@ -371,7 +371,7 @@ Well, it turns out that these effects can actually only be run in the context of
 ```unison
 sendBirthdayEmails : '[Message]
 sendBirthdayEmails =  'let
-  today' = !today
+  today' = today
   employees = fetchAllByBirthday (Date.day today', Date.month today')
   messages = map (Employee.toBirthdayMessage) employees
   map (send) messages
@@ -380,6 +380,92 @@ Employee.toBirthdayMessage : Employee -> Message
 Employee.toBirthdayMessage _ = todo ""
 ```
 
-And the compiler seems happy so far! Note that we just deferred the entire computation by putting the `'let` at the beginning. Additionally, we had to add the `!` in order to apply the `today` function within the context of the deferred code block. But everything type-checks!
+And the compiler seems happy so far! Note that we just deferred the entire computation by putting the `'let` at the beginning.
 
 Let's move on applying TDD in order to implement the remaining code.
+
+## Implementation!
+Let's write a first failing test!
+```unison
+test> sendBirthdayEmails.tests.noBirthdaysToday = 
+  check let
+    actual = !sendBirthdayEmails
+    expected = []
+    if expected === actual
+    then true
+    else bug (exected, actual)
+```
+
+```ucm
+  The expression in red  needs these abilities: {Calendar, EmployeeRepository, 𝕖457}, but this location does not have access to any abilities.
+  
+     70 |     actual = !sendBirthdayEmails
+```
+
+Well we can't defer this call any more, this is the boundary of the system! So it's time to implement handlers for our abilities!
+
+```unison
+test> sendBirthdayEmails.tests.noBirthdaysToday = 
+  check let
+    actual = 
+      handle 
+        handle 
+          handle 
+            !sendBirthdayEmails 
+          with (Calendar.handler.mock (Date (Day 1) January (Year 1991)))
+        with (EmployeeRepository.handler.mock [])
+      with MessageService.handler.mock
+    expected = []
+    if expected === actual
+    then true
+    else bug (expected, actual)
+
+Calendar.handler.mock : Date -> k -> k
+Calendar.handler.mock date k =
+  h : Request {Calendar} k -> k
+  h = cases
+    {today -> resume} -> handle resume date with h
+    { resume } -> resume
+  handle k with h
+
+EmployeeRepository.handler.mock : [Employee] -> k -> k
+EmployeeRepository.handler.mock employees k =
+  h : Request {EmployeeRepository} k -> k
+  h = cases
+    { fetchAllByBirthday birthday -> resume } ->
+      birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
+      handle resume birthdays with h
+    { resume } -> resume
+  handle k with h
+
+MessageService.handler.mock : k -> k
+MessageService.handler.mock k =
+  h : Request {MessageService} k -> k
+  h = cases
+    { send message -> resume } -> handle resume message with h
+    { resume } -> resume
+  handle k with h
+```
+
+This is a lot so lets dig into it a bit!
+
+The syntax for a handler is `handle <fn> with <handler>`. I've wrapped our call to `!sendBirthdayEmails` in three nested handle blocks (we can make this cleaner later).
+
+When you write a handler, your goal is to pattern match on the possible ability function signatures, and then "resume" the computation (or not) along with providing the expected value for the ability. Let's dig in to our mock Calendar handler:
+
+```unison
+Calendar.handler.mock : Date -> k -> k
+Calendar.handler.mock date k =
+  h : Request {Calendar} k -> k
+  h = cases
+    {today -> resume} -> handle resume date with h
+    { resume } -> resume
+  handle k with h
+```
+1) our mock calendar handler dates a `Date` as input. This is so we can specify the return value of `today`, so we can "mock" it in our tests.
+2) the `k` is the "continuation", our handler is being consulted to try to handle an ability, and then we call k to "continue" the existing computation.
+3) we define some handler `h` locally which does the actual bulk of the work. It pattern matches on any ability case we care about. Note that its signature has access to the `Calendar` ability.
+4) we pattern match on two cases. The first is the `today` case. If we are handling the `today` method, all we are doing is handling the continuation (by calling resume) and providing the value for `today` which is the provided `date` since are just "mocking" the date in this handler. The continuation is called and handled recursively.
+5) we have a base `resume` pattern where we are basically saying "if this is any other behavior, just bubble this request up in case another handler knows how to handle it."
+
+In summary, `Calendar.handler.mock` takes a `Date`, and any function it handles that calls `today` will return that date.
