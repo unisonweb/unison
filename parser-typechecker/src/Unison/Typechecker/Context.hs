@@ -922,6 +922,8 @@ synthesize e = scope (InSynthesize e) $
       want <- coalesceWanted (fmap (Just e,) es) want
       pure (t, want)
 
+-- | Helper function for turning an ability request's type into the
+-- results used by type checking.
 wantRequest
   :: Var v
   => Ord loc
@@ -930,6 +932,13 @@ wantRequest
   -> (Type v loc, Wanted v loc)
 wantRequest loc ~(Type.Effect'' es t) = (t, fmap (Just loc,) es)
 
+-- | This is the main worker for type synthesis. It was factored out
+-- of the `synthesize` function. It handles the various actual
+-- synthesis cases for terms, while the `synthesize` function wraps
+-- this in some common pre/postprocessing.
+--
+-- The return value is the synthesized type together with a list of
+-- wanted abilities.
 synthesizeWanted
   :: Var v
   => Ord loc
@@ -1594,13 +1603,31 @@ markThenRetractWanted
 markThenRetractWanted v m
   = markThenRetract v m >>= uncurry substAndDefaultWanted
 
+-- This function handles merging two sets of wanted abilities, along
+-- with some pruning of the set. This means that coalescing a list
+-- with the empty list may result in a distinct list, but coalescing
+-- again afterwards should not further change things.
+--
+-- With respect to the above, it is presumed that the second argument
+-- (`old`) has already been coalesced in this manner. So only the
+-- contents of `new` may be reduced, and coalescing with the empty
+-- list as `new` will just yield the `old` list.
+--
+-- There are two main operations performed while merging. First, an
+-- ability (currently) may only occur once in a row, so if it occurs
+-- twice in a list, those two occurrences are unified. Second, some
+-- references to ability polymorphic functions can lead to arbitrary
+-- variables being 'wanted'. However, if these variables do not occur
+-- in the context, and we are thus not trying to infer them, it is
+-- pointless to add them to the wanted abilities, just making types
+-- more complicated, and inference harder. So in that scenario, we
+-- default the variable to {} and omit it.
 coalesceWanted
   :: Var v
   => Ord loc
   => Wanted v loc
   -> Wanted v loc
   -> M v loc (Wanted v loc)
--- TODO: Might need fleshing out to ensure complete lack of duplication.
 coalesceWanted [] old = pure old
 coalesceWanted ((loc,n):new) old
   | Just (_, o) <- find (headMatch n . snd) old = do
