@@ -88,27 +88,21 @@ identicality t x
     ⍟ These new definitions are ok to `add`:
     
       type Three a b c
-      concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
+      concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
       extensionality : Text
-                       -> (Three Nat Nat Nat
-                       ->{Throw Text} Nat
-                       ->{Throw Text} b)
+                       -> (Three Nat Nat Nat -> Nat -> b)
                        ->{IO} Result
-      extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
-                       ->{Throw Text} (a
-                       ->{Throw Text} b
-                       ->{Throw Text} c)
-                       ->{Throw Text} (a
-                       ->{Throw Text} b
-                       ->{Throw Text} c)
-                       ->{Throw Text} [(a, b)]
+      extensionals   : (a -> b -> Text)
+                       -> (a -> b -> c)
+                       -> (a -> b -> c)
+                       -> [(a, b)]
                        ->{Throw Text} ()
       fib10          : [Nat]
       handleTest     : Text -> Request {Throw Text} a -> Result
       identical      : Text -> a -> a ->{Throw Text} ()
       identicality   : Text -> a ->{IO} Result
       load           : Bytes ->{IO, Throw Text} a
-      prod           : [a] ->{g} [b] ->{g} [(a, b)]
+      prod           : [a] -> [b] -> [(a, b)]
       roundtrip      : a ->{IO, Throw Text} a
       save           : a -> Bytes
       showThree      : Three Nat Nat Nat -> Text
@@ -121,27 +115,21 @@ identicality t x
   ⍟ I've added these definitions:
   
     type Three a b c
-    concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
+    concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
     extensionality : Text
-                     -> (Three Nat Nat Nat
-                     ->{Throw Text} Nat
-                     ->{Throw Text} b)
+                     -> (Three Nat Nat Nat -> Nat -> b)
                      ->{IO} Result
-    extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
-                     ->{Throw Text} (a
-                     ->{Throw Text} b
-                     ->{Throw Text} c)
-                     ->{Throw Text} (a
-                     ->{Throw Text} b
-                     ->{Throw Text} c)
-                     ->{Throw Text} [(a, b)]
+    extensionals   : (a -> b -> Text)
+                     -> (a -> b -> c)
+                     -> (a -> b -> c)
+                     -> [(a, b)]
                      ->{Throw Text} ()
     fib10          : [Nat]
     handleTest     : Text -> Request {Throw Text} a -> Result
     identical      : Text -> a -> a ->{Throw Text} ()
     identicality   : Text -> a ->{IO} Result
     load           : Bytes ->{IO, Throw Text} a
-    prod           : [a] ->{g} [b] ->{g} [(a, b)]
+    prod           : [a] -> [b] -> [(a, b)]
     roundtrip      : a ->{IO, Throw Text} a
     save           : a -> Bytes
     showThree      : Three Nat Nat Nat -> Text
@@ -215,7 +203,7 @@ tests =
       h      : Three Nat Nat Nat -> Nat -> Nat
       rotate : Three Nat Nat Nat -> Three Nat Nat Nat
       tests  : '{IO} [Result]
-      zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
+      zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 
 ```
 This simply runs some functions to make sure there isn't a crash. Once
@@ -235,7 +223,7 @@ to actual show that the serialization works.
     h      : Three Nat Nat Nat -> Nat -> Nat
     rotate : Three Nat Nat Nat -> Three Nat Nat Nat
     tests  : '{IO} [Result]
-    zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
+    zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 
 .> display fDeps
 

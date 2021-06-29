@@ -1,0 +1,33 @@
+
+-- https://github.com/unisonweb/unison/issues/1185
+-- 
+-- Definitions below currently get inferred as:
+--   List.map  : (i ->{𝕖} o) ->{𝕖} [i] ->{𝕖} [o]
+--   List.map2 : ignored ->{𝕖} (a ->{𝕖} b) ->{𝕖} [a] ->{𝕖} [b]
+-- 
+-- This file won't typecheck unless the definitions get
+-- the correct inferred types.
+
+ability Zonk where 
+  zonk : Nat
+
+-- should be inferred as:
+-- List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f = cases
+  [] -> []
+  h +: t -> f h +: List.map f t
+
+-- This should typecheck since in the correct inferred type,
+-- no abilities are required after the first arg
+ex = List.map (x -> Zonk.zonk + 42)
+
+-- should be inferred as:
+-- List.map2 : ignored -> (a ->{e} b) -> [a] ->{e} [b]
+List.map2 : ignored -> (a -> b) -> [a] -> [b]
+List.map2 ignore f = cases
+  [] -> []
+  h +: t -> f h +: List.map2 ignore f t
+
+-- This should typecheck since in the correct inferred type,
+-- no abilities are required after the first two args
+ex2 = List.map2 () (x -> Zonk.zonk + 43)
