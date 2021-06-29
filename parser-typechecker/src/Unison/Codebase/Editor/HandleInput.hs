@@ -408,6 +408,7 @@ loop = do
           UpdateI p _selection -> "update " <> opatch p
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
+          UiI -> "ui"
           ExecuteI s -> "execute " <> Text.pack s
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
@@ -905,6 +906,8 @@ loop = do
             updateRoot prev
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
+
+      UiI -> eval UI 
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src

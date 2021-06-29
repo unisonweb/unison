@@ -32,6 +32,7 @@ import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Server.CodebaseServer  as Server
 import qualified Unison.Term                   as Term
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -45,6 +46,7 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
+import Web.Browser (openBrowser)
 
 typecheck
   :: (Monad m, Var v)
@@ -84,17 +86,22 @@ commandLine
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
+  -> Maybe Server.BaseUrl
   -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen =
  flip State.evalStateT 0 . Free.fold go
  where
   go :: forall x . Command IO i v x -> State.StateT Int IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
-    Eval m        -> lift $ m
-    Input         -> lift $ awaitInput
+    Eval m        -> lift m
+    UI            -> 
+      case serverBaseUrl of
+        Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
+        Nothing -> lift (return ())
+    Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output
     ConfigLookup name ->
