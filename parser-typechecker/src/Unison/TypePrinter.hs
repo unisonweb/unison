@@ -143,7 +143,13 @@ prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified Name, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = map PP.syntaxToColor $ PP.align
+prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
+
+prettySignatures''
+  :: Var v => PrettyPrintEnv
+  -> [(HashQualified Name, Type v a)]
+  -> [Pretty SyntaxText]
+prettySignatures'' env ts = PP.align
   [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "

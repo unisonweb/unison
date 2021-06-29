@@ -51,9 +51,11 @@ pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
 
 prettyBlock :: Var v => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
-prettyBlock elideUnit env =
-  PP.syntaxToColor . pretty0 env (emptyBlockAc { elideUnit = elideUnit })
-                   . printAnnotate env
+prettyBlock elideUnit env = PP.syntaxToColor . prettyBlock' elideUnit env
+
+prettyBlock' :: Var v => Bool -> PrettyPrintEnv -> Term v a -> Pretty SyntaxText
+prettyBlock' elideUnit env =
+  pretty0 env (emptyBlockAc { elideUnit = elideUnit }) . printAnnotate env
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
 pretty' (Just width) n t =
