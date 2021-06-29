@@ -26,11 +26,9 @@ import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Decls as Decls
-import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Server.Syntax as Syntax
 import qualified Unison.Term as Term
@@ -141,10 +139,10 @@ renderDoc pped terms typeOf eval types = go where
   source :: Term v () -> MaybeT m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
 
-  goSignatures :: [Referent] -> MaybeT m (P.Pretty S.SyntaxText)
+  goSignatures :: [Referent] -> MaybeT m [P.Pretty S.SyntaxText]
   goSignatures rs = lift $ runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
-    Nothing -> pure "🆘  codebase is missing type signature for these definitions"
-    Just types -> pure . P.lines . fmap P.group $
+    Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
+    Just types -> pure . fmap P.group $
       TypePrinter.prettySignatures''
         (PPE.suffixifiedPPE pped)
         [ (PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
@@ -181,19 +179,13 @@ renderDoc pped terms typeOf eval types = go where
         DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
         _ -> source e
 
-    {-
-    -- Signature [Doc2.Term]
-    -- todo
     DD.Doc2SpecialFormSignature (Term.List' tms) ->
-      let referents = [ r | DD.Doc2Term (toReferent -> Just r) <- toList tms ]
-          go r = P.indentN 4 <$> goSignature r
-      in P.group . P.sep "\n\n" <$> traverse go referents
+      let rs = [ r | DD.Doc2Term (Term.Referent' r) <- toList tms ]
+      in goSignatures rs <&> \s -> Signature (map formatPretty s)
 
     -- SignatureInline Doc2.Term
-    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term tm) -> P.backticked <$> case toReferent tm of
-      Just r -> goSignature r
-      _ -> displayTerm pped terms typeOf eval types tm
-    -}
+    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
+      goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
 
     -- Eval Doc2.Term
     DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> lift (eval tm) >>= \case
@@ -202,8 +194,8 @@ renderDoc pped terms typeOf eval types = go where
 
     -- EvalInline Doc2.Term
     DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> lift (eval tm) >>= \case
-      Nothing -> Eval <$> source tm <*> pure evalErrMsg
-      Just result -> Eval <$> source tm <*> source result
+      Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
+      Just result -> EvalInline <$> source tm <*> source result
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
@@ -211,9 +203,9 @@ renderDoc pped terms typeOf eval types = go where
 
     -- EmbedInline Any
     DD.Doc2SpecialFormEmbedInline any ->
-      source any <&> \p -> Embed ("{{ embed {{" <> p <> "}} }}")
+      source any <&> \p -> EmbedInline ("{{ embed {{" <> p <> "}} }}")
 
-    _ -> mzero
+    tm -> source tm <&> \p -> Embed ("🆘  unable to render " <> p)
 
   evalErrMsg = "🆘  An error occured during evaluation"
 
