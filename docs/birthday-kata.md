@@ -1,10 +1,12 @@
-# Practical Example - Birthday Kata
+# Practical Example - Modeling a Birthday Message Service
 
 ## The Kata
 [Source: Matteo Vaccari](http://matteo.vaccari.name/blog/archives/154)
 
 ### Goals
 This kata is normally used to practice TDD, dependency injection, and ports and adapters architectures in an Object Oriented style. Instead, we will tackle the same problem in Unison and explore TDD, dependency rejection, and how pure FP languages naturally encourage ports and adapters like architectures (through seperation of pure and impure functions).
+
+If you aren't familiar with "ports and adapters" (also called "Hexagonal Architecture", "The Clean Architecture", and "The Onion Architecture") the idea is to invert dependencies between pure business logic and infrastructure code, usually using interfaces, so that implementation details like the DB, transfer protocols, etc. is fully decoupled from the actual business logic -- making it easier to extend, update, maintain, and test!
 
 At a more technical level, we will explore how to do domain modeling with the Unison type system, how to use abilities, and how to write tests.
 
@@ -24,7 +26,7 @@ Platform Goals:
 For further information about this kata please checkout the original post [here](http://matteo.vaccari.name/blog/archives/154).
 
 ### Our Approach
-First, we will come up with a rich domain model and discuss different ways we can model the system to take advantage of the compiler nd what the tradeoffs are.
+First, we will come up with a rich domain model and discuss different ways we can model the system to take advantage of the compiler and what the resulting tradeoffs are.
 
 Second, we will talk about Abilities, dependency injection / rejection, and how we can decouple possibly impure infrastructure from pure decision making logic.
 
@@ -42,12 +44,6 @@ Obviously, there a millions of other fields we could choose to include in our mo
 
 So lets start with:
 ```unison
-unique type Employee  = 
-  { id: EmployeeId
-  , name: Name
-  , birthday: Date 
-  }
-
 unique type EmployeeId = EmployeeId Text
 unique type FirstName = FirstName Text
 unique type LastName = LastName Text
@@ -60,13 +56,18 @@ unique type Date =
   , month: Nat
   , year: Nat
   }
+unique type Employee  = 
+  { id: EmployeeId
+  , name: Name
+  , birthday: Date 
+  }
 ```
 #### Decision 1 - Record Types
 Our employee is a record type consisting of an `id`, `name`, and a `birthday`. In Unison, the record type syntax is actually equivalent to a normal data type like
 ```unison
 type Employee = Employee EmployeeId Name Date
 ```
-except the compiler will automatically generate a collection of functions (lens) that allow for easy access and updates of this immutable data structure, which will be a big help later. You can see this in the output in `ucm`:
+except the compiler will automatically generate a collection of functions that allow for easy access and updates of this immutable data structure, which will be a big help later. You can see this in the output in `ucm`:
 ```ucm
   I found and typechecked these definitions in ~/projects/scratch.u. If you do an `add` or
   `update`, here's how your codebase would change:
@@ -108,7 +109,7 @@ except the compiler will automatically generate a collection of functions (lens)
 `Name` and `Date` are record types as well.
 
 #### Decision 2 - Nominal vs Structural Typing
-Also note that we have opted in to using nominal typing (with the `unique` keyword) instead of structural typing. If we had left out `unique` the compiler would consider `EmployeeId`, `FirstName`, and `LastName` all to be the same type. For our current use case, we want to make sure that the compiler considers all of these different types, so we can prevent mistakes like accidentally passing in a `LastName` where an `EmployeeId` should go.
+Also note that we have opted in to using nominal typing (with the `unique` keyword) instead of structural typing. If we had left out `unique` the compiler would consider `EmployeeId`, `FirstName`, and `LastName` all to be the same type (with all names being interchangeable). For our current use case, we want to make sure that the compiler considers all of these different types, so we can prevent mistakes like accidentally passing in a `LastName` where an `EmployeeId` should go.
 
 #### Decision 3 - Avoiding Primitives
 We could have also modeled the Employee like this (or any other similar way)
@@ -231,8 +232,6 @@ unique type Employee  =
   }
 ```
 
-It would be nice to add some constraints to the email address (like a regex to ensure only valid email addresses can exist) but this is pretty good so far!
-
 But maybe we can build a little bit toward the future here. The prompt told us the future will likely include sending birthday messages via other platforms, like SMS or robocalls.
 
 Maybe our model should actually be about a `Message` of which there is some relationship with an `Email`. One possible way to model this would be
@@ -314,8 +313,6 @@ ability Calendar where
   today: Date
 ```
 
-Abilities can sort of be thought of as providing interfaces, and interfaces in turn can be thought of as providing commands.
-
 Let's walk through what these abilities are doing:
 1) `MessageService` is an ability that provides the interface for a single command `send`. `send`'s type signature can be read as "a function that takes a message and returns a (same) message, requiring the `MessageService` ability."
 2) `EmployeeRepository` provides the interface `fetchAllByBirthday` which takes a `Day` and a `Month` pair and returns a list of `Employees`, requiring the `EmployeeRepository` ability.
@@ -329,14 +326,14 @@ ability EmployeeRepository where
   fetchAll: [Employee]
   findById: EmployeeId -> {Employee}
 ```
-2) have there behavior defined elsewhere (using handler syntax we will get to later)
+2) have their behavior defined elsewhere (using handler syntax we will get to later)
 3) are composable (hence "algebraic effects")
 4) require that any calling function provide the ability in their type signature, which bubbles all the way to the top of the call stack (until it finds a handler).
 
 So let's scaffold our main function for this exercise and see this stuff in action.
 
 ```unison
-sendBirthdayEmails : '[Message]
+sendBirthdayEmails : [Message]
 sendBirthdayEmails = 
   todo "get the current date"
   todo "fetch all the employees with birthdays today"
@@ -349,7 +346,7 @@ As an aside, let's avoid modeling failures simply because it will clutter this e
 
 So let's do some more scaffolding!
 ```unison
-sendBirthdayEmails : '[Message]
+sendBirthdayEmails : [Message]
 sendBirthdayEmails = 
   today' = today
   employees = fetchAllByBirthday (Date.day today', Date.month today')
@@ -357,7 +354,7 @@ sendBirthdayEmails =
   map (send) messages
 
 Employee.toBirthdayMessage : Employee -> Message
-Employee.toBirthdayMessage _ = todo "
+Employee.toBirthdayMessage _ = todo "toBirthdayMessage"
 ```
 So we will grab the date, use that fetch all the employees with birthdays today, map those employees to messages, and then send out (and return) those messages.
 
@@ -371,15 +368,15 @@ The expression in red needs the {Calendar} ability, but this location does not h
 Ah, turns out that any function with an ability in its signature can only be called by another function with that ability available in its signature. So we need to add all our abilities to the function signature. So let's just go ahead and add all three.
 
 ```unison
-sendBirthdayEmails : '{MessageService, EmployeeRepository, Calendar} [Message]
+sendBirthdayEmails : {MessageService, EmployeeRepository, Calendar} [Message]
 ```
 
 But we are stil getting the same error :(
 
-Well, it turns out that these effects can actually only be run in the context of a handler. Until we wire that up, we can instead just defer the computation (so all affects become deferred).
+Well, it turns out that these effects can actually only be run in the context of a handler. Until we wire that up, we can instead just defer the computation (so all effects become deferred).
 
 ```unison
-sendBirthdayEmails : '[Message]
+sendBirthdayEmails : '{MessageService, EmployeeRepository, Calendar} [Message]
 sendBirthdayEmails =  'let
   today' = today
   employees = fetchAllByBirthday (Date.day today', Date.month today')
@@ -430,7 +427,7 @@ test> sendBirthdayEmails.tests.noBirthdaysToday =
     then true
     else bug (expected, actual)
 
-Calendar.handler.mock : Date -> k -> k
+Calendar.handler.mock : Date -> {Calendar} k -> k
 Calendar.handler.mock date k =
   h : Request {Calendar} k -> k
   h = cases
@@ -438,7 +435,7 @@ Calendar.handler.mock date k =
     { resume } -> resume
   handle k with h
 
-EmployeeRepository.handler.mock : [Employee] -> k -> k
+EmployeeRepository.handler.mock : [Employee] -> {EmployeeRepository} k -> k
 EmployeeRepository.handler.mock employees k =
   h : Request {EmployeeRepository} k -> k
   h = cases
@@ -448,7 +445,7 @@ EmployeeRepository.handler.mock employees k =
     { resume } -> resume
   handle k with h
 
-MessageService.handler.mock : k -> k
+MessageService.handler.mock : {MessageService} k -> k
 MessageService.handler.mock k =
   h : Request {MessageService} k -> k
   h = cases
@@ -464,7 +461,7 @@ The syntax for a handler is `handle <fn> with <handler>`. I've wrapped our call 
 When you write a handler, your goal is to pattern match on the possible ability function signatures, and then "resume" the computation (or not) along with providing the expected value for the ability. Let's dig in to our mock Calendar handler:
 
 ```unison
-Calendar.handler.mock : Date -> k -> k
+Calendar.handler.mock : Date -> {Calendar} k -> k
 Calendar.handler.mock date k =
   h : Request {Calendar} k -> k
   h = cases
@@ -482,7 +479,7 @@ In summary, `Calendar.handler.mock` takes a `Date`, and any function it handles 
 
 Now let's look at the `EmployeeRepository`:
 ```unison
-EmployeeRepository.handler.mock : [Employee] -> k -> k
+EmployeeRepository.handler.mock : [Employee] -> {EmployeeRepository} k -> k
 EmployeeRepository.handler.mock employees k =
   h : Request {EmployeeRepository} k -> k
   h = cases
@@ -504,7 +501,7 @@ This is another mock to make it easy to test.
 
 And finally
 ```unison
-MessageService.handler.mock : k -> k
+MessageService.handler.mock : {MessageService} k -> k
 MessageService.handler.mock k =
   h : Request {MessageService} k -> k
   h = cases
@@ -542,7 +539,7 @@ Now that we have a passing test, let's take a minute to refactor a bit before we
 
 All these nested handlers are kind of gross. Let's combine them into a single "multihandler".
 ```unison
-sendBirthdayEmails.handlers.mock : Date -> [Employee] -> k -> k
+sendBirthdayEmails.handlers.mock : Date -> [Employee] -> '{Calendar, EmployeeRepository, MessageService} k -> k
 sendBirthdayEmails.handlers.mock date employees k =
   h : Request {Calendar, EmployeeRepository, MessageService} k -> k
   h = cases
@@ -552,19 +549,21 @@ sendBirthdayEmails.handlers.mock date employees k =
       birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
       handle resume birthdays with h
     { resume } -> resume
-  handle k with h
+  handle !k with h
 
 test> sendBirthdayEmails.tests.noBirthdaysToday = 
-check let
-  actual = 
-    handle 
-      !sendBirthdayEmails 
-    with sendBirthdayEmails.handlers.mock (Date (Day 1) January (Year 1991)) []
-  expected = []
-  if expected === actual
-  then true
-  else bug (expected, actual)
+  check let
+    today = (Date (Day 1) January (Year 2021)) 
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today []
+    expected = []
+    if expected === actual
+    then true
+    else bug (expected, actual)
 ```
+
+Note that we have changed how we use the handlers to something slightly more idiomatic: a normal function call! Though I've chosen to pipe in the function as the last argument because I think it puts the "important" bit at the beginning of the line.
+
+Note (again) that we updated the handlers signature to defer the first `k` so we no longer need to add `!` to the top level test since it is done inside the handler.
 
 Alright lets test with the next test case, a single birthday today!
 ```unison
@@ -583,11 +582,8 @@ test> sendBirthdayEmails.tests.oneBirthdayToday =
         (Date (Day 2) March (Year 1991))
         (EmailAddress "fred@smith.com")
       ]
-    birthday = (Date (Day 1) January (Year 1991)) 
-    actual = 
-      handle 
-        !sendBirthdayEmails 
-      with sendBirthdayEmails.handlers.mock birthday employees
+    today = (Date (Day 1) January (Year 2021)) 
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today employees
 
     expected =
       [
@@ -599,7 +595,6 @@ test> sendBirthdayEmails.tests.oneBirthdayToday =
     if expected === actual
     then true
     else bug (expected, actual)
-```
 
 ```ucm
   💔💥
@@ -650,10 +645,7 @@ test> sendBirthdayEmails.tests.twoBirthdaysToday =
         (EmailAddress "abe@lincoln.com")
       ]
     today = (Date (Day 2) March (Year 2021)) 
-    actual = 
-      handle 
-        !sendBirthdayEmails 
-      with sendBirthdayEmails.handlers.mock today employees
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today employees
 
     expected =
       [
@@ -689,7 +681,7 @@ Great! And of course there a ton more tests you can add to make sure this is wor
 
 So let's go back and refactor our main function a bit now that we have the stability of some tests.
 ```unison
-sendBirthdayEmails : '[Message]
+sendBirthdayEmails : '{Calendar, EmployeeRepository, MessageService} [Message]
 sendBirthdayEmails =  'let
   today
     |> toDayMonthPair
@@ -768,7 +760,7 @@ ability EmployeeRepository where
 ability Calendar where
   today: Date
 
-sendBirthdayEmails : '[Message]
+sendBirthdayEmails : '{Calendar, EmployeeRepository, MessageService} [Message]
 sendBirthdayEmails =  'let
   today
     |> toDayMonthPair
@@ -792,7 +784,7 @@ Employee.toBirthdayMessage : Employee -> Message
 Employee.toBirthdayMessage employee =
   Email (Employee.email employee) (Subject "Happy Birthday!") (Body "Congrats! Love, HR.")
 
-sendBirthdayEmails.handlers.mock : Date -> [Employee] -> k -> k
+sendBirthdayEmails.handlers.mock : Date -> [Employee] -> '{Calendar, EmployeeRepository, MessageService} k -> k
 sendBirthdayEmails.handlers.mock date employees k =
   h : Request {Calendar, EmployeeRepository, MessageService} k -> k
   h = cases
@@ -802,14 +794,12 @@ sendBirthdayEmails.handlers.mock date employees k =
       birthdays = filter (employee -> (Date.day (Employee.birthday employee), Date.month (Employee.birthday employee)) === birthday) employees
       handle resume birthdays with h
     { resume } -> resume
-  handle k with h
+  handle !k with h
 
 test> sendBirthdayEmails.tests.noBirthdaysToday = 
   check let
-    actual = 
-      handle 
-        !sendBirthdayEmails 
-      with sendBirthdayEmails.handlers.mock (Date (Day 1) January (Year 2021)) []
+    today = (Date (Day 1) January (Year 2021)) 
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today []
     expected = []
     if expected === actual
     then true
@@ -831,10 +821,7 @@ test> sendBirthdayEmails.tests.oneBirthdayToday =
         (EmailAddress "fred@smith.com")
       ]
     today = (Date (Day 1) January (Year 2021)) 
-    actual = 
-      handle 
-        !sendBirthdayEmails 
-      with sendBirthdayEmails.handlers.mock today employees
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today employees
 
     expected =
       [
@@ -868,10 +855,7 @@ test> sendBirthdayEmails.tests.twoBirthdaysToday =
         (EmailAddress "abe@lincoln.com")
       ]
     today = (Date (Day 2) March (Year 2021)) 
-    actual = 
-      handle 
-        !sendBirthdayEmails 
-      with sendBirthdayEmails.handlers.mock today employees
+    actual = sendBirthdayEmails |> sendBirthdayEmails.handlers.mock today employees
 
     expected =
       [
