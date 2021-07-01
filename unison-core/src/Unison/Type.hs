@@ -95,6 +95,7 @@ arity _ = 0
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 pattern Arrows' spine <- (unArrows -> Just spine)
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)
@@ -481,15 +482,31 @@ freeEffectVars t =
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
+-- Converts all unadorned arrows in a type to have fresh
+-- existential ability requirements. For example:
+--
+--   (a -> b) -> [a] -> [b]
+--
+-- Becomes
+--
+--   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
 existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
-existentializeArrows freshVar = ABT.visit go
+existentializeArrows newVar t = ABT.visit go t
  where
   go t@(Arrow' a b) = case b of
-    Effect1' _ _ -> Nothing
+    -- If an arrow already has attached abilities,
+    -- leave it alone. Ex: `a ->{e} b` is kept as is.
+    Effect1' _ _ -> Just $ do
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
+      pure $ arrow (ABT.annotation t) a b
+    -- For unadorned arrows, make up a fresh variable.
+    -- So `a -> b` becomes `a ->{e} b`, using the
+    -- `newVar` variable generator.
     _            -> Just $ do
-      e <- freshVar
-      a <- existentializeArrows freshVar a
-      b <- existentializeArrows freshVar b
+      e <- newVar
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing

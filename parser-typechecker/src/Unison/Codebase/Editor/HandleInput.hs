@@ -397,14 +397,10 @@ loop = do
           DeleteTypeI def -> "delete.type " <> hqs' def
           DeleteBranchI opath -> "delete.namespace " <> ops' opath
           DeletePatchI path -> "delete.patch " <> ps' path
-          ReplaceTermI src target p ->
-            "replace.term " <> HQ.toText src <> " "
-                            <> HQ.toText target <> " "
-                            <> opatch p
-          ReplaceTypeI src target p ->
-            "replace.type " <> HQ.toText src <> " "
-                            <> HQ.toText target <> " "
-                            <> opatch p
+          ReplaceI src target p ->
+            "replace "  <> HQ.toText src <> " "
+                        <> HQ.toText target <> " "
+                        <> opatch p
           ResolveTermNameI path -> "resolve.termName " <> hqs' path
           ResolveTypeNameI path -> "resolve.typeName " <> hqs' path
           AddI _selection -> "add"
@@ -1291,22 +1287,41 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ReplaceTermI from to patchPath -> do
+      ReplaceI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
         QueryResult fromMisses' fromHits <- hqNameQuery [from]
         QueryResult toMisses' toHits <- hqNameQuery [to]
-        let fromRefs = termReferences fromHits
-            toRefs = termReferences toHits
+        let termsFromRefs = termReferences fromHits
+            termsToRefs = termReferences toHits
+            typesFromRefs = typeReferences fromHits
+            typesToRefs = typeReferences toHits
+            --- Here are all the kinds of misses
+            --- [X] [X]
+            --- [Type] [Term]
+            --- [Term] [Type]
+            --- [Type] [X]
+            --- [Term] [X]
+            --- [X] [Type]
+            --- [X] [Term]
             -- Type hits are term misses
-            fromMisses = fromMisses'
+            termFromMisses = fromMisses'
                        <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
-            toMisses = toMisses'
-                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
-            go :: Reference
+            termToMisses = toMisses'
+                       <> (HQ'.toHQ . SR.typeName <$> typeResults toHits)
+            -- Term hits are type misses
+            typeFromMisses = fromMisses'
+                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+            typeToMisses = toMisses'
+                       <> (HQ'.toHQ . SR.termName <$> termResults toHits)
+
+            termMisses = termFromMisses <> termToMisses
+            typeMisses = typeFromMisses <> typeToMisses
+
+            replaceTerms :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
-            go fr tr = do
+            replaceTerms fr tr = do
               mft <- eval $ LoadTypeOfTerm fr
               mtt <- eval $ LoadTypeOfTerm tr
               let termNotFound = respond . TermNotFound'
@@ -1325,61 +1340,46 @@ loop = do
                           patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   saveAndApplyPatch patchPath'' patchName patch'
-            misses = fromMisses <> toMisses
-            ambiguous t rs =
-              let rs' = Set.map Referent.Ref $ Set.fromList rs
-              in  case t of
-                    HQ.HashOnly h ->
-                      hashConflicted h rs'
-                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
-                      termConflicted n rs'
-                    _ -> respond . BadName $ HQ.toString t
-        unless (null misses) $
-          respond $ SearchTermsNotFound misses
-        case (fromRefs, toRefs) of
-          ([fr], [tr]) -> go fr tr
-          ([_], tos) -> ambiguous to tos
-          (frs, _) -> ambiguous from frs
-      ReplaceTypeI from to patchPath -> do
-        let patchPath' = fromMaybe defaultPatchPath patchPath
-        QueryResult fromMisses' fromHits <- hqNameQuery [from]
-        QueryResult toMisses' toHits <- hqNameQuery [to]
-        patch <- getPatchAt patchPath'
-        let fromRefs = typeReferences fromHits
-            toRefs = typeReferences toHits
-            -- Term hits are type misses
-            fromMisses = fromMisses'
-                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
-            toMisses = toMisses'
-                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
-            go :: Reference
+
+            replaceTypes :: Reference
                -> Reference
                -> Action m (Either Event Input) v ()
-            go fr tr = do
+            replaceTypes fr tr = do
               let patch' =
                     -- The modified patch
                     over Patch.typeEdits
                       (R.insert fr (TypeEdit.Replace tr) . R.deleteDom fr) patch
                   (patchPath'', patchName) = resolveSplit' patchPath'
               saveAndApplyPatch patchPath'' patchName patch'
-            misses = fromMisses <> toMisses
+
             ambiguous t rs =
               let rs' = Set.map Referent.Ref $ Set.fromList rs
               in  case t of
                     HQ.HashOnly h ->
                       hashConflicted h rs'
-                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
-                      typeConflicted n $ Set.fromList rs
-                    -- This is unlikely to happen, as t has to be a parsed
-                    -- hash-qualified name already.
-                    -- Still, the types say we need to handle this case.
+                    (Path.parseHQSplit' . HQ.toString -> Right n) -> 
+                      termConflicted n rs'
                     _ -> respond . BadName $ HQ.toString t
-        unless (null misses) $
-          respond $ SearchTermsNotFound misses
-        case (fromRefs, toRefs) of
-          ([fr], [tr]) -> go fr tr
-          ([_], tos) -> ambiguous to tos
-          (frs, _) -> ambiguous from frs
+
+            mismatch typeName termName = respond $ TypeTermMismatch typeName termName
+
+
+        case (termsFromRefs, termsToRefs, typesFromRefs, typesToRefs) of
+          ([], [], [], [])     -> respond $ SearchTermsNotFound termMisses
+          ([_], [], [], [_])   -> mismatch to from
+          ([], [_], [_], [])   -> mismatch from to
+          ([_], [], _, _)      -> respond $ SearchTermsNotFound termMisses
+          ([], [_], _, _)      -> respond $ SearchTermsNotFound termMisses
+          (_, _, [_], [])      -> respond $ SearchTermsNotFound typeMisses
+          (_, _, [], [_])      -> respond $ SearchTermsNotFound typeMisses
+          ([fr], [tr], [], []) -> replaceTerms fr tr
+          ([], [], [fr], [tr]) -> replaceTypes fr tr
+          (froms, [_], [], []) -> ambiguous from froms
+          ([], [], froms, [_]) -> ambiguous from froms
+          ([_], tos, [], [])   -> ambiguous to tos
+          ([], [], [_], tos)   -> ambiguous to tos
+          (_, _, _, _)         -> error "unpossible"
+
       LoadI maybePath ->
         case maybePath <|> (fst <$> latestFile') of
           Nothing   -> respond NoUnisonFile
@@ -2951,3 +2951,4 @@ declOrBuiltin r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
+

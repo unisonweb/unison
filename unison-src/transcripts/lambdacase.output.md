@@ -71,7 +71,7 @@ merge xs ys = match (xs, ys) with
 
   ⍟ I've added these definitions:
   
-    merge : [a] ->{g} [a] ->{g} [a]
+    merge : [a] -> [a] -> [a]
 
 ```
 And here's a version using `cases`. The patterns are separated by commas:
@@ -94,7 +94,7 @@ merge2 = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      merge2 : [a] ->{g} [a] ->{g} [a]
+      merge2 : [a] -> [a] -> [a]
         (also named merge)
 
 ```
