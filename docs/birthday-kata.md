@@ -872,3 +872,12 @@ test> sendBirthdayEmails.tests.twoBirthdaysToday =
     then true
     else bug (expected, actual)
 ```
+
+## References
+[Scott Wlaschin - Domain Modeling Made Functional](https://www.youtube.com/watch?v=Up7LcbGZFuo&ab_channel=NDCConferences)
+
+[Mark Seemann - Dependency Injection to Dependency Rejection](https://www.youtube.com/watch?v=cxs7oLGrxQ4)
+
+[Mark Seemann - Pits of Success](https://www.youtube.com/watch?v=US8QG9I1XW0&ab_channel=NDCConferences)
+
+[Unison slack thread that contributed a lot of code examples](https://unisonlanguage.slack.com/archives/CLKV43YE4/p1624391625329100?thread_ts=1624385627.328200&cid=CLKV43YE4)
