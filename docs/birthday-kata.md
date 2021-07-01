@@ -663,7 +663,7 @@ test> sendBirthdayEmails.tests.twoBirthdaysToday =
     else bug (expected, actual)
 ```
 
-``ucm
+```ucm
     70 |   check let
     
     ✅ Passed : Proved.
