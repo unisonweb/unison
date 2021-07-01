@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -23,6 +24,7 @@ import Unison.Server.Syntax (SyntaxText)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Decls as Decls
@@ -150,10 +152,10 @@ renderDoc pped terms typeOf eval types = go where
   goSpecial :: Term v () -> MaybeT m SpecialForm
   goSpecial = \case
 
-    DD.Doc2SpecialFormFoldedSource (Term.List' es) -> Source <$> goSrc (toList es)
+    DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
 
     -- Source [Either Link.Type Doc2.Term]
-    DD.Doc2SpecialFormSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
+    DD.Doc2SpecialFormSource (Term.List' es) -> Source <$> goSrc (toList es)
 
     -- Example Nat Doc2.Term
     -- Examples like `foo x y` are encoded as `Example 2 (_ x y -> foo)`, where
@@ -210,21 +212,28 @@ renderDoc pped terms typeOf eval types = go where
   evalErrMsg = "🆘  An error occured during evaluation"
 
   goSrc :: [Term v ()] -> MaybeT m [Ref (UnisonHash, DisplayObject Src)]
-  goSrc es = error "todo - goSrc" es
-
-  {-
   goSrc es = do
-    -- we ignore the annotations; but this could be extended later
-    -- to do some ascii art rendering
-    let tys = [ ref | DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref),_anns] <- toList es ]
-        toRef (Term.Ref' r) = Just r
-        toRef (Term.RequestOrCtor' r _) = Just r
+    let toRef (Term.Ref' r) = Just (True, r)
+        toRef (Term.RequestOrCtor' r _) = Just (False, r)
         toRef _ = Nothing
-        tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
+        go !_ !acc [] = pure $ reverse acc
+        go !seen !acc (h:t) = case h of
+          -- we ignore the annotations; but this could be extended later
+          DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just (isTerm, ref)), _anns]
+            | Set.notMember ref seen
+            ->
+              if isTerm then
+              else undefined
+          DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
+            | Set.notMember ref seen
+            -> undefined
+          _ -> go seen acc t
+    go Set.empty [] es
+    {-
     typeMap <- let
       -- todo: populate the variable names / kind once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-      go ref = (ref,) <$> do
+      go ref@(Reference.Builtin _) = pure (Type (Reference.toText ref, DO.BuiltinObject))
+      go ref = Type . (ref,) <$> do
         decl <- types ref
         let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
         pure $ maybe missing DO.UserObject decl
@@ -240,5 +249,5 @@ renderDoc pped terms typeOf eval types = go where
     -- in docs, we use suffixed names everywhere
     let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }
     pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
-  -}
+    -}
 
