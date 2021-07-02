@@ -560,22 +560,19 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
         getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
       width = mayDefault renderWidth
+      isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
-        rel = R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-            . R.mapDom Name.toText
-            . Names.terms
-            $ currentNames parseNames
-        f k _ = R.lookupRan (Referent.Ref' k) rel
+        rel = Names.terms $ currentNames parseNames
+        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+              $ R.lookupRan (Referent.Ref' k) rel
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
-        rel = R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-            . R.mapDom Name.toText
-            . Names.types
-            $ currentNames parseNames
-        f k _ = R.lookupRan k rel
+        rel = Names.types $ currentNames parseNames
+        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+              $ R.lookupRan k rel
       flatten = Set.toList . fromMaybe Set.empty
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
