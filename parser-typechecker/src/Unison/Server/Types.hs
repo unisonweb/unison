@@ -35,19 +35,11 @@ import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Server.Doc (Doc)
 import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
-import qualified Unison.Server.Syntax as Syntax
 import Unison.ShortHash (ShortHash)
-import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
-import Unison.Util.Pretty
-  ( Width (..),
-    render,
-  )
-import Unison.Var (Var)
+import Unison.Util.Pretty ( Width (..) )
 
 type APIHeaders x =
   Headers

@@ -1,9 +1,10 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend where
 
@@ -263,6 +264,10 @@ termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
   , termType = formatType ppe (mayDefault typeWidth) <$> mayType
   , termTag  = tag
   }
+
+formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
+formatType ppe w =
+  fmap Syntax.convertElement . Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
 
 typeEntryToNamedType :: TypeEntry -> NamedType
 typeEntryToNamedType (TypeEntry r name tag) = NamedType
