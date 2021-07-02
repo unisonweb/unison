@@ -14,6 +14,7 @@ import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.Foldable
 import Data.Functor
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Word
 import GHC.Generics (Generic)
@@ -28,13 +29,19 @@ import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Decls as Decls
+import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Server.Syntax as Syntax
+import qualified Unison.ShortHash as SH
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Type as Type
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
@@ -213,41 +220,46 @@ renderDoc pped terms typeOf eval types = go where
 
   goSrc :: [Term v ()] -> MaybeT m [Ref (UnisonHash, DisplayObject Src)]
   goSrc es = do
-    let toRef (Term.Ref' r) = Just (True, r)
-        toRef (Term.RequestOrCtor' r _) = Just (False, r)
-        toRef _ = Nothing
-        go !_ !acc [] = pure $ reverse acc
-        go !seen !acc (h:t) = case h of
+    let toRef (Term.Ref' r) = Set.singleton r
+        toRef (Term.RequestOrCtor' r _) = Set.singleton r
+        toRef _ = mempty
+        ppe = PPE.suffixifiedPPE pped
+        goType :: Reference -> MaybeT m (Ref (UnisonHash, DisplayObject Src))
+        goType r@(Reference.Builtin _) = pure (Type (Reference.toText r, DO.BuiltinObject))
+        goType r = Type . (Reference.toText r,) <$> do
+          d <- lift (types r)
+          case d of
+            Nothing -> pure (DO.MissingObject (SH.unsafeFromText $ Reference.toText r))
+            Just decl ->
+              pure $ DO.UserObject (Src folded full)
+              where
+                full = formatPretty (DeclPrinter.prettyDecl ppe r (PPE.typeName ppe r) decl)
+                folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName ppe r) decl)
+
+        go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject Src)])
+           -> Term v ()
+           -> MaybeT m (Set.Set Reference, [Ref (UnisonHash, DisplayObject Src)])
+        go s1@(!seen,!acc) = \case
           -- we ignore the annotations; but this could be extended later
-          DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just (isTerm, ref)), _anns]
-            | Set.notMember ref seen
-            ->
-              if isTerm then
-              else undefined
+          DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term tm), _anns] ->
+            (seen <> toRef tm,) <$> acc'
+            where
+            acc' = case tm of
+              Term.Ref' r | Set.notMember r seen -> (:acc) . Term . (Reference.toText r,) <$> case r of
+                Reference.Builtin _ -> pure DO.BuiltinObject
+                ref -> lift (terms ref) >>= \case
+                  Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
+                  Just tm -> do
+                    typ <- fromMaybe (Type.builtin() "unknown") <$> lift (typeOf (Referent.Ref ref))
+                    let name = PPE.termName ppe (Referent.Ref ref)
+                    let full = formatPretty (TermPrinter.prettyBinding ppe name tm)
+                    let folded = formatPretty . P.lines $ TypePrinter.prettySignatures'' ppe [(name, typ)]
+                    pure (DO.UserObject (Src folded full))
+              Term.RequestOrCtor' r _ | Set.notMember r seen -> (:acc) <$> goType r
+              _ -> pure acc
           DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
             | Set.notMember ref seen
-            -> undefined
-          _ -> go seen acc t
-    go Set.empty [] es
-    {-
-    typeMap <- let
-      -- todo: populate the variable names / kind once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (Type (Reference.toText ref, DO.BuiltinObject))
-      go ref = Type . (ref,) <$> do
-        decl <- types ref
-        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-        pure $ maybe missing DO.UserObject decl
-      in Map.fromList <$> traverse go tys
-    termMap <- let
-      -- todo: populate the type signature once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-      go ref = (ref,) <$> do
-        tm <- terms ref
-        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-        pure $ maybe missing DO.UserObject tm
-      in Map.fromList <$> traverse go tms
-    -- in docs, we use suffixed names everywhere
-    let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }
-    pure . P.group . P.indentN 4 $ OutputMessages.displayDefinitions' pped' typeMap termMap
-    -}
+            -> (Set.insert ref seen,) . (:acc) <$> goType ref
+          _ -> pure s1
+    reverse . snd <$> foldM go mempty es
 

@@ -209,10 +209,6 @@ instance ToSchema Doc.SpecialForm where
 instance ToSchema Doc.Src where
 instance ToSchema a => ToSchema (Doc.Ref a) where
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
-formatType ppe w =
-  formatPretty w . TypePrinter.pretty0 ppe mempty (-1)
-
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict
 
