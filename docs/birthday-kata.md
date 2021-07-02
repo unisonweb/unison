@@ -595,6 +595,7 @@ test> sendBirthdayEmails.tests.oneBirthdayToday =
     if expected === actual
     then true
     else bug (expected, actual)
+```
 
 ```ucm
   💔💥
