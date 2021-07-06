@@ -36,7 +36,7 @@ $ stack --version # we'll want to know this version if you run into trouble
 $ stack build && stack exec tests && stack exec unison
 ```
 
-To run a local codebase-ui while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of the codebase-ui and put it in the expected location for the unison executable created by `stack build`.   
+To run a local codebase-ui while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of the codebase-ui and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where the codebase-ui is running. 
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
 
