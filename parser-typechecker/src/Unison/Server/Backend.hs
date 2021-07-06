@@ -531,6 +531,10 @@ mungeSyntaxText
   :: Functor g => g (SyntaxText.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
+namesForDefinitionResults :: Names0 -> DefinitionResults v -> Set Name
+namesForDefinitionResults b (DefinitionResults terms types _missed) =
+  undefined
+
 prettyDefinitionsBySuffixes
   :: forall v m
    . Monad m
@@ -599,6 +603,10 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
+        -- need to find the corresponding doc for a reference
+        -- need to obtain the reference for the corresponding doc
+        -- then need to load that definition
+        -- then call renderDoc
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag

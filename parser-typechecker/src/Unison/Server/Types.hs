@@ -113,7 +113,7 @@ data TermDefinition = TermDefinition
   , defnTermTag :: Maybe TermTag
   , termDefinition :: DisplayObject SyntaxText
   , signature :: SyntaxText
-  , termDocs :: [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  , termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data TypeDefinition = TypeDefinition
