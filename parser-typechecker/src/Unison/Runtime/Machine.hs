@@ -219,7 +219,8 @@ exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
   reifyValue env v >>= \case
     Left miss -> do
       poke ustk 0
-      pokeS bstk $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef <$> miss
+      pokeS bstk
+        $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> miss
     Right x -> do
       poke ustk 1
       poke bstk x
