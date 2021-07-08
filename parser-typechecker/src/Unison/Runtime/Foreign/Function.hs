@@ -16,6 +16,7 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
+import Control.Exception (evaluate)
 import qualified Data.Char as Char
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
@@ -95,7 +96,7 @@ instance ForeignConvention Closure where
   readForeign _  [    ] _ _    = foreignCCError "Closure"
   writeForeign ustk bstk c = do
     bstk <- bump bstk
-    (ustk, bstk) <$ poke bstk c
+    (ustk, bstk) <$ (poke bstk =<< evaluate c)
 
 instance ForeignConvention Text where
   readForeign = readForeignBuiltin
