@@ -56,6 +56,7 @@ import           Data.Functor.Compose           ( Compose(..) )
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
+import           Data.Ord                       ( comparing )
 import qualified Data.Sequence                 as Seq
 import           Data.Sequence.NonEmpty         ( NESeq )
 import qualified Data.Sequence.NonEmpty        as NESeq
@@ -2108,8 +2109,12 @@ pruneAbilities
   -> M v loc (Wanted v loc)
 pruneAbilities want0 have0
   | debugShow ("pruneAbilities", want0, have0) = undefined
-pruneAbilities want0 have0 = go [] want0 have0
+pruneAbilities want0 have0
+  = go [] (sortBy (comparing (isVar.snd)) want0) have0
   where
+  isVar (Type.Var' _) = True
+  isVar _ = False
+
   isExistential (Type.Var' TypeVar.Existential{}) = True
   isExistential _ = False
 
