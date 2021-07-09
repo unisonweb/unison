@@ -1699,9 +1699,21 @@ substAndDefaultWanted
 substAndDefaultWanted want ctx
   | want <- (fmap.fmap) (applyCtx ctx) want
   , want <- filter q want
-  = coalesceWanted want []
+  , repush <- filter keep ctx
+  = appendContext repush *> coalesceWanted want []
   where
-  p (Var v@TypeVar.Existential{}) = Just v
+  isExistential TypeVar.Existential{} = True
+  isExistential _ = False
+
+  -- get the free variables of things that aren't just variables
+  necessary (Type.Var' _) = mempty
+  necessary t = Set.filter isExistential $ Type.freeVars t
+
+  keeps = foldMap (necessary.snd) want
+  keep (Var v) = v `Set.member` keeps
+  keep _ = False
+
+  p (Var v) | isExistential v = Just v
   p _ = Nothing
 
   outScope = Set.fromList $ mapMaybe p ctx
