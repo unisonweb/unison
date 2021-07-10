@@ -239,7 +239,6 @@ putReference r = case r of
     putHash hash
     putLength i
     putLength n
-  _ -> error "unpossible"
 
 getReference :: MonadGet m => m Reference
 getReference = do
