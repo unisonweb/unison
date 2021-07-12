@@ -15,6 +15,7 @@ import Control.Monad.Except
     throwError,
   )
 import Data.Bifunctor (first)
+import Data.List.Extra (nubOrd)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -82,6 +83,7 @@ import qualified Unison.Util.Star3 as Star3
 import Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
+import qualified Unison.Server.Doc as Doc
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -531,10 +533,6 @@ mungeSyntaxText
   :: Functor g => g (SyntaxText.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
-namesForDefinitionResults :: Names0 -> DefinitionResults v -> Set Name
-namesForDefinitionResults b (DefinitionResults terms types _missed) =
-  undefined
-
 prettyDefinitionsBySuffixes
   :: forall v m
    . Monad m
@@ -578,40 +576,51 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
         f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
               $ R.lookupRan k rel
       flatten = Set.toList . fromMaybe Set.empty
+
+      docNames :: Set (HQ'.HashQualified Name) -> [Name]
+      docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
+        where docify n = Name.joinDot n "doc"
+
+      docResults :: [Name] -> Backend m [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults docs = fmap join . for docs $ \name ->
+        error "todo"
+        -- resolve each name to a reference
+        -- then lookup its type, make sure it's a Doc2
+        -- then need to load that definition
+        -- then call renderDoc
+        -- return the result
+
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
-        let bn =
-              bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        let bn = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
         tag <- termEntryTag <$> termListEntry codebase
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        mk ts bn tag
+        docs <- docResults $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        mk docs ts bn tag
        where
-        mk Nothing _ _ = throwError $ MissingSignatureForTerm r
-        mk (Just typeSig) bn tag =
+        mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
+        mk docs (Just typeSig) bn tag =
           pure $
             TermDefinition (flatten $ Map.lookup r termFqns)
                              bn
                              tag
                              (fmap mungeSyntaxText tm)
                              (prettyType width ppe typeSig)
-                             (error "todo - term definition docs")
+                             docs
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
         tag <- Just . typeEntryTag <$> typeListEntry
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        -- need to find the corresponding doc for a reference
-        -- need to obtain the reference for the corresponding doc
-        -- then need to load that definition
-        -- then call renderDoc
+        docs <- docResults $ docNames (Names3.typeName hqLength r printNames)
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag
                               (fmap mungeSyntaxText tp)
-                              (error "todo - type definition docs")
+                              docs
     typeDefinitions <- Map.traverseWithKey mkTypeDefinition
       $ typesToSyntax suffixifyBindings width ppe types
     termDefinitions <- Map.traverseWithKey mkTermDefinition
