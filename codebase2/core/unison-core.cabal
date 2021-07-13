@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0bf63b27f45cff424f3fe8db50af886c47b614dee705f88e4f95d96a91efe6b7
+-- hash: f696d0f997ab3afba6494f5932ac232d27e77073a331ab64d3c8b7929d1deb3a
 
 name:           unison-core
 version:        0.0.0
@@ -27,8 +27,6 @@ library
   build-depends:
       base
     , containers
-    , prelude-extras
-    , text
     , unison-util
     , vector
   default-language: Haskell2010

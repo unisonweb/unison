@@ -7,7 +7,5 @@ library:
 dependencies:
   - base
   - containers
-  - text
   - vector
-  - prelude-extras # deprecated in favor of base
   - unison-util
