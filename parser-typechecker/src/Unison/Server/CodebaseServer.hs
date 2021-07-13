@@ -92,6 +92,7 @@ import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
+import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser (Ann)
 import Unison.Prelude
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
@@ -166,12 +167,13 @@ serverAPI = Proxy
 
 app
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> FilePath
   -> Strict.ByteString
   -> Application
-app codebase uiPath expectedToken =
-  serve serverAPI $ server codebase uiPath expectedToken
+app rt codebase uiPath expectedToken =
+  serve serverAPI $ server rt codebase uiPath expectedToken
 
 genToken :: IO Strict.ByteString
 genToken = do
@@ -208,10 +210,11 @@ ucmTokenVar = "UCM_TOKEN"
 -- The auth token required for accessing the server is passed to the function k
 start
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> (Strict.ByteString -> Port -> IO ())
   -> IO ()
-start codebase k = do
+start rt codebase k = do
   envToken <- lookupEnv ucmTokenVar
   envHost  <- lookupEnv ucmHostVar
   envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
@@ -253,19 +256,20 @@ start codebase k = do
     mayOpts =
       getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
   case mayOpts of
-    Just (_, token, host, port, ui) -> startServer codebase k token host port ui
-    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
+    Just (_, token, host, port, ui) -> startServer rt codebase k token host port ui
+    Nothing -> startServer rt codebase k Nothing Nothing Nothing Nothing
 
 startServer
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> (Strict.ByteString -> Port -> IO ())
   -> Maybe String
   -> Maybe String
   -> Maybe Port
   -> Maybe String
   -> IO ()
-startServer codebase k envToken envHost envPort envUI0 = do
+startServer rt codebase k envToken envHost envPort envUI0 = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") envUI0
@@ -277,7 +281,7 @@ startServer codebase k envToken envHost envPort envUI0 = do
         <> foldMap (Endo . setHost . fromString) envHost
         )
         defaultSettings
-      a = app codebase envUI token
+      a = app rt codebase envUI token
   case envPort of
     Nothing -> withApplicationSettings settings (pure a) (k token)
     Just p  -> do
@@ -311,16 +315,17 @@ serveUI tryAuth path _ = tryAuth *> serveIndex path
 
 server
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> FilePath
   -> Strict.ByteString
   -> Server AuthedServerAPI
-server codebase uiPath token =
+server rt codebase uiPath token =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> ((\t ->
             serveUI (tryAuth t) uiPath
               :<|> (    (    (serveNamespace (tryAuth t) codebase)
-                        :<|> (serveDefinitions (tryAuth t) codebase)
+                        :<|> (serveDefinitions (tryAuth t) rt codebase)
                         :<|> (serveFuzzyFind (tryAuth t) codebase)
                         )
                    :<|> serveOpenAPI

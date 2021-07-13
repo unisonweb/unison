@@ -39,7 +39,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Interface      as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
@@ -157,10 +156,11 @@ main
   -> Path.Absolute
   -> (Config, IO ())
   -> [Either Event Input]
+  -> Runtime.Runtime Symbol
   -> Codebase IO Symbol Ann
   -> String
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase version = do
+main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs runtime codebase version = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -169,7 +169,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase
       _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
-    runtime                  <- RTI.startRuntime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath

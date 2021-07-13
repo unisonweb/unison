@@ -260,6 +260,20 @@ typeListEntry codebase r n = do
     _ -> pure Data
   pure $ TypeEntry r n tag
 
+typeDeclHeader
+  :: Monad m
+  => Var v
+  => Codebase m v Ann
+  -> PPE.PrettyPrintEnv
+  -> Reference
+  -> Backend m (DisplayObject Syntax.SyntaxText)
+typeDeclHeader code ppe r = undefined code r ppe "todo"
+-- prettyDeclOrBuiltinHeader
+--   :: Var v
+--   => HashQualified Name
+--   -> DD.DeclOrBuiltin v a
+--   -> Pretty SyntaxText
+
 termEntryToNamedTerm
   :: Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
 termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
@@ -536,17 +550,16 @@ mungeSyntaxText
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
-  :: forall v m
-   . Monad m
-  => Var v
+  :: forall v
+   . Var v
   => Maybe Path
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
   -> Rt.Runtime v
-  -> Codebase m v Ann
+  -> Codebase IO v Ann
   -> [HQ.HashQualified Name]
-  -> Backend m DefinitionDisplayResults
+  -> Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
   = do
     branch                               <- resolveBranchHash root codebase
@@ -584,7 +597,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
         where docify n = Name.joinDot n "doc"
 
-      selectDocs :: [Referent] -> Backend m [Reference]
+      selectDocs :: [Referent] -> Backend IO [Reference]
       selectDocs rs = do
         rts <- fmap join . for rs $ \case
           Referent.Ref r ->
@@ -592,7 +605,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           _ -> pure []
         pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
 
-      renderDoc :: Reference -> Backend m [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      renderDoc :: Reference -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       renderDoc r = do
         let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
         let hash = Reference.toText r
@@ -605,7 +618,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
             fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
 
           typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
-          eval tm = do
+          eval (Term.amap (const mempty) -> tm) = do
             let ppes = PPE.suffixifiedPPE ppe
             let codeLookup = Codebase.toCodeLookup codebase
             let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
@@ -615,12 +628,12 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                              (Term.hashClosedTerm tm)
                              (Term.amap (const mempty) tmr)
               Nothing -> pure ()
-            pure $ r <&> Term.unannotate
+            pure $ r <&> Term.amap (const mempty)
 
           decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
           decls _ = pure Nothing
 
-      docResults :: [Name] -> Backend m [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults :: [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults docs = fmap join . for docs $ \name -> do
         -- resolve each name to (0 or more) references
         rs <- pure . Set.toList $ Names3.lookupHQTerm (HQ.NameOnly name) parseNames
@@ -699,7 +712,7 @@ resolveBranchHash h codebase = case h of
 
 definitionsBySuffixes
   :: forall m v
-   . Monad m
+   . (MonadIO m)
   => Var v
   => Maybe Path
   -> Branch m

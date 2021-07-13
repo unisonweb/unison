@@ -15,7 +15,6 @@ import Control.Lens (view, _1)
 import Data.Aeson
 import Data.Function (on)
 import Data.List (sortBy)
-import qualified Data.Map as Map
 import Data.OpenApi (ToSchema)
 import Data.Ord (Down (..))
 import qualified Data.Text as Text
@@ -40,12 +39,10 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
-import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
 import Unison.Parser (Ann)
 import Unison.Prelude
-import qualified Unison.Reference as Reference
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
   ( backendError,
@@ -55,12 +52,9 @@ import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
     APIHeaders,
-    DefinitionDisplayResults (..),
     HashQualifiedName,
     NamedTerm,
     NamedType,
-    Suffixify (..),
-    TypeDefinition (..),
     addHeaders,
     mayDefault,
   )
@@ -165,9 +159,9 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea
  where
-  loadEntry root rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
-    traverse
-      (\case
+  loadEntry _root _rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
+    for refs $
+      \case
         Backend.FoundTermRef r ->
           (\te ->
               ( a
@@ -179,27 +173,12 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
             )
             <$> Backend.termListEntry codebase b0 r n
         Backend.FoundTypeRef r -> do
-          te                              <- Backend.typeListEntry codebase r n
-          DefinitionDisplayResults _ ts _ <- Backend.prettyDefinitionsBySuffixes
-            rel
-            root
-            typeWidth
-            (Suffixify True)
-            codebase
-            [HQ.HashOnly $ Reference.toShortHash r]
-          let
-            t  = Map.lookup (Reference.toText r) ts
-            td = case t of
-              Just t -> t
-              Nothing ->
-                TypeDefinition mempty mempty Nothing (MissingObject (Reference.toShortHash r)) mempty
-            namedType = Backend.typeEntryToNamedType te
-          pure
-            ( a
-            , FoundTypeResult
-              $ FoundType (bestTypeName td) (typeDefinition td) namedType
-            )
-      )
-      refs
+          te <- Backend.typeListEntry codebase r n
+          let namedType = Backend.typeEntryToNamedType te
+          let typeName = Backend.bestNameForType @v ppe (mayDefault typeWidth) r
+          typeHeader <- Backend.typeDeclHeader codebase ppe r
+          let ft = FoundType typeName typeHeader namedType
+          pure (a, FoundTypeResult ft)
+
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
   errFromEither f = either (throwError . f) pure
