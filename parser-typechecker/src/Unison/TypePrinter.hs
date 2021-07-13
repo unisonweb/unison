@@ -23,7 +23,10 @@ import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
 
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
+pretty ppe = PP.syntaxToColor . prettySyntax ppe
+
+prettySyntax :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
+prettySyntax ppe = pretty0 ppe mempty (-1)
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
 pretty' (Just width) n t =

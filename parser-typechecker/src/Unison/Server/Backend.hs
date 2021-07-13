@@ -48,6 +48,7 @@ import Unison.Name as Name
   ( unsafeFromText,
   )
 import qualified Unison.Name as Name
+import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
@@ -81,8 +82,7 @@ import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
-import Unison.Util.SyntaxText (SyntaxText)
-import qualified Unison.Util.SyntaxText as SyntaxText
+import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.UnisonFile as UF
@@ -267,19 +267,26 @@ typeDeclHeader
   => Codebase m v Ann
   -> PPE.PrettyPrintEnv
   -> Reference
-  -> Backend m (DisplayObject Syntax.SyntaxText)
+  -> Backend m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
 typeDeclHeader code ppe r = case Reference.toId r of
   Just rid ->
     (lift $ Codebase.getTypeDeclaration code rid) <&> \case
       Nothing -> DisplayObject.MissingObject (Reference.toShortHash r)
       Just decl ->
-        DisplayObject.UserObject pretty
-        where
-          name = PPE.typeName ppe r
-          pretty = Syntax.convertElement <$>
-                   Pretty.render defaultWidth (DeclPrinter.prettyDeclHeader name decl)
+        DisplayObject.UserObject $
+          Syntax.convertElement <$>
+            Pretty.render defaultWidth (DeclPrinter.prettyDeclHeader name decl)
   Nothing ->
-    pure DisplayObject.BuiltinObject
+    pure (DisplayObject.BuiltinObject (formatTypeName ppe r))
+  where
+    name = PPE.typeName ppe r
+
+formatTypeName :: Var v => PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
+formatTypeName ppe r =
+  fmap Syntax.convertElement .
+  Pretty.renderUnbroken .
+  NP.styleHashQualified id $
+  PPE.typeName ppe r
 
 termEntryToNamedTerm
   :: Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
@@ -510,8 +517,8 @@ hqNameQuerySuffixify = hqNameQuery' True
 -- TODO: Move this to its own module
 data DefinitionResults v =
   DefinitionResults
-    { termResults :: Map Reference (DisplayObject (Term v Ann))
-    , typeResults :: Map Reference (DisplayObject (DD.Decl v Ann))
+    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann))
+    , typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann))
     , noResults :: [HQ.HashQualified Name]
     }
 
@@ -553,7 +560,7 @@ prettyType width ppe =
     (-1)
 
 mungeSyntaxText
-  :: Functor g => g (SyntaxText.Element Reference) -> g Syntax.Element
+  :: Functor g => g (UST.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
@@ -696,7 +703,7 @@ bestNameForTerm
 bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
-    . fmap SyntaxText.toPlain
+    . fmap UST.toPlain
     . TermPrinter.pretty0 @v ppe TermPrinter.emptyAc
     . Term.fromReferent mempty
 
@@ -705,7 +712,7 @@ bestNameForType
 bestNameForType ppe width =
   Text.pack
     . Pretty.render width
-    . fmap SyntaxText.toPlain
+    . fmap UST.toPlain
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
@@ -761,13 +768,15 @@ definitionsBySuffixes relativeTo branch codebase query = do
         Just (tm, typ) -> case tm of
           Term.Ann' _ _ -> UserObject tm
           _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
-    r@(Reference.Builtin _) -> pure (r, BuiltinObject)
+    r@(Reference.Builtin _) -> pure $ (r,) $ case Map.lookup r B.termRefTypes of
+      Nothing -> MissingObject $ Reference.toShortHash r
+      Just typ -> BuiltinObject (mempty <$ typ)
   let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
         r@(Reference.DerivedId i) ->
           (r, )
             . maybe (MissingObject $ Reference.idToShortHash i) UserObject
             $ Map.lookup i loadedDerivedTypes
-        r@(Reference.Builtin _) -> (r, BuiltinObject)
+        r@(Reference.Builtin _) -> (r, BuiltinObject ())
   pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
 
 termsToSyntax
@@ -776,8 +785,8 @@ termsToSyntax
   => Suffixify
   -> Width
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (Term v a))
-  -> Map Reference.Reference (DisplayObject SyntaxText)
+  -> Map Reference.Reference (DisplayObject (Type v a) (Term v a))
+  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
 termsToSyntax suff width ppe0 terms =
   Map.fromList . map go . Map.toList $ Map.mapKeys
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
@@ -788,8 +797,11 @@ termsToSyntax suff width ppe0 terms =
     else PPE.declarationPPE ppe0 r
   ppeDecl =
     (if suffixified suff then PPE.suffixifiedPPE else PPE.unsuffixifiedPPE) ppe0
-  go ((n, r), dt) =
-    (r, Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n <$> dt)
+  go ((n, r), dt) = (r,) $ case dt of
+    DisplayObject.BuiltinObject _ -> error "todo" undefined
+    DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
+    DisplayObject.UserObject tm -> DisplayObject.UserObject .
+      Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n $ tm
 
 typesToSyntax
   :: Var v
@@ -797,8 +809,8 @@ typesToSyntax
   => Suffixify
   -> Width
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a))
-  -> Map Reference.Reference (DisplayObject SyntaxText)
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a))
+  -> Map Reference.Reference (DisplayObject () UST.SyntaxText)
 typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)
@@ -840,9 +852,9 @@ loadTypeDisplayObject
   :: Applicative m
   => Codebase m v Ann
   -> Reference
-  -> m (DisplayObject (DD.Decl v Ann))
+  -> m (DisplayObject () (DD.Decl v Ann))
 loadTypeDisplayObject c = \case
-  Reference.Builtin _ -> pure BuiltinObject
+  Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id

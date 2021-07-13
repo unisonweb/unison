@@ -84,8 +84,8 @@ type UnisonHash = Text
 data Ref a = Term a | Type a deriving (Eq,Show,Generic,Functor,Foldable,Traversable)
 
 data SpecialForm
-  = Source [Ref (UnisonHash, DisplayObject Src)]
-  | FoldedSource [Ref (UnisonHash, DisplayObject Src)]
+  = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
+  | FoldedSource [Ref (UnisonHash, DisplayObject SyntaxText Src)]
   | Example SyntaxText
   | ExampleBlock SyntaxText
   | Link SyntaxText
@@ -144,6 +144,7 @@ renderDoc pped terms typeOf eval types = go where
     _ -> mzero
 
   formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
+  formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
   source :: Term v () -> MaybeT m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
@@ -218,14 +219,17 @@ renderDoc pped terms typeOf eval types = go where
 
   evalErrMsg = "🆘  An error occured during evaluation"
 
-  goSrc :: [Term v ()] -> MaybeT m [Ref (UnisonHash, DisplayObject Src)]
+  goSrc :: [Term v ()] -> MaybeT m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
   goSrc es = do
     let toRef (Term.Ref' r) = Set.singleton r
         toRef (Term.RequestOrCtor' r _) = Set.singleton r
         toRef _ = mempty
         ppe = PPE.suffixifiedPPE pped
-        goType :: Reference -> MaybeT m (Ref (UnisonHash, DisplayObject Src))
-        goType r@(Reference.Builtin _) = pure (Type (Reference.toText r, DO.BuiltinObject))
+        goType :: Reference -> MaybeT m (Ref (UnisonHash, DisplayObject SyntaxText Src))
+        goType r@(Reference.Builtin _) =
+          pure (Type (Reference.toText r, DO.BuiltinObject name))
+          where name = formatPretty . NP.styleHashQualified (NP.fmt (S.Reference r))
+                     . PPE.typeName ppe $ r
         goType r = Type . (Reference.toText r,) <$> do
           d <- lift (types r)
           case d of
@@ -236,9 +240,9 @@ renderDoc pped terms typeOf eval types = go where
                 full = formatPretty (DeclPrinter.prettyDecl ppe r (PPE.typeName ppe r) decl)
                 folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName ppe r) decl)
 
-        go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject Src)])
+        go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])
            -> Term v ()
-           -> MaybeT m (Set.Set Reference, [Ref (UnisonHash, DisplayObject Src)])
+           -> MaybeT m (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])
         go s1@(!seen,!acc) = \case
           -- we ignore the annotations; but this could be extended later
           DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term tm), _anns] ->
@@ -246,7 +250,9 @@ renderDoc pped terms typeOf eval types = go where
             where
             acc' = case tm of
               Term.Ref' r | Set.notMember r seen -> (:acc) . Term . (Reference.toText r,) <$> case r of
-                Reference.Builtin _ -> pure DO.BuiltinObject
+                Reference.Builtin _ -> lift (typeOf (Referent.Ref r)) <&> \case
+                  Nothing -> DO.BuiltinObject ("🆘 missing type signature")
+                  Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
                 ref -> lift (terms ref) >>= \case
                   Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
                   Just tm -> do

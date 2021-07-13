@@ -71,9 +71,9 @@ deriving instance ToParamSchema ShortBranchHash
 deriving via Int instance FromHttpApiData Width
 deriving instance ToParamSchema Width
 
-instance ToJSON a => ToJSON (DisplayObject a) where
+instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
    toEncoding = genericToEncoding defaultOptions
-deriving instance ToSchema a => ToSchema (DisplayObject a)
+deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
 instance ToJSON ShortHash where
    toEncoding = genericToEncoding defaultOptions
@@ -111,7 +111,7 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]
   , bestTermName :: HashQualifiedName
   , defnTermTag :: Maybe TermTag
-  , termDefinition :: DisplayObject SyntaxText
+  , termDefinition :: DisplayObject SyntaxText SyntaxText
   , signature :: SyntaxText
   , termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
@@ -120,7 +120,7 @@ data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName]
   , bestTypeName :: HashQualifiedName
   , defnTypeTag :: Maybe TypeTag
-  , typeDefinition :: DisplayObject SyntaxText
+  , typeDefinition :: DisplayObject SyntaxText SyntaxText
   , typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
