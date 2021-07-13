@@ -84,6 +84,7 @@ import Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
+import qualified Unison.UnisonFile as UF
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -602,7 +603,17 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
             fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
 
           typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
-          eval tm = undefined tm
+          eval tm = do
+            let ppes = PPE.suffixifiedPPE ppe
+            let codeLookup = Codebase.toCodeLookup codebase
+            let cache = Codebase.lookupWatchCache codebase
+            r <- Runtime.evaluateTerm' codeLookup cache ppes rt tm
+            lift $ case r of
+              Right tmr -> Codebase.putWatch codebase UF.RegularWatch (Term.hashClosedTerm tm)
+                                             (Term.amap (const Parser.External) tmr)
+              Left _ -> pure ()
+            pure $ r <&> Term.amap (const Parser.External)
+
           decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
           decls _ = pure Nothing
 
