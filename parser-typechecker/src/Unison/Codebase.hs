@@ -323,6 +323,11 @@ getTypeOfTerm c r = case r of
     pure $   fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
+getTypeOfReferent :: (BuiltinAnnotation a, Var v, Monad m)
+                  => Codebase m v a -> Referent.Referent -> m (Maybe (Type v a))
+getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
+getTypeOfReferent c (Referent.Con r cid _) =
+  getTypeOfConstructor c r cid
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.

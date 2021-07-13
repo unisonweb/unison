@@ -581,14 +581,39 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
       docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
         where docify n = Name.joinDot n "doc"
 
+      selectDocs :: [Referent] -> Backend m [Reference]
+      selectDocs rs = do
+        rts <- fmap join . for rs $ \case
+          Referent.Ref r ->
+            maybe [] (pure . (r,)) <$> lift (Codebase.getTypeOfTerm codebase r)
+          _ -> pure []
+        pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
+
+      renderDoc :: Reference -> Backend m [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      renderDoc r = do
+        let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        let hash = Reference.toText r
+        map (name,hash,) . maybe [] pure <$>
+          let tm = Term.ref () r
+          in runMaybeT (Doc.renderDoc @v ppe terms typeOf eval decls tm)
+        where
+          terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
+          terms (Reference.DerivedId r) =
+            fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+
+          typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+          eval tm = undefined tm
+          decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+          decls _ = pure Nothing
+
       docResults :: [Name] -> Backend m [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      docResults docs = fmap join . for docs $ \name ->
-        error "todo"
-        -- resolve each name to a reference
-        -- then lookup its type, make sure it's a Doc2
-        -- then need to load that definition
-        -- then call renderDoc
-        -- return the result
+      docResults docs = fmap join . for docs $ \name -> do
+        -- resolve each name to (0 or more) references
+        rs <- pure . Set.toList $ Names3.lookupHQTerm (HQ.NameOnly name) parseNames
+        -- lookup the type of each, make sure it's a doc
+        docs <- selectDocs rs
+        -- render all the docs
+        join <$> traverse renderDoc docs
 
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)

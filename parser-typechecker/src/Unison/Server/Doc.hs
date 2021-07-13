@@ -100,7 +100,7 @@ data SpecialForm
 -- `Src unfolded folded`
 data Src = Src SyntaxText SyntaxText deriving (Eq,Show,Generic)
 
-renderDoc :: forall m v . (Var v, Monad m)
+renderDoc :: forall v m . (Var v, Monad m)
           => PPE.PrettyPrintEnvDecl
           -> (Reference -> m (Maybe (Term v ())))
           -> (Referent -> m (Maybe (Type v ())))
