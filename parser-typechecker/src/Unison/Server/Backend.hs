@@ -86,6 +86,7 @@ import qualified Unison.Util.SyntaxText as SyntaxText
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -267,12 +268,18 @@ typeDeclHeader
   -> PPE.PrettyPrintEnv
   -> Reference
   -> Backend m (DisplayObject Syntax.SyntaxText)
-typeDeclHeader code ppe r = undefined code r ppe "todo"
--- prettyDeclOrBuiltinHeader
---   :: Var v
---   => HashQualified Name
---   -> DD.DeclOrBuiltin v a
---   -> Pretty SyntaxText
+typeDeclHeader code ppe r = case Reference.toId r of
+  Just rid ->
+    (lift $ Codebase.getTypeDeclaration code rid) <&> \case
+      Nothing -> DisplayObject.MissingObject (Reference.toShortHash r)
+      Just decl ->
+        DisplayObject.UserObject pretty
+        where
+          name = PPE.typeName ppe r
+          pretty = Syntax.convertElement <$>
+                   Pretty.render defaultWidth (DeclPrinter.prettyDeclHeader name decl)
+  Nothing ->
+    pure DisplayObject.BuiltinObject
 
 termEntryToNamedTerm
   :: Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
