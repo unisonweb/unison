@@ -9,7 +9,7 @@
 module Unison.Server.Backend where
 
 import Control.Lens (_2, over)
-import Control.Error.Util ((??))
+import Control.Error.Util ((??),hush)
 import Control.Monad.Except
   ( ExceptT (..),
     throwError,
@@ -25,6 +25,7 @@ import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
+import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.Runtime.IOSource as DD
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -542,10 +543,11 @@ prettyDefinitionsBySuffixes
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
+  -> Rt.Runtime v
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> Backend m DefinitionDisplayResults
-prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codebase query
+prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
   = do
     branch                               <- resolveBranchHash root codebase
     DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
@@ -606,13 +608,14 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
           eval tm = do
             let ppes = PPE.suffixifiedPPE ppe
             let codeLookup = Codebase.toCodeLookup codebase
-            let cache = Codebase.lookupWatchCache codebase
-            r <- Runtime.evaluateTerm' codeLookup cache ppes rt tm
+            let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+            r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
             lift $ case r of
-              Right tmr -> Codebase.putWatch codebase UF.RegularWatch (Term.hashClosedTerm tm)
-                                             (Term.amap (const Parser.External) tmr)
-              Left _ -> pure ()
-            pure $ r <&> Term.amap (const Parser.External)
+              Just tmr -> Codebase.putWatch codebase UF.RegularWatch
+                             (Term.hashClosedTerm tm)
+                             (Term.amap (const mempty) tmr)
+              Nothing -> pure ()
+            pure $ r <&> Term.unannotate
 
           decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
           decls _ = pure Nothing
