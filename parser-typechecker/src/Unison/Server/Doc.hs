@@ -97,7 +97,7 @@ data SpecialForm
   | EmbedInline SyntaxText
   deriving (Eq,Show,Generic)
 
--- `Src unfolded folded`
+-- `Src folded unfolded`
 data Src = Src SyntaxText SyntaxText deriving (Eq,Show,Generic)
 
 renderDoc :: forall v m . (Var v, Monad m)
