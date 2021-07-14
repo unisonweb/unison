@@ -301,10 +301,6 @@ termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
   , termTag  = tag
   }
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
-formatType ppe w =
-  fmap Syntax.convertElement . Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
-
 typeEntryToNamedType :: TypeEntry -> NamedType
 typeEntryToNamedType (TypeEntry r name tag) = NamedType
   { typeName = HQ'.toText name
@@ -551,17 +547,20 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
-prettyType
+formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> UST.SyntaxText
+formatType' ppe w =
+  Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
+
+formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
+formatType ppe w = mungeSyntaxText . formatType' ppe w
+
+formatSuffixedType
   :: Var v
-  => Width
-  -> PPE.PrettyPrintEnvDecl
+  => PPE.PrettyPrintEnvDecl
+  -> Width
   -> Type v Ann
   -> Syntax.SyntaxText
-prettyType width ppe =
-  mungeSyntaxText . Pretty.render width . TypePrinter.pretty0
-    (PPE.suffixifiedPPE ppe)
-    mempty
-    (-1)
+formatSuffixedType ppe = formatType (PPE.suffixifiedPPE ppe)
 
 mungeSyntaxText
   :: Functor g => g (UST.Element Reference) -> g Syntax.Element
@@ -651,12 +650,14 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
           decls _ = pure Nothing
 
-      docResults :: [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      docResults docs = fmap join . for docs $ \name -> do
+      -- rs0 can be empty or the term fetched, so when viewing a doc term
+      -- you get both its source and its rendered form
+      docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults rs0 docs = fmap join . for docs $ \name -> do
         -- resolve each name to (0 or more) references
         rs <- pure . Set.toList $ Names3.lookupHQTerm (HQ.NameOnly name) parseNames
         -- lookup the type of each, make sure it's a doc
-        docs <- selectDocs rs
+        docs <- selectDocs (map Referent.Ref rs0 <> rs)
         -- render all the docs
         join <$> traverse renderDoc docs
 
@@ -667,7 +668,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        docs <- docResults [r] $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
         mk docs ts bn tag
        where
         mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -677,7 +678,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                              bn
                              tag
                              (bimap mungeSyntaxText mungeSyntaxText tm)
-                             (prettyType width ppe typeSig)
+                             (formatSuffixedType ppe width typeSig)
                              docs
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
@@ -685,7 +686,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults $ docNames (Names3.typeName hqLength r printNames)
+        docs <- docResults [] $ docNames (Names3.typeName hqLength r printNames)
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag
@@ -802,7 +803,8 @@ termsToSyntax suff width ppe0 terms =
   ppeDecl =
     (if suffixified suff then PPE.suffixifiedPPE else PPE.unsuffixifiedPPE) ppe0
   go ((n, r), dt) = (r,) $ case dt of
-    DisplayObject.BuiltinObject _ -> error "todo" undefined
+    DisplayObject.BuiltinObject typ -> DisplayObject.BuiltinObject $
+      formatType' (ppeBody r) width typ
     DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
     DisplayObject.UserObject tm -> DisplayObject.UserObject .
       Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n $ tm
