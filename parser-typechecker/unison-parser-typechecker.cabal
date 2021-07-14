@@ -79,7 +79,6 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.TypeEdit
       Unison.Codebase.Watch
-      Unison.Codecs
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.InputPattern
