@@ -26,6 +26,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Decls as Decls
@@ -108,7 +109,10 @@ renderDoc :: forall v m . (Var v, Monad m)
           -> (Reference -> m (Maybe (DD.Decl v ())))
           -> Term v ()
           -> MaybeT m Doc
-renderDoc pped terms typeOf eval types = go where
+renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
+  Nothing -> mzero
+  Just tm -> go tm
+  where
   go = \case
     DD.Doc2Word txt -> pure $ Word txt
     DD.Doc2Code d -> Code <$> go d
@@ -141,7 +145,8 @@ renderDoc pped terms typeOf eval types = go where
     DD.Doc2UntitledSection ds -> UntitledSection <$> traverse go ds
     DD.Doc2Column ds -> Column <$> traverse go ds
     DD.Doc2Group d -> Group <$> go d
-    _ -> mzero
+    wat -> pure . Word . Text.pack . P.toPlain (P.Width 80) . P.indent "🆘  "
+                . TermPrinter.pretty (PPE.suffixifiedPPE pped) $ wat
 
   formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
   formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)

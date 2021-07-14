@@ -656,10 +656,8 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       docResults rs0 docs = do
         let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
-        traceM $ "rs: " <> show rs
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
-        traceM $ "docs 2: " <> show docs
         -- render all the docs
         join <$> traverse renderDoc docs
 
