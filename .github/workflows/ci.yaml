@@ -41,9 +41,9 @@ jobs:
             unison-core/.stack-work
             yaks/easytest/.stack-work
             # Main cache key: commit hash. This should always result in a cache miss...
-          key: stack-work-0_${{matrix.os}}-${{github.sha}}
+          key: stack-work-1_${{matrix.os}}-${{github.sha}}
           # ...but then fall back on the latest cache stored (on this branch)
-          restore-keys: stack-work-0_${{matrix.os}}-
+          restore-keys: stack-work-1_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.

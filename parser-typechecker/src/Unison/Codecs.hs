@@ -315,7 +315,6 @@ serializeReference ref = case ref of
     putByteString bs
     putLength i
     putLength n
-  _ -> error "impossible"
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
 serializeConstructorArities r constructorArities = do
