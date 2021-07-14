@@ -14,7 +14,7 @@ import Control.Monad.Except
   ( ExceptT (..),
     throwError,
   )
-import Data.Bifunctor (first)
+import Data.Bifunctor (first,bimap)
 import Data.List.Extra (nubOrd)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -262,7 +262,8 @@ typeListEntry codebase r n = do
   pure $ TypeEntry r n tag
 
 typeDeclHeader
-  :: Monad m
+  :: forall v m
+   . Monad m
   => Var v
   => Codebase m v Ann
   -> PPE.PrettyPrintEnv
@@ -281,9 +282,12 @@ typeDeclHeader code ppe r = case Reference.toId r of
   where
     name = PPE.typeName ppe r
 
-formatTypeName :: Var v => PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
-formatTypeName ppe r =
-  fmap Syntax.convertElement .
+formatTypeName :: PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
+formatTypeName ppe =
+  fmap Syntax.convertElement . formatTypeName' ppe
+
+formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> UST.SyntaxText
+formatTypeName' ppe r =
   Pretty.renderUnbroken .
   NP.styleHashQualified id $
   PPE.typeName ppe r
@@ -672,7 +676,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
             TermDefinition (flatten $ Map.lookup r termFqns)
                              bn
                              tag
-                             (fmap mungeSyntaxText tm)
+                             (bimap mungeSyntaxText mungeSyntaxText tm)
                              (prettyType width ppe typeSig)
                              docs
       mkTypeDefinition r tp = do
@@ -685,7 +689,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag
-                              (fmap mungeSyntaxText tp)
+                              (bimap mungeSyntaxText mungeSyntaxText tp)
                               docs
     typeDefinitions <- Map.traverseWithKey mkTypeDefinition
       $ typesToSyntax suffixifyBindings width ppe types
@@ -810,7 +814,7 @@ typesToSyntax
   -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject () (DD.Decl v a))
-  -> Map Reference.Reference (DisplayObject () UST.SyntaxText)
+  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
 typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)
@@ -822,16 +826,11 @@ typesToSyntax suff width ppe0 types =
   ppeDecl = if suffixified suff
     then PPE.suffixifiedPPE ppe0
     else PPE.unsuffixifiedPPE ppe0
-  go ((n, r), dt) =
-    ( r
-    , (\case
-        Left d ->
-          Pretty.render width $ DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-        Right d ->
-          Pretty.render width $ DeclPrinter.prettyDataDecl (ppeBody r) r n d
-      )
-      <$> dt
-    )
+  go ((n, r), dt) = (r,) $ case dt of
+    BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
+    MissingObject sh -> MissingObject sh
+    UserObject d -> UserObject . Pretty.render width $
+      DeclPrinter.prettyDecl (ppeBody r) r n d
 
 loadSearchResults
   :: (Var v, Applicative m)

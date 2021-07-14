@@ -1357,7 +1357,7 @@ loop = do
               in  case t of
                     HQ.HashOnly h ->
                       hashConflicted h rs'
-                    (Path.parseHQSplit' . HQ.toString -> Right n) -> 
+                    (Path.parseHQSplit' . HQ.toString -> Right n) ->
                       termConflicted n rs'
                     _ -> respond . BadName $ HQ.toString t
 
@@ -2666,7 +2666,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
 
 loadDisplayInfo ::
   Set Reference -> Action m i v ([(Reference, Maybe (Type v Ann))]
-                                ,[(Reference, DisplayObject (DD.Decl v Ann))])
+                                ,[(Reference, DisplayObject () (DD.Decl v Ann))])
 loadDisplayInfo refs = do
   termRefs <- filterM (eval . IsTerm) (toList refs)
   typeRefs <- filterM (eval . IsType) (toList refs)
@@ -2698,9 +2698,9 @@ makeHistoricalParsingNames lexedHQs = do
                  fixupNamesRelative currentPath rawHistoricalNames)
 
 loadTypeDisplayObject
-  :: Reference -> Action m i v (DisplayObject (DD.Decl v Ann))
+  :: Reference -> Action m i v (DisplayObject () (DD.Decl v Ann))
 loadTypeDisplayObject = \case
-  Reference.Builtin _ -> pure BuiltinObject
+  Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> eval (LoadType id)

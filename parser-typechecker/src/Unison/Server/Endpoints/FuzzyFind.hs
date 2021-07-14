@@ -106,7 +106,7 @@ data FoundTerm = FoundTerm
 
 data FoundType = FoundType
   { bestFoundTypeName :: HashQualifiedName
-  , typeDef :: DisplayObject SyntaxText
+  , typeDef :: DisplayObject SyntaxText SyntaxText
   , namedType :: NamedType
   } deriving (Generic, Show)
 
