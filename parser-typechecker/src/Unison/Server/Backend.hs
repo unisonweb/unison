@@ -653,11 +653,13 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       -- rs0 can be empty or the term fetched, so when viewing a doc term
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      docResults rs0 docs = fmap join . for docs $ \name -> do
-        -- resolve each name to (0 or more) references
-        rs <- pure . Set.toList $ Names3.lookupHQTerm (HQ.NameOnly name) parseNames
+      docResults rs0 docs = do
+        let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
+        let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
+        traceM $ "rs: " <> show rs
         -- lookup the type of each, make sure it's a doc
-        docs <- selectDocs (map Referent.Ref rs0 <> rs)
+        docs <- selectDocs (toList rs)
+        traceM $ "docs 2: " <> show docs
         -- render all the docs
         join <$> traverse renderDoc docs
 
