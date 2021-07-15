@@ -10,7 +10,6 @@
 module Unison.Server.Doc where
 
 import Control.Monad
-import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.Foldable
 import Data.Functor
@@ -108,9 +107,9 @@ renderDoc :: forall v m . (Var v, Monad m)
           -> (Term v () -> m (Maybe (Term v ())))
           -> (Reference -> m (Maybe (DD.Decl v ())))
           -> Term v ()
-          -> MaybeT m Doc
-renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
-  Nothing -> mzero
+          -> m Doc
+renderDoc pped terms typeOf eval types tm = eval tm >>= \case
+  Nothing -> pure $ Word "🆘 doc rendering failed during evaluation"
   Just tm -> go tm
   where
   go = \case
@@ -132,7 +131,7 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
     DD.Doc2Callout (Decls.OptionalSome' icon) d -> Callout <$> (Just <$> go icon) <*> go d
     DD.Doc2Table rows -> Table <$> traverse r rows
       where r (Term.List' ds) = traverse go (toList ds)
-            r _ = mzero
+            r _ = pure [Word "🆘 invalid table"]
     DD.Doc2Folded isFolded d d2 -> Folded isFolded <$> go d <*> go d2
     DD.Doc2Paragraph ds -> Paragraph <$> traverse go ds
     DD.Doc2BulletedList ds -> BulletedList <$> traverse go ds
@@ -151,18 +150,18 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
   formatPretty = fmap Syntax.convertElement . P.render (P.Width 70)
   formatPrettyType ppe typ = formatPretty (TypePrinter.prettySyntax ppe typ)
 
-  source :: Term v () -> MaybeT m SyntaxText
+  source :: Term v () -> m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
 
-  goSignatures :: [Referent] -> MaybeT m [P.Pretty S.SyntaxText]
-  goSignatures rs = lift $ runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
+  goSignatures :: [Referent] -> m [P.Pretty S.SyntaxText]
+  goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
       TypePrinter.prettySignatures''
         (PPE.suffixifiedPPE pped)
         [ (PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
 
-  goSpecial :: Term v () -> MaybeT m SpecialForm
+  goSpecial :: Term v () -> m SpecialForm
   goSpecial = \case
 
     DD.Doc2SpecialFormFoldedSource (Term.List' es) -> FoldedSource <$> goSrc (toList es)
@@ -203,12 +202,12 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
       goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
 
     -- Eval Doc2.Term
-    DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> lift (eval tm) >>= \case
+    DD.Doc2SpecialFormEval (DD.Doc2Term tm) -> eval tm >>= \case
       Nothing -> Eval <$> source tm <*> pure evalErrMsg
       Just result -> Eval <$> source tm <*> source result
 
     -- EvalInline Doc2.Term
-    DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> lift (eval tm) >>= \case
+    DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> eval tm >>= \case
       Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
       Just result -> EvalInline <$> source tm <*> source result
 
@@ -224,19 +223,19 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
 
   evalErrMsg = "🆘  An error occured during evaluation"
 
-  goSrc :: [Term v ()] -> MaybeT m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
+  goSrc :: [Term v ()] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
   goSrc es = do
     let toRef (Term.Ref' r) = Set.singleton r
         toRef (Term.RequestOrCtor' r _) = Set.singleton r
         toRef _ = mempty
         ppe = PPE.suffixifiedPPE pped
-        goType :: Reference -> MaybeT m (Ref (UnisonHash, DisplayObject SyntaxText Src))
+        goType :: Reference -> m (Ref (UnisonHash, DisplayObject SyntaxText Src))
         goType r@(Reference.Builtin _) =
           pure (Type (Reference.toText r, DO.BuiltinObject name))
           where name = formatPretty . NP.styleHashQualified (NP.fmt (S.Reference r))
                      . PPE.typeName ppe $ r
         goType r = Type . (Reference.toText r,) <$> do
-          d <- lift (types r)
+          d <- types r
           case d of
             Nothing -> pure (DO.MissingObject (SH.unsafeFromText $ Reference.toText r))
             Just decl ->
@@ -247,7 +246,7 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
 
         go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])
            -> Term v ()
-           -> MaybeT m (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])
+           -> m (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])
         go s1@(!seen,!acc) = \case
           -- we ignore the annotations; but this could be extended later
           DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term tm), _anns] ->
@@ -255,13 +254,13 @@ renderDoc pped terms typeOf eval types tm = lift (eval tm) >>= \case
             where
             acc' = case tm of
               Term.Ref' r | Set.notMember r seen -> (:acc) . Term . (Reference.toText r,) <$> case r of
-                Reference.Builtin _ -> lift (typeOf (Referent.Ref r)) <&> \case
+                Reference.Builtin _ -> typeOf (Referent.Ref r) <&> \case
                   Nothing -> DO.BuiltinObject ("🆘 missing type signature")
                   Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
-                ref -> lift (terms ref) >>= \case
+                ref -> terms ref >>= \case
                   Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
                   Just tm -> do
-                    typ <- fromMaybe (Type.builtin() "unknown") <$> lift (typeOf (Referent.Ref ref))
+                    typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
                     let full = formatPretty (TermPrinter.prettyBinding ppe name tm)
                     let folded = formatPretty . P.lines $ TypePrinter.prettySignatures'' ppe [(name, typ)]

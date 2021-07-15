@@ -626,9 +626,9 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       renderDoc r = do
         let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
         let hash = Reference.toText r
-        map (name,hash,) . maybe [] pure <$>
+        map (name,hash,) . pure <$>
           let tm = Term.ref () r
-          in runMaybeT (Doc.renderDoc @v ppe terms typeOf eval decls tm)
+          in Doc.renderDoc @v ppe terms typeOf eval decls tm
         where
           terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
           terms (Reference.DerivedId r) =
