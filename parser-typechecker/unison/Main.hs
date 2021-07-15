@@ -45,6 +45,7 @@ import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.Parser (Ann)
 import Unison.Prelude
+import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Server.CodebaseServer as Server
@@ -185,8 +186,9 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
         Right contents -> do
           (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
+          rt <- RTI.startRuntime
           let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+          launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "run.pipe" : [mainName] -> do
       e <- safeReadUtf8StdIn
@@ -194,9 +196,10 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
+          rt <- RTI.startRuntime
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
-            currentDir config theCodebase
+            currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
     "transcript" : args' ->
@@ -211,7 +214,8 @@ main = do
     args -> do
       let headless = listToMaybe args == Just "headless"
       (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
-      Server.start theCodebase $ \token port -> do
+      runtime <- RTI.startRuntime
+      Server.start runtime theCodebase $ \token port -> do
         let url =
              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
         when headless $
@@ -229,7 +233,7 @@ main = do
           takeMVar mvar
         else do
           PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
-          launch currentDir config theCodebase []
+          launch currentDir config runtime theCodebase []
           closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
@@ -338,11 +342,12 @@ initialPath = Path.absoluteEmpty
 launch
   :: FilePath
   -> (Config, IO ())
-  -> _
+  -> Rt.Runtime Symbol
+  -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
   -> IO ()
-launch dir config code inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs code Version.gitDescribe
+launch dir config rt code inputs =
+  CommandLine.main dir defaultBaseLib initialPath config inputs rt code Version.gitDescribe
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

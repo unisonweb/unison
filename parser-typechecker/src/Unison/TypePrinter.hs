@@ -23,7 +23,10 @@ import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
 
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
+pretty ppe = PP.syntaxToColor . prettySyntax ppe
+
+prettySyntax :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
+prettySyntax ppe = pretty0 ppe mempty (-1)
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
 pretty' (Just width) n t =
@@ -143,7 +146,13 @@ prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified Name, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = map PP.syntaxToColor $ PP.align
+prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
+
+prettySignatures''
+  :: Var v => PrettyPrintEnv
+  -> [(HashQualified Name, Type v a)]
+  -> [Pretty SyntaxText]
+prettySignatures'' env ts = PP.align
   [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "

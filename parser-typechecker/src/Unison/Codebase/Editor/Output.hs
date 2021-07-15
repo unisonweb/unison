@@ -158,8 +158,8 @@ data Output v
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnvDecl
-                       (Map Reference (DisplayObject (Decl v Ann)))
-                       (Map Reference (DisplayObject (Term v Ann)))
+                       (Map Reference (DisplayObject () (Decl v Ann)))
+                       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -181,8 +181,8 @@ data Output v
   | ConfiguredGitUrlParseError PushPull Path' Text String
   | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayObject (Decl v Ann)))
-               (Map Reference (DisplayObject (Term v Ann)))
+               (Map Reference (DisplayObject () (Decl v Ann)))
+               (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]

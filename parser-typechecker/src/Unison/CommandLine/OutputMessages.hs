@@ -1141,8 +1141,8 @@ formatMissingStuff terms types =
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
@@ -1156,12 +1156,14 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
   go ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject typ ->
+        P.hang ("builtin " <> prettyHashQualified n <> " :")
+               (TypePrinter.prettySyntax (ppeBody r) typ)
       UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject _ -> builtin n
       UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
         Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
@@ -1199,8 +1201,8 @@ displayRendered outputLoc pp =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> IO Pretty
 displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
@@ -1307,17 +1309,17 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayObject (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinObject -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
+   BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
    MissingObject _ -> mempty -- these need to be handled elsewhere
    UserObject decl -> case decl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 prettyDeclPair :: Var v =>
-  PPE.PrettyPrintEnv -> (Reference, DisplayObject (DD.Decl v a))
+  PPE.PrettyPrintEnv -> (Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 

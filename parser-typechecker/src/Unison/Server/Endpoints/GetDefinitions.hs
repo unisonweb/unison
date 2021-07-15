@@ -24,6 +24,7 @@ import Servant.Docs
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
@@ -108,6 +109,7 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions
   :: Var v
   => Handler ()
+  -> Rt.Runtime v
   -> Codebase IO v Ann
   -> Maybe ShortBranchHash
   -> Maybe HashQualifiedName
@@ -115,7 +117,7 @@ serveDefinitions
   -> Maybe Width
   -> Maybe Suffixify
   -> Handler (APIHeaders DefinitionDisplayResults)
-serveDefinitions h codebase mayRoot relativePath hqns width suff =
+serveDefinitions h rt codebase mayRoot relativePath hqns width suff =
   addHeaders <$> do
     h
     rel <-
@@ -126,6 +128,7 @@ serveDefinitions h codebase mayRoot relativePath hqns width suff =
                                           root
                                           width
                                           (fromMaybe (Suffixify True) suff)
+                                          rt
                                           codebase
         $   HQ.unsafeFromText
         <$> hqns
