@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3bad1e2687a54aa39423bfd2dc30d8c1ccc8a42b88eb9e10f78cb4c858e92340
+-- hash: a62b0e8dbabe51c01ebc0871290e2427a734c0fbf9e78aee138b2bdad34d2704
 
 name:           unison-codebase-sync
 version:        0.0.0
@@ -25,22 +25,4 @@ library
       ./
   build-depends:
       base
-    , bytes
-    , bytestring
-    , containers
-    , extra
-    , here
-    , lens
-    , monad-validate
-    , mtl
-    , sqlite-simple
-    , text
-    , transformers
-    , unison-codebase
-    , unison-core
-    , unison-util
-    , unison-util-serialization
-    , unison-util-term
-    , unliftio
-    , vector
   default-language: Haskell2010
