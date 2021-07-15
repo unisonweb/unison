@@ -34,7 +34,7 @@ import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Editor.Input as Input
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
 import qualified Unison.Codebase.FileCodebase as FC
@@ -361,7 +361,7 @@ isFlag f arg = arg == f || arg == "-" ++ f || arg == "--" ++ f
 getConfigFilePath :: Maybe FilePath -> IO FilePath
 getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseDir mcodepath
 
-defaultBaseLib :: Maybe RemoteNamespace
+defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
 

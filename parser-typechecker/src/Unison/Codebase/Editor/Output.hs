@@ -22,7 +22,7 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path', Path)
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
@@ -79,7 +79,7 @@ data NumberedOutput v
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   -- <authorIdentifier> <authorPath> <relativeBase>
   | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
@@ -98,7 +98,7 @@ data Output v
   | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -179,7 +179,6 @@ data Output v
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
-  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayObject (Decl v Ann)))
                (Map Reference (DisplayObject (Term v Ann)))
@@ -194,7 +193,7 @@ data Output v
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | PullAlreadyUpToDate RemoteNamespace Path'
+  | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   -- | No conflicts or edits remain for the current patch.
@@ -299,7 +298,6 @@ isFailure o = case o of
   ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
-  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   MetadataMissingType{} -> True
   MetadataAmbiguous{} -> True

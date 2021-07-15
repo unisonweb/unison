@@ -10,7 +10,7 @@ import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.FilePath ((</>))
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo (GitRepo))
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo (ReadGitRepo))
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Util.Exception as Ex
@@ -56,12 +56,8 @@ withStatus str ma = do
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadIO m, MonadCatch m, MonadError GitError m) => RemoteRepo -> m CodebasePath
-pullBranch (GitRepo _uri (Just t)) = error $
-  "Pulling a specific commit isn't fully implemented or tested yet.\n" ++
-  "InputPatterns.parseUri was expected to have prevented you " ++
-  "from supplying the git treeish `" ++ Text.unpack t ++ "`!"
-pullBranch repo@(GitRepo uri Nothing) = do
+pullBranch :: (MonadIO m, MonadCatch m, MonadError GitError m) => ReadRepo -> m CodebasePath
+pullBranch repo@(ReadGitRepo uri) = do
   checkForGit
   localPath <- tempGitDir uri
   ifM (doesDirectoryExist localPath)

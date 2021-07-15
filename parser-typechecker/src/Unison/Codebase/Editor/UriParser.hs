@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Editor.UriParser (repoPath) where
+module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
 
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -9,7 +9,7 @@ import Data.Text as Text
 
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo(..), RemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadGitRepo), WriteRemotePath, WriteRepo (WriteGitRepo))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Prelude
 import qualified Unison.Hash as Hash
@@ -31,16 +31,29 @@ type P = P.Parsec () Text
 -- SSH Protocol
 -- $ git clone ssh://[user@]server/project.git[:treeish][:[#hash][.path]]
 -- $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
--- Git Protocol (obsolete)
-repoPath :: P RemoteNamespace
+repoPath :: P ReadRemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  let repo = GitRepo (printProtocol protocol) treeish
-  nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
-  case nshashPath of
-    Nothing -> pure (repo, Nothing, Path.empty)
-    Just (sbh, p) -> pure (repo, sbh, p)
+  case treeish of
+    Just t -> fail $ "Specifying a git 'commit-ish' (" ++ Text.unpack t ++ ") is not currently supported."
+      ++ " " ++ "If you need this, add your 2¢ at https://github.com/unisonweb/unison/issues/1436."
+    Nothing -> do
+      let repo = ReadGitRepo (printProtocol protocol)
+      nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
+      case nshashPath of
+        Nothing -> pure (repo, Nothing, Path.empty)
+        Just (sbh, p) -> pure (repo, sbh, p)
+
+writeRepo :: P WriteRepo
+writeRepo = P.label "repo root for writing" $ do
+  WriteGitRepo . printProtocol <$> parseProtocol
+
+writeRepoPath :: P WriteRemotePath
+writeRepoPath = P.label "generic git repo" $ do
+  repo <- writeRepo
+  path <- P.optional (C.char ':' *> absolutePath)
+  pure (repo, fromMaybe Path.empty path)
 
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text
@@ -141,16 +154,17 @@ parseProtocol = P.label "parseProtocol" $
 namespaceHashPath :: P (Maybe ShortBranchHash, Path)
 namespaceHashPath = do
   sbh <- P.optional shortBranchHash
-  p <- P.optional $ do
-    void $ C.char '.'
+  p <- P.optional absolutePath
+  pure (sbh, fromMaybe Path.empty p)
+
+absolutePath :: P Path
+absolutePath = do
+  void $ C.char '.'
+  Path . Seq.fromList . fmap (NameSegment . Text.pack) <$>
     P.sepBy1
       ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))
       (C.char '.')
-  case p of
-    Nothing -> pure (sbh, Path.empty)
-    Just p  -> pure (sbh, makePath p)
-  where makePath = Path . Seq.fromList . fmap (NameSegment . Text.pack)
 
 treeishSuffix :: P Text
 treeishSuffix = P.label "git treeish" . P.try $ do
