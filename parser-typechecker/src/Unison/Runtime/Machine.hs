@@ -902,6 +902,18 @@ uprim2 !ustk LEQN !i !j = do
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
   pure ustk
+uprim2 !ustk DIVN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`div`n)
+  pure ustk
+uprim2 !ustk MODN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`mod`n)
+  pure ustk
 uprim2 !ustk ADDF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
