@@ -91,6 +91,8 @@ test> Nat.tests.arithmetic =
         10 / 5 == 2,
         10 `mod` 3 == 1,
         10 `mod` 2 == 0,
+        18446744073709551615 / 2 == 9223372036854775807,
+        18446744073709551615 `mod` 2 == 1,
         increment 99 == 100,
         not (isEven 99),
         isEven 100,
@@ -101,7 +103,7 @@ test> Nat.tests.arithmetic =
         43 `lteq` 43,
         43 `lteq` 44,
         43 `gteq` 43,
-        43 `gteq` 41
+        43 `gteq` 41,
         ]
 
 test> Nat.tests.bitTwiddling =
