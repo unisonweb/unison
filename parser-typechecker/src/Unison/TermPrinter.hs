@@ -27,6 +27,7 @@ import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
 import           Unison.Pattern                 ( Pattern )
 import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Referent                ( Referent )
 import qualified Unison.Util.SyntaxText        as S
@@ -1380,11 +1381,22 @@ toDocVerbatim _ _ = Nothing
 toDocEval :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocEval ppe (App' (Ref' r) (Delay' tm))
   | nameEndsWith ppe ".docEval" r = Just tm
+  | r == _oldDocEval = Just tm
 toDocEval _ _ = Nothing
+
+-- Old hashes for docEval, docEvalInline w/ incorrect type signatures.
+-- They are still used by some existing docs so the pretty-printer
+-- recognizes it.
+--
+-- See https://github.com/unisonweb/unison/issues/2238
+_oldDocEval, _oldDocEvalInline :: Reference
+_oldDocEval = Reference.unsafeFromText "#0ua7gqa7kqnj80ulhmtcqsfgalmh4g9kg198dt2uen0s0jeebbo4ljnj4133cn1kbm38i2q3joivodtfei3jfln5scof0r0381k8dm0"
+_oldDocEvalInline = Reference.unsafeFromText "#maleg6fmu3j0k0vgm99lgrsnhio3ba750hcainuv5jdi9scdsg43hpicmf6lovsa0mnaija7bjebnr5nas3qsj4r087hur1jh0rsfso"
 
 toDocEvalInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocEvalInline ppe (App' (Ref' r) (Delay' tm))
   | nameEndsWith ppe ".docEvalInline" r = Just tm
+  | r == _oldDocEvalInline = Just tm
 toDocEvalInline _ _ = Nothing
 
 toDocExample, toDocExampleBlock :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
