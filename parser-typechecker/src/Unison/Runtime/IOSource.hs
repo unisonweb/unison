@@ -591,7 +591,9 @@ syntax.docEmbedSignatureLink tm =
 syntax.docCode c = Code c
 syntax.docCodeBlock typ c = CodeBlock typ (docWord c)
 syntax.docVerbatim c = CodeBlock "raw" c
+syntax.docEval : '{} a -> Doc2
 syntax.docEval d = Special (Eval (Doc2.term d))
+syntax.docEvalInline : '{} a -> Doc2
 syntax.docEvalInline a = Special (EvalInline (Doc2.term a))
 syntax.docExample n a = Special (Example n (Doc2.term a))
 syntax.docExampleBlock n a = Special (ExampleBlock n (Doc2.term a))
