@@ -88,6 +88,7 @@ data Codebase m v a =
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
            , viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
            , pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ())
+           , exportRemoteBranch :: WriteRepo -> Branch m -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`

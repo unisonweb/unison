@@ -407,6 +407,21 @@ CallStack (from HasCallStack):
       .> view pulled.foo.bar.builtin.Nat2
       .> view pulled.foo.bar.builtin.Int2
       ```
+    |]),
+  pushPullTest "pr.create" fmt
+    (\repo -> [i|
+      ```ucm
+      .library> alias.type ##Nat Nat
+      .library> push ${repo}
+      .> fork library library_feature
+      .library_feature> alias.type ##Int Int
+      .library_feature> pr.create .library_feature .library ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .prs.feature> pr.load ${repo}
+      ```
     |])
 
           -- m [Reference.Id]

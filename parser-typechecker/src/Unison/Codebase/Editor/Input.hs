@@ -52,8 +52,8 @@ data Input
     | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
-    | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
+    | CreatePullRequestI Path' Path' WriteRepo
+    | LoadPullRequestI ReadRemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?

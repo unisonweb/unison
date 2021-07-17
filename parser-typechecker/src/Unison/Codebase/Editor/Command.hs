@@ -185,6 +185,9 @@ data Command m i v a where
   ImportRemoteBranch ::
     ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
+  ExportRemoteBranch ::
+    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -270,6 +273,7 @@ commandName = \case
   Merge{}                     -> "Merge"
   ViewRemoteBranch{}          -> "ViewRemoteBranch"
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
+  ExportRemoteBranch{}        -> "ExportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
   SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
   AppendToReflog{}            -> "AppendToReflog"
