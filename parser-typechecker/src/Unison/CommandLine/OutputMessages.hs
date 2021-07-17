@@ -296,8 +296,7 @@ notifyUser dir o = case o of
       , P.wrap $ "Once you find one you like, you can use the"
           <> makeExample' IP.resetRoot <> "command to set it."
       ]
-  LoadPullRequest publishedNS basePath _headPath mergedPath squashedPath ->
-    pure $ P.lines
+  LoadPullRequest publishedNS basePath _headPath mergedPath squashedPath -> pure $ P.lines
     [ P.wrap $ "I checked out the pull request" <> prettyRemoteNamespace publishedNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , ""
     , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")

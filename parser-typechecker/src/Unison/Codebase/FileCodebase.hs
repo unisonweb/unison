@@ -290,6 +290,20 @@ viewRemoteBranch' cache (repo, sbh, path) = do
         _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
   pure (Branch.getAt' path branch, remotePath)
 
+-- this this branch and all of its dependencies to `repo`
+exportRemoteBranch ::
+  (MonadIO m, MonadCatch m) =>
+  (CodebasePath -> SyncMode -> Branch m -> m ()) ->
+  WriteRepo ->
+  Branch m ->
+  SyncMode ->
+  ExceptT GitError m ()
+exportRemoteBranch syncToDirectory repo branch syncMode = do
+  -- Pull the remote repo into a staging directory
+  remotePath <- time "Git fetch" $ pullBranch (writeToRead repo)
+  stageAndPush syncToDirectory repo branch syncMode (SetAsRoot False) remotePath
+    ("Sync anonymous branch " <> Text.pack (show $ headHash branch))
+
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch
@@ -310,34 +324,6 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
     (stageAndPush syncToDirectory repo branch syncMode (SetAsRoot True) remotePath
       ("Sync root branch " <> Text.pack (show $ headHash branch)))
     (throwError $ GitError.PushDestinationHasNewStuff repo)
-
--- Commit our changes
-push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
-push remotePath (WriteGitRepo url) commitMsg = do
-  -- has anything changed?
-  status <- gitTextIn remotePath ["status", "--short"]
-  if Text.null status then
-    pure False
-  else do
-    gitIn remotePath ["add", "--all", "."]
-    gitIn remotePath
-      ["commit", "-q", "-m", commitMsg]
-    -- Push our changes to the repo
-    gitIn remotePath ["push", "--quiet", url]
-    pure True
-
-exportRemoteBranch ::
-  (MonadIO m, MonadCatch m) =>
-  (CodebasePath -> SyncMode -> Branch m -> m ()) ->
-  WriteRepo ->
-  Branch m ->
-  SyncMode ->
-  ExceptT GitError m ()
-exportRemoteBranch syncToDirectory repo branch syncMode = do
-  -- Pull the remote repo into a staging directory
-  remotePath <- time "Git fetch" $ pullBranch (writeToRead repo)
-  stageAndPush syncToDirectory repo branch syncMode (SetAsRoot False) remotePath
-    ("Sync anonymous branch " <> Text.pack (show $ headHash branch))
 
 newtype SetAsRoot = SetAsRoot Bool
 
@@ -362,3 +348,18 @@ stageAndPush syncToDirectory repo branch syncMode setAsRoot remotePath commitMsg
       (push remotePath repo commitMsg
         `withIOError` (throwError . GitError.PushException repo . show))
       (throwError $ GitError.PushNoOp repo)
+
+-- Commit our changes
+push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
+push remotePath (WriteGitRepo url) commitMsg = do
+  -- has anything changed?
+  status <- gitTextIn remotePath ["status", "--short"]
+  if Text.null status then
+    pure False
+  else do
+    gitIn remotePath ["add", "--all", "."]
+    gitIn remotePath
+      ["commit", "-q", "-m", commitMsg]
+    -- Push our changes to the repo
+    gitIn remotePath ["push", "--quiet", url]
+    pure True
