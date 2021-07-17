@@ -832,46 +832,45 @@ pushExhaustive = InputPattern
 
 createPullRequest :: InputPattern
 createPullRequest = InputPattern "pull-request.create" ["pr.create"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, pathArg), (Required, pathArg), (Required, gitUrlArg)]
   (P.group $ P.lines
-    [ P.wrap $ makeExample createPullRequest ["base", "head"]
-        <> "will generate a request to merge the remote repo `head`"
-        <> "into the remote repo `base`."
+    [ P.wrap $ makeExample createPullRequest ["src", "dest", "repo"]
+        <> "will generate a request to merge `src` into `dest`,"
+        <> "and publish it to the git repo `repo`."
     , ""
     , "example: " <>
-      makeExampleNoBackticks createPullRequest ["https://github.com/unisonweb/base:.trunk",
-                                                "https://github.com/me/unison:.prs.base._myFeature" ]
+      makeExampleNoBackticks createPullRequest ["my_new_feature29", "current_trunk",
+                                                "https://github.com/me/unison" ]
     ])
   (\case
-    [baseUrl, headUrl] -> do
-      baseRepo <- parseUri "baseRepo" baseUrl
-      headRepo <- parseUri "headRepo" headUrl
-      pure $ Input.CreatePullRequestI baseRepo headRepo
+    -- `pubRepo` could be a configured personal repo
+    [src, dest, pubRepo] -> do
+      src <- first fromString $ Path.parsePath' src
+      dest <- first fromString $ Path.parsePath' dest
+      pubRepo <- parseWriteRepo "pubRepo" pubRepo
+      pure $ Input.CreatePullRequestI src dest pubRepo
     _ -> Left (I.help createPullRequest)
   )
 
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.lines
-   [P.wrap $ makeExample loadPullRequest ["base", "head"]
-    <> "will load a pull request for merging the remote repo `head` into the"
-    <> "remote repo `base`, staging each in the current namespace"
-    <> "(so make yourself a clean spot to work first)."
-   ,P.wrap $ makeExample loadPullRequest ["base", "head", "dest"]
-     <> "will load a pull request for merging the remote repo `head` into the"
-     <> "remote repo `base`, staging each in `dest`, which must be empty."
+   [P.wrap $ makeExample loadPullRequest ["repo"]
+    <> "will load a pull request into the current namespace,"
+    <> "which must be empty."
+   ,P.wrap $ makeExample loadPullRequest ["repo", "dest"]
+     <> "will load a pull request for into the namespace `dest`,"
+     <> "which must be empty."
    ])
   (\case
-    [baseUrl, headUrl] -> do
-      baseRepo <- parseUri "baseRepo" baseUrl
-      headRepo <- parseUri "topicRepo" headUrl
-      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
-    [baseUrl, headUrl, dest] -> do
-      baseRepo <- parseUri "baseRepo" baseUrl
-      headRepo <- parseUri "topicRepo" headUrl
+    [pubRepo] -> do
+      pubRepo <- parseUri "pubRepo" pubRepo
+      pure $ Input.LoadPullRequestI pubRepo Path.relativeEmpty'
+    [pubRepo, dest] -> do
+      pubRepo <- parseUri "pubRepo" pubRepo
       destPath <- first fromString $ Path.parsePath' dest
-      pure $ Input.LoadPullRequestI baseRepo headRepo destPath
+      pure $ Input.LoadPullRequestI pubRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace

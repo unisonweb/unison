@@ -430,11 +430,9 @@ loop = do
           PreviewUpdateI{} -> wat
           CreateAuthorI (NameSegment id) name -> "create.author " <> id <> " " <> name
           CreatePullRequestI{} -> wat
-          LoadPullRequestI base head dest ->
+          LoadPullRequestI repo dest ->
             "pr.load "
-              <> uncurry3 printNamespace base
-              <> " "
-              <> uncurry3 printNamespace head
+              <> uncurry3 printNamespace repo
               <> " "
               <> p' dest
           PushRemoteBranchI{} -> wat
@@ -751,44 +749,37 @@ loop = do
         (ppe, outputDiff) <- diffHelper before after
         respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
-      CreatePullRequestI baseRepo headRepo -> unlessGitError do
-        (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
-        (cleanupHead, headBranch) <- viewRemoteBranch headRepo
+      CreatePullRequestI src dest pubRepo -> unlessGitError do
+        let srcAbs = resolveToAbsolute src
+        let destAbs = resolveToAbsolute dest
         lift do
-          merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-          (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
-          respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-          eval . Eval $ do
-            cleanupBase
-            cleanupHead
+          srcb <- getAt srcAbs
+          destb <- getAt destAbs
+          mergeb <- eval $ Merge Branch.RegularMerge srcb destb
+          squashb <- eval $ Merge Branch.SquashMerge srcb destb
+          let
+            children = Map.fromList [("src", srcb), ("dest", destb), ("merged", mergeb), ("squashed", squashb)]
+            prBranch = Branch.one (Branch.branch0 mempty mempty children mempty)
+          eval $ ExportRemoteBranch pubRepo prBranch SyncMode.ShortCircuit
+          (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head mergeb)
+          respondNumbered $ ShowDiffAfterCreatePR pubRepo (Branch.headHash prBranch) ppe diff
 
-      LoadPullRequestI baseRepo headRepo dest0 -> do
+      LoadPullRequestI pubns dest0 -> do
         let desta = resolveToAbsolute dest0
         let dest = Path.unabsolute desta
         destb <- getAt desta
         if Branch.isEmpty0 (Branch.head destb) then unlessGitError do
-          baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
-          headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
+          prBranch <- importRemoteBranch pubns SyncMode.ShortCircuit
           lift $ do
-            mergedb <- eval $ Merge Branch.RegularMerge baseb headb
-            squashedb <- eval $ Merge Branch.SquashMerge headb baseb
-            stepManyAt
-              [BranchUtil.makeSetBranch (dest, "base") baseb
-              ,BranchUtil.makeSetBranch (dest, "head") headb
-              ,BranchUtil.makeSetBranch (dest, "merged") mergedb
-              ,BranchUtil.makeSetBranch (dest, "squashed") squashedb]
-            let base = snoc dest0 "base"
-                head = snoc dest0 "head"
-                merged = snoc dest0 "merged"
-                squashed = snoc dest0 "squashed"
-            respond $ LoadPullRequest baseRepo headRepo base head merged squashed
+            stepAt (dest, const (Branch.head prBranch))
+            -- these strings match the ones created in CreatePullRequestI
+            respond $ LoadPullRequest pubns (dest0 |> "dest") (dest0 |> "src") (dest0 |> "merged") (dest0 |> "squashed")
             loadPropagateDiffDefaultPatch
               inputDescription
-              (Just merged)
-              (snoc desta "merged")
+              (Just (dest0 |> "merged"))
+              (desta |> "merged")
         else
           respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
-
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do

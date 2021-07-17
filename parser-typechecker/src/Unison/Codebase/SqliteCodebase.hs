@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DerivingVia #-}
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
@@ -106,6 +107,7 @@ import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirec
 import UnliftIO.STM
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 import Control.Exception.Safe (MonadCatch)
+import Data.Coerce (coerce)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -754,7 +756,8 @@ sqliteCodebase debugName root = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (\b r _s -> pushGitRootBranch conn b r)
+            (\b r _s -> pushGitBranch conn b r (SetAsRoot True))
+            (\r b _s -> pushGitBranch conn b r (SetAsRoot False))
             watches
             getWatch
             putWatch
@@ -1030,15 +1033,18 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
     -- I'm thinking we should probably return an error value instead.
     (pure (pure (), Branch.empty, remotePath))
 
+newtype SetAsRoot = SetAsRoot Bool deriving Show via Bool
+
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
-pushGitRootBranch ::
+pushGitBranch ::
   (MonadIO m, MonadCatch m) =>
   Connection ->
   Branch m ->
   WriteRepo ->
+  SetAsRoot ->
   m (Either GitError ())
-pushGitRootBranch srcConn branch repo = runExceptT @GitError do
+pushGitBranch srcConn branch repo setAsRoot = runExceptT @GitError do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
   -- create a savepoint on the staging codebase
@@ -1055,35 +1061,39 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
   lift . flip State.execStateT emptySyncProgressState $
     syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
   flip runReaderT destConn do
-    let newRootHash = Branch.headHash branch
-    -- the call to runDB "handles" the possible DB error by bombing
-    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-      Nothing -> do
-        setRepoRoot newRootHash
-        Q.release "push"
-      Just oldRootHash -> do
-        before oldRootHash newRootHash >>= \case
-          Nothing ->
-            error $
-              "I couldn't find the hash " ++ show newRootHash
-                ++ " that I just synced to the cached copy of "
-                ++ repoString
-                ++ " in "
-                ++ show remotePath
-                ++ "."
-          Just False -> do
-            Q.rollbackRelease "push"
-            throwError $ GitError.PushDestinationHasNewStuff repo
+    if coerce setAsRoot then do
+      let newRootHash = Branch.headHash branch
+      -- the call to runDB "handles" the possible DB error by bombing
+      (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+        Nothing -> do
+          setRepoRoot newRootHash
+          Q.release "push"
+        Just oldRootHash -> do
+          before oldRootHash newRootHash >>= \case
+            Nothing ->
+              error $
+                "I couldn't find the hash " ++ show newRootHash
+                  ++ " that I just synced to the cached copy of "
+                  ++ repoString
+                  ++ " in "
+                  ++ show remotePath
+                  ++ "."
+            Just False -> do
+              Q.rollbackRelease "push"
+              throwError $ GitError.PushDestinationHasNewStuff repo
 
-          Just True -> do
-            setRepoRoot newRootHash
-            Q.release "push"
-
+            Just True -> do
+              setRepoRoot newRootHash
+              Q.release "push"
+    else Q.release "push"
     Q.setJournalMode JournalMode.DELETE
 
   liftIO do
     shutdownConnection destConn
-    void $ push remotePath repo
+    let commitMsg = case setAsRoot of
+          SetAsRoot True -> ("Sync root branch " <> Text.pack (show $ Branch.headHash branch))
+          SetAsRoot False -> ("Sync anonymous branch " <> Text.pack (show $ Branch.headHash branch))
+    void $ push remotePath repo commitMsg
   where
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
@@ -1093,71 +1103,71 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
       chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
       Q.setNamespaceRoot chId
 
-    -- This function makes sure that the result of git status is valid.
-    -- Valid lines are any of:
-    --
-    --   ?? .unison/v2/unison.sqlite3 (initial commit to an empty repo)
-    --   M .unison/v2/unison.sqlite3  (updating an existing repo)
-    --   D .unison/v2/unison.sqlite3-wal (cleaning up the WAL from before bugfix)
-    --   D .unison/v2/unison.sqlite3-shm (ditto)
-    --
-    -- Invalid lines are like:
-    --
-    --   ?? .unison/v2/unison.sqlite3-wal
-    --
-    -- Which will only happen if the write-ahead log hasn't been
-    -- fully folded into the unison.sqlite3 file.
-    --
-    -- Returns `Just (hasDeleteWal, hasDeleteShm)` on success,
-    -- `Nothing` otherwise. hasDeleteWal means there's the line:
-    --   D .unison/v2/unison.sqlite3-wal
-    -- and hasDeleteShm is `True` if there's the line:
-    --   D .unison/v2/unison.sqlite3-shm
-    --
-    parseStatus :: Text -> Maybe (Bool, Bool)
-    parseStatus status =
-      if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
-      else Nothing
-      where
-        statusLines = Text.unpack <$> Text.lines status
-        t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
-        okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-        isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-        isShmDelete _ = False
-        hasDeleteWal = any isWalDelete statusLines
-        hasDeleteShm = any isShmDelete statusLines
+-- This function makes sure that the result of git status is valid.
+-- Valid lines are any of:
+--
+--   ?? .unison/v2/unison.sqlite3 (initial commit to an empty repo)
+--   M .unison/v2/unison.sqlite3  (updating an existing repo)
+--   D .unison/v2/unison.sqlite3-wal (cleaning up the WAL from before bugfix)
+--   D .unison/v2/unison.sqlite3-shm (ditto)
+--
+-- Invalid lines are like:
+--
+--   ?? .unison/v2/unison.sqlite3-wal
+--
+-- Which will only happen if the write-ahead log hasn't been
+-- fully folded into the unison.sqlite3 file.
+--
+-- Returns `Just (hasDeleteWal, hasDeleteShm)` on success,
+-- `Nothing` otherwise. hasDeleteWal means there's the line:
+--   D .unison/v2/unison.sqlite3-wal
+-- and hasDeleteShm is `True` if there's the line:
+--   D .unison/v2/unison.sqlite3-shm
+--
+parseStatus :: Text -> Maybe (Bool, Bool)
+parseStatus status =
+  if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
+  else Nothing
+  where
+    statusLines = Text.unpack <$> Text.lines status
+    t = dropWhile Char.isSpace
+    okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
+    okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+    okLine line = isWalDelete line || isShmDelete line
+    isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+    isWalDelete _ = False
+    isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+    isShmDelete _ = False
+    hasDeleteWal = any isWalDelete statusLines
+    hasDeleteShm = any isShmDelete statusLines
 
-    -- Commit our changes
-    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
-      -- has anything changed?
-      -- note: -uall recursively shows status for all files in untracked directories
-      --   we want this so that we see
-      --     `??  .unison/v2/unison.sqlite3` and not
-      --     `??  .unison/`
-      status <- gitTextIn remotePath ["status", "--short", "-uall"]
-      if Text.null status
-        then pure False
-        else case parseStatus status of
-          Nothing ->
-            error $ "An error occurred during push.\n"
-                 <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
-                 <> Text.unpack status <> "\n\n"
-                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
-                 <> "and add any more details about how you encountered this!\n"
-          Just (hasDeleteWal, hasDeleteShm) -> do
-            -- Only stage files we're expecting; don't `git add --all .`
-            -- which could accidentally commit some garbage
-            gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
-            gitIn
-              remotePath
-              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
-            -- Push our changes to the repo
-            gitIn remotePath ["push", "--quiet", url]
-            pure True
+-- Commit our changes
+push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
+push remotePath (WriteGitRepo url) commitMsg = time "SqliteCodebase.pushGitRootBranch.push" $ do
+  -- has anything changed?
+  -- note: -uall recursively shows status for all files in untracked directories
+  --   we want this so that we see
+  --     `??  .unison/v2/unison.sqlite3` and not
+  --     `??  .unison/`
+  status <- gitTextIn remotePath ["status", "--short", "-uall"]
+  if Text.null status
+    then pure False
+    else case parseStatus status of
+      Nothing ->
+        error $ "An error occurred during push.\n"
+              <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+              <> Text.unpack status <> "\n\n"
+              <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
+              <> "and add any more details about how you encountered this!\n"
+      Just (hasDeleteWal, hasDeleteShm) -> do
+        -- Only stage files we're expecting; don't `git add --all .`
+        -- which could accidentally commit some garbage
+        gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
+        when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
+        when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+        gitIn
+          remotePath
+          ["commit", "-q", "-m", commitMsg]
+        -- Push our changes to the repo
+        gitIn remotePath ["push", "--quiet", url]
+        pure True

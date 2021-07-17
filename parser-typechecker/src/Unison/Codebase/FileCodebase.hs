@@ -15,6 +15,7 @@ where
 
 import Control.Concurrent (forkIO, killThread)
 import Control.Exception.Safe (MonadCatch, catchIO)
+import Data.Coerce (coerce)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -166,6 +167,7 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (runExceptT . fmap addDummyCleanup . viewRemoteBranch' Cache.nullCache)
           (\b r m -> runExceptT $
             pushGitRootBranch (syncToDirectory fmtV fmtA path) Cache.nullCache b r m)
+          (\r b m -> runExceptT $ exportRemoteBranch (syncToDirectory fmtV fmtA path) r b m)
           watches
           (getWatch getV getA path)
           (putWatch putV putA path)
@@ -305,31 +307,58 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
         ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,
     -- so sync branch to staging area
-    (stageAndPush remotePath)
+    (stageAndPush syncToDirectory repo branch syncMode (SetAsRoot True) remotePath
+      ("Sync root branch " <> Text.pack (show $ headHash branch)))
     (throwError $ GitError.PushDestinationHasNewStuff repo)
-  where
-  stageAndPush remotePath = do
-    let repoString = Text.unpack $ printWriteRepo repo
-    withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
-      lift (syncToDirectory remotePath syncMode branch)
-    updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
-    -- push staging area to remote
-    withStatus ("Uploading to " ++ repoString ++ " ...") $
-      unlessM
-        (push remotePath repo
-          `withIOError` (throwError . GitError.PushException repo . show))
-        (throwError $ GitError.PushNoOp repo)
-  -- Commit our changes
-  push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
-  push remotePath (WriteGitRepo url) = do
-    -- has anything changed?
-    status <- gitTextIn remotePath ["status", "--short"]
-    if Text.null status then
-      pure False
-    else do
-      gitIn remotePath ["add", "--all", "."]
-      gitIn remotePath
-        ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
-      -- Push our changes to the repo
-      gitIn remotePath ["push", "--quiet", url]
-      pure True
+
+-- Commit our changes
+push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
+push remotePath (WriteGitRepo url) commitMsg = do
+  -- has anything changed?
+  status <- gitTextIn remotePath ["status", "--short"]
+  if Text.null status then
+    pure False
+  else do
+    gitIn remotePath ["add", "--all", "."]
+    gitIn remotePath
+      ["commit", "-q", "-m", commitMsg]
+    -- Push our changes to the repo
+    gitIn remotePath ["push", "--quiet", url]
+    pure True
+
+exportRemoteBranch ::
+  (MonadIO m, MonadCatch m) =>
+  (CodebasePath -> SyncMode -> Branch m -> m ()) ->
+  WriteRepo ->
+  Branch m ->
+  SyncMode ->
+  ExceptT GitError m ()
+exportRemoteBranch syncToDirectory repo branch syncMode = do
+  -- Pull the remote repo into a staging directory
+  remotePath <- time "Git fetch" $ pullBranch (writeToRead repo)
+  stageAndPush syncToDirectory repo branch syncMode (SetAsRoot False) remotePath
+    ("Sync anonymous branch " <> Text.pack (show $ headHash branch))
+
+newtype SetAsRoot = SetAsRoot Bool
+
+stageAndPush ::
+  (MonadIO m, MonadCatch m) =>
+  (CodebasePath -> SyncMode -> Branch m -> m ()) ->
+  WriteRepo ->
+  Branch m ->
+  SyncMode ->
+  SetAsRoot ->
+  CodebasePath ->
+  Text ->
+  ExceptT GitError m ()
+stageAndPush syncToDirectory repo branch syncMode setAsRoot remotePath commitMsg = do
+  let repoString = Text.unpack $ printWriteRepo repo
+  withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
+    lift (syncToDirectory remotePath syncMode branch)
+  when (coerce setAsRoot) $ updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
+  -- push staging area to remote
+  withStatus ("Uploading to " ++ repoString ++ " ...") $
+    unlessM
+      (push remotePath repo commitMsg
+        `withIOError` (throwError . GitError.PushException repo . show))
+      (throwError $ GitError.PushNoOp repo)

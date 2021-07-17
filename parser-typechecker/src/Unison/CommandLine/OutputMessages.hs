@@ -110,7 +110,7 @@ import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo, ReadRemoteNamespace)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
 type Pretty = P.Pretty P.ColorText
@@ -206,12 +206,9 @@ notifyNumbered o = case o of
           undoTip
         ])
         (showDiffNamespace ShowNumbers ppe destAbs destAbs diff)
-  ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
+  ShowDiffAfterCreatePR pubRepo prBranchHash ppe diff ->
     if OBD.isEmpty diff then
-      (P.wrap $ "Looks like there's no difference between "
-            <> prettyRemoteNamespace baseRepo
-            <> "and"
-            <> prettyRemoteNamespace headRepo <> "."
+      (P.wrap $ "It looks to me like the PR had net zero changes?"
       ,mempty)
     else first (\p ->
       (P.lines
@@ -219,9 +216,13 @@ notifyNumbered o = case o of
                  <> "using the following command:"
         ,""
         ,P.indentN 2 $
-          IP.makeExampleNoBackticks
-            IP.loadPullRequest [(prettyRemoteNamespace baseRepo)
-                               ,(prettyRemoteNamespace headRepo)]
+          let
+            pubNS :: ReadRemoteNamespace =
+              (RemoteRepo.writeToRead pubRepo,
+              Just $ SBH.fromHash 10 prBranchHash,
+              mempty)
+          in IP.makeExampleNoBackticks
+            IP.loadPullRequest [(prettyRemoteNamespace pubNS)]
         ,""
         ,p])) (showDiffNamespace HideNumbers ppe e e diff)
         -- todo: these numbers aren't going to work,
@@ -295,9 +296,9 @@ notifyUser dir o = case o of
       , P.wrap $ "Once you find one you like, you can use the"
           <> makeExample' IP.resetRoot <> "command to set it."
       ]
-  LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath -> pure $ P.lines
-    [ P.wrap $ "I checked out" <> prettyRemoteNamespace baseNS <> "to" <> P.group (prettyPath' basePath <> ".")
-    , P.wrap $ "I checked out" <> prettyRemoteNamespace headNS <> "to" <> P.group (prettyPath' headPath <> ".")
+  LoadPullRequest publishedNS basePath _headPath mergedPath squashedPath ->
+    pure $ P.lines
+    [ P.wrap $ "I checked out the pull request" <> prettyRemoteNamespace publishedNS <> "to" <> P.group (prettyPath' basePath <> ".")
     , ""
     , P.wrap $ "The merged result is in" <> P.group (prettyPath' mergedPath <> ".")
     , P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath' squashedPath <> ".")
@@ -313,13 +314,8 @@ notifyUser dir o = case o of
           [ prettyPath' (snoc mergedPath "patch")
           , prettyPath' mergedPath ]
         <> "to see what work is remaining for the merge."
-    , P.wrap $ "Use" <>
-        IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyPath' mergedPath] <>
-        "or" <>
-        IP.makeExample IP.push
-          [prettyRemoteNamespace baseNS, prettyPath' squashedPath]
-        <> "to push the changes."
+    , ""
+    , P.wrap $ "When you're satisfied, push the results to wherever."
     ]
 
   DisplayDefinitions outputLoc ppe types terms ->
