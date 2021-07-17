@@ -16,7 +16,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
 import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
@@ -86,8 +86,8 @@ data Codebase m v a =
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
-           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
-           , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
+           , viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
+           , pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -384,7 +384,7 @@ importRemoteBranch ::
   forall m v a.
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   SyncMode ->
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode = runExceptT do
@@ -403,7 +403,7 @@ importRemoteBranch codebase ns mode = runExceptT do
 viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   m (Either GitError (m (), Branch m))
 viewRemoteBranch codebase ns = runExceptT do
   (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns

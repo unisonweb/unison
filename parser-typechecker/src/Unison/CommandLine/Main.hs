@@ -20,7 +20,7 @@ import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, printNamespace)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
@@ -143,7 +143,7 @@ welcomeMessage dir version =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
-hintFreshCodebase :: RemoteNamespace -> P.Pretty P.ColorText
+hintFreshCodebase :: ReadRemoteNamespace -> P.Pretty P.ColorText
 hintFreshCodebase ns =
   P.wrap $ "Enter "
     <> (P.hiBlue . P.group)
@@ -152,7 +152,7 @@ hintFreshCodebase ns =
 
 main
   :: FilePath
-  -> Maybe RemoteNamespace
+  -> Maybe ReadRemoteNamespace
   -> Path.Absolute
   -> (Config, IO ())
   -> [Either Event Input]

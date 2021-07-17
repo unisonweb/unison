@@ -35,7 +35,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
+import Unison.Codebase.Editor.RemoteRepo (printNamespace, WriteRemotePath, writeToRead, writePathToRead)
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
@@ -1697,7 +1697,7 @@ loop = do
         respond $ ListEdits patch ppe
 
       PullRemoteBranchI mayRepo path syncMode -> unlessError do
-        ns <- resolveConfiguredGitUrl Pull path mayRepo
+        ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
         lift $ unlessGitError do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
@@ -1707,26 +1707,19 @@ loop = do
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
         srcb <- getAt srcAbs
-        let expandRepo (r, rp) = (r, Nothing, rp)
         unlessError do
-          (repo, sbh, remotePath) <-
-            resolveConfiguredGitUrl Push path (fmap expandRepo mayRepo)
-          case sbh of
-            Nothing -> lift $ unlessGitError do
-              (cleanup, remoteRoot) <- unsafeTime "Push viewRemoteBranch" $
-                viewRemoteBranch (repo, Nothing, Path.empty)
-              -- We don't merge `srcb` with the remote namespace, `r`, we just
-              -- replace it. The push will be rejected if this rewinds time
-              -- or misses any new updates in `r` that aren't in `srcb` already.
-              let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
-              unsafeTime "Push syncRemoteRootBranch" $
-                syncRemoteRootBranch repo newRemoteRoot syncMode
-              lift . eval $ Eval cleanup
-              lift $ respond Success
-            Just{} ->
-              error $ "impossible match, resolveConfiguredGitUrl shouldn't return"
-                  <> " `Just` unless it was passed `Just`; and here it is passed"
-                  <> " `Nothing` by `expandRepo`."
+          (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
+          lift $ unlessGitError do
+            (cleanup, remoteRoot) <- unsafeTime "Push viewRemoteBranch" $
+              viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
+            -- We don't merge `srcb` with the remote namespace, `r`, we just
+            -- replace it. The push will be rejected if this rewinds time
+            -- or misses any new updates in `r` that aren't in `srcb` already.
+            let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
+            unsafeTime "Push syncRemoteRootBranch" $
+              syncRemoteRootBranch repo newRemoteRoot syncMode
+            lift . eval $ Eval cleanup
+            lift $ respond Success
       ListDependentsI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
@@ -1860,26 +1853,20 @@ loop = do
       resolveConfiguredGitUrl
         :: PushPull
         -> Path'
-        -> Maybe RemoteNamespace
-        -> ExceptT (Output v) (Action' m v) RemoteNamespace
-      resolveConfiguredGitUrl pushPull destPath' = \case
-        Just ns -> pure ns
-        Nothing -> ExceptT do
-          let destPath = resolveToAbsolute destPath'
-          let configKey = gitUrlKey destPath
-          (eval . ConfigLookup) configKey >>= \case
-            Just url ->
-              case P.parse UriParser.repoPath (Text.unpack configKey) url of
-                Left e ->
-                  pure . Left $
-                    ConfiguredGitUrlParseError pushPull destPath' url (show e)
-                Right (repo, Just sbh, remotePath) ->
-                  pure . Left $
-                    ConfiguredGitUrlIncludesShortBranchHash pushPull repo sbh remotePath
-                Right ns ->
-                  pure . Right $ ns
-            Nothing ->
-              pure . Left $ NoConfiguredGitUrl pushPull destPath'
+        -> ExceptT (Output v) (Action' m v) WriteRemotePath
+      resolveConfiguredGitUrl pushPull destPath' = ExceptT do
+        let destPath = resolveToAbsolute destPath'
+        let configKey = gitUrlKey destPath
+        (eval . ConfigLookup) configKey >>= \case
+          Just url ->
+            case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
+              Left e ->
+                pure . Left $
+                  ConfiguredGitUrlParseError pushPull destPath' url (show e)
+              Right ns ->
+                pure . Right $ ns
+          Nothing ->
+            pure . Left $ NoConfiguredGitUrl pushPull destPath'
 
       gitUrlKey = configKey "GitUrl"
 
