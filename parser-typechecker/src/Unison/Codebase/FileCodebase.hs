@@ -304,7 +304,7 @@ exportRemoteBranch syncToDirectory repo branch syncMode = do
   stageAndPush syncToDirectory repo branch syncMode (SetAsRoot False) remotePath
     ("Sync anonymous branch " <> Text.pack (show $ headHash branch))
 
--- Given a branch that is "after" the existing root of a given git repo,
+-- |Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch
   :: (MonadIO m, MonadCatch m)
@@ -327,6 +327,8 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
 
 newtype SetAsRoot = SetAsRoot Bool
 
+-- |`syncToDirectory` the `branch` to `remotePath`, optionally `setAsRoot`, commit the changes
+-- with `commitmsg`, and push the result to `repo`.
 stageAndPush ::
   (MonadIO m, MonadCatch m) =>
   (CodebasePath -> SyncMode -> Branch m -> m ()) ->
@@ -348,18 +350,18 @@ stageAndPush syncToDirectory repo branch syncMode setAsRoot remotePath commitMsg
       (push remotePath repo commitMsg
         `withIOError` (throwError . GitError.PushException repo . show))
       (throwError $ GitError.PushNoOp repo)
-
--- Commit our changes
-push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
-push remotePath (WriteGitRepo url) commitMsg = do
-  -- has anything changed?
-  status <- gitTextIn remotePath ["status", "--short"]
-  if Text.null status then
-    pure False
-  else do
-    gitIn remotePath ["add", "--all", "."]
-    gitIn remotePath
-      ["commit", "-q", "-m", commitMsg]
-    -- Push our changes to the repo
-    gitIn remotePath ["push", "--quiet", url]
-    pure True
+  where
+    -- Commit our changes
+    push :: CodebasePath -> WriteRepo -> Text -> IO Bool -- withIOError needs IO
+    push remotePath (WriteGitRepo url) commitMsg = do
+      -- has anything changed?
+      status <- gitTextIn remotePath ["status", "--short"]
+      if Text.null status then
+        pure False
+      else do
+        gitIn remotePath ["add", "--all", "."]
+        gitIn remotePath
+          ["commit", "-q", "-m", commitMsg]
+        -- Push our changes to the repo
+        gitIn remotePath ["push", "--quiet", url]
+        pure True
