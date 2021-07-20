@@ -334,3 +334,36 @@ testDirContents _ =
   Tip: Use view testDirContents to view the source of a test.
 
 ```
+### Read environment variables
+
+```unison
+testHomeEnvVar : '{io2.IO} [Result]
+testHomeEnvVar _ =
+  test = 'let
+    home = reraise (getEnv.impl "HOME")
+    check "HOME environent variable should be set"  (size home > 0)
+    match getEnv.impl "DOESNTEXIST" with 
+      Right _ -> emit (Fail "env var shouldn't exist")
+      Left _ -> emit (Ok "DOESNTEXIST didn't exist")
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testHomeEnvVar : '{IO} [Result]
+
+.> io.test testHomeEnvVar
+
+    New test results:
+  
+  ◉ testHomeEnvVar   HOME environent variable should be set
+  ◉ testHomeEnvVar   DOESNTEXIST didn't exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testHomeEnvVar to view the source of a test.
+
+```
