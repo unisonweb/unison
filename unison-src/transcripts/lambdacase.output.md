@@ -160,3 +160,45 @@ blorf = cases
            F
 
 ```
+## Patterns with multiple guards
+
+
+```unison
+merge3 : [a] -> [a] -> [a]
+merge3 = cases
+  [], ys -> ys
+  xs, [] -> xs
+  h +: t, h2 +: t2
+    | h <= h2   -> h  +: merge3 t (h2 +: t2)
+    | otherwise -> h2 +: merge3 (h +: t) t2
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      merge3 : [a] -> [a] -> [a]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    merge3 : [a] -> [a] -> [a]
+
+.> view merge3
+
+  merge3 : [a] -> [a] -> [a]
+  merge3 = cases
+    [], ys           -> ys
+    xs, []           -> xs
+    h +: t, h2 +: t2  
+       | h <= h2     -> h +: merge3 t (h2 +: t2)
+       | otherwise   -> h2 +: merge3 (h +: t) t2
+
+```

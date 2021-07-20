@@ -87,3 +87,22 @@ blorf = cases
 > blah F F
 > blorf T F
 ```
+
+## Patterns with multiple guards
+
+
+```unison
+merge3 : [a] -> [a] -> [a]
+merge3 = cases
+  [], ys -> ys
+  xs, [] -> xs
+  h +: t, h2 +: t2
+    | h <= h2   -> h  +: merge3 t (h2 +: t2)
+    | otherwise -> h2 +: merge3 (h +: t) t2
+```
+
+```ucm
+.> add
+.> view merge3
+```
+
