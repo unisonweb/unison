@@ -44,4 +44,10 @@ foo = cases
 
   List.Nil -> 0
 
-> (w, w2 (Foo3 1 4 "bye"), len (List.Cons 1 List.Nil), foo (List.Cons 0 List.Nil))
+foo2 = cases
+  List.Cons h t | h > 10 -> 1
+                | h < 10 -> 2
+                | otherwise -> 3
+  List.Nil -> 0
+
+> (w, w2 (Foo3 1 4 "bye"), len (List.Cons 1 List.Nil), foo (List.Cons 0 List.Nil), foo2 List.Nil)
