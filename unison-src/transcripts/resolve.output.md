@@ -255,5 +255,11 @@ We can resolve the name conflict by deleting one of the names.
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
+.example.resolve.c> todo
+
+  ✅
+  
+  No conflicts or edits in progress.
+
 ```
 And that's how you resolve edit conflicts with UCM.
