@@ -1165,7 +1165,6 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   markThenRetractWanted Var.inferOther $ do
     let peel t = case t of
                   ABT.AbsN' vars bod -> (vars, bod)
-                  _ -> ([], t)
         (rhsvs, rhsbod) = peel rhs
         mayGuard = snd . peel <$> guard
     (substs, remains) <- runStateT (checkPattern scrutineeType pat) rhsvs

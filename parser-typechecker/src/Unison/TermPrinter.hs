@@ -486,6 +486,25 @@ type MatchCase' ann tm = ([Pattern ann], Maybe tm, tm)
 arity1Branches :: [MatchCase ann tm] -> [MatchCase' ann tm]
 arity1Branches bs = [ ([pat], guard, body) | MatchCase pat guard body <- bs ]
 
+-- Groups adjacent cases with the same pattern together,
+-- for easier pretty-printing, for instance:
+--
+--   Foo x y | blah1 x -> body1
+--   Foo x y | blah2 y -> body2
+--
+-- becomes
+--
+--   Foo x y, [x,y], [(blah1 x, body1), (blah2 y, body2)]
+groupCases :: Ord v => [MatchCase' () (Term3 v ann)]
+           -> [([Pattern ()], [v], [(Maybe (Term3 v ann), Term3 v ann)])]
+groupCases ms = go0 ms where
+  go0 [] = []
+  go0 ms@((p1, _, AbsN' vs1 _) : _) = go2 (p1,vs1) [] ms
+  go2 (p0,vs0) acc [] = [(p0,vs0,reverse acc)]
+  go2 (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
+    | p0 == p1 && vs == vs0 = go2 (p0, vs0) ((g1,body):acc) tl
+    | otherwise             = (p0,vs0,reverse acc) : go0 ms
+
 printCase
   :: Var v
   => PrettyPrintEnv
@@ -493,31 +512,51 @@ printCase
   -> DocLiteralContext
   -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
-printCase env im doc ms = PP.lines $ map each gridArrowsAligned where
+printCase env im doc ms0 = PP.lines $ map each gridArrowsAligned where
+  ms = groupCases ms0
   each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
-  grid = go <$> ms
+  grid = go =<< ms
   gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
     f (a, b, _) = (a, Just b)
     tidy ((a', b'), (_, _, c)) = (a', b', c)
-  go (pats, guard, (AbsN' vs body)) =
-    (lhs, arrow, (uses [pretty0 env (ac 0 Block im' doc) body]))
+
+  patLhs vs pats = case pats of
+    [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
+    pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
+      vs <- State.get
+      let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
+      State.put rem
+      pure p
+
+  arrow = fmt S.ControlKeyword "->"
+  goBody im' uses body = uses [pretty0 env (ac 0 Block im' doc) body]
+  printGuard (Just (ABT.AbsN' _ g)) =
+    -- strip off any Abs-chain around the guard, guard variables are rendered
+    -- like any other variable, ex: case Foo x y | x < y -> ...
+    PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
+  printGuard Nothing  = mempty
+
+  go (pats, vs, [(guard, body)]) =
+    [(lhs, arrow, goBody im' uses body)]
     where
-    lhs = (case pats of
-            [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-            pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
-              vs <- State.get
-              let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
-              State.put rem
-              pure p)
-       <> printGuard guard
-    arrow = fmt S.ControlKeyword "->"
-    printGuard (Just g') = let (_, g) = ABT.unabs g' in
-      -- strip off any Abs-chain around the guard, guard variables are rendered
-      -- like any other variable, ex: case Foo x y | x < y -> ...
-      PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
-    printGuard Nothing  = mempty
+    lhs = patLhs vs pats <> printGuard guard
     (im', uses) = calcImports im body
-  go _ = (l "error", mempty, mempty)
+  -- If there's multiple guarded cases for this pattern, prints as:
+  -- MyPattern x y
+  --   | guard 1        -> 1
+  --   | otherguard x y -> 2
+  --   | otherwise      -> 3
+  go (pats, vs, unzip -> (guards, bodies)) =
+    (patLhs vs pats, mempty, mempty)
+      : zip3 (PP.indentN 2 . printGuard <$> guards)
+             (repeat arrow)
+             (printBody <$> bodies)
+    where
+    printGuard Nothing = (fmt S.DelimiterChar "|") <> fmt S.ControlKeyword " otherwise"
+    printGuard (Just (ABT.AbsN' _ g)) =
+      PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g]
+    printBody b = let (im', uses) = calcImports im b
+                  in goBody im' uses b
 
 {- Render a binding, producing output of the form
 
@@ -1069,7 +1108,6 @@ immediateChildBlockTerms = \case
     _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
-    doCase _ = error "bad match" []
     doLet (v, Ann' tm _) = doLet (v, tm)
     doLet (v, LamsNamedOpt' _ body) = if isBlank $ Var.nameStr v
                                       then []

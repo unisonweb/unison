@@ -671,8 +671,6 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b))
           | otherwise ->
               internalBug "mkRow: guard variables do not match body"
         Nothing -> Nothing
-        _ -> internalBug "mkRow: impossible"
-mkRow _ _ = internalBug "mkRow: impossible"
 
 initialize
   :: Var v
