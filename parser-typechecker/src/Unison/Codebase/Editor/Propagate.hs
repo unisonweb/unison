@@ -84,7 +84,9 @@ propagateAndApply patch branch = do
 --
 -- Creates a mapping from old data constructors to new data constructors
 -- via the heuristic of looking at the original names for the data
--- constructors which are embedded in the Decl object.
+-- constructors which are embedded in the Decl object. Same-named
+-- constructors are mapped to each other, or data types with just one
+-- constructor are mapped to each other.
 --
 -- It only works on components of size 1. For mutually recursive
 -- sets of data types, at this level we have no way of knowing
@@ -98,8 +100,8 @@ generateConstructorMapping
   -> Map v (Reference, Decl.DataDeclaration v a)
   -> Map Referent Referent
 generateConstructorMapping oldComponent newComponent = let
-  -- if the
   singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+  isSingleton c = null . drop 1 $ Decl.constructors' c
   r = Map.fromList
     [ let t = Decl.constructorType oldDecl in (Referent.Con oldR oldC t, Referent.Con newR newC t)
     | (_, (oldR, oldDecl)) <- Map.toList oldComponent
@@ -108,7 +110,7 @@ generateConstructorMapping oldComponent newComponent = let
     , (oldC, (_, oldName, _)) <- zip [0 ..]
       $ Decl.constructors' (Decl.asDataDecl oldDecl)
     , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
-    , oldName == newName
+    , oldName == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
     , oldR /= newR
     ]
   in if debugMode then traceShow ("constructorMappings", r) r else r
@@ -294,7 +296,7 @@ propagate patch b = case validatePatch patch of
             )
         doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doTerm r = do
-          traceM $ "Rewriting term: " <> show r
+          when debugMode (traceM $ "Rewriting term: " <> show r)
           componentMap <- unhashTermComponent r
           let componentMap' =
                 over
@@ -305,7 +307,7 @@ propagate patch b = case validatePatch patch of
           mayComponent <- verifyTermComponent componentMap' es
           case mayComponent of
             Nothing             -> do
-              traceM $ show r <> " did not typecheck after substitutions"
+              when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
               pure (Nothing, seen')
             Just componentMap'' -> do
               let
@@ -516,10 +518,13 @@ applyPropagate patch Edits {..} = do
       Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $
         Star3.mapD3 (updateMetadata r r') s
 
-    replaceConstructor s (old, new) =
-      -- always insert the metadata since patches can't contain ctor mappings (yet)
+    replaceConstructor s (old@(Referent.Con _ _ _), new) =
+      -- TODO: revisit this once patches have constructor mappings
+      -- at the moment, all constructor replacements are autopropagated
+      -- rather than added manually
       Metadata.insert (propagatedMd new) .
       Star3.replaceFact old new $ s
+    replaceConstructor s _ = s
     replaceType s (r, r') =
       (if isPropagated r' then Metadata.insert (propagatedMd r')
        else Metadata.delete (propagatedMd r')) .
