@@ -118,7 +118,7 @@ watch msg a | debugMode = traceShow (msg, show a) a
             | otherwise = a
 
 debugMode :: Bool
-debugMode = True
+debugMode = False
 
 -- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
@@ -234,7 +234,7 @@ propagate patch b = case validatePatch patch of
 
         doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doType r = do
-          traceM $ "Rewriting type: " <> refName r
+          when debugMode $ traceM ("Rewriting type: " <> refName r)
           componentMap <- unhashTypeComponent r
           let componentMap' =
                 over _2 (Decl.updateDependencies typeReplacements)
