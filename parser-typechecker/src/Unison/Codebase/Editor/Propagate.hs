@@ -489,6 +489,8 @@ applyPropagate patch Edits {..} = do
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
  where
+  isPropagated = (`Set.notMember` allPatchTargets)
+  allPatchTargets = Patch.allReferenceTargets patch
   updateLevel
     :: Map Referent Referent
     -> Map Reference Reference
@@ -498,8 +500,6 @@ applyPropagate patch Edits {..} = do
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
     Branch.branch0 terms types _children _edits
    where
-    isPropagated = (`Set.notMember` allPatchTargets)
-    allPatchTargets = Patch.allReferenceTargets patch
     isPropagatedReferent (Referent.Con _ _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
@@ -509,17 +509,14 @@ applyPropagate patch Edits {..} = do
     types = updateMetadatas
           $ Star3.replaceFacts replaceType typeEdits _types
 
-    updateMetadatas s = Star3.mapD3 go s
+    updateMetadatas s = setPropagated $ Star3.mapD3 go s
       where
+      -- filter out anything that's not in the patch
+      setPropagated s = s
       go (tp,v) = case Map.lookup (Referent.Ref v) termEdits of
         Just (Referent.Ref r) -> (typeOf r tp, r)
         _ -> (tp,v)
       typeOf r t = fromMaybe t $ Map.lookup r termTypes
-
-    updateMetadata (Referent.Ref r) (Referent.Ref r') (tp, v) =
-      if v == r then (typeOf r' tp, r') else (tp, v)
-      where typeOf r t = fromMaybe t $ Map.lookup r termTypes
-    updateMetadata _ _ tpv = tpv
 
     propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
     propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
@@ -527,9 +524,8 @@ applyPropagate patch Edits {..} = do
     replaceTerm :: Referent -> Referent -> _ -> _
     replaceTerm r r' s =
       (if isPropagatedReferent r'
-       then Metadata.insert (propagatedMd r')
-       else Metadata.delete (propagatedMd r')) $
-      Star3.mapD3 (updateMetadata r r') s
+       then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
+       else Metadata.delete (propagatedMd r')) $ s
 
     replaceConstructor :: Referent -> Referent -> _ -> _
     replaceConstructor (Referent.Con _ _ _) !new s =
