@@ -113,7 +113,7 @@ unique[b] type Foo = Foo | Bar
 
 .> view.patch
 
-  Edited Types: #hsk1l8232e -> Foo
+  Edited Types: Foo#hsk1l8232e -> Foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -181,7 +181,7 @@ unique[bb] type bar = Foo | Bar
 
 .> view.patch
 
-  Edited Types: #b1ct5ub6du -> bar
+  Edited Types: bar#b1ct5ub6du -> bar
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

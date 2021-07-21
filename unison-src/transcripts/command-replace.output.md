@@ -55,9 +55,29 @@ Test that replace works with types
 
   Done.
 
+.scratch> find
+
+  1. type X
+  2. X.One : Nat -> Nat -> X
+  3. type Y
+  4. Y.Two : Nat -> Nat -> X
+  5. x : Nat
+  6. y : Nat
+  
+
+.scratch> view.patch patch
+
+  Edited Types: X#d97e0jhkmd -> X
+  
+  Edited Terms: #jk19sm5bf8 -> x
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
 .scratch> view X
 
-  type X = Two Nat Nat
+  type X = One Nat Nat
 
 ```
 Try with a type/term mismatch
@@ -70,7 +90,7 @@ Try with a type/term mismatch
 
 ```
 ```ucm
-.scratch> replace y Y 
+.scratch> replace y Y
 
   ⚠️
   

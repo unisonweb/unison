@@ -483,52 +483,56 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 applyPropagate
   :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
-  let termRefs = Map.mapMaybe TermEdit.toReference termEdits
-      typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
-      termTypes = Map.map (Type.toReference . snd) newTerms
+  -- let termRefs = Map.mapMaybe TermEdit.toReference termEdits
+  --     typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
+  let termTypes = Map.map (Type.toReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
-  pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs termTypes)
+  pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
  where
   updateLevel
-    :: Map Reference Reference
+    :: Map Referent Referent
     -> Map Reference Reference
     -> Map Reference Reference
     -> Branch0 m
     -> Branch0 m
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
-    Branch.branch0 termsWithCons types _children _edits
+    Branch.branch0 terms types _children _edits
    where
-    isPropagated = (`Set.notMember` allPatchTargets) where
-      allPatchTargets = Patch.allReferenceTargets patch
+    isPropagated = (`Set.notMember` allPatchTargets)
+    allPatchTargets = Patch.allReferenceTargets patch
+    isPropagatedReferent (Referent.Con _ _ _) = True
+    isPropagatedReferent (Referent.Ref r) = isPropagated r
 
-    terms = foldl' replaceTerm _terms (Map.toList termEdits)
-    types = foldl' replaceType _types (Map.toList typeEdits)
+    terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+    terms = Star3.replaceFacts replaceTerm termEdits terms0
+    types = Star3.replaceFacts replaceType typeEdits _types
 
-    updateMetadata r r' (tp, v) = if v == r then (typeOf r' tp, r') else (tp, v)
+    updateMetadata (Referent.Ref r) (Referent.Ref r') (tp, v) =
+      if v == r then (typeOf r' tp, r') else (tp, v)
       where typeOf r t = fromMaybe t $ Map.lookup r termTypes
+    updateMetadata _ _ tpv = tpv
 
     propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
     propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
-    termsWithCons =
-      foldl' replaceConstructor terms (Map.toList constructorReplacements)
-    replaceTerm s (r, r') =
-      (if isPropagated r'
-       then Metadata.insert (propagatedMd (Referent.Ref r'))
-       else Metadata.delete (propagatedMd (Referent.Ref r'))) .
-      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $
-        Star3.mapD3 (updateMetadata r r') s
 
-    replaceConstructor s (old@(Referent.Con _ _ _), new) =
+    replaceTerm :: Referent -> Referent -> _ -> _
+    replaceTerm r r' s =
+      (if isPropagatedReferent r'
+       then Metadata.insert (propagatedMd r')
+       else Metadata.delete (propagatedMd r')) $
+      Star3.mapD3 (updateMetadata r r') s
+
+    replaceConstructor :: Referent -> Referent -> _ -> _
+    replaceConstructor (Referent.Con _ _ _) !new s =
       -- TODO: revisit this once patches have constructor mappings
       -- at the moment, all constructor replacements are autopropagated
       -- rather than added manually
-      Metadata.insert (propagatedMd new) .
-      Star3.replaceFact old new $ s
-    replaceConstructor s _ = s
-    replaceType s (r, r') =
+      Metadata.insert (propagatedMd new) $ s
+    replaceConstructor _ _ s = s
+
+    replaceType _ r' s =
       (if isPropagated r' then Metadata.insert (propagatedMd r')
-       else Metadata.delete (propagatedMd r')) .
-      Star3.replaceFact r r' $ s
+       else Metadata.delete (propagatedMd r')) $ s
 
   -- typePreservingTermEdits :: Patch -> Patch
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty

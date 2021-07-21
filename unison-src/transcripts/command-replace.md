@@ -27,6 +27,7 @@ Test that replace works with terms
 Test that replace works with types
 ```ucm
 .scratch> replace X Y
+.scratch> find
 .scratch> view.patch patch
 .scratch> view X
 ```

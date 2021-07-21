@@ -8,6 +8,7 @@ import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
 import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
+import qualified Data.Map as Map
 
 -- Represents a set of (fact, d1, d2, d3), but indexed using a star schema so
 -- it can be efficiently queried from any of the dimensions.
@@ -182,17 +183,36 @@ deleteFact facts Star3{..} =
         (facts R.<|| d2)
         (facts R.<|| d3)
 
+-- Efficiently replace facts with those in the provided `Map`.
+-- The `apply` function can be used to add other dimensions
+-- in the same traversal. It is given `apply old new s` where
+-- s is the current `Star` being accumulated.
+--
+-- Currently used by update propagation but likely useful for
+-- other bulk rewriting of namespaces.
+replaceFacts :: (Ord fact, Ord d1, Ord d2, Ord d3)
+             => (fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3)
+             -> Map fact fact
+             -> Star3 fact d1 d2 d3
+             -> Star3 fact d1 d2 d3
+replaceFacts apply m s = let
+  -- the intersection of `fact` and the replacement keys is often small,
+  -- so we compute that first (which can happen in O(size of intersection))
+  -- rather than iterating over one or the other
+  replaceable = Map.keysSet m `Set.intersection` fact s
+  go s old = apply old new $ replaceFact old new s
+             where new = Map.findWithDefault old old m
+  in foldl' go s replaceable
+
 replaceFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
             => fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
-replaceFact f f' Star3{..} =
-  let updateFact fact = 
-        if Set.member f fact
-        then (Set.insert f' . Set.delete f) fact
-        else fact
-  in Star3 (updateFact fact)
-        (R.replaceDom f f' d1)
-        (R.replaceDom f f' d2)
-        (R.replaceDom f f' d3)
+replaceFact f f' s@Star3{..} =
+  if Set.notMember f fact
+  then s
+  else Star3 (Set.insert f' . Set.delete f $ fact)
+             (R.replaceDom f f' d1)
+             (R.replaceDom f f' d2)
+             (R.replaceDom f f' d3)
 
 instance (Ord fact, Ord d1, Ord d2, Ord d3) => Semigroup (Star3 fact d1 d2 d3) where
   (<>) = mappend
