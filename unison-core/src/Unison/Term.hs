@@ -929,18 +929,31 @@ labeledDependencies = generalizedDependencies LD.termRef
 
 updateDependencies
   :: Ord v
-  => Map Reference Reference
+  => Map Referent Referent
   -> Map Reference Reference
   -> Term v a
   -> Term v a
 updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
+  referent (Referent.Ref r) = Ref r
+  referent (Referent.Con r cid CT.Data) = Constructor r cid
+  referent (Referent.Con r cid CT.Effect) = Request r cid
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
-  go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
-  go (TermLink (Referent.Ref r)) = TermLink (Referent.Ref $ Map.findWithDefault r r termUpdates)
+  go (Ref r    ) = case Map.lookup (Referent.Ref r) termUpdates of
+    Nothing -> Ref r
+    Just r -> referent r
+  go ct@(Constructor r cid) = case Map.lookup (Referent.Con r cid CT.Data) termUpdates of
+    Nothing -> ct
+    Just r -> referent r
+  go req@(Request r cid) = case Map.lookup (Referent.Con r cid CT.Effect) termUpdates of
+    Nothing -> req
+    Just r -> referent r
+  go (TermLink r) = TermLink (Map.findWithDefault r r termUpdates)
   go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
+  go (Match tm cases) = Match tm (u <$> cases) where
+    u (MatchCase pat g b) = MatchCase (Pattern.updateDependencies termUpdates pat) g b
   go f           = f
 
 -- | If the outermost term is a function application,
