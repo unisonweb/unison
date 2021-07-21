@@ -3,6 +3,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.Editor.Propagate where
 
@@ -78,25 +79,46 @@ propagateAndApply patch branch = do
   (pure . f . applyDeprecations patch) branch
 
 
+-- TODO: This function will go away soon, once constructor mappings can be
+-- added directly to the patch.
+--
 -- Creates a mapping from old data constructors to new data constructors
--- by looking at the original names for the data constructors which are
--- embedded in the Decl object because we carefully planned that.
+-- via the heuristic of looking at the original names for the data
+-- constructors which are embedded in the Decl object.
+--
+-- It only works on components of size 1. For mutually recursive
+-- sets of data types, at this level we have no way of knowing
+-- which types correspond to which.
+--
+-- NB: the keys of the maps passed in are just hashes, so that can't
+-- be used as a heuristic for aligning declarations.
 generateConstructorMapping
   :: (Var v, Show a)
   => Map v (Reference, Decl v a)
   -> Map v (Reference, Decl.DataDeclaration v a)
   -> Map Referent Referent
-generateConstructorMapping a b | traceShow ("**********",a,b) False = undefined
-generateConstructorMapping oldComponent newComponent = Map.fromList
-  [ let t = Decl.constructorType oldDecl in (Referent.Con oldR oldC t, Referent.Con newR newC t)
-  | (v1, (oldR, oldDecl)) <- Map.toList oldComponent
-  , (v2, (newR, newDecl)) <- Map.toList newComponent
-  , traceShow (v1,v2) (v1 == v2)
-  , (oldC, (_, oldName, _)) <- zip [0 ..]
-    $ Decl.constructors' (Decl.asDataDecl oldDecl)
-  , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
-  , traceShow (oldName, newName) $ oldName == newName
-  ]
+generateConstructorMapping oldComponent newComponent = let
+  -- if the
+  singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+  r = Map.fromList
+    [ let t = Decl.constructorType oldDecl in (Referent.Con oldR oldC t, Referent.Con newR newC t)
+    | (_, (oldR, oldDecl)) <- Map.toList oldComponent
+    , (_, (newR, newDecl)) <- Map.toList newComponent
+    , singletons
+    , (oldC, (_, oldName, _)) <- zip [0 ..]
+      $ Decl.constructors' (Decl.asDataDecl oldDecl)
+    , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
+    , oldName == newName
+    , oldR /= newR
+    ]
+  in if debugMode then traceShow ("constructorMappings", r) r else r
+
+watch :: Show a => String -> a -> a
+watch msg a | debugMode = traceShow (msg, show a) a
+            | otherwise = a
+
+debugMode :: Bool
+debugMode = True
 
 -- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
@@ -145,13 +167,25 @@ propagate patch b = case validatePatch patch of
         (Set.fromList
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
-    initialDirty <- do
-      deps <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
-      -- We consider edited types to be dirty in order to visit them and
-      -- establish constructor mappings. This can be removed once patches contain
-      -- constructor mappings. TODO
-      let editedTypes = R.dom (Patch._typeEdits patch)
-      pure $ deps <> editedTypes
+      ns = traceShowId $ Branch.toNames0 b
+
+      refName r =
+        let rns = Names.namesForReferent ns (Referent.Ref r)
+               <> Names.namesForReference ns r
+        in case toList rns of
+          [] -> show r
+          n : _ -> show n
+
+    initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
+
+    let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
+    initialCtorMappings :: Map Referent Referent <- do
+      let mappings :: (Reference,Reference) -> _ (Map Referent Referent)
+          mappings (old,new) = do
+            old <- unhashTypeComponent old
+            new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
+            pure $ generateConstructorMapping @v old new
+      Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
 
     order <- sortDependentsGraph initialDirty entireBranch
     let
@@ -171,8 +205,9 @@ propagate patch b = case validatePatch patch of
           Reference.Builtin   _ -> collectEdits es seen todo
           Reference.DerivedId _ -> go r todo
        where
+        go r _ | debugMode && traceShow ("Rewriting: ", refName r) False = undefined
         go r todo =
-          if Map.member r termEdits || Set.member r seen -- or Map.member r typeEdits
+          if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
           then collectEdits es seen todo
           else
             do
@@ -196,9 +231,10 @@ propagate patch b = case validatePatch patch of
                     $ Reference.componentFor r
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
+
         doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doType r = do
-          traceM $ "Rewriting type: " <> show r
+          traceM $ "Rewriting type: " <> refName r
           componentMap <- unhashTypeComponent r
           let componentMap' =
                 over _2 (Decl.updateDependencies typeReplacements)
@@ -241,7 +277,9 @@ propagate patch b = case validatePatch patch of
             seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
-            !newCtorMappings = traceShowId $ generateConstructorMapping componentMap hashedComponents'
+            !newCtorMappings = let
+              r = generateConstructorMapping componentMap hashedComponents'
+              in if debugMode then traceShow ("constructorMappings: ", r) r else r
             constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
           pure
@@ -256,6 +294,7 @@ propagate patch b = case validatePatch patch of
             )
         doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doTerm r = do
+          traceM $ "Rewriting term: " <> show r
           componentMap <- unhashTermComponent r
           let componentMap' =
                 over
@@ -265,7 +304,9 @@ propagate patch b = case validatePatch patch of
               seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
           mayComponent <- verifyTermComponent componentMap' es
           case mayComponent of
-            Nothing             -> pure (Nothing, seen')
+            Nothing             -> do
+              traceM $ show r <> " did not typecheck after substitutions"
+              pure (Nothing, seen')
             Just componentMap'' -> do
               let
                 joinedStuff =
@@ -307,18 +348,18 @@ propagate patch b = case validatePatch patch of
                 )
     collectEdits
       (Edits initialTermEdits
-             (initialTermReplacements initialTermEdits)
+             (initialTermReplacements initialCtorMappings initialTermEdits)
              mempty
              initialTypeEdits
-             (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
+             initialTypeReplacements
              mempty
-             mempty
+             initialCtorMappings
       )
       mempty -- things to skip
       (getOrdered initialDirty)
  where
-  initialTermReplacements es =
-    Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference $ es
+  initialTermReplacements ctors es = ctors <>
+    (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
   sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
   sortDependentsGraph dependencies restrictTo = do
     closure <- transitiveClosure
@@ -370,10 +411,7 @@ propagate patch b = case validatePatch patch of
                 [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
   unhashTypeComponent
-    :: forall m v
-     . (Applicative m, Var v)
-    => Reference
-    -> F m i v (Map v (Reference, Decl v _))
+     :: Reference -> F m i v (Map v (Reference, Decl v Ann))
   unhashTypeComponent ref = do
     let
       component = Reference.members $ Reference.componentFor ref
