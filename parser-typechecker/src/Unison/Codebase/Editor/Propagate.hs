@@ -504,8 +504,17 @@ applyPropagate patch Edits {..} = do
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
     terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
-    terms = Star3.replaceFacts replaceTerm termEdits terms0
-    types = Star3.replaceFacts replaceType typeEdits _types
+    terms = updateMetadatas
+          $ Star3.replaceFacts replaceTerm termEdits terms0
+    types = updateMetadatas
+          $ Star3.replaceFacts replaceType typeEdits _types
+
+    updateMetadatas s = Star3.mapD3 go s
+      where
+      go (tp,v) = case Map.lookup (Referent.Ref v) termEdits of
+        Just (Referent.Ref r) -> (typeOf r tp, r)
+        _ -> (tp,v)
+      typeOf r t = fromMaybe t $ Map.lookup r termTypes
 
     updateMetadata (Referent.Ref r) (Referent.Ref r') (tp, v) =
       if v == r then (typeOf r' tp, r') else (tp, v)

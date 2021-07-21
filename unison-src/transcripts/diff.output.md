@@ -482,17 +482,15 @@ bdependent = "banana"
 
   Updates:
   
-    1. bdependent : Text
-       ↓
-    2. bdependent : Text
+    There were 1 auto-propagated updates.
   
-    3. patch patch (added 1 updates)
+    1. patch patch (added 1 updates)
   
   Name changes:
   
     Original       Changes
-    4. fromJust ┐  5. fromJust' (added)
-    6. yoohoo   ┘  7. yoohoo (removed)
+    2. fromJust ┐  3. fromJust' (added)
+    4. yoohoo   ┘  5. yoohoo (removed)
 
 ```
 ## Two different auto-propagated changes creating a name conflict
