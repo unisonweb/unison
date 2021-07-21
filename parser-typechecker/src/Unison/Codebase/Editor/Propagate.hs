@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -144,8 +145,14 @@ propagate patch b = case validatePatch patch of
         (Set.fromList
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
-    initialDirty <-
-      R.dom <$> computeFrontier (eval . GetDependents) patch names0
+    initialDirty <- do
+      deps <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
+      -- We consider edited types to be dirty in order to visit them and
+      -- establish constructor mappings. This can be removed once patches contain
+      -- constructor mappings. TODO
+      let editedTypes = R.dom (Patch._typeEdits patch)
+      pure $ deps <> editedTypes
+
     order <- sortDependentsGraph initialDirty entireBranch
     let
 
@@ -165,11 +172,8 @@ propagate patch b = case validatePatch patch of
           Reference.DerivedId _ -> go r todo
        where
         go r todo =
-          if Map.member r termEdits
-             || Map.member r typeEdits
-             || Set.member r seen
-          then
-            collectEdits es seen todo
+          if Map.member r termEdits || Set.member r seen -- or Map.member r typeEdits
+          then collectEdits es seen todo
           else
             do
               haveType <- eval $ IsType r
@@ -194,6 +198,7 @@ propagate patch b = case validatePatch patch of
                   collectEdits edits' seen' todo'
         doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doType r = do
+          traceM $ "Rewriting type: " <> show r
           componentMap <- unhashTypeComponent r
           let componentMap' =
                 over _2 (Decl.updateDependencies typeReplacements)
@@ -236,17 +241,17 @@ propagate patch b = case validatePatch patch of
             seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
-            newCtorMappings = traceShowId $ generateConstructorMapping componentMap hashedComponents'
-            constructorMapping = constructorReplacements <> newCtorMappings
+            !newCtorMappings = traceShowId $ generateConstructorMapping componentMap hashedComponents'
+            constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
           pure
             ( Just $ Edits termEdits
-                           (termReplacements <> newCtorMappings)
+                           (newCtorMappings <> termReplacements)
                            newTerms
                            typeEdits'
                            typeReplacements'
                            newTypes'
-                           constructorMapping
+                           constructorReplacements'
             , seen'
             )
         doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
