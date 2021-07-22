@@ -938,8 +938,6 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
   referent (Referent.Ref r) = Ref r
   referent (Referent.Con r cid CT.Data) = Constructor r cid
   referent (Referent.Con r cid CT.Effect) = Request r cid
-  -- todo: this function might need tweaking if we ever allow type replacements
-  -- would need to look inside pattern matching and constructor calls
   go (Ref r    ) = case Map.lookup (Referent.Ref r) termUpdates of
     Nothing -> Ref r
     Just r -> referent r
