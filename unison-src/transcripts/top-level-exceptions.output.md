@@ -86,6 +86,11 @@ unique type RuntimeError =
 ```ucm
 .> run main2
 
-  resolve: looked up bad dynamic: 48
+  💔💥
+  
+  Uncaught exception:
+  
+    builtin.io2.Failure.Failure
+      typeLink RuntimeError "oh noes!" !builtin.Any.Any
 
 ```

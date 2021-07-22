@@ -677,16 +677,17 @@ watch
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
 
-ident :: Var v => SuperNormal v
-ident = unop0 0 $ \[x] -> TVar x
-
 raise :: Var v => SuperNormal v
 raise
   = unop0 4 $ \[r,f,n,j,k]
- -> TShift Ty.exceptionRef k
-  . TLetD n BX (TLit $ T "builtin.raise")
-  . TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
-  [ (i, ([UN,BX], TAbss [j,f] $ TPrm EROR [n, f])) ]
+ -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
+  [ (0, ([BX], TAbs f $ TVar f))
+  , (i, ([UN,BX]
+      , TAbss [j,f]
+      . TShift Ty.exceptionRef k
+      . TLetD n BX (TLit $ T "builtin.raise")
+      $ TPrm EROR [n, f]))
+  ]
   where
   i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
@@ -1344,7 +1345,6 @@ builtinLookup
   -- internal stuff
   , ("jumpCont", jumpk)
   , ("raise", raise)
-  , ("ident", ident)
 
   , ("IO.forkComp.v2", fork'comp)
 
@@ -1426,7 +1426,7 @@ declareForeigns = do
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 

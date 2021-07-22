@@ -131,14 +131,10 @@ topDEnv
   -> (DEnv, K -> K)
 topDEnv rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy
-  , icrf <- Builtin (Tx.pack "ident")
   , rcrf <- Builtin (Tx.pack "raise")
-  , Just i <- M.lookup icrf rfTm
   , Just j <- M.lookup rcrf rfTm
-  = ( EC.mapFromList
-        [ (0, PAp (CIx icrf i 0) unull bnull)
-        , (n, PAp (CIx rcrf j 0) unull bnull) ]
-    , Mark (EC.setFromList [0,n]) mempty
+  = ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull)
+    , Mark (EC.setSingleton n) mempty
     )
 topDEnv _ _ = (mempty, id)
 
