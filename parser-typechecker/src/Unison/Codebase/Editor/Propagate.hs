@@ -489,8 +489,11 @@ applyPropagate patch Edits {..} = do
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
  where
-  isPropagated = (`Set.notMember` allPatchTargets)
+  isPropagated r = Set.notMember r allPatchTargets
   allPatchTargets = Patch.allReferenceTargets patch
+  propagatedMd :: forall r . r -> (r, Metadata.Type, Metadata.Value)
+  propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
+
   updateLevel
     :: Map Referent Referent
     -> Map Reference Reference
@@ -504,22 +507,19 @@ applyPropagate patch Edits {..} = do
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
     terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
-    terms = updateMetadatas
+    terms = updateMetadatas Referent.Ref
           $ Star3.replaceFacts replaceTerm termEdits terms0
-    types = updateMetadatas
+    types = updateMetadatas id
           $ Star3.replaceFacts replaceType typeEdits _types
 
-    updateMetadatas s = setPropagated $ Star3.mapD3 go s
+    updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
       where
-      -- filter out anything that's not in the patch
-      setPropagated s = s
+      clearPropagated s = foldl' go s allPatchTargets where
+        go s r = Metadata.delete (propagatedMd $ ref r) s
       go (tp,v) = case Map.lookup (Referent.Ref v) termEdits of
         Just (Referent.Ref r) -> (typeOf r tp, r)
         _ -> (tp,v)
       typeOf r t = fromMaybe t $ Map.lookup r termTypes
-
-    propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
-    propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
 
     replaceTerm :: Referent -> Referent -> _ -> _
     replaceTerm r r' s =
