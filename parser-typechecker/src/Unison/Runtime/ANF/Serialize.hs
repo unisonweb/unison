@@ -21,7 +21,7 @@ import qualified Data.ByteString.Lazy as L
 
 import GHC.Stack
 
-import Unison.Codebase.Serialization.V1 as V1
+import qualified Unison.Codebase.Serialization.V1 as V1
 import Unison.Util.EnumContainers as EC
 import Unison.Reference (Reference)
 import Unison.ABT.Normalized (Term(..))
@@ -461,7 +461,7 @@ putBranches ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase ctx)) m
     putNormal (v:ctx) df
-    where 
+    where
   MatchData r m df -> do
     putTag MDataT
     putReference r

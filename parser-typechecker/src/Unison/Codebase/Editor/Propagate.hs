@@ -368,8 +368,7 @@ propagate patch b = case validatePatch patch of
       mempty -- things to skip
       (getOrdered initialDirty)
  where
-  initialTermReplacements ctors es = ctors <>
-    (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
+  initialTermReplacements ctors es = ctors <> es
   sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
   sortDependentsGraph dependencies restrictTo = do
     closure <- transitiveClosure

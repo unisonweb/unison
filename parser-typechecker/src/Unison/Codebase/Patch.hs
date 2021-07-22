@@ -16,6 +16,8 @@ import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
+import           Unison.Referent                ( Referent )
+import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
@@ -23,14 +25,14 @@ import qualified Unison.LabeledDependency      as LD
 import           Unison.LabeledDependency       ( LabeledDependency )
 
 data Patch = Patch
-  { _termEdits :: Relation Reference TermEdit
+  { _termEdits :: Relation Referent TermEdit
   , _typeEdits :: Relation Reference TypeEdit
   } deriving (Eq, Ord, Show)
 
 data PatchDiff = PatchDiff
-  { _addedTermEdits :: Relation Reference TermEdit
+  { _addedTermEdits :: Relation Referent TermEdit
   , _addedTypeEdits :: Relation Reference TypeEdit
-  , _removedTermEdits :: Relation Reference TermEdit
+  , _removedTermEdits :: Relation Referent TermEdit
   , _removedTypeEdits :: Relation Reference TypeEdit
   } deriving (Eq, Ord, Show)
 
@@ -47,9 +49,9 @@ diff new old = PatchDiff
 
 labeledDependencies :: Patch -> Set LabeledDependency
 labeledDependencies Patch {..} =
-  Set.map LD.termRef (R.dom _termEdits)
+  Set.map (LD.termRef . Referent.toReference) (R.dom _termEdits)
     <> Set.fromList
-         (fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits))
+         (fmap LD.termRef $ TermEdit.dependencies =<< toList (R.ran _termEdits))
     <> Set.map LD.typeRef (R.dom _typeEdits)
     <> Set.fromList
          (fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
@@ -60,25 +62,16 @@ empty = Patch mempty mempty
 isEmpty :: Patch -> Bool
 isEmpty p = p == empty
 
-allReferences :: Patch -> Set Reference
-allReferences p = typeReferences p <> termReferences p where
-  typeReferences p = Set.fromList
-    [ r | (old, TypeEdit.Replace new) <- R.toList (_typeEdits p)
-        , r <- [old, new] ]
-  termReferences p = Set.fromList
-    [ r | (old, TermEdit.Replace new _) <- R.toList (_termEdits p)
-        , r <- [old, new] ]
-
 -- | Returns the set of references which are the target of an arrow in the patch
 allReferenceTargets :: Patch -> Set Reference
 allReferenceTargets p = typeReferences p <> termReferences p where
   typeReferences p = Set.fromList
     [ new | (_, TypeEdit.Replace new) <- R.toList (_typeEdits p) ]
   termReferences p = Set.fromList
-    [ new | (_, TermEdit.Replace new _) <- R.toList (_termEdits p) ]
+    [ Referent.toReference new | (_, TermEdit.Replace new _) <- R.toList (_termEdits p) ]
 
-updateTerm :: (Reference -> Reference -> Typing)
-           -> Reference -> TermEdit -> Patch -> Patch
+updateTerm :: (Referent -> Referent -> Typing)
+           -> Referent -> TermEdit -> Patch -> Patch
 updateTerm typing r edit p =
   -- get D ~= lookupRan r
   -- for each d ∈ D, remove (d, r) and add (d, r')
@@ -86,7 +79,7 @@ updateTerm typing r edit p =
   let deleteCycle = case edit of
         TermEdit.Deprecate -> id
         TermEdit.Replace r' _ -> R.delete r' (TermEdit.Replace r' Same)
-      edits' :: Relation Reference TermEdit
+      edits' :: Relation Referent TermEdit
       edits' = deleteCycle . R.insert r edit . R.map f $ _termEdits p
       f (x, TermEdit.Replace y _) | y == r = case edit of
         TermEdit.Replace r' _ -> (x, TermEdit.Replace r' (typing x r'))

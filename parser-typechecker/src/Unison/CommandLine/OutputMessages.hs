@@ -1395,8 +1395,7 @@ todoOutput ppe todo =
         Set.fromList $ toList (R.ran typeEditConflicts) >>= TypeEdit.references
       conflictedTermEditTargets :: Set Referent.Referent
       conflictedTermEditTargets =
-        Set.fromList . fmap Referent.Ref
-          $ toList (R.ran termEditConflicts) >>= TermEdit.references
+        Set.fromList $ toList (R.ran termEditConflicts) >>= TermEdit.referents
       typeEditConflicts = R.filterDom (`R.manyDom` _typeEdits) _typeEdits
       termEditConflicts = R.filterDom (`R.manyDom` _termEdits) _termEdits
 

@@ -505,19 +505,14 @@ patch2to1 ::
   V2.Branch.Patch ->
   m V1.Patch
 patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
-  termEdits <- Map.bitraverse referent2to1' (Set.traverse termedit2to1) v2termedits
+  termEdits <- Map.bitraverse referent2to1 (Set.traverse termedit2to1) v2termedits
   typeEdits <- Map.bitraverse (reference2to1 (lookupSize "patch->old type")) (Set.traverse typeedit2to1) v2typeedits
   pure $ V1.Patch (Relation.fromMultimap termEdits) (Relation.fromMultimap typeEdits)
   where
-    referent2to1' :: V2.Referent -> m V1.Reference
-    referent2to1' = \case
-      V2.Referent.Ref r -> reference2to1 (lookupSize "patch->old term") r
-      V2.Referent.Con {} -> error "found referent on LHS when converting patch2to1"
     termedit2to1 :: V2.TermEdit.TermEdit -> m V1.TermEdit.TermEdit
     termedit2to1 = \case
-      V2.TermEdit.Replace (V2.Referent.Ref r) t ->
-        V1.TermEdit.Replace <$> reference2to1 (lookupSize "patch->new term") r <*> typing2to1 t
-      V2.TermEdit.Replace {} -> error "found referent on RHS when converting patch2to1"
+      V2.TermEdit.Replace r t ->
+        V1.TermEdit.Replace <$> referent2to1 (lookupSize "patch->new term") r <*> typing2to1 t
       V2.TermEdit.Deprecate -> pure V1.TermEdit.Deprecate
     typeedit2to1 :: V2.TypeEdit.TypeEdit -> m V1.TypeEdit.TypeEdit
     typeedit2to1 = \case
@@ -535,7 +530,7 @@ patch1to2 (V1.Patch v1termedits v1typeedits) = V2.Branch.Patch v2termedits v2typ
     v2typeedits = Map.bimap reference1to2 (Set.map typeedit1to2) $ Relation.domain v1typeedits
     termedit1to2 :: V1.TermEdit.TermEdit -> V2.TermEdit.TermEdit
     termedit1to2 = \case
-      V1.TermEdit.Replace r t -> V2.TermEdit.Replace (V2.Referent.Ref (reference1to2 r)) (typing1to2 t)
+      V1.TermEdit.Replace r t -> V2.TermEdit.Replace (referent1to2 r) (typing1to2 t)
       V1.TermEdit.Deprecate -> V2.TermEdit.Deprecate
     typeedit1to2 :: V1.TypeEdit.TypeEdit -> V2.TypeEdit.TypeEdit
     typeedit1to2 = \case
