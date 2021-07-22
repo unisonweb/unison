@@ -110,6 +110,7 @@ generateConstructorMapping oldComponent newComponent = let
     , (oldC, (_, oldName, _)) <- zip [0 ..]
       $ Decl.constructors' (Decl.asDataDecl oldDecl)
     , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
+    , traceShow (oldName, newName) True
     , oldName == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
     , oldR /= newR
     ]
@@ -120,7 +121,7 @@ watch msg a | debugMode = traceShow (msg, show a) a
             | otherwise = a
 
 debugMode :: Bool
-debugMode = False
+debugMode = True
 
 -- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
@@ -177,6 +178,9 @@ propagate patch b = case validatePatch patch of
         in case toList rns of
           [] -> show r
           n : _ -> show n
+      referentName r = case toList (Names.namesForReferent ns r) of
+        [] -> Referent.toString r
+        n : _ -> show n
 
     initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
 
@@ -207,7 +211,11 @@ propagate patch b = case validatePatch patch of
           Reference.Builtin   _ -> collectEdits es seen todo
           Reference.DerivedId _ -> go r todo
        where
+        debugCtors =
+          unlines [ referentName old <> " -> " <> referentName new
+                  | (old,new) <- Map.toList constructorReplacements ]
         go r _ | debugMode && traceShow ("Rewriting: ", refName r) False = undefined
+        go _ _ | debugMode && trace ("** Constructor replacements:\n\n" <> debugCtors) False = undefined
         go r todo =
           if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
           then collectEdits es seen todo
