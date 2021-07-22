@@ -315,6 +315,7 @@ test = scope "gitsync22" . tests $
       ```
     |])
   ,
+  -- TODO: remove the alias.type .defns.A A line once patch syncing is fixed
   pushPullTest "lightweightPatch" fmt
     (\repo -> [i|
       ```ucm
@@ -329,6 +330,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .defns> add
       .patches> replace .defns.A .defns.B
+      .patches> alias.type .defns.A  A
       .patches> replace .defns.x .defns.y
       .patches> push ${repo}
       ```
