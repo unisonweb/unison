@@ -205,3 +205,20 @@ testDirContents _ =
 .> io.test testDirContents
 ```
 
+### Read environment variables
+
+```unison:hide
+testHomeEnvVar : '{io2.IO} [Result]
+testHomeEnvVar _ =
+  test = 'let
+    home = reraise (getEnv.impl "HOME")
+    check "HOME environent variable should be set"  (size home > 0)
+    match getEnv.impl "DOESNTEXIST" with 
+      Right _ -> emit (Fail "env var shouldn't exist")
+      Left _ -> emit (Ok "DOESNTEXIST didn't exist")
+  runTest test
+```
+```ucm
+.> add
+.> io.test testHomeEnvVar
+```

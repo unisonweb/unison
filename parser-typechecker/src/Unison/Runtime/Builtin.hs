@@ -113,6 +113,9 @@ import System.Directory as SYS
   , getModificationTime
   , getFileSize
   )
+import System.Environment as SYS
+  ( getEnv
+  )
 import System.IO.Temp (createTempDirectory)
 
 import qualified Control.Concurrent.STM as STM
@@ -1430,6 +1433,9 @@ declareForeigns = do
 
   declareForeign "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
+
+  declareForeign "IO.getEnv.impl.v1" boxToEFBox
+    $ mkForeignIOF getEnv
 
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
