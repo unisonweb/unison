@@ -81,29 +81,74 @@ propagateAndApply rootNames patch branch = do
   (pure . f . applyDeprecations patch) branch
 
 
+-- This function produces constructor mappings for propagated type updates.
+--
+-- For instance in `type Foo = Blah Bar | Zoink Nat`, if `Bar` is updated
+-- from `Blah#old` to `Blah#new`, `Foo` will be a "propagated update" and
+-- we want to map the `Foo#old.Blah` constructor to `Foo#new.Blah`.
+--
+-- The function works by aligning same-named types and same-named constructors,
+-- using the names of the types provided by the two maps and the names
+-- of constructors embedded in the data decls themselves.
+--
+-- This is correct, and relies only on the type and constructor names coming
+-- out of the codebase and Decl.unhashComponent being unique, which they are.
+--
+-- What happens is that the declaration component is pulled out of the codebase,
+-- references are converted back to variables, substitutions are made in
+-- constructor type signatures, and then the component is rehashed, which
+-- re-canonicalizes the constructor orders in a possibly different way.
+--
+-- The unique names for the types and constructors are just carried through
+-- unchanged through this process, so their being the same establishes that they
+-- had the same role in the two versions of the cycle.
+propagateCtorMapping
+  :: (Var v, Show a)
+  => Map v (Reference, Decl v a)
+  -> Map v (Reference, Decl.DataDeclaration v a)
+  -> Map Referent Referent
+propagateCtorMapping oldComponent newComponent = let
+  singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+  isSingleton c = null . drop 1 $ Decl.constructors' c
+  r = Map.fromList
+    [ (oldCon, newCon)
+    | (v1, (oldR, oldDecl)) <- Map.toList oldComponent
+    , (v2, (newR, newDecl)) <- Map.toList newComponent
+    , v1 == v2 || singletons
+    , let t = Decl.constructorType oldDecl
+    , (oldC, (_,ol'Name,_)) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
+    , (newC, (_,newName,_)) <- zip [0 ..] $ Decl.constructors' newDecl
+    , ol'Name == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
+    , oldR /= newR
+    , let oldCon = Referent.Con oldR oldC t
+          newCon = Referent.Con newR newC t
+    ]
+  in if debugMode then traceShow ("constructorMappings", r) r else r
+
 -- TODO: This function will go away soon, once constructor mappings can be
 -- added directly to the patch.
 --
--- Creates a mapping from old data constructors to new data constructors
--- via the heuristic of looking at the original names for the data
--- constructors which are embedded in the Decl object. Same-named
--- constructors are mapped to each other, or data types with just one
+-- Given two data declaration components, creates a mapping from old data
+-- constructors to new data constructors via the heuristic of looking
+-- at constructors with matching names.
+--
+-- Constructors for the same-unqualified-named type with a same-unqualified-name
 -- constructor are mapped to each other.
 --
--- It only works on components of size 1. For mutually recursive
--- sets of data types, at this level we have no way of knowing
--- which types correspond to which.
+-- If the cycle is size 1 for old and new, then the type names need not be the same,
+-- and if the number of constructors is 1, then the constructor names need not
+-- be the same.
 --
 -- NB: the keys of the maps passed in are just hashes, so that can't
 -- be used as a heuristic for aligning declarations.
-generateConstructorMapping
+genInitialCtorMapping
   :: (Var v, Show a)
   => (Reference -> Reference -> Bool)
   -> (Referent -> Referent -> Bool)
   -> Map v (Reference, Decl v a)
   -> Map v (Reference, Decl.DataDeclaration v a)
   -> Map Referent Referent
-generateConstructorMapping typeNamesMatch ctorNamesMatch oldComponent newComponent = let
+genInitialCtorMapping typeNamesMatch ctorNamesMatch oldComponent newComponent = let
   singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
   isSingleton c = null . drop 1 $ Decl.constructors' c
   r = Map.fromList
@@ -183,12 +228,12 @@ propagate rootNames patch b = case validatePatch patch of
         (not . Set.null) (Set.intersection (Set.map Name.unqualified n1)
                                            (Set.map Name.unqualified n2))
       ctorNamesMatch oldR newR =
-        unqualifiedNamesMatch (Names.namesForReferent rootNames r1)
-                              (Names.namesForReferent rootNames r2)
-      typeNamesMatch typeMapping r1 r2 =
-        Map.lookup r1 typeMapping == Just r2 ||
-        unqualifiedNamesMatch (Names.namesForReference rootNames r1)
-                              (Names.namesForReference rootNames r2)
+        unqualifiedNamesMatch (Names.namesForReferent rootNames oldR)
+                              (Names.namesForReferent rootNames newR)
+      typeNamesMatch typeMapping oldType newType =
+        Map.lookup oldType typeMapping == Just newType ||
+        unqualifiedNamesMatch (Names.namesForReference rootNames oldType)
+                              (Names.namesForReference rootNames oldType)
 
       refName r =
         let rns = Names.namesForReferent rootNames (Referent.Ref r)
@@ -208,8 +253,8 @@ propagate rootNames patch b = case validatePatch patch of
           mappings (old,new) = do
             old <- unhashTypeComponent old
             new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
-            pure $ generateConstructorMapping @v (typeNamesMatch initialTypeReplacements)
-                                                 ctorNamesMatch old new
+            pure $ genInitialCtorMapping @v (typeNamesMatch initialTypeReplacements)
+                                             ctorNamesMatch old new
       Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
 
     order <- sortDependentsGraph initialDirty entireBranch
@@ -307,11 +352,7 @@ propagate rootNames patch b = case validatePatch patch of
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
             !newCtorMappings = let
-              r = generateConstructorMapping
-                    (typeNamesMatch typeReplacements')
-                    ctorNamesMatch
-                    componentMap
-                    hashedComponents'
+              r = propagateCtorMapping componentMap hashedComponents'
               in if debugMode then traceShow ("constructorMappings: ", r) r else r
             constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
