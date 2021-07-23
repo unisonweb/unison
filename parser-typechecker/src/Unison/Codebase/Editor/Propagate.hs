@@ -172,7 +172,7 @@ watch msg a | debugMode = traceShow (msg, show a) a
             | otherwise = a
 
 debugMode :: Bool
-debugMode = True
+debugMode = False
 
 -- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
