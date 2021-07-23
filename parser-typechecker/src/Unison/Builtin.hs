@@ -521,6 +521,7 @@ ioBuiltins =
   , ("IO.isSeekable.impl.v3", handle --> iof boolean)
   , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
   , ("IO.handlePosition.impl.v3", handle --> iof nat)
+  , ("IO.getEnv.impl.v1", text --> iof text)
   , ("IO.getBuffering.impl.v3", handle --> iof bmode)
   , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
