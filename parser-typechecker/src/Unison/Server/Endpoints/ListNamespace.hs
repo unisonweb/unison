@@ -81,6 +81,7 @@ instance ToSample NamespaceListing where
         <> "listed by default"
       , NamespaceListing
         (Just ".")
+        (Just ".")
         "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
         [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 1244]
       )
@@ -88,6 +89,7 @@ instance ToSample NamespaceListing where
 
 data NamespaceListing = NamespaceListing
   { namespaceListingName :: Maybe UnisonName,
+    namespaceListingFQN :: Maybe UnisonName,
     namespaceListingHash :: UnisonHash,
     namespaceListingChildren :: [NamespaceObject]
   }
@@ -184,6 +186,7 @@ serveNamespace tryAuth codebase mayHQN =
           processEntries
             ppe
             (Just $ Name.toText n)
+            (Just . Path.toText $ Path.unabsolute p)
             (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash root
             )
             entries
@@ -198,7 +201,7 @@ serveNamespace tryAuth codebase mayHQN =
             entries <- Backend.findShallowInBranch codebase branch
             let ppe = Backend.basicSuffixifiedNames hashLength branch mempty
                 sbh = Text.pack . show $ SBH.fullFromHash hash
-            processEntries ppe Nothing sbh entries
+            processEntries ppe Nothing Nothing sbh entries
         HQ.HashQualified _ _ -> hashQualifiedNotSupported
   errFromMaybe e = maybe (throwError e) pure
   errFromEither f = either (throwError . f) pure
@@ -208,8 +211,8 @@ serveNamespace tryAuth codebase mayHQN =
     ea <- liftIO $ runExceptT a
     errFromEither backendError ea
   findShallow p = doBackend $ Backend.findShallow codebase p
-  processEntries ppe name hash entries =
-    pure . NamespaceListing name hash $ fmap
+  processEntries ppe name fqn hash entries =
+    pure . NamespaceListing name fqn hash $ fmap
       (backendListEntryToNamespaceObject ppe Nothing)
       entries
   hashQualifiedNotSupported = throwError $ err400
