@@ -178,13 +178,15 @@ propagate rootNames patch b = case validatePatch patch of
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
 
-      unqualifiedNamesMatch fqns1 fqns2 =
-        (not . Set.null) (Set.intersection (Set.map Name.unqualified fqns1)
-                                           (Set.map Name.unqualified fqns2))
-      ctorNamesMatch r1 r2 =
+      unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch", n1, n2) False = undefined
+      unqualifiedNamesMatch n1 n2 =
+        (not . Set.null) (Set.intersection (Set.map Name.unqualified n1)
+                                           (Set.map Name.unqualified n2))
+      ctorNamesMatch oldR newR =
         unqualifiedNamesMatch (Names.namesForReferent rootNames r1)
                               (Names.namesForReferent rootNames r2)
-      typeNamesMatch r1 r2 =
+      typeNamesMatch typeMapping r1 r2 =
+        Map.lookup r1 typeMapping == Just r2 ||
         unqualifiedNamesMatch (Names.namesForReference rootNames r1)
                               (Names.namesForReference rootNames r2)
 
@@ -206,7 +208,8 @@ propagate rootNames patch b = case validatePatch patch of
           mappings (old,new) = do
             old <- unhashTypeComponent old
             new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
-            pure $ generateConstructorMapping @v typeNamesMatch ctorNamesMatch old new
+            pure $ generateConstructorMapping @v (typeNamesMatch initialTypeReplacements)
+                                                 ctorNamesMatch old new
       Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
 
     order <- sortDependentsGraph initialDirty entireBranch
@@ -304,7 +307,11 @@ propagate rootNames patch b = case validatePatch patch of
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
             !newCtorMappings = let
-              r = generateConstructorMapping typeNamesMatch ctorNamesMatch componentMap hashedComponents'
+              r = generateConstructorMapping
+                    (typeNamesMatch typeReplacements')
+                    ctorNamesMatch
+                    componentMap
+                    hashedComponents'
               in if debugMode then traceShow ("constructorMappings: ", r) r else r
             constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
