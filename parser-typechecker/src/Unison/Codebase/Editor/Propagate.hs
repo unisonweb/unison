@@ -22,6 +22,7 @@ import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
+import qualified Unison.Name                   as Name
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
@@ -97,22 +98,26 @@ propagateAndApply rootNames patch branch = do
 -- be used as a heuristic for aligning declarations.
 generateConstructorMapping
   :: (Var v, Show a)
-  => Map v (Reference, Decl v a)
+  => (Reference -> Reference -> Bool)
+  -> (Referent -> Referent -> Bool)
+  -> Map v (Reference, Decl v a)
   -> Map v (Reference, Decl.DataDeclaration v a)
   -> Map Referent Referent
-generateConstructorMapping oldComponent newComponent = let
+generateConstructorMapping typeNamesMatch ctorNamesMatch oldComponent newComponent = let
   singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
   isSingleton c = null . drop 1 $ Decl.constructors' c
   r = Map.fromList
-    [ let t = Decl.constructorType oldDecl in (Referent.Con oldR oldC t, Referent.Con newR newC t)
+    [ (oldCon, newCon)
     | (_, (oldR, oldDecl)) <- Map.toList oldComponent
     , (_, (newR, newDecl)) <- Map.toList newComponent
-    , singletons
-    , (oldC, (_, oldName, _)) <- zip [0 ..]
-      $ Decl.constructors' (Decl.asDataDecl oldDecl)
-    , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
-    , traceShow (oldName, newName) True
-    , oldName == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
+    , typeNamesMatch oldR newR || singletons
+    , let t = Decl.constructorType oldDecl
+    , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
+    , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
+    , let oldCon = Referent.Con oldR oldC t
+          newCon = Referent.Con newR newC t
+    , ctorNamesMatch oldCon newCon
+      || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
     , oldR /= newR
     ]
   in if debugMode then traceShow ("constructorMappings", r) r else r
@@ -161,7 +166,7 @@ propagate
   -> Patch
   -> Branch0 m
   -> F m i v (Edits v)
-propagate _rootNames patch b = case validatePatch patch of
+propagate rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
@@ -172,15 +177,24 @@ propagate _rootNames patch b = case validatePatch patch of
         (Set.fromList
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
-      ns = traceShowId $ Branch.toNames0 b
+
+      unqualifiedNamesMatch fqns1 fqns2 =
+        (not . Set.null) (Set.intersection (Set.map Name.unqualified fqns1)
+                                           (Set.map Name.unqualified fqns2))
+      ctorNamesMatch r1 r2 =
+        unqualifiedNamesMatch (Names.namesForReferent rootNames r1)
+                              (Names.namesForReferent rootNames r2)
+      typeNamesMatch r1 r2 =
+        unqualifiedNamesMatch (Names.namesForReference rootNames r1)
+                              (Names.namesForReference rootNames r2)
 
       refName r =
-        let rns = Names.namesForReferent ns (Referent.Ref r)
-               <> Names.namesForReference ns r
+        let rns = Names.namesForReferent rootNames (Referent.Ref r)
+               <> Names.namesForReference rootNames r
         in case toList rns of
           [] -> show r
           n : _ -> show n
-      referentName r = case toList (Names.namesForReferent ns r) of
+      referentName r = case toList (Names.namesForReferent rootNames r) of
         [] -> Referent.toString r
         n : _ -> show n
 
@@ -192,7 +206,7 @@ propagate _rootNames patch b = case validatePatch patch of
           mappings (old,new) = do
             old <- unhashTypeComponent old
             new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
-            pure $ generateConstructorMapping @v old new
+            pure $ generateConstructorMapping @v typeNamesMatch ctorNamesMatch old new
       Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
 
     order <- sortDependentsGraph initialDirty entireBranch
@@ -290,7 +304,7 @@ propagate _rootNames patch b = case validatePatch patch of
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
             !newCtorMappings = let
-              r = generateConstructorMapping componentMap hashedComponents'
+              r = generateConstructorMapping typeNamesMatch ctorNamesMatch componentMap hashedComponents'
               in if debugMode then traceShow ("constructorMappings: ", r) r else r
             constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
