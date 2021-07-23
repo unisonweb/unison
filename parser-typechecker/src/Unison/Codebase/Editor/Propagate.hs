@@ -70,11 +70,12 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
-  => Patch
+  => Names0
+  -> Patch
   -> Branch0 m
   -> F m i v (Branch0 m)
-propagateAndApply patch branch = do
-  edits <- propagate patch branch
+propagateAndApply rootNames patch branch = do
+  edits <- propagate rootNames patch branch
   f     <- applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
@@ -156,10 +157,11 @@ debugMode = True
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => Patch
+  => Names0
+  -> Patch
   -> Branch0 m
   -> F m i v (Edits v)
-propagate patch b = case validatePatch patch of
+propagate _rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
