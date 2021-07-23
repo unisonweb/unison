@@ -23,10 +23,12 @@ import Control.Monad.Except (MonadError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader (ask))
+import qualified Control.Monad.Reader as Reader
 import Control.Monad.Trans (MonadIO (liftIO))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Monad.Writer as Writer
 import Data.ByteString (ByteString)
+import qualified Data.Char as Char
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Int (Int8)
@@ -39,8 +41,7 @@ import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Database.SQLite.Simple
-  ( Connection,
-    FromRow,
+  ( FromRow,
     Only (..),
     ToRow (..),
     (:.) (..),
@@ -53,6 +54,8 @@ import GHC.Stack (HasCallStack)
 import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference')
+import U.Codebase.Sqlite.Connection (Connection)
+import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
@@ -62,6 +65,8 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
+import U.Codebase.Sqlite.JournalMode (JournalMode)
+import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
@@ -73,7 +78,6 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
-
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -82,11 +86,10 @@ type EDB m = (DB m, Err m)
 
 type Err m = (MonadError Integrity m, HasCallStack)
 
-debugQuery, debugThread, debugConnection, debugFile :: Bool
+debugQuery, debugThread, debugConnection :: Bool
 debugQuery = False
 debugThread = False
 debugConnection = False
-debugFile = False
 
 alwaysTraceOnCrash :: Bool
 alwaysTraceOnCrash = True
@@ -123,21 +126,25 @@ createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
     List.splitOn ";" [hereFile|sql/create.sql|]
 
-useWAL :: Bool
-useWAL = True
+setJournalMode :: DB m => JournalMode -> m ()
+setJournalMode m =
+  let s = Char.toLower <$> show m
+  in map (fromOnly @String)
+    <$> query_ (fromString $ "PRAGMA journal_mode = " ++ s) >>= \case
+      [y] | y == s -> pure ()
+      y ->
+        liftIO . putStrLn $
+          "I couldn't set the codebase journal mode to " ++ s ++
+          "; it's set to " ++ show y ++ "."
 
 setFlags :: DB m => m ()
 setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
-  when useWAL $
-    query_ "PRAGMA journal_mode=WAL;" >>= \case
-      [Only ("wal" :: String)] -> pure ()
-      x ->
-        liftIO . putStrLn $
-          "I couldn't set the codebase journal mode to WAL; it's set to " ++ show x ++ "."
+  setJournalMode JournalMode.WAL
+
 {- ORMOLU_DISABLE -}
 schemaVersion :: DB m => m SchemaVersion
-schemaVersion = queryAtoms sql () >>= \case
+schemaVersion = queryAtoms_ sql >>= \case
   [] -> error $ show NoSchemaVersion
   [v] -> pure v
   vs -> error $ show (MultipleSchemaVersions vs)
@@ -360,10 +367,15 @@ dataVersion = queryOne . fmap (fmap fromOnly) . fmap headMay $ query_ [here|
   |]
 
 loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot = queryAtoms sql () >>= \case
-  [] -> throwError NoNamespaceRoot
-  [id] -> pure id
-  ids -> throwError (MultipleNamespaceRoots ids)
+loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
+  Nothing -> throwError NoNamespaceRoot
+  Just id -> pure id
+
+loadMaybeNamespaceRoot :: EDB m => m (Maybe CausalHashId)
+loadMaybeNamespaceRoot = query_ sql >>= \case
+  [] -> pure Nothing
+  [Only id] -> pure (Just id)
+  (fmap fromOnly -> ids) -> throwError (MultipleNamespaceRoots ids)
  where sql = "SELECT causal_id FROM namespace_root"
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
@@ -414,6 +426,12 @@ loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.IdH]
 loadWatchesByWatchKind k = query sql (Only k) where sql = [here|
   SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
+
+clearWatches :: DB m => m ()
+clearWatches = do
+  execute_ "DELETE FROM watch_result"
+  execute_ "DELETE FROM watch"
+  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
@@ -576,10 +594,14 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
 |]
 {- ORMOLU_ENABLE -}
 
+before :: DB m => CausalHashId -> CausalHashId -> m Bool
+before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
+  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
+
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
 lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
-lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
+lca x y (Connection.underlying -> cx) (Connection.underlying -> cy) = Exception.bracket open close \(sx, sy) -> do
   SQLite.bind sx (Only x)
   SQLite.bind sy (Only y)
   let getNext = (,) <$> SQLite.nextRow sx <*> SQLite.nextRow sy
@@ -601,27 +623,35 @@ lca x y cx cy = Exception.bracket open close \(sx, sy) -> do
           Nothing -> pure Nothing
   loop2 (Set.singleton x) (Set.singleton y)
   where
-    open = (,) <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
+    open = (,) <$>
+      SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
-    sql = [here|
-      WITH RECURSIVE
-        found(id) AS (
-          SELECT self_hash_id
-            FROM causal
-            WHERE self_hash_id = ?
-          UNION ALL
-          SELECT parent_id
-            FROM causal_parent
-            INNER JOIN found ON found.id = causal_id
-        )
-      SELECT * FROM found;
-    |]
+    sql = fromString ancestorSql
+
+ancestorSql :: String
+ancestorSql = [here|
+    WITH RECURSIVE
+      ancestor(id) AS (
+        SELECT self_hash_id
+          FROM causal
+          WHERE self_hash_id = ?
+        UNION ALL
+        SELECT parent_id
+          FROM causal_parent
+          JOIN ancestor ON ancestor.id = causal_id
+      )
+    SELECT * FROM ancestor
+  |]
 
 -- * helper functions
 
 -- | composite input, atomic List output
 queryAtoms :: (DB f, ToRow q, FromField b, Show q, Show b) => SQLite.Query -> q -> f [b]
 queryAtoms q r = map fromOnly <$> query q r
+
+-- | no input, atomic List output
+queryAtoms_ :: (DB f, FromField b, Show b) => SQLite.Query -> f [b]
+queryAtoms_ q = map fromOnly <$> query_ q
 
 -- | composite input, composite Maybe output
 queryMaybe :: (DB f, ToRow q, FromRow b, Show q, Show b) => SQLite.Query -> q -> f (Maybe b)
@@ -638,23 +668,21 @@ queryOne = fmap fromJust
 -- | composite input, composite List output
 query :: (DB m, ToRow q, FromRow r, Show q, Show r) => SQLite.Query -> q -> m [r]
 query q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " query") q r $ SQLite.query c q r
 
 -- | no input, composite List output
 query_ :: (DB m, FromRow r, Show r) => SQLite.Query -> m [r]
 query_ q = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " query") q $ SQLite.query_ c q
 
 debugHeader :: DB m => m String
 debugHeader = fmap (List.intercalate ", ") $ Writer.execWriterT do
   when debugThread $ Writer.tell . pure . show =<< myThreadId
-  when debugConnection $ Writer.tell . pure . show . SQLite.connectionHandle =<< ask
+  when debugConnection $ Writer.tell . pure . show =<< ask
 
 queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -> m a -> m a
 queryTrace title query input m = do
@@ -664,7 +692,8 @@ queryTrace title query input m = do
      do
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          when debugQuery . traceM $ showInput ++ "\n output: " ++ show a
+          when debugQuery . traceM $ showInput ++
+            if " execute" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ showInput ++ "\n(and crashed)\n"
@@ -677,7 +706,8 @@ queryTrace_ title query m =
     then
       tryAny @_ m >>= \case
         Right a -> do
-          when debugQuery . traceM $ title ++ " " ++ show query ++ "\n output: " ++ show a
+          when debugQuery . traceM $ title ++ " " ++ show query ++
+            if " execute_" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ title ++ " " ++ show query ++ "\n(and crashed)\n"
@@ -686,46 +716,42 @@ queryTrace_ title query m =
 
 traceConnectionFile :: DB m => m ()
 traceConnectionFile = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   liftIO (SQLite.query_ c "PRAGMA database_list;") >>= \case
     [(_seq :: Int, _name :: String, file)] -> traceM file
     x -> error $ show x
 
 execute :: (DB m, ToRow q, Show q) => SQLite.Query -> q -> m ()
 execute q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "execute") q r $ SQLite.execute c q r
 
 execute_ :: DB m => SQLite.Query -> m ()
 execute_ q = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace_ (header ++ " " ++ "execute_") q $ SQLite.execute_ c q
 
 executeMany :: (DB m, ToRow q, Show q) => SQLite.Query -> [q] -> m ()
 executeMany q r = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   header <- debugHeader
-  when debugFile traceConnectionFile
   liftIO . queryTrace (header ++ " " ++ "executeMany") q r $ SQLite.executeMany c q r
 
 -- | transaction that blocks
 withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
 withImmediateTransaction action = do
-  c <- ask
+  c <- Reader.reader Connection.underlying
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
 
 
 -- | low-level transaction stuff
-beginTransaction, beginImmediateTransaction, beginExclusiveTransaction, commitTransaction, rollbackTransaction :: DB m => m ()
-beginTransaction = execute_ "BEGIN TRANSACTION"
-beginImmediateTransaction = execute_ "BEGIN IMMEDIATE TRANSACTION"
-beginExclusiveTransaction = execute_ "BEGIN EXCLUSIVE TRANSACTION"
-commitTransaction   = execute_ "COMMIT TRANSACTION"
-rollbackTransaction = execute_ "ROLLBACK TRANSACTION"
+savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+release name = execute_ (fromString $ "RELEASE " ++ name)
+rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+rollbackRelease name = rollbackTo name *> release name
 
 -- * orphan instances
 

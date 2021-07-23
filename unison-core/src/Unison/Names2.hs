@@ -86,8 +86,9 @@ fuzzyFind query names =
   fmap flatten
     .  fuzzyFinds (Name.toString . fst) query
     .  Map.toList
-    $  R.toMultimap (R.mapRan Left $ terms names)
-    <> R.toMultimap (R.mapRan Right $ types names)
+    -- `mapMonotonic` is safe here and saves a log n factor
+    $  (Set.mapMonotonic Left <$> R.toMultimap (terms names))
+    <> (Set.mapMonotonic Right <$> R.toMultimap (types names))
  where
   flatten (a, (b, c)) = (a, b, c)
   fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]

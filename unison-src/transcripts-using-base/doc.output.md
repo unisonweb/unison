@@ -5,7 +5,7 @@ Unison documentation is written in Unison and has some neat features:
 * The documentation type provides a rich vocabulary of elements that go beyond markdown, including asides, callouts, tooltips, and more.
 * Docs may contain Unison code which is parsed and typechecked to ensure validity. No more out of date examples that don't compile or assume a bunch of implicit context!
 * Embeded examples are live and can show the results of evaluation. This uses the same evaluation cache as Unison's scratch files, allowing Unison docs to function like well-commented spreadsheets or notebooks.
-* Links to other definitions are typechecked to ensure they point to valid defintions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
+* Links to other definitions are typechecked to ensure they point to valid definitions. The links are resolved to hashes and won't be broken by name changes or moving definitions around.
 * Docs can be included in other docs and you can assemble documentation programmatically, using Unison code.
 * There's a powerful textual syntax for all of the above, which we'll introduce next.
 
@@ -305,10 +305,14 @@ and the rendered output using `display`:
           @foldedSource{type Optional, sqr}
       
       You can also include just a signature, inline, with
-      @signature{sqr}, or you can include one or more signatures
-      as a block:
+      @inlineSignature{sqr}, or you can include one or more
+      signatures as a block:
       
           @signatures{sqr, +}
+      
+      Or alternately:
+      
+          @signature{List.map}
       
       ## Inline snippets
       
@@ -352,6 +356,10 @@ and the rendered output using `display`:
         sqr : Nat -> Nat
     
         Nat.+ : Nat -> Nat -> Nat
+  
+    Or alternately:
+  
+        List.map : (a ->{e} b) -> [a] ->{e} [b]
   
     # Inline snippets
     
@@ -650,6 +658,10 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           sqr : Nat -> Nat
       
           Nat.+ : Nat -> Nat -> Nat
+    
+      Or alternately:
+    
+          List.map : (a ->{e} b) -> [a] ->{e} [b]
     
       # Inline snippets
       

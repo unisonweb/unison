@@ -24,10 +24,10 @@ data TodoOutput v a = TodoOutput
   { todoScore :: Score
   , todoFrontier ::
         ( [(Reference, Maybe (Type v a))]
-        , [(Reference, DisplayObject (Decl v a))])
+        , [(Reference, DisplayObject () (Decl v a))])
   , todoFrontierDependents ::
         ( [(Score, Reference, Maybe (Type v a))]
-        , [(Score, Reference, DisplayObject (Decl v a))])
+        , [(Score, Reference, DisplayObject () (Decl v a))])
   , nameConflicts :: Names0
   , editConflicts :: Patch
   } deriving (Show)

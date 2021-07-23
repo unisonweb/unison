@@ -48,7 +48,6 @@ import Data.Traversable (for)
 import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
 import Data.Word (Word64)
-import Database.SQLite.Simple (Connection)
 import Debug.Trace
 import GHC.Stack (HasCallStack)
 import qualified U.Codebase.Branch as C.Branch
@@ -71,6 +70,7 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
@@ -227,6 +227,10 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 
 loadRootCausalHash :: EDB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
+
+loadMaybeRootCausalHash :: EDB m => m (Maybe CausalHash)
+loadMaybeRootCausalHash = runMaybeT $
+  loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
 
 -- * Reference transformations
 
@@ -712,6 +716,9 @@ saveWatch w r t = do
   wterm <- c2wTerm t
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
+
+clearWatches :: DB m => m ()
+clearWatches = Q.clearWatches
 
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
 c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
@@ -1238,6 +1245,13 @@ lca h1 h2 c1 c2 = runMaybeT do
   chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
   chId3 <- MaybeT . liftIO $ Q.lca chId1 chId2 c1 c2
   liftQ $ Q.loadCausalHash chId3
+
+before :: DB m => CausalHash -> CausalHash -> m (Maybe Bool)
+before h1 h2 = runMaybeT do
+  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
+  lift (Q.loadCausalHashIdByCausalHash h1) >>= \case
+    Just chId1 -> lift (Q.before chId1 chId2)
+    Nothing -> pure False
 
 -- * Searches
 

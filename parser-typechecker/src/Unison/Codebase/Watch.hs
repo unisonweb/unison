@@ -11,10 +11,6 @@ import           Control.Concurrent             ( forkIO
                                                 , threadDelay
                                                 , killThread
                                                 )
-import           UnliftIO.Directory             ( getModificationTime
-                                                , listDirectory
-                                                , doesPathExist
-                                                )
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
                                                 , tryTakeMVar, tryPutMVar, putMVar )
 import           UnliftIO.STM                   ( atomically )
@@ -86,12 +82,6 @@ watchDirectory dir allow = do
   previousFiles <- newIORef Map.empty
   (cancelWatch, watcher) <- watchDirectory' dir
   let
-    existingFiles :: MonadIO m => m [(FilePath, UTCTime)]
-    existingFiles = do
-      files <- listDirectory dir
-      filtered <- filterM doesPathExist files
-      let withTime file = (file,) <$> getModificationTime file
-      sortOn snd <$> mapM withTime filtered
     process :: FilePath -> UTCTime -> IO (Maybe (FilePath, Text))
     process file t =
       if allow file then let
@@ -124,7 +114,7 @@ watchDirectory dir allow = do
       event@(file, _) <- watcher
       when (allow file) $
         STM.atomically $ TQueue.enqueue queue event
-  pending <- newIORef =<< existingFiles
+  pending <- newIORef []
   let
     await :: IO (FilePath, Text)
     await = untilJust $ readIORef pending >>= \case

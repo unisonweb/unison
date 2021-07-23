@@ -6,14 +6,19 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase (Unison.Codebase.SqliteCodebase.init, unsafeGetConnection) where
+module Unison.Codebase.SqliteCodebase
+  ( Unison.Codebase.SqliteCodebase.init,
+    unsafeGetConnection,
+    shutdownConnection,
+  )
+where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
 import Control.Monad (filterM, unless, when, (>=>))
 import Control.Monad.Except (ExceptT(ExceptT), MonadError (throwError), runExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM, (||^))
+import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
@@ -22,11 +27,13 @@ import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
 import qualified Data.Either.Combinators as Either
+import qualified Data.Char as Char
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, (<&>), ($>))
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromJust)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -34,7 +41,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Traversable (for)
 import Data.Word (Word64)
-import Database.SQLite.Simple (Connection)
 import qualified Database.SQLite.Simple as Sqlite
 import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
@@ -43,6 +49,9 @@ import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Reference as C.Reference
+import U.Codebase.Sqlite.Connection (Connection (Connection))
+import qualified U.Codebase.Sqlite.Connection as Connection
+import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
@@ -59,14 +68,13 @@ import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
-import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
+import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), writeToRead, printWriteRepo)
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init as Codebase1
 import Unison.Codebase.Patch (Patch)
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
@@ -97,6 +105,7 @@ import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Control.Exception.Safe (MonadCatch)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -109,14 +118,15 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 v2dir :: FilePath -> FilePath
 v2dir root = root </> ".unison" </> "v2"
 
-init :: HasCallStack => MonadIO m => Codebase.Init m Symbol Ann
+init :: HasCallStack => (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 
 createCodebaseOrError ::
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
+  Codebase.DebugName ->
   CodebasePath ->
   m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError dir = do
+createCodebaseOrError debugName dir = do
   prettyDir <- P.string <$> canonicalizePath dir
   let convertError = \case
         CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
@@ -124,7 +134,7 @@ createCodebaseOrError dir = do
       prettyError :: SchemaVersion -> Codebase1.Pretty
       prettyError v = P.wrap $
         "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' dir
+  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
@@ -132,10 +142,11 @@ data CreateCodebaseError
   deriving (Show)
 
 createCodebaseOrError' ::
-  MonadIO m =>
+  (MonadIO m, MonadCatch m) =>
+  Codebase.DebugName ->
   CodebasePath ->
   m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError' path = do
+createCodebaseOrError' debugName path = do
   ifM
     (doesFileExist $ path </> codebasePath)
     (pure $ Left CreateCodebaseAlreadyExists)
@@ -143,8 +154,8 @@ createCodebaseOrError' path = do
       createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
       liftIO $
         Control.Exception.bracket
-          (unsafeGetConnection path)
-          Sqlite.close
+          (unsafeGetConnection (debugName ++ ".createSchema") path)
+          shutdownConnection
           (runReaderT do
             Q.createSchema
             runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
@@ -152,18 +163,25 @@ createCodebaseOrError' path = do
               Right () -> pure ()
             )
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase path)
+      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path)
+
+openOrCreateCodebaseConnection :: MonadIO m => Codebase.DebugName -> FilePath -> m Connection
+openOrCreateCodebaseConnection debugName path = do
+  unlessM
+    (doesFileExist $ path </> codebasePath)
+    (initSchemaIfNotExist path)
+  unsafeGetConnection debugName path
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. MonadIO m => CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
-getCodebaseOrError dir = do
+getCodebaseOrError :: forall m. (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError debugName dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (dir </> codebasePath) >>= \case
     -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
     -- Unison.Codebase.Init.getCodebaseOrExit).
     False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase dir)
+    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -171,8 +189,8 @@ initSchemaIfNotExist path = liftIO do
     createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
   unlessM (doesFileExist $ path </> codebasePath) $
     Control.Exception.bracket
-      (unsafeGetConnection path)
-      Sqlite.close
+      (unsafeGetConnection "initSchemaIfNotExist" path)
+      shutdownConnection
       (runReaderT Q.createSchema)
 
 -- checks if a db exists at `path` with the minimum schema
@@ -180,9 +198,9 @@ codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root = liftIO do
   Monad.when debug $ traceM $ "codebaseExists " ++ root
   Control.Exception.catch @Sqlite.SQLError
-    ( sqliteCodebase root >>= \case
+    ( sqliteCodebase "codebaseExists" root >>= \case
         Left _ -> pure False
-        Right (close, _codebase) -> close >> pure True
+        Right (close, _codebase) -> close $> True
     )
     (const $ pure False)
 
@@ -235,17 +253,23 @@ type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
-unsafeGetConnection :: MonadIO m => CodebasePath -> m Sqlite.Connection
-unsafeGetConnection root = do
-  Monad.when debug $ traceM $ "unsafeGetconnection " ++ root ++ " -> " ++ (root </> codebasePath)
-  conn <- liftIO . Sqlite.open $ root </> codebasePath
+unsafeGetConnection :: MonadIO m => Codebase.DebugName -> CodebasePath -> m Connection
+unsafeGetConnection name root = do
+  let path = root </> codebasePath
+  Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
+  (Connection name path -> conn) <- liftIO $ Sqlite.open path
   runReaderT Q.setFlags conn
   pure conn
 
-sqliteCodebase :: MonadIO m => CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
-sqliteCodebase root = do
-  Monad.when debug $ traceM $ "sqliteCodebase " ++ root
-  conn <- unsafeGetConnection root
+shutdownConnection :: MonadIO m => Connection -> m ()
+shutdownConnection conn = do
+  Monad.when debug $ traceM $ "shutdown connection " ++ show conn
+  liftIO $ Sqlite.close (Connection.underlying conn)
+
+sqliteCodebase :: (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
+sqliteCodebase debugName root = do
+  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
+  conn <- unsafeGetConnection debugName root
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
@@ -536,19 +560,8 @@ sqliteCodebase root = do
           putBranch :: MonadIO m => Branch m -> m ()
           putBranch = runDB conn . putBranch'
 
-          putBranch' :: MonadIO m => Branch m -> ReaderT Connection (ExceptT Ops.Error m) ()
-          putBranch' branch1 =
-            void . Ops.saveBranch . Cv.causalbranch1to2 $
-              Branch.transform (lift . lift) branch1
-
           isCausalHash :: MonadIO m => Branch.Hash -> m Bool
           isCausalHash = runDB conn . isCausalHash'
-
-          isCausalHash' :: MonadIO m => Branch.Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
-          isCausalHash' (Causal.RawHash h) =
-              Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
-                Nothing -> pure False
-                Just hId -> Q.isCausalHash hId
 
           getPatch :: MonadIO m => Branch.EditHash -> m (Maybe Patch)
           getPatch h =
@@ -563,15 +576,7 @@ sqliteCodebase root = do
               Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
           patchExists :: MonadIO m => Branch.EditHash -> m Bool
-          patchExists h =
-            runDB conn . fmap isJust $
-              Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h)
-
-          -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
-          termExists, declExists :: MonadIO m => Hash -> m Bool
-          termExists h = runDB conn . fmap isJust $
-            Ops.primaryHashToMaybeObjectId (Cv.hash1to2 h)
-          declExists = termExists
+          patchExists = runDB conn . patchExists'
 
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
@@ -582,14 +587,14 @@ sqliteCodebase root = do
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
-              srcConn <- unsafeGetConnection srcRoot
+              srcConn <- unsafeGetConnection (debugName ++ ".sync.src") srcRoot
               syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
           syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncToDirectory destRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
               initSchemaIfNotExist destRoot
-              destConn <- unsafeGetConnection destRoot
+              destConn <- unsafeGetConnection (debugName ++ ".sync.dest") destRoot
               syncInternal syncProgress conn destConn $ Branch.transform lift b
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
@@ -617,6 +622,9 @@ sqliteCodebase root = do
                   (Cv.referenceid1to2 r)
                   (Cv.term1to2 h tm)
           putWatch _unknownKind _ _ = pure ()
+
+          clearWatches :: MonadIO m => m ()
+          clearWatches = runDB conn Ops.clearWatches
 
           getReflog :: MonadIO m => m [Reflog.Entry]
           getReflog =
@@ -701,120 +709,19 @@ sqliteCodebase root = do
             cs <- Ops.causalHashesByPrefix (Cv.sbh1to2 sh)
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
-          lca :: forall m. MonadIO m => Branch m -> Branch m -> m (Maybe (Branch m))
-          lca b1 b2 = do
-            eb1 <- isCausalHash (Branch.headHash b1)
-            eb2 <- isCausalHash (Branch.headHash b2)
-            if eb1 && eb2 then do
-              h <- sqlLca (Branch.headHash b1) (Branch.headHash b2)
-              case h of
-                Nothing -> pure Nothing
-                Just h -> getBranchForHash h
-            else Branch.lca b1 b2
+          sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
+          sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
+            runDB conn
+              . (fmap . fmap) Cv.causalHash2to1
+              $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
             where
-              sqlLca :: Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-              sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
-                runDB conn
-                  . (fmap . fmap) Cv.causalHash2to1
-                  $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
-                where
-                  open = (,) <$> unsafeGetConnection root <*> unsafeGetConnection root
-                  close (c1, c2) = Sqlite.close c1 *> Sqlite.close c2
-          syncInternal ::
-            forall m.
-            MonadIO m =>
-            Sync.Progress m Sync22.Entity ->
-            Connection ->
-            Connection ->
-            Branch m ->
-            m ()
-          syncInternal progress srcConn destConn b = time "syncInternal" do
-            runDB srcConn Q.beginTransaction
-            runDB destConn Q.beginImmediateTransaction
-            result <- runExceptT do
-              let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
-              -- we want to use sync22 wherever possible
-              -- so for each branch, we'll check if it exists in the destination branch
-              -- or if it exists in the source branch, then we can sync22 it
-              -- oh god but we have to figure out the dbid
-              -- if it doesn't exist in the dest or source branch,
-              -- then just use putBranch to the dest
-              let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
-                  se = Except.withExceptT SyncEphemeral.Sync22Error
-              let r :: forall m a. (ReaderT Sync22.Env m a -> m a)
-                  r = flip runReaderT syncEnv
-                  processBranches ::
-                    forall m.
-                    MonadIO m =>
-                    Sync.Sync (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
-                    Sync.Progress (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
-                    [Entity m] ->
-                    ExceptT Sync22.Error m ()
-                  processBranches _ _ [] = pure ()
-                  processBranches sync progress (b0@(B h mb) : rest) = do
-                    when debugProcessBranches do
-                      traceM $ "processBranches " ++ show b0
-                      traceM $ " queue: " ++ show rest
-                    ifM @(ExceptT Sync22.Error m)
-                      (lift . runDB destConn $ isCausalHash' h)
-                      do
-                        when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
-                        processBranches sync progress rest
-                      do
-                        when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
-                        let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
-                        lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
-                          Just chId -> do
-                            when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
-                            r $ Sync.sync' sync progress [Sync22.C chId]
-                            processBranches sync progress rest
-                          Nothing ->
-                            lift mb >>= \b -> do
-                              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
-                              let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
-                              when debugProcessBranches do
-                                traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
-                                traceM $ "  terms: " ++ show ts
-                                traceM $ "  decls: " ++ show ds
-                                traceM $ "  edits: " ++ show es
-                              (cs, es, ts, ds) <- lift $ runDB destConn do
-                                cs <- filterM (fmap not . runDB destConn . isCausalHash' . fst) branchDeps
-                                es <- filterM (fmap not . runDB destConn . patchExists) es
-                                ts <- filterM (fmap not . runDB destConn . termExists) ts
-                                ds <- filterM (fmap not . runDB destConn . declExists) ds
-                                pure (cs, es, ts, ds)
-                              if null cs && null es && null ts && null ds
-                                then lift . runDB destConn $ putBranch' b
-                                else
-                                  let bs = map (uncurry B) branchDeps
-                                      os = map O (es <> ts <> ds)
-                                    in processBranches @m sync progress (os ++ bs ++ B h mb : rest)
-                  processBranches sync progress (O h : rest) = do
-                    when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-                    (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
-                      Left e -> error $ show e
-                      Right oId -> do
-                        r $ Sync.sync' sync progress [Sync22.O oId]
-                        processBranches sync progress rest
-              sync <- se . r $ Sync22.sync22
-              let progress' = Sync.transformProgress (lift . lift) progress
-                  bHash = Branch.headHash b
-              se $ time "SyncInternal.processBranches" $ processBranches sync progress' [B bHash (pure b)]
-              testWatchRefs <- time "SyncInternal enumerate testWatches" $ lift . fmap concat $ for [WK.TestWatch] \wk ->
-                fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
-              se . r $ Sync.sync sync progress' testWatchRefs
-            let
-              onSuccess a = runDB destConn Q.commitTransaction *> pure a
-              onFailure e = do
-                if debugCommitFailedTransaction
-                  then runDB destConn Q.commitTransaction
-                  else runDB destConn Q.rollbackTransaction
-                error (show e)
-            runDB srcConn Q.rollbackTransaction -- (we don't write to the src anyway)
-            either onFailure onSuccess result
+              open = (,) <$> unsafeGetConnection (debugName ++ ".lca.left") root
+                         <*> unsafeGetConnection (debugName ++ ".lca.left") root
+              close (c1, c2) = shutdownConnection c1 *> shutdownConnection c2
+
       let finalizer :: MonadIO m => m ()
           finalizer = do
-            liftIO $ Sqlite.close conn
+            shutdownConnection conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
@@ -827,7 +734,8 @@ sqliteCodebase root = do
 
       pure . Right $
         ( finalizer,
-          Codebase1.Codebase
+          let
+           code = Codebase1.Codebase
             (Cache.applyDefined termCache getTerm)
             (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
             (Cache.applyDefined declCache getTypeDeclaration)
@@ -846,10 +754,11 @@ sqliteCodebase root = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (pushGitRootBranch lca syncToDirectory)
+            (\b r _s -> pushGitRootBranch conn b r)
             watches
             getWatch
             putWatch
+            clearWatches
             getReflog
             appendReflog
             termsOfTypeImpl
@@ -860,9 +769,129 @@ sqliteCodebase root = do
             referentsByPrefix
             branchHashLength
             branchHashesByPrefix
-            lca
+            (Just sqlLca)
+            (Just \l r -> runDB conn $ fromJust <$> before l r)
+          in code
         )
-    v -> liftIO $ Sqlite.close conn $> Left v
+    v -> shutdownConnection conn $> Left v
+
+-- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
+termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
+termExists' = fmap isJust . Ops.primaryHashToMaybeObjectId . Cv.hash1to2
+declExists' = termExists'
+
+patchExists' :: MonadIO m => Branch.EditHash -> ReaderT Connection (ExceptT Ops.Error m) Bool
+patchExists' h = fmap isJust $ Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h)
+
+putBranch' :: MonadIO m => Branch m -> ReaderT Connection (ExceptT Ops.Error m) ()
+putBranch' branch1 =
+  void . Ops.saveBranch . Cv.causalbranch1to2 $
+    Branch.transform (lift . lift) branch1
+
+isCausalHash' :: MonadIO m => Branch.Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
+isCausalHash' (Causal.RawHash h) =
+  Q.loadHashIdByHash (Cv.hash1to2 h) >>= \case
+    Nothing -> pure False
+    Just hId -> Q.isCausalHash hId
+
+before :: MonadIO m => Branch.Hash -> Branch.Hash -> ReaderT Connection m (Maybe Bool)
+before h1 h2 =
+  Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
+
+syncInternal ::
+  forall m.
+  MonadIO m =>
+  Sync.Progress m Sync22.Entity ->
+  Connection ->
+  Connection ->
+  Branch m ->
+  m ()
+syncInternal progress srcConn destConn b = time "syncInternal" do
+  runDB srcConn $ Q.savepoint "sync"
+  runDB destConn $ Q.savepoint "sync"
+  result <- runExceptT do
+    let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
+    -- we want to use sync22 wherever possible
+    -- so for each branch, we'll check if it exists in the destination branch
+    -- or if it exists in the source branch, then we can sync22 it
+    -- oh god but we have to figure out the dbid
+    -- if it doesn't exist in the dest or source branch,
+    -- then just use putBranch to the dest
+    let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
+        se = Except.withExceptT SyncEphemeral.Sync22Error
+    let r :: forall m a. (ReaderT Sync22.Env m a -> m a)
+        r = flip runReaderT syncEnv
+        processBranches ::
+          forall m.
+          MonadIO m =>
+          Sync.Sync (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
+          Sync.Progress (ReaderT Sync22.Env (ExceptT Sync22.Error m)) Sync22.Entity ->
+          [Entity m] ->
+          ExceptT Sync22.Error m ()
+        processBranches _ _ [] = pure ()
+        processBranches sync progress (b0@(B h mb) : rest) = do
+          when debugProcessBranches do
+            traceM $ "processBranches " ++ show b0
+            traceM $ " queue: " ++ show rest
+          ifM @(ExceptT Sync22.Error m)
+            (lift . runDB destConn $ isCausalHash' h)
+            do
+              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " already exists in dest db"
+              processBranches sync progress rest
+            do
+              when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in dest db"
+              let h2 = CausalHash . Cv.hash1to2 $ Causal.unRawHash h
+              lift (flip runReaderT srcConn (Q.loadCausalHashIdByCausalHash h2)) >>= \case
+                Just chId -> do
+                  when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " exists in source db, so delegating to direct sync"
+                  r $ Sync.sync' sync progress [Sync22.C chId]
+                  processBranches sync progress rest
+                Nothing ->
+                  lift mb >>= \b -> do
+                    when debugProcessBranches $ traceM $ "  " ++ show b0 ++ " doesn't exist in either db, so delegating to Codebase.putBranch"
+                    let (branchDeps, BD.to' -> BD.Dependencies' es ts ds) = BD.fromBranch b
+                    when debugProcessBranches do
+                      traceM $ "  branchDeps: " ++ show (fst <$> branchDeps)
+                      traceM $ "  terms: " ++ show ts
+                      traceM $ "  decls: " ++ show ds
+                      traceM $ "  edits: " ++ show es
+                    (cs, es, ts, ds) <- lift $ runDB destConn do
+                      cs <- filterM (fmap not . isCausalHash' . fst) branchDeps
+                      es <- filterM (fmap not . patchExists') es
+                      ts <- filterM (fmap not . termExists') ts
+                      ds <- filterM (fmap not . declExists') ds
+                      pure (cs, es, ts, ds)
+                    if null cs && null es && null ts && null ds
+                      then do
+                        lift . runDB destConn $ putBranch' b
+                        processBranches @m sync progress rest
+                      else do
+                        let bs = map (uncurry B) cs
+                            os = map O (es <> ts <> ds)
+                        processBranches @m sync progress (os ++ bs ++ b0 : rest)
+        processBranches sync progress (O h : rest) = do
+          when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
+          (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
+            Left e -> error $ show e
+            Right oId -> do
+              r $ Sync.sync' sync progress [Sync22.O oId]
+              processBranches sync progress rest
+    sync <- se . r $ Sync22.sync22
+    let progress' = Sync.transformProgress (lift . lift) progress
+        bHash = Branch.headHash b
+    se $ time "SyncInternal.processBranches" $ processBranches sync progress' [B bHash (pure b)]
+    testWatchRefs <- time "SyncInternal enumerate testWatches" $
+      lift . fmap concat $ for [WK.TestWatch] \wk ->
+        fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
+    se . r $ Sync.sync sync progress' testWatchRefs
+  let onSuccess a = runDB destConn (Q.release "sync") *> pure a
+      onFailure e = do
+        if debugCommitFailedTransaction
+          then runDB destConn (Q.release "sync")
+          else runDB destConn (Q.rollbackRelease "sync")
+        error (show e)
+  runDB srcConn $ Q.rollbackRelease "sync" -- (we don't write to the src anyway)
+  either onFailure onSuccess result
 
 runDB' :: MonadIO m => Connection -> MaybeT (ReaderT Connection (ExceptT Ops.Error m)) a -> m (Maybe a)
 runDB' conn = runDB conn . runMaybeT
@@ -962,8 +991,8 @@ syncProgress = Sync.Progress need done warn allDone
 
 viewRemoteBranch' ::
   forall m.
-  MonadIO m =>
-  RemoteNamespace ->
+  (MonadIO m, MonadCatch m) =>
+  ReadRemoteNamespace ->
   m (Either GitError (m (), Branch m, CodebasePath))
 viewRemoteBranch' (repo, sbh, path) = runExceptT do
   -- set up the cache dir
@@ -971,7 +1000,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
   ifM
     (codebaseExists remotePath)
     do
-      lift (sqliteCodebase remotePath) >>= \case
+      lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath) >>= \case
         Left sv -> ExceptT . pure . Left $ GitError.UnrecognizedSchemaVersion repo remotePath sv
         Right (closeCodebase, codebase) -> do
           -- try to load the requested branch from it
@@ -1004,69 +1033,131 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
 -- Given a branch that is "after" the existing root of a given git repo,
 -- stage and push the branch (as the new root) + dependencies to the repo.
 pushGitRootBranch ::
-  MonadIO m =>
-  (Branch m -> Branch m -> m (Maybe (Branch m))) ->
-  Codebase1.SyncToDir m ->
+  (MonadIO m, MonadCatch m) =>
+  Connection ->
   Branch m ->
-  RemoteRepo ->
-  SyncMode ->
+  WriteRepo ->
   m (Either GitError ())
-pushGitRootBranch lca syncToDirectory branch repo syncMode = runExceptT do
-  -- Pull the remote repo into a staging directory
-  (cleanup, remoteRoot, remotePath) <- Except.ExceptT $ time "SqliteCodebase.pushGitRootBranch.viewRemoteBranch'" $ viewRemoteBranch' (repo, Nothing, Path.empty)
-  (ifM
-    ((pure (remoteRoot == Branch.empty) ||^
-      lift (time "pushGitRootBranch Branch.before" $ Branch.before' lca remoteRoot branch)) <*
-      lift cleanup)
-    -- ours is newer 👍, meaning this is a fast-forward push,
-    -- so sync branch to staging area
-    (time "SqliteCodebase.pushGitRootBranch.stageAndPush" $ stageAndPush remotePath)
-    (throwError $ GitError.PushDestinationHasNewStuff repo))
+pushGitRootBranch srcConn branch repo = runExceptT @GitError do
+  -- pull the remote repo to the staging directory
+  -- open a connection to the staging codebase
+  -- create a savepoint on the staging codebase
+  -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
+  -- do a `before` check on the staging codebase
+  -- if it passes, then release the savepoint (commit it), clean up, and git-push the result
+  -- if it fails, rollback to the savepoint and clean up.
+
+  -- set up the cache dir
+  remotePath <- time "Git fetch" $ pullBranch (writeToRead repo)
+  destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
+
+  flip runReaderT destConn $ Q.savepoint "push"
+  lift . flip State.execStateT emptySyncProgressState $
+    syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
+  flip runReaderT destConn do
+    let newRootHash = Branch.headHash branch
+    -- the call to runDB "handles" the possible DB error by bombing
+    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+      Nothing -> do
+        setRepoRoot newRootHash
+        Q.release "push"
+      Just oldRootHash -> do
+        before oldRootHash newRootHash >>= \case
+          Nothing ->
+            error $
+              "I couldn't find the hash " ++ show newRootHash
+                ++ " that I just synced to the cached copy of "
+                ++ repoString
+                ++ " in "
+                ++ show remotePath
+                ++ "."
+          Just False -> do
+            Q.rollbackRelease "push"
+            throwError $ GitError.PushDestinationHasNewStuff repo
+
+          Just True -> do
+            setRepoRoot newRootHash
+            Q.release "push"
+
+    Q.setJournalMode JournalMode.DELETE
+
+  liftIO do
+    shutdownConnection destConn
+    void $ push remotePath repo
   where
-    -- | this will bomb if `h` is not a causal in the codebase
-    setRepoRoot :: MonadIO m => CodebasePath -> Branch.Hash -> m ()
-    setRepoRoot root h = do
-      conn <- unsafeGetConnection root
+    repoString = Text.unpack $ printWriteRepo repo
+    setRepoRoot :: Q.DB m => Branch.Hash -> m ()
+    setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
           err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2
-      flip runReaderT conn $ do
-        chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
-        Q.setNamespaceRoot chId
-      liftIO $ Sqlite.close conn
+      chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
+      Q.setNamespaceRoot chId
 
-    stageAndPush remotePath = do
-      let repoString = Text.unpack $ printRepo repo
-      withStatus ("Staging codebase for upload to " ++ repoString ++ " ...") do
-        time "SqliteCodebase.pushGitRootBranch.stageAndPush.syncToDirectory" $ lift (syncToDirectory remotePath syncMode branch)
-        setRepoRoot remotePath (Branch.headHash branch)
-      -- push staging area to remote
-      withStatus ("Uploading to " ++ repoString ++ " ...") $
-        unlessM
-          ( push remotePath repo
-              `withIOError` (throwError . GitError.PushException repo . show)
-          )
-          (throwError $ GitError.PushNoOp repo)
+    -- This function makes sure that the result of git status is valid.
+    -- Valid lines are any of:
+    --
+    --   ?? .unison/v2/unison.sqlite3 (initial commit to an empty repo)
+    --   M .unison/v2/unison.sqlite3  (updating an existing repo)
+    --   D .unison/v2/unison.sqlite3-wal (cleaning up the WAL from before bugfix)
+    --   D .unison/v2/unison.sqlite3-shm (ditto)
+    --
+    -- Invalid lines are like:
+    --
+    --   ?? .unison/v2/unison.sqlite3-wal
+    --
+    -- Which will only happen if the write-ahead log hasn't been
+    -- fully folded into the unison.sqlite3 file.
+    --
+    -- Returns `Just (hasDeleteWal, hasDeleteShm)` on success,
+    -- `Nothing` otherwise. hasDeleteWal means there's the line:
+    --   D .unison/v2/unison.sqlite3-wal
+    -- and hasDeleteShm is `True` if there's the line:
+    --   D .unison/v2/unison.sqlite3-shm
+    --
+    parseStatus :: Text -> Maybe (Bool, Bool)
+    parseStatus status =
+      if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
+      else Nothing
+      where
+        statusLines = Text.unpack <$> Text.lines status
+        t = dropWhile Char.isSpace
+        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
+        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+        okLine line = isWalDelete line || isShmDelete line
+        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isWalDelete _ = False
+        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isShmDelete _ = False
+        hasDeleteWal = any isWalDelete statusLines
+        hasDeleteShm = any isShmDelete statusLines
+
     -- Commit our changes
-    push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
+    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
-      status <- gitTextIn remotePath ["status", "--short"]
+      -- note: -uall recursively shows status for all files in untracked directories
+      --   we want this so that we see
+      --     `??  .unison/v2/unison.sqlite3` and not
+      --     `??  .unison/`
+      status <- gitTextIn remotePath ["status", "--short", "-uall"]
       if Text.null status
         then pure False
-        else do
-          gitIn remotePath ["add", "--all", "."]
-          gitIn
-            remotePath
-            ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
-          -- Push our changes to the repo
-          case gitbranch of
-            Nothing -> gitIn remotePath ["push", "--quiet", url]
-            Just gitbranch ->
-              error $
-                "Pushing to a specific branch isn't fully implemented or tested yet.\n"
-                  ++ "InputPatterns.parseUri was expected to have prevented you "
-                  ++ "from supplying the git treeish `"
-                  ++ Text.unpack gitbranch
-                  ++ "`!"
-              -- gitIn remotePath ["push", "--quiet", url, gitbranch]
-          pure True
+        else case parseStatus status of
+          Nothing ->
+            error $ "An error occurred during push.\n"
+                 <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+                 <> Text.unpack status <> "\n\n"
+                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
+                 <> "and add any more details about how you encountered this!\n"
+          Just (hasDeleteWal, hasDeleteShm) -> do
+            -- Only stage files we're expecting; don't `git add --all .`
+            -- which could accidentally commit some garbage
+            gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
+            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
+            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+            gitIn
+              remotePath
+              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
+            -- Push our changes to the repo
+            gitIn remotePath ["push", "--quiet", url]
+            pure True

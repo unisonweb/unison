@@ -21,7 +21,7 @@ ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synony
 flags:
   optimized:
     manual: true
-    default: false
+    default: true
 
 when:
   - condition: flag(optimized)
@@ -37,29 +37,22 @@ library:
     - base16 >= 0.2.1.0
     - base64-bytestring
     - basement
-    - bifunctors
     - bytes
     - bytestring
     - cereal
     - containers >= 0.6.3
-    - comonad
-    - concurrent-supply
     - configurator
     - cryptonite
     - data-default
     - directory
     - either
     - fuzzyfind
-    - guid
     - data-memocombinators
-    - edit-distance
     - errors
     - exceptions
     - extra
     - filepath
-    - filepattern
     - fingertree
-    - free
     - fsnotify
     - generic-monoid
     - hashable
@@ -67,16 +60,13 @@ library:
     - haskeline
     - http-types
     - http-media
-    - io-streams
     - lens
     - ListLike
     - megaparsec >= 5.0.0 && < 7.0.0
     - memory
     - mmorph
-    - monad-loops
     - monad-validate
     - mtl
-    - murmur-hash
     - mutable-containers
     - natural-transformation
     - network
@@ -97,9 +87,7 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
-    - servant-auth-server
     - shellmet
-    - split
     - stm
     - strings
     - sqlite-simple
@@ -111,11 +99,8 @@ library:
     - tls
     - transformers
     - unliftio
-    - unliftio-core
     - utf8-string
-    - util
     - unicode-show
-    - validation
     - vector
     - wai
     - warp

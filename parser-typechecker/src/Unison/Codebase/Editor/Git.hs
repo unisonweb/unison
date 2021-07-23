@@ -10,7 +10,7 @@ import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.FilePath ((</>))
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo (GitRepo))
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo (ReadGitRepo))
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Util.Exception as Ex
@@ -18,6 +18,7 @@ import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExec
 import UnliftIO.IO (hFlush, stdout)
 import qualified Data.ByteString.Base16 as ByteString
 import qualified Data.Char as Char
+import Control.Exception.Safe (catchIO, MonadCatch)
 
 type CodebasePath = FilePath
 
@@ -55,12 +56,8 @@ withStatus str ma = do
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadIO m, MonadError GitError m) => RemoteRepo -> m CodebasePath
-pullBranch (GitRepo _uri (Just t)) = error $
-  "Pulling a specific commit isn't fully implemented or tested yet.\n" ++
-  "InputPatterns.parseUri was expected to have prevented you " ++
-  "from supplying the git treeish `" ++ Text.unpack t ++ "`!"
-pullBranch repo@(GitRepo uri Nothing) = do
+pullBranch :: (MonadIO m, MonadCatch m, MonadError GitError m) => ReadRepo -> m CodebasePath
+pullBranch repo@(ReadGitRepo uri) = do
   checkForGit
   localPath <- tempGitDir uri
   ifM (doesDirectoryExist localPath)
@@ -86,18 +83,24 @@ pullBranch repo@(GitRepo uri Nothing) = do
     unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir uri localPath
 
   -- | Do a `git pull` on a cached repo.
-  checkoutExisting :: (MonadIO m, MonadError GitError m) => FilePath -> m ()
+  checkoutExisting :: (MonadIO m, MonadCatch m, MonadError GitError m) => FilePath -> m ()
   checkoutExisting localPath =
     ifM (isEmptyGitRepo localPath)
       -- I don't know how to properly update from an empty remote repo.
       -- As a heuristic, if this cached copy is empty, then the remote might
       -- be too, so this impl. just wipes the cached copy and starts from scratch.
-      (do wipeDir localPath; checkOutNew localPath Nothing)
-    -- Otherwise proceed!
-    (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
-      gitIn localPath ["reset", "--hard", "--quiet", "HEAD"]
-      gitIn localPath ["clean", "-d", "--force", "--quiet"]
-      gitIn localPath ["pull", "--force", "--quiet"])
+      goFromScratch
+      -- Otherwise proceed!
+      (catchIO
+        (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
+          gitIn localPath ["reset", "--hard", "--quiet", "HEAD"]
+          gitIn localPath ["clean", "-d", "--force", "--quiet"]
+          gitIn localPath ["pull", "--force", "--quiet"])
+        (const $ goFromScratch))
+
+    where
+      goFromScratch :: (MonadIO m, MonadError GitError m) => m  ()
+      goFromScratch = do wipeDir localPath; checkOutNew localPath Nothing
 
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
   isEmptyGitRepo localPath = liftIO $

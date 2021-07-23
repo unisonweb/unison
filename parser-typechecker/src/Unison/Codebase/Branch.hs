@@ -59,6 +59,7 @@ module Unison.Codebase.Branch
   , stepManyAt0
   , stepManyAtM
   , modifyAtM
+  , modifyAt
 
     -- * Branch terms/types/edits
     -- ** Term/type/edits lenses
@@ -396,8 +397,8 @@ merge'' _ mode b1 b2 | isEmpty b2 = case mode of
   SquashMerge -> pure $ cons (discardHistory0 (head b1)) b2
 merge'' lca mode (Branch x) (Branch y) =
   Branch <$> case mode of
-               RegularMerge -> Causal.threeWayMerge' lca' combine x y
-               SquashMerge  -> Causal.squashMerge' lca' combine x y
+    RegularMerge -> Causal.threeWayMerge' lca' combine x y
+    SquashMerge  -> Causal.squashMerge' lca' (pure . discardHistory0) combine x y
  where
   lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
   combine :: Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m)
@@ -678,10 +679,14 @@ isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
-step f = over history (Causal.stepDistinct f)
+step f = \case
+  Branch (Causal.One _h e) | e == empty0 -> Branch (Causal.one (f empty0))
+  b -> over history (Causal.stepDistinct f) b
 
 stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepM f = mapMOf history (Causal.stepDistinctM f)
+stepM f = \case
+  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  b -> mapMOf history (Causal.stepDistinctM f) b
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
@@ -838,6 +843,7 @@ instance Hashable (Branch0 m) where
     [ H.accumulateToken (_terms b)
     , H.accumulateToken (_types b)
     , H.accumulateToken (headHash <$> _children b)
+    , H.accumulateToken (fst <$> _edits b)
     ]
 
 -- getLocalBranch :: Hash -> IO Branch

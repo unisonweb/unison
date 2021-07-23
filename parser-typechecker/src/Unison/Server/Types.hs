@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -8,32 +9,46 @@ module Unison.Server.Types where
 
 -- Types common to endpoints --
 
-import           Unison.Prelude
-import           Data.Aeson
-import qualified Data.ByteString.Lazy          as LZ
-import qualified Data.Text.Lazy                as Text
-import qualified Data.Text.Lazy.Encoding       as Text
-import           Data.OpenApi                   ( ToSchema(..)
-                                                , ToParamSchema(..)
-                                                )
-import           Servant.API                    ( FromHttpApiData )
-import qualified Unison.HashQualified          as HQ
-import           Unison.ConstructorType         ( ConstructorType )
-import           Unison.Name                    ( Name )
-import           Unison.ShortHash               ( ShortHash )
-import           Unison.Codebase.ShortBranchHash
-                                                ( ShortBranchHash(..) )
-import           Unison.Util.Pretty             ( Width(..)
-                                                , render
-                                                )
-import           Unison.Var                     ( Var )
-import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Type                    ( Type )
-import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Codebase.Editor.DisplayObject
-                                                ( DisplayObject )
-import           Unison.Server.Syntax           ( SyntaxText )
-import qualified Unison.Server.Syntax          as Syntax
+import Data.Aeson
+import qualified Data.ByteString.Lazy as LZ
+import Data.OpenApi
+  ( ToParamSchema (..),
+    ToSchema (..),
+  )
+import qualified Data.Text.Lazy as Text
+import qualified Data.Text.Lazy.Encoding as Text
+import Servant.API
+  ( FromHttpApiData,
+    Get,
+    Header,
+    Headers,
+    JSON,
+    addHeader,
+  )
+import Unison.Codebase.Editor.DisplayObject
+  ( DisplayObject,
+  )
+import Unison.Codebase.ShortBranchHash
+  ( ShortBranchHash (..),
+  )
+import Unison.ConstructorType (ConstructorType)
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Prelude
+import Unison.Server.Doc (Doc)
+import qualified Unison.Server.Doc as Doc
+import Unison.Server.Syntax (SyntaxText)
+import Unison.ShortHash (ShortHash)
+import Unison.Util.Pretty ( Width (..) )
+
+type APIHeaders x =
+  Headers
+    '[ Header "Access-Control-Allow-Origin" String,
+       Header "Cache-Control" String
+     ]
+    x
+
+type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
 
@@ -56,9 +71,9 @@ deriving instance ToParamSchema ShortBranchHash
 deriving via Int instance FromHttpApiData Width
 deriving instance ToParamSchema Width
 
-instance ToJSON a => ToJSON (DisplayObject a) where
+instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
    toEncoding = genericToEncoding defaultOptions
-deriving instance ToSchema a => ToSchema (DisplayObject a)
+deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
 instance ToJSON ShortHash where
    toEncoding = genericToEncoding defaultOptions
@@ -96,15 +111,17 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]
   , bestTermName :: HashQualifiedName
   , defnTermTag :: Maybe TermTag
-  , termDefinition :: DisplayObject SyntaxText
+  , termDefinition :: DisplayObject SyntaxText SyntaxText
   , signature :: SyntaxText
+  , termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName]
   , bestTypeName :: HashQualifiedName
   , defnTypeTag :: Maybe TypeTag
-  , typeDefinition :: DisplayObject SyntaxText
+  , typeDefinition :: DisplayObject SyntaxText SyntaxText
+  , typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data DefinitionDisplayResults =
@@ -175,9 +192,14 @@ instance ToJSON TypeTag where
 
 deriving instance ToSchema TypeTag
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
-formatType ppe w =
-  fmap Syntax.convertElement . render w . TypePrinter.pretty0 ppe mempty (-1)
+instance ToJSON Doc where
+instance ToJSON Doc.SpecialForm where
+instance ToJSON Doc.Src where
+instance ToJSON a => ToJSON (Doc.Ref a) where
+instance ToSchema Doc where
+instance ToSchema Doc.SpecialForm where
+instance ToSchema Doc.Src where
+instance ToSchema a => ToSchema (Doc.Ref a) where
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict
@@ -197,3 +219,5 @@ discard = const $ pure ()
 mayDefault :: Maybe Width -> Width
 mayDefault = fromMaybe defaultWidth
 
+addHeaders :: v -> APIHeaders v
+addHeaders = addHeader "*" . addHeader "public"

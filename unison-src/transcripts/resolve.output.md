@@ -1,6 +1,6 @@
 # Resolving edit conflicts in `ucm`
 
-The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace.term` command helps resolve such conflicts.
+The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace` command helps resolve such conflicts.
 
 First, let's make a new namespace, `example.resolve`:
 
@@ -203,7 +203,7 @@ We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace.term #44954ulpdf #8e68dvpr0a
+.example.resolve.c> replace #44954ulpdf #8e68dvpr0a
 
   Done.
 
@@ -231,7 +231,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `view foo` to see the
-       conflicting defintions, then use `move.term` to resolve
+       conflicting definitions, then use `move.term` to resolve
        the conflicts.
 
 ```

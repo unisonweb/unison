@@ -22,7 +22,7 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path', Path)
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
@@ -79,7 +79,7 @@ data NumberedOutput v
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   -- <authorIdentifier> <authorPath> <relativeBase>
   | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
@@ -98,7 +98,7 @@ data Output v
   | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -121,6 +121,7 @@ data Output v
   | TermNotFound Path.HQSplit'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
+  | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
   | SearchTermsNotFound [HQ.HashQualified Name]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -157,8 +158,8 @@ data Output v
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnvDecl
-                       (Map Reference (DisplayObject (Decl v Ann)))
-                       (Map Reference (DisplayObject (Term v Ann)))
+                       (Map Reference (DisplayObject () (Decl v Ann)))
+                       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -178,10 +179,9 @@ data Output v
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
-  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayObject (Decl v Ann)))
-               (Map Reference (DisplayObject (Term v Ann)))
+               (Map Reference (DisplayObject () (Decl v Ann)))
+               (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -193,7 +193,7 @@ data Output v
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | PullAlreadyUpToDate RemoteNamespace Path'
+  | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   -- | No conflicts or edits remain for the current patch.
@@ -267,6 +267,7 @@ isFailure o = case o of
   TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
+  TypeTermMismatch{} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation{} -> False
   CantDelete{} -> True
@@ -286,7 +287,7 @@ isFailure o = case o of
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered{} -> False
-  TodoOutput _ todo -> TO.todoScore todo /= 0
+  TodoOutput _ todo -> TO.todoScore todo /= 0 && not (TO.noConflicts todo)
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
@@ -297,7 +298,6 @@ isFailure o = case o of
   ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
-  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   MetadataMissingType{} -> True
   MetadataAmbiguous{} -> True

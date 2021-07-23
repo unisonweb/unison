@@ -217,25 +217,19 @@ squashMerge'
   :: forall m h e
    . (Monad m, Hashable e, Eq e)
   => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (e -> m e)
   -> (Maybe e -> e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
-squashMerge' lca combine c1 c2 = do
+squashMerge' lca discardHistory combine c1 c2 = do
   theLCA <- lca c1 c2
   let done newHead = consDistinct newHead c2
   case theLCA of
     Nothing -> done <$> combine Nothing (head c1) (head c2)
     Just lca
       | lca == c1 -> pure c2
-
-      -- Pretty subtle: if we were to add this short circuit, then
-      -- the history of c1's children would still make it into the result
-      -- Calling `combine` will recursively call into `squashMerge`
-      -- for the children, discarding their history before calling `done`
-      -- on the parent.
-      --   | lca == c2 -> pure $ done c1
-
+      | lca == c2 -> done <$> discardHistory (head c1)
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
 threeWayMerge :: forall m h e

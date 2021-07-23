@@ -135,9 +135,9 @@ b = 2
   `history #som3n4m3space` to view history starting from a given
   namespace hash.
   
-  ⊙ #0ucrusr0bl
+  ⊙ #fe1rlmq8a3
   ⑃
-  #0lf1cvdccp
-  #ofcsecdak0
+  #4pts1280cu
+  #piag7k4n15
 
 ```

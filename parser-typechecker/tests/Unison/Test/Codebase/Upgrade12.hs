@@ -201,7 +201,7 @@ test = scope "codebase.upgrade12" $ tests [
       Ucm.runTranscript c2 [i|
           ```ucm
           .> history
-          .> reset-root #ls8
+          .> reset-root #dsh
           .> history
           ```
         |]

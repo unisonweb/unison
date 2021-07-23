@@ -8,5 +8,8 @@ scratch.u
 .stack-work
 stack.yaml.lock
 
+# Cabal
+dist-newstyle
+
 # GHC
 *.hie

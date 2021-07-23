@@ -219,7 +219,8 @@ exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
   reifyValue env v >>= \case
     Left miss -> do
       poke ustk 0
-      pokeS bstk $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef <$> miss
+      pokeS bstk
+        $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> miss
     Right x -> do
       poke ustk 1
       poke bstk x
@@ -901,6 +902,18 @@ uprim2 !ustk LEQN !i !j = do
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
   pure ustk
+uprim2 !ustk DIVN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`div`n)
+  pure ustk
+uprim2 !ustk MODN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`mod`n)
+  pure ustk
 uprim2 !ustk ADDF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
@@ -953,13 +966,13 @@ uprim2 !ustk EQLF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x == y then 1 else 0)
+  poke ustk (if x == y then 1 else 0)
   pure ustk
 uprim2 !ustk LEQF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x <= y then 1 else 0)
+  poke ustk (if x <= y then 1 else 0)
   pure ustk
 uprim2 !ustk ATN2 !i !j = do
   x <- peekOffD ustk i

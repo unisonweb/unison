@@ -57,7 +57,7 @@ data Element r = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Show, Generic, Functor)
+             deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

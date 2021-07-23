@@ -7,7 +7,6 @@ module Unison.CommandLine.InputPatterns where
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
-import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
@@ -41,7 +40,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
 
@@ -798,9 +797,7 @@ push = InputPattern
     []    ->
       Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
     url : rest -> do
-      (repo, sbh, path) <- parseUri "url" url
-      when (isJust sbh)
-        $ Left "Can't push to a particular remote namespace hash."
+      (repo, path) <- parsePushPath "url" url
       p <- case rest of
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
@@ -825,9 +822,7 @@ pushExhaustive = InputPattern
     []    ->
       Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
     url : rest -> do
-      (repo, sbh, path) <- parseUri "url" url
-      when (isJust sbh)
-        $ Left "Can't push to a particular remote namespace hash."
+      (repo, path) <- parsePushPath "url" url
       p <- case rest of
         [] -> Right Path.relativeEmpty'
         [path] -> first fromString $ Path.parsePath' path
@@ -879,17 +874,20 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
       pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
-parseUri :: String -> String -> Either (P.Pretty P.ColorText) RemoteNamespace
+parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
 parseUri label input = do
-  ns <- first (fromString . show) -- turn any parsing errors into a Pretty.
+  first (fromString . show) -- turn any parsing errors into a Pretty.
     (P.parse UriParser.repoPath label (Text.pack input))
-  case (RemoteRepo.commit . Lens.view Lens._1) ns of
-    Nothing -> pure ns
-    Just commit -> Left . P.wrap $
-      "I don't totally know how to address specific git commits (e.g. "
-      <> P.group (P.text commit <> ")") <> " yet."
-      <> "If you need this, add your 2¢ at"
-      <> P.backticked "https://github.com/unisonweb/unison/issues/1436"
+
+parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
+parseWriteRepo label input = do
+  first (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeRepo label (Text.pack input))
+
+parsePushPath :: String -> String -> Either (P.Pretty P.ColorText) WriteRemotePath
+parsePushPath label input = do
+  first (fromString . show) -- turn any parsing errors into a Pretty.
+    (P.parse UriParser.writeRepoPath label (Text.pack input))
 
 squashMerge :: InputPattern
 squashMerge =
@@ -975,12 +973,11 @@ replaceEdit
      -> Maybe Input.PatchPath
      -> Input
      )
-  -> String
   -> InputPattern
-replaceEdit f s = self
+replaceEdit f = self
  where
   self = InputPattern
-    ("replace." <> s)
+    "replace"
     []
     [ (Required, definitionQueryArg)
     , (Required, definitionQueryArg)
@@ -988,17 +985,10 @@ replaceEdit f s = self
     ]
     (P.wrapColumn2
       [ ( makeExample self ["<from>", "<to>", "<patch>"]
-        , "Replace the "
-        <> P.string s
-        <> " <from> in the given patch "
-        <> "with the "
-        <> P.string s
-        <> " <to>."
+        , "Replace the term/type <from> in the given patch with the term/type <to>."
         )
       , ( makeExample self ["<from>", "<to>"]
-        , "Replace the "
-        <> P.string s
-        <> "<from> with <to> in the default patch."
+        , "Replace the term/type <from> with <to> in the default patch."
         )
       ]
     )
@@ -1014,11 +1004,8 @@ replaceEdit f s = self
       _ -> Left $ I.help self
     )
 
-replaceType :: InputPattern
-replaceType = replaceEdit Input.ReplaceTypeI "type"
-
-replaceTerm :: InputPattern
-replaceTerm = replaceEdit Input.ReplaceTermI "term"
+replace :: InputPattern
+replace = replaceEdit Input.ReplaceI
 
 viewReflog :: InputPattern
 viewReflog = InputPattern
@@ -1309,6 +1296,12 @@ debugDumpNamespace = InputPattern
   "Dump the namespace to a text file"
   (const $ Right Input.DebugDumpNamespacesI)
 
+debugClearWatchCache :: InputPattern
+debugClearWatchCache = InputPattern
+  "debug.clear-cache" [] [(Required, noCompletions)]
+  "Clear the watch expression cache"
+  (const $ Right Input.DebugClearWatchI)
+
 test :: InputPattern
 test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
@@ -1419,8 +1412,7 @@ validInputs =
   , unlink
   , links
   , createAuthor
-  , replaceTerm
-  , replaceType
+  , replace
   , deleteTermReplacement
   , deleteTypeReplacement
   , test
@@ -1437,6 +1429,7 @@ validInputs =
   , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
+  , debugClearWatchCache
   ]
 
 commandNames :: [String]

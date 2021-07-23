@@ -16,6 +16,7 @@ module Unison.Builtin
   ,intrinsicTermReferences
   ,intrinsicTypeReferences
   ,isBuiltinType
+  ,typeOf
   ,typeLookup
   ,termRefTypes
   ) where
@@ -246,6 +247,9 @@ termRefTypes = foldl' go mempty builtinsSrc where
     B r t -> Map.insert (R.Builtin r) t m
     D r t -> Map.insert (R.Builtin r) t m
     _ -> m
+
+typeOf :: Var v => a -> (Type v -> a) -> R.Reference -> a
+typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =

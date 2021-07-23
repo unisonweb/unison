@@ -32,7 +32,7 @@ import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
 import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.IOSource (ioFailureReference, tlsFailureReference, eitherReference, failureReference)
+import Unison.Runtime.IOSource (eitherReference)
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -46,6 +46,7 @@ import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -80,7 +81,6 @@ import System.IO as SYS
   ( IOMode(..)
   , openFile
   , hClose
-  , hGetLine
   , hGetBuffering
   , hSetBuffering
   , hIsEOF
@@ -905,7 +905,7 @@ outIoFail stack1 stack2 fail result =
   TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([BX], TAbs stack1 $ TCon eitherReference 1 [stack1]))
   ]
@@ -915,7 +915,7 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
   TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
         . TAbs stack3
@@ -928,7 +928,7 @@ outIoFailBox stack1 stack2 fail result =
   TMatch result . MatchSum  $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
         . TAbs stack1
@@ -941,7 +941,7 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
   $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([BX],)
         . TAbss [stack3]
@@ -955,7 +955,7 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
   $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
         $ TCon eitherReference 0 [fail])
   , (1, ([UN],)
         . TAbs stack3
@@ -1359,7 +1359,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e)) unitValue
+  handleIOE (Left e) = Left $ Failure Ty.ioFailureRef (pack (show e)) unitValue
   handleIOE (Right a) = Right a
 
 unitValue :: Closure
@@ -1375,8 +1375,8 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
   tryIO2 = try
   flatten :: Either IOException (Either TLS.TLSException r) -> Either (Failure ) r
-  flatten (Left e) = Left (Failure ioFailureReference (pack (show e)) unitValue)
-  flatten (Right (Left e)) = Left (Failure tlsFailureReference (pack (show e)) (unitValue))
+  flatten (Left e) = Left (Failure Ty.ioFailureRef (pack (show e)) unitValue)
+  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (pack (show e)) (unitValue))
   flatten (Right (Right a)) = Right a
 
 declareForeigns :: Var v => FDecl v ()
@@ -1409,14 +1409,12 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getLine.impl.v3" boxToEFBox . mkForeignIOF
-    $ \h -> pack <$> hGetLine h
+  declareForeign "IO.getLine.impl.v3" boxToEFBox $ mkForeignIOF Text.hGetLine
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF
-    $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
 
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
@@ -1546,7 +1544,7 @@ declareForeigns = do
     $ pure . Bytes.fromArray . encodeUtf8
 
   declareForeign "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
-    $ pure . mapLeft (\t -> Failure ioFailureReference (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
+    $ pure . mapLeft (\t -> Failure Ty.ioFailureRef (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
 
   declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
     $ \(hostName::Text, serverId:: Bytes.Bytes) ->
@@ -1625,7 +1623,7 @@ declareForeigns = do
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
-  let wrapFailure t = Failure tlsFailureReference (pack t) unitValue
+  let wrapFailure t = Failure Ty.tlsFailureRef (pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
       decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
       asCert :: PEM -> Either String X.SignedCertificate

@@ -17,14 +17,9 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison:hide
-
-```
-
 ```ucm:hide
 .> add
 ```
-
 
 ## Basic File Functions
 
@@ -60,6 +55,7 @@ testCreateRename _ =
 
   runTest test
 ```
+
 ```ucm
 .> add
 .> io.test testCreateRename
@@ -108,6 +104,7 @@ testOpenClose _ =
 
   runTest test
 ```
+
 ```ucm
 .> add
 .> io.test testOpenClose
@@ -122,6 +119,7 @@ Tests: openFile
        isFileEOF
        seekHandle
        getBytes
+       getLine
 
 ```unison
 testSeek : '{io2.IO} [Result]
@@ -145,6 +143,15 @@ testSeek _ =
     text3a = Text.fromUtf8 bytes3a
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
     closeFile handle3
+
+    barFile = tempDir ++ "/bar"
+    handle4 = openFile barFile FileMode.Append
+    putBytes handle4 (toUtf8 "foobar\n")
+    closeFile handle4
+
+    handle5 = openFile barFile FileMode.Read
+    expectU "getLine should get a line" "foobar" (getLine handle5)
+    closeFile handle5
 
   runTest test
 
@@ -171,6 +178,7 @@ testAppend _ =
 
   runTest test
 ```
+
 ```ucm
 .> add
 .> io.test testSeek
@@ -187,6 +195,7 @@ testSystemTime _ =
 
   runTest test
 ```
+
 ```ucm
 .> add
 .> io.test testSystemTime
@@ -194,15 +203,18 @@ testSystemTime _ =
 
 ### Get directory contents
 
-```unison
+```unison:hide
 testDirContents : '{io2.IO} [Result]
-testDirContents _ = 
+testDirContents _ =
   test = 'let
     tempDir = newTempDir "dircontents"
     c = reraise (directoryContents.impl tempDir)
     check "directory size should be"  (size c == 2)
+    check "directory contents should have current directory and parent" let
+      (c == [".", ".."]) || (c == ["..", "."])
   runTest test
 ```
+
 ```ucm
 .> add
 .> io.test testDirContents

@@ -296,7 +296,7 @@ lexemes' eof = P.optional space >> do
      <|> token symbolyId <|> token blank <|> token wordyId
      <|> (asum . map token) [ semi, textual, backticks, hash ]
 
-  wordySep c = isSpace c || not (isAlphaNum c)
+  wordySep c = isSpace c || not (wordyIdChar c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
 
   tok :: P a -> P [Token a]
@@ -327,9 +327,10 @@ lexemes' eof = P.optional space >> do
           isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
       _ -> docToks <> endToks
     where
+    wordyKw kw = separated wordySep (lit kw)
     subsequentTypeName = P.lookAhead . P.optional $ do
       let lit' s = lit s <* sp
-      _ <- P.optional (lit' "unique") *> (lit' "type" <|> lit' "ability")
+      _ <- P.optional (lit' "unique") *> (wordyKw "type" <|> wordyKw "ability") <* sp
       wordyId
     ignore _ _ _ = []
     body = join <$> P.many (sectionElem <* CP.space)
@@ -375,12 +376,12 @@ lexemes' eof = P.optional space >> do
           _ <- lit "}"
           pure (join s)
         signature = wrap "syntax.docSignature" $ do
-          _ <- lit "@signatures" *> (lit " {" <|> lit "{") *> CP.space
+          _ <- (lit "@signatures" <|> lit "@signature") *> (lit " {" <|> lit "{") *> CP.space
           s <- join <$> P.sepBy1 signatureLink comma
           _ <- lit "}"
           pure s
         signatureInline = wrap "syntax.docSignatureInline" $ do
-          _ <- lit "@signature" *> (lit " {" <|> lit "{") *> CP.space
+          _ <- lit "@inlineSignature" *> (lit " {" <|> lit "{") *> CP.space
           s <- signatureLink
           _ <- lit "}"
           pure s
@@ -791,7 +792,7 @@ lexemes' eof = P.optional space >> do
       where
         ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
                              <|> close' (Just "else") ["then"] (lit "else")
-        typ = openKw1 "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
+        typ = openKw1 wordySep "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
 
         withKw = do
           [Token _ pos1 pos2] <- wordyKw "with"
@@ -811,13 +812,13 @@ lexemes' eof = P.optional space >> do
         openTypeKw1 t = do
           b <- S.gets (topBlockName . layout)
           case b of Just "unique" -> wordyKw t
-                    _             -> openKw1 t
+                    _             -> openKw1 wordySep t
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
         -- to the next token to determine the layout column
-        openKw1 :: String -> P [Token Lexeme]
-        openKw1 kw = do
-          (pos0, kw, pos1) <- positioned $ lit kw
+        openKw1 :: (Char -> Bool) -> String -> P [Token Lexeme]
+        openKw1 sep kw = do
+          (pos0, kw, pos1) <- positioned $ separated sep (lit kw)
           S.modify (\env -> env { layout = (kw, column $ inc pos0) : layout env })
           pure [Token (Open kw) pos0 pos1]
 

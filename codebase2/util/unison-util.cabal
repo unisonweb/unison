@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bc7f7157a2b554df63f114447a2a6798a365df3d483cec8e3b87c0770992ac36
+-- hash: a8102baaf0e3fe04c94f0f13427e916237c029cf7554b4ca709684c48ff0b3b0
 
 name:           unison-util
 version:        0.0.0
@@ -41,7 +41,6 @@ library
     , bytestring
     , containers
     , cryptonite
-    , extra
     , lens
     , memory
     , safe

@@ -9,9 +9,6 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison
-```
-
 ## Basic File Functions
 
 ### Creating/Deleting/Renaming Directories
@@ -168,6 +165,7 @@ Tests: openFile
        isFileEOF
        seekHandle
        getBytes
+       getLine
 
 ```unison
 testSeek : '{io2.IO} [Result]
@@ -191,6 +189,15 @@ testSeek _ =
     text3a = Text.fromUtf8 bytes3a
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
     closeFile handle3
+
+    barFile = tempDir ++ "/bar"
+    handle4 = openFile barFile FileMode.Append
+    putBytes handle4 (toUtf8 "foobar\n")
+    closeFile handle4
+
+    handle5 = openFile barFile FileMode.Read
+    expectU "getLine should get a line" "foobar" (getLine handle5)
+    closeFile handle5
 
   runTest test
 
@@ -248,8 +255,9 @@ testAppend _ =
   ◉ testSeek   we should be at position 0
   ◉ testSeek   we should be at position 1
   ◉ testSeek   should be able to read our temporary file after seeking
+  ◉ testSeek   getLine should get a line
   
-  ✅ 6 test(s) passing
+  ✅ 7 test(s) passing
   
   Tip: Use view testSeek to view the source of a test.
 
@@ -308,25 +316,16 @@ testSystemTime _ =
 
 ```unison
 testDirContents : '{io2.IO} [Result]
-testDirContents _ = 
+testDirContents _ =
   test = 'let
     tempDir = newTempDir "dircontents"
     c = reraise (directoryContents.impl tempDir)
     check "directory size should be"  (size c == 2)
+    check "directory contents should have current directory and parent" let
+      (c == [".", ".."]) || (c == ["..", "."])
   runTest test
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      testDirContents : '{IO} [Result]
-
-```
 ```ucm
 .> add
 
@@ -339,8 +338,9 @@ testDirContents _ =
     New test results:
   
   ◉ testDirContents   directory size should be
+  ◉ testDirContents   directory contents should have current directory and parent
   
-  ✅ 1 test(s) passing
+  ✅ 2 test(s) passing
   
   Tip: Use view testDirContents to view the source of a test.
 

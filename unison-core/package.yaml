@@ -46,4 +46,4 @@ flags:
 
 when:
   - condition: flag(optimized)
-    ghc-options: -funbox-strict-fields
+    ghc-options: -O2 -funbox-strict-fields

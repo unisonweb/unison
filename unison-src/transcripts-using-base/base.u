@@ -179,6 +179,7 @@ getBuffering = compose reraise getBuffering.impl
 setBuffering mode = compose reraise (setBuffering.impl mode)
 seekHandle = compose3 reraise seekHandle.impl
 putBytes = compose2 reraise putBytes.impl
+getLine = compose reraise getLine.impl
 systemTime = compose reraise systemTime.impl
 decodeCert = compose reraise decodeCert.impl
 serverSocket = compose2 reraise serverSocket.impl
