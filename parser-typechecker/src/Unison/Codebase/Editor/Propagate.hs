@@ -84,7 +84,7 @@ propagateAndApply rootNames patch branch = do
 -- This function produces constructor mappings for propagated type updates.
 --
 -- For instance in `type Foo = Blah Bar | Zoink Nat`, if `Bar` is updated
--- from `Blah#old` to `Blah#new`, `Foo` will be a "propagated update" and
+-- from `Bar#old` to `Bar#new`, `Foo` will be a "propagated update" and
 -- we want to map the `Foo#old.Blah` constructor to `Foo#new.Blah`.
 --
 -- The function works by aligning same-named types and same-named constructors,
@@ -125,12 +125,12 @@ propagateCtorMapping oldComponent newComponent = let
     ]
   in if debugMode then traceShow ("constructorMappings", r) r else r
 
--- TODO: This function will go away soon, once constructor mappings can be
+
+-- TODO: Use of this function will go away soon, once constructor mappings can be
 -- added directly to the patch.
 --
--- Given two data declaration components, creates a mapping from old data
--- constructors to new data constructors via the heuristic of looking
--- at constructors with matching names.
+-- Given a set of type replacements, this creates a mapping from the constructors
+-- of the old type(s) to the constructors of the new types.
 --
 -- Constructors for the same-unqualified-named type with a same-unqualified-name
 -- constructor are mapped to each other.
@@ -138,34 +138,55 @@ propagateCtorMapping oldComponent newComponent = let
 -- If the cycle is size 1 for old and new, then the type names need not be the same,
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
---
--- NB: the keys of the maps passed in are just hashes, so that can't
--- be used as a heuristic for aligning declarations.
-genInitialCtorMapping
-  :: (Var v, Show a)
-  => (Reference -> Reference -> Bool)
-  -> (Referent -> Referent -> Bool)
-  -> Map v (Reference, Decl v a)
-  -> Map v (Reference, Decl.DataDeclaration v a)
-  -> Map Referent Referent
-genInitialCtorMapping typeNamesMatch ctorNamesMatch oldComponent newComponent = let
-  singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
-  isSingleton c = null . drop 1 $ Decl.constructors' c
-  r = Map.fromList
-    [ (oldCon, newCon)
-    | (_, (oldR, oldDecl)) <- Map.toList oldComponent
-    , (_, (newR, newDecl)) <- Map.toList newComponent
-    , typeNamesMatch oldR newR || singletons
-    , let t = Decl.constructorType oldDecl
-    , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
-    , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
-    , let oldCon = Referent.Con oldR oldC t
-          newCon = Referent.Con newR newC t
-    , ctorNamesMatch oldCon newCon
-      || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
-    , oldR /= newR
-    ]
-  in if debugMode then traceShow ("constructorMappings", r) r else r
+genInitialCtorMapping ::
+  forall v m i . Var v => Names0 -> Map Reference Reference -> F m i v (Map Referent Referent)
+genInitialCtorMapping rootNames initialTypeReplacements = do
+  let mappings :: (Reference,Reference) -> _ (Map Referent Referent)
+      mappings (old,new) = do
+        old <- unhashTypeComponent old
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
+        pure $ ctorMapping old new
+  Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
+  where
+  -- True if the unqualified versions of the names in the two sets overlap
+  -- ex: {foo.bar, foo.baz} matches the set {blah.bar}.
+  unqualifiedNamesMatch :: Set Name.Name -> Set Name.Name -> Bool
+  unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch", n1, n2) False = undefined
+  unqualifiedNamesMatch n1 n2 =
+    (not . Set.null) (Set.intersection (Set.map Name.unqualified n1)
+                                       (Set.map Name.unqualified n2))
+  ctorNamesMatch oldR newR =
+    unqualifiedNamesMatch (Names.namesForReferent rootNames oldR)
+                          (Names.namesForReferent rootNames newR)
+
+  typeNamesMatch typeMapping oldType newType =
+    Map.lookup oldType typeMapping == Just newType ||
+    unqualifiedNamesMatch (Names.namesForReference rootNames oldType)
+                          (Names.namesForReference rootNames oldType)
+
+  ctorMapping
+    :: Map v (Reference, Decl v a)
+    -> Map v (Reference, Decl.DataDeclaration v a)
+    -> Map Referent Referent
+  ctorMapping oldComponent newComponent = let
+    singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+    isSingleton c = null . drop 1 $ Decl.constructors' c
+    r = Map.fromList
+      [ (oldCon, newCon)
+      | (_, (oldR, oldDecl)) <- Map.toList oldComponent
+      , (_, (newR, newDecl)) <- Map.toList newComponent
+      , typeNamesMatch initialTypeReplacements oldR newR || singletons
+      , let t = Decl.constructorType oldDecl
+      , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
+      , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
+      , let oldCon = Referent.Con oldR oldC t
+            newCon = Referent.Con newR newC t
+      , ctorNamesMatch oldCon newCon
+        || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
+      , oldR /= newR
+      ]
+    in if debugMode then traceShow ("constructorMappings", r) r else r
+
 
 watch :: Show a => String -> a -> a
 watch msg a | debugMode = traceShow (msg, show a) a
@@ -207,7 +228,8 @@ debugMode = False
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => Names0
+  => Names0 -- TODO: this argument can be removed once patches have term replacement
+            -- of type `Referent -> Referent`
   -> Patch
   -> Branch0 m
   -> F m i v (Edits v)
@@ -223,24 +245,16 @@ propagate rootNames patch b = case validatePatch patch of
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
 
-      unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch", n1, n2) False = undefined
-      unqualifiedNamesMatch n1 n2 =
-        (not . Set.null) (Set.intersection (Set.map Name.unqualified n1)
-                                           (Set.map Name.unqualified n2))
-      ctorNamesMatch oldR newR =
-        unqualifiedNamesMatch (Names.namesForReferent rootNames oldR)
-                              (Names.namesForReferent rootNames newR)
-      typeNamesMatch typeMapping oldType newType =
-        Map.lookup oldType typeMapping == Just newType ||
-        unqualifiedNamesMatch (Names.namesForReference rootNames oldType)
-                              (Names.namesForReference rootNames oldType)
-
-      refName r =
+      -- TODO: these are just used for tracing, could be deleted if we don't care
+      -- about printing meaningful names for definitions during propagation, or if
+      -- we want to just remove the tracing.
+      refName r = -- could just become show r if we don't care
         let rns = Names.namesForReferent rootNames (Referent.Ref r)
                <> Names.namesForReference rootNames r
         in case toList rns of
           [] -> show r
           n : _ -> show n
+      -- this could also become show r if we're removing the dependency on Names0
       referentName r = case toList (Names.namesForReferent rootNames r) of
         [] -> Referent.toString r
         n : _ -> show n
@@ -248,14 +262,10 @@ propagate rootNames patch b = case validatePatch patch of
     initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
-    initialCtorMappings :: Map Referent Referent <- do
-      let mappings :: (Reference,Reference) -> _ (Map Referent Referent)
-          mappings (old,new) = do
-            old <- unhashTypeComponent old
-            new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
-            pure $ genInitialCtorMapping @v (typeNamesMatch initialTypeReplacements)
-                                             ctorNamesMatch old new
-      Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
+    -- TODO: once patches can directly contain constructor replacements, this
+    -- line can turn into a pure function that takes the subset of the term replacements
+    -- in the patch which have a `Referent.Con` as their LHS.
+    initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
 
     order <- sortDependentsGraph initialDirty entireBranch
     let
@@ -484,24 +494,6 @@ propagate rootNames patch b = case validatePatch patch of
           in  Map.fromList
                 [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
-  unhashTypeComponent
-     :: Reference -> F m i v (Map v (Reference, Decl v Ann))
-  unhashTypeComponent ref = do
-    let
-      component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
-      typeInfo typeRef = case typeRef of
-        Reference.DerivedId id -> do
-          declm <- eval $ LoadType id
-          decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
-                         pure
-                         declm
-          pure $ Just (typeRef, decl)
-        Reference.Builtin{} -> pure Nothing
-      unhash =
-        Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
-        where reshuffle (r, (v, decl)) = (v, (r, decl))
-    unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
@@ -533,6 +525,24 @@ propagate rootNames patch b = case validatePatch patch of
           .   fmap UF.hashTerms
           $   runIdentity (Result.toMaybe typecheckResult)
           >>= hush
+
+unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
+unhashTypeComponent ref = do
+  let
+    component = Reference.members $ Reference.componentFor ref
+    typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
+    typeInfo typeRef = case typeRef of
+      Reference.DerivedId id -> do
+        declm <- eval $ LoadType id
+        decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
+                       pure
+                       declm
+        pure $ Just (typeRef, decl)
+      Reference.Builtin{} -> pure Nothing
+    unhash =
+      Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
+      where reshuffle (r, (v, decl)) = (v, (r, decl))
+  unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
