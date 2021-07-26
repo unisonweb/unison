@@ -88,7 +88,7 @@ unique type RuntimeError =
 
   💔💥
   
-  Uncaught exception:
+  The program halted with an unhandled exception:
   
     builtin.io2.Failure.Failure
       typeLink RuntimeError "oh noes!" !builtin.Any.Any

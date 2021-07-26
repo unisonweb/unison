@@ -300,7 +300,7 @@ bugMsg ppe name tm
   , sorryMsg
   ]
   | name == "builtin.raise" = P.callout icon . P.lines $
-  [ P.wrap ("Uncaught exception:")
+  [ P.wrap ("The program halted with an unhandled exception:")
   , ""
   , P.indentN 2 $ pretty ppe tm
   ]
