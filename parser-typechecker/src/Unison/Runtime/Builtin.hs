@@ -680,6 +680,20 @@ watch
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
 
+raise :: Var v => SuperNormal v
+raise
+  = unop0 4 $ \[r,f,n,j,k]
+ -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
+  [ (0, ([BX], TAbs f $ TVar f))
+  , (i, ([UN,BX]
+      , TAbss [j,f]
+      . TShift Ty.exceptionRef k
+      . TLetD n BX (TLit $ T "builtin.raise")
+      $ TPrm EROR [n, f]))
+  ]
+  where
+  i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+
 code'missing :: Var v => SuperNormal v
 code'missing
   = unop0 1 $ \[link,b]
@@ -1331,7 +1345,9 @@ builtinLookup
   , ("Universal.>=", geu)
   , ("Universal.<=", leu)
 
+  -- internal stuff
   , ("jumpCont", jumpk)
+  , ("raise", raise)
 
   , ("IO.forkComp.v2", fork'comp)
 

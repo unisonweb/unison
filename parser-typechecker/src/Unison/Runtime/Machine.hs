@@ -33,6 +33,7 @@ import qualified Data.Primitive.PrimArray as PA
 
 import Text.Read (readMaybe)
 
+import Unison.Builtin.Decls (exceptionRef)
 import Unison.Reference (Reference(Builtin))
 import Unison.Referent (pattern Ref)
 import Unison.Symbol (Symbol)
@@ -105,9 +106,11 @@ baseCCache
   ftm = 1 + maximum builtinTermNumbering
   fty = 1 + maximum builtinTypeNumbering
 
+  rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
+
   combs
     = mapWithKey
-        (\k v -> emitComb @Symbol emptyRNs k mempty (0,v))
+        (\k v -> emitComb @Symbol rns k mempty (0,v))
         numberedTermLookup
 
 info :: Show a => String -> a -> IO ()
@@ -122,6 +125,19 @@ eval0 !env !co = do
   bstk <- alloc
   eval env mempty ustk bstk KE co
 
+topDEnv
+  :: M.Map Reference Word64
+  -> M.Map Reference Word64
+  -> (DEnv, K -> K)
+topDEnv rfTy rfTm
+  | Just n <- M.lookup exceptionRef rfTy
+  , rcrf <- Builtin (Tx.pack "raise")
+  , Just j <- M.lookup rcrf rfTm
+  = ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull)
+    , Mark (EC.setSingleton n) mempty
+    )
+topDEnv _ _ = (mempty, id)
+
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
 --
@@ -134,10 +150,12 @@ apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
     cmbrs <- readTVarIO $ combRefs env
+    (denv, kf) <-
+      topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
     r <- case EC.lookup i cmbrs of
            Just r -> pure r
            Nothing -> die "apply0: missing reference to entry point"
-    apply env mempty ustk bstk k0 True ZArgs
+    apply env denv ustk bstk (kf k0) True ZArgs
       $ PAp (CIx r i 0) unull bnull
   where
   k0 = maybe KE (CB . Hook) callback
