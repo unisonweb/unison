@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Codebase.Editor.Propagate where
+module Unison.Codebase.Editor.Propagate (propagateAndApply) where
 
 import           Control.Error.Util             ( hush )
 import           Control.Lens
@@ -186,11 +186,6 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
       , oldR /= newR
       ]
     in if debugMode then traceShow ("constructorMappings", r) r else r
-
-
-watch :: Show a => String -> a -> a
-watch msg a | debugMode = traceShow (msg, show a) a
-            | otherwise = a
 
 debugMode :: Bool
 debugMode = False
