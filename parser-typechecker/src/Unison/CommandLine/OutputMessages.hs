@@ -106,12 +106,11 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
-import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 
 type Pretty = P.Pretty P.ColorText
@@ -243,7 +242,7 @@ notifyNumbered o = case o of
                  <> "or" <> IP.makeExample' IP.viewReflog
                  <> "to undo this change."
 
-prettyRemoteNamespace :: (RemoteRepo.RemoteRepo,
+prettyRemoteNamespace :: (RemoteRepo.ReadRepo,
                           Maybe ShortBranchHash, Path.Path)
                          -> P.Pretty P.ColorText
 prettyRemoteNamespace =
@@ -395,6 +394,13 @@ notifyUser dir o = case o of
     ]
 
   EvaluationFailure err -> pure err
+  TypeTermMismatch typeName termName ->
+    pure
+      $  P.warnCallout "I was expecting either two types or two terms but was given a type "
+      <> P.syntaxToColor (prettyHashQualified typeName)
+      <> " and a term "
+      <> P.syntaxToColor (prettyHashQualified termName)
+      <> "."
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure
@@ -664,26 +670,26 @@ notifyUser dir o = case o of
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
     CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
-      <> prettyRepoBranch repo <> "in the cache directory at"
+      <> prettyReadRepo repo <> "in the cache directory at"
       <> P.backticked' (P.string localPath) "."
     UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
       $ "I don't know how to interpret schema version " <> P.shown v
-      <> "in the repository at" <> prettyRepoBranch repo
+      <> "in the repository at" <> prettyReadRepo repo
       <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
     CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
       <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
-      <> P.group (prettyRepoBranch repo <> ".")
+      <> P.group (prettyReadRepo repo <> ".")
     CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
       <> P.red (P.shown h) <> "but now I can't find it."
     NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
     CloneException repo msg -> P.wrap $
-      "I couldn't clone the repository at" <> prettyRepoBranch repo <> ";"
+      "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
       <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
     PushNoOp repo -> P.wrap $
-      "The repository at" <> prettyRepoBranch repo <> "is already up-to-date."
+      "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."
     PushException repo msg -> P.wrap $
-      "I couldn't push to the repository at" <> prettyRepoRevision repo <> ";"
+      "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
       <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
     UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
       <> P.backticked (P.text uri) <> "already exists at"
@@ -695,7 +701,7 @@ notifyUser dir o = case o of
       <> "result as a git repository, so I'm not sure what to do next."
     PushDestinationHasNewStuff repo ->
       P.callout "⏸" . P.lines $ [
-      P.wrap $ "The repository at" <> prettyRepoRevision repo
+      P.wrap $ "The repository at" <> prettyWriteRepo repo
             <> "has some changes I don't know about.",
       "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
@@ -710,14 +716,14 @@ notifyUser dir o = case o of
     CouldntLoadRootBranch repo hash -> P.wrap
       $ "I couldn't load the designated root hash"
       <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
-      <> "from the repository at" <> prettyRepoRevision repo
+      <> "from the repository at" <> prettyReadRepo repo
     NoRemoteNamespaceWithHash repo sbh -> P.wrap
-      $ "The repository at" <> prettyRepoRevision repo
+      $ "The repository at" <> prettyReadRepo repo
       <> "doesn't contain a namespace with the hash prefix"
       <> (P.blue . P.text . SBH.toText) sbh
     RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
       P.wrap $ "The namespace hash" <> prettySBH sbh
-            <> "at" <> prettyRepoRevision repo
+            <> "at" <> prettyReadRepo repo
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
       "",
@@ -831,30 +837,6 @@ notifyUser dir o = case o of
       , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
         <> "for more information."
       ]
---  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
-  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath ->
-    pure . P.lines $
-    [ P.wrap
-    $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
-    <> (P.group . (<>",") . P.blue . P.text)
-        (RemoteRepo.printNamespace repo (Just sbh) remotePath)
-    <> "which specifies a namespace hash"
-    <> P.group (P.blue (prettySBH sbh) <> ".")
-    , ""
-    , P.wrap $
-      pushPull "I can't push to a specific hash, because it's immutable."
-      ("It's no use for repeated pulls,"
-      <> "because you would just get the same immutable namespace each time.")
-      pp
-    , ""
-    , P.wrap $ "You can use"
-    <> P.backticked (
-        pushPull "push" "pull" pp
-        <> " "
-        <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
-    <> "if you want to" <> pushPull "push onto" "pull from" pp
-    <> "the latest."
-    ]
   NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
@@ -1134,8 +1116,8 @@ formatMissingStuff terms types =
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
@@ -1149,12 +1131,14 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
   go ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject typ ->
+        P.hang ("builtin " <> prettyHashQualified n <> " :")
+               (TypePrinter.prettySyntax (ppeBody r) typ)
       UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject _ -> builtin n
       UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
         Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
@@ -1192,8 +1176,8 @@ displayRendered outputLoc pp =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> IO Pretty
 displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
@@ -1300,17 +1284,17 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayObject (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinObject -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
+   BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
    MissingObject _ -> mempty -- these need to be handled elsewhere
    UserObject decl -> case decl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 prettyDeclPair :: Var v =>
-  PPE.PrettyPrintEnv -> (Reference, DisplayObject (DD.Decl v a))
+  PPE.PrettyPrintEnv -> (Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
@@ -1321,7 +1305,7 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
     showConflictedNames "terms" conflictedTermNames,
     tip $ "This occurs when merging branches that both independently introduce the same name. Use "
         <> makeExample IP.view (prettyName <$> take 3 allNames)
-        <> "to see the conflicting defintions, then use "
+        <> "to see the conflicting definitions, then use "
         <> makeExample' (if (not . null) conflictedTypeNames
                          then IP.renameType else IP.renameTerm)
         <> "to resolve the conflicts."
@@ -2027,21 +2011,11 @@ prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 prettyTermName ppe r = P.syntaxToColor $
   prettyHashQualified (PPE.termName ppe r)
 
-prettyRepoRevision :: RemoteRepo -> Pretty
-prettyRepoRevision (RemoteRepo.GitRepo url treeish) =
-  P.blue (P.text url) <> prettyRevision treeish
-  where
-  prettyRevision treeish =
-    Monoid.fromMaybe $
-      treeish <&> \treeish -> "at revision" <> P.blue (P.text treeish)
+prettyReadRepo :: ReadRepo -> Pretty
+prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
 
-prettyRepoBranch :: RemoteRepo -> Pretty
-prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
-  P.blue (P.text url) <> prettyRevision treeish
-  where
-  prettyRevision treeish =
-    Monoid.fromMaybe $
-      treeish <&> \treeish -> "at branch" <> P.blue (P.text treeish)
+prettyWriteRepo :: WriteRepo -> Pretty
+prettyWriteRepo (RemoteRepo.WriteGitRepo url) = P.blue (P.text url)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

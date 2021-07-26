@@ -9,9 +9,6 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison
-```
-
 ## Basic File Functions
 
 ### Creating/Deleting/Renaming Directories
@@ -302,5 +299,71 @@ testSystemTime _ =
   ✅ 1 test(s) passing
   
   Tip: Use view testSystemTime to view the source of a test.
+
+```
+### Get directory contents
+
+```unison
+testDirContents : '{io2.IO} [Result]
+testDirContents _ =
+  test = 'let
+    tempDir = newTempDir "dircontents"
+    c = reraise (directoryContents.impl tempDir)
+    check "directory size should be"  (size c == 2)
+    check "directory contents should have current directory and parent" let
+      (c == [".", ".."]) || (c == ["..", "."])
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testDirContents : '{IO} [Result]
+
+.> io.test testDirContents
+
+    New test results:
+  
+  ◉ testDirContents   directory size should be
+  ◉ testDirContents   directory contents should have current directory and parent
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testDirContents to view the source of a test.
+
+```
+### Read environment variables
+
+```unison
+testHomeEnvVar : '{io2.IO} [Result]
+testHomeEnvVar _ =
+  test = 'let
+    home = reraise (getEnv.impl "HOME")
+    check "HOME environent variable should be set"  (size home > 0)
+    match getEnv.impl "DOESNTEXIST" with 
+      Right _ -> emit (Fail "env var shouldn't exist")
+      Left _ -> emit (Ok "DOESNTEXIST didn't exist")
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testHomeEnvVar : '{IO} [Result]
+
+.> io.test testHomeEnvVar
+
+    New test results:
+  
+  ◉ testHomeEnvVar   HOME environent variable should be set
+  ◉ testHomeEnvVar   DOESNTEXIST didn't exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testHomeEnvVar to view the source of a test.
 
 ```

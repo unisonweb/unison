@@ -16,7 +16,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
 import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
@@ -86,8 +86,8 @@ data Codebase m v a =
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
-           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
-           , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
+           , viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
+           , pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -95,6 +95,7 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           , clearWatches       :: m ()
 
            , getReflog          :: m [Reflog.Entry]
            , appendReflog       :: Text -> Branch m -> Branch m -> m ()
@@ -201,6 +202,12 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
+lookupWatchCache :: (Monad m) => Codebase m v a -> Reference -> m (Maybe (Term v a))
+lookupWatchCache codebase (Reference.DerivedId h) = do
+  m1 <- getWatch codebase UF.RegularWatch h
+  maybe (getWatch codebase UF.TestWatch h) (pure . Just) m1
+lookupWatchCache _ Reference.Builtin{} = pure Nothing
 
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)
@@ -322,6 +329,11 @@ getTypeOfTerm c r = case r of
     pure $   fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
+getTypeOfReferent :: (BuiltinAnnotation a, Var v, Monad m)
+                  => Codebase m v a -> Referent.Referent -> m (Maybe (Type v a))
+getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
+getTypeOfReferent c (Referent.Con r cid _) =
+  getTypeOfConstructor c r cid
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
@@ -372,7 +384,7 @@ importRemoteBranch ::
   forall m v a.
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   SyncMode ->
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode = runExceptT do
@@ -391,7 +403,7 @@ importRemoteBranch codebase ns mode = runExceptT do
 viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   m (Either GitError (m (), Branch m))
 viewRemoteBranch codebase ns = runExceptT do
   (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns

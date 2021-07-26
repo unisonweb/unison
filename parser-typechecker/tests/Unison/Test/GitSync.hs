@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Test.GitSync where
 
@@ -31,6 +32,7 @@ test :: Test ()
 test = scope "gitsync22" . tests $
   fastForwardPush :
   nonFastForwardPush :
+  destroyedRemote :
   flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
   pushPullTest  "typeAlias" fmt
@@ -192,7 +194,7 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #ls8
+        .> reset-root #dsh
         .> history
         ```
     |])
@@ -326,8 +328,8 @@ test = scope "gitsync22" . tests $
       ```
       ```ucm
       .defns> add
-      .patches> replace.type .defns.A .defns.B
-      .patches> replace.term .defns.x .defns.y
+      .patches> replace .defns.A .defns.B
+      .patches> replace .defns.x .defns.y
       .patches> push ${repo}
       ```
     |])
@@ -361,6 +363,51 @@ test = scope "gitsync22" . tests $
       void . fmap (fromJust . sequence) $
         traverse (Codebase.getWatch cb TestWatch) =<<
           Codebase.watches cb TestWatch)
+  ,
+  pushPullTest "fix2068(a)" fmt
+    -- this triggers
+    {-
+gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
+CallStack (from HasCallStack):
+  error, called at src/Unison/Codebase/SqliteCodebase.hs:1072:17 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+     -}
+    (\repo -> [i|
+      ```ucm
+      .> alias.type ##Nat builtin.Nat2
+      .> alias.type ##Int builtin.Int2
+      .> push ${repo}:.foo.bar
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .> pull ${repo} pulled
+      .> view pulled.foo.bar.builtin.Nat2
+      .> view pulled.foo.bar.builtin.Int2
+      ```
+    |])
+  ,
+  pushPullTest "fix2068(b)" fmt
+    -- this triggers
+    {-
+     - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
+CallStack (from HasCallStack):
+  error, called at src/Unison/Codebase/SqliteCodebase.hs:1046:13 in unison-parser-typechecker-0.0.0-6U6boimwb8GAC5qrhLfs8h:Unison.Codebase.SqliteCodebase
+     -}
+    (\repo -> [i|
+      ```ucm
+      .> alias.type ##Nat builtin.Nat2
+      .> alias.type ##Int builtin.Int2
+      .> push ${repo}
+      .> push ${repo}:.foo.bar
+      ```
+    |])
+    (\repo -> [i|
+      ```ucm
+      .> pull ${repo} pulled
+      .> view pulled.foo.bar.builtin.Nat2
+      .> view pulled.foo.bar.builtin.Int2
+      ```
+    |])
 
           -- m [Reference.Id]
 
@@ -485,6 +532,30 @@ nonFastForwardPush = scope "non-fastforward-push" do
       ```
     |]
   ok
+
+destroyedRemote :: Test()
+destroyedRemote = scope "destroyed-remote" do
+  io do
+    repo <- initGitRepo
+    codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat
+      .lib> push ${repo}
+      ```
+    |]
+    reinitRepo repo
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> push ${repo}
+      ```
+    |]
+  ok
+  where
+    reinitRepo (Text.pack -> repo) = do
+      "rm" ["-rf", repo]
+      "git" ["init", "--bare", repo]
+
 
 initGitRepo :: IO FilePath
 initGitRepo = do

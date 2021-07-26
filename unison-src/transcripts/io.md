@@ -17,14 +17,9 @@ You can skip the section which is just needed to make the transcript self-contai
 TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
-```unison:hide
-
-```
-
 ```ucm:hide
 .> add
 ```
-
 
 ## Basic File Functions
 
@@ -190,4 +185,40 @@ testSystemTime _ =
 ```ucm
 .> add
 .> io.test testSystemTime
+```
+
+### Get directory contents
+
+```unison:hide
+testDirContents : '{io2.IO} [Result]
+testDirContents _ =
+  test = 'let
+    tempDir = newTempDir "dircontents"
+    c = reraise (directoryContents.impl tempDir)
+    check "directory size should be"  (size c == 2)
+    check "directory contents should have current directory and parent" let
+      (c == [".", ".."]) || (c == ["..", "."])
+  runTest test
+```
+```ucm
+.> add
+.> io.test testDirContents
+```
+
+### Read environment variables
+
+```unison:hide
+testHomeEnvVar : '{io2.IO} [Result]
+testHomeEnvVar _ =
+  test = 'let
+    home = reraise (getEnv.impl "HOME")
+    check "HOME environent variable should be set"  (size home > 0)
+    match getEnv.impl "DOESNTEXIST" with 
+      Right _ -> emit (Fail "env var shouldn't exist")
+      Left _ -> emit (Ok "DOESNTEXIST didn't exist")
+  runTest test
+```
+```ucm
+.> add
+.> io.test testHomeEnvVar
 ```

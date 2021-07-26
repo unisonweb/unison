@@ -29,10 +29,10 @@ import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Database.SQLite.Simple (Connection)
 import Debug.Trace (traceM, trace)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
+import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT

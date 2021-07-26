@@ -1,6 +1,6 @@
 # Test that copying a patch works as expected
 
-```unison
+```unison:hide
 x = 1
 ```
 
@@ -10,7 +10,7 @@ x = 1
 
 Change the definition of `x` so something goes in our patch:
 
-```unison
+```unison:hide
 x = 2
 ```
 
@@ -22,7 +22,9 @@ Copy the patch and make sure it's still there.
 
 ```ucm
 .> copy.patch foo.patch bar.patch
+.> ls foo
 .> view.patch foo.patch
+.> ls bar
 .> view.patch bar.patch
 ```
 
@@ -34,6 +36,7 @@ Now move the patch.
 
 The moved patch should be gone.
 
-```ucm
+```ucm:error
 .> view.patch foo.patch
+.> ls foo
 ```

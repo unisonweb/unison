@@ -308,6 +308,7 @@ data UPrim1
 data UPrim2
   -- integral
   = ADDI | SUBI | MULI | DIVI | MODI -- +,-,*,/,mod
+  | DIVN | MODN
   | SHLI | SHRI | SHRN | POWI        -- shiftl,shiftr,shiftr,pow
   | EQLI | LEQI | LEQN               -- ==,<=,<=
   | ANDN | IORN | XORN               -- and,or,xor
@@ -937,9 +938,9 @@ emitPOp ANF.SUBN = emitP2 SUBI
 emitPOp ANF.MULI = emitP2 MULI
 emitPOp ANF.MULN = emitP2 MULI
 emitPOp ANF.DIVI = emitP2 DIVI
-emitPOp ANF.DIVN = emitP2 DIVI
+emitPOp ANF.DIVN = emitP2 DIVN
 emitPOp ANF.MODI = emitP2 MODI -- TODO: think about how these behave
-emitPOp ANF.MODN = emitP2 MODI -- TODO: think about how these behave
+emitPOp ANF.MODN = emitP2 MODN -- TODO: think about how these behave
 emitPOp ANF.POWI = emitP2 POWI
 emitPOp ANF.POWN = emitP2 POWI
 emitPOp ANF.SHLI = emitP2 SHLI

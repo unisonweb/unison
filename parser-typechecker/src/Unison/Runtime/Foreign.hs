@@ -33,7 +33,7 @@ import qualified Crypto.Hash as Hash
 import Unsafe.Coerce
 
 data Foreign where
-  Wrap :: Reference -> e -> Foreign
+  Wrap :: Reference -> !e -> Foreign
 
 promote :: (a -> a -> r) -> b -> c -> r
 promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y

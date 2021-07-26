@@ -1,4 +1,6 @@
-flags: {}
+flags:
+  haskeline:
+    terminfo: false
 
 allow-newer: true # async package has needlessly strict upper bound
 
@@ -20,7 +22,7 @@ packages:
 - codebase2/util-term
 
 #compiler-check: match-exact
-resolver: lts-17.5
+resolver: lts-17.15
 
 extra-deps:
 - github: unisonweb/configurator
@@ -29,27 +31,14 @@ extra-deps:
   commit: 2944b11d19ee034c48276edc991736105c9d6143
 - github: unisonweb/megaparsec
   commit: c4463124c578e8d1074c04518779b5ce5957af6b
-- github: biocad/openapi3
-  commit: bd9df532f2381c4b22fe86ef722715088f5cfa68
-- github: biocad/servant-openapi3
-  commit: deb32b7ce166aa86092f7e46ed2cd3cf43d540a4
-- base16-0.3.0.1@sha256:22e62f1283adb1fbc81de95f404b0c4039e69e90d92dac8c1bfca0d04941a749,2303
-- concurrent-supply-0.1.8@sha256:9373f4868ad28936a7b93781b214ef4afdeacf377ef4ac729583073491c9f9fb,1627
 - guid-0.1.0@sha256:a7c975be473f6f142d5cc1b39bc807a99043d20b1bb0873fdfe7a3ce84d2faf1,1078
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
-- aeson-deriving-0.1.1.1@sha256:0b2b6dfdfdf57bb6b3db5978a9e60ba6345b7d48fa254cddb2c76da7d96f8c26,2714
-- servant-0.18@sha256:2b5c81089540c208b1945b5ca0c3551c862138d71b224a39fa275a62852a5c75,5068
-- servant-server-0.18
-- servant-docs-0.11.6
-- servant-auth-server-0.4.6.0@sha256:b411b44f4252e91e5da2455d71a7113c8b5b8ff2d943d19b2ddedcfcf0392351,5111
-- servant-auth-0.4.0.0@sha256:01d02dfb7df4747fc96442517146d7d4ab0e575e597a124e238e8763036ea4ff,2125
-- ListLike-4.7.4
-- sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
-- direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
 - random-1.2.0
 # remove these when stackage upgrades containers
+# (these = containers 0.6.4, text-1.2.4, binary-0.8.8, parsec-3.1.14, Cabal-3.2.1.0)
+# see https://github.com/unisonweb/unison/pull/1807#issuecomment-777069869
 - containers-0.6.4.1
 - text-1.2.4.1
 - binary-0.8.8.0

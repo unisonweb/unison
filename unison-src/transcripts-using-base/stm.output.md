@@ -38,7 +38,7 @@ body k out v =
       body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
       inc   : TVar Nat ->{IO} Nat
-      loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
+      loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
 ```ucm
@@ -49,7 +49,7 @@ body k out v =
     body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
     count : Nat -> ()
     inc   : TVar Nat ->{IO} Nat
-    loop  : '{IO} Nat ->{IO} Nat ->{IO} Nat ->{IO} Nat
+    loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
 ```
 Test case.

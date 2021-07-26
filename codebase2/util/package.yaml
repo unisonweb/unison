@@ -9,7 +9,6 @@ dependencies:
   - bytestring
   - containers
   - cryptonite
-  - extra
   - lens
   - memory
   - safe

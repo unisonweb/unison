@@ -137,6 +137,23 @@ tests =
    , identicality "ident bool" false
    , identicality "ident bytes" [fSer, Bytes.empty]
    ]
+
+badLoad : '{IO} [Result]
+badLoad _ =
+  payload = Bytes.fromList[0,0,0,1,0,1,64,175,174,29,188,217,78,209,175,255,137,165,135,165,1,20,151,182,215,54,21,196,43,159,247,106,175,177,213,20,111,178,134,214,188,207,243,196,240,187,111,44,245,111,219,223,98,88,183,163,97,22,18,153,104,185,125,175,157,36,209,151,166,168,102,0,1,0,0,0,0,0,2,0,0,0,0]
+  go _ =
+    match Value.deserialize payload with
+      Left t -> Fail "deserialize exception"
+      Right a -> match Value.load a with
+        Left terms -> 
+            bs = Value.serialize (Value.value terms)
+            s = size bs
+            Ok ("serialized" ++ toText s)
+        Right _ ->
+            Ok "actually loaded"
+  match toEither go with
+    Right v -> [v]
+    Left _ -> [Fail "Exception"]
 ```
 
 This simply runs some functions to make sure there isn't a crash. Once
@@ -147,4 +164,5 @@ to actual show that the serialization works.
 .> add
 .> display fDeps
 .> io.test tests
+.> io.test badLoad
 ```

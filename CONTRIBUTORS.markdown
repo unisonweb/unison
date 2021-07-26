@@ -51,3 +51,7 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Sam Roberts (@samgqroberts)
 * Nigel Farrelly (@nini-faroux)
 * Johannes Huster (@JohannesHuster)
+* Joseph Morag (@jmorag)
+* Tavish Pegram (@tapegram)
+* Javier Neira (@jneira)
+* Simon Højberg (@hojberg)
