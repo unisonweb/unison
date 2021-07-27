@@ -34,6 +34,7 @@ module Unison.Typechecker.Context
   , typeErrors
   , infoNotes
   , Unknown(..)
+  , relax
   )
 where
 
@@ -1764,6 +1765,57 @@ discardCovariant gens ty
     where
     p (Type.Var' (TypeVar.Existential _ v)) = v `Set.member` keep
     p _ = True
+
+-- Ability inference prefers minimal sets of abilities when
+-- possible. However, such inference may disqualify certain TDNR
+-- candicates due to a subtyping check with an overly minimal type.
+-- It may be that the candidate's type would work fine, because the
+-- inference was overly conservative about guessing which abilities
+-- are in play.
+--
+-- `relax` adds an existential variable to the final inferred
+-- abilities for such a function type if there isn't already one,
+-- changing:
+--
+--   T ->{..} U ->{..} V
+--
+-- into:
+--
+--   T ->{..} U ->{e, ..} V
+--
+-- (where the `..` are presumed to be concrete) so that it can
+-- behave better in the check.
+--
+-- It's possible this would allow an ability set that doesn't work,
+-- but this is only used for type directed name resolution. A
+-- separate type check must pass if the candidate is allowed, which
+-- will ensure that the location has the right abilities.
+relax :: Var v => Ord loc => Type v loc -> Type v loc
+relax t = relax' v t
+  where
+  fvs = foldMap f $ Type.freeVars t
+  f (TypeVar.Existential _ v) = Set.singleton v
+  f _ = mempty
+  v = ABT.freshIn fvs $ Var.inferAbility
+
+-- The worker for `relax`.
+relax' :: Var v => Ord loc => v -> Type v loc -> Type v loc
+relax' v t
+  | Type.Arrow' i o <- t = Type.arrow (ABT.annotation t) i $ relax' v o
+  | Type.ForallsNamed' vs b <- t
+  = Type.foralls loc vs $ relax' v b
+  | Type.Effect' es r <- t
+  , Type.Arrow' i o <- r
+  = Type.effect loc es . Type.arrow (ABT.annotation t) i $ relax' v o
+  | Type.Effect' es r <- t
+  , not $ any open es
+  = Type.effect loc (tv : es) r
+  | otherwise = t
+  where
+  open (Type.Var' (TypeVar.Existential{})) = True
+  open _ = False
+  loc = ABT.annotation t
+  tv = Type.var loc (TypeVar.Existential B.Blank v)
 
 checkWantedScoped
   :: Var v
