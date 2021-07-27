@@ -958,9 +958,16 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
   -- `synthesizeClosed`
   --
   -- Top level references don't have their own effects.
-  | Set.null s = (,[]) <$> existentializeArrows t
+  | Set.null s = (,[]) . discard <$> existentializeArrows t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
-  where s = ABT.freeVars t
+  where
+  s = ABT.freeVars t
+  discard ty = discardCovariant fvs ty
+    where
+    fvs = foldMap p $ ABT.freeVars ty
+    p (TypeVar.Existential _ v) = Set.singleton v
+    p _ = mempty
+
 synthesizeWanted (Term.Constructor' r cid)
   -- Constructors do not have effects
   = (,[]) . Type.purifyArrows <$> getDataConstructorType r cid
@@ -1955,11 +1962,15 @@ subtype tx ty = scope (InSubtype tx ty) $ do
      subtype es (Type.effects (loc es) [])
      subtype a a2
   go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
-    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    instantiateL b v t
+    | Set.member v (existentials ctx)
+   && notMember v (Type.freeVars t) = do
+    e <- extendExistential Var.inferAbility
+    instantiateL b v (relax' e t)
   go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
-    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    instantiateR t b v
+    | Set.member v (existentials ctx)
+   && notMember v (Type.freeVars t) = do
+    e <- extendExistential Var.inferAbility
+    instantiateR (relax' e t) b v
   go _ (Type.Effects' es1) (Type.Effects' es2)
     = subAbilities ((,) Nothing <$> es1) es2
   go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
