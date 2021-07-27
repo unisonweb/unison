@@ -11,38 +11,39 @@ module Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex (syncToDirectory) wh
 
 import Unison.Prelude
 
-import qualified Data.Set                      as Set
-import           Control.Lens
-import           Control.Monad.State.Strict     ( MonadState, evalStateT )
-import           Control.Monad.Writer.Strict    ( MonadWriter, execWriterT )
-import qualified Control.Monad.Writer.Strict   as Writer
-import           UnliftIO.Directory             ( doesFileExist )
-import           Unison.Codebase                ( CodebasePath )
-import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch(..) )
-import qualified Unison.Codebase.Branch        as Branch
+import Control.Lens
+import Control.Monad.State.Strict (MonadState, evalStateT)
+import Control.Monad.Writer.Strict (MonadWriter, execWriterT)
+import qualified Control.Monad.Writer.Strict as Writer
+import qualified Data.Set as Set
+import U.Util.Timing (time)
+import Unison.Codebase (CodebasePath)
+import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.FileCodebase.Branch (Branch (..))
+import qualified Unison.Codebase.FileCodebase.Branch as Branch
 import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
-import qualified Unison.Codebase.Patch         as Patch
+import qualified Unison.Codebase.FileCodebase.DataDeclaration as DD
+import qualified Unison.Codebase.FileCodebase.LabeledDependency as LD
+import qualified Unison.Codebase.FileCodebase.Patch as Patch
+import Unison.Codebase.FileCodebase.Reference (Reference)
+import qualified Unison.Codebase.FileCodebase.Reference as Reference
+import qualified Unison.Codebase.FileCodebase.Referent as Referent
+import qualified Unison.Codebase.FileCodebase.Serialization.V1 as V1
+import qualified Unison.Codebase.FileCodebase.Term as Term
+import qualified Unison.Codebase.FileCodebase.TermEdit as TermEdit
+import Unison.Codebase.FileCodebase.Type (Type)
+import qualified Unison.Codebase.FileCodebase.Type as Type
+import qualified Unison.Codebase.FileCodebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1 as V1
-import           Unison.Codebase.SyncMode       ( SyncMode )
-import qualified Unison.Codebase.SyncMode      as SyncMode
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import qualified Unison.DataDeclaration        as DD
-import qualified Unison.LabeledDependency      as LD
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import qualified Unison.Term                   as Term
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import           Unison.Var                     ( Var )
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Relation          as Relation
-import           Unison.Util.Relation           ( Relation )
-import           Unison.Util.Monoid (foldMapM)
-import           U.Util.Timing (time)
+import Unison.Codebase.SyncMode (SyncMode)
+import qualified Unison.Codebase.SyncMode as SyncMode
+import qualified Unison.Referent' as Referent
+import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as Relation
+import Unison.Var (Var)
+import qualified Unison.WatchKind as WK
+import UnliftIO.Directory (doesFileExist)
 
 import Data.Monoid.Generic
 import Unison.Codebase.FileCodebase.Common
@@ -273,9 +274,9 @@ syncToDirectory' getV getA srcPath destPath mode newRoot =
           Just typ -> do
             copyFileWithParents (termPath srcPath h) (termPath destPath h)
             copyFileWithParents (typePath srcPath h) (typePath destPath h)
-            whenM (doesFileExist $ watchPath srcPath UF.TestWatch h) $
-              copyFileWithParents (watchPath srcPath UF.TestWatch h)
-                                  (watchPath destPath UF.TestWatch h)
+            whenM (doesFileExist $ watchPath srcPath WK.TestWatch h) $
+              copyFileWithParents (watchPath srcPath WK.TestWatch h)
+                                  (watchPath destPath WK.TestWatch h)
             let typeDeps' = toList (Type.dependencies typ)
             let typeForIndexing = Type.removeAllEffectVars typ
             let typeReference = Type.toReference typeForIndexing

@@ -20,11 +20,12 @@ import qualified Unison.ABT             as ABT
 import qualified Unison.Builtin         as Builtin
 import           Unison.Codebase.Runtime          ( Runtime, evaluateWatches )
 import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
-import qualified Unison.Codebase.Serialization.V1 as V1
 import           Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
 import           Unison.Parser          as Parser
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Reference       ( Reference )
 import           Unison.Result          (pattern Result, Result)
@@ -42,7 +43,7 @@ import qualified Unison.Var             as Var
 import qualified Unison.Test.Common as Common
 import qualified Unison.Names3
 
-type Note = Result.Note Symbol Parser.Ann
+type Note = Result.Note Symbol Ann
 
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
@@ -118,7 +119,7 @@ makePassingTest
   :: Runtime Symbol -> (EitherResult -> Test TFile) -> FilePath -> Test ()
 makePassingTest rt how filepath = scope (shortName filepath) $ do
   uf <- typecheckingTest how filepath
-  resultTest rt uf filepath *> serializationTest uf
+  resultTest rt uf filepath
 
 shortName :: FilePath -> FilePath
 shortName = joinPath . drop 1 . splitPath
@@ -156,42 +157,3 @@ resultTest rt uf filepath = do
         Left e -> crash $ show e
     else pure ()
 
-serializationTest :: TFile -> Test ()
-serializationTest uf = scope "serialization" . tests . concat $
-  [ map testDataDeclaration (Map.toList $ UF.dataDeclarations' uf)
-  , map testEffectDeclaration (Map.toList $ UF.effectDeclarations' uf)
-  , map testTerm (Map.toList $ UF.hashTerms uf)
-  ]
-  where
-    putUnit :: Monad m => () -> m ()
-    putUnit () = pure ()
-    getUnit :: Monad m => m ()
-    getUnit = pure ()
-    testDataDeclaration :: (Symbol, (Reference, DataDeclaration Symbol Ann)) -> Test ()
-    testDataDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
-      let decl' :: DataDeclaration Symbol ()
-          decl' = void decl
-          bytes = putBytes (V1.putDataDeclaration V1.putSymbol putUnit) decl'
-          decl'' = getFromBytes (V1.getDataDeclaration V1.getSymbol getUnit) bytes
-      in expectEqual decl'' (Just decl')
-    testEffectDeclaration :: (Symbol, (Reference, EffectDeclaration Symbol Ann)) -> Test ()
-    testEffectDeclaration (name, (_, decl)) = scope (Var.nameStr name) $
-      let decl' :: EffectDeclaration Symbol ()
-          decl' = void decl
-          bytes = putBytes (V1.putEffectDeclaration V1.putSymbol putUnit) decl'
-          decl'' = getFromBytes (V1.getEffectDeclaration V1.getSymbol getUnit) bytes
-      in expectEqual decl'' (Just decl')
-    testTerm :: (Symbol, (Reference, Term Symbol Ann, Type Symbol Ann)) -> Test ()
-    testTerm (name, (_, tm, tp)) = scope (Var.nameStr name) $
-      let tm' :: Term Symbol ()
-          tm' = Term.amap (const ()) tm
-          tp' :: Type Symbol ()
-          tp' = ABT.amap (const ()) tp
-          tmBytes = putBytes (V1.putTerm V1.putSymbol putUnit) tm'
-          tpBytes = putBytes (V1.putType V1.putSymbol putUnit) tp'
-          tm'' = getFromBytes (V1.getTerm V1.getSymbol getUnit) tmBytes
-          tp'' = getFromBytes (V1.getType V1.getSymbol getUnit) tpBytes
-      in tests
-        [ scope "type" $ expectEqual tp'' (Just tp')
-        , scope "term" $ expectEqual tm'' (Just tm')
-        ]

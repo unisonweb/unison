@@ -34,6 +34,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
@@ -153,7 +154,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   source :: Term v () -> m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
 
-  goSignatures :: [Referent] -> m [P.Pretty S.SyntaxText]
+  goSignatures :: [Referent] -> m [P.Pretty (S.SyntaxText' Reference)]
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
@@ -184,9 +185,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     -- Link (Either Link.Type Doc2.Term)
     DD.Doc2SpecialFormLink e -> let
       ppe = PPE.suffixifiedPPE pped
-      tm :: Referent -> P.Pretty S.SyntaxText
+      tm :: Referent -> P.Pretty (S.SyntaxText' Reference)
       tm r = (NP.styleHashQualified'' (NP.fmt (S.Referent r)) . PPE.termName ppe) r
-      ty :: Reference -> P.Pretty S.SyntaxText
+      ty :: Reference -> P.Pretty (S.SyntaxText' Reference)
       ty r = (NP.styleHashQualified'' (NP.fmt (S.Reference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r

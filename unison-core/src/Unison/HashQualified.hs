@@ -11,7 +11,7 @@ import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent )
+import           Unison.Referent                ( Referent, ConstructorId )
 import qualified Unison.Referent               as Referent
 import           Unison.ShortHash               ( ShortHash )
 import qualified Unison.ShortHash              as SH
@@ -122,7 +122,7 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified Name
 fromReference = HashOnly . Reference.toShortHash
 
-fromPattern :: Reference -> Int -> HashQualified Name
+fromPattern :: Reference -> ConstructorId -> HashQualified Name
 fromPattern r cid = HashOnly $ Referent.patternShortHash r cid
 
 fromName :: n -> HashQualified n
@@ -157,15 +157,25 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _        -> fromReferent r
 
--- this implementation shows HashOnly before the others, because None < Some.
--- Flip it around carefully if HashOnly should come last.
-instance Ord n => Ord (HashQualified n) where
-  compare a b = case compare (toName a) (toName b) of
-    EQ -> compare (toHash a) (toHash b)
-    o -> o
+-- Ordered alphabetically, based on the name. Hashes come last.
+instance (Eq n, Name.Alphabetical n) => Ord (HashQualified n) where
+  compare a b = case (toName a, toName b) of
+    (Just n , Just n2) -> Name.compareAlphabetical n n2
+    (Nothing, Just _)  -> GT
+    (Just _ , Nothing) -> LT
+    (Nothing, Nothing) -> EQ
+    <>
+    case (toHash a, toHash b) of
+      (Nothing, Nothing)  -> EQ
+      (Nothing, Just _)   -> LT -- prefer NameOnly to HashQualified
+      (Just _, Nothing)   -> GT
+      (Just sh, Just sh2) -> compare sh sh2
 
 instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
   convert = fmap Name.convert
+
+instance Convert n (HashQualified n) where
+  convert = NameOnly
 
 instance Parse Text (HashQualified Name) where
   parse = fromText

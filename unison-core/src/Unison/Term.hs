@@ -28,12 +28,13 @@ import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.Referent (Referent)
+import           Unison.Referent (Referent, ConstructorId)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -42,14 +43,12 @@ import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap, validate)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Var.RefNamed as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
-
--- This gets reexported; should maybe live somewhere other than Pattern, though.
-type ConstructorId = Pattern.ConstructorId
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -115,27 +114,12 @@ type Term0 v = Term v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term0' vt v = Term' vt v ()
 
--- bindExternals
---   :: forall v a b b2
---    . Var v
---   => [(v, Term2 v b a v b2)]
---   -> [(v, Reference)]
---   -> Term2 v b a v a
---   -> Term2 v b a v a
--- bindBuiltins termBuiltins typeBuiltins = f . g
---  where
---   f :: Term2 v b a v a -> Term2 v b a v a
---   f = typeMap (Type.bindBuiltins typeBuiltins)
---   g :: Term2 v b a v a -> Term2 v b a v a
---   g = ABT.substsInheritAnnotation termBuiltins
 bindNames
   :: forall v a . Var v
   => Set v
   -> Names0
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
--- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
---                            || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
       -- !_ = trace "free term vars: " ()
@@ -161,13 +145,6 @@ bindSomeNames
   => Names0
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
--- bindSomeNames ns e | trace "Term.bindSome" False
---                   || trace "Names =" False
---                   || traceShow ns False
---                   || trace "Free type vars:" False
---                   || traceShow (freeTypeVars e) False
---                   || traceShow e False
---                   = undefined
 bindSomeNames ns e = bindNames keepFree ns e where
   keepFree = Set.difference (freeVars e)
                             (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
@@ -988,6 +965,7 @@ unhashComponent m = let
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
   in second unhash1 <$> m'
+
 
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)

@@ -10,9 +10,9 @@ import Data.Bifunctor (first)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL
-import qualified Unison.Codebase               as Codebase
+import qualified Unison.Codebase.CodeLookup.Util as CL
 import           Unison.UnisonFile              ( UnisonFile )
-import           Unison.Parser                  ( Ann )
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import           Unison.Var                     ( Var )
@@ -20,9 +20,12 @@ import qualified Unison.Var                    as Var
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.UnisonFile.Type as UF
 import Unison.Builtin.Decls (pattern TupleTerm', tupleTerm)
 import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.WatchKind (WatchKind)
+import qualified Unison.WatchKind as WK
 
 type Error = P.Pretty P.ColorText
 type Term v = Term.Term v ()
@@ -36,7 +39,6 @@ data Runtime v = Runtime
       -> IO (Either Error (Term v))
   , mainType :: Type v Ann
   , ioTestType :: Type v Ann
-  , needsContainment :: Bool
   }
 
 type IsCacheHit = Bool
@@ -48,7 +50,7 @@ type WatchResults v a = (Either Error
          -- Bindings:
        ( [(v, Term v)]
          -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, UF.WatchKind, Reference, Term v, Term v, IsCacheHit)
+       , Map v (a, WatchKind, Reference, Term v, Term v, IsCacheHit)
        ))
 
 -- Evaluates the watch expressions in the file, returning a `Map` of their
@@ -74,7 +76,7 @@ evaluateWatches code ppe evaluationCache rt uf = do
       m = first Reference.DerivedId <$>
             Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
       watches = Set.fromList (fst <$> UF.allWatches uf)
-      watchKinds :: Map v UF.WatchKind
+      watchKinds :: Map v WatchKind
       watchKinds = Map.fromList [ (v, k) | (k, ws) <- Map.toList (UF.watches uf)
                                          , (v,_) <- ws ]
       unann = Term.amap (const ())
@@ -134,12 +136,8 @@ evaluateTerm' codeLookup cache ppe rt tm = do
     Just r -> pure (Right r)
     Nothing -> do
       let uf = UF.UnisonFileId mempty mempty mempty
-                 (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-      runnable <-
-        if needsContainment rt
-          then Codebase.makeSelfContained' codeLookup uf
-          else pure uf
-      r <- evaluateWatches codeLookup ppe cache rt runnable
+                 (Map.singleton WK.RegularWatch [(Var.nameds "result", tm)])
+      r <- evaluateWatches codeLookup ppe cache rt uf
       pure $ r <&> \(_,map) ->
         let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
         in value

@@ -1,77 +1,81 @@
 {-# LANGUAGE Strict #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Codebase.Serialization.V1 where
+module Unison.Codebase.FileCodebase.Serialization.V1
+  ( formatSymbol,
+    getBranchDependencies,
+    getCausal0,
+    getRawBranch,
+    getEdits,
+    putRawCausal,
+    putRawBranch,
+    putEdits,
+    getTerm,
+    getType,
+    putTerm,
+    putType,
+    getEither,
+    getEffectDeclaration,
+    getDataDeclaration,
+    putEither,
+    putEffectDeclaration,
+    putDataDeclaration,
+  )
+where
 
 import Unison.Prelude
 
 import Prelude hiding (getChar, putChar)
 
-import Basement.Block (Block)
-
--- import qualified Data.Text as Text
-import qualified Unison.Pattern                 as Pattern
-import           Unison.Pattern                 ( Pattern
-                                                , SeqOp
-                                                )
-import           Data.Bits                      ( Bits )
-import           Data.Bytes.Get                 as Ser
-import           Data.Bytes.Put                 as Ser
-import           Data.Bytes.Serial              ( serialize
-                                                , deserialize
-                                                , serializeBE
-                                                , deserializeBE
-                                                )
-import qualified Data.ByteArray                 as BA
-import           Data.Bytes.Signed              ( Unsigned )
-import           Data.Bytes.VarInt              ( VarInt(..) )
-import qualified Data.Map                      as Map
-import           Data.List                      ( elemIndex
-                                                )
-import qualified Unison.Codebase.Branch         as Branch
+import Data.Bits (Bits)
+import qualified Data.ByteString as B
+import Data.Bytes.Get as Ser
+import Data.Bytes.Put as Ser
+import Data.Bytes.Serial (deserialize, deserializeBE, serialize, serializeBE)
+import Data.Bytes.Signed (Unsigned)
+import Data.Bytes.VarInt (VarInt (..))
+import Data.List (elemIndex)
+import qualified Data.Map as Map
+import qualified Data.Sequence as Sequence
+import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
+import qualified Unison.Codebase.FileCodebase.Branch as Branch
+import Unison.Codebase.Causal (Raw (..), RawHash (..), unRawHash)
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.FileCodebase.Branch.Dependencies as BD
-import           Unison.Codebase.Causal         ( Raw(..)
-                                                , RawHash(..)
-                                                , unRawHash
-                                                )
-import qualified Unison.Codebase.Causal         as Causal
-import qualified Unison.Codebase.Metadata       as Metadata
-import           Unison.NameSegment            as NameSegment
-import           Unison.Codebase.Patch          ( Patch(..) )
-import qualified Unison.Codebase.Patch          as Patch
-import           Unison.Codebase.TermEdit       ( TermEdit )
-import           Unison.Codebase.TypeEdit       ( TypeEdit )
-import           Unison.Hash                    ( Hash )
-import           Unison.Kind                    ( Kind )
-import           Unison.Reference               ( Reference )
-import           Unison.Symbol                  ( Symbol(..) )
-import           Unison.Term                    ( Term )
-import qualified Data.ByteString               as B
-import qualified Data.Sequence                 as Sequence
-import qualified Data.Set                      as Set
-import qualified Unison.ABT                    as ABT
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import qualified Unison.Codebase.TypeEdit      as TypeEdit
+import Unison.Codebase.FileCodebase.Reference (Reference)
+import qualified Unison.Codebase.FileCodebase.Reference as Reference
+import Unison.Codebase.FileCodebase.Referent (Referent)
+import qualified Unison.Codebase.FileCodebase.Referent as Referent
+import Unison.Codebase.FileCodebase.Term (Term)
+import qualified Unison.Codebase.FileCodebase.Term as Term
+import Unison.Codebase.FileCodebase.Type (Type)
+import qualified Unison.Codebase.FileCodebase.Type as Type
+import qualified Unison.Codebase.FileCodebase.Metadata as Metadata
+import Unison.Codebase.FileCodebase.Patch (Patch (..))
+import qualified Unison.Codebase.FileCodebase.Patch as Patch
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Hash                   as Hash
-import qualified Unison.Kind                   as Kind
-import qualified Unison.Reference              as Reference
-import           Unison.Referent               (Referent)
-import qualified Unison.Referent               as Referent
-import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
-import qualified Unison.Util.Bytes             as Bytes
-import           Unison.Util.Star3             ( Star3 )
-import qualified Unison.Util.Star3             as Star3
-import           Unison.Util.Relation           ( Relation )
-import qualified Unison.Util.Relation          as Relation
-import qualified Unison.DataDeclaration        as DataDeclaration
-import           Unison.DataDeclaration         ( DataDeclaration
-                                                , EffectDeclaration
-                                                )
-import qualified Unison.Var                    as Var
-import qualified Unison.ConstructorType        as CT
-import Unison.Type (Type)
+import Unison.Codebase.FileCodebase.TermEdit (TermEdit)
+import qualified Unison.Codebase.FileCodebase.TermEdit as TermEdit
+import Unison.Codebase.FileCodebase.TypeEdit (TypeEdit)
+import qualified Unison.Codebase.FileCodebase.TypeEdit as TypeEdit
+import qualified Unison.ConstructorType as CT
+import Unison.Codebase.FileCodebase.DataDeclaration (DataDeclaration, EffectDeclaration)
+import qualified Unison.Codebase.FileCodebase.DataDeclaration as DataDeclaration
+import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
+import Unison.Kind (Kind)
+import qualified Unison.Kind as Kind
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
+import Unison.Codebase.FileCodebase.Pattern (Pattern, SeqOp)
+import qualified Unison.Codebase.FileCodebase.Pattern as Pattern
+import Unison.Symbol (Symbol (..))
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as Relation
+import Unison.Util.Star3 (Star3)
+import qualified Unison.Util.Star3 as Star3
+import qualified Unison.Var as Var
 
 -- ABOUT THIS FORMAT:
 --
@@ -293,20 +297,6 @@ putFoldable
 putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
-
-
--- putFoldableN
---   :: forall f m n a
---    . (Traversable f, MonadPut m, Applicative n)
---   => f a
---   -> (a -> n (m ()))
---   -> n (m ())
--- putFoldableN as putAn =
---   pure (putLength @m (length as)) *> (fmap sequence_ $ traverse putAn as)
-
-getFolded :: MonadGet m => (b -> a -> b) -> b -> m a -> m b
-getFolded f z a =
-  foldl' f z <$> getList a
 
 getList :: MonadGet m => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
@@ -570,14 +560,6 @@ getTerm getVar getA = getABT getVar getA go where
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
 putPair putA putB (a,b) = putA a *> putB b
 
-putPair''
-  :: (MonadPut m, Monad n)
-  => (a -> m ())
-  -> (b -> n (m ()))
-  -> (a, b)
-  -> n (m ())
-putPair'' putA putBn (a, b) = pure (putA a) *> putBn b
-
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
@@ -668,12 +650,6 @@ putBranchStar putA putN =
 
 getBranchStar :: (Ord a, Ord n, MonadGet m) => m a -> m n -> m (Branch.Star a n)
 getBranchStar getA getN = getStar3 getA getN getMetadataType (getPair getMetadataType getMetadataValue)
-
-putLink :: MonadPut m => (Hash, mb) -> m ()
-putLink (h, _) = do
-  -- 0 means local; later we may have remote links with other ids
-  putWord8 0
-  putHash h
 
 putChar :: MonadPut m => Char -> m ()
 putChar = serialize . VarInt . fromEnum
@@ -812,15 +788,3 @@ putEdits edits =
 getEdits :: MonadGet m => m Patch
 getEdits = Patch <$> getRelation getReference getTermEdit
                  <*> getRelation getReference getTypeEdit
-
-putBytes :: MonadPut m => Bytes.Bytes -> m ()
-putBytes = putFoldable putBlock . Bytes.chunks
-
-putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
-putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
-
-getBytes :: MonadGet m => m Bytes.Bytes
-getBytes = Bytes.fromChunks <$> getList getBlock
-
-getBlock :: MonadGet m => m (Bytes.View (Block Word8))
-getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString

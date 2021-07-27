@@ -27,8 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'

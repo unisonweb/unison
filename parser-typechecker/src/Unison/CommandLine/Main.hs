@@ -27,7 +27,7 @@ import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map

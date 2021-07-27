@@ -6,7 +6,8 @@ module Unison.Names3 where
 
 import Unison.Prelude
 
-import Data.List.Extra (nubOrd)
+import Control.Lens (view, _4)
+import Data.List.Extra (nubOrd, sort)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -26,14 +27,8 @@ import qualified Unison.ConstructorType as CT
 data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
 type Names0 = Unison.Names2.Names0
+pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n
 pattern Names0 terms types = Unison.Names2.Names terms types
-
-data ResolutionFailure v a
-  = TermResolutionFailure v a (Set Referent)
-  | TypeResolutionFailure v a (Set Reference)
-  deriving (Eq,Ord,Show)
-
-type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 
 -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
 -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
@@ -191,6 +186,30 @@ termName length r Names{..} =
   else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
   where hq n = HQ'.take length (HQ'.fromNamedReferent n r)
         isConflicted n = R.manyDom n (Names.terms currentNames)
+
+suffixedTypeName :: Int -> Reference -> Names -> [HQ.HashQualified Name]
+suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
+(suffixedTermName,suffixedTypeName) =
+  ( suffixedName termName (Names.terms . currentNames) HQ'.fromNamedReferent
+  , suffixedName typeName (Names.types . currentNames) HQ'.fromNamedReference )
+  where
+  suffixedName fallback getRel hq' length r ns@(getRel -> rel) =
+    if R.memberRan r rel
+    then go $ toList (R.lookupRan r rel)
+    else sort $ map Name.convert $ Set.toList (fallback length r ns)
+    where
+      -- Orders names, using these criteria, in this order:
+      -- 1. NameOnly comes before HashQualified,
+      -- 2. Shorter names (in terms of segment count) come before longer ones
+      -- 3. If same on attributes 1 and 2, compare alphabetically
+      go :: [Name] -> [HashQualified Name]
+      go fqns = map (view _4) . sort $ map f fqns where
+        f fqn = let
+          n' = Name.shortestUniqueSuffix fqn r rel
+          isHQ'd = R.manyDom fqn rel -- it is conflicted
+          hq n = HQ'.take length (hq' n r)
+          hqn = Name.convert $ if isHQ'd then hq n' else HQ'.fromName n'
+          in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names

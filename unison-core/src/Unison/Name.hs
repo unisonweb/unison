@@ -13,17 +13,25 @@ module Unison.Name
   , isPrefixOf
   , joinDot
   , makeAbsolute
+  , isAbsolute
   , parent
+  , module Unison.Util.Alphabetical
   , sortNames
   , sortNamed
+  , sortNameds
   , sortByText
   , sortNamed'
   , stripNamePrefix
   , stripPrefixes
   , segments
+  , reverseSegments
   , countSegments
+  , compareSuffix
   , segments'
   , suffixes
+  , searchBySuffix
+  , suffixFrom
+  , shortestUniqueSuffix
   , toString
   , toText
   , toVar
@@ -45,20 +53,26 @@ import           Unison.NameSegment             ( NameSegment(NameSegment)
 import           Control.Lens                   ( unsnoc )
 import qualified Control.Lens                  as Lens
 import qualified Data.Text                     as Text
+import qualified Data.Set                      as Set
 import qualified Unison.Hashable               as H
+import           Unison.Util.Alphabetical      (Alphabetical,compareAlphabetical)
+import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy, tails )
+import           Data.List                      ( sortBy, tails, inits, find )
 
 newtype Name = Name { toText :: Text }
-  deriving (Eq, Ord, Monoid, Semigroup, Generic)
+  deriving (Eq, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
 
 sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by = sortByText (toText . by)
+
+sortNameds :: (a -> [Name]) -> [a] -> [a]
+sortNameds by = sortByText (Text.intercalate "." . map toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as = let
@@ -120,6 +134,18 @@ stripNamePrefix prefix name =
   where
   mid = if toText prefix == "." then "" else "."
 
+-- suffixFrom Int builtin.Int.+ ==> Int.+
+-- suffixFrom Int Int.negate    ==> Int.negate
+--
+-- Currently used as an implementation detail of expanding wildcard
+-- imports, (like `use Int` should catch `builtin.Int.+`)
+-- but it may be generally useful elsewhere. See `expandWildcardImports`
+-- for details.
+suffixFrom :: Name -> Name -> Maybe Name
+suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
+  []         -> Nothing
+  (_, rem):_ -> Just (Name rem)
+
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
 stripPrefixes = maybe "" fromSegment . lastMay . segments
@@ -178,8 +204,72 @@ fromSegment = unsafeFromText . NameSegment.toText
 segments :: Name -> [NameSegment]
 segments (Name n) = NameSegment <$> segments' n
 
+reverseSegments :: Name -> [NameSegment]
+reverseSegments (Name n) = NameSegment <$> NameSegment.reverseSegments' n
+
 countSegments :: Name -> Int
 countSegments n = length (segments n)
+
+-- The `Ord` instance for `Name` considers the segments of the name
+-- starting from the last, enabling efficient search by name suffix.
+--
+-- To order names alphabetically for purposes of display to a human,
+-- `sortNamed` or one of its variants should be used, which provides a
+-- Unicode and capitalization aware sorting (based on RFC5051).
+instance Ord Name where
+  compare n1 n2 =
+       (reverseSegments n1 `compare` reverseSegments n2)
+    <> (isAbsolute n1 `compare` isAbsolute n2)
+
+instance Alphabetical Name where
+  compareAlphabetical (Name n1) (Name n2) = compareAlphabetical n1 n2
+
+isAbsolute :: Name -> Bool
+isAbsolute (Name n) = Text.isPrefixOf "." n
+
+-- If there's no exact matches for `suffix` in `rel`, find all
+-- `r` in `rel` whose corresponding name `suffix` as a suffix.
+-- For example, `searchBySuffix List.map {(base.List.map, r1)}`
+-- will return `{r1}`.
+--
+-- NB: Implementation uses logarithmic time lookups, not a linear scan.
+searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchBySuffix suffix rel =
+  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  where
+    orElse s1 s2 = if Set.null s1 then s2 else s1
+
+-- `compareSuffix suffix n` is equal to `compare n' suffix`, where
+-- n' is `n` with only the last `countSegments suffix` segments.
+--
+-- Used for suffix-based lookup of a name. For instance, given a `r : Relation Name x`,
+-- `Relation.searchDom (compareSuffix "foo.bar") r` will find all `r` whose name
+-- has `foo.bar` as a suffix.
+compareSuffix :: Name -> Name -> Ordering
+compareSuffix suffix =
+  let
+    suffixSegs = reverseSegments suffix
+    len = length suffixSegs
+  in
+    \n -> take len (reverseSegments n) `compare` suffixSegs
+
+-- Tries to shorten `fqn` to the smallest suffix that still refers
+-- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
+-- The returned `Name` may refer to multiple hashes if the original FQN
+-- did as well.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+shortestUniqueSuffix :: Ord r => Name -> r -> R.Relation Name r -> Name
+shortestUniqueSuffix fqn r rel =
+  maybe fqn (convert . reverse) (find isOk suffixes)
+  where
+  allowed = R.lookupDom fqn rel
+  suffixes = drop 1 (inits (reverseSegments fqn))
+  isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+    where rs = R.searchDom compareEnd rel
+          compareEnd n = compare (take len (reverseSegments n)) suffix
+          len = length suffix
 
 class Convert a b where
   convert :: a -> b
@@ -190,6 +280,8 @@ class Parse a b where
 instance Convert Name Text where convert = toText
 instance Convert Name [NameSegment] where convert = segments
 instance Convert NameSegment Name where convert = fromSegment
+instance Convert [NameSegment] Name where
+  convert sgs = unsafeFromText (Text.intercalate "." (map NameSegment.toText sgs))
 
 instance Parse Text NameSegment where
   parse txt = case NameSegment.segments' txt of

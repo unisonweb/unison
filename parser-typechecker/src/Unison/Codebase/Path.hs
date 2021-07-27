@@ -4,13 +4,69 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Path where
+module Unison.Codebase.Path
+  ( Path (..),
+    Path' (..),
+    Absolute (..),
+    Relative (..),
+    Resolve (..),
+    pattern Empty,
+    singleton,
+    Unison.Codebase.Path.uncons,
+    empty,
+    absoluteEmpty,
+    relativeEmpty',
+    currentPath,
+    prefix,
+    unprefix,
+    prefixName,
+    unprefixName,
+    HQSplit,
+    Split,
+    Split',
+    HQSplit',
+    ancestors,
 
+    -- * tests
+    isCurrentPath,
+    isRoot,
+    isRoot',
+
+    -- * things that could be replaced with `Convert` instances
+    absoluteToPath',
+    fromAbsoluteSplit,
+    fromList,
+    fromName,
+    fromName',
+    fromPath',
+    fromText,
+    toAbsoluteSplit,
+    toList,
+    toName,
+    toName',
+    toText,
+    unsplit,
+    unsplit',
+    unsplitHQ,
+    unsplitHQ',
+
+    -- * things that could be replaced with `Parse` instances
+    splitFromName,
+    hqSplitFromName',
+
+    -- * things that could be replaced with `Cons` instances
+    cons,
+
+    -- * things that could be replaced with `Snoc` instances
+    snoc,
+    unsnoc,
+  )
+where
 import Unison.Prelude hiding (empty, toList)
 
 import           Data.Bifunctor                 ( first )
 import           Data.List.Extra                ( stripPrefix, dropPrefix )
-import Control.Lens hiding (unsnoc, cons, snoc)
+import Control.Lens hiding (Empty, unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import qualified Data.Text                     as Text
@@ -83,7 +139,7 @@ type HQSplit' = (Path', HQ'.HQSegment)
 type SplitAbsolute = (Absolute, NameSegment)
 type HQSplitAbsolute = (Absolute, HQ'.HQSegment)
 
--- examples:
+-- | examples:
 --   unprefix .foo.bar .blah == .blah (absolute paths left alone)
 --   unprefix .foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
 --   unprefix .foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
@@ -282,6 +338,7 @@ hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
 splitFromName :: Name -> Maybe Split
 splitFromName = unsnoc . fromName
 
+-- | what is this? —AI
 unprefixName :: Absolute -> Name -> Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 

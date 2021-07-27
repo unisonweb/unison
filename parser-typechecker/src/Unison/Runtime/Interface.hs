@@ -43,7 +43,7 @@ import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.Codebase.Runtime (Runtime(..), Error)
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 
-import Unison.Parser (Ann(External))
+import Unison.Parser.Ann (Ann(External))
 import Unison.PrettyPrintEnv
 import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
@@ -334,5 +334,4 @@ startRuntime = do
            evalInContext ppe ctx init
        , mainType = builtinMain External
        , ioTestType = builtinTest External
-       , needsContainment = False
        }

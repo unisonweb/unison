@@ -39,6 +39,7 @@ import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type

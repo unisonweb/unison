@@ -9,11 +9,13 @@ module Unison.Codebase.Editor.Input
 
 import Unison.Prelude
 
-import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)

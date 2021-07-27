@@ -43,7 +43,7 @@ import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
@@ -52,7 +52,6 @@ import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
-import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 
 usage :: String -> P.Pretty P.ColorText
 usage executableStr = P.callout "🌻" $ P.lines [
@@ -144,7 +143,7 @@ installSignalHandlers = do
 data CodebaseFormat = V1 | V2 deriving (Eq)
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
-cbInitFor = \case V1 -> FC.init; V2 -> SC.init
+cbInitFor = \case V2 -> SC.init
 
 main :: IO ()
 main = do
@@ -164,7 +163,7 @@ main = do
            "--new-codebase" : rest -> (Just V2, rest)
            "--old-codebase" : rest -> (Just V1, rest)
            _ -> (Nothing, restargs0)
-      cbInit = case cbFormat of V1 -> FC.init; V2 -> SC.init
+      cbInit = case cbFormat of V2 -> SC.init
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config <-
@@ -243,12 +242,12 @@ upgradeCodebase mcodepath =
       "I'm upgrading the codebase in " <> P.backticked' (P.string root) "," <> "but it will"
       <> "take a while, and may even run out of memory. If you have"
       <> "trouble, contact us on #alphatesting and we'll try to help."
-    Upgrade12.upgradeCodebase root
+    undefined root
     PT.putPrettyLn . P.wrap
       $ P.newline
       <> "Try it out and once you're satisfied, you can safely(?) delete the old version from"
       <> P.newline
-      <> P.indentN 2 (P.string $ Codebase.codebasePath (FC.init @IO) root)
+      <> P.indentN 2 (P.string $ Codebase.codebasePath undefined root)
       <> P.newline
       <> "but there's no rush.  You can access the old codebase again by passing the"
       <> P.backticked "--old-codebase" <> "flag at startup."

@@ -8,6 +8,7 @@ module Unison.Test.FileParser where
   import qualified Text.Megaparsec.Error as MPE
   import Unison.FileParser (file)
   import qualified Unison.Parser as P
+  import qualified Unison.Parser.Ann as P
   import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)

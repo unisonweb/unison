@@ -31,6 +31,8 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Causal (RawHash(RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
@@ -57,9 +59,11 @@ import Unison.Names3
     Names0,
   )
 import qualified Unison.Names3 as Names3
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -87,6 +91,10 @@ import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
+import qualified Unison.WatchKind as WK
+import qualified Unison.PrettyPrintEnv.Util as PPE
+
+type SyntaxText = UST.SyntaxText' Reference
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -286,7 +294,7 @@ formatTypeName :: PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
 formatTypeName ppe =
   fmap Syntax.convertElement . formatTypeName' ppe
 
-formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> UST.SyntaxText
+formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> SyntaxText
 formatTypeName' ppe r =
   Pretty.renderUnbroken .
   NP.styleHashQualified id $
@@ -547,7 +555,7 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
-formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> UST.SyntaxText
+formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
   Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
 
@@ -601,7 +609,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
        where
         rel = Names.terms $ currentNames parseNames
         f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
-              $ R.lookupRan (Referent.Ref' k) rel
+              $ R.lookupRan (Referent.Ref k) rel
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
@@ -641,7 +649,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
             let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
             r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
             lift $ case r of
-              Just tmr -> Codebase.putWatch codebase UF.RegularWatch
+              Just tmr -> Codebase.putWatch codebase WK.RegularWatch
                              (Term.hashClosedTerm tm)
                              (Term.amap (const mempty) tmr)
               Nothing -> pure ()
@@ -791,7 +799,7 @@ termsToSyntax
   -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (Type v a) (Term v a))
-  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
+  -> Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 termsToSyntax suff width ppe0 terms =
   Map.fromList . map go . Map.toList $ Map.mapKeys
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
@@ -816,7 +824,7 @@ typesToSyntax
   -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject () (DD.Decl v a))
-  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
+  -> Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)

@@ -73,59 +73,58 @@ module Unison.Codebase.FileCodebase.Common
 
 import           Unison.Prelude
 
-import           Control.Error (runExceptT, ExceptT(..))
-import           Control.Lens (Lens, use, to, (%=))
-import           Control.Monad.Catch (catch)
-import           Control.Monad.State (MonadState)
+import Control.Error (ExceptT (..), runExceptT)
+import Control.Lens (Lens, to, use, (%=))
+import Control.Monad.Catch (catch)
+import Control.Monad.State (MonadState)
 import qualified Data.ByteString.Base16 as ByteString (decodeBase16, encodeBase16)
-import qualified Data.Char                     as Char
-import           Data.List                      ( isPrefixOf )
-import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
-import           UnliftIO.Directory             ( createDirectoryIfMissing
-                                                , doesFileExist
-                                                , removeFile
-                                                , doesDirectoryExist, copyFile
-                                                )
-import           UnliftIO.IO.File               (writeBinaryFile)
-import qualified System.Directory
-import           System.FilePath                ( takeBaseName
-                                                , takeDirectory
-                                                , (</>)
-                                                )
-import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                (CodebasePath)
-import           Unison.Codebase.Causal         ( Causal
-                                                , RawHash(..)
-                                                )
-import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Branch         ( Branch )
-import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V1 as V1
-import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Codebase.Patch          ( Patch(..) )
-import qualified Unison.ConstructorType        as CT
-import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Hash                   as Hash
-import           Unison.Parser                  ( Ann(External) )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent )
-import qualified Unison.Referent               as Referent
-import           Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import           Unison.Term                    ( Term )
-import qualified Unison.Term                   as Term
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import           Unison.Var                     ( Var )
-import qualified Unison.UnisonFile             as UF
-import           Unison.Util.Monoid (foldMapM)
-import           U.Util.Timing             (time)
+import qualified Data.Char as Char
 import Data.Either.Extra (maybeToEither)
+import Data.List (isPrefixOf)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified System.Directory
+import System.FilePath (takeBaseName, takeDirectory, (</>))
+import U.Util.Timing (time)
+import Unison.Codebase (CodebasePath)
+import Unison.Codebase.Causal (Causal, RawHash (..))
+import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.FileCodebase.Branch (Branch)
+import qualified Unison.Codebase.FileCodebase.Branch as Branch
+import qualified Unison.Codebase.FileCodebase.Codebase as Codebase
+import qualified Unison.Codebase.FileCodebase.DataDeclaration as DD
+import Unison.Codebase.FileCodebase.Patch (Patch (..))
+import Unison.Codebase.FileCodebase.Reference (Reference)
+import qualified Unison.Codebase.FileCodebase.Reference as Reference
+import Unison.Codebase.FileCodebase.Referent (Referent)
+import qualified Unison.Codebase.FileCodebase.Referent as Referent
+import qualified Unison.Codebase.FileCodebase.Serialization.V1 as V1
+import Unison.Codebase.FileCodebase.Term (Term)
+import qualified Unison.Codebase.FileCodebase.Term as Term
+import Unison.Codebase.FileCodebase.Type (Type)
+import qualified Unison.Codebase.FileCodebase.Type as Type
+import qualified Unison.Codebase.Serialization as S
+import Unison.Codebase.ShortBranchHash (ShortBranchHash (..))
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SyncMode (SyncMode)
+import qualified Unison.ConstructorType as CT
+import qualified Unison.Hash as Hash
+import Unison.Parser.Ann (Ann (External))
+import qualified Unison.Referent' as Referent
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
+import Unison.Util.Monoid (foldMapM)
+import Unison.Var (Var)
+import Unison.WatchKind (WatchKind)
+import qualified Unison.WatchKind as WK
+import UnliftIO.Directory
+  ( copyFile,
+    createDirectoryIfMissing,
+    doesDirectoryExist,
+    doesFileExist,
+    removeFile,
+  )
+import UnliftIO.IO.File (writeBinaryFile)
 
 data Err
   = InvalidBranchFile FilePath String
@@ -178,11 +177,11 @@ dependentsDir root r = dependentsDir' root </> referenceToDir r
 dependentsDir' root = root </> codebasePath </> "dependents"
 
 watchesDir :: CodebasePath -> Text -> FilePath
-watchesDir root UF.RegularWatch =
+watchesDir root WK.RegularWatch =
   root </> codebasePath </> "watches" </> "_cache"
 watchesDir root kind =
   root </> codebasePath </> "watches" </> encodeFileName (Text.unpack kind)
-watchPath :: CodebasePath -> UF.WatchKind -> Reference.Id -> FilePath
+watchPath :: CodebasePath -> WatchKind -> Reference.Id -> FilePath
 watchPath root kind id =
   watchesDir root (Text.pack kind) </> componentIdToString id <> ".ub"
 
@@ -511,7 +510,7 @@ getWatch :: (MonadIO m, Ord v)
          => S.Get v
          -> S.Get a
          -> CodebasePath
-         -> UF.WatchKind
+         -> WatchKind
          -> Reference.Id
          -> m (Maybe (Term v a))
 getWatch getV getA path k id = do
@@ -525,7 +524,7 @@ putWatch
   => S.Put v
   -> S.Put a
   -> CodebasePath
-  -> UF.WatchKind
+  -> WatchKind
   -> Reference.Id
   -> Term v a
   -> m ()

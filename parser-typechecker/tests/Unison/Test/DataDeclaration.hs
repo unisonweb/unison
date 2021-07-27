@@ -9,14 +9,17 @@ import           Text.RawString.QQ
 import qualified Unison.DataDeclaration as DD
 import           Unison.DataDeclaration  ( DataDeclaration(..), Decl, hashDecls )
 import qualified Unison.Hash            as Hash
-import           Unison.Parser           ( Ann )
+import Unison.Parser.Ann (Ann)
 import           Unison.Parsers          ( unsafeParseFile )
+import Unison.Reference (Reference)
 import qualified Unison.Reference       as R
 import           Unison.Symbol           ( Symbol )
 import qualified Unison.Test.Common     as Common
 import qualified Unison.Type            as Type
 import           Unison.UnisonFile       ( UnisonFile(..) )
+import Unison.Var (Var)
 import qualified Unison.Var             as Var
+import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test = scope "datadeclaration" $

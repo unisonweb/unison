@@ -15,18 +15,23 @@ import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
+import Unison.Parser.Ann (Ann)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
-import           Unison.UnisonFile (UnisonFile(..), environmentFor)
+import Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Env as UF
+import Unison.UnisonFile.Names (environmentFor)
 import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.WatchKind as UF
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x

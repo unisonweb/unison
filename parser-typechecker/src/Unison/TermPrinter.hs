@@ -31,7 +31,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Referent                ( Referent )
 import qualified Unison.Util.SyntaxText        as S
-import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
@@ -42,11 +41,14 @@ import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText, Width )
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
-import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
 import qualified Unison.Builtin.Decls          as DD
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.ConstructorType as CT
+
+type SyntaxText = S.SyntaxText' Reference
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env

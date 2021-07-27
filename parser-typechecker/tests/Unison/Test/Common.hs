@@ -12,7 +12,7 @@ import           Data.Sequence (Seq)
 import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
-import           Unison.Parser (Ann(..))
+import Unison.Parser.Ann (Ann(..))
 import           Unison.PrintError              ( prettyParseError )
 import           Unison.Result (Result, Note)
 import           Unison.Symbol (Symbol)

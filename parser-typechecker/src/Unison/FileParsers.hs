@@ -21,7 +21,7 @@ import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import qualified Unison.Name                as Name
 import qualified Unison.Names3              as Names
-import           Unison.Parser              (Ann)
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.Referent            as Referent
 import           Unison.Reference           (Reference)
@@ -33,6 +33,8 @@ import qualified Unison.Typechecker         as Typechecker
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile          as UF
+import qualified Unison.UnisonFile.Names as UF
+import qualified Unison.UnisonFile.Type as UF
 import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)

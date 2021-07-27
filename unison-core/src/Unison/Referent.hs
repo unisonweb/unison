@@ -1,21 +1,37 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Referent where
+module Unison.Referent
+  ( Referent,
+    pattern Ref,
+    pattern Con,
+    ConstructorId,
+    Id,
+    pattern RefId,
+    pattern ConId,
+    fold,
+    toReference,
+    fromText,
 
-import Unison.Prelude
+    -- * ShortHash helpers
+    isPrefixOf,
+    toShortHash,
+    toText,
+    patternShortHash,
+  )
+where
 
-import qualified Data.Char              as Char
-import qualified Data.Text              as Text
-import           Unison.Hashable        (Hashable)
-import qualified Unison.Hashable        as H
-import           Unison.Reference       (Reference)
-import qualified Unison.Reference       as R
-import           Unison.ShortHash       (ShortHash)
-import qualified Unison.ShortHash       as SH
-
+import qualified Data.Char as Char
+import qualified Data.Text as Text
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Prelude hiding (fold)
+import Unison.Reference (Reference)
+import qualified Unison.Reference as R
+import Unison.Referent' (Referent' (..), toReference')
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
 
 -- | Specifies a term.
 --
@@ -24,23 +40,25 @@ import qualified Unison.ConstructorType as CT
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
 type Referent = Referent' Reference
+
 pattern Ref :: Reference -> Referent
 pattern Ref r = Ref' r
-pattern Con :: Reference -> Int -> ConstructorType -> Referent
+
+pattern Con :: Reference -> ConstructorId -> ConstructorType -> Referent
 pattern Con r i t = Con' r i t
+
 {-# COMPLETE Ref, Con #-}
 
--- | Cannot be a builtin.
+-- | By definition, cannot be a builtin.
 type Id = Referent' R.Id
 
--- | When @Ref'@ then @r@ represents a term.
---
--- When @Con'@ then @r@ is a type declaration.
-data Referent' r = Ref' r | Con' r Int ConstructorType
-  deriving (Show, Ord, Eq, Functor)
+pattern RefId :: R.Id -> Unison.Referent.Id
+pattern RefId r = Ref' r
 
-type Pos = Word64
-type Size = Word64
+pattern ConId :: R.Id -> ConstructorId -> ConstructorType -> Unison.Referent.Id
+pattern ConId r i t = Con' r i t
+
+{-# COMPLETE RefId, ConId #-}
 
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
@@ -88,11 +106,6 @@ toTermReference = \case
 toReference :: Referent -> Reference
 toReference = toReference'
 
-toReference' :: Referent' r -> r
-toReference' = \case
-  Ref' r -> r
-  Con' r _i _t -> r
-
 fromId :: Id -> Referent
 fromId = fmap R.DerivedId
 
@@ -135,7 +148,3 @@ fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
   Con' r i ct -> fc r i ct
-
-instance Hashable Referent where
-  tokens (Ref r) = [H.Tag 0] ++ H.tokens r
-  tokens (Con r i dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

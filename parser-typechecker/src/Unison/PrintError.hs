@@ -24,9 +24,11 @@ import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import qualified Unison.Lexer.Pos as L
 import           Unison.Name                  ( Name )
-import           Unison.Parser                (Ann (..), Annotated, ann)
-import qualified Unison.Parser                as Parser
+import Unison.Parser (Annotated, ann)
+import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
@@ -38,6 +40,7 @@ import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
 import qualified Unison.Typechecker.TypeVar   as TypeVar
 import qualified Unison.UnisonFile            as UF
+import qualified Unison.UnisonFile.Error as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
 import           Unison.Util.ColorText        (Color)
@@ -51,6 +54,7 @@ import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import Unison.Util.Pretty (Pretty, ColorText)
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)

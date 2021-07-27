@@ -31,11 +31,12 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )
-import           Unison.Parser                  ( Ann )
+import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
@@ -60,6 +61,8 @@ import Unison.Name (Name)
 import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.WatchKind as WK
+import Unison.Codebase.Type (GitError)
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -160,10 +163,10 @@ data Command m i v a where
   Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
 
   -- Add a cached watch to the codebase
-  PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
+  PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
 
   -- Loads any cached watches of the given kind
-  LoadWatches :: UF.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
+  LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
   -- Any definitions in the head of the requested root that aren't in the local
@@ -196,7 +199,7 @@ data Command m i v a where
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
@@ -237,7 +240,7 @@ type UseCache = Bool
 
 type EvalResult v =
   ( [(v, Term v ())]
-  , Map v (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  , Map v (Ann, WK.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())

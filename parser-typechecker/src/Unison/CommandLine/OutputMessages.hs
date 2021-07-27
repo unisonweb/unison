@@ -38,6 +38,7 @@ import           System.Directory               ( canonicalizePath
                                                 )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
+import Unison.Codebase.Type (GitError(GitSqliteCodebaseError, GitProtocolError, GitCodebaseError))
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
@@ -73,8 +74,10 @@ import           Unison.NamePrinter            (prettyHashQualified,
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names
-import           Unison.Parser                 (Ann, startingLine)
+import Unison.Parser.Ann (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
                                                 , printNoteWithSource
@@ -112,6 +115,9 @@ import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(UnrecognizedSchemaVersion, GitCouldntParseRootBranchHash))
+import qualified Unison.Referent' as Referent
+import qualified Unison.WatchKind as WK
 
 type Pretty = P.Pretty P.ColorText
 
@@ -669,75 +675,78 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
-    CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
-      <> prettyReadRepo repo <> "in the cache directory at"
-      <> P.backticked' (P.string localPath) "."
-    UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
-      $ "I don't know how to interpret schema version " <> P.shown v
-      <> "in the repository at" <> prettyReadRepo repo
-      <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
-    CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
-      <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
-      <> P.group (prettyReadRepo repo <> ".")
-    CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
-      <> P.red (P.shown h) <> "but now I can't find it."
-    NoGit -> P.wrap $
-      "I couldn't find git. Make sure it's installed and on your path."
-    CloneException repo msg -> P.wrap $
-      "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
-      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-    PushNoOp repo -> P.wrap $
-      "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."
-    PushException repo msg -> P.wrap $
-      "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
-      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-    UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
-      <> P.backticked (P.text uri) <> "already exists at"
-      <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
-      <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
-      <> P.backticked (P.text uri) <> "into a cache directory at"
-      <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
-      <> "result as a git repository, so I'm not sure what to do next."
-    PushDestinationHasNewStuff repo ->
-      P.callout "⏸" . P.lines $ [
-      P.wrap $ "The repository at" <> prettyWriteRepo repo
-            <> "has some changes I don't know about.",
-      "",
-      P.wrap $ "If you want to " <> push <> "you can do:", "",
-       P.indentN 2 pull, "",
-       P.wrap $
-         "to merge these changes locally," <>
-         "then try your" <> push <> "again."
-      ]
-      where
-      push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
-      pull = P.group . P.backticked $ IP.inputStringFromInput input
-    CouldntLoadRootBranch repo hash -> P.wrap
-      $ "I couldn't load the designated root hash"
-      <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
-      <> "from the repository at" <> prettyReadRepo repo
-    NoRemoteNamespaceWithHash repo sbh -> P.wrap
-      $ "The repository at" <> prettyReadRepo repo
-      <> "doesn't contain a namespace with the hash prefix"
-      <> (P.blue . P.text . SBH.toText) sbh
-    RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
-      P.wrap $ "The namespace hash" <> prettySBH sbh
-            <> "at" <> prettyReadRepo repo
-            <> "is ambiguous."
-            <> "Did you mean one of these hashes?",
-      "",
-      P.indentN 2 $ P.lines
-        (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
-          <$> Set.toList hashes),
-      "",
-      P.wrap "Try again with a few more hash characters to disambiguate."
-      ]
-    SomeOtherError msg -> P.callout "‼" . P.lines $ [
-      P.wrap "I ran into an error:", "",
-      P.indentN 2 (P.string msg), "",
-      P.wrap $ "Check the logging messages above for more info."
-      ]
+    -- CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
+    --   <> prettyReadRepo repo <> "in the cache directory at"
+    --   <> P.backticked' (P.string localPath) "."
+    GitSqliteCodebaseError e -> case e of
+      UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
+        $ "I don't know how to interpret schema version " <> P.shown v
+        <> "in the repository at" <> prettyReadRepo repo
+        <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
+      GitCouldntParseRootBranchHash repo s -> P.wrap $ "I couldn't parse the string"
+        <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
+        <> P.group (prettyReadRepo repo <> ".")
+    -- CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
+    --   <> P.red (P.shown h) <> "but now I can't find it."
+    GitProtocolError e -> case e of
+      NoGit -> P.wrap $
+        "I couldn't find git. Make sure it's installed and on your path."
+      CloneException repo msg -> P.wrap $
+        "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
+        <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      PushNoOp repo -> P.wrap $
+        "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."
+      PushException repo msg -> P.wrap $
+        "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
+        <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
+        <> P.backticked (P.text $ RemoteRepo.printReadRepo uri) <> "already exists at"
+        <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
+        <> "be a git repository, so I'm not sure what to do next.  Delete it?"
+      UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
+        <> P.backticked (P.text $ RemoteRepo.printReadRepo uri) <> "into a cache directory at"
+        <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
+        <> "result as a git repository, so I'm not sure what to do next."
+      PushDestinationHasNewStuff repo ->
+        P.callout "⏸" . P.lines $ [
+        P.wrap $ "The repository at" <> prettyWriteRepo repo
+              <> "has some changes I don't know about.",
+        "",
+        P.wrap $ "If you want to " <> push <> "you can do:", "",
+        P.indentN 2 pull, "",
+        P.wrap $
+          "to merge these changes locally," <>
+          "then try your" <> push <> "again."
+        ]
+        where
+        push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
+        pull = P.group . P.backticked $ IP.inputStringFromInput input
+    GitCodebaseError e -> case e of
+      CouldntLoadRootBranch repo hash -> P.wrap
+        $ "I couldn't load the designated root hash"
+        <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+        <> "from the repository at" <> prettyReadRepo repo
+      NoRemoteNamespaceWithHash repo sbh -> P.wrap
+        $ "The repository at" <> prettyReadRepo repo
+        <> "doesn't contain a namespace with the hash prefix"
+        <> (P.blue . P.text . SBH.toText) sbh
+      RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
+        P.wrap $ "The namespace hash" <> prettySBH sbh
+              <> "at" <> prettyReadRepo repo
+              <> "is ambiguous."
+              <> "Did you mean one of these hashes?",
+        "",
+        P.indentN 2 $ P.lines
+          (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+            <$> Set.toList hashes),
+        "",
+        P.wrap "Try again with a few more hash characters to disambiguate."
+        ]
+    -- SomeOtherError msg -> P.callout "‼" . P.lines $ [
+    --   P.wrap "I ran into an error:", "",
+    --   P.indentN 2 (P.string msg), "",
+    --   P.wrap $ "Check the logging messages above for more info."
+    --   ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch
@@ -1880,7 +1889,7 @@ watchPrinter
   => Text
   -> PPE.PrettyPrintEnv
   -> Ann
-  -> UF.WatchKind
+  -> WK.WatchKind
   -> Term v ()
   -> Runtime.IsCacheHit
   -> Pretty
@@ -1911,7 +1920,7 @@ watchPrinter src ppe ann kind term isHit =
         P.lines
           [ fromString (show lineNum) <> " | " <> P.text line
           , case (kind, term) of
-            (UF.TestWatch, Term.List' tests) -> foldMap renderTest tests
+            (WK.TestWatch, Term.List' tests) -> foldMap renderTest tests
             _ -> P.lines
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra

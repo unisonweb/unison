@@ -5,7 +5,7 @@ module Unison.Test.Typechecker.TypeError where
 import           Data.Foldable                (toList)
 import           Data.Maybe                   (isJust)
 import           EasyTest
-import           Unison.Parser                (Ann)
+import Unison.Parser.Ann (Ann)
 import           Unison.Result                (pattern Result)
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)

@@ -7,6 +7,7 @@ import qualified Unison.Builtin
 import Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Test.Common as Common
 
 

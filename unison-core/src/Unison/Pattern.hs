@@ -4,16 +4,15 @@ module Unison.Pattern where
 
 import Unison.Prelude
 
+import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
-import Data.Foldable as Foldable hiding (foldMap')
-import Unison.Reference (Reference)
-import qualified Unison.Hashable as H
-import qualified Unison.Type as Type
 import qualified Data.Set as Set
-import qualified Unison.LabeledDependency as LD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import qualified Unison.Hashable as H
 import Unison.LabeledDependency (LabeledDependency)
-
-type ConstructorId = Int
+import qualified Unison.LabeledDependency as LD
+import Unison.Reference (Reference)
+import qualified Unison.Type as Type
 
 data Pattern loc
   = Unbound loc
@@ -24,10 +23,10 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !Reference !Int [Pattern loc]
+  | Constructor loc !Reference !ConstructorId [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
-  | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
+  | EffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
     deriving (Ord,Generic,Functor,Foldable,Traversable)
