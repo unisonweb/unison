@@ -46,6 +46,7 @@ import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -1427,9 +1428,13 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF Text.hGetLine
+
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+    $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 

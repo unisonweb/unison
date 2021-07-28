@@ -165,6 +165,7 @@ Tests: openFile
        isFileEOF
        seekHandle
        getBytes
+       getLine
 
 ```unison
 testSeek : '{io2.IO} [Result]
@@ -188,6 +189,15 @@ testSeek _ =
     text3a = Text.fromUtf8 bytes3a
     expectU "should be able to read our temporary file after seeking" "2345678" text3a
     closeFile handle3
+
+    barFile = tempDir ++ "/bar"
+    handle4 = openFile barFile FileMode.Append
+    putBytes handle4 (toUtf8 "foobar\n")
+    closeFile handle4
+
+    handle5 = openFile barFile FileMode.Read
+    expectU "getLine should get a line" "foobar" (getLine handle5)
+    closeFile handle5
 
   runTest test
 
@@ -245,8 +255,9 @@ testAppend _ =
   ◉ testSeek   we should be at position 0
   ◉ testSeek   we should be at position 1
   ◉ testSeek   should be able to read our temporary file after seeking
+  ◉ testSeek   getLine should get a line
   
-  ✅ 6 test(s) passing
+  ✅ 7 test(s) passing
   
   Tip: Use view testSeek to view the source of a test.
 
