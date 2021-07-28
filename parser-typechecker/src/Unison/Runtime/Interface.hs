@@ -299,6 +299,11 @@ bugMsg ppe name tm
     \possible inputs"
   , sorryMsg
   ]
+  | name == "builtin.raise" = P.callout icon . P.lines $
+  [ P.wrap ("The program halted with an unhandled exception:")
+  , ""
+  , P.indentN 2 $ pretty ppe tm
+  ]
 bugMsg ppe name tm = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
       <> "with the following value:")

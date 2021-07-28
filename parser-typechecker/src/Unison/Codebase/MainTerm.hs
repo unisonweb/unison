@@ -54,17 +54,17 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
             _ -> pure (BadType mainName Nothing)
         _ -> pure (NotFound mainName)
 
--- '{io2.IO} ()
+-- '{io2.IO, Exception} ()
 builtinMain :: Var v => a -> Type.Type v a
 builtinMain a = Type.arrow a (Type.ref a DD.unitRef) io
-  where io = Type.effect1 a (Type.builtinIO a) (Type.ref a DD.unitRef)
+  where io = Type.effect a [Type.builtinIO a, DD.exceptionType a] (Type.ref a DD.unitRef)
 
 -- [Result]
 resultArr :: Ord v => a -> Type.Type v a
 resultArr a = Type.app a (Type.ref a Type.listRef) (Type.ref a DD.testResultRef)
 
 builtinResultArr :: Ord v => a -> Type.Type v a
-builtinResultArr a = Type.effect1 a (Type.builtinIO a) (resultArr a)
+builtinResultArr a = Type.effect a [Type.builtinIO a, DD.exceptionType a] (resultArr a)
 
 -- '{io2.IO} [Result]
 builtinTest :: Ord v => a -> Type.Type v a
