@@ -1981,16 +1981,21 @@ propagatePatchNoSync
   => Patch
   -> Path.Absolute
   -> Action' m v Bool
-propagatePatchNoSync patch scopePath = stepAtMNoSync'
-  (Path.unabsolute scopePath, lift . lift . Propagate.propagateAndApply patch)
+propagatePatchNoSync patch scopePath = do
+  r <- use root
+  let nroot = Branch.toNames0 (Branch.head r)
+  stepAtMNoSync' (Path.unabsolute scopePath,
+                  lift . lift . Propagate.propagateAndApply nroot patch)
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
   InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
-propagatePatch inputDescription patch scopePath =
+propagatePatch inputDescription patch scopePath = do
+  r <- use root
+  let nroot = Branch.toNames0 (Branch.head r)
   stepAtM' (inputDescription <> " (applying patch)")
            (Path.unabsolute scopePath,
-              lift . lift . Propagate.propagateAndApply patch)
+              lift . lift . Propagate.propagateAndApply nroot patch)
 
 -- | Create the args needed for showTodoOutput and call it
 doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()

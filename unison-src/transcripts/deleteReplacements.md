@@ -23,7 +23,7 @@ x = 2
 ```
 
 ```unison
-type Foo = Foo
+unique[a] type Foo = Foo
 ```
 
 ```ucm
@@ -31,7 +31,7 @@ type Foo = Foo
 ```
 
 ```unison
-type Foo = Foo | Bar
+unique[b] type Foo = Foo | Bar
 ```
 
 ```ucm
@@ -40,13 +40,13 @@ type Foo = Foo | Bar
 ```
 
 ```ucm
-.> delete.type-replacement #568rsi7o3g
+.> delete.type-replacement #hsk1l8232e
 .> view.patch
 ```
 
 ```unison
 bar = 3
-type bar = Foo
+unique[aa] type bar = Foo
 ```
 
 ```ucm
@@ -54,12 +54,12 @@ type bar = Foo
 ```
 
 ```unison
-type bar = Foo | Bar
+unique[bb] type bar = Foo | Bar
 ```
 
 ```ucm
 .> update
 .> view.patch
-.> delete.type-replacement bar
+.> delete.type-replacement #b1ct5ub6du
 .> view.patch
 ```

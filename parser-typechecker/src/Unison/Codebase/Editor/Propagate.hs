@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Codebase.Editor.Propagate where
+module Unison.Codebase.Editor.Propagate (propagateAndApply) where
 
 import           Control.Error.Util             ( hush )
 import           Control.Lens
@@ -20,11 +22,13 @@ import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
+import qualified Unison.Name                   as Name
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
@@ -46,7 +50,6 @@ import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
-import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
 
 type F m i v = Free (Command m i v)
@@ -54,13 +57,12 @@ type F m i v = Free (Command m i v)
 data Edits v = Edits
   { termEdits :: Map Reference TermEdit
   -- same info as `termEdits` but in more efficient form for calling `Term.updateDependencies`
-  , termReplacements :: Map Reference Reference
+  , termReplacements :: Map Referent Referent
   , newTerms :: Map Reference (Term v Ann, Type v Ann)
   , typeEdits :: Map Reference TypeEdit
   , typeReplacements :: Map Reference Reference
   , newTypes :: Map Reference (Decl v Ann)
-  , constructorReplacements :: Map (Reference, Int, ConstructorType)
-                                   (Reference, Int, ConstructorType)
+  , constructorReplacements :: Map Referent Referent
   } deriving (Eq, Show)
 
 noEdits :: Edits v
@@ -69,35 +71,124 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
-  => Patch
+  => Names0
+  -> Patch
   -> Branch0 m
   -> F m i v (Branch0 m)
-propagateAndApply patch branch = do
-  edits <- propagate patch branch
+propagateAndApply rootNames patch branch = do
+  edits <- propagate rootNames patch branch
   f     <- applyPropagate patch edits
   (pure . f . applyDeprecations patch) branch
 
 
--- Creates a mapping from old data constructors to new data constructors
--- by looking at the original names for the data constructors which are
--- embedded in the Decl object because we carefully planned that.
-generateConstructorMapping
-  :: Eq v
-  => Map v (Reference, Decl v _)
-  -> Map v (Reference, Decl.DataDeclaration v _)
-  -> Map
-       (Reference, Int, ConstructorType)
-       (Reference, Int, ConstructorType)
-generateConstructorMapping oldComponent newComponent = Map.fromList
-  [ let t = Decl.constructorType oldDecl in ((oldR, oldC, t), (newR, newC, t))
-  | (v1, (oldR, oldDecl)) <- Map.toList oldComponent
-  , (v2, (newR, newDecl)) <- Map.toList newComponent
-  , v1 == v2
-  , (oldC, (_, oldName, _)) <- zip [0 ..]
-    $ Decl.constructors' (Decl.asDataDecl oldDecl)
-  , (newC, (_, newName, _)) <- zip [0 ..] $ Decl.constructors' newDecl
-  , oldName == newName
-  ]
+-- This function produces constructor mappings for propagated type updates.
+--
+-- For instance in `type Foo = Blah Bar | Zoink Nat`, if `Bar` is updated
+-- from `Bar#old` to `Bar#new`, `Foo` will be a "propagated update" and
+-- we want to map the `Foo#old.Blah` constructor to `Foo#new.Blah`.
+--
+-- The function works by aligning same-named types and same-named constructors,
+-- using the names of the types provided by the two maps and the names
+-- of constructors embedded in the data decls themselves.
+--
+-- This is correct, and relies only on the type and constructor names coming
+-- out of the codebase and Decl.unhashComponent being unique, which they are.
+--
+-- What happens is that the declaration component is pulled out of the codebase,
+-- references are converted back to variables, substitutions are made in
+-- constructor type signatures, and then the component is rehashed, which
+-- re-canonicalizes the constructor orders in a possibly different way.
+--
+-- The unique names for the types and constructors are just carried through
+-- unchanged through this process, so their being the same establishes that they
+-- had the same role in the two versions of the cycle.
+propagateCtorMapping
+  :: (Var v, Show a)
+  => Map v (Reference, Decl v a)
+  -> Map v (Reference, Decl.DataDeclaration v a)
+  -> Map Referent Referent
+propagateCtorMapping oldComponent newComponent = let
+  singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+  isSingleton c = null . drop 1 $ Decl.constructors' c
+  r = Map.fromList
+    [ (oldCon, newCon)
+    | (v1, (oldR, oldDecl)) <- Map.toList oldComponent
+    , (v2, (newR, newDecl)) <- Map.toList newComponent
+    , v1 == v2 || singletons
+    , let t = Decl.constructorType oldDecl
+    , (oldC, (_,ol'Name,_)) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
+    , (newC, (_,newName,_)) <- zip [0 ..] $ Decl.constructors' newDecl
+    , ol'Name == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
+    , oldR /= newR
+    , let oldCon = Referent.Con oldR oldC t
+          newCon = Referent.Con newR newC t
+    ]
+  in if debugMode then traceShow ("constructorMappings", r) r else r
+
+
+-- TODO: Use of this function will go away soon, once constructor mappings can be
+-- added directly to the patch.
+--
+-- Given a set of type replacements, this creates a mapping from the constructors
+-- of the old type(s) to the constructors of the new types.
+--
+-- Constructors for the same-unqualified-named type with a same-unqualified-name
+-- constructor are mapped to each other.
+--
+-- If the cycle is size 1 for old and new, then the type names need not be the same,
+-- and if the number of constructors is 1, then the constructor names need not
+-- be the same.
+genInitialCtorMapping ::
+  forall v m i . Var v => Names0 -> Map Reference Reference -> F m i v (Map Referent Referent)
+genInitialCtorMapping rootNames initialTypeReplacements = do
+  let mappings :: (Reference,Reference) -> _ (Map Referent Referent)
+      mappings (old,new) = do
+        old <- unhashTypeComponent old
+        new <- fmap (over _2 (either Decl.toDataDecl id)) <$> unhashTypeComponent new
+        pure $ ctorMapping old new
+  Map.unions <$> traverse mappings (Map.toList initialTypeReplacements)
+  where
+  -- True if the unqualified versions of the names in the two sets overlap
+  -- ex: {foo.bar, foo.baz} matches the set {blah.bar}.
+  unqualifiedNamesMatch :: Set Name.Name -> Set Name.Name -> Bool
+  unqualifiedNamesMatch n1 n2 | debugMode && traceShow ("namesMatch", n1, n2) False = undefined
+  unqualifiedNamesMatch n1 n2 =
+    (not . Set.null) (Set.intersection (Set.map Name.unqualified n1)
+                                       (Set.map Name.unqualified n2))
+  ctorNamesMatch oldR newR =
+    unqualifiedNamesMatch (Names.namesForReferent rootNames oldR)
+                          (Names.namesForReferent rootNames newR)
+
+  typeNamesMatch typeMapping oldType newType =
+    Map.lookup oldType typeMapping == Just newType ||
+    unqualifiedNamesMatch (Names.namesForReference rootNames oldType)
+                          (Names.namesForReference rootNames oldType)
+
+  ctorMapping
+    :: Map v (Reference, Decl v a)
+    -> Map v (Reference, Decl.DataDeclaration v a)
+    -> Map Referent Referent
+  ctorMapping oldComponent newComponent = let
+    singletons = Map.size oldComponent == 1 && Map.size newComponent == 1
+    isSingleton c = null . drop 1 $ Decl.constructors' c
+    r = Map.fromList
+      [ (oldCon, newCon)
+      | (_, (oldR, oldDecl)) <- Map.toList oldComponent
+      , (_, (newR, newDecl)) <- Map.toList newComponent
+      , typeNamesMatch initialTypeReplacements oldR newR || singletons
+      , let t = Decl.constructorType oldDecl
+      , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
+      , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
+      , let oldCon = Referent.Con oldR oldC t
+            newCon = Referent.Con newR newC t
+      , ctorNamesMatch oldCon newCon
+        || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
+      , oldR /= newR
+      ]
+    in if debugMode then traceShow ("constructorMappings", r) r else r
+
+debugMode :: Bool
+debugMode = False
 
 -- Note: this function adds definitions to the codebase as it propagates.
 -- Description:
@@ -132,10 +223,12 @@ generateConstructorMapping oldComponent newComponent = Map.fromList
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => Patch
+  => Names0 -- TODO: this argument can be removed once patches have term replacement
+            -- of type `Referent -> Referent`
+  -> Patch
   -> Branch0 m
   -> F m i v (Edits v)
-propagate patch b = case validatePatch patch of
+propagate rootNames patch b = case validatePatch patch of
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
@@ -146,8 +239,29 @@ propagate patch b = case validatePatch patch of
         (Set.fromList
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
-    initialDirty <-
-      R.dom <$> computeFrontier (eval . GetDependents) patch names0
+
+      -- TODO: these are just used for tracing, could be deleted if we don't care
+      -- about printing meaningful names for definitions during propagation, or if
+      -- we want to just remove the tracing.
+      refName r = -- could just become show r if we don't care
+        let rns = Names.namesForReferent rootNames (Referent.Ref r)
+               <> Names.namesForReference rootNames r
+        in case toList rns of
+          [] -> show r
+          n : _ -> show n
+      -- this could also become show r if we're removing the dependency on Names0
+      referentName r = case toList (Names.namesForReferent rootNames r) of
+        [] -> Referent.toString r
+        n : _ -> show n
+
+    initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
+
+    let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
+    -- TODO: once patches can directly contain constructor replacements, this
+    -- line can turn into a pure function that takes the subset of the term replacements
+    -- in the patch which have a `Referent.Con` as their LHS.
+    initialCtorMappings <- genInitialCtorMapping rootNames initialTypeReplacements
+
     order <- sortDependentsGraph initialDirty entireBranch
     let
 
@@ -166,12 +280,14 @@ propagate patch b = case validatePatch patch of
           Reference.Builtin   _ -> collectEdits es seen todo
           Reference.DerivedId _ -> go r todo
        where
+        debugCtors =
+          unlines [ referentName old <> " -> " <> referentName new
+                  | (old,new) <- Map.toList constructorReplacements ]
+        go r _ | debugMode && traceShow ("Rewriting: ", refName r) False = undefined
+        go _ _ | debugMode && trace ("** Constructor replacements:\n\n" <> debugCtors) False = undefined
         go r todo =
-          if Map.member r termEdits
-             || Map.member r typeEdits
-             || Set.member r seen
-          then
-            collectEdits es seen todo
+          if Map.member r termEdits || Set.member r seen || Map.member r typeEdits
+          then collectEdits es seen todo
           else
             do
               haveType <- eval $ IsType r
@@ -194,8 +310,10 @@ propagate patch b = case validatePatch patch of
                     $ Reference.componentFor r
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
+
         doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doType r = do
+          when debugMode $ traceM ("Rewriting type: " <> refName r)
           componentMap <- unhashTypeComponent r
           let componentMap' =
                 over _2 (Decl.updateDependencies typeReplacements)
@@ -238,22 +356,24 @@ propagate patch b = case validatePatch patch of
             seen' = seen <> Set.fromList (view _1 . view _2 <$> joinedStuff)
             writeTypes =
               traverse_ (\(Reference.DerivedId id, tp) -> eval $ PutDecl id tp)
-            constructorMapping =
-              constructorReplacements
-                <> generateConstructorMapping componentMap hashedComponents'
+            !newCtorMappings = let
+              r = propagateCtorMapping componentMap hashedComponents'
+              in if debugMode then traceShow ("constructorMappings: ", r) r else r
+            constructorReplacements' = constructorReplacements <> newCtorMappings
           writeTypes $ Map.toList newNewTypes
           pure
             ( Just $ Edits termEdits
-                           termReplacements
+                           (newCtorMappings <> termReplacements)
                            newTerms
                            typeEdits'
                            typeReplacements'
                            newTypes'
-                           constructorMapping
+                           constructorReplacements'
             , seen'
             )
         doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
         doTerm r = do
+          when debugMode (traceM $ "Rewriting term: " <> show r)
           componentMap <- unhashTermComponent r
           let componentMap' =
                 over
@@ -263,7 +383,9 @@ propagate patch b = case validatePatch patch of
               seen' = seen <> Set.fromList (view _1 <$> Map.elems componentMap)
           mayComponent <- verifyTermComponent componentMap' es
           case mayComponent of
-            Nothing             -> pure (Nothing, seen')
+            Nothing             -> do
+              when debugMode (traceM $ refName r <> " did not typecheck after substitutions")
+              pure (Nothing, seen')
             Just componentMap'' -> do
               let
                 joinedStuff =
@@ -282,7 +404,7 @@ propagate patch b = case validatePatch patch of
                   (r, TermEdit.Replace r' $ TermEdit.typing newType oldType)
                 termReplacements' = termReplacements
                   <> (Map.fromList . fmap toReplacement) joinedStuff
-                toReplacement (r, r', _, _, _) = (r, r')
+                toReplacement (r, r', _, _, _) = (Referent.Ref r, Referent.Ref r')
                 newTerms' =
                   newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
                 toNewTerm (_, r', tm, _, tp) = (r', (tm, tp))
@@ -305,16 +427,18 @@ propagate patch b = case validatePatch patch of
                 )
     collectEdits
       (Edits initialTermEdits
-             (Map.mapMaybe TermEdit.toReference initialTermEdits)
+             (initialTermReplacements initialCtorMappings initialTermEdits)
              mempty
              initialTypeEdits
-             (Map.mapMaybe TypeEdit.toReference initialTypeEdits)
+             initialTypeReplacements
              mempty
-             mempty
+             initialCtorMappings
       )
       mempty -- things to skip
       (getOrdered initialDirty)
  where
+  initialTermReplacements ctors es = ctors <>
+    (Map.mapKeys Referent.Ref . fmap Referent.Ref . Map.mapMaybe TermEdit.toReference) es
   sortDependentsGraph :: Set Reference -> Set Reference -> _ (Map Reference Int)
   sortDependentsGraph dependencies restrictTo = do
     closure <- transitiveClosure
@@ -365,27 +489,6 @@ propagate patch b = case validatePatch patch of
           in  Map.fromList
                 [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
-  unhashTypeComponent
-    :: forall m v
-     . (Applicative m, Var v)
-    => Reference
-    -> F m i v (Map v (Reference, Decl v _))
-  unhashTypeComponent ref = do
-    let
-      component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
-      typeInfo typeRef = case typeRef of
-        Reference.DerivedId id -> do
-          declm <- eval $ LoadType id
-          decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
-                         pure
-                         declm
-          pure $ Just (typeRef, decl)
-        Reference.Builtin{} -> pure Nothing
-      unhash =
-        Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
-        where reshuffle (r, (v, decl)) = (v, (r, decl))
-    unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
@@ -418,6 +521,24 @@ propagate patch b = case validatePatch patch of
           $   runIdentity (Result.toMaybe typecheckResult)
           >>= hush
 
+unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
+unhashTypeComponent ref = do
+  let
+    component = Reference.members $ Reference.componentFor ref
+    typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
+    typeInfo typeRef = case typeRef of
+      Reference.DerivedId id -> do
+        declm <- eval $ LoadType id
+        decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
+                       pure
+                       declm
+        pure $ Just (typeRef, decl)
+      Reference.Builtin{} -> pure Nothing
+    unhash =
+      Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
+      where reshuffle (r, (v, decl)) = (v, (r, decl))
+  unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
+
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
   . deleteDeprecatedTypes deprecatedTypes
@@ -439,51 +560,59 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 applyPropagate
   :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
-  let termRefs = Map.mapMaybe TermEdit.toReference termEdits
-      typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
-      termTypes = Map.map (Type.toReference . snd) newTerms
+  let termTypes = Map.map (Type.toReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
-  pure $ Branch.stepEverywhere (updateLevel termRefs typeRefs termTypes)
+  pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
  where
+  isPropagated r = Set.notMember r allPatchTargets
+  allPatchTargets = Patch.allReferenceTargets patch
+  propagatedMd :: forall r . r -> (r, Metadata.Type, Metadata.Value)
+  propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
+
   updateLevel
-    :: Map Reference Reference
+    :: Map Referent Referent
     -> Map Reference Reference
     -> Map Reference Reference
     -> Branch0 m
     -> Branch0 m
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
-    Branch.branch0 termsWithCons types _children _edits
+    Branch.branch0 terms types _children _edits
    where
-    isPropagated = (`Set.notMember` allPatchTargets) where
-      allPatchTargets = Patch.allReferenceTargets patch
+    isPropagatedReferent (Referent.Con _ _ _) = True
+    isPropagatedReferent (Referent.Ref r) = isPropagated r
 
-    terms = foldl' replaceTerm _terms (Map.toList termEdits)
-    types = foldl' replaceType _types (Map.toList typeEdits)
+    terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+    terms = updateMetadatas Referent.Ref
+          $ Star3.replaceFacts replaceTerm termEdits terms0
+    types = updateMetadatas id
+          $ Star3.replaceFacts replaceType typeEdits _types
 
-    updateMetadata r r' (tp, v) = if v == r then (typeOf r' tp, r') else (tp, v)
-      where typeOf r t = fromMaybe t $ Map.lookup r termTypes
-
-    propagatedMd :: r -> (r, Metadata.Type, Metadata.Value)
-    propagatedMd r = (r, IOSource.isPropagatedReference, IOSource.isPropagatedValue)
-    termsWithCons =
-      foldl' replaceConstructor terms (Map.toList constructorReplacements)
-    replaceTerm s (r, r') =
-      (if isPropagated r'
-       then Metadata.insert (propagatedMd (Referent.Ref r'))
-       else Metadata.delete (propagatedMd (Referent.Ref r'))) .
-      Star3.replaceFact (Referent.Ref r) (Referent.Ref r') $
-        Star3.mapD3 (updateMetadata r r') s
-
-    replaceConstructor s ((oldr, oldc, oldt), (newr, newc, newt)) =
-      -- always insert the metadata since patches can't contain ctor mappings (yet)
-      Metadata.insert (propagatedMd con') .
-      Star3.replaceFact (Referent.Con oldr oldc oldt) con' $ s
+    updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
       where
-      con' = Referent.Con newr newc newt
-    replaceType s (r, r') =
+      clearPropagated s = foldl' go s allPatchTargets where
+        go s r = Metadata.delete (propagatedMd $ ref r) s
+      go (tp,v) = case Map.lookup (Referent.Ref v) termEdits of
+        Just (Referent.Ref r) -> (typeOf r tp, r)
+        _ -> (tp,v)
+      typeOf r t = fromMaybe t $ Map.lookup r termTypes
+
+    replaceTerm :: Referent -> Referent -> _ -> _
+    replaceTerm r r' s =
+      (if isPropagatedReferent r'
+       then Metadata.insert (propagatedMd r') . Metadata.delete (propagatedMd r)
+       else Metadata.delete (propagatedMd r')) $ s
+
+    replaceConstructor :: Referent -> Referent -> _ -> _
+    replaceConstructor (Referent.Con _ _ _) !new s =
+      -- TODO: revisit this once patches have constructor mappings
+      -- at the moment, all constructor replacements are autopropagated
+      -- rather than added manually
+      Metadata.insert (propagatedMd new) $ s
+    replaceConstructor _ _ s = s
+
+    replaceType _ r' s =
       (if isPropagated r' then Metadata.insert (propagatedMd r')
-       else Metadata.delete (propagatedMd r')) .
-      Star3.replaceFact r r' $ s
+       else Metadata.delete (propagatedMd r')) $ s
 
   -- typePreservingTermEdits :: Patch -> Patch
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
