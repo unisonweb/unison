@@ -262,9 +262,12 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
                   Just tm -> do
                     typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
-                    let full = formatPretty (TermPrinter.prettyBinding ppe name tm)
                     let folded = formatPretty . P.lines $ TypePrinter.prettySignatures'' ppe [(name, typ)]
-                    pure (DO.UserObject (Src folded full))
+                    let full tm@(Term.Ann' _ _) _ =
+                          formatPretty (TermPrinter.prettyBinding ppe name tm)
+                        full tm typ =
+                          formatPretty (TermPrinter.prettyBinding ppe name (Term.ann() tm typ))
+                    pure (DO.UserObject (Src folded (full tm typ)))
               Term.RequestOrCtor' r _ | Set.notMember r seen -> (:acc) <$> goType r
               _ -> pure acc
           DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
