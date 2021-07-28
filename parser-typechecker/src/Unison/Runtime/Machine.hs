@@ -256,10 +256,7 @@ exec !_   !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
-  poke ustk
-    $ case universalCompare compare x y of
-        EQ -> 1
-        _ -> 0
+  poke ustk $ if universalEq (==) x y then 1 else 0
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
