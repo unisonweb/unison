@@ -560,8 +560,6 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 applyPropagate
   :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
-  -- let termRefs = Map.mapMaybe TermEdit.toReference termEdits
-  --     typeRefs = Map.mapMaybe TypeEdit.toReference typeEdits
   let termTypes = Map.map (Type.toReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
