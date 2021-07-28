@@ -408,7 +408,8 @@ data Instr
          !Args      -- arguments to pack
 
   -- Unpack the contents of a data type onto the stack
-  | Unpack !Int -- stack index of data to unpack
+  | Unpack !(Maybe Reference) -- debug reference
+           !Int               -- stack index of data to unpack
 
   -- Push a particular value onto the appropriate stack
   | Lit !MLit -- value to push onto the stack
@@ -738,13 +739,13 @@ emitSection _   _   _   ctx (TLit l)
     | otherwise = addCount 1 0
 emitSection rns grpn rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
-  , MatchData _ cs df <- bs
-  =  Ins (Unpack i)
+  , MatchData r cs df <- bs
+  =  Ins (Unpack (Just r) i)
  <$> emitDataMatching rns grpn rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
   , MatchRequest hs0 df <- bs
   , hs <- mapFromList $ first (dnum rns) <$> M.toList hs0
-  =  Ins (Unpack i)
+  =  Ins (Unpack Nothing i)
  <$> emitRequestMatching rns grpn rec ctx hs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
