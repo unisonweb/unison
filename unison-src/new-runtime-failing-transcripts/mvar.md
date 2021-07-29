@@ -29,10 +29,12 @@ testMvars _ =
 
     ma2 = !MVar.newEmpty
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
+    check "tryRead should succeed when not empty" (not (isNone (tryRead ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 
     check "ma2 should be empty" (isEmpty ma2)
     check "tryTake should fail when empty" (isNone (tryTake ma2))
+    check "tryRead should fail when empty" (isNone (tryRead ma2))
 
 
   runTest test
