@@ -89,70 +89,125 @@ at i bs = case Unison.Util.Bytes.drop i bs of
   Bytes (T.viewl -> hd T.:< _) -> Just (B.index hd 0)
   _ -> Nothing
 
-decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
-decodeNat64be bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
-  b3 <- at 2 bs
-  b4 <- at 3 bs
-  b5 <- at 4 bs
-  b6 <- at 5 bs
-  b7 <- at 6 bs
-  b8 <- at 7 bs
+dropBlock :: Int -> Bytes -> Maybe (View ByteString, Bytes)
+dropBlock nBytes chunks =
+  go mempty chunks where
+    go acc (Bytes chunks) =
+      if B.length acc == nBytes then
+        Just (view acc, (Bytes chunks))
+      else if B.length acc >= nBytes then
+        let v = view acc in
+          Just (takeView nBytes v), Bytes ((dropView nBytes v) T.<| chunks))
+      else
+        case chunks of
+          (T.viewl -> (head T.:< tail)) -> go ((B.convert acc) <> (B.convert head)) (Bytes tail)
+          _ -> Nothing
 
-  let b = ((shiftL (fromIntegral b1) 56) .|. (shiftL (fromIntegral b2) 48) .|. (shiftL (fromIntegral b3) 40) .|. (shiftL (fromIntegral b4) 32) .|. (shiftL (fromIntegral b5) 24) .|. (shiftL (fromIntegral b6) 16) .|. (shiftL (fromIntegral b7) 8) .|. (fromIntegral b8))
-  return (b, (Unison.Util.Bytes.drop 8 bs))
+
+decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
+decodeNat64be bs = case dropBlock 8 bs of
+  Just (head, rest) ->
+    let
+      b8 = (B.index head 0)
+      b7 = (B.index head 1)
+      b6 = (B.index head 2)
+      b5 = (B.index head 3)
+      b4 = (B.index head 4)
+      b3 = (B.index head 5)
+      b2 = (B.index head 6)
+      b1 = (B.index head 7)
+      b =  (shiftL (fromIntegral b8) 56)
+       .|. (shiftL (fromIntegral b7) 48)
+       .|. (shiftL (fromIntegral b6) 40)
+       .|. (shiftL (fromIntegral b5) 32)
+       .|. (shiftL (fromIntegral b4) 24)
+       .|. (shiftL (fromIntegral b3) 16)
+       .|. (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
 decodeNat64le :: Bytes -> Maybe (Word64, Bytes)
-decodeNat64le bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
-  b3 <- at 2 bs
-  b4 <- at 3 bs
-  b5 <- at 4 bs
-  b6 <- at 5 bs
-  b7 <- at 6 bs
-  b8 <- at 7 bs
-
-  let b = ((shiftL (fromIntegral b8) 56) .|. (shiftL (fromIntegral b7) 48) .|. (shiftL (fromIntegral b6) 40) .|. (shiftL (fromIntegral b5) 32) .|. (shiftL (fromIntegral b4) 24) .|. (shiftL (fromIntegral b3) 16) .|. (shiftL (fromIntegral b2) 8) .|. (fromIntegral b1))
-  return (b, (Unison.Util.Bytes.drop 8 bs))
-
+decodeNat64le bs = case dropBlock 8 bs of
+  Just (head, rest) ->
+    let
+      b1 = (B.index head 0)
+      b2 = (B.index head 1)
+      b3 = (B.index head 2)
+      b4 = (B.index head 3)
+      b5 = (B.index head 4)
+      b6 = (B.index head 5)
+      b7 = (B.index head 6)
+      b8 = (B.index head 7)
+      b =  (shiftL (fromIntegral b8) 56)
+       .|. (shiftL (fromIntegral b7) 48)
+       .|. (shiftL (fromIntegral b6) 40)
+       .|. (shiftL (fromIntegral b5) 32)
+       .|. (shiftL (fromIntegral b4) 24)
+       .|. (shiftL (fromIntegral b3) 16)
+       .|. (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
 decodeNat32be :: Bytes -> Maybe (Word64, Bytes)
-decodeNat32be bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
-  b3 <- at 2 bs
-  b4 <- at 3 bs
-
-  let b = (shiftL (fromIntegral b1) 24) .|. (shiftL (fromIntegral b2) 16) .|. (shiftL (fromIntegral b3) 8) .|. (fromIntegral b4)
-  return (b, (Unison.Util.Bytes.drop 4 bs))
+decodeNat32be bs = case dropBlock 4 bs of
+  Just (head, rest) ->
+    let
+      b4 = (B.index head 0)
+      b3 = (B.index head 1)
+      b2 = (B.index head 2)
+      b1 = (B.index head 3)
+      b =  (shiftL (fromIntegral b4) 24)
+       .|. (shiftL (fromIntegral b3) 16)
+       .|. (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
 decodeNat32le :: Bytes -> Maybe (Word64, Bytes)
-decodeNat32le bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
-  b3 <- at 2 bs
-  b4 <- at 3 bs
-
-  let b = (shiftL (fromIntegral b1) 24) .|. (shiftL (fromIntegral b2) 16) .|. (shiftL (fromIntegral b3) 8) .|. (fromIntegral b4)
-  return (b, (Unison.Util.Bytes.drop 4 bs))
+decodeNat32le bs = case dropBlock 4 bs of
+  Just (head, rest) ->
+    let
+      b1 = (B.index head 0)
+      b2 = (B.index head 1)
+      b3 = (B.index head 2)
+      b4 = (B.index head 3)
+      b =  (shiftL (fromIntegral b4) 24)
+       .|. (shiftL (fromIntegral b3) 16)
+       .|. (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
 decodeNat16be :: Bytes -> Maybe (Word64, Bytes)
-decodeNat16be bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
-
-  let b = (shiftL (fromIntegral b1) 8) .|. (fromIntegral b2)
-  return (b, (Unison.Util.Bytes.drop 2 bs))
+decodeNat16be bs = case dropBlock 2 bs of
+  Just (head, rest) ->
+    let
+      b2 = (B.index head 0)
+      b1 = (B.index head 1)
+      b =  (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
 decodeNat16le :: Bytes -> Maybe (Word64, Bytes)
-decodeNat16le bs = do
-  b1 <- at 0 bs
-  b2 <- at 1 bs
+decodeNat16le bs = case dropBlock 2 bs of
+  Just (head, rest) ->
+    let
+      b1 = (B.index head 0)
+      b2 = (B.index head 1)
+      b =  (shiftL (fromIntegral b2) 8)
+       .|. (fromIntegral b1)
+    in
+      Just(b, rest)
+  Nothing -> Nothing
 
-  let b = (shiftL (fromIntegral b2) 8) .|. (fromIntegral b1)
-  return (b, (Unison.Util.Bytes.drop 2 bs))
 
 encodeNat64be :: Word64 -> Bytes
 encodeNat64be n =
