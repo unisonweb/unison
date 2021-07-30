@@ -97,10 +97,10 @@ dropBlock nBytes chunks =
         Just (view acc, (Bytes chunks))
       else if B.length acc >= nBytes then
         let v = view acc in
-          Just (takeView nBytes v), Bytes ((dropView nBytes v) T.<| chunks))
+          Just ((takeView nBytes v), Bytes ((dropView nBytes v) T.<| chunks))
       else
         case chunks of
-          (T.viewl -> (head T.:< tail)) -> go ((B.convert acc) <> (B.convert head)) (Bytes tail)
+          (T.viewl -> (head T.:< tail)) -> go (acc <> (B.convert head)) (Bytes tail)
           _ -> Nothing
 
 
