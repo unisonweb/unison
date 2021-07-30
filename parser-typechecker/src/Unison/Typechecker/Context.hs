@@ -951,6 +951,20 @@ synthesizeWanted (Term.Var' v) = getContext >>= \ctx ->
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     -- variables accesses are pure
     Just t -> do
+      -- Note: we ungeneralize the type for ease of discarding. The
+      -- current algorithm isn't sensitive to keeping things
+      -- quantified, so it should be valid to not worry about
+      -- re-generalizing.
+      --
+      -- Polymorphic ability variables in covariant positions in an
+      -- occurrence's type only add useless degrees of freedom to the
+      -- solver. They allow an occurrence to 'want' any row, but the
+      -- occurrence might as well be chosen to 'want' the empty row,
+      -- since that can be satisfied the most easily. The solver
+      -- generally has no way of deciding that these arbitrary degrees
+      -- of freedom are unnecessary later, and will get confused about
+      -- which variable ot instantiate, so we ought to discard them
+      -- early.
       (vs, t) <- ungeneralize' t
       pure (discardCovariant (Set.fromList vs) t, [])
 synthesizeWanted (Term.Ref' h)
@@ -962,6 +976,7 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
   -- Top level references don't have their own effects.
   | Set.null s = do
     t <- existentializeArrows t
+    -- See note about ungeneralizing above in the Var case.
     t <- ungeneralize t
     pure (discard t, [])
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
