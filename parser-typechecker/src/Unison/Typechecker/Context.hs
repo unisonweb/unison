@@ -950,7 +950,9 @@ synthesizeWanted (Term.Var' v) = getContext >>= \ctx ->
   case lookupAnn ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     -- variables accesses are pure
-    Just t -> pure (t, [])
+    Just t -> do
+      (vs, t) <- ungeneralize' t
+      pure (discardCovariant (Set.fromList vs) t, [])
 synthesizeWanted (Term.Ref' h)
   = compilerCrash $ UnannotatedReference h
 synthesizeWanted (Term.Ann' (Term.Ref' _) t)
@@ -958,7 +960,10 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
   -- `synthesizeClosed`
   --
   -- Top level references don't have their own effects.
-  | Set.null s = (,[]) . discard <$> existentializeArrows t
+  | Set.null s = do
+    t <- existentializeArrows t
+    t <- ungeneralize t
+    pure (discard t, [])
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
   s = ABT.freeVars t
