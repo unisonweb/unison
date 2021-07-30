@@ -3,13 +3,16 @@
 
 module Unison.Util.Bytes where
 
+import Data.Bits (shiftR, shiftL, (.|.))
 import Data.Char
 import Data.Memory.PtrMethods (memCompare, memEqual)
 import Data.Monoid (Sum(..))
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Unison.Prelude hiding (ByteString, empty)
+import Control.Monad.ST (runST)
 import Basement.Block (Block)
+import qualified Basement.Block.Mutable as BL
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
@@ -85,6 +88,159 @@ at i bs = case Unison.Util.Bytes.drop i bs of
   -- note: chunks guaranteed nonempty (see `snoc` and `cons` implementations)
   Bytes (T.viewl -> hd T.:< _) -> Just (B.index hd 0)
   _ -> Nothing
+
+decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
+decodeNat64be bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+  b3 <- at 2 bs
+  b4 <- at 3 bs
+  b5 <- at 4 bs
+  b6 <- at 5 bs
+  b7 <- at 6 bs
+  b8 <- at 7 bs
+
+  let b = ((shiftL (fromIntegral b1) 56) .|. (shiftL (fromIntegral b2) 48) .|. (shiftL (fromIntegral b3) 40) .|. (shiftL (fromIntegral b4) 32) .|. (shiftL (fromIntegral b5) 24) .|. (shiftL (fromIntegral b6) 16) .|. (shiftL (fromIntegral b7) 8) .|. (fromIntegral b8))
+  return (b, (Unison.Util.Bytes.drop 8 bs))
+
+decodeNat64le :: Bytes -> Maybe (Word64, Bytes)
+decodeNat64le bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+  b3 <- at 2 bs
+  b4 <- at 3 bs
+  b5 <- at 4 bs
+  b6 <- at 5 bs
+  b7 <- at 6 bs
+  b8 <- at 7 bs
+
+  let b = ((shiftL (fromIntegral b8) 56) .|. (shiftL (fromIntegral b7) 48) .|. (shiftL (fromIntegral b6) 40) .|. (shiftL (fromIntegral b5) 32) .|. (shiftL (fromIntegral b4) 24) .|. (shiftL (fromIntegral b3) 16) .|. (shiftL (fromIntegral b2) 8) .|. (fromIntegral b1))
+  return (b, (Unison.Util.Bytes.drop 8 bs))
+
+
+decodeNat32be :: Bytes -> Maybe (Word64, Bytes)
+decodeNat32be bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+  b3 <- at 2 bs
+  b4 <- at 3 bs
+
+  let b = (shiftL (fromIntegral b1) 24) .|. (shiftL (fromIntegral b2) 16) .|. (shiftL (fromIntegral b3) 8) .|. (fromIntegral b4)
+  return (b, (Unison.Util.Bytes.drop 4 bs))
+
+decodeNat32le :: Bytes -> Maybe (Word64, Bytes)
+decodeNat32le bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+  b3 <- at 2 bs
+  b4 <- at 3 bs
+
+  let b = (shiftL (fromIntegral b1) 24) .|. (shiftL (fromIntegral b2) 16) .|. (shiftL (fromIntegral b3) 8) .|. (fromIntegral b4)
+  return (b, (Unison.Util.Bytes.drop 4 bs))
+
+decodeNat16be :: Bytes -> Maybe (Word64, Bytes)
+decodeNat16be bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+
+  let b = (shiftL (fromIntegral b1) 8) .|. (fromIntegral b2)
+  return (b, (Unison.Util.Bytes.drop 2 bs))
+
+decodeNat16le :: Bytes -> Maybe (Word64, Bytes)
+decodeNat16le bs = do
+  b1 <- at 0 bs
+  b2 <- at 1 bs
+
+  let b = (shiftL (fromIntegral b2) 8) .|. (fromIntegral b1)
+  return (b, (Unison.Util.Bytes.drop 2 bs))
+
+encodeNat64be :: Word64 -> Bytes
+encodeNat64be n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 8
+      BL.write marr 0 (fromIntegral (shiftR n 56))
+      BL.write marr 1 (fromIntegral (shiftR n 48))
+      BL.write marr 2 (fromIntegral (shiftR n 40))
+      BL.write marr 3 (fromIntegral (shiftR n 32))
+      BL.write marr 4 (fromIntegral (shiftR n 24))
+      BL.write marr 5 (fromIntegral (shiftR n 16))
+      BL.write marr 6 (fromIntegral (shiftR n 8))
+      BL.write marr 7 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
+
+encodeNat64le :: Word64 -> Bytes
+encodeNat64le n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 8
+      BL.write marr 7 (fromIntegral (shiftR n 56))
+      BL.write marr 6 (fromIntegral (shiftR n 48))
+      BL.write marr 5 (fromIntegral (shiftR n 40))
+      BL.write marr 4 (fromIntegral (shiftR n 32))
+      BL.write marr 3 (fromIntegral (shiftR n 24))
+      BL.write marr 2 (fromIntegral (shiftR n 16))
+      BL.write marr 1 (fromIntegral (shiftR n 8))
+      BL.write marr 0 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
+
+encodeNat32be :: Word64 -> Bytes
+encodeNat32be n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 4
+      BL.write marr 0 (fromIntegral (shiftR n 24))
+      BL.write marr 1 (fromIntegral (shiftR n 16))
+      BL.write marr 2 (fromIntegral (shiftR n 8))
+      BL.write marr 3 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
+
+encodeNat32le :: Word64 -> Bytes
+encodeNat32le n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 4
+      BL.write marr 3 (fromIntegral (shiftR n 24))
+      BL.write marr 2 (fromIntegral (shiftR n 16))
+      BL.write marr 1 (fromIntegral (shiftR n 8))
+      BL.write marr 0 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
+
+encodeNat16be :: Word64 -> Bytes
+encodeNat16be n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 2
+      BL.write marr 0 (fromIntegral (shiftR n 8))
+      BL.write marr 1 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
+
+encodeNat16le :: Word64 -> Bytes
+encodeNat16le n =
+   let
+     block :: ByteString
+     block = runST $ do
+      marr <- BL.new 2
+      BL.write marr 1 (fromIntegral (shiftR n 8))
+      BL.write marr 0 (fromIntegral n)
+      BL.unsafeFreeze marr
+   in
+      fromArray block
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs) where
@@ -209,4 +365,3 @@ instance B.ByteArrayAccess bytes => B.ByteArrayAccess (View bytes) where
   length = viewSize
   withByteArray v f = B.withByteArray (unView v) $
     \ptr -> f (ptr `plusPtr` (viewOffset v))
-

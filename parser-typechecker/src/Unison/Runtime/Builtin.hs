@@ -1064,6 +1064,7 @@ wordDirect wordType instr
   where
   (b1,ub1) = fresh2
 
+
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
@@ -1243,7 +1244,6 @@ builtinLookup
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
   , ("Nat.popCount", popn)
-
   , ("Float.+", addf)
   , ("Float.-", subf)
   , ("Float.*", mulf)
@@ -1749,6 +1749,23 @@ declareForeigns = do
   declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase32
   declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase64
   declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
+
+  declareForeign "Bytes.decodeNat64be" boxToMaybeBox . mkForeign $ pure . (\n -> let bs = Bytes.decodeNat64be n in
+                                                                           traceShow bs bs)
+  declareForeign "Bytes.decodeNat64le" boxToMaybeBox . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign "Bytes.decodeNat32be" boxToMaybeBox . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign "Bytes.decodeNat32le" boxToMaybeBox . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign "Bytes.decodeNat16be" boxToMaybeBox . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign "Bytes.decodeNat16le" boxToMaybeBox . mkForeign $ pure . Bytes.decodeNat16le
+
+  declareForeign "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
+  declareForeign "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
+  declareForeign "Bytes.encodeNat32be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32be
+  declareForeign "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
+  declareForeign "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
+  declareForeign "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . (\n ->
+                                                                           let bs = Bytes.encodeNat16le n in
+                                                                               traceShow bs bs)
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
