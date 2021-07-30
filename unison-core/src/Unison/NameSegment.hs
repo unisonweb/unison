@@ -21,6 +21,25 @@ segments' n = go split
     go ("" : z) = go z
     go (x : y) = x : go y
 
+-- Same as reverse . segments', but produces the output as a
+-- lazy list, suitable for suffix-based ordering purposes or
+-- building suffix tries. Examples:
+--
+--   reverseSegments' "foo.bar.baz"  => ["baz","bar","foo"]
+--   reverseSegments' ".foo.bar.baz" => ["baz","bar","foo"]
+--   reverseSegments' ".."           => ["."]
+--   reverseSegments' "Nat.++"       => ["++","Nat"]
+--   reverseSegments' "Nat.++.zoo"   => ["zoo","++","Nat"]
+reverseSegments' :: Text -> [Text]
+reverseSegments' = go
+  where
+    go ".." = ["."]
+    go ""   = []
+    go t    = let
+      seg = Text.takeWhileEnd (/= '.') t
+      rem = Text.dropEnd (Text.length seg + 1) t
+      in seg : go rem
+
 instance H.Hashable NameSegment where
   tokens s = [H.Text (toText s)]
 

@@ -52,7 +52,7 @@ import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails )
 
 newtype Name = Name { toText :: Text }
-  deriving (Eq, Ord, Monoid, Semigroup, Generic)
+  deriving (Eq, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
@@ -180,6 +180,10 @@ segments (Name n) = NameSegment <$> segments' n
 
 countSegments :: Name -> Int
 countSegments n = length (segments n)
+
+instance Ord Name where
+  compare (Name n1) (Name n2) =
+    NameSegment.reverseSegments' n1 `compare` NameSegment.reverseSegments' n2
 
 class Convert a b where
   convert :: a -> b
