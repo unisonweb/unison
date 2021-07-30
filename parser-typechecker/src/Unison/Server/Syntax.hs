@@ -59,8 +59,6 @@ convertElement = \case
   SyntaxText.Referent  r         -> TermReference $ Referent.toText r
   SyntaxText.Reference r         -> TypeReference $ Reference.toText r
   SyntaxText.Op        s         -> Op s
-  SyntaxText.Constructor         -> Constructor
-  SyntaxText.Request             -> Request
   SyntaxText.AbilityBraces       -> AbilityBraces
   SyntaxText.ControlKeyword      -> ControlKeyword
   SyntaxText.TypeOperator        -> TypeOperator

@@ -134,8 +134,6 @@ defaultColors = \case
   ST.Referent _          -> Nothing
   ST.Op _                -> Nothing
   ST.Unit                -> Nothing
-  ST.Constructor         -> Nothing
-  ST.Request             -> Nothing
   ST.AbilityBraces       -> Just HiBlack
   ST.ControlKeyword      -> Just Bold
   ST.LinkKeyword         -> Just HiBlack
