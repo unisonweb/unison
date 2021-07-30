@@ -210,10 +210,16 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
-    Request' ref i -> styleHashQualified'' (fmt S.Request) $
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
+    Constructor' ref cid -> 
+      styleHashQualified'' (fmt $ S.Referent conRef) name
+      where 
+        name = elideFQN im $ PrettyPrintEnv.termName n conRef
+        conRef = Referent.Con ref cid CT.Data
+    Request' ref cid -> 
+      styleHashQualified'' (fmt $ S.Referent conRef) name
+      where 
+        name = elideFQN im $ PrettyPrintEnv.termName n conRef
+        conRef = Referent.Con ref cid CT.Effect
     Handle' h body -> paren (p >= 2) $
       if PP.isMultiLine pb || PP.isMultiLine ph then PP.lines [
         (fmt S.ControlKeyword "handle") `PP.hang` pb,
@@ -316,12 +322,19 @@ pretty0
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
-    (TupleTerm' [x], _) -> let
-      pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
-        where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
+    (TupleTerm' [x], _) -> 
+      let
+          conRef = DD.pairCtorRef
+          name = elideFQN im $ PrettyPrintEnv.termName n conRef
+          pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.Referent conRef)) name
+      in
       paren (p >= 10) $ pair `PP.hang`
-        PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt S.Constructor "()" ]
-    (TupleTerm' xs, _) -> paren True $ commaList xs
+        PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt (S.Referent DD.unitCtorRef) "()" ]
+
+    (TupleTerm' xs, _) -> 
+      let tupleLink p = fmt (S.Reference DD.unitRef) p
+      in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
+      
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -432,12 +445,17 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  Pattern.Constructor _ ref i [] ->
-    (styleHashQualified'' (fmt S.Constructor) $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
-  Pattern.Constructor _ ref i pats ->
+  Pattern.Constructor _ ref cid [] ->
+    (styleHashQualified'' (fmt $ S.Referent conRef) name, vs)
+    where 
+      name = elideFQN im $ PrettyPrintEnv.termName n conRef
+      conRef = Referent.Con ref cid CT.Data
+  Pattern.Constructor _ ref cid pats ->
     let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
+        name = elideFQN im $ PrettyPrintEnv.termName n conRef
+        conRef = Referent.Con ref cid CT.Data
     in  ( paren (p >= 10)
-          $ styleHashQualified'' (fmt S.Constructor) (elideFQN im (PrettyPrintEnv.patternName n ref i))
+          $ styleHashQualified'' (fmt $ S.Referent conRef) name
             `PP.hang` pats_printed
         , tail_vs)
   Pattern.As _ pat ->
@@ -447,17 +465,24 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  Pattern.EffectBind _ ref i pats k_pat ->
+  Pattern.EffectBind _ ref cid pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
-    in  ((fmt S.DelimiterChar "{" ) <>
-          (PP.sep " " . PP.nonEmpty $ [
-            styleHashQualified'' (fmt S.Request) $ elideFQN im (PrettyPrintEnv.patternName n ref i),
-            pats_printed,
-            fmt S.ControlKeyword "->",
-            k_pat_printed]) <>
-         (fmt S.DelimiterChar "}")
-        , eventual_tail)
+        name = elideFQN im $ PrettyPrintEnv.termName n conRef
+        conRef = Referent.Con ref cid CT.Effect
+    in  ( PP.group (
+            fmt S.DelimiterChar "{"  <>
+            (PP.sep " " . PP.nonEmpty $ 
+              [ styleHashQualified'' (fmt (S.Referent conRef)) $ name
+              , pats_printed
+              , fmt S.ControlKeyword "->"
+              , k_pat_printed
+              ]
+            ) <>
+            fmt S.DelimiterChar "}"
+          )
+        , eventual_tail
+        )
   Pattern.SequenceLiteral _ pats ->
     let (pats_printed, tail_vs) = patternsSep (-1) (fmt S.DelimiterChar ", ") vs pats
     in  ((fmt S.DelimiterChar "[") <> pats_printed <> (fmt S.DelimiterChar "]"), tail_vs)

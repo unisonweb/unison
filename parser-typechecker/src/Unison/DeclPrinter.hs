@@ -50,36 +50,40 @@ prettyEffectDecl
   -> HashQualified Name
   -> EffectDeclaration v a
   -> Pretty SyntaxText
-prettyEffectDecl ppe r name = prettyGADT ppe r name . toDataDecl
+prettyEffectDecl ppe r name = prettyGADT ppe CT.Effect r name . toDataDecl
 
 prettyGADT
   :: Var v
   => PrettyPrintEnv
+  -> CT.ConstructorType
   -> Reference
   -> HashQualified Name
   -> DataDeclaration v a
   -> Pretty SyntaxText
-prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
+prettyGADT env ctorType r name dd = P.hang header . P.lines $ constructor <$> zip
   [0 ..]
   (DD.constructors' dd)
  where
   constructor (n, (_, _, t)) =
-    prettyPattern env r name n
+    prettyPattern env ctorType r name n
       <>       (fmt S.TypeAscriptionColon " :")
       `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
   header = prettyEffectHeader name (DD.EffectDeclaration dd) <> (fmt S.ControlKeyword " where")
 
 prettyPattern
   :: PrettyPrintEnv
+  -> CT.ConstructorType
   -> Reference
   -> HashQualified Name
   -> Int
   -> Pretty SyntaxText
-prettyPattern env r namespace n = styleHashQualified''
-  (fmt S.Constructor)
+prettyPattern env ctorType ref namespace cid = styleHashQualified''
+  (fmt (S.Referent conRef))
   ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
-  $ PPE.patternName env r n
+  $ PPE.termName env conRef
   )
+  where
+    conRef = Referent.Con ref cid ctorType
 
 prettyDataDecl
   :: Var v
@@ -96,15 +100,15 @@ prettyDataDecl env r name dd =
   constructor (n, (_, _, (Type.ForallsNamed' _ t))) = constructor' n t
   constructor (n, (_, _, t)                       ) = constructor' n t
   constructor' n t = case Type.unArrows t of
-    Nothing -> prettyPattern env r name n
+    Nothing -> prettyPattern env CT.Data r name n
     Just ts -> case fieldNames env r name dd of
-      Nothing -> P.group . P.hang' (prettyPattern env r name n) "      "
+      Nothing -> P.group . P.hang' (prettyPattern env CT.Data r name n) "      "
                $ P.spaced (TypePrinter.prettyRaw env Map.empty 10 <$> init ts)
       Just fs -> P.group $ (fmt S.DelimiterChar "{ ")
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> (fmt S.DelimiterChar " }")
-  field (fname, typ) = P.group $ styleHashQualified'' (fmt S.Constructor) fname <>
+  field (fname, typ) = P.group $ styleHashQualified'' (fmt (S.Reference r)) fname <>
     (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw env Map.empty (-1) typ
   header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 
