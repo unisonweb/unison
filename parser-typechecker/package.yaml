@@ -32,7 +32,6 @@ library:
   dependencies:
     - aeson
     - ansi-terminal
-    - ansi-wl-pprint
     - async
     - base
     - base16 >= 0.2.1.0
@@ -73,8 +72,8 @@ library:
     - network
     - network-simple
     - nonempty-containers
+    - optparse-applicative >= 0.16.1.0
     - openapi3
-    - optparse-applicative
     - pem
     - process
     - primitive
@@ -132,6 +131,7 @@ executables:
       - lens
       - megaparsec
       - mtl
+      - optparse-applicative >= 0.16.1.0
       - safe
       - shellmet
       - template-haskell

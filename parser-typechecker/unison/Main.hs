@@ -1,34 +1,26 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Main where
 
-#if defined(mingw32_HOST_OS)
-import qualified GHC.ConsoleHandler as WinSig
-#else
-import qualified System.Posix.Signals as Sig
-#endif
-
-import Control.Concurrent (mkWeakThreadId, myThreadId, newEmptyMVar, takeMVar)
+import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
-import Control.Exception (AsyncException (UserInterrupt), throwTo)
 import Data.ByteString.Char8 (unpack)
 import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import qualified Network.URI.Encode as URI
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getArgs, getProgName)
+import System.Environment (getProgName)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
 import qualified System.IO.Temp as Temp
-import System.Mem.Weak (deRefWeak)
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
@@ -53,80 +45,49 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
-
-installSignalHandlers :: IO ()
-installSignalHandlers = do
-  main_thread <- myThreadId
-  wtid <- mkWeakThreadId main_thread
-  let interrupt = do
-        r <- deRefWeak wtid
-        case r of
-          Nothing -> return ()
-          Just t  -> throwTo t UserInterrupt
-
-#if defined(mingw32_HOST_OS)
-  let sig_handler WinSig.ControlC = interrupt
-      sig_handler WinSig.Break    = interrupt
-      sig_handler _               = return ()
-  _ <- WinSig.installHandler (WinSig.Catch sig_handler)
-#else
-  _ <- Sig.installHandler Sig.sigQUIT  (Sig.Catch interrupt) Nothing
-  _ <- Sig.installHandler Sig.sigINT   (Sig.Catch interrupt) Nothing
-#endif
-  return ()
-
-
-data CodebaseFormat = V1 | V2 deriving (Eq)
+import Compat
+import ArgParse
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
 cbInitFor = \case V1 -> FC.init; V2 -> SC.init
 
 main :: IO ()
 main = do
-  args <- getArgs
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
   void installSignalHandlers
-  option <- customExecParser (prefs showHelpOnError) Options.options
-  -- We need to know whether the program was invoked with -codebase for
-  -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
-  -- rather than just deciding on whether to use the supplied path or
-  -- the home directory here and throwing away that bit of information
-  let (mcodepath, restargs0) = case args of
-           "-codebase" : codepath : restargs -> (Just codepath, restargs)
-           _                                 -> (Nothing, args)
-      (fromMaybe V2 -> cbFormat, restargs) = case restargs0 of
-           "--new-codebase" : rest -> (Just V2, rest)
-           "--old-codebase" : rest -> (Just V1, rest)
-           _ -> (Nothing, restargs0)
-      cbInit = case cbFormat of V1 -> FC.init; V2 -> SC.init
+  (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribe
+  let GlobalOptions{codebasePath=mcodepath, codebaseFormat=cbFormat} = globalOptions
+  let cbInit = cbInitFor cbFormat
   currentDir <- getCurrentDirectory
   configFilePath <- getConfigFilePath mcodepath
   config <-
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
-  case restargs of
-    [version] | isFlag "version" version ->
-      putStrLn $ progName ++ " version: " ++ Version.gitDescribe
-    [help] | isFlag "help" help -> PT.putPrettyLn (usage progName)
-    ["init"] -> Codebase.initCodebaseAndExit cbInit "main.init" mcodepath
-    "run" : [mainName] -> do
+  case command of
+     PrintVersion ->
+       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
+     Init ->
+       Codebase.initCodebaseAndExit cbInit "main.init" mcodepath
+     Run (RunFromSymbol mainName) -> do
       (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
       runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
       closeCodebase
-    "run.file" : file : [mainName] | isDotU file -> do
-      e <- safeReadUtf8 file
-      case e of
-        Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-        Right contents -> do
-          (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
-          rt <- RTI.startRuntime
-          let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-          launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
-          closeCodebase
-    "run.pipe" : [mainName] -> do
+     Run (RunFromFile file mainName)
+       | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+       | otherwise -> do
+            e <- safeReadUtf8 file
+            case e of
+              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+              Right contents -> do
+                (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
+                rt <- RTI.startRuntime
+                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+                closeCodebase
+     Run (RunFromPipe mainName) -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
@@ -138,39 +99,32 @@ main = do
             currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
           closeCodebase
-    "transcript" : args' ->
-      case args' of
-      "-save-codebase" : transcripts -> runTranscripts cbFormat False True mcodepath transcripts
-      _                              -> runTranscripts cbFormat False False mcodepath args'
-    "transcript.fork" : args' ->
-      case args' of
-      "-save-codebase" : transcripts -> runTranscripts cbFormat True True mcodepath transcripts
-      _                              -> runTranscripts cbFormat True False mcodepath args'
-    ["upgrade-codebase"] -> upgradeCodebase mcodepath
-    args -> do
-      let headless = listToMaybe args == Just "headless"
-      (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
-      runtime <- RTI.startRuntime
-      Server.start runtime theCodebase $ \token port -> do
-        let url =
-             "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
-        when headless $
-          PT.putPrettyLn $ P.lines
-            ["I've started the codebase API server at" , P.string $ url <> "/api"]
-        PT.putPrettyLn $ P.lines
-          ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
-        if headless then do
-          PT.putPrettyLn $ P.string "Running the codebase manager headless with "
-            <> P.shown GHC.Conc.numCapabilities
-            <> " "
-            <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-            <> "."
-          mvar <- newEmptyMVar
-          takeMVar mvar
-        else do
-          PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
-          launch currentDir config runtime theCodebase []
-          closeCodebase
+     Transcript shouldFork shouldSaveCodebase transcriptFiles ->
+       runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveCodebase mcodepath transcriptFiles
+     UpgradeCodebase -> upgradeCodebase mcodepath
+     Launch isHeadless -> do
+       (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
+       runtime <- RTI.startRuntime
+       Server.start runtime theCodebase $ \token port -> do
+         let url =
+              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
+         PT.putPrettyLn $ P.lines
+           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
+         case isHeadless of
+             Headless -> do
+                 PT.putPrettyLn $ P.lines
+                    ["I've started the codebase API server at" , P.string $ url <> "/api"]
+                 PT.putPrettyLn $ P.string "Running the codebase manager headless with "
+                     <> P.shown GHC.Conc.numCapabilities
+                     <> " "
+                     <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                     <> "."
+                 mvar <- newEmptyMVar
+                 takeMVar mvar
+             WithCLI -> do
+                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
+                 launch currentDir config runtime theCodebase []
+                 closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
 upgradeCodebase mcodepath =
@@ -189,21 +143,22 @@ upgradeCodebase mcodepath =
       <> "but there's no rush.  You can access the old codebase again by passing the"
       <> P.backticked "--old-codebase" <> "flag at startup."
 
-prepareTranscriptDir :: CodebaseFormat -> Bool -> Maybe FilePath -> IO FilePath
-prepareTranscriptDir cbFormat inFork mcodepath = do
+prepareTranscriptDir :: CodebaseFormat -> ShouldForkCodebase -> Maybe FilePath -> IO FilePath
+prepareTranscriptDir cbFormat shouldFork mcodepath = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
   let cbInit = cbInitFor cbFormat
-  if inFork then
-    getCodebaseOrExit cbFormat mcodepath >> do
-    path <- Codebase.getCodebaseDir mcodepath
-    PT.putPrettyLn $ P.lines [
-      P.wrap "Transcript will be run on a copy of the codebase at: ", "",
-      P.indentN 2 (P.string path)
-      ]
-    Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
-  else do
-    PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-    void $ Codebase.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
+  case shouldFork of
+    UseFork -> do
+      getCodebaseOrExit cbFormat mcodepath
+      path <- Codebase.getCodebaseDir mcodepath
+      PT.putPrettyLn $ P.lines [
+        P.wrap "Transcript will be run on a copy of the codebase at: ", "",
+        P.indentN 2 (P.string path)
+        ]
+      Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
+    DontFork -> do
+      PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+      void $ Codebase.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
   pure tmp
 
 runTranscripts'
@@ -245,32 +200,34 @@ runTranscripts' codebaseFormat mcodepath transcriptDir args = do
       pure False
 
 runTranscripts
-  :: CodebaseFormat
-  -> Bool
-  -> Bool
+  :: UsageRenderer
+  -> CodebaseFormat
+  -> ShouldForkCodebase
+  -> ShouldSaveCodebase
   -> Maybe FilePath
   -> [String]
   -> IO ()
-runTranscripts cbFormat inFork keepTemp mcodepath args = do
+runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveTempCodebase mcodepath args = do
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir cbFormat inFork mcodepath
+  transcriptDir <- prepareTranscriptDir cbFormat shouldFork mcodepath
   completed <-
     runTranscripts' cbFormat (Just transcriptDir) transcriptDir args
-  when completed $ do
-    unless keepTemp $ removeDirectoryRecursive transcriptDir
-    when keepTemp $ PT.putPrettyLn $
-        P.callout "🌸" (
-          P.lines [
-            "I've finished running the transcript(s) in this codebase:", "",
-            P.indentN 2 (P.string transcriptDir), "",
-            P.wrap $ "You can run"
-                  <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
-                  <> "to do more work with it."])
-
-  unless completed $ do
-      unless keepTemp $ removeDirectoryRecursive transcriptDir
-      PT.putPrettyLn (usage progName)
-      Exit.exitWith (Exit.ExitFailure 1)
+  case shouldSaveTempCodebase of
+    DontSaveCodebase -> removeDirectoryRecursive transcriptDir
+    SaveCodebase ->
+      if completed
+        then
+          PT.putPrettyLn $
+            P.callout "🌸" (
+              P.lines [
+                "I've finished running the transcript(s) in this codebase:", "",
+                P.indentN 2 (P.string transcriptDir), "",
+                P.wrap $ "You can run"
+                      <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
+                      <> "to do more work with it."])
+        else do
+          putStrLn (renderUsageInfo $ Just "transcript")
+          Exit.exitWith (Exit.ExitFailure 1)
 
 initialPath :: Path.Absolute
 initialPath = Path.absoluteEmpty

@@ -80,7 +80,6 @@ library
       Unison.Codebase.TypeEdit
       Unison.Codebase.Watch
       Unison.CommandLine
-      Unison.CommandLine.ArgParse
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
@@ -181,7 +180,6 @@ library
       ListLike
     , aeson
     , ansi-terminal
-    , ansi-wl-pprint
     , async
     , base
     , base16 >=0.2.1.0
@@ -222,7 +220,7 @@ library
     , network-simple
     , nonempty-containers
     , openapi3
-    , optparse-applicative
+    , optparse-applicative >=0.16.1.0
     , pem
     , primitive
     , process
@@ -420,6 +418,8 @@ executable transcripts
 executable unison
   main-is: Main.hs
   other-modules:
+      ArgParse
+      Compat
       System.Path
       Version
       Paths_unison_parser_typechecker
@@ -450,6 +450,7 @@ executable unison
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative >=0.16.1.0
     , safe
     , shellmet
     , template-haskell
