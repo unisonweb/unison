@@ -16,11 +16,13 @@ module Unison.Name
   , parent
   , sortNames
   , sortNamed
+  , sortNameds
   , sortByText
   , sortNamed'
   , stripNamePrefix
   , stripPrefixes
   , segments
+  , reverseSegments
   , countSegments
   , segments'
   , suffixes
@@ -59,6 +61,9 @@ sortNames = sortNamed id
 
 sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by = sortByText (toText . by)
+
+sortNameds :: (a -> [Name]) -> [a] -> [a]
+sortNameds by = sortByText (Text.intercalate "." . map toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as = let
@@ -178,6 +183,9 @@ fromSegment = unsafeFromText . NameSegment.toText
 segments :: Name -> [NameSegment]
 segments (Name n) = NameSegment <$> segments' n
 
+reverseSegments :: Name -> [NameSegment]
+reverseSegments (Name n) = NameSegment <$> NameSegment.reverseSegments' n
+
 countSegments :: Name -> Int
 countSegments n = length (segments n)
 
@@ -194,6 +202,8 @@ class Parse a b where
 instance Convert Name Text where convert = toText
 instance Convert Name [NameSegment] where convert = segments
 instance Convert NameSegment Name where convert = fromSegment
+instance Convert [NameSegment] Name where
+  convert sgs = unsafeFromText (Text.intercalate "." (map NameSegment.toText sgs))
 
 instance Parse Text NameSegment where
   parse txt = case NameSegment.segments' txt of

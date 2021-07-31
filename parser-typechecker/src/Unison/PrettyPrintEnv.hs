@@ -40,7 +40,10 @@ fromNames len names = PrettyPrintEnv terms' types' where
   shortestName ns = safeHead $ HQ.sortByLength (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
-fromSuffixNames len names = fromNames len (Names.suffixify names)
+fromSuffixNames len names = PrettyPrintEnv terms' types' where
+  terms' r = pickName . Set.map HQ'.toHQ $ Names.suffixedTermName len r names
+  types' r = pickName . Set.map HQ'.toHQ $ Names.suffixedTypeName len r names
+  pickName ns = safeHead . Name.sortNameds toList . HQ.sortByLength $ toList ns
 
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
 fromNamesDecl len names =

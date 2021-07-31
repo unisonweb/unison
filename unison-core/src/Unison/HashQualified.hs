@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -20,7 +22,7 @@ import qualified Unison.Var                    as Var
 
 data HashQualified n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
-  deriving (Eq, Functor, Show, Generic)
+  deriving (Eq, Foldable, Traversable, Functor, Show, Generic)
 
 stripNamespace :: Text -> HashQualified Name -> HashQualified Name
 stripNamespace namespace hq = case hq of

@@ -6,6 +6,7 @@ module Unison.Names3 where
 
 import Unison.Prelude
 
+import Data.List (tails,find)
 import Data.List.Extra (nubOrd)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
@@ -191,6 +192,36 @@ termName length r Names{..} =
   else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
   where hq n = HQ'.take length (HQ'.fromNamedReferent n r)
         isConflicted n = R.manyDom n (Names.terms currentNames)
+
+suffixedTypeName :: Int -> Reference -> Names -> Set (HQ'.HashQualified Name)
+suffixedTermName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
+(suffixedTermName,suffixedTypeName) =
+  ( suffixedName termName (Names.terms . currentNames) HQ'.fromNamedReferent
+  , suffixedName typeName (Names.types . currentNames) HQ'.fromNamedReference )
+  where
+  suffixedName fallback getRel hq' length r ns@(getRel -> rel) =
+    if R.memberRan r rel
+    then go $ toList (R.lookupRan r rel)
+    else fallback length r ns
+    where
+      isConflicted n = R.manyDom n rel
+      hq n = HQ'.take length (hq' n r)
+      go ns = case sortOn (\n -> (Name.countSegments n, Name.toText n)) ns of
+        [] -> mempty
+        fqn : _ -> Set.singleton $
+          let n' = shortestUniqueSuffix fqn r rel
+          in if isConflicted fqn then hq n'
+             else HQ'.fromName n'
+
+shortestUniqueSuffix :: Ord r => Name -> r -> Relation Name r -> Name
+shortestUniqueSuffix fqn r rel =
+  maybe fqn (Name.convert . reverse) (find isOk suffixes)
+  where
+  suffixes = reverse $ init (tails (Name.reverseSegments fqn))
+  isOk suffix = Set.size rs <= 1 || Set.toList rs == [r]
+    where rs = R.searchDom compareEnd rel
+          compareEnd n = compare (take len (Name.reverseSegments n)) suffix
+          len = length suffix
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
