@@ -24,6 +24,7 @@ module Unison.Name
   , segments
   , reverseSegments
   , countSegments
+  , compareSuffix
   , segments'
   , suffixes
   , toString
@@ -189,9 +190,29 @@ reverseSegments (Name n) = NameSegment <$> NameSegment.reverseSegments' n
 countSegments :: Name -> Int
 countSegments n = length (segments n)
 
+-- The `Ord` instance for `Name` considers the segments of the name
+-- starting from the last, enabling efficient search by name suffix.
+--
+-- To order names alphabetically for purposes of display to a human,
+-- `sortNamed` or one of its variants should be used, which provides a
+-- Unicode and capitalization aware sorting (based on RFC5051).
 instance Ord Name where
   compare (Name n1) (Name n2) =
     NameSegment.reverseSegments' n1 `compare` NameSegment.reverseSegments' n2
+
+-- `compareSuffix suffix n` is equal to `compare n' suffix`, where
+-- n' is `n` with only the last `countSegments suffix` segments.
+--
+-- Used for suffix-based lookup of a name. For instance, given a `r : Relation Name x`,
+-- `Relation.searchDom (compareSuffix "foo.bar") r` will find all `r` whose name
+-- has `foo.bar` as a suffix.
+compareSuffix :: Name -> Name -> Ordering
+compareSuffix suffix =
+  let
+    suffixSegs = reverseSegments suffix
+    len = length suffixSegs
+  in
+    \n -> take len (reverseSegments n) `compare` suffixSegs
 
 class Convert a b where
   convert :: a -> b

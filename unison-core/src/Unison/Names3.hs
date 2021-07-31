@@ -123,15 +123,17 @@ shadowing prio (Names current old) =
 makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
--- do a prefix match on currentNames and, if no match, then check oldNames.
+-- Find all types whose name has a suffix matching the provided `HashQualified`.
 lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
-  HQ.NameOnly n -> R.lookupDom n (Names.types currentNames)
+  HQ.NameOnly n -> R.searchDom (Name.compareSuffix n) (Names.types currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
-    matches sh ns = Set.filter (Reference.isPrefixOf sh) (R.lookupDom n $ Names.types ns)
+    matches sh ns =
+      Set.filter (Reference.isPrefixOf sh)
+                 (R.searchDom (Name.compareSuffix n) $ Names.types ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
@@ -144,14 +146,17 @@ hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
 hasTypeNamed :: Name -> Names -> Bool
 hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 
+-- Find all terms whose name has a suffix matching the provided `HashQualified`.
 lookupHQTerm :: HashQualified Name -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
-  HQ.NameOnly n -> R.lookupDom n (Names.terms currentNames)
+  HQ.NameOnly n -> R.searchDom (Name.compareSuffix n) (Names.terms currentNames)
   HQ.HashQualified n sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
-    matches sh ns = Set.filter (Referent.isPrefixOf sh) (R.lookupDom n $ Names.terms ns)
+    matches sh ns =
+      Set.filter (Referent.isPrefixOf sh)
+                 (R.searchDom (Name.compareSuffix n) $ Names.terms ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
