@@ -80,6 +80,7 @@ library
       Unison.Codebase.TypeEdit
       Unison.Codebase.Watch
       Unison.CommandLine
+      Unison.CommandLine.ArgParse
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
@@ -180,6 +181,7 @@ library
       ListLike
     , aeson
     , ansi-terminal
+    , ansi-wl-pprint
     , async
     , base
     , base16 >=0.2.1.0

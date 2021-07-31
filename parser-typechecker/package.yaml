@@ -32,6 +32,7 @@ library:
   dependencies:
     - aeson
     - ansi-terminal
+    - ansi-wl-pprint
     - async
     - base
     - base16 >= 0.2.1.0

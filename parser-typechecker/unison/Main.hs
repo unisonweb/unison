@@ -54,74 +54,10 @@ import qualified Unison.Util.Pretty as P
 import qualified Version
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
 
-usage :: String -> P.Pretty P.ColorText
-usage executableStr = P.callout "🌻" $ P.lines [
-  P.bold "Usage instructions for the Unison Codebase Manager",
-  "You are running version: " <> P.string Version.gitDescribe,
-  "",
-  P.bold executable,
-  P.wrap "Starts Unison interactively, using the codebase in the home directory.",
-  "",
-  P.bold $ executable <> " -codebase path/to/codebase",
-  P.wrap "Starts Unison interactively, using the specified codebase. This flag can also be set before any of the below commands.",
-  "",
-  P.bold $ executable <> " --old-codebase",
-  P.wrap $ "Starts Unison using a v1 codebase. This flag can also be set before any of the below commands.",
-  "",
-  P.bold $ executable <> " run .mylib.mymain",
-  P.wrap "Executes the definition `.mylib.mymain` from the codebase, then exits.",
-  "",
-  P.bold $ executable <> " run.file foo.u mymain",
-  P.wrap "Executes the definition called `mymain` in `foo.u`, then exits.",
-  "",
-  P.bold $ executable <> " run.pipe mymain",
-  P.wrap "Executes the definition called `mymain` from a `.u` file read from the standard input, then exits.",
-  "",
-  P.bold $ executable <> " transcript mytranscript.md",
-  P.wrap $ "Executes the `mytranscript.md` transcript and creates"
-        <> "`mytranscript.output.md` if successful. Exits after completion, and deletes"
-        <> "the temporary directory created."
-        <> "Multiple transcript files may be provided; they are processed in sequence"
-        <> "starting from the same codebase.",
-  "",
-  P.bold $ executable <> " transcript -save-codebase mytranscript.md",
-  P.wrap $ "Executes the `mytranscript.md` transcript and creates"
-        <> "`mytranscript.output.md` if successful. Exits after completion, and saves"
-        <> "the resulting codebase to a new directory on disk."
-        <> "Multiple transcript files may be provided; they are processed in sequence"
-        <> "starting from the same codebase.",
-  "",
-  P.bold $ executable <> " transcript.fork mytranscript.md",
-  P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
-        <> "and creates `mytranscript.output.md` if successful. Exits after completion."
-        <> "Multiple transcript files may be provided; they are processed in sequence"
-        <> "starting from the same codebase.",
-  "",
-  P.bold $ executable <> " transcript.fork -save-codebase mytranscript.md",
-  P.wrap $ "Executes the `mytranscript.md` transcript in a copy of the current codebase"
-        <> "and creates `mytranscript.output.md` if successful. Exits after completion,"
-        <> "and saves the resulting codebase to a new directory on disk."
-        <> "Multiple transcript files may be provided; they are processed in sequence"
-        <> "starting from the same codebase.",
-  "",
-  P.bold $ executable <> " upgrade-codebase",
-  "Upgrades a v1 codebase to a v2 codebase.",
-  "",
-  P.bold $ executable <> " headless",
-  "Runs the codebase server without the command-line interface.",
-  "",
-  P.bold $ executable <> " version",
-  "Prints version of Unison then quits.",
-  "",
-  P.bold $ executable <> " help",
-  "Prints this help."]
-      where executable = (P.text . Text.pack) executableStr
-
 installSignalHandlers :: IO ()
 installSignalHandlers = do
   main_thread <- myThreadId
   wtid <- mkWeakThreadId main_thread
-
   let interrupt = do
         r <- deRefWeak wtid
         case r of
@@ -137,7 +73,6 @@ installSignalHandlers = do
   _ <- Sig.installHandler Sig.sigQUIT  (Sig.Catch interrupt) Nothing
   _ <- Sig.installHandler Sig.sigINT   (Sig.Catch interrupt) Nothing
 #endif
-
   return ()
 
 
@@ -152,7 +87,8 @@ main = do
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
-  _ <- installSignalHandlers
+  void installSignalHandlers
+  option <- customExecParser (prefs showHelpOnError) Options.options
   -- We need to know whether the program was invoked with -codebase for
   -- certain messages. Therefore we keep a Maybe FilePath - mcodepath
   -- rather than just deciding on whether to use the supplied path or
