@@ -41,9 +41,8 @@ fromNames len names = PrettyPrintEnv terms' types' where
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
 fromSuffixNames len names = PrettyPrintEnv terms' types' where
-  terms' r = pickName . Set.map HQ'.toHQ $ Names.suffixedTermName len r names
-  types' r = pickName . Set.map HQ'.toHQ $ Names.suffixedTypeName len r names
-  pickName ns = safeHead . Name.sortNameds toList . HQ.sortByLength $ toList ns
+  terms' r = safeHead $ Names.suffixedTermName len r names
+  types' r = safeHead $ Names.suffixedTypeName len r names
 
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
 fromNamesDecl len names =
