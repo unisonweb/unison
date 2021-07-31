@@ -218,7 +218,7 @@ runSymbolParser =
 
 runFileParser :: Parser Command
 runFileParser = do -- ApplicativeDo
-  pathTofile <- strArgument (metavar "path/to/file")
+  pathTofile <- fileArgument "path/to/file"
   symbolName <- strArgument (metavar "SYMBOL")
   pure $ Run (RunFromFile pathTofile symbolName)
 
@@ -231,21 +231,22 @@ saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> h
   where
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
 
-filesArgument :: Parser [FilePath]
-filesArgument = some (strArgument (  metavar "FILES..."
-                                  <> action "file" -- Autocomplete file names
-                                  ))
+fileArgument :: String -> Parser FilePath
+fileArgument varName =
+    strArgument (  metavar varName
+                <> action "file" -- Autocomplete file names
+                )
 
 transcriptParser :: Parser Command
 transcriptParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- filesArgument
+  files <- some (fileArgument "FILES...")
   pure (Transcript DontFork shouldSaveCodebase files)
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- filesArgument
+  files <- some (fileArgument "FILES...")
   pure (Transcript UseFork shouldSaveCodebase files)
 
 unisonHelp :: String -> String -> P.Doc
