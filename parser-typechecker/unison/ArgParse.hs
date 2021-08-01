@@ -297,20 +297,16 @@ fileArgument varName =
                 <> action "file" -- Autocomplete file names
                 )
 
--- | A version of 'some' which returns a nonEmpty list.
-someNonEmpty :: Parser a -> Parser (NonEmpty a)
-someNonEmpty p = liftA2 (NE.:|) p (many p)
-
 transcriptParser :: Parser Command
 transcriptParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- someNonEmpty (fileArgument "FILES...")
+  files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
   pure (Transcript DontFork shouldSaveCodebase files)
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- someNonEmpty (fileArgument "FILES...")
+  files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
   pure (Transcript UseFork shouldSaveCodebase files)
 
 unisonHelp :: String -> String -> P.Doc
