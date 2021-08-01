@@ -37,6 +37,12 @@ import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.Parser (Ann)
 import Unison.Prelude
+    ( IsString,
+      for_,
+      void,
+      safeReadUtf8,
+      safeReadUtf8StdIn,
+      writeUtf8 )
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
@@ -45,8 +51,18 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
 import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
-import Compat
+import Compat ( installSignalHandlers )
 import ArgParse
+    ( UsageRenderer,
+      GlobalOptions(GlobalOptions, codebasePath, codebaseFormat),
+      CodebaseFormat(..),
+      Command(Launch, PrintVersion, Init, Run, Transcript,
+              UpgradeCodebase),
+      IsHeadless(WithCLI, Headless),
+      ShouldSaveCodebase(..),
+      ShouldForkCodebase(..),
+      RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
+      parseCLIArgs )
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
 cbInitFor = \case V1 -> FC.init; V2 -> SC.init

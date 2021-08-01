@@ -36,7 +36,7 @@ import Options.Applicative
       ParseError(ShowHelpText),
       Parser,
       ParserInfo,
-      ParserPrefs, fullDesc, headerDoc )
+      ParserPrefs, fullDesc, headerDoc, helpShowGlobals )
 import Options.Applicative.Help ( (<+>), bold )
 import Data.Foldable ( Foldable(fold) )
 import qualified Options.Applicative.Help.Pretty as P
@@ -67,6 +67,10 @@ data ShouldSaveCodebase
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
 
+-- | Represents commands the cli can run.
+--
+-- Note that this is not one-to-one with command-parsers since some are simple variants.
+-- E.g. run, run.file, run.pipe
 data Command
   = Launch IsHeadless
   | PrintVersion
@@ -81,11 +85,13 @@ data CodebaseFormat
     | V2
     deriving (Show, Eq)
 
+-- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePath :: Maybe FilePath
   , codebaseFormat :: CodebaseFormat
   } deriving (Show)
 
+-- | 'ParserInfo' for the command and global options.
 rootParserInfo :: String -> String -> ParserInfo (GlobalOptions, Command)
 rootParserInfo progName version =
     info ((,) <$> globalOptionsParser <*> commandParser <**> helper)
@@ -100,7 +106,7 @@ parseCLIArgs :: String -> String -> IO (UsageRenderer, GlobalOptions, Command)
 parseCLIArgs progName version = do
   (Width cols) <- PT.getAvailableWidth
   let parserInfo = rootParserInfo progName version
-  let preferences = prefs $ showHelpOnError <> columns cols
+  let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols
   (globalOptions, command) <- customExecParser preferences parserInfo
   let usage = renderUsage progName parserInfo preferences
   pure $ (usage, globalOptions, command)
