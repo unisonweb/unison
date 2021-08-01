@@ -8,9 +8,7 @@
 module ArgParse where
 
 import Options.Applicative
-    ( optional,
-      (<**>),
-      action,
+    ( action,
       columns,
       command,
       flag,
@@ -30,13 +28,15 @@ import Options.Applicative
       hsubparser,
       parserFailure,
       renderFailure,
-      Alternative(some, (<|>), many),
       CommandFields,
       Mod,
       ParseError(ShowHelpText),
       Parser,
       ParserInfo,
-      ParserPrefs, fullDesc, headerDoc, helpShowGlobals, Applicative (liftA2) )
+      ParserPrefs,
+      fullDesc,
+      headerDoc,
+      helpShowGlobals)
 import Options.Applicative.Help ( (<+>), bold )
 import Data.Foldable ( Foldable(fold) )
 import qualified Options.Applicative.Help.Pretty as P
@@ -45,6 +45,7 @@ import qualified Data.List as List
 import Unison.Util.Pretty (Width(..))
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
+import Control.Applicative (Alternative((<|>), many), (<**>), optional, Applicative (liftA2))
 
 -- The name of a symbol to execute.
 type SymbolName = String

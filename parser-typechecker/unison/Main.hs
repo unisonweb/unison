@@ -64,6 +64,8 @@ import ArgParse
       RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
+import Control.Monad (when)
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
 cbInitFor = \case V1 -> FC.init; V2 -> SC.init
@@ -186,30 +188,34 @@ runTranscripts'
   -> IO Bool
 runTranscripts' codebaseFormat mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
-  for_ args $ \arg -> case arg of
-    md | isMarkdown md -> do
-      parsed <- TR.parseFile arg
-      case parsed of
-        Left err ->
-          PT.putPrettyLn $ P.callout "❓" (
-            P.lines [
-              P.indentN 2 "A parsing error occurred while reading a file:", "",
-              P.indentN 2 $ P.string err])
-        Right stanzas -> do
-          configFilePath <- getConfigFilePath mcodepath
-          (closeCodebase, theCodebase) <- getCodebaseOrExit codebaseFormat $ Just transcriptDir
-          mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
-          closeCodebase
-          let out = currentDir FP.</>
-                     FP.addExtension (FP.dropExtension arg ++ ".output")
-                                     (FP.takeExtension md)
-          writeUtf8 out mdOut
-          putStrLn $ "💾  Wrote " <> out
-    nonMarkdown ->
-          PT.putPrettyLn $ P.callout "❓" (
-            P.lines [
-              P.indentN 2 "Skipping file of unrecognized filetype:", "",
-              P.indentN 2 $ P.string nonMarkdown])
+  let (markdownFiles, invalidArgs) = NonEmpty.partition isMarkdown args
+  for_ markdownFiles $ \fileName -> do
+    parsed <- TR.parseFile fileName
+    case parsed of
+      Left err ->
+        PT.putPrettyLn $ P.callout "❓" (
+          P.lines [
+            P.indentN 2 "A parsing error occurred while reading a file:", "",
+            P.indentN 2 $ P.string err])
+      Right stanzas -> do
+        configFilePath <- getConfigFilePath mcodepath
+        (closeCodebase, theCodebase) <- getCodebaseOrExit codebaseFormat $ Just transcriptDir
+        mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+        closeCodebase
+        let out = currentDir FP.</>
+                   FP.addExtension (FP.dropExtension fileName ++ ".output")
+                                   (FP.takeExtension fileName)
+        writeUtf8 out mdOut
+        putStrLn $ "💾  Wrote " <> out
+
+  when (not . null $ invalidArgs) $ do
+    PT.putPrettyLn $ P.callout "❓" (
+      P.lines
+        [ P.indentN 2 "Transcripts must have an .md or .markdown extension."
+        , P.indentN 2 "Skipping the following invalid files:"
+        , ""
+        , P.bulleted $ fmap (P.bold . P.string . (<> "\n")) invalidArgs
+        ])
   pure True
 
 runTranscripts
