@@ -168,6 +168,8 @@ instance Ord n => Ord (HashQualified n) where
 
 instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
   convert = fmap Name.convert
+instance Convert n (HashQualified n) where
+  convert = NameOnly
 
 instance Parse Text (HashQualified Name) where
   parse = fromText

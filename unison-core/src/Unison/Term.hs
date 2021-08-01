@@ -136,20 +136,21 @@ bindNames
   -> Names.ResolutionResult v a (Term v a)
 -- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
 --                            || traceShow keepFreeTerms False = undefined
-bindNames keepFreeTerms ns e = do
+bindNames keepFreeTerms ns0 e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
       -- !_ = trace "free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
+      ns = Names.Names ns0 mempty
       -- !_ = trace "free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
+      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
            | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
-      okTy (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.types0 ns) of
+      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
            | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
   termSubsts <- validate okTm freeTmVars
