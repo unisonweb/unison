@@ -201,8 +201,12 @@ countSegments n = length (segments n)
 -- `sortNamed` or one of its variants should be used, which provides a
 -- Unicode and capitalization aware sorting (based on RFC5051).
 instance Ord Name where
-  compare (Name n1) (Name n2) =
-    NameSegment.reverseSegments' n1 `compare` NameSegment.reverseSegments' n2
+  compare n1 n2 =
+       (reverseSegments n1 `compare` reverseSegments n2)
+    <> (isAbsolute n1 `compare` isAbsolute n2)
+
+isAbsolute :: Name -> Bool
+isAbsolute (Name n) = Text.isPrefixOf "." n
 
 -- Find all `r` in the given `Relation` whose corresponding name has the
 -- provided suffix, using logarithmic time lookups.
