@@ -27,6 +27,8 @@ module Unison.Name
   , compareSuffix
   , segments'
   , suffixes
+  , searchBySuffix
+  , shortestUniqueSuffix
   , toString
   , toText
   , toVar
@@ -48,11 +50,13 @@ import           Unison.NameSegment             ( NameSegment(NameSegment)
 import           Control.Lens                   ( unsnoc )
 import qualified Control.Lens                  as Lens
 import qualified Data.Text                     as Text
+import qualified Data.Set                      as Set
 import qualified Unison.Hashable               as H
+import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy, tails )
+import           Data.List                      ( sortBy, tails, inits, find )
 
 newtype Name = Name { toText :: Text }
   deriving (Eq, Monoid, Semigroup, Generic)
@@ -200,6 +204,11 @@ instance Ord Name where
   compare (Name n1) (Name n2) =
     NameSegment.reverseSegments' n1 `compare` NameSegment.reverseSegments' n2
 
+-- Find all `r` in the given `Relation` whose corresponding name has the
+-- provided suffix, using logarithmic time lookups.
+searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchBySuffix suffix rel = R.searchDom (compareSuffix suffix) rel
+
 -- `compareSuffix suffix n` is equal to `compare n' suffix`, where
 -- n' is `n` with only the last `countSegments suffix` segments.
 --
@@ -213,6 +222,22 @@ compareSuffix suffix =
     len = length suffixSegs
   in
     \n -> take len (reverseSegments n) `compare` suffixSegs
+
+-- Tries to shorten `fqn` to the smallest suffix that still refers
+-- uniquely to `r`. Uses an efficient logarithmic lookup in the
+-- provided relation.
+--
+-- NB: Only works if the `Ord` instance for `Name` orders based on
+-- `Name.reverseSegments`.
+shortestUniqueSuffix :: Ord r => Name -> r -> R.Relation Name r -> Name
+shortestUniqueSuffix fqn r rel =
+  maybe fqn (convert . reverse) (find isOk suffixes)
+  where
+  suffixes = drop 1 (inits (reverseSegments fqn))
+  isOk suffix = Set.size rs <= 1 || Set.toList rs == [r]
+    where rs = R.searchDom compareEnd rel
+          compareEnd n = compare (take len (reverseSegments n)) suffix
+          len = length suffix
 
 class Convert a b where
   convert :: a -> b

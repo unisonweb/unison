@@ -6,8 +6,6 @@ module Unison.Names3 where
 
 import Unison.Prelude
 
-import Data.List (tails,find)
-import Data.List.Extra (nubOrd)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -16,11 +14,9 @@ import Unison.Reference as Reference
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import qualified Unison.Name as Name
 import qualified Unison.Names2
 import qualified Unison.Names2 as Names
-import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 
@@ -35,22 +31,6 @@ data ResolutionFailure v a
   deriving (Eq,Ord,Show)
 
 type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
-
--- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
--- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
--- into a multimap map along with their corresponding refs. Any suffix
--- which is unique is added as an entry to `ns`.
-suffixify0 :: Names0 -> Names0
-suffixify0 ns = ns <> suffixNs
-  where
-  suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
-  terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
-  types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
-  uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
-  uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
-
-suffixify :: Names -> Names
-suffixify ns = Names (suffixify0 (currentNames ns)) (oldNames ns)
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
@@ -216,24 +196,8 @@ suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
         [] -> mempty
         fqns -> Name.sortNameds toList (map f fqns) where
           f fqn = Name.convert $
-            let n' = shortestUniqueSuffix fqn r rel
+            let n' = Name.shortestUniqueSuffix fqn r rel
             in if isConflicted fqn then hq n' else HQ'.fromName n'
-
--- Tries to shorten `fqn` to the smallest suffix that still refers
--- uniquely to `r`. Uses an efficient logarithmic lookup in the
--- provided relation.
---
--- NB: Only works if the `Ord` instance for `Name` orders based on
--- `Name.reverseSegments`.
-shortestUniqueSuffix :: Ord r => Name -> r -> Relation Name r -> Name
-shortestUniqueSuffix fqn r rel =
-  maybe fqn (Name.convert . reverse) (find isOk suffixes)
-  where
-  suffixes = reverse $ init (tails (Name.reverseSegments fqn))
-  isOk suffix = Set.size rs <= 1 || Set.toList rs == [r]
-    where rs = R.searchDom compareEnd rel
-          compareEnd n = compare (take len (Name.reverseSegments n)) suffix
-          len = length suffix
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names

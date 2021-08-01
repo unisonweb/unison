@@ -452,7 +452,7 @@ hqNameQuery'
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> m QueryResult
-hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+hqNameQuery' _doSuffixify relativeTo root codebase hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
   -- Find the terms with those hashes.
@@ -477,7 +477,8 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
       typeResults =
         (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
       -- Suffixify the names
-      parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+      -- todo  -- (if doSuffixify then Names3.suffixify else id) parseNames0
+      parseNames = parseNames0
       -- Now do the actual name query
       resultss   = searchBranchExact hqLength parseNames hqnames
       -- Handle query misses correctly
