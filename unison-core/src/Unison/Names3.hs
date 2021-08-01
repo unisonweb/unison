@@ -6,6 +6,7 @@ module Unison.Names3 where
 
 import Unison.Prelude
 
+import Data.List.Extra (nubOrd)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -14,9 +15,11 @@ import Unison.Reference as Reference
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Unison.Name as Name
 import qualified Unison.Names2
 import qualified Unison.Names2 as Names
+import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 
@@ -58,6 +61,19 @@ isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
 
 isEmpty0 :: Names0 -> Bool
 isEmpty0 n = R.null (terms0 n) && R.null (types0 n)
+
+-- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
+-- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
+-- into a multimap map along with their corresponding refs. Any suffix
+-- which is unique is added as an entry to `ns`.
+suffixify0 :: Names0 -> Names0
+suffixify0 ns = ns <> suffixNs
+  where
+  suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
+  terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
+  types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
+  uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
+  uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
@@ -106,19 +122,24 @@ makeAbsolute0 = map0 Name.makeAbsolute
 -- Find all types whose name has a suffix matching the provided `HashQualified`.
 lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
-  HQ.NameOnly n -> Name.searchBySuffix n (Names.types currentNames)
-  HQ.HashQualified n sh -> case matches sh currentNames of
+  HQ.NameOnly n ->
+    R.lookupDom n (Names.types currentNames) `orElse`
+    Name.searchBySuffix n (Names.types currentNames)
+  HQ.HashQualified n sh -> case matches sh (Names.types currentNames) of
     s | (not . null) s -> s
-      | otherwise -> matches sh oldNames
+      | otherwise -> matches sh (Names.types oldNames)
     where
     matches sh ns =
       Set.filter (Reference.isPrefixOf sh)
-                 (Name.searchBySuffix n $ Names.types ns)
+                 (R.lookupDom n ns `orElse` Name.searchBySuffix n ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
     matches sh ns = Set.filter (Reference.isPrefixOf sh) (R.ran $ Names.types ns)
+  where
+    orElse :: Set a -> Set a -> Set a
+    orElse s1 s2 = if Set.null s1 then s2 else s1
 
 hasTermNamed :: Name -> Names -> Bool
 hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
@@ -129,19 +150,24 @@ hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 -- Find all terms whose name has a suffix matching the provided `HashQualified`.
 lookupHQTerm :: HashQualified Name -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
-  HQ.NameOnly n -> Name.searchBySuffix n (Names.terms currentNames)
-  HQ.HashQualified n sh -> case matches sh currentNames of
+  HQ.NameOnly n ->
+    R.lookupDom n (Names.terms currentNames) `orElse`
+    Name.searchBySuffix n (Names.terms currentNames)
+  HQ.HashQualified n sh -> case matches sh (Names.terms currentNames) of
     s | (not . null) s -> s
-      | otherwise -> matches sh oldNames
+      | otherwise -> matches sh (Names.terms oldNames)
     where
     matches sh ns =
       Set.filter (Referent.isPrefixOf sh)
-                 (Name.searchBySuffix n $ Names.terms ns)
+                 (R.lookupDom n ns `orElse` Name.searchBySuffix n ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
     matches sh ns = Set.filter (Referent.isPrefixOf sh) (R.ran $ Names.terms ns)
+  where
+    orElse :: Set a -> Set a -> Set a
+    orElse s1 s2 = if Set.null s1 then s2 else s1
 
 -- If `r` is in "current" names, look up each of its names, and hash-qualify
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up
