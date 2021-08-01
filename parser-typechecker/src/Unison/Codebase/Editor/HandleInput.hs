@@ -1875,8 +1875,8 @@ resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
     parseNames <- basicParseNames0
     let terms, types :: Set LabeledDependency
-        terms = Set.map LD.referent . R.searchDom (Name.compareSuffix n) $ Names3.terms0 parseNames
-        types = Set.map LD.typeRef . R.searchDom (Name.compareSuffix n) $ Names3.types0 parseNames
+        terms = Set.map LD.referent . Name.searchBySuffix n $ Names3.terms0 parseNames
+        types = Set.map LD.typeRef  . Name.searchBySuffix n $ Names3.types0 parseNames
     pure $ terms <> types
   -- rationale: the hash should be unique enough that the name never helps
   HQ.HashQualified _n sh -> resolveHashOnly sh
