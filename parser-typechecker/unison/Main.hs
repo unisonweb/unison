@@ -63,6 +63,7 @@ import ArgParse
       ShouldForkCodebase(..),
       RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
       parseCLIArgs )
+import Data.List.NonEmpty (NonEmpty)
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
 cbInitFor = \case V1 -> FC.init; V2 -> SC.init
@@ -181,39 +182,35 @@ runTranscripts'
   :: CodebaseFormat
   -> Maybe FilePath
   -> FilePath
-  -> [String]
+  -> NonEmpty String
   -> IO Bool
 runTranscripts' codebaseFormat mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
-  case args of
-    args@(_:_) -> do
-      for_ args $ \arg -> case arg of
-        md | isMarkdown md -> do
-          parsed <- TR.parseFile arg
-          case parsed of
-            Left err ->
-              PT.putPrettyLn $ P.callout "❓" (
-                P.lines [
-                  P.indentN 2 "A parsing error occurred while reading a file:", "",
-                  P.indentN 2 $ P.string err])
-            Right stanzas -> do
-              configFilePath <- getConfigFilePath mcodepath
-              (closeCodebase, theCodebase) <- getCodebaseOrExit codebaseFormat $ Just transcriptDir
-              mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
-              closeCodebase
-              let out = currentDir FP.</>
-                         FP.addExtension (FP.dropExtension arg ++ ".output")
-                                         (FP.takeExtension md)
-              writeUtf8 out mdOut
-              putStrLn $ "💾  Wrote " <> out
-        wat ->
-              PT.putPrettyLn $ P.callout "❓" (
-                P.lines [
-                  P.indentN 2 "Unrecognized command, skipping:", "",
-                  P.indentN 2 $ P.string wat])
-      pure True
-    [] ->
-      pure False
+  for_ args $ \arg -> case arg of
+    md | isMarkdown md -> do
+      parsed <- TR.parseFile arg
+      case parsed of
+        Left err ->
+          PT.putPrettyLn $ P.callout "❓" (
+            P.lines [
+              P.indentN 2 "A parsing error occurred while reading a file:", "",
+              P.indentN 2 $ P.string err])
+        Right stanzas -> do
+          configFilePath <- getConfigFilePath mcodepath
+          (closeCodebase, theCodebase) <- getCodebaseOrExit codebaseFormat $ Just transcriptDir
+          mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+          closeCodebase
+          let out = currentDir FP.</>
+                     FP.addExtension (FP.dropExtension arg ++ ".output")
+                                     (FP.takeExtension md)
+          writeUtf8 out mdOut
+          putStrLn $ "💾  Wrote " <> out
+    nonMarkdown ->
+          PT.putPrettyLn $ P.callout "❓" (
+            P.lines [
+              P.indentN 2 "Skipping file of unrecognized filetype:", "",
+              P.indentN 2 $ P.string nonMarkdown])
+  pure True
 
 runTranscripts
   :: UsageRenderer
@@ -221,7 +218,7 @@ runTranscripts
   -> ShouldForkCodebase
   -> ShouldSaveCodebase
   -> Maybe FilePath
-  -> [String]
+  -> NonEmpty String
   -> IO ()
 runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveTempCodebase mcodepath args = do
   progName <- getProgName

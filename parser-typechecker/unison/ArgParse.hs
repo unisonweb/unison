@@ -30,19 +30,21 @@ import Options.Applicative
       hsubparser,
       parserFailure,
       renderFailure,
-      Alternative(some, (<|>)),
+      Alternative(some, (<|>), many),
       CommandFields,
       Mod,
       ParseError(ShowHelpText),
       Parser,
       ParserInfo,
-      ParserPrefs, fullDesc, headerDoc, helpShowGlobals )
+      ParserPrefs, fullDesc, headerDoc, helpShowGlobals, Applicative (liftA2) )
 import Options.Applicative.Help ( (<+>), bold )
 import Data.Foldable ( Foldable(fold) )
 import qualified Options.Applicative.Help.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import qualified Data.List as List
 import Unison.Util.Pretty (Width(..))
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 
 -- The name of a symbol to execute.
 type SymbolName = String
@@ -76,7 +78,7 @@ data Command
   | PrintVersion
   | Init
   | Run RunSource
-  | Transcript ShouldForkCodebase ShouldSaveCodebase [FilePath]
+  | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
   | UpgradeCodebase
   deriving (Show)
 
@@ -243,16 +245,20 @@ fileArgument varName =
                 <> action "file" -- Autocomplete file names
                 )
 
+-- | A version of 'some' which returns a nonEmpty list.
+someNonEmpty :: Parser a -> Parser (NonEmpty a)
+someNonEmpty p = liftA2 (NE.:|) p (many p)
+
 transcriptParser :: Parser Command
 transcriptParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- some (fileArgument "FILES...")
+  files <- someNonEmpty (fileArgument "FILES...")
   pure (Transcript DontFork shouldSaveCodebase files)
 
 transcriptForkParser :: Parser Command
 transcriptForkParser = do -- ApplicativeDo
   shouldSaveCodebase <- saveCodebaseFlag
-  files <- some (fileArgument "FILES...")
+  files <- someNonEmpty (fileArgument "FILES...")
   pure (Transcript UseFork shouldSaveCodebase files)
 
 unisonHelp :: String -> String -> P.Doc
