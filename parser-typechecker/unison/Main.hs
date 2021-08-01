@@ -121,10 +121,10 @@ main = do
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveCodebase mcodepath transcriptFiles
      UpgradeCodebase -> upgradeCodebase mcodepath
-     Launch isHeadless -> do
+     Launch isHeadless codebaseServerOpts -> do
        (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
        runtime <- RTI.startRuntime
-       Server.start runtime theCodebase $ \token port -> do
+       Server.startServer codebaseServerOpts runtime theCodebase $ \token port -> do
          let url =
               "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
          PT.putPrettyLn $ P.lines

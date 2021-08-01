@@ -8,37 +8,41 @@
 module ArgParse where
 
 import Options.Applicative
-    ( action,
-      columns,
-      command,
-      flag,
-      flag',
-      footerDoc,
-      help,
-      info,
-      long,
-      metavar,
-      prefs,
-      progDesc,
-      showHelpOnError,
-      strArgument,
-      strOption,
-      customExecParser,
-      helper,
-      hsubparser,
-      parserFailure,
-      renderFailure,
-      CommandFields,
-      Mod,
-      ParseError(ShowHelpText),
-      Parser,
-      ParserInfo,
-      ParserPrefs,
-      fullDesc,
-      headerDoc,
-      helpShowGlobals)
+       ( CommandFields
+       , Mod
+       , ParseError(ShowHelpText)
+       , Parser
+       , ParserInfo
+       , ParserPrefs
+       , action
+       , auto
+       , columns
+       , command
+       , customExecParser
+       , flag
+       , flag'
+       , footerDoc
+       , fullDesc
+       , headerDoc
+       , help
+       , helpShowGlobals
+       , helper
+       , hsubparser
+       , info
+       , long
+       , metavar
+       , option
+       , parserFailure
+       , prefs
+       , progDesc
+       , renderFailure
+       , showHelpOnError
+       , strArgument
+       , strOption
+       )
 import Options.Applicative.Help ( (<+>), bold )
 import Data.Foldable ( Foldable(fold) )
+import Data.Functor ((<&>))
 import qualified Options.Applicative.Help.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import qualified Data.List as List
@@ -46,6 +50,10 @@ import Unison.Util.Pretty (Width(..))
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Control.Applicative (Alternative((<|>), many), (<**>), optional, Applicative (liftA2))
+import Unison.Server.CodebaseServer (CodebaseServerOpts(..))
+import qualified Unison.Server.CodebaseServer as Server
+import System.Environment (lookupEnv)
+import Text.Read (readMaybe)
 
 -- The name of a symbol to execute.
 type SymbolName = String
@@ -75,7 +83,7 @@ data IsHeadless = Headless | WithCLI
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
 -- E.g. run, run.file, run.pipe
 data Command
-  = Launch IsHeadless
+  = Launch IsHeadless CodebaseServerOpts
   | PrintVersion
   | Init
   | Run RunSource
@@ -95,9 +103,9 @@ data GlobalOptions = GlobalOptions
   } deriving (Show)
 
 -- | 'ParserInfo' for the command and global options.
-rootParserInfo :: String -> String -> ParserInfo (GlobalOptions, Command)
-rootParserInfo progName version =
-    info ((,) <$> globalOptionsParser <*> commandParser <**> helper)
+rootParserInfo :: String -> String -> CodebaseServerOpts -> ParserInfo (GlobalOptions, Command)
+rootParserInfo progName version envOpts =
+    info ((,) <$> globalOptionsParser <*> commandParser envOpts <**> helper)
          (  fullDesc
          <> headerDoc (Just $ unisonHelp progName version))
 
@@ -108,11 +116,21 @@ type UsageRenderer =
 parseCLIArgs :: String -> String -> IO (UsageRenderer, GlobalOptions, Command)
 parseCLIArgs progName version = do
   (Width cols) <- PT.getAvailableWidth
-  let parserInfo = rootParserInfo progName version
+  envOpts <- codebaseServerOptsFromEnv
+  let parserInfo = rootParserInfo progName version envOpts
   let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols
   (globalOptions, command) <- customExecParser preferences parserInfo
   let usage = renderUsage progName parserInfo preferences
   pure $ (usage, globalOptions, command)
+
+-- | Load default options from 
+codebaseServerOptsFromEnv :: IO CodebaseServerOpts
+codebaseServerOptsFromEnv = do
+   token  <- lookupEnv Server.ucmTokenVar
+   host   <- lookupEnv Server.ucmHostVar
+   port   <- lookupEnv Server.ucmPortVar <&> (>>= readMaybe)
+   codebaseUIPath <- lookupEnv Server.ucmUIVar
+   pure $ CodebaseServerOpts {..}
 
 renderUsage :: String -> ParserInfo a -> ParserPrefs -> Maybe String -> String
 renderUsage programName pInfo preferences subCommand =
@@ -120,9 +138,9 @@ renderUsage programName pInfo preferences subCommand =
         (helpText, _exitCode) = renderFailure showHelpFailure programName
      in helpText
 
-commandParser :: Parser Command
-commandParser =
-  hsubparser commands <|> launchParser
+commandParser :: CodebaseServerOpts -> Parser Command
+commandParser envOpts =
+  hsubparser commands <|> launchParser envOpts WithCLI
   where
     commands =
       fold [ versionCommand
@@ -133,7 +151,7 @@ commandParser =
            , transcriptCommand
            , transcriptForkCommand
            , upgradeCodebaseCommand
-           , launchHeadlessCommand
+           , launchHeadlessCommand envOpts
            ]
 
 globalOptionsParser :: Parser GlobalOptions
@@ -155,9 +173,9 @@ codebaseFormatParser =
     <|> flag' V2 (long "new-codebase" <> help "Use a v2 codebase on startup.")
     <|> pure V2
 
-launchHeadlessCommand :: Mod CommandFields Command
-launchHeadlessCommand =
-    command "headless" (info launchHeadlessParser (progDesc headlessHelp))
+launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
+launchHeadlessCommand envOpts =
+    command "headless" (info (launchParser envOpts Headless) (progDesc headlessHelp))
   where
     headlessHelp = "Runs the codebase server without the command-line interface."
 
@@ -209,11 +227,44 @@ upgradeCodebaseCommand :: Mod CommandFields Command
 upgradeCodebaseCommand =
     command "upgrade-codebase" (info (pure UpgradeCodebase) (fullDesc <> progDesc "Upgrades a v1 codebase to a v2 codebase"))
 
-launchParser :: Parser Command
-launchParser = pure (Launch WithCLI)
+codebaseServerOptsParser :: CodebaseServerOpts -> Parser CodebaseServerOpts
+codebaseServerOptsParser envOpts = do -- ApplicativeDo
+    cliToken <- tokenFlag <|> pure (token envOpts)
+    cliHost <- hostFlag <|> pure (host envOpts)
+    cliPort <- portFlag <|> pure (port envOpts)
+    cliCodebaseUIPath <- codebaseUIPathFlag <|> pure (codebaseUIPath envOpts)
+    pure CodebaseServerOpts
+        { token = cliToken <|> token envOpts
+        , host = cliHost <|> host envOpts
+        , port = cliPort <|> port envOpts
+        , codebaseUIPath = cliCodebaseUIPath <|> codebaseUIPath envOpts
+        }
+  where
+    tokenFlag =
+      optional . strOption
+        $  long "token"
+        <> metavar "STRING"
+        <> help "API auth token"
+    hostFlag =
+      optional . strOption
+        $  long "host"
+        <> metavar "STRING"
+        <> help "Codebase server host"
+    portFlag =
+      optional . option auto
+        $  long "port"
+        <> metavar "NUMBER"
+        <> help "Codebase server port"
+    codebaseUIPathFlag =
+      optional . strOption
+        $  long "ui"
+        <> metavar "DIR"
+        <> help "Path to codebase ui root"
 
-launchHeadlessParser :: Parser Command
-launchHeadlessParser = pure (Launch Headless)
+launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
+launchParser envOpts isHeadless = do -- ApplicativeDo
+  codebaseServerOpts <- codebaseServerOptsParser envOpts
+  pure (Launch isHeadless codebaseServerOpts)
 
 initParser :: Parser Command
 initParser = pure Init
