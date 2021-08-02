@@ -233,8 +233,9 @@ compareSuffix suffix =
     \n -> take len (reverseSegments n) `compare` suffixSegs
 
 -- Tries to shorten `fqn` to the smallest suffix that still refers
--- uniquely to `r`. Uses an efficient logarithmic lookup in the
--- provided relation.
+-- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
+-- The returned `Name` may refer to multiple hashes if the original FQN
+-- did as well.
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
@@ -242,8 +243,9 @@ shortestUniqueSuffix :: Ord r => Name -> r -> R.Relation Name r -> Name
 shortestUniqueSuffix fqn r rel =
   maybe fqn (convert . reverse) (find isOk suffixes)
   where
+  allowed = R.lookupDom fqn rel
   suffixes = drop 1 (inits (reverseSegments fqn))
-  isOk suffix = Set.size rs == 1 && Set.findMin rs == r
+  isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
     where rs = R.searchDom compareEnd rel
           compareEnd n = compare (take len (reverseSegments n)) suffix
           len = length suffix

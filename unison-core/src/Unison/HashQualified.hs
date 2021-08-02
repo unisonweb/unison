@@ -169,8 +169,8 @@ instance (Eq n, Name.Alphabetical n) => Ord (HashQualified n) where
     <>
     case (toHash a, toHash b) of
       (Nothing, Nothing)  -> EQ
-      (Nothing, Just _)   -> GT
-      (Just _, Nothing)   -> LT
+      (Nothing, Just _)   -> LT -- prefer NameOnly to HashQualified
+      (Just _, Nothing)   -> GT
       (Just sh, Just sh2) -> compare sh sh2
 
 instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where

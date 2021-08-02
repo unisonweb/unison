@@ -116,8 +116,9 @@ requalify hq r = case hq of
 -- `HashQualified` is usually used for display, so we sort it alphabetically
 instance Name.Alphabetical n => Ord (HashQualified n) where
   compare (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
-  compare (NameOnly n) (HashQualified n2 _) = Name.compareAlphabetical n n2 <> LT
-  compare (HashQualified n _) (NameOnly n2) = Name.compareAlphabetical n n2 <> GT
+  -- NameOnly comes first
+  compare NameOnly{} HashQualified{} = LT
+  compare HashQualified{} NameOnly{} = GT
   compare (HashQualified n sh) (HashQualified n2 sh2) =
     Name.compareAlphabetical n n2 <> compare sh sh2
 
