@@ -104,15 +104,15 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  builtin type HashAlgorithm
-  2.  HashAlgorithm.Blake2b_256 : HashAlgorithm
-  3.  HashAlgorithm.Blake2b_512 : HashAlgorithm
-  4.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  5.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  7.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  8.  HashAlgorithm.Sha3_512 : HashAlgorithm
-  9.  hash : HashAlgorithm -> a -> Bytes
+  1.  hash : HashAlgorithm -> a -> Bytes
+  2.  builtin type HashAlgorithm
+  3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
+  4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
+  5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
+  6.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  7.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  8.  HashAlgorithm.Sha3_256 : HashAlgorithm
+  9.  HashAlgorithm.Sha3_512 : HashAlgorithm
   10. hashBytes : HashAlgorithm -> Bytes -> Bytes
   11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
   12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
