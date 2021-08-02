@@ -37,12 +37,6 @@ import Unison.CommandLine (plural', watchConfig)
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.Parser (Ann)
 import Unison.Prelude
-    ( IsString,
-      for_,
-      void,
-      safeReadUtf8,
-      safeReadUtf8StdIn,
-      writeUtf8 )
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
@@ -95,7 +89,7 @@ main = do
       execute theCodebase runtime mainName
       closeCodebase
      Run (RunFromFile file mainName)
-       | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+       | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
        | otherwise -> do
             e <- safeReadUtf8 file
             case e of

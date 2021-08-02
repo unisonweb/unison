@@ -7,6 +7,10 @@
 -- See the excellent documentation at https://hackage.haskell.org/package/optparse-applicative
 module ArgParse where
 
+import Control.Applicative (Alternative((<|>), many), (<**>), optional, Applicative (liftA2))
+import Data.Foldable ( Foldable(fold) )
+import Data.Functor ((<&>))
+import Data.List.NonEmpty (NonEmpty)
 import Options.Applicative
        ( CommandFields
        , Mod
@@ -41,19 +45,15 @@ import Options.Applicative
        , strOption
        )
 import Options.Applicative.Help ( (<+>), bold )
-import Data.Foldable ( Foldable(fold) )
-import Data.Functor ((<&>))
-import qualified Options.Applicative.Help.Pretty as P
-import qualified Unison.PrettyTerminal as PT
-import qualified Data.List as List
-import Unison.Util.Pretty (Width(..))
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NE
-import Control.Applicative (Alternative((<|>), many), (<**>), optional, Applicative (liftA2))
-import Unison.Server.CodebaseServer (CodebaseServerOpts(..))
-import qualified Unison.Server.CodebaseServer as Server
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
+import Unison.Server.CodebaseServer (CodebaseServerOpts(..))
+import Unison.Util.Pretty (Width(..))
+import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
+import qualified Options.Applicative.Help.Pretty as P
+import qualified Unison.PrettyTerminal as PT
+import qualified Unison.Server.CodebaseServer as Server
 
 -- The name of a symbol to execute.
 type SymbolName = String
@@ -63,7 +63,7 @@ data RunSource =
     RunFromPipe SymbolName
   | RunFromSymbol SymbolName
   | RunFromFile FilePath SymbolName
-  deriving (Show)
+  deriving (Show, Eq)
 
 data ShouldForkCodebase
     = UseFork
@@ -89,7 +89,7 @@ data Command
   | Run RunSource
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
   | UpgradeCodebase
-  deriving (Show)
+  deriving (Show, Eq)
 
 data CodebaseFormat
     = V1
@@ -100,9 +100,9 @@ data CodebaseFormat
 data GlobalOptions = GlobalOptions
   { codebasePath :: Maybe FilePath
   , codebaseFormat :: CodebaseFormat
-  } deriving (Show)
+  } deriving (Show, Eq)
 
--- | 'ParserInfo' for the command and global options.
+-- | The root-level 'ParserInfo'.
 rootParserInfo :: String -> String -> CodebaseServerOpts -> ParserInfo (GlobalOptions, Command)
 rootParserInfo progName version envOpts =
     info ((,) <$> globalOptionsParser <*> commandParser envOpts <**> helper)
@@ -113,17 +113,18 @@ type UsageRenderer =
     Maybe String -- ^ Optional sub-command to render help for
     -> String
 
+-- | Parse the command description, options, and usage information from provided cli arguments.
 parseCLIArgs :: String -> String -> IO (UsageRenderer, GlobalOptions, Command)
 parseCLIArgs progName version = do
   (Width cols) <- PT.getAvailableWidth
   envOpts <- codebaseServerOptsFromEnv
   let parserInfo = rootParserInfo progName version envOpts
   let preferences = prefs $ showHelpOnError <> helpShowGlobals <> columns cols
-  (globalOptions, command) <- customExecParser preferences parserInfo
   let usage = renderUsage progName parserInfo preferences
+  (globalOptions, command) <- customExecParser preferences parserInfo
   pure $ (usage, globalOptions, command)
 
--- | Load default options from 
+-- | Load default options from environment variables.
 codebaseServerOptsFromEnv :: IO CodebaseServerOpts
 codebaseServerOptsFromEnv = do
    token  <- lookupEnv Server.ucmTokenVar
@@ -132,52 +133,12 @@ codebaseServerOptsFromEnv = do
    codebaseUIPath <- lookupEnv Server.ucmUIVar
    pure $ CodebaseServerOpts {..}
 
+-- | Purely renders the full help summary for the CLI, or an optional subcommand.
 renderUsage :: String -> ParserInfo a -> ParserPrefs -> Maybe String -> String
 renderUsage programName pInfo preferences subCommand =
     let showHelpFailure = parserFailure preferences pInfo (ShowHelpText subCommand) mempty
         (helpText, _exitCode) = renderFailure showHelpFailure programName
      in helpText
-
-commandParser :: CodebaseServerOpts -> Parser Command
-commandParser envOpts =
-  hsubparser commands <|> launchParser envOpts WithCLI
-  where
-    commands =
-      fold [ versionCommand
-           , initCommand
-           , runSymbolCommand
-           , runFileCommand
-           , runPipeCommand
-           , transcriptCommand
-           , transcriptForkCommand
-           , upgradeCodebaseCommand
-           , launchHeadlessCommand envOpts
-           ]
-
-globalOptionsParser :: Parser GlobalOptions
-globalOptionsParser = do -- ApplicativeDo
-    codebasePath <- codebasePathParser
-    codebaseFormat <- codebaseFormatParser
-    pure GlobalOptions{..}
-
-codebasePathParser :: Parser (Maybe FilePath)
-codebasePathParser =
-    optional . strOption $
-         long "codebase"
-      <> metavar "path/to/codebase"
-      <> help "The path to the codebase, defaults to the home directory"
-
-codebaseFormatParser :: Parser CodebaseFormat
-codebaseFormatParser =
-        flag' V1 (long "old-codebase" <> help "Use a v1 codebase on startup.")
-    <|> flag' V2 (long "new-codebase" <> help "Use a v2 codebase on startup.")
-    <|> pure V2
-
-launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
-launchHeadlessCommand envOpts =
-    command "headless" (info (launchParser envOpts Headless) (progDesc headlessHelp))
-  where
-    headlessHelp = "Runs the codebase server without the command-line interface."
 
 versionCommand :: Mod CommandFields Command
 versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Print the version of unison you're running"))
@@ -226,6 +187,47 @@ transcriptForkCommand =
 upgradeCodebaseCommand :: Mod CommandFields Command
 upgradeCodebaseCommand =
     command "upgrade-codebase" (info (pure UpgradeCodebase) (fullDesc <> progDesc "Upgrades a v1 codebase to a v2 codebase"))
+
+commandParser :: CodebaseServerOpts -> Parser Command
+commandParser envOpts =
+  hsubparser commands <|> launchParser envOpts WithCLI
+  where
+    commands =
+      fold [ versionCommand
+           , initCommand
+           , runSymbolCommand
+           , runFileCommand
+           , runPipeCommand
+           , transcriptCommand
+           , transcriptForkCommand
+           , upgradeCodebaseCommand
+           , launchHeadlessCommand envOpts
+           ]
+
+globalOptionsParser :: Parser GlobalOptions
+globalOptionsParser = do -- ApplicativeDo
+    codebasePath <- codebasePathParser
+    codebaseFormat <- codebaseFormatParser
+    pure GlobalOptions{..}
+
+codebasePathParser :: Parser (Maybe FilePath)
+codebasePathParser =
+    optional . strOption $
+         long "codebase"
+      <> metavar "path/to/codebase"
+      <> help "The path to the codebase, defaults to the home directory"
+
+codebaseFormatParser :: Parser CodebaseFormat
+codebaseFormatParser =
+        flag' V1 (long "old-codebase" <> help "Use a v1 codebase on startup.")
+    <|> flag' V2 (long "new-codebase" <> help "Use a v2 codebase on startup.")
+    <|> pure V2
+
+launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
+launchHeadlessCommand envOpts =
+    command "headless" (info (launchParser envOpts Headless) (progDesc headlessHelp))
+  where
+    headlessHelp = "Runs the codebase server without the command-line interface."
 
 codebaseServerOptsParser :: CodebaseServerOpts -> Parser CodebaseServerOpts
 codebaseServerOptsParser envOpts = do -- ApplicativeDo

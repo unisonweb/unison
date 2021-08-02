@@ -78,7 +78,6 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser (Ann)
 import Unison.Prelude
-    ( IsString(fromString), toList, Text, MonadIO(liftIO), fromMaybe )
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
@@ -196,7 +195,7 @@ data CodebaseServerOpts = CodebaseServerOpts
   , host :: Maybe String
   , port :: Maybe Int
   , codebaseUIPath :: Maybe FilePath
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 -- The auth token required for accessing the server is passed to the function k
 startServer
