@@ -14,6 +14,7 @@ module Unison.Name
   , joinDot
   , makeAbsolute
   , parent
+  , module Unison.Util.Alphabetical
   , sortNames
   , sortNamed
   , sortNameds
@@ -52,6 +53,7 @@ import qualified Control.Lens                  as Lens
 import qualified Data.Text                     as Text
 import qualified Data.Set                      as Set
 import qualified Unison.Hashable               as H
+import           Unison.Util.Alphabetical      (Alphabetical,compareAlphabetical)
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -204,6 +206,9 @@ instance Ord Name where
   compare n1 n2 =
        (reverseSegments n1 `compare` reverseSegments n2)
     <> (isAbsolute n1 `compare` isAbsolute n2)
+
+instance Alphabetical Name where
+  compareAlphabetical (Name n1) (Name n2) = compareAlphabetical n1 n2
 
 isAbsolute :: Name -> Bool
 isAbsolute (Name n) = Text.isPrefixOf "." n

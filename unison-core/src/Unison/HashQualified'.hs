@@ -113,10 +113,13 @@ requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
-instance Ord n => Ord (HashQualified n) where
-  compare a b = case compare (toName a) (toName b) of
-    EQ -> compare (toHash a) (toHash b)
-    o -> o
+-- `HashQualified` is usually used for display, so we sort it alphabetically
+instance Name.Alphabetical n => Ord (HashQualified n) where
+  compare (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
+  compare (NameOnly n) (HashQualified n2 _) = Name.compareAlphabetical n n2 <> LT
+  compare (HashQualified n _) (NameOnly n2) = Name.compareAlphabetical n n2 <> GT
+  compare (HashQualified n sh) (HashQualified n2 sh2) =
+    Name.compareAlphabetical n n2 <> compare sh sh2
 
 instance IsString (HashQualified Name) where
   fromString = unsafeFromText . Text.pack

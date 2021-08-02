@@ -7,8 +7,13 @@ import Unison.Prelude
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 
+import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
+
+instance Alphabetical NameSegment where
+  compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
 
 -- Split text into segments. A smarter version of `Text.splitOn` that handles
 -- the name `.` properly.
@@ -57,4 +62,3 @@ instance Show NameSegment where
 
 instance IsString NameSegment where
   fromString = NameSegment . Text.pack
-
