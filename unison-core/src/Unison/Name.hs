@@ -243,7 +243,7 @@ shortestUniqueSuffix fqn r rel =
   maybe fqn (convert . reverse) (find isOk suffixes)
   where
   suffixes = drop 1 (inits (reverseSegments fqn))
-  isOk suffix = Set.size rs <= 1 || Set.toList rs == [r]
+  isOk suffix = Set.size rs == 1 && Set.findMin rs == r
     where rs = R.searchDom compareEnd rel
           compareEnd n = compare (take len (reverseSegments n)) suffix
           len = length suffix

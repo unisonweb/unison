@@ -34,11 +34,15 @@ test = scope "name" $ tests
                 (n "base.Set.map", 2),
                 (n "foo.bar.baz", 3),
                 (n "a.b.c", 4),
-                (n "a1.b.c", 5)
+                (n "a1.b.c", 5),
+                (n "..", 6)
                 ]
         n = Name.unsafeFromText
+    expectEqual' ([n "."]) (Name.convert <$> Name.segments (n ".."))
+    expectEqual' ([n "."]) (Name.convert <$> Name.reverseSegments (n ".."))
+
     expectEqual' (Set.fromList [1,2])
-                 (R.searchDom (Name.compareSuffix (n "map")) rel)
+                 (Name.searchBySuffix (n "map") rel)
     expectEqual' (n "List.map")
                  (Name.shortestUniqueSuffix (n "base.List.map") 1 rel)
     expectEqual' (n "Set.map")
@@ -49,5 +53,11 @@ test = scope "name" $ tests
                  (Name.shortestUniqueSuffix (n "a.b.c") 3 rel)
     expectEqual' (n "a1.b.c")
                  (Name.shortestUniqueSuffix (n "a1.b.c") 3 rel)
+    note . show $ Name.reverseSegments (n ".")
+    note . show $ Name.reverseSegments (n "..")
+    tests [ scope "(.) shortest unique suffix" $
+            expectEqual' (n ".") (Name.shortestUniqueSuffix (n "..") 6 rel)
+          , scope "(.) search by suffix" $
+            expectEqual' (Set.fromList [6]) (Name.searchBySuffix (n ".") rel) ]
     ok
   ]

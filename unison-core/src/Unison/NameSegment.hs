@@ -38,10 +38,10 @@ segments' n = go split
 reverseSegments' :: Text -> [Text]
 reverseSegments' = go
   where
-    go ".." = ["."]
-    go ""   = []
+    go ""    = []
     go t    = let
-      seg = Text.takeWhileEnd (/= '.') t
+      seg0 = Text.takeWhileEnd (/= '.') t
+      seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
       rem = Text.dropEnd (Text.length seg + 1) t
       in seg : go rem
 
