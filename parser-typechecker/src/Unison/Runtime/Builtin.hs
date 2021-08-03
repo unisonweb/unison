@@ -974,6 +974,20 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
         $ TCon eitherReference 1 [bool])
   ]
 
+outIoFailG
+  :: Var v => v -> v -> v -> v -> v
+  -> ((ANormal v -> ANormal v) -> ([Mem], ANormal v))
+  -> ANormal v
+outIoFailG stack1 stack2 fail result output k
+  = TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ TCon eitherReference 0 [fail])
+  , (1, k $ \t -> TLetD output BX t
+                $ TCon eitherReference 1 [output])
+  ]
+
 -- Input / Output glue
 --
 -- These are pairings of input and output functions to handle a
@@ -1097,6 +1111,18 @@ boxToEFBox =
     outIoFail stack1 stack2 fail result
   where
     (arg, result, stack1, stack2, fail) = fresh5
+
+-- a -> Either Failure (Maybe b)
+boxToEFMBox :: ForeignOp
+boxToEFMBox
+  = inBx arg result
+  . outIoFailG stack1 stack2 fail result output $ \k ->
+  ([UN], TAbs stack3 . TMatch stack3 . MatchSum $ mapFromList
+         [ (0, ([], k $ TCon Ty.optionalRef 0 []))
+         , (1, ([BX], TAbs stack4 . k $ TCon Ty.optionalRef 1 [stack4]))
+         ])
+  where
+  (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh8
 
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
@@ -1547,7 +1573,7 @@ declareForeigns = do
   declareForeign "MVar.read.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign "MVar.tryRead.impl.v3" boxToEFBox
+  declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
   declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $

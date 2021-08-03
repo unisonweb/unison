@@ -70,7 +70,7 @@ env m = mapInsert (bit 24) m
       $ cenv
 
 asrt :: Section
-asrt = Ins (Unpack 0)
+asrt = Ins (Unpack Nothing 0)
      $ Match 0
      $ Test1 1 (Yield ZArgs)
                (Die "assertion failed")
