@@ -214,29 +214,29 @@ fillBE n i p = poke p (fromIntegral (shiftR n (i * 8)))
                    >> fillBE n (i - 1) (p `plusPtr` 1)
   
 encodeNat64be :: Word64 -> Bytes
-encodeNat64be n = Bytes (T.singleton (view (B.unsafeCreate 8 (fillBE n 8))))
+encodeNat64be n = Bytes (T.singleton (view (B.unsafeCreate 8 (fillBE n 7))))
 
 encodeNat32be :: Word64 -> Bytes
-encodeNat32be n = Bytes (T.singleton (view (B.unsafeCreate 4 (fillBE n 4))))
+encodeNat32be n = Bytes (T.singleton (view (B.unsafeCreate 4 (fillBE n 3))))
 
 encodeNat16be :: Word64 -> Bytes
-encodeNat16be n = Bytes (T.singleton (view (B.unsafeCreate 2 (fillBE n 2))))
+encodeNat16be n = Bytes (T.singleton (view (B.unsafeCreate 2 (fillBE n 1))))
 
 fillLE :: Word64 -> Int -> Int -> Ptr Word8 -> IO ()
 fillLE n i j p =
   if i == j then
-    poke p (fromIntegral n) >> return ()
+    return ()
   else
     poke p (fromIntegral (shiftR n (i * 8))) >> fillLE n (i + 1) j (p `plusPtr` 1)
 
 encodeNat64le :: Word64 -> Bytes
-encodeNat64le n = Bytes (T.singleton (view (B.unsafeCreate 8 (fillLE n 0 7))))
+encodeNat64le n = Bytes (T.singleton (view (B.unsafeCreate 8 (fillLE n 0 8))))
 
 encodeNat32le :: Word64 -> Bytes
-encodeNat32le n = Bytes (T.singleton (view (B.unsafeCreate 4 (fillLE n 0 3))))
+encodeNat32le n = Bytes (T.singleton (view (B.unsafeCreate 4 (fillLE n 0 4))))
 
 encodeNat16le :: Word64 -> Bytes
-encodeNat16le n = Bytes (T.singleton (view (B.unsafeCreate 2 (fillLE n 0 1))))
+encodeNat16le n = Bytes (T.singleton (view (B.unsafeCreate 2 (fillLE n 0 2))))
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs) where
