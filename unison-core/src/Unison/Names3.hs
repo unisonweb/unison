@@ -6,6 +6,8 @@ module Unison.Names3 where
 
 import Unison.Prelude
 
+import Control.Lens (view, _4)
+import Data.List (sort)
 import Data.List.Extra (nubOrd)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
@@ -215,15 +217,18 @@ suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
     then go $ toList (R.lookupRan r rel)
     else sort $ map Name.convert $ Set.toList (fallback length r ns)
     where
-      sort = HQ.sortByLength . Name.sortNameds toList
-      isConflicted n = R.manyDom n rel
-      hq n = HQ'.take length (hq' n r)
-      go ns = case sortOn Name.countSegments ns of
-        [] -> mempty
-        fqns -> Name.sortNameds toList (map f fqns) where
-          f fqn = Name.convert $
-            let n' = Name.shortestUniqueSuffix fqn r rel
-            in if isConflicted fqn then hq n' else HQ'.fromName n'
+      -- Orders names, using these criteria, in this order:
+      -- 1. NameOnly comes before HashQualfied,
+      -- 2. Shorter names (in terms of segment count) come before longer ones
+      -- 3. If same on attributes 1 and 2, compare alphabetically
+      go :: [Name] -> [HashQualified Name]
+      go fqns = map (view _4) . sort $ map f fqns where
+        f fqn = let
+          n' = Name.shortestUniqueSuffix fqn r rel
+          isHQ'd = R.manyDom fqn rel -- it is conflicted
+          hq n = HQ'.take length (hq' n r)
+          hqn = Name.convert $ if isHQ'd then hq n' else HQ'.fromName n'
+          in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names

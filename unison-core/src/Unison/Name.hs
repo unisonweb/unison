@@ -13,6 +13,7 @@ module Unison.Name
   , isPrefixOf
   , joinDot
   , makeAbsolute
+  , isAbsolute
   , parent
   , module Unison.Util.Alphabetical
   , sortNames
