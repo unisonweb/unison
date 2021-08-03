@@ -16,7 +16,6 @@ import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
 import           Control.Monad.Writer
 import qualified Data.Map                   as Map
-import qualified Data.Set                   as Set
 import qualified Data.Sequence.NonEmpty     as NESeq (toSeq)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
@@ -28,7 +27,6 @@ import qualified Unison.Result              as Result
 import           Unison.Term                (Term)
 import qualified Unison.Term                as Term
 import           Unison.Type                (Type)
-import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Typechecker.TypeVar as TypeVar
 import           Unison.Var                 (Var)
@@ -296,7 +294,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) [Context.Suggestion v loc]
   resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
-    case Context.isSubtype (TypeVar.liftType foundType) (relax inferredType) of
+    case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
       Left bug -> const [] <$> compilerBug bug
       -- Suggest the import if the type matches.
       Right b  -> pure
@@ -306,57 +304,6 @@ typeDirectedNameResolution oldNotes oldType env = do
             replace
             (if b then Context.Exact else Context.WrongType)
         ]
-
-  -- Ability inference prefers minimal sets of abilities when
-  -- possible. However, such inference may disqualify certain TDNR
-  -- candicates due to a subtyping check with an overly minimal type.
-  -- It may be that the candidate's type would work fine, because the
-  -- inference was overly conservative about guessing which abilities
-  -- are in play.
-  --
-  -- `relax` adds an existential variable to the final inferred
-  -- abilities for such a function type if there isn't already one,
-  -- changing:
-  --
-  --   T ->{..} U ->{..} V
-  --
-  -- into:
-  --
-  --   T ->{..} U ->{e, ..} V
-  --
-  -- (where the `..` are presumed to be concrete) so that it can
-  -- behave better in the check.
-  --
-  -- It's possible this would allow an ability set that doesn't work,
-  -- but this is only used for type directed name resolution. A
-  -- separate type check must pass if the candidate is allowed, which
-  -- will ensure that the location has the right abilities.
-  relax :: Context.Type v loc -> Context.Type v loc
-  relax t = relax' v t
-    where
-    fvs = foldMap f $ Type.freeVars t
-    f (TypeVar.Existential _ v) = Set.singleton v
-    f _ = mempty
-    v = ABT.freshIn fvs $ Var.inferAbility
-
-  -- The worker for `relax`.
-  relax' :: v -> Context.Type v loc -> Context.Type v loc
-  relax' v t
-    | Type.Arrow' i o <- t = Type.arrow' i $ relax' v o
-    | Type.ForallsNamed' vs b <- t
-    = Type.foralls loc vs $ relax' v b
-    | Type.Effect' es r <- t
-    , Type.Arrow' i o <- r
-    = Type.effect loc es . Type.arrow' i $ relax' v o
-    | Type.Effect' es r <- t
-    , not $ any open es
-    = Type.effect loc (tv : es) r
-    | otherwise = t
-    where
-    open (Type.Var' (TypeVar.Existential{})) = True
-    open _ = False
-    loc = ABT.annotation t
-    tv = Type.var loc (TypeVar.Existential B.Blank v)
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
