@@ -16,7 +16,7 @@ module Unison.Runtime.Foreign
   , Failure(..)
   ) where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, MVar)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
@@ -43,6 +43,10 @@ ref2eq r
   | r == Ty.textRef = Just $ promote ((==) @Text)
   | r == Ty.termLinkRef = Just $ promote ((==) @Referent)
   | r == Ty.typeLinkRef = Just $ promote ((==) @Reference)
+  | r == Ty.bytesRef = Just $ promote ((==) @Bytes)
+  -- Note: MVar equality is just reference equality, so it shouldn't
+  -- matter what type the MVar holds.
+  | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
