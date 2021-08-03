@@ -121,6 +121,17 @@ shadowing prio (Names current old) =
 makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
+-- Find all types whose name has a suffix matching the provided `HashQualified`,
+-- returning types with relative names if they exist, and otherwise
+-- returning types with absolute names.
+lookupRelativeHQType :: HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType hq ns@Names{..} = let
+  rs = lookupHQType hq ns
+  keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types currentNames))
+  in case Set.filter keep rs of
+       rs' | Set.null rs' -> rs
+           | otherwise    -> rs'
+
 -- Find all types whose name has a suffix matching the provided `HashQualified`.
 lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
@@ -142,6 +153,17 @@ hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
 
 hasTypeNamed :: Name -> Names -> Bool
 hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
+
+-- Find all terms whose name has a suffix matching the provided `HashQualified`,
+-- returning terms with relative names if they exist, and otherwise
+-- returning terms with absolute names.
+lookupRelativeHQTerm :: HashQualified Name -> Names -> Set Referent
+lookupRelativeHQTerm hq ns@Names{..} = let
+  rs = lookupHQTerm hq ns
+  keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms currentNames))
+  in case Set.filter keep rs of
+       rs' | Set.null rs' -> rs
+           | otherwise    -> rs'
 
 -- Find all terms whose name has a suffix matching the provided `HashQualified`.
 lookupHQTerm :: HashQualified Name -> Names -> Set Referent

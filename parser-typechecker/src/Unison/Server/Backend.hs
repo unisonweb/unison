@@ -408,7 +408,7 @@ searchBranchExact len names queries =
     searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTypes query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQType query names
+      let refs = toList $ Names3.lookupRelativeHQType query names
           mayName r Nothing  = HQ'.fromNamedReference "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
@@ -426,7 +426,7 @@ searchBranchExact len names queries =
     searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTerms query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQTerm query names
+      let refs = toList $ Names3.lookupRelativeHQTerm query names
           mayName r Nothing  = HQ'.fromNamedReferent "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
