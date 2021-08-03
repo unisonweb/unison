@@ -124,24 +124,18 @@ makeAbsolute0 = map0 Name.makeAbsolute
 -- Find all types whose name has a suffix matching the provided `HashQualified`.
 lookupHQType :: HashQualified Name -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of
-  HQ.NameOnly n ->
-    R.lookupDom n (Names.types currentNames) `orElse`
-    Name.searchBySuffix n (Names.types currentNames)
+  HQ.NameOnly n -> Name.searchBySuffix n (Names.types currentNames)
   HQ.HashQualified n sh -> case matches sh (Names.types currentNames) of
     s | (not . null) s -> s
       | otherwise -> matches sh (Names.types oldNames)
     where
     matches sh ns =
-      Set.filter (Reference.isPrefixOf sh)
-                 (R.lookupDom n ns `orElse` Name.searchBySuffix n ns)
+      Set.filter (Reference.isPrefixOf sh) (Name.searchBySuffix n ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
     matches sh ns = Set.filter (Reference.isPrefixOf sh) (R.ran $ Names.types ns)
-  where
-    orElse :: Set a -> Set a -> Set a
-    orElse s1 s2 = if Set.null s1 then s2 else s1
 
 hasTermNamed :: Name -> Names -> Bool
 hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
@@ -152,24 +146,18 @@ hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 -- Find all terms whose name has a suffix matching the provided `HashQualified`.
 lookupHQTerm :: HashQualified Name -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
-  HQ.NameOnly n ->
-    R.lookupDom n (Names.terms currentNames) `orElse`
-    Name.searchBySuffix n (Names.terms currentNames)
+  HQ.NameOnly n -> Name.searchBySuffix n (Names.terms currentNames)
   HQ.HashQualified n sh -> case matches sh (Names.terms currentNames) of
     s | (not . null) s -> s
       | otherwise -> matches sh (Names.terms oldNames)
     where
     matches sh ns =
-      Set.filter (Referent.isPrefixOf sh)
-                 (R.lookupDom n ns `orElse` Name.searchBySuffix n ns)
+      Set.filter (Referent.isPrefixOf sh) (Name.searchBySuffix n ns)
   HQ.HashOnly sh -> case matches sh currentNames of
     s | (not . null) s -> s
       | otherwise -> matches sh oldNames
     where
     matches sh ns = Set.filter (Referent.isPrefixOf sh) (R.ran $ Names.terms ns)
-  where
-    orElse :: Set a -> Set a -> Set a
-    orElse s1 s2 = if Set.null s1 then s2 else s1
 
 -- If `r` is in "current" names, look up each of its names, and hash-qualify
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up

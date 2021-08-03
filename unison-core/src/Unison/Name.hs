@@ -214,10 +214,17 @@ instance Alphabetical Name where
 isAbsolute :: Name -> Bool
 isAbsolute (Name n) = Text.isPrefixOf "." n
 
--- Find all `r` in the given `Relation` whose corresponding name has the
--- provided suffix, using logarithmic time lookups.
+-- If there's no exact matches for `suffix` in `rel`, find all
+-- `r` in `rel` whose corresponding name `suffix` as a suffix.
+-- For example, `searchBySuffix List.map {(base.List.map, r1)}`
+-- will return `{r1}`.
+--
+-- NB: Implementation uses logarithmic time lookups, not a linear scan.
 searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
-searchBySuffix suffix rel = R.searchDom (compareSuffix suffix) rel
+searchBySuffix suffix rel =
+  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  where
+    orElse s1 s2 = if Set.null s1 then s2 else s1
 
 -- `compareSuffix suffix n` is equal to `compare n' suffix`, where
 -- n' is `n` with only the last `countSegments suffix` segments.
