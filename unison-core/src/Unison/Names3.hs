@@ -281,7 +281,14 @@ expandWildcardImport prefix ns =
     Nothing -> Nothing
     Just suffix -> Just (suffix, full)
 
-deleteTerms0 :: [Name] -> Names0 -> Names0
-deleteTerms0 ns n0 = names0 terms' (types0 n0)
+-- Deletes from the `n0 : Names0` any definitions whose names
+-- share a suffix with a name in `ns`. Does so using logarithmic
+-- time lookups, traversing only `ns`.
+--
+-- See usage in `FileParser` for handling precendence of symbol
+-- resolution where local names are preferred to codebase names.
+shadowSuffixedTerms0 :: [Name] -> Names0 -> Names0
+shadowSuffixedTerms0 ns n0 = names0 terms' (types0 n0)
   where
-  terms' = R.subtractDom (Set.fromList ns) (terms0 n0)
+  shadowedBy name = Name.searchBySuffix name (terms0 n0)
+  terms' = R.subtractRan (foldMap shadowedBy ns) (terms0 n0)

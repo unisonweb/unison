@@ -6,6 +6,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Unison.Term where
 
@@ -115,19 +116,6 @@ type Term0 v = Term v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term0' vt v = Term' vt v ()
 
--- bindExternals
---   :: forall v a b b2
---    . Var v
---   => [(v, Term2 v b a v b2)]
---   -> [(v, Reference)]
---   -> Term2 v b a v a
---   -> Term2 v b a v a
--- bindBuiltins termBuiltins typeBuiltins = f . g
---  where
---   f :: Term2 v b a v a -> Term2 v b a v a
---   f = typeMap (Type.bindBuiltins typeBuiltins)
---   g :: Term2 v b a v a -> Term2 v b a v a
---   g = ABT.substsInheritAnnotation termBuiltins
 bindNames
   :: forall v a . Var v
   => Set v
@@ -135,15 +123,15 @@ bindNames
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 -- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
---                            || traceShow keepFreeTerms False = undefined
+--                             || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns0 e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
-      -- !_ = trace "free term vars: " ()
+      -- !_ = trace "bindNames.free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
       ns = Names.Names ns0 mempty
-      -- !_ = trace "free type vars: " ()
+      -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
       okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
@@ -157,6 +145,9 @@ bindNames keepFreeTerms ns0 e = do
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
+-- This function replaces free term and type variables with
+-- hashes found in the provided `Names0`, using suffix-based
+-- lookup. Any terms not found in the `Names0` are kept free.
 bindSomeNames
   :: forall v a . Var v
   => Names0
@@ -167,11 +158,21 @@ bindSomeNames
 --                   || traceShow ns False
 --                   || trace "Free type vars:" False
 --                   || traceShow (freeTypeVars e) False
+--                   || trace "Free term vars:" False
+--                   || traceShow (freeVars e) False
 --                   || traceShow e False
 --                   = undefined
-bindSomeNames ns e = bindNames keepFree ns e where
-  keepFree = Set.difference (freeVars e)
-                            (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
+bindSomeNames ns e = bindNames varsToTDNR ns e where
+  -- `Term.bindNames` takes a set of variables that are not substituted.
+  -- These should be the variables that will be subject to TDNR, which
+  -- we compute as the set of variables whose names cannot be found in `ns`.
+  --
+  -- This allows TDNR to disambiguate those names (if multiple definitions
+  -- share the same suffix) or to report the type expected for that name
+  -- (if a free variable is being used as a typed hole).
+  varsToTDNR = Set.filter notFound (freeVars e)
+  notFound var =
+    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms0 ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
