@@ -101,7 +101,7 @@ d = c + 10
        merge.
 
 ```
-At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`.
+At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2` namespace has an unconflicted definition for `c` and `d`, so those are preferred.
 
 ```ucm
 .> view a b c d
