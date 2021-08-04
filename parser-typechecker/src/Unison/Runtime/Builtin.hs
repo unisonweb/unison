@@ -46,6 +46,7 @@ import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -112,6 +113,9 @@ import System.Directory as SYS
   , getDirectoryContents
   , getModificationTime
   , getFileSize
+  )
+import System.Environment as SYS
+  ( getEnv
   )
 import System.IO.Temp (createTempDirectory)
 
@@ -676,6 +680,20 @@ watch
   = binop0 0 $ \[t,v]
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
+
+raise :: Var v => SuperNormal v
+raise
+  = unop0 4 $ \[r,f,n,j,k]
+ -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
+  [ (0, ([BX], TAbs f $ TVar f))
+  , (i, ([UN,BX]
+      , TAbss [j,f]
+      . TShift Ty.exceptionRef k
+      . TLetD n BX (TLit $ T "builtin.raise")
+      $ TPrm EROR [n, f]))
+  ]
+  where
+  i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
 code'missing :: Var v => SuperNormal v
 code'missing
@@ -1375,7 +1393,9 @@ builtinLookup
   , ("Universal.>=", geu)
   , ("Universal.<=", leu)
 
+  -- internal stuff
   , ("jumpCont", jumpk)
+  , ("raise", raise)
 
   , ("IO.forkComp.v2", fork'comp)
 
@@ -1455,7 +1475,10 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF Text.hGetLine
+
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+    $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
@@ -1477,6 +1500,9 @@ declareForeigns = do
 
   declareForeign "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
+
+  declareForeign "IO.getEnv.impl.v1" boxToEFBox
+    $ mkForeignIOF getEnv
 
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
