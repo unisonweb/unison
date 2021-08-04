@@ -76,7 +76,7 @@ test> Int.tests.conversions =
         toText +10 == "10",
         toText -1039 == "-1039",
         fromText "+0" == Some +0,
-        Int.fromText "a8f9djasdlfkj" == None,
+        fromText "a8f9djasdlfkj" == None,
         fromText "3940" == Some +3940,
         toFloat +9394 == 9394.0,
         toFloat -20349 == -20349.0
@@ -145,7 +145,7 @@ test> Nat.tests.conversions =
         toText 0 == "0",
         toText 32939 == "32939",
         toText 10 == "10",
-        Nat.fromText "ooga" == None,
+        fromText "ooga" == None,
         fromText "90" == Some 90,
         unsnoc "abc" == Some ("ab", ?c),
         uncons "abc" == Some (?a, "bc"),

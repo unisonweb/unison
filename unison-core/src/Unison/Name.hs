@@ -30,6 +30,7 @@ module Unison.Name
   , segments'
   , suffixes
   , searchBySuffix
+  , suffixFrom
   , shortestUniqueSuffix
   , toString
   , toText
@@ -132,6 +133,13 @@ stripNamePrefix prefix name =
   Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
   where
   mid = if toText prefix == "." then "" else "."
+
+-- suffixFrom Int builtin.Int.+ ==> Int.+
+-- suffixFrom Int Int.negate    ==> Int.negate
+suffixFrom :: Name -> Name -> Maybe Name
+suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
+  []         -> Nothing
+  (_, rem):_ -> Just (Name rem)
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name

@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Names3 where
 
@@ -284,8 +285,8 @@ importing0 shortToLongName ns =
     (foldl' go (terms0 ns) shortToLongName)
     (foldl' go (types0 ns) shortToLongName)
   where
-  go :: (Show a, Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
-  go m (shortname, qname) = case R.lookupDom qname m of
+  go :: (Ord r) => Relation Name r -> (Name, Name) -> Relation Name r
+  go m (shortname, qname) = case Name.searchBySuffix qname m of
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
 
@@ -298,9 +299,15 @@ expandWildcardImport prefix ns =
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms0 ns) ] <>
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types0 ns) ]
   where
-  go (full, _) = case Name.stripNamePrefix prefix full of
-    Nothing -> Nothing
-    Just suffix -> Just (suffix, full)
+  go (full, _) = do
+    -- running example:
+    --   prefix = Int
+    --   full = builtin.Int.negate
+    rem <- Name.suffixFrom prefix full
+    -- rem = Int.negate
+    suffix <- Name.stripNamePrefix prefix rem
+    -- suffix = negate
+    pure (suffix, full)
 
 -- Deletes from the `n0 : Names0` any definitions whose names
 -- share a suffix with a name in `ns`. Does so using logarithmic
