@@ -35,7 +35,7 @@ testNat n _ =
     testRoundTrip n LE64
     testRoundTrip n BE32
     testRoundTrip n LE32
-  else    
+  else
     testRoundTrip n BE64
     testRoundTrip n LE64
     testRoundTrip n BE32
