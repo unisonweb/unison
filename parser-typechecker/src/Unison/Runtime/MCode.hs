@@ -916,7 +916,7 @@ emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grp rec d vcs ctx bnd
   | Direct <- d
-  = internalBug $ "unsupported compound direct let" ++ show bnd
+  = internalBug $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d
   = \esect ->
       f <$> emitSection rns grp rec (Block ctx) bnd

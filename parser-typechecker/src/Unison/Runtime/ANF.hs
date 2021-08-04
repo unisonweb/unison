@@ -1030,11 +1030,15 @@ anfBlock (Match' scrut cas) = do
             mdf
     AccumEmpty -> pure (sctx <> cx, pure $ TMatch v MatchEmpty)
 anfBlock (Let1Named' v b e)
-  = anfBlock b >>= \(bctx, (d0, cb)) -> bindLocal [v] $ do
-      (ectx, ce) <- anfBlock e
-      d <- bindDirection d0
-      let octx = bctx <> directed [ST1 d v BX cb] <> ectx
-      pure (octx, ce)
+  = anfBlock b >>= \case
+      (bctx, (Direct, TVar u)) -> do
+        (ectx, ce) <- anfBlock e
+        pure (bctx <> ectx, ABTN.rename v u <$> ce)
+      (bctx, (d0, cb)) -> bindLocal [v] $ do
+        (ectx, ce) <- anfBlock e
+        d <- bindDirection d0
+        let octx = bctx <> directed [ST1 d v BX cb] <> ectx
+        pure (octx, ce)
 anfBlock (Apps' f args) = do
   (fctx, (d, cf)) <- anfFunc f
   (actx, cas) <- anfArgs args
