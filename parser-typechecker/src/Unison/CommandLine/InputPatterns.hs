@@ -1296,6 +1296,12 @@ debugDumpNamespace = InputPattern
   "Dump the namespace to a text file"
   (const $ Right Input.DebugDumpNamespacesI)
 
+debugDumpNamespaceSimple :: InputPattern
+debugDumpNamespaceSimple = InputPattern
+  "debug.dump-namespace-simple" [] [(Required, noCompletions)]
+  "Dump the namespace to a text file"
+  (const $ Right Input.DebugDumpNamespaceSimpleI)
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache = InputPattern
   "debug.clear-cache" [] [(Required, noCompletions)]
@@ -1429,6 +1435,7 @@ validInputs =
   , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
+  , debugDumpNamespaceSimple
   , debugClearWatchCache
   ]
 

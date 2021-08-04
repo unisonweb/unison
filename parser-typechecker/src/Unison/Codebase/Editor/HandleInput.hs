@@ -135,6 +135,7 @@ import qualified Control.Error.Util as ErrorUtil
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Relation as Relation
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
@@ -462,6 +463,7 @@ loop = do
           DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
           DebugDumpNamespacesI{} -> wat
+          DebugDumpNamespaceSimpleI{} -> wat
           DebugClearWatchI {} -> wat
           QuitI{} -> wat
           DeprecateTermI{} -> undefined
@@ -1817,6 +1819,11 @@ loop = do
                 prettyDefn renderR (r, (Foldable.toList -> names, Foldable.toList -> links)) =
                   P.lines (P.shown <$> if null names then [NameSegment "<unnamed>"] else names) <> P.newline <> prettyLinks renderR r links
         void . eval . Eval . flip State.execStateT mempty $ goCausal [getCausal root']
+      DebugDumpNamespaceSimpleI -> do
+        for_ (Relation.toList . Branch.deepTypes . Branch.head $ root') \(r, name) ->
+          traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
+        for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
+          traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
       DebugClearWatchI {} -> eval ClearWatchCache
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
