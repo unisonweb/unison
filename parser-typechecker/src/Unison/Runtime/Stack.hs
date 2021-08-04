@@ -17,6 +17,7 @@ module Unison.Runtime.Stack
   , Off
   , SZ
   , FP
+  , universalEq
   , universalCompare
   , marshalToForeign
   , unull
@@ -163,6 +164,35 @@ closureNum DataC{} = 1
 closureNum Captured{} = 2
 closureNum Foreign{} = 3
 closureNum BlackHole{} = error "BlackHole"
+
+universalEq
+  :: (Foreign -> Foreign -> Bool)
+  -> Closure
+  -> Closure
+  -> Bool
+universalEq frn = eqc False
+  where
+  eql cm l r = length l == length r && and (zipWith cm l r)
+  eqc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
+    = (if tyEq then rf1 == rf2 else True)
+   && ct1 == ct2
+   && eql (==) us1 us2
+   && eql (eqc $ tyEq || rf1 == Ty.anyRef) bs1 bs2
+  eqc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+    = i1 == i2
+   && eql (==) us1 us2
+   && eql (eqc tyEq) bs1 bs2
+  eqc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+    = k1 == k2
+   && eql (==) us1 us2
+   && eql (eqc True) bs1 bs2
+  eqc tyEq (Foreign fl) (Foreign fr)
+    | Just sl <- maybeUnwrapForeign Ty.listRef fl
+    , Just sr <- maybeUnwrapForeign Ty.listRef fr
+    = length sl == length sr && and (Sq.zipWith (eqc tyEq) sl sr)
+    | otherwise = frn fl fr
+  eqc _ c d = closureNum c == closureNum d
+
 
 universalCompare
   :: (Foreign -> Foreign -> Ordering)

@@ -256,10 +256,7 @@ exec !_   !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
-  poke ustk
-    $ case universalCompare compare x y of
-        EQ -> 1
-        _ -> 0
+  poke ustk $ if universalEq (==) x y then 1 else 0
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
@@ -275,8 +272,8 @@ exec !_   !denv !ustk !bstk !k (Pack r t args) = do
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec !_   !denv !ustk !bstk !k (Unpack i) = do
-  (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
+exec !_   !denv !ustk !bstk !k (Unpack r i) = do
+  (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (Print i) = do
   t <- peekOffBi bstk i
@@ -607,49 +604,55 @@ buildData !ustk !bstk !r !t (DArgV ui bi) = do
 {-# inline buildData #-}
 
 dumpData
-  :: Stack 'UN -> Stack 'BX -> Closure -> IO (Stack 'UN, Stack 'BX)
-dumpData !ustk !bstk (Enum _ t) = do
+  :: Maybe Reference
+  -> Stack 'UN
+  -> Stack 'BX
+  -> Closure
+  -> IO (Stack 'UN, Stack 'BX)
+dumpData !_ !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU1 _ t x) = do
+dumpData !_ !ustk !bstk (DataU1 _ t x) = do
   ustk <- bumpn ustk 2
   pokeOff ustk 1 x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU2 _ t x y) = do
+dumpData !_ !ustk !bstk (DataU2 _ t x y) = do
   ustk <- bumpn ustk 3
   pokeOff ustk 2 y
   pokeOff ustk 1 x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB1 _ t x) = do
+dumpData !_ !ustk !bstk (DataB1 _ t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
   poke bstk x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB2 _ t x y) = do
+dumpData !_ !ustk !bstk (DataB2 _ t x y) = do
   ustk <- bump ustk
   bstk <- bumpn bstk 2
   pokeOff bstk 1 y
   poke bstk x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataUB _ t x y) = do
+dumpData !_ !ustk !bstk (DataUB _ t x y) = do
   ustk <- bumpn ustk 2
   bstk <- bump bstk
   pokeOff ustk 1 x
   poke bstk y
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataG _ t us bs) = do
+dumpData !_ !ustk !bstk (DataG _ t us bs) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !_    !_  clo = die $ "dumpData: bad closure: " ++ show clo
+dumpData !mr !_    !_  clo
+  = die $ "dumpData: bad closure: " ++ show clo
+       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# inline dumpData #-}
 
 -- Note: although the representation allows it, it is impossible

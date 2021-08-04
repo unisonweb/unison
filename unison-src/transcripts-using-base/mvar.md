@@ -11,6 +11,11 @@ blocks, Queues, etc.
 
 
 ```unison
+eitherCk : (a -> Boolean) -> Either e a -> Boolean
+eitherCk f = cases
+  Left _ -> false
+  Right x -> f x
+
 testMvars: '{io2.IO}[Result]
 testMvars _ =
   test = 'let
@@ -28,11 +33,15 @@ testMvars _ =
     expectU "swap returns old contents" test2 test'''
 
     ma2 = !MVar.newEmpty
+    check "tryRead should succeed when not empty"
+      (eitherCk (x -> not (isNone x)) (tryRead.impl ma))
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 
     check "ma2 should be empty" (isEmpty ma2)
     check "tryTake should fail when empty" (isNone (tryTake ma2))
+    check "tryRead should fail when empty"
+      (eitherCk isNone (tryRead.impl ma2))
 
 
   runTest test

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -18,7 +19,7 @@ import Data.OpenApi
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
-  ( FromHttpApiData,
+  ( FromHttpApiData (..),
     Get,
     Header,
     Headers,
@@ -28,6 +29,7 @@ import Servant.API
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
   )
@@ -65,7 +67,9 @@ deriving instance ToSchema Name
 deriving via Bool instance FromHttpApiData Suffixify
 deriving instance ToParamSchema Suffixify
 
-deriving via Text instance FromHttpApiData ShortBranchHash
+instance FromHttpApiData ShortBranchHash where
+  parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+
 deriving instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
