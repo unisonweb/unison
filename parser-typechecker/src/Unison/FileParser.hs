@@ -52,9 +52,9 @@ file = do
   --
   -- There's some more complicated logic below to have suffix-based name resolution
   -- make use of _terms_ from the local file.
-  local (\e -> e { names = Names.push (Names.suffixify0 locals) namesStart }) $ do
+  local (\e -> e { names = Names.push locals namesStart }) $ do
     names <- asks names
-    stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    stanzas0 <- sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
@@ -68,7 +68,9 @@ file = do
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
-    let (curNames, resolveLocals) = (Names.deleteTerms0 locals (Names.currentNames names), resolveLocals)
+    let (curNames, resolveLocals) =
+          ( Names.shadowSuffixedTerms0 locals (Names.currentNames names)
+          , resolveLocals )
           where
           -- All locally declared term variables, running example:
           --   [foo.alice, bar.alice, zonk.bob]

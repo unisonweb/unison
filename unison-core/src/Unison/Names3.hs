@@ -64,24 +64,12 @@ isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
 isEmpty0 :: Names0 -> Bool
 isEmpty0 n = R.null (terms0 n) && R.null (types0 n)
 
--- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
--- of that name [[foo.bar.baz], [bar.baz], [baz]]. Insert these suffixes
--- into a multimap map along with their corresponding refs. Any suffix
--- which is unique is added as an entry to `ns`.
-suffixify0 :: Names0 -> Names0
-suffixify0 ns = ns <> suffixNs
-  where
-  suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
-  terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
-  types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
-  uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
-  uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
-
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
 -- referenced hash qualified.
 push :: Names0 -> Names -> Names
-push n1 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
+push n0 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
+  n1 = suffixify0 n0
   cur = currentNames ns
   shadowed = names0 terms' types' where
     terms' = R.dom (terms0 n1) R.<| (terms0 cur `R.difference` terms0 n1)
@@ -90,6 +78,17 @@ push n1 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
   unionLeft0 n1 n2 = names0 terms' types' where
     terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
     types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
+  -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
+  -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
+  -- refers to a single definition is added as an alias
+  suffixify0 :: Names0 -> Names0
+  suffixify0 ns = ns <> suffixNs
+    where
+    suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
+    terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
+    types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
+    uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
+    uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
 
 unionLeft0 :: Names0 -> Names0 -> Names0
 unionLeft0 = Unison.Names2.unionLeft
