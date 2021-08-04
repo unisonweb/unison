@@ -1002,44 +1002,18 @@ loop = do
         fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
-        parseNames0 <- basicParseNames0
-        let filtered = case thing of
-              HQ.HashOnly shortHash ->
-                Names.filterBySHs (Set.singleton shortHash) parseNames0
-              HQ.HashQualified n sh ->
-                Names.filterByHQs (Set.singleton $ HQ'.HashQualified n sh) parseNames0
-              HQ.NameOnly n ->
-                Names.filterByHQs (Set.singleton $ HQ'.NameOnly n) parseNames0
-        let printNames0 = basicPrettyPrintNames0
-            printNames = Names printNames0 mempty
-            terms' ::Set (Referent, Set (HQ'.HashQualified Name))
-            terms' = (`Set.map` Names.termReferents filtered) $
-                        \r -> (r, Names3.termName hqLength r printNames)
+        ns0 <- basicParseNames0
+        let ns = Names ns0 mempty
+            terms = Names3.lookupHQTerm thing ns
+            types = Names3.lookupHQType thing ns
+            printNames = Names basicPrettyPrintNames0 mempty
+            terms' :: Set (Referent, Set (HQ'.HashQualified Name))
+            terms' = Set.map go terms where
+              go r = (r, Names3.termName hqLength r printNames)
             types' :: Set (Reference, Set (HQ'.HashQualified Name))
-            types' = (`Set.map` Names.typeReferences filtered) $
-                        \r -> (r, Names3.typeName hqLength r printNames)
+            types' = Set.map go types where
+              go r = (r, Names3.typeName hqLength r printNames)
         respond $ ListNames hqLength (toList types') (toList terms')
---          let (p, hq) = p0
---              namePortion = HQ'.toName hq
---          case hq of
---            HQ'.NameOnly _ ->
---              respond $ uncurry ListNames (results p namePortion)
---            HQ'.HashQualified _ sh -> let
---              (terms, types) = results p namePortion
---              -- filter terms and types based on `sh : ShortHash`
---              terms' = filter (Reference.isPrefixOf sh . Referent.toReference . fst) terms
---              types' = filter (Reference.isPrefixOf sh . fst) types
---              in respond $ ListNames terms' types'
---          where
---            results p namePortion = let
---              name = Path.toName . Path.unprefix currentPath' . Path.snoc' p
---                   $ namePortion
---              ns = prettyPrintNames0
---              terms = [ (r, Names.namesForReferent ns r)
---                      | r <- toList $ Names.termsNamed ns name ]
---              types = [ (r, Names.namesForReference ns r)
---                      | r <- toList $ Names.typesNamed ns name ]
---              in (terms, types)
 
       LinkI mdValue srcs -> do
         manageLinks False srcs [mdValue] Metadata.insert
