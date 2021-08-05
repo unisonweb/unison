@@ -14,7 +14,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   3.  Boolean       (builtin type)
   4.  Boolean/      (1 definition)
   5.  Bytes         (builtin type)
-  6.  Bytes/        (17 definitions)
+  6.  Bytes/        (29 definitions)
   7.  Char          (builtin type)
   8.  Char/         (3 definitions)
   9.  Code          (builtin type)
