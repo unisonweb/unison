@@ -105,6 +105,7 @@ data Error v
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
+  | FloatPattern Ann
   deriving (Show, Eq, Ord)
 
 data Ann
