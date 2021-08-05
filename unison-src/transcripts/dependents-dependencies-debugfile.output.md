@@ -68,8 +68,8 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   Dependencies of #muulibntaq#0:
   
        Reference   Name
-    1. ##Int       builtin.Int
-    2. #muulibntaq outside.B
+    1. #muulibntaq outside.B
+    2. ##Int       builtin.Int
 
 .> dependencies d
 
@@ -79,8 +79,8 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
     1. ##Nat         builtin.Nat
     2. ##Nat.+       builtin.Nat.+
     3. ##Universal.< builtin.Universal.<
-    4. #fiupm7pl7o   inside.p
-    5. #msp7bv40rv   outside.c
+    4. #msp7bv40rv   outside.c
+    5. #fiupm7pl7o   inside.p
 
 .> dependents d
 

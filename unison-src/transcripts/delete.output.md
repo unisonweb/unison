@@ -113,8 +113,8 @@ A delete should remove both versions of the term.
   Name changes:
   
     Original               Changes
-    2. a.foo#0ja1qfpej6 ┐  3. a.foo#0ja1qfpej6 (removed)
-    4. b.foo            ┘  
+    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
+    4. a.foo#0ja1qfpej6 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -186,8 +186,8 @@ type Foo = Foo Boolean
   Name changes:
   
     Original               Changes
-    2. a.Foo#gq9inhvg9h ┐  3. a.Foo#gq9inhvg9h (removed)
-    4. b.Foo            ┘  
+    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
+    4. a.Foo#gq9inhvg9h ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -202,8 +202,8 @@ type Foo = Foo Boolean
   Name changes:
   
     Original                     Changes
-    2. a.Foo.Foo#gq9inhvg9h#0 ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-    4. b.Foo.Foo              ┘  
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

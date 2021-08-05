@@ -58,11 +58,11 @@ Test that replace works with types
 .scratch> find
 
   1. type X
-  2. X.One : Nat -> Nat -> X
-  3. type Y
-  4. Y.Two : Nat -> Nat -> X
-  5. x : Nat
-  6. y : Nat
+  2. x : Nat
+  3. X.One : Nat -> Nat -> X
+  4. type Y
+  5. y : Nat
+  6. Y.Two : Nat -> Nat -> X
   
 
 .scratch> view.patch patch

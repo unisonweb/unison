@@ -303,7 +303,7 @@ unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
   IsPropagated = IsPropagated
 
 d1 Doc.++ d2 =
-  use Doc
+  use Doc2
   match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds List.++ ds2)
     (Join ds, _) -> Join (ds `List.snoc` d2)

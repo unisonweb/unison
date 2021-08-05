@@ -17,7 +17,6 @@ import qualified Unison.Names3                 as Names
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
-import qualified Unison.HashQualified' as HQ'
 import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
@@ -35,12 +34,14 @@ instance Show PrettyPrintEnv where
 
 fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames len names = PrettyPrintEnv terms' types' where
-  terms' r = shortestName . Set.map HQ'.toHQ $ Names.termName len r names
-  types' r = shortestName . Set.map HQ'.toHQ $ Names.typeName len r names
+  terms' r = shortestName . Set.map Name.convert $ Names.termName len r names
+  types' r = shortestName . Set.map Name.convert $ Names.typeName len r names
   shortestName ns = safeHead $ HQ.sortByLength (toList ns)
 
 fromSuffixNames :: Int -> Names -> PrettyPrintEnv
-fromSuffixNames len names = fromNames len (Names.suffixify names)
+fromSuffixNames len names = PrettyPrintEnv terms' types' where
+  terms' r = safeHead $ Names.suffixedTermName len r names
+  types' r = safeHead $ Names.suffixedTypeName len r names
 
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
 fromNamesDecl len names =

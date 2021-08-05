@@ -26,7 +26,6 @@ import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
-import qualified Unison.Util.Relation as R
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
@@ -68,9 +67,10 @@ bindNames
   -> Names.Names0
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
-bindNames keepFree ns t = let
+bindNames keepFree ns0 t = let
+  ns = Names.Names ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
+  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t

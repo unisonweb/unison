@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6eae706c8674f4a7f22bb4bff150798cdaba8aa9186b3d94a6a8467a9cc23d06
+-- hash: 632fcb6d170a800081d7ac77914d64c97a52d1bb72a4939636e5880dbf853157
 
 name:           unison-core1
 version:        0.0.0
@@ -52,6 +52,7 @@ library
       Unison.Symbol
       Unison.Term
       Unison.Type
+      Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid

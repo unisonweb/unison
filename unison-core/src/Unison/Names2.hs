@@ -52,7 +52,7 @@ import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
-import           Unison.Name                  (Name)
+import           Unison.Name                  (Name,Alphabetical)
 import qualified Unison.Name                  as Name
 import           Unison.Reference             (Reference)
 import qualified Unison.Reference             as Reference
@@ -248,7 +248,7 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
+hqName :: (Ord n, Alphabetical n) => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
 hqName b n = \case
   Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
   Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
@@ -257,31 +257,31 @@ hqName b n = \case
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
+hqTermName :: (Ord n, Alphabetical n) => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
+hqTypeName :: (Ord n, Alphabetical n) => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
 hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName' hqLen n r
   else HQ.fromName n
 
-_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified n
+_hqTermName :: (Ord n, Alphabetical n) => Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName b n r = if Set.size (termsNamed b n) > 1
   then _hqTermName' b n r
   else HQ.fromName n
 
-_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified n
+_hqTypeName :: (Ord n, Alphabetical n) => Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then _hqTypeName' b n r
   else HQ.fromName n
 
 _hqTypeAliases ::
-  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
+  (Ord n, Alphabetical n) => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
+_hqTermAliases :: (Ord n, Alphabetical n) => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the

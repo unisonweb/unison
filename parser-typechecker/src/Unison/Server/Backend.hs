@@ -408,7 +408,7 @@ searchBranchExact len names queries =
     searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTypes query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQType query names
+      let refs = toList $ Names3.lookupRelativeHQType query names
           mayName r Nothing  = HQ'.fromNamedReference "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
@@ -426,7 +426,7 @@ searchBranchExact len names queries =
     searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTerms query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQTerm query names
+      let refs = toList $ Names3.lookupRelativeHQTerm query names
           mayName r Nothing  = HQ'.fromNamedReferent "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
@@ -444,15 +444,14 @@ searchBranchExact len names queries =
   in
     [ searchTypes q <> searchTerms q | q <- queries ]
 
-hqNameQuery'
+hqNameQuery
   :: Monad m
-  => Bool
-  -> Maybe Path
+  => Maybe Path
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> m QueryResult
-hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+hqNameQuery relativeTo root codebase hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
   -- Find the terms with those hashes.
@@ -476,8 +475,7 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
         (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
       typeResults =
         (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
-      -- Suffixify the names
-      parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+      parseNames = parseNames0
       -- Now do the actual name query
       resultss   = searchBranchExact hqLength parseNames hqnames
       -- Handle query misses correctly
@@ -495,24 +493,6 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
           $   (hits ++ termResults ++ typeResults)
           >>= snd
   pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
-
-hqNameQuery
-  :: Monad m
-  => Maybe Path
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuery = hqNameQuery' False
-
-hqNameQuerySuffixify
-  :: Monad m
-  => Maybe Path
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuerySuffixify = hqNameQuery' True
 
 -- TODO: Move this to its own module
 data DefinitionResults v =
@@ -741,7 +721,7 @@ definitionsBySuffixes
 definitionsBySuffixes relativeTo branch codebase query = do
   -- First find the hashes by name and note any query misses.
   QueryResult misses results <- lift
-    $ hqNameQuerySuffixify relativeTo branch codebase query
+    $ hqNameQuery relativeTo branch codebase query
   -- Now load the terms/types for those hashes.
   results' <- lift $ loadSearchResults codebase results
   let termTypes :: Map.Map Reference (Type v Ann)

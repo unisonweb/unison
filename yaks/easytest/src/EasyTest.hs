@@ -61,11 +61,17 @@ expect :: HasCallStack => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok
 
-expectEqual :: (Eq a, Show a) => a -> a -> Test ()
-expectEqual expected actual = if expected == actual then ok
-                  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
+expectEqual' :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
+expectEqual' expected actual =
+  if expected == actual then pure ()
+  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
 
-expectNotEqual :: (Eq a, Show a) => a -> a -> Test ()
+expectEqual :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
+expectEqual expected actual =
+  if expected == actual then ok
+  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
+
+expectNotEqual :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
 expectNotEqual forbidden actual =
   if forbidden /= actual then ok
   else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
@@ -261,7 +267,7 @@ word8' = random'
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
 pick as = let n = length as; ind = picker n as in do
-  _ <- if (n > 0) then ok else crash "pick called with empty list"
+  _ <- if (n > 0) then pure () else crash "pick called with empty list"
   i <- int' 0 (n - 1)
   Just a <- pure (ind i)
   pure a
