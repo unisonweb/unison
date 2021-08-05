@@ -312,6 +312,20 @@ builtinsSrc =
   , B "Nat.trailingZeros" $ nat --> nat
   , B "Nat.popCount" $ nat --> nat
 
+  , B "Bytes.decodeNat64be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat64le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16le" $ bytes --> optionalt (tuple [nat, bytes])
+
+  , B "Bytes.encodeNat64be" $ nat --> bytes
+  , B "Bytes.encodeNat64le" $ nat --> bytes
+  , B "Bytes.encodeNat32be" $ nat --> bytes
+  , B "Bytes.encodeNat32le" $ nat --> bytes
+  , B "Bytes.encodeNat16be" $ nat --> bytes
+  , B "Bytes.encodeNat16le" $ nat --> bytes
+
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
   , B "Float.*" $ float --> float --> float

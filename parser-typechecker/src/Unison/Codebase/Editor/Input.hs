@@ -136,6 +136,7 @@ data Input
   | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
+  | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
   | QuitI
   deriving (Eq, Show)
