@@ -82,6 +82,14 @@ push n0 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
   -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
   -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
   -- refers to a single definition is added as an alias
+  --
+  -- If `Names` were more like a `[Names0]`, then `push` could just cons
+  -- onto the list and we could get rid of all this complex logic. The
+  -- complexity here is that we have to "bake the shadowing" into a single
+  -- Names0, taking into account suffix-based name resolution.
+  --
+  -- We currently have `oldNames`, but that controls an unrelated axis, which
+  -- is whether names are hash qualified or not.
   suffixify0 :: Names0 -> Names0
   suffixify0 ns = ns <> suffixNs
     where
@@ -228,7 +236,7 @@ suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
     else sort $ map Name.convert $ Set.toList (fallback length r ns)
     where
       -- Orders names, using these criteria, in this order:
-      -- 1. NameOnly comes before HashQualfied,
+      -- 1. NameOnly comes before HashQualified,
       -- 2. Shorter names (in terms of segment count) come before longer ones
       -- 3. If same on attributes 1 and 2, compare alphabetically
       go :: [Name] -> [HashQualified Name]

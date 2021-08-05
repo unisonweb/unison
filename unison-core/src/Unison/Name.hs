@@ -136,6 +136,11 @@ stripNamePrefix prefix name =
 
 -- suffixFrom Int builtin.Int.+ ==> Int.+
 -- suffixFrom Int Int.negate    ==> Int.negate
+--
+-- Currently used as an implementation detail of expanding wildcard
+-- imports, (like `use Int` should catch `builtin.Int.+`)
+-- but it may be generally useful elsewhere. See `expandWildcardImports`
+-- for details.
 suffixFrom :: Name -> Name -> Maybe Name
 suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
   []         -> Nothing
