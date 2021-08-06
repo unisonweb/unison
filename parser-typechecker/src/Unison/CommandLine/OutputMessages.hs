@@ -266,7 +266,10 @@ notifyUser dir o = case o of
         $  "I couldn't find a root namespace with the hash "
         <> prettySBH (SBH.fullFromHash h)
         <> "."
-
+  CouldntLoadBranch h ->
+    pure . P.fatalCallout . P.wrap $ "I have reason to believe that"
+      <> P.shown h <> "exists in the codebase, but there was a failure"
+      <> "when I tried to load it."
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"

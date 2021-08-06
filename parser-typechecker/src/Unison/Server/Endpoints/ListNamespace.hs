@@ -15,8 +15,6 @@ import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
-    ServerError (errBody),
-    err400,
     throwError,
     (:>),
   )
@@ -34,9 +32,8 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Hash as Hash
-import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser (Ann)
 import Unison.Prelude
@@ -44,7 +41,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
   ( backendError,
-    badHQN,
     badNamespace,
     rootBranchError,
   )
@@ -52,6 +48,7 @@ import Unison.Server.Types
   ( APIGet,
     APIHeaders,
     HashQualifiedName,
+    NamespaceFQN,
     NamedTerm (..),
     NamedType (..),
     Size,
@@ -59,13 +56,16 @@ import Unison.Server.Types
     UnisonName,
     addHeaders,
   )
-import qualified Unison.ShortHash as ShortHash
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
+import Control.Error.Util ((??))
+
 
 type NamespaceAPI =
-  "list" :> QueryParam "namespace" HashQualifiedName
-    :> APIGet NamespaceListing
+  "list" :> QueryParam "rootBranch" ShortBranchHash
+         :> QueryParam "relativeTo" NamespaceFQN
+         :> QueryParam "namespace" NamespaceFQN
+  :> APIGet NamespaceListing
 
 instance ToParam (QueryParam "namespace" Text) where
   toParam _ =
@@ -80,16 +80,14 @@ instance ToSample NamespaceListing where
     [ ( "When no value is provided for `namespace`, the root namespace `.` is "
         <> "listed by default"
       , NamespaceListing
-        (Just ".")
-        (Just ".")
+        "."
         "#gjlk0dna8dongct6lsd19d1o9hi5n642t8jttga5e81e91fviqjdffem0tlddj7ahodjo5"
         [Subnamespace $ NamedNamespace "base" "#19d1o9hi5n642t8jttg" 1244]
       )
     ]
 
 data NamespaceListing = NamespaceListing
-  { namespaceListingName :: Maybe UnisonName,
-    namespaceListingFQN :: Maybe UnisonName,
+  { namespaceListingFQN :: UnisonName,
     namespaceListingHash :: UnisonHash,
     namespaceListingChildren :: [NamespaceObject]
   }
@@ -162,61 +160,70 @@ serveNamespace
   :: Var v
   => Handler ()
   -> Codebase IO v Ann
-  -> Maybe HashQualifiedName
+  -> Maybe ShortBranchHash
+  -> Maybe NamespaceFQN
+  -> Maybe NamespaceFQN
   -> Handler (APIHeaders NamespaceListing)
-serveNamespace tryAuth codebase mayHQN =
-  addHeaders <$> (tryAuth *> (go tryAuth codebase mayHQN))
- where
-  go tryAuth codebase mayHQN = case mayHQN of
-    Nothing  -> go tryAuth codebase $ Just "."
-    Just hqn -> do
-      parsedName <- parseHQN hqn
-      hashLength <- liftIO $ Codebase.hashLength codebase
-      case parsedName of
-        HQ.NameOnly n -> do
-          path'   <- parsePath $ Name.toString n
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          root    <- errFromEither rootBranchError gotRoot
-          let
-            p =
-              either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-            ppe = Backend.basicSuffixifiedNames hashLength root
-              $ Path.fromPath' path'
-          entries <- findShallow p
-          processEntries
-            ppe
-            (Just $ Name.toText n)
-            (Just . Path.toText $ Path.unabsolute p)
-            (("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash root
-            )
-            entries
-        HQ.HashOnly sh -> case SBH.fromText $ ShortHash.toText sh of
-          Nothing ->
-            throwError
-              . badNamespace "Malformed branch hash."
-              $ ShortHash.toString sh
-          Just h -> doBackend $ do
-            hash    <- Backend.expandShortBranchHash codebase h
-            branch  <- Backend.resolveBranchHash (Just hash) codebase
-            entries <- Backend.findShallowInBranch codebase branch
-            let ppe = Backend.basicSuffixifiedNames hashLength branch mempty
-                sbh = Text.pack . show $ SBH.fullFromHash hash
-            processEntries ppe Nothing Nothing sbh entries
-        HQ.HashQualified _ _ -> hashQualifiedNotSupported
-  errFromMaybe e = maybe (throwError e) pure
-  errFromEither f = either (throwError . f) pure
-  parseHQN hqn = errFromMaybe (badHQN hqn) $ HQ.fromText hqn
-  parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  doBackend a = do
-    ea <- liftIO $ runExceptT a
-    errFromEither backendError ea
-  findShallow p = doBackend $ Backend.findShallow codebase p
-  processEntries ppe name fqn hash entries =
-    pure . NamespaceListing name fqn hash $ fmap
-      (backendListEntryToNamespaceObject ppe Nothing)
-      entries
-  hashQualifiedNotSupported = throwError $ err400
-    { errBody = "This server does not yet support searching namespaces by "
-                  <> "hash-qualified name."
-    }
+serveNamespace tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
+  let
+    -- Various helpers
+    errFromEither f = either (throwError . f) pure
 
+    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+
+    doBackend a = do
+      ea <- liftIO $ runExceptT a
+      errFromEither backendError ea
+
+    findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
+
+    makeNamespaceListing ppe fqn hash entries =
+      pure . NamespaceListing fqn hash $ fmap
+        (backendListEntryToNamespaceObject ppe Nothing)
+        entries
+
+    -- Lookup paths, root and listing and construct response
+    namespaceListing = do
+      root <- case mayRoot of
+        Nothing -> do
+          gotRoot <- liftIO $ Codebase.getRootBranch codebase
+          errFromEither rootBranchError gotRoot
+        Just sbh -> do
+          ea <- liftIO . runExceptT $ do
+            h <- Backend.expandShortBranchHash codebase sbh
+            mayBranch <- lift $ Codebase.getBranchForHash codebase h
+            mayBranch ?? Backend.CouldntLoadBranch h
+          errFromEither backendError ea
+
+      -- Relative and Listing Path resolution
+      --
+      -- The full listing path is a combination of the relativeToPath (prefix) and the namespace path
+      --
+      -- For example:
+      --            "base.List"    <>    "Nonempty"
+      --                ↑                    ↑
+      --         relativeToPath        namespacePath
+      --
+      -- resulting in "base.List.map" which we can use via the root branch (usually the codebase hash)
+      -- to look up the namespace listing and present shallow name, so that the
+      -- definition "base.List.Nonempty.map", simple has the name "map"
+      --
+      relativeToPath' <- (parsePath . Text.unpack) $ fromMaybe "." mayRelativeTo
+      namespacePath' <- (parsePath . Text.unpack) $ fromMaybe "." mayNamespaceName
+
+      let path = Path.fromPath' relativeToPath' <>  Path.fromPath' namespacePath'
+      let path' = Path.toPath' path
+
+      -- Actually construct the NamespaceListing
+
+      let listingBranch = Branch.getAt' path root
+      hashLength <- liftIO $ Codebase.hashLength codebase
+
+      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
+      let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+      let listingHash = ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash listingBranch
+      listingEntries <- findShallow listingBranch
+
+      makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
+    in
+    addHeaders <$> (tryAuth *> namespaceListing)
