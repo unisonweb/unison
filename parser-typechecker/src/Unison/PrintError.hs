@@ -1109,6 +1109,14 @@ prettyParseError s = \case
              <> "but this one has " <> Pr.hiRed (Pr.shown actual) <> "arguments:",
       annotatedAsErrorSite s loc
       ]
+  go (Parser.FloatPattern loc) = msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines
+      [ Pr.wrap
+          $ "Floating point pattern matching is disallowed. Instead,"
+         <> "it is recommended to test that a value is within"
+         <> "an acceptable error bound of the expected value."
+      , annotatedAsErrorSite s loc
+      ]
   go (Parser.UseEmpty tok) = msg where
     msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
       Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword", "",

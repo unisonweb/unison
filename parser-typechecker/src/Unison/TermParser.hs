@@ -190,7 +190,11 @@ parsePattern = root
   literal = (,[]) <$> asum [true, false, number, text, char]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
-  number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
+  number = join $
+    number'
+      (pure . tok Pattern.Int)
+      (pure . tok Pattern.Nat)
+      (tok (const . failCommitted . FloatPattern))
   text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
   char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
