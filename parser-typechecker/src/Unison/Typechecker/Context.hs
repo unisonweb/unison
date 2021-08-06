@@ -1681,6 +1681,12 @@ coalesceWanted' ((loc,n):new) old
 
 -- Wrapper for coalesceWanted' that ensures both lists are fully
 -- expanded.
+coalesceWanted
+  :: Var v
+  => Ord loc
+  => Wanted v loc
+  -> Wanted v loc
+  -> M v loc (Wanted v loc)
 coalesceWanted new old = do
   new <- expandWanted new
   old <- expandWanted old
