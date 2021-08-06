@@ -1650,18 +1650,16 @@ markThenRetractWanted v m
 -- pointless to add them to the wanted abilities, just making types
 -- more complicated, and inference harder. So in that scenario, we
 -- default the variable to {} and omit it.
-coalesceWanted
+coalesceWanted'
   :: Var v
   => Ord loc
   => Wanted v loc
   -> Wanted v loc
   -> M v loc (Wanted v loc)
-coalesceWanted [] old = pure old
-coalesceWanted ((loc,n):new) old
+coalesceWanted' [] old = pure old
+coalesceWanted' ((loc,n):new) old
   | Just (_, o) <- find (headMatch n . snd) old = do
     subtype n o
-    new <- expandWanted new
-    old <- expandWanted old
     coalesceWanted new old
   | Type.Var' u <- n = do
     ctx <- getContext
@@ -1674,14 +1672,19 @@ coalesceWanted ((loc,n):new) old
         then pure (new, (loc, n):old)
         else do
           defaultAbility n
-          new <- expandWanted new
-          old <- expandWanted old
           pure (new, old)
     coalesceWanted new old
-  | otherwise = coalesceWanted new ((loc, n):old)
+  | otherwise = coalesceWanted' new ((loc, n):old)
   where
   keep ctx u@TypeVar.Existential{} = occursAnn u ctx
   keep _ _ = True
+
+-- Wrapper for coalesceWanted' that ensures both lists are fully
+-- expanded.
+coalesceWanted new old = do
+  new <- expandWanted new
+  old <- expandWanted old
+  coalesceWanted' new old
 
 coalesceWanteds
   :: Var v => Ord loc => [Wanted v loc] -> M v loc (Wanted v loc)
