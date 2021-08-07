@@ -926,11 +926,15 @@ diffNamespace :: InputPattern
 diffNamespace = InputPattern
   "diff.namespace"
   []
-  [(Required, pathArg), (Required, pathArg)]
+  [(Required, pathArg), (Optional, pathArg)]
   (P.column2
     [ ( "`diff.namespace before after`"
       , P.wrap
         "shows how the namespace `after` differs from the namespace `before`"
+      )
+    , ( "`diff.namespace before`"
+      , P.wrap
+        "shows how the namespace `before` differs from the current namespace"
       )
     ]
   )
@@ -939,6 +943,9 @@ diffNamespace = InputPattern
       before <- Path.parsePath' before
       after <- Path.parsePath' after
       pure $ Input.DiffNamespaceI before after
+    [before] -> first fromString $ do
+      before <- Path.parsePath' before
+      pure $ Input.DiffNamespaceI before Path.currentPath
     _ -> Left $ I.help diffNamespace
   )
 
