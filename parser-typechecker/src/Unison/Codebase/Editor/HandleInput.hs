@@ -2164,6 +2164,8 @@ handleBackendError = \case
   Backend.NoBranchForHash h -> do
     sbhLength <- eval BranchHashLength
     respond . NoBranchWithHash $ SBH.fromHash sbhLength h
+  Backend.CouldntLoadBranch h -> do
+    respond . CouldntLoadBranch $ h
   Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
   Backend.AmbiguousBranchHash h hashes ->
     respond $ BranchHashAmbiguous h hashes

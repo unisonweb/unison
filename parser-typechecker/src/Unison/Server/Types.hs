@@ -54,6 +54,8 @@ type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
 
+type NamespaceFQN = Text
+
 type Size = Int
 
 type UnisonName = Text

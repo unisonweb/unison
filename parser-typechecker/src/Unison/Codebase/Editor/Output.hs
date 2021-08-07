@@ -208,6 +208,7 @@ data Output v
   | BadName String
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
+  | CouldntLoadBranch Branch.Hash
   | NoOp
   deriving (Show)
 
@@ -238,6 +239,7 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   BadRootBranch{} -> True
+  CouldntLoadBranch{} -> True
   NoUnisonFile{} -> True
   InvalidSourceName{} -> True
   SourceLoadFailed{} -> True

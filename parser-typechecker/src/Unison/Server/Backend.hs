@@ -109,6 +109,7 @@ data BackendError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
+  | CouldntLoadBranch Branch.Hash
   | MissingSignatureForTerm Reference
 
 type Backend m a = ExceptT BackendError m a
