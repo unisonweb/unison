@@ -19,6 +19,7 @@ fslkdjflskdjflksjdf = 663
 .b0> add
 .> merge b0 b1
 .> diff.namespace b1 b2
+.b2> diff.namespace b1
 ```
 Things we want to test:
 

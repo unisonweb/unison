@@ -69,6 +69,14 @@ fslkdjflskdjflksjdf = 663
     6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
                                          8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
 
+.b2> diff.namespace b1
+
+  Added definitions:
+  
+    1. ┌ abc                 : Nat
+    2. │ fslkdjflskdjflksjdf : Nat
+    3. └ x                   : Nat
+
 ```
 Things we want to test:
 
