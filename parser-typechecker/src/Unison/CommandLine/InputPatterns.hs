@@ -934,7 +934,7 @@ diffNamespace = InputPattern
       )
     , ( "`diff.namespace before`"
       , P.wrap
-        "shows how the namespace `before` differs from the current namespace"
+        "shows how the current namespace differs from the namespace `before`"
       )
     ]
   )
