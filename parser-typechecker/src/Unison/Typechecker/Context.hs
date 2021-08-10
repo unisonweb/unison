@@ -1827,7 +1827,7 @@ discardCovariant gens ty
 -- separate type check must pass if the candidate is allowed, which
 -- will ensure that the location has the right abilities.
 relax :: Var v => Ord loc => Type v loc -> Type v loc
-relax t = relax' v t
+relax t = relax' True v t
   where
   fvs = foldMap f $ Type.freeVars t
   f (TypeVar.Existential _ v) = Set.singleton v
@@ -1835,17 +1835,33 @@ relax t = relax' v t
   v = ABT.freshIn fvs $ Var.inferAbility
 
 -- The worker for `relax`.
-relax' :: Var v => Ord loc => v -> Type v loc -> Type v loc
-relax' v t
-  | Type.Arrow' i o <- t = Type.arrow (ABT.annotation t) i $ relax' v o
+--
+-- The boolean argument controls whether a non-arrow type is relaxed.
+-- For example, the type:
+--
+--   Nat
+--
+-- is relaxed to:
+--
+--   {e} Nat
+--
+-- if True. This is desirable when doing TDNR, because a potential
+-- effect reference may have type `{A} T` while the inferred necessary
+-- type is just `T`. However, it is undesirable to add these variables
+-- when relax' is used during variable instantiation, because it just
+-- adds ability inference ambiguity.
+relax' :: Var v => Ord loc => Bool -> v -> Type v loc -> Type v loc
+relax' nonArrow v t
+  | Type.Arrow' i o <- t
+  = Type.arrow (ABT.annotation t) i $ relax' nonArrow v o
   | Type.ForallsNamed' vs b <- t
-  = Type.foralls loc vs $ relax' v b
+  = Type.foralls loc vs $ relax' nonArrow v b
   | Type.Effect' es r <- t
   , Type.Arrow' i o <- r
-  = Type.effect loc es . Type.arrow (ABT.annotation t) i $ relax' v o
+  = Type.effect loc es . Type.arrow (ABT.annotation t) i $ relax' nonArrow v o
   | Type.Effect' es r <- t
-  , not $ any open es
-  = Type.effect loc (tv : es) r
+  = if any open es then t else Type.effect loc (tv : es) r
+  | nonArrow = Type.effect loc [tv] t
   | otherwise = t
   where
   open (Type.Var' (TypeVar.Existential{})) = True
@@ -1994,12 +2010,12 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     | Set.member v (existentials ctx)
    && notMember v (Type.freeVars t) = do
     e <- extendExistential Var.inferAbility
-    instantiateL b v (relax' e t)
+    instantiateL b v (relax' False e t)
   go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
     | Set.member v (existentials ctx)
    && notMember v (Type.freeVars t) = do
     e <- extendExistential Var.inferAbility
-    instantiateR (relax' e t) b v
+    instantiateR (relax' False e t) b v
   go _ (Type.Effects' es1) (Type.Effects' es2)
     = subAbilities ((,) Nothing <$> es1) es2
   go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
