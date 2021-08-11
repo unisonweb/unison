@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Names2
   ( Names0
@@ -49,7 +50,9 @@ import Unison.Prelude
 
 import qualified Data.Map                     as Map
 import qualified Data.Set                     as Set
+import qualified Data.Text                    as Text
 import           Prelude                      hiding (filter)
+import qualified Prelude
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name,Alphabetical)
@@ -85,11 +88,25 @@ fuzzyFind
 fuzzyFind query names =
   fmap flatten
     .  fuzzyFinds (Name.toString . fst) query
+    .  Prelude.filter prefilter
     .  Map.toList
     -- `mapMonotonic` is safe here and saves a log n factor
     $  (Set.mapMonotonic Left <$> R.toMultimap (terms names))
     <> (Set.mapMonotonic Right <$> R.toMultimap (types names))
  where
+  lowerqueryt = Text.toLower . Text.pack <$> query
+  -- For performance, case-insensitive substring matching as a pre-filter
+  -- This finds fewer matches than subsequence matching, but is
+  -- (currently) way faster even on large name sets.
+  prefilter (Name.toText -> name, _) = case lowerqueryt of
+    -- Special cases here just to help optimizer, since
+    -- not sure if `all` will get sufficiently unrolled for
+    -- Text fusion to work out.
+    [q] -> q `Text.isInfixOf` lowername
+    [q1,q2] -> q1 `Text.isInfixOf` lowername && q2 `Text.isInfixOf` lowername
+    query -> all (`Text.isInfixOf` lowername) query
+    where
+    lowername = Text.toLower name
   flatten (a, (b, c)) = (a, b, c)
   fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]
   fuzzyFinds f query d =
