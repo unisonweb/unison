@@ -46,6 +46,7 @@ extra-deps:
 - Cabal-3.2.1.0
 - fuzzyfind-3.0.0
 - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
+- optparse-applicative-0.16.1.0 # We need some features from the most recent revision
 
 ghc-options:
  # All packages

@@ -55,3 +55,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Tavish Pegram (@tapegram)
 * Javier Neira (@jneira)
 * Simon Højberg (@hojberg)
+* David Smith (@shmish111)
+* Chris Penner (@ChrisPenner)
