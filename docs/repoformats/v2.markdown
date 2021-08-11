@@ -76,7 +76,7 @@ where the former references objects that must exist in the database and the latt
 
 ### Serialization formats for codebase objects
 
-Each of the object blob formats begins with a varint format id.  For a given object type, different format ids indicate different ways of representing the same object -- not a way of representing a slightly different type of object.  This enables us to make different storage-lager efficiency tradeoffs based on an object's contents or a user's access patterns.
+Each of the object blob formats begins with a varint format id.  For a given object type, different format ids indicate different ways of representing the same object -- not a way of representing a slightly different type of object.  This enables us to make different storage-layer efficiency tradeoffs based on an object's contents or a user's access patterns.
 
 These different formats are enumerated in `U.Codebase.Sqlite.{Term,Decl,Branch,Patch}.Format.hs` respectively, and collected below:
 
