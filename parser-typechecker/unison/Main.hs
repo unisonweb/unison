@@ -59,7 +59,6 @@ import ArgParse
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Control.Monad (when)
 
 cbInitFor :: CodebaseFormat -> Codebase.Init IO Symbol Ann
 cbInitFor = \case V1 -> FC.init; V2 -> SC.init
