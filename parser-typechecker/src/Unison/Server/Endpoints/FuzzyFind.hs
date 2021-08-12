@@ -11,12 +11,8 @@
 module Unison.Server.Endpoints.FuzzyFind where
 
 import Control.Error (runExceptT)
-import Control.Lens (view, _1)
-import Data.Aeson
-import Data.Function (on)
-import Data.List (sortBy)
+import Data.Aeson ( defaultOptions, genericToEncoding, ToJSON(toEncoding) )
 import Data.OpenApi (ToSchema)
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
 import Servant
   ( QueryParam,
@@ -152,9 +148,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
       branch <- Backend.resolveBranchHash root codebase
       let b0 = Branch.head branch
           alignments =
-            take (fromMaybe 10 limit)
-              . sortBy (compare `on` (Down . FZF.score . (view _1)))
-              $ Backend.fuzzyFind rel branch (fromMaybe "" query)
+            take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
           ppe = Backend.basicSuffixifiedNames hashLength branch rel
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea

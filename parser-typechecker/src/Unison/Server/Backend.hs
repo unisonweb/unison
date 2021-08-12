@@ -202,12 +202,15 @@ fuzzyFind
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind path branch query =
-  fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
-    .   (over _2 Name.toText)
-    <$> fzfNames
+  sortOn rank $
+    fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+      .   over _2 Name.toText
+      <$> fzfNames
  where
   fzfNames   = Names.fuzzyFind (words query) printNames
   printNames = basicPrettyPrintNames0 branch path
+  rank (alignment, name, _) = 
+    ( Name.countSegments (Name.unsafeFromText name), negate (FZF.score alignment))
 
 -- List the immediate children of a namespace
 findShallow
