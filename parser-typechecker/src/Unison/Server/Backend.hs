@@ -16,6 +16,7 @@ import Control.Monad.Except
   )
 import Data.Bifunctor (first,bimap)
 import Data.List.Extra (nubOrd)
+import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -195,6 +196,15 @@ data FoundRef = FoundTermRef Referent
               | FoundTypeRef Reference
   deriving (Eq, Ord, Show, Generic)
 
+-- After finding a search results with fuzzy find we do some post processing to
+-- refine the result:
+--  * Sort:
+--      we sort both on the FZF score and the number of segments in the FQN
+--      preferring shorter FQNs over longer. This helps with things like forks
+--      of base.
+--  * Dedupe:
+--      we dedupe on the found refs to avoid having several rows of a
+--      definition with different names in the result set.
 fuzzyFind
   :: Monad m
   => Path
@@ -202,15 +212,30 @@ fuzzyFind
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind path branch query =
-  sortOn rank $
-    fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
-      .   over _2 Name.toText
-      <$> fzfNames
- where
-  fzfNames   = Names.fuzzyFind (words query) printNames
-  printNames = basicPrettyPrintNames0 branch path
-  rank (alignment, name, _) = 
-    ( Name.countSegments (Name.unsafeFromText name), negate (FZF.score alignment))
+  let
+    printNames =
+      basicPrettyPrintNames0 branch path
+
+    fzfNames =
+      Names.fuzzyFind (words query) printNames
+
+    toFoundRef =
+      fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+
+    -- Remove dupes based on refs
+    dedupe =
+      nubOrdOn (\(_, _, refs) -> refs)
+
+    -- Prefer shorter FQNs
+    rank (alignment, name, _) =
+      (Name.countSegments (Name.unsafeFromText name)
+      , negate (FZF.score alignment)
+      )
+
+    refine =
+      dedupe . sortOn rank
+  in
+  refine $ toFoundRef . over _2 Name.toText <$> fzfNames
 
 -- List the immediate children of a namespace
 findShallow
