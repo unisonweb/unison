@@ -23,7 +23,9 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
 import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
+import qualified U.Codebase.Reference as V2
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
@@ -44,6 +46,7 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
+import qualified U.Util.Type as TypeUtil
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import UnliftIO.Directory (getHomeDirectory)
@@ -365,13 +368,12 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
-termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
-termsOfType c ty =
+termsOfType :: (Var v, Monad m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsOfType c ty = do
+  r <- Cv.reference2to1 (const (pure 0)) (TypeUtil.toReference (Cv.type1to2' Cv.reference1to2 ty))
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
-  where
-  r = Type.toReference ty
 
 termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsMentioningType c ty =

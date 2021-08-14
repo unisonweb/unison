@@ -386,15 +386,14 @@ type2to1' convertRef =
           V2.Kind.Arrow i o -> V1.Kind.Arrow (convertKind i) (convertKind o)
 
 dtype1to2 :: Hash -> V1.Type.Type V1.Symbol a -> V2.Type.TypeD V2.Symbol
-dtype1to2 h = type1to2' (rreference1to2 h)
+dtype1to2 h = V2.ABT.vmap symbol1to2 . type1to2' (rreference1to2 h)
 
 ttype1to2 :: V1.Type.Type V1.Symbol a -> V2.Type.TypeT V2.Symbol
-ttype1to2 = type1to2' reference1to2
+ttype1to2 = V2.ABT.vmap symbol1to2 . type1to2' reference1to2
 
-type1to2' :: (V1.Reference -> r) -> V1.Type.Type V1.Symbol a -> V2.Type.TypeR r V2.Symbol
+type1to2' :: Ord v => (V1.Reference -> r) -> V1.Type.Type v a -> V2.Type.TypeR r v
 type1to2' convertRef =
   V2.ABT.transform (typeF1to2' convertRef)
-    . V2.ABT.vmap symbol1to2
     . V2.ABT.amap (const ())
     . abt1to2
   where
