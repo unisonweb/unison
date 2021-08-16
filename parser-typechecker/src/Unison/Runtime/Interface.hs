@@ -1,6 +1,7 @@
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
 {-# language NamedFieldPuns #-}
+{-# language PatternSynonyms #-}
 {-# language ParallelListComp #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
@@ -24,7 +25,7 @@ import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Traversable (for)
-import Data.Text (Text)
+import Data.Text (Text, isPrefixOf)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
@@ -33,8 +34,10 @@ import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 
 import Unison.DataDeclaration (declFields, declDependencies, Decl)
+import qualified Unison.HashQualified as HQ
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
+import qualified Unison.Referent as RF (pattern Ref)
 import qualified Unison.Reference as RF
 
 import Unison.Util.EnumContainers as EC
@@ -168,10 +171,11 @@ backrefAdd m ctx@ECtx{ decompTm }
 
 loadDeps
   :: CodeLookup Symbol IO ()
+  -> PrettyPrintEnv
   -> EvalCtx
   -> Term Symbol
   -> IO EvalCtx
-loadDeps cl ctx tm = do
+loadDeps cl ppe ctx tm = do
   (tyrs, tmrs) <- collectDeps cl tm
   p <- refNumsTy (ccache ctx) <&> \m (r,_) -> case r of
     RF.DerivedId{} -> r `Map.notMember` dspec ctx
@@ -183,7 +187,7 @@ loadDeps cl ctx tm = do
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   rtms <- traverse (\r -> (,) r <$> resolveTermRef cl r)
             $ Prelude.filter q tmrs
-  let (rgrp, rbkr) = intermediateTerms ctx rtms
+  let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
       tyAdd = Set.fromList $ fst <$> tyrs
   backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
 
@@ -204,33 +208,44 @@ backrefLifted tm _ = Map.singleton 0 tm
 
 intermediateTerms
   :: HasCallStack
-  => EvalCtx
+  => PrettyPrintEnv
+  -> EvalCtx
   -> [(Reference, Term Symbol)]
   -> ( [(Reference, SuperGroup Symbol)]
      , Map.Map Reference (Map.Map Word64 (Term Symbol))
      )
-intermediateTerms ctx rtms
+intermediateTerms ppe ctx rtms
   = ((fmap.second) fst rint, Map.fromList $ (fmap.second) snd rint)
-  where rint = second (intermediateTerm ctx) <$> rtms
+  where
+  rint = rtms <&> \(ref, tm) ->
+    (ref, intermediateTerm ppe ref ctx tm)
 
 intermediateTerm
   :: HasCallStack
-  => EvalCtx
+  => PrettyPrintEnv
+  -> Reference
+  -> EvalCtx
   -> Term Symbol
   -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
-intermediateTerm ctx tm
+intermediateTerm ppe ref ctx tm
   = final
   . lamLift
   . splitPatterns (dspec ctx)
+  . addDefaultCases tmName
   . saturate (uncurryDspec $ dspec ctx)
   . inlineAlias
   $ tm
   where
   final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
+  tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation
-  :: HasCallStack => Term Symbol -> EvalCtx -> IO (EvalCtx, Word64)
-prepareEvaluation tm ctx = do
+  :: HasCallStack
+  => PrettyPrintEnv
+  -> Term Symbol
+  -> EvalCtx
+  -> IO (EvalCtx, Word64)
+prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rgrp (ccache ctx)
   when (not . null $ missing) . fail $
     reportBug "E029347" $ "Error in prepareEvaluation, cache is missing: " <> show missing
@@ -247,7 +262,7 @@ prepareEvaluation tm ctx = do
     | rmn <- RF.DerivedId $ Tm.hashClosedTerm tm
     = (rmn, [(rmn, tm)])
 
-  (rgrp, rbkr) = intermediateTerms ctx rtms
+  (rgrp, rbkr) = intermediateTerms ppe ctx rtms
 
 watchHook :: IORef Closure -> Stack 'UN -> Stack 'BX -> IO ()
 watchHook r _ bstk = peek bstk >>= writeIORef r
@@ -289,7 +304,8 @@ bugMsg ppe name tm
   , ""
   , sorryMsg
   ]
-  | name == "pattern match failure" = P.callout icon . P.lines $
+  | "pattern match failure" `isPrefixOf` name
+  = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a" <> P.red (P.text name)
       <> "while scrutinizing:")
   , ""
@@ -333,8 +349,8 @@ startRuntime = do
        { terminate = pure ()
        , evaluate = \cl ppe tm -> catchInternalErrors $ do
            ctx <- readIORef ctxVar
-           ctx <- loadDeps cl ctx tm
-           (ctx, init) <- prepareEvaluation tm ctx
+           ctx <- loadDeps cl ppe ctx tm
+           (ctx, init) <- prepareEvaluation ppe tm ctx
            writeIORef ctxVar ctx
            evalInContext ppe ctx init
        , mainType = builtinMain External
