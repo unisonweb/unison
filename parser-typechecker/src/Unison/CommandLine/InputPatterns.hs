@@ -308,6 +308,11 @@ docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
 
+ui :: InputPattern
+ui = InputPattern "ui" [] []
+      "`ui` opens the Codebase UI in the default browser."
+      (const $ pure Input.UiI)
+
 undo :: InputPattern
 undo = InputPattern "undo" [] []
       "`undo` reverts the most recent change to the codebase."
@@ -1406,6 +1411,7 @@ validInputs =
   , view
   , display
   , displayTo
+  , ui
   , docs
   , findPatch
   , viewPatch
