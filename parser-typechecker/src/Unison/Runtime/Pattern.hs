@@ -411,7 +411,19 @@ splitMatrixBuiltin v (PM rs)
   . toList
   . fmap buildMatrix
   . fromListWith (flip (++))
+  . expandIrrefutable
   $ splitRowBuiltin v =<< rs
+
+expandIrrefutable
+  :: Var v
+  => [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
+  -> [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
+expandIrrefutable rss = concatMap expand rss
+  where
+  specific = filter refutable $ fst <$> rss
+  expand tup@(p, rs)
+    | not (refutable p) = fmap (,rs) specific ++ [tup]
+  expand tup = [tup]
 
 matchPattern :: [(v,PType)] -> SeqMatch -> P.Pattern ()
 matchPattern vrs = \case
