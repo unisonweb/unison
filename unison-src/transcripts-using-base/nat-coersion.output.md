@@ -37,9 +37,9 @@ test = 'let
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-
+  
     ⍟ These new definitions are ok to `add`:
-
+    
       test    : '{IO} [Result]
       testNat : Nat
                 -> Optional Int
@@ -51,7 +51,7 @@ test = 'let
 .> add
 
   ⍟ I've added these definitions:
-
+  
     test    : '{IO} [Result]
     testNat : Nat
               -> Optional Int
@@ -61,7 +61,7 @@ test = 'let
 .> io.test test
 
     New test results:
-
+  
   ◉ test   expected 0.0 got 0.0
   ◉ test   round trip though float, expected 0 got 0
   ◉ test   expected 0 got 0
@@ -76,9 +76,9 @@ test = 'let
   ◉ test   round trip though float, expected 4607182418800017409 got 4607182418800017409
   ◉ test   expected 4607182418800017409 got 4607182418800017409
   ◉ test   round trip though Int, expected 4607182418800017409 got 4607182418800017409
-
+  
   ✅ 14 test(s) passing
-
+  
   Tip: Use view test to view the source of a test.
 
 ```
