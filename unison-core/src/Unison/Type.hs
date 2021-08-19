@@ -552,14 +552,29 @@ removeAllEffectVars t = let
 removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
+  generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
-    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
-    -- If an effect variable is mentioned only once, it is on
-    -- an arrow `a ->{e} b`. Generalizing this to
-    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
-    isPure v = ABT.occurrences v tu <= 1
+    vss = Set.fromList vs
+    fvs = freeEffectVars tu `Set.difference` keep
+
+    keep = keepVarsT True tu
+
+    keepVarsT pos (Arrow' i o)
+      = keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (Effect1' e o)
+      = keepVarsT pos e <> keepVarsT pos o
+    keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
+    keepVarsT pos (ForallNamed' _ t) = keepVarsT pos t
+    keepVarsT pos (IntroOuterNamed' _ t) = keepVarsT pos t
+    keepVarsT _ t = freeVars t
+
+    -- Note, this only allows removal if the variable was quantified,
+    -- so variables that were free in `t` will not be removed.
+    keepVarsE pos (Var' v)
+      | pos, v `Set.member` vss = mempty
+      | otherwise = Set.singleton v
+    keepVarsE pos e = keepVarsT pos e
 
 editFunctionResult
   :: forall v a
