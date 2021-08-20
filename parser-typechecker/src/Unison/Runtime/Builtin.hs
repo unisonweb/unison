@@ -459,6 +459,11 @@ appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
 conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
 snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
 
+coerceType :: Var v => Reference -> Reference -> SuperNormal v
+coerceType fromType toType = unop0 1 $ \[x,r]
+     -> unbox x fromType r
+      $ TCon toType 0 [r]
+
 takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
 takes = binop0 1 $ \[x0,y,x]
      -> unbox x0 Ty.natRef x
@@ -1250,6 +1255,8 @@ builtinLookup
   , ("Int.<=", lei)
   , ("Int.>", gti)
   , ("Int.>=", gei)
+  , ("Int.fromRepresentation", coerceType Ty.natRef Ty.intRef)
+  , ("Int.toRepresentation", coerceType Ty.intRef Ty.natRef)
   , ("Int.increment", inci)
   , ("Int.signum", sgni)
   , ("Int.negate", negi)
@@ -1307,6 +1314,8 @@ builtinLookup
   , ("Float.log", logf)
   , ("Float.logBase", logbf)
   , ("Float.sqrt", sqrtf)
+  , ("Float.fromRepresentation", coerceType Ty.natRef Ty.floatRef)
+  , ("Float.toRepresentation", coerceType Ty.floatRef Ty.natRef)
 
   , ("Float.min", minf)
   , ("Float.max", maxf)

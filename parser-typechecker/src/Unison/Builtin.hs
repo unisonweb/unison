@@ -282,6 +282,8 @@ builtinsSrc =
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
   , B "Int.popCount" $ int --> nat
+  , B "Int.fromRepresentation" $ nat --> int
+  , B "Int.toRepresentation" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -335,6 +337,8 @@ builtinsSrc =
   , B "Float.<=" $ float --> float --> boolean
   , B "Float.>=" $ float --> float --> boolean
   , B "Float.==" $ float --> float --> boolean
+  , B "Float.fromRepresentation" $ nat --> float
+  , B "Float.toRepresentation" $ float --> nat
 
   -- Trigonmetric Functions
   , B "Float.acos" $ float --> float

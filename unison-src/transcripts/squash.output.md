@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ #461002o629 (start of history)
+  □ #rmo1p21ibg (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #eus8fcflv8
+  ⊙ #nd5bbpuhc0
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #samr90cmo9
+  ⊙ #3sguitlvgr
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #461002o629 (start of history)
+  □ #rmo1p21ibg (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -71,21 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #eus8fcflv8
+  ⊙ #nd5bbpuhc0
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #samr90cmo9
+  ⊙ #3sguitlvgr
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #461002o629 (start of history)
+  □ #rmo1p21ibg (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -106,7 +106,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ #461002o629 (start of history)
+  □ #rmo1p21ibg (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -485,13 +485,13 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #sgaj8rdp8u
+  ⊙ #iedv81ls6h
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ #461002o629 (start of history)
+  □ #rmo1p21ibg (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
