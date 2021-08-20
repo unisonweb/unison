@@ -65,8 +65,24 @@ fslkdjflskdjflksjdf = 663
   Name changes:
   
     Original                             Changes
-    4. fslkdjflskdjflksjdf#4kipsv2tm6 ┐  5. abc (added)
-    6. x                              ┘  7. fslkdjflskdjflksjdf (added)
+    4. x                              ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
+                                         8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
+
+.b2> diff.namespace .b1
+
+  Resolved name conflicts:
+  
+    1. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    2. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
+       ↓
+    3. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+  
+  Name changes:
+  
+    Original                             Changes
+    4. x                              ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
                                          8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
 
 ```

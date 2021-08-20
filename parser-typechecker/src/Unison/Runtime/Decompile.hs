@@ -110,7 +110,8 @@ decompileForeign topTerms f
   = Right $ typeLink () l
   | Just s <- unwrapSeq f
   = list' () <$> traverse (decompile topTerms) s
-decompileForeign _ f = err $ "cannot decompile Foreign: " ++ show f
+decompileForeign _ f
+  = err $ "cannot decompile Foreign: " ++ show f
 
 decompileBytes :: Var v => By.Bytes -> Term v ()
 decompileBytes

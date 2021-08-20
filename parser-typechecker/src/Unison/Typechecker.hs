@@ -176,7 +176,7 @@ data Resolution v loc =
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve
-  :: (Monad f, Var v, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
+  :: (Monad f, Var v, Monoid loc, Ord loc) => Env v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve env = do
   tm  <- get
   (tp, notes) <- listen . lift $ synthesize env tm
@@ -210,7 +210,7 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution
   :: forall v loc f
-   . (Monad f, Var v, Ord loc)
+   . (Monad f, Var v, Ord loc, Monoid loc)
   => Notes v loc
   -> Type v loc
   -> Env v loc
@@ -294,7 +294,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) [Context.Suggestion v loc]
   resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
-    case Context.isSubtype (TypeVar.liftType foundType) inferredType of
+    case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
       Left bug -> const [] <$> compilerBug bug
       -- Suggest the import if the type matches.
       Right b  -> pure

@@ -7,6 +7,9 @@ import Control.Lens ((%=), _1, _2)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.State (State, evalState, get)
 import Data.Bifunctor (bimap)
+import Control.Error.Util (hush)
+import Data.Maybe as Maybe
+import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -16,7 +19,7 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
 import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
@@ -71,9 +74,9 @@ data Codebase m v a =
            , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
 
            , getRootBranch      :: m (Either GetRootBranchError (Branch m))
-           , putRootBranch      :: Branch m -> m ()
-           , rootBranchUpdates  :: m (IO (), IO (Set Branch.Hash))
-           , getBranchForHash   :: Branch.Hash -> m (Maybe (Branch m))
+           , putRootBranch        :: Branch m -> m ()
+           , rootBranchUpdates    :: m (IO (), IO (Set Branch.Hash))
+           , getBranchForHashImpl :: Branch.Hash -> m (Maybe (Branch m))
            , putBranch          :: Branch m -> m ()
            , branchExists       :: Branch.Hash -> m Bool
 
@@ -86,8 +89,8 @@ data Codebase m v a =
            , syncFromDirectory  :: CodebasePath -> SyncMode -> Branch m -> m ()
            -- This copies all the dependencies of `b` from this Codebase
            , syncToDirectory    :: CodebasePath -> SyncMode -> Branch m -> m ()
-           , viewRemoteBranch' :: RemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
-           , pushGitRootBranch :: Branch m -> RemoteRepo -> SyncMode -> m (Either GitError ())
+           , viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath))
+           , pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ())
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -125,6 +128,25 @@ data Codebase m v a =
            --  Use `Codebase.before` which wraps this in a nice API.
            , beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
            }
+
+-- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
+-- If not found, attempt to find it in the Codebase (sqlite)
+getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
+getBranchForHash codebase h = 
+  let
+    nestedChildrenForDepth depth b =
+      if depth == 0 then []
+      else
+        b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
+
+    headHashEq = (h ==) . Branch.headHash
+
+    find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
+  in do
+  rootBranch <- hush <$> getRootBranch codebase
+  case rootBranch of 
+    Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
+    Nothing -> getBranchForHashImpl codebase h
 
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
 lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
@@ -202,6 +224,12 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
+lookupWatchCache :: (Monad m) => Codebase m v a -> Reference -> m (Maybe (Term v a))
+lookupWatchCache codebase (Reference.DerivedId h) = do
+  m1 <- getWatch codebase UF.RegularWatch h
+  maybe (getWatch codebase UF.TestWatch h) (pure . Just) m1
+lookupWatchCache _ Reference.Builtin{} = pure Nothing
 
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)
@@ -323,6 +351,11 @@ getTypeOfTerm c r = case r of
     pure $   fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
+getTypeOfReferent :: (BuiltinAnnotation a, Var v, Monad m)
+                  => Codebase m v a -> Referent.Referent -> m (Maybe (Type v a))
+getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
+getTypeOfReferent c (Referent.Con r cid _) =
+  getTypeOfConstructor c r cid
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
@@ -373,7 +406,7 @@ importRemoteBranch ::
   forall m v a.
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   SyncMode ->
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode = runExceptT do
@@ -392,7 +425,7 @@ importRemoteBranch codebase ns mode = runExceptT do
 viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   m (Either GitError (m (), Branch m))
 viewRemoteBranch codebase ns = runExceptT do
   (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns

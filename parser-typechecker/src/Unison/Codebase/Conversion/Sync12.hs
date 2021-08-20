@@ -295,7 +295,7 @@ checkTermComponent t h n = do
             typeDeps = Type.dependencies typ
         let checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _ n') ->
+              Reference.Derived h' _ n' ->
                 getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
@@ -303,10 +303,10 @@ checkTermComponent t h n = do
             checkTerm = \case
               Reference.Builtin {} ->
                 pure ()
-              Reference.DerivedId (Reference.Id h' _ _)
+              Reference.Derived h' _ _
                 | h == h' ->
                   pure () -- ignore self-references
-              Reference.DerivedId (Reference.Id h' _ n') ->
+              Reference.Derived h' _ n' ->
                 getTermStatus h' >>= \case
                   Just TermOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
@@ -330,7 +330,7 @@ checkWatchComponent t k r@(Reference.Id h _ _) = do
       let deps = Term.labeledDependencies watchResult
       let checkDecl = \case
             Reference.Builtin {} -> pure ()
-            Reference.DerivedId (Reference.Id h' _ n') ->
+            Reference.Derived h' _ n' ->
               getDeclStatus h' >>= \case
                 Just DeclOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
@@ -338,10 +338,10 @@ checkWatchComponent t k r@(Reference.Id h _ _) = do
           checkTerm = \case
             Reference.Builtin {} ->
               pure ()
-            Reference.DerivedId (Reference.Id h' _ _)
+            Reference.Derived h' _ _
               | h == h' ->
                 pure () -- ignore self-references
-            Reference.DerivedId (Reference.Id h' _ n') ->
+            Reference.Derived h' _ n' ->
               getTermStatus h' >>= \case
                 Just TermOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
@@ -366,8 +366,8 @@ checkDeclComponent t h n = do
         let deps = DD.declDependencies decl
             checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _ _) | h == h' -> pure ()
-              Reference.DerivedId (Reference.Id h' _ n') ->
+              Reference.Derived h' _ _ | h == h' -> pure ()
+              Reference.Derived h' _ n' ->
                 getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError DeclMissingDependencies
@@ -450,14 +450,14 @@ repairPatch (Patch termEdits typeEdits) = do
     -- reference to it.  See Sync22.syncPatchLocalIds
     helpTermEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _ n) ->
+      Reference.Derived h _ n ->
         getTermStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ T h n
           Just TermOk -> pure True
           Just _ -> pure False
     helpTypeEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _ n) ->
+      Reference.Derived h _ n ->
         getDeclStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ D h n
           Just DeclOk -> pure True
@@ -506,7 +506,7 @@ validateTermReferent = \case
 validateTermReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTermReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i n) ->
+  Reference.Derived h _i n ->
     getTermStatus h >>= \case
       Nothing -> Validate.refute . Set.singleton $ T h n
       Just TermOk -> pure True
@@ -515,7 +515,7 @@ validateTermReference = \case
 validateTypeReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTypeReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i n) ->
+  Reference.Derived h _i n ->
     getDeclStatus h >>= \case
       Nothing -> Validate.refute . Set.singleton $ D h n
       Just DeclOk -> pure True

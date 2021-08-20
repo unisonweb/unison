@@ -25,8 +25,6 @@ data Element r = NumericLiteral
              | Reference r
              | Referent (Referent' r)
              | Op SeqOp
-             | Constructor
-             | Request
              | AbilityBraces
              -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
              | ControlKeyword
@@ -57,7 +55,7 @@ data Element r = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Show, Generic, Functor)
+             deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

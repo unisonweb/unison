@@ -225,3 +225,117 @@ These test that things we expect to be deleted are still deleted.
     P0.quux.x
 
 ```
+### Corner cases
+
+We're going to now do two concurrent edits with an update on one side to make sure 3-way merge behaves as expected.
+
+Here's the starting namespace, which will be the LCA.
+
+```unison
+a = 1
+
+f = (x y -> y) a "woot!"
+```
+
+```ucm
+  ☝️  The namespace .c1 is empty.
+
+.c1> add
+
+  ⍟ I've added these definitions:
+  
+    a : Nat
+    f : Text
+
+.> fork c1 c1a
+
+  Done.
+
+.> fork c1 c1b
+
+  Done.
+
+```
+```unison
+oog.b = 230948
+oog.c = 339249
+```
+
+In `c1a`, we add new definitions, `b` and `c`.
+
+```ucm
+.c1a> add
+
+  ⍟ I've added these definitions:
+  
+    oog.b : Nat
+    oog.c : Nat
+
+```
+In `c1b`, we update the definition `a`, which is used by `f`.
+
+```unison
+a = "hello world!"
+```
+
+```ucm
+.c1b> update
+
+  ⍟ I've updated these names to your new definition:
+  
+    a : Text
+
+```
+Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`, and the new definitions `b` and `c`:
+
+```ucm
+.> merge c1b c1a
+
+  Here's what's changed in c1a after the merge:
+  
+  Updates:
+  
+    1. a : Nat
+       ↓
+    2. a : Text
+  
+    There were 1 auto-propagated updates.
+  
+  Added definitions:
+  
+    3. patch patch (added 1 updates)
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.c1a> todo .c1b.patch
+
+  ✅
+  
+  No conflicts or edits in progress.
+
+.c1a> find
+
+  1. a : Text
+  2. f : Text
+  3. oog.b : Nat
+  4. oog.c : Nat
+  
+
+.c1a> view 1-4
+
+  a : Text
+  a = "hello world!"
+  
+  f : Text
+  f = (x y -> y) a "woot!"
+  
+  oog.b : Nat
+  oog.b = 230948
+  
+  oog.c : Nat
+  oog.c = 339249
+
+```

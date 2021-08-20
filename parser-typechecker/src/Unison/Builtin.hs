@@ -16,6 +16,7 @@ module Unison.Builtin
   ,intrinsicTermReferences
   ,intrinsicTypeReferences
   ,isBuiltinType
+  ,typeOf
   ,typeLookup
   ,termRefTypes
   ) where
@@ -247,6 +248,9 @@ termRefTypes = foldl' go mempty builtinsSrc where
     D r t -> Map.insert (R.Builtin r) t m
     _ -> m
 
+typeOf :: Var v => a -> (Type v -> a) -> R.Reference -> a
+typeOf a f r = maybe a f (Map.lookup r termRefTypes)
+
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
   [ B "Int.+" $ int --> int --> int
@@ -278,6 +282,8 @@ builtinsSrc =
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
   , B "Int.popCount" $ int --> nat
+  , B "Int.fromRepresentation" $ nat --> int
+  , B "Int.toRepresentation" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -308,6 +314,20 @@ builtinsSrc =
   , B "Nat.trailingZeros" $ nat --> nat
   , B "Nat.popCount" $ nat --> nat
 
+  , B "Bytes.decodeNat64be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat64le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16le" $ bytes --> optionalt (tuple [nat, bytes])
+
+  , B "Bytes.encodeNat64be" $ nat --> bytes
+  , B "Bytes.encodeNat64le" $ nat --> bytes
+  , B "Bytes.encodeNat32be" $ nat --> bytes
+  , B "Bytes.encodeNat32le" $ nat --> bytes
+  , B "Bytes.encodeNat16be" $ nat --> bytes
+  , B "Bytes.encodeNat16le" $ nat --> bytes
+
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
   , B "Float.*" $ float --> float --> float
@@ -317,6 +337,8 @@ builtinsSrc =
   , B "Float.<=" $ float --> float --> boolean
   , B "Float.>=" $ float --> float --> boolean
   , B "Float.==" $ float --> float --> boolean
+  , B "Float.fromRepresentation" $ nat --> float
+  , B "Float.toRepresentation" $ float --> nat
 
   -- Trigonmetric Functions
   , B "Float.acos" $ float --> float
@@ -517,10 +539,12 @@ ioBuiltins =
   , ("IO.isSeekable.impl.v3", handle --> iof boolean)
   , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
   , ("IO.handlePosition.impl.v3", handle --> iof nat)
+  , ("IO.getEnv.impl.v1", text --> iof text)
   , ("IO.getBuffering.impl.v3", handle --> iof bmode)
   , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
+  , ("IO.getLine.impl.v1", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
@@ -531,6 +555,7 @@ ioBuiltins =
   , ("IO.createDirectory.impl.v3", text --> iof unit)
   , ("IO.removeDirectory.impl.v3", text --> iof unit)
   , ("IO.renameDirectory.impl.v3", text --> text --> iof unit)
+  , ("IO.directoryContents.impl.v3", text --> iof (list text))
   , ("IO.removeFile.impl.v3", text --> iof unit)
   , ("IO.renameFile.impl.v3", text --> text --> iof unit)
   , ("IO.getFileTimestamp.impl.v3", text --> iof nat)

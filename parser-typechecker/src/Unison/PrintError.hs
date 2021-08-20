@@ -177,9 +177,9 @@ renderTypeError e env src = case e of
           <> style ErrorSite "if"
           <> "-expression has to be"
       AndMismatch ->
-        "The arguments to " <> style ErrorSite "and" <> " have to be"
+        "The arguments to " <> style ErrorSite "&&" <> " have to be"
       OrMismatch ->
-        "The arguments to " <> style ErrorSite "or" <> " have to be"
+        "The arguments to " <> style ErrorSite "||" <> " have to be"
       GuardMismatch ->
         "The guard expression for a "
           <> style ErrorSite "match"
@@ -359,6 +359,26 @@ renderTypeError e env src = case e of
       ]
     , debugSummary note
     ]
+  AbilityCheckFailure {..}
+    | C.InSubtype{} :<| _ <- C.path note -> mconcat
+    [ "The expression "
+    , describeStyle ErrorSite
+    , "\n\n"
+    , "              needs the abilities: {"
+    , commas (renderType' env) requested
+    , "}\n"
+    , "  but was assumed to only require: {"
+    , commas (renderType' env) ambient
+    , "}"
+    , "\n\n"
+    , "This is likely a result of using an un-annotated "
+    , "function as an argument with concrete abilities. "
+    , "Try adding an annotation to the function definition whose "
+    , "body is red."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
+    , debugSummary note
+    ]
   AbilityCheckFailure {..} -> mconcat
     [ "The expression "
     , describeStyle ErrorSite
@@ -418,7 +438,7 @@ renderTypeError e env src = case e of
           , "\n\n"
           , annotatedAsErrorSite src termSite
           , case expectedType of
-            Type.Var' (TypeVar.Existential _ _) -> "\nThere are no constraints on its type."
+            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
                 <> style Type1 (renderType' env expectedType)
@@ -762,7 +782,7 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
     -> Pretty (AnnotatedText a)
   showElem _ctx (C.Var v) = case v of
     TypeVar.Universal x     -> "@" <> renderVar x
-    TypeVar.Existential _ x -> "'" <> renderVar x
+    e -> Pr.shown e
   showElem ctx (C.Solved _ v (Type.Monotype t)) =
     "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
   showElem ctx (C.Ann v t) =
@@ -1088,6 +1108,14 @@ prettyParseError s = \case
              <> Pr.hiBlue (Pr.shown expected) <> "arguments (based on the previous patterns)"
              <> "but this one has " <> Pr.hiRed (Pr.shown actual) <> "arguments:",
       annotatedAsErrorSite s loc
+      ]
+  go (Parser.FloatPattern loc) = msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines
+      [ Pr.wrap
+          $ "Floating point pattern matching is disallowed. Instead,"
+         <> "it is recommended to test that a value is within"
+         <> "an acceptable error bound of the expected value."
+      , annotatedAsErrorSite s loc
       ]
   go (Parser.UseEmpty tok) = msg where
     msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [

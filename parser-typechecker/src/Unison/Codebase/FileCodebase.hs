@@ -31,7 +31,7 @@ import qualified U.Util.Cache as Cache
 import qualified Unison.Codebase.Init as Codebase
 import Unison.Codebase.Branch (headHash)
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), writeToRead, printWriteRepo)
 import Unison.Codebase.FileCodebase.Common
   ( Err (CantParseBranchHead),
     branchFromFiles,
@@ -263,7 +263,7 @@ branchHeadUpdates root = do
 -- * Git stuff
 
 viewRemoteBranch' :: forall m. (MonadIO m, MonadCatch m)
-  => Branch.Cache m -> RemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
+  => Branch.Cache m -> ReadRemoteNamespace -> ExceptT GitError m (Branch m, CodebasePath)
 viewRemoteBranch' cache (repo, sbh, path) = do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ pullBranch repo
@@ -295,12 +295,12 @@ pushGitRootBranch
   => Codebase.SyncToDir m
   -> Branch.Cache m
   -> Branch m
-  -> RemoteRepo
+  -> WriteRepo
   -> SyncMode
   -> ExceptT GitError m ()
 pushGitRootBranch syncToDirectory cache branch repo syncMode = do
   -- Pull the remote repo into a staging directory
-  (remoteRoot, remotePath) <- viewRemoteBranch' cache (repo, Nothing, Path.empty)
+  (remoteRoot, remotePath) <- viewRemoteBranch' cache (writeToRead repo, Nothing, Path.empty)
   ifM (pure (remoteRoot == Branch.empty)
         ||^ lift (remoteRoot `Branch.before` branch))
     -- ours is newer 👍, meaning this is a fast-forward push,
@@ -309,7 +309,7 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
     (throwError $ GitError.PushDestinationHasNewStuff repo)
   where
   stageAndPush remotePath = do
-    let repoString = Text.unpack $ printRepo repo
+    let repoString = Text.unpack $ printWriteRepo repo
     withStatus ("Staging files for upload to " ++ repoString ++ " ...") $
       lift (syncToDirectory remotePath syncMode branch)
     updateCausalHead (branchHeadDir remotePath) (Branch._history branch)
@@ -320,8 +320,8 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
           `withIOError` (throwError . GitError.PushException repo . show))
         (throwError $ GitError.PushNoOp repo)
   -- Commit our changes
-  push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
-  push remotePath (GitRepo url gitbranch) = do
+  push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
+  push remotePath (WriteGitRepo url) = do
     -- has anything changed?
     status <- gitTextIn remotePath ["status", "--short"]
     if Text.null status then
@@ -331,11 +331,5 @@ pushGitRootBranch syncToDirectory cache branch repo syncMode = do
       gitIn remotePath
         ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
       -- Push our changes to the repo
-      case gitbranch of
-        Nothing        -> gitIn remotePath ["push", "--quiet", url]
-        Just gitbranch -> error $
-          "Pushing to a specific branch isn't fully implemented or tested yet.\n"
-          ++ "InputPatterns.parseUri was expected to have prevented you "
-          ++ "from supplying the git treeish `" ++ Text.unpack gitbranch ++ "`!"
-          -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+      gitIn remotePath ["push", "--quiet", url]
       pure True

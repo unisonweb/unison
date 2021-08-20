@@ -1,20 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Server.Backend where
 
 import Control.Lens (_2, over)
-import Control.Error.Util ((??))
+import Control.Error.Util ((??),hush)
 import Control.Monad.Except
   ( ExceptT (..),
     throwError,
   )
-import Data.Bifunctor (first)
+import Data.Bifunctor (first,bimap)
+import Data.List.Extra (nubOrd)
+import Data.Containers.ListUtils (nubOrdOn)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -24,6 +26,8 @@ import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Builtin.Decls as Decls
+import qualified Unison.Codebase.Runtime as Rt
+import qualified Unison.Runtime.IOSource as DD
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
@@ -45,6 +49,7 @@ import Unison.Name as Name
   ( unsafeFromText,
   )
 import qualified Unison.Name as Name
+import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
@@ -78,9 +83,11 @@ import Unison.Util.Pretty (Width)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
-import Unison.Util.SyntaxText (SyntaxText)
-import qualified Unison.Util.SyntaxText as SyntaxText
+import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
+import qualified Unison.Server.Doc as Doc
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -103,6 +110,7 @@ data BackendError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
+  | CouldntLoadBranch Branch.Hash
   | MissingSignatureForTerm Reference
 
 type Backend m a = ExceptT BackendError m a
@@ -188,6 +196,15 @@ data FoundRef = FoundTermRef Referent
               | FoundTypeRef Reference
   deriving (Eq, Ord, Show, Generic)
 
+-- After finding a search results with fuzzy find we do some post processing to
+-- refine the result:
+--  * Sort:
+--      we sort both on the FZF score and the number of segments in the FQN
+--      preferring shorter FQNs over longer. This helps with things like forks
+--      of base.
+--  * Dedupe:
+--      we dedupe on the found refs to avoid having several rows of a
+--      definition with different names in the result set.
 fuzzyFind
   :: Monad m
   => Path
@@ -195,12 +212,30 @@ fuzzyFind
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind path branch query =
-  fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
-    .   (over _2 Name.toText)
-    <$> fzfNames
- where
-  fzfNames   = Names.fuzzyFind (words query) printNames
-  printNames = basicPrettyPrintNames0 branch path
+  let
+    printNames =
+      basicPrettyPrintNames0 branch path
+
+    fzfNames =
+      Names.fuzzyFind (words query) printNames
+
+    toFoundRef =
+      fmap (fmap (either FoundTermRef FoundTypeRef) . toList)
+
+    -- Remove dupes based on refs
+    dedupe =
+      nubOrdOn (\(_, _, refs) -> refs)
+
+    -- Prefer shorter FQNs
+    rank (alignment, name, _) =
+      (Name.countSegments (Name.unsafeFromText name)
+      , negate (FZF.score alignment)
+      )
+
+    refine =
+      dedupe . sortOn rank
+  in
+  refine $ toFoundRef . over _2 Name.toText <$> fzfNames
 
 -- List the immediate children of a namespace
 findShallow
@@ -228,7 +263,8 @@ termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
   -- A term is a doc if its type conforms to the `Doc` type.
   let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t $ Type.ref mempty Decls.docRef
+        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
+                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
       -- A term is a test if it has a link of type `IsTest`.
       isTest =
@@ -253,6 +289,37 @@ typeListEntry codebase r n = do
         _             -> Data
     _ -> pure Data
   pure $ TypeEntry r n tag
+
+typeDeclHeader
+  :: forall v m
+   . Monad m
+  => Var v
+  => Codebase m v Ann
+  -> PPE.PrettyPrintEnv
+  -> Reference
+  -> Backend m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+typeDeclHeader code ppe r = case Reference.toId r of
+  Just rid ->
+    (lift $ Codebase.getTypeDeclaration code rid) <&> \case
+      Nothing -> DisplayObject.MissingObject (Reference.toShortHash r)
+      Just decl ->
+        DisplayObject.UserObject $
+          Syntax.convertElement <$>
+            Pretty.render defaultWidth (DeclPrinter.prettyDeclHeader name decl)
+  Nothing ->
+    pure (DisplayObject.BuiltinObject (formatTypeName ppe r))
+  where
+    name = PPE.typeName ppe r
+
+formatTypeName :: PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
+formatTypeName ppe =
+  fmap Syntax.convertElement . formatTypeName' ppe
+
+formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> UST.SyntaxText
+formatTypeName' ppe r =
+  Pretty.renderUnbroken .
+  NP.styleHashQualified id $
+  PPE.typeName ppe r
 
 termEntryToNamedTerm
   :: Var v => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
@@ -370,7 +437,7 @@ searchBranchExact len names queries =
     searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTypes query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQType query names
+      let refs = toList $ Names3.lookupRelativeHQType query names
           mayName r Nothing  = HQ'.fromNamedReference "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
@@ -388,7 +455,7 @@ searchBranchExact len names queries =
     searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTerms query =
       -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupHQTerm query names
+      let refs = toList $ Names3.lookupRelativeHQTerm query names
           mayName r Nothing  = HQ'.fromNamedReferent "" r
           mayName _ (Just n) = n
       in  refs <&> \r ->
@@ -406,15 +473,14 @@ searchBranchExact len names queries =
   in
     [ searchTypes q <> searchTerms q | q <- queries ]
 
-hqNameQuery'
+hqNameQuery
   :: Monad m
-  => Bool
-  -> Maybe Path
+  => Maybe Path
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> m QueryResult
-hqNameQuery' doSuffixify relativeTo root codebase hqs = do
+hqNameQuery relativeTo root codebase hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
   -- Find the terms with those hashes.
@@ -438,8 +504,7 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
         (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
       typeResults =
         (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
-      -- Suffixify the names
-      parseNames = (if doSuffixify then Names3.suffixify else id) parseNames0
+      parseNames = parseNames0
       -- Now do the actual name query
       resultss   = searchBranchExact hqLength parseNames hqnames
       -- Handle query misses correctly
@@ -458,29 +523,11 @@ hqNameQuery' doSuffixify relativeTo root codebase hqs = do
           >>= snd
   pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
 
-hqNameQuery
-  :: Monad m
-  => Maybe Path
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuery = hqNameQuery' False
-
-hqNameQuerySuffixify
-  :: Monad m
-  => Maybe Path
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> m QueryResult
-hqNameQuerySuffixify = hqNameQuery' True
-
 -- TODO: Move this to its own module
 data DefinitionResults v =
   DefinitionResults
-    { termResults :: Map Reference (DisplayObject (Term v Ann))
-    , typeResults :: Map Reference (DisplayObject (DD.Decl v Ann))
+    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann))
+    , typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann))
     , noResults :: [HQ.HashQualified Name]
     }
 
@@ -509,34 +556,37 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
-prettyType
+formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> UST.SyntaxText
+formatType' ppe w =
+  Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
+
+formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> Syntax.SyntaxText
+formatType ppe w = mungeSyntaxText . formatType' ppe w
+
+formatSuffixedType
   :: Var v
-  => Width
-  -> PPE.PrettyPrintEnvDecl
+  => PPE.PrettyPrintEnvDecl
+  -> Width
   -> Type v Ann
   -> Syntax.SyntaxText
-prettyType width ppe =
-  mungeSyntaxText . Pretty.render width . TypePrinter.pretty0
-    (PPE.suffixifiedPPE ppe)
-    mempty
-    (-1)
+formatSuffixedType ppe = formatType (PPE.suffixifiedPPE ppe)
 
 mungeSyntaxText
-  :: Functor g => g (SyntaxText.Element Reference) -> g Syntax.Element
+  :: Functor g => g (UST.Element Reference) -> g Syntax.Element
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
-  :: forall v m
-   . Monad m
-  => Var v
+  :: forall v
+   . Var v
   => Maybe Path
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
-  -> Codebase m v Ann
+  -> Rt.Runtime v
+  -> Codebase IO v Ann
   -> [HQ.HashQualified Name]
-  -> Backend m DefinitionDisplayResults
-prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codebase query
+  -> Backend IO DefinitionDisplayResults
+prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
   = do
     branch                               <- resolveBranchHash root codebase
     DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
@@ -554,52 +604,103 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings codeba
         getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
       width = mayDefault renderWidth
+      isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
-        f k _ =
-          R.lookupRan (Referent.Ref' k)
-            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-            . R.mapDom Name.toText
-            . Names.terms
-            $ currentNames parseNames
+        rel = Names.terms $ currentNames parseNames
+        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+              $ R.lookupRan (Referent.Ref' k) rel
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
-        f k _ =
-          R.lookupRan k
-            . R.filterDom (\n -> "." `Text.isPrefixOf` n && n /= ".")
-            . R.mapDom Name.toText
-            . Names.types
-            $ currentNames parseNames
+        rel = Names.types $ currentNames parseNames
+        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+              $ R.lookupRan k rel
       flatten = Set.toList . fromMaybe Set.empty
+
+      docNames :: Set (HQ'.HashQualified Name) -> [Name]
+      docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
+        where docify n = Name.joinDot n "doc"
+
+      selectDocs :: [Referent] -> Backend IO [Reference]
+      selectDocs rs = do
+        rts <- fmap join . for rs $ \case
+          Referent.Ref r ->
+            maybe [] (pure . (r,)) <$> lift (Codebase.getTypeOfTerm codebase r)
+          _ -> pure []
+        pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
+
+      renderDoc :: Reference -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      renderDoc r = do
+        let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        let hash = Reference.toText r
+        map (name,hash,) . pure <$>
+          let tm = Term.ref () r
+          in Doc.renderDoc @v ppe terms typeOf eval decls tm
+        where
+          terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
+          terms (Reference.DerivedId r) =
+            fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+
+          typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+          eval (Term.amap (const mempty) -> tm) = do
+            let ppes = PPE.suffixifiedPPE ppe
+            let codeLookup = Codebase.toCodeLookup codebase
+            let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+            r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
+            lift $ case r of
+              Just tmr -> Codebase.putWatch codebase UF.RegularWatch
+                             (Term.hashClosedTerm tm)
+                             (Term.amap (const mempty) tmr)
+              Nothing -> pure ()
+            pure $ r <&> Term.amap (const mempty)
+
+          decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+          decls _ = pure Nothing
+
+      -- rs0 can be empty or the term fetched, so when viewing a doc term
+      -- you get both its source and its rendered form
+      docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults rs0 docs = do
+        let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
+        let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
+        -- lookup the type of each, make sure it's a doc
+        docs <- selectDocs (toList rs)
+        -- render all the docs
+        join <$> traverse renderDoc docs
+
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
-        let bn =
-              bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        let bn = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
         tag <- termEntryTag <$> termListEntry codebase
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        mk ts bn tag
+        docs <- docResults [r] $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        mk docs ts bn tag
        where
-        mk Nothing _ _ = throwError $ MissingSignatureForTerm r
-        mk (Just typeSig) bn tag =
-          pure
-            . TermDefinition (flatten $ Map.lookup r termFqns)
+        mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
+        mk docs (Just typeSig) bn tag =
+          pure $
+            TermDefinition (flatten $ Map.lookup r termFqns)
                              bn
                              tag
-                             (fmap mungeSyntaxText tm)
-            $ prettyType width ppe typeSig
+                             (bimap mungeSyntaxText mungeSyntaxText tm)
+                             (formatSuffixedType ppe width typeSig)
+                             docs
       mkTypeDefinition r tp = do
         let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
         tag <- Just . typeEntryTag <$> typeListEntry
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        pure . TypeDefinition (flatten $ Map.lookup r typeFqns) bn tag $ fmap
-          mungeSyntaxText
-          tp
+        docs <- docResults [] $ docNames (Names3.typeName hqLength r printNames)
+        pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
+                              bn
+                              tag
+                              (bimap mungeSyntaxText mungeSyntaxText tp)
+                              docs
     typeDefinitions <- Map.traverseWithKey mkTypeDefinition
       $ typesToSyntax suffixifyBindings width ppe types
     termDefinitions <- Map.traverseWithKey mkTermDefinition
@@ -616,7 +717,7 @@ bestNameForTerm
 bestNameForTerm ppe width =
   Text.pack
     . Pretty.render width
-    . fmap SyntaxText.toPlain
+    . fmap UST.toPlain
     . TermPrinter.pretty0 @v ppe TermPrinter.emptyAc
     . Term.fromReferent mempty
 
@@ -625,7 +726,7 @@ bestNameForType
 bestNameForType ppe width =
   Text.pack
     . Pretty.render width
-    . fmap SyntaxText.toPlain
+    . fmap UST.toPlain
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
@@ -639,7 +740,7 @@ resolveBranchHash h codebase = case h of
 
 definitionsBySuffixes
   :: forall m v
-   . Monad m
+   . (MonadIO m)
   => Var v
   => Maybe Path
   -> Branch m
@@ -649,7 +750,7 @@ definitionsBySuffixes
 definitionsBySuffixes relativeTo branch codebase query = do
   -- First find the hashes by name and note any query misses.
   QueryResult misses results <- lift
-    $ hqNameQuerySuffixify relativeTo branch codebase query
+    $ hqNameQuery relativeTo branch codebase query
   -- Now load the terms/types for those hashes.
   results' <- lift $ loadSearchResults codebase results
   let termTypes :: Map.Map Reference (Type v Ann)
@@ -681,13 +782,15 @@ definitionsBySuffixes relativeTo branch codebase query = do
         Just (tm, typ) -> case tm of
           Term.Ann' _ _ -> UserObject tm
           _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
-    r@(Reference.Builtin _) -> pure (r, BuiltinObject)
+    r@(Reference.Builtin _) -> pure $ (r,) $ case Map.lookup r B.termRefTypes of
+      Nothing -> MissingObject $ Reference.toShortHash r
+      Just typ -> BuiltinObject (mempty <$ typ)
   let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
         r@(Reference.DerivedId i) ->
           (r, )
             . maybe (MissingObject $ Reference.idToShortHash i) UserObject
             $ Map.lookup i loadedDerivedTypes
-        r@(Reference.Builtin _) -> (r, BuiltinObject)
+        r@(Reference.Builtin _) -> (r, BuiltinObject ())
   pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
 
 termsToSyntax
@@ -696,8 +799,8 @@ termsToSyntax
   => Suffixify
   -> Width
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (Term v a))
-  -> Map Reference.Reference (DisplayObject SyntaxText)
+  -> Map Reference.Reference (DisplayObject (Type v a) (Term v a))
+  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
 termsToSyntax suff width ppe0 terms =
   Map.fromList . map go . Map.toList $ Map.mapKeys
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
@@ -708,8 +811,12 @@ termsToSyntax suff width ppe0 terms =
     else PPE.declarationPPE ppe0 r
   ppeDecl =
     (if suffixified suff then PPE.suffixifiedPPE else PPE.unsuffixifiedPPE) ppe0
-  go ((n, r), dt) =
-    (r, Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n <$> dt)
+  go ((n, r), dt) = (r,) $ case dt of
+    DisplayObject.BuiltinObject typ -> DisplayObject.BuiltinObject $
+      formatType' (ppeBody r) width typ
+    DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
+    DisplayObject.UserObject tm -> DisplayObject.UserObject .
+      Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n $ tm
 
 typesToSyntax
   :: Var v
@@ -717,8 +824,8 @@ typesToSyntax
   => Suffixify
   -> Width
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a))
-  -> Map Reference.Reference (DisplayObject SyntaxText)
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a))
+  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
 typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)
@@ -730,16 +837,11 @@ typesToSyntax suff width ppe0 types =
   ppeDecl = if suffixified suff
     then PPE.suffixifiedPPE ppe0
     else PPE.unsuffixifiedPPE ppe0
-  go ((n, r), dt) =
-    ( r
-    , (\case
-        Left d ->
-          Pretty.render width $ DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-        Right d ->
-          Pretty.render width $ DeclPrinter.prettyDataDecl (ppeBody r) r n d
-      )
-      <$> dt
-    )
+  go ((n, r), dt) = (r,) $ case dt of
+    BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
+    MissingObject sh -> MissingObject sh
+    UserObject d -> UserObject . Pretty.render width $
+      DeclPrinter.prettyDecl (ppeBody r) r n d
 
 loadSearchResults
   :: (Var v, Applicative m)
@@ -760,9 +862,9 @@ loadTypeDisplayObject
   :: Applicative m
   => Codebase m v Ann
   -> Reference
-  -> m (DisplayObject (DD.Decl v Ann))
+  -> m (DisplayObject () (DD.Decl v Ann))
 loadTypeDisplayObject c = \case
-  Reference.Builtin _ -> pure BuiltinObject
+  Reference.Builtin _ -> pure (BuiltinObject ())
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id

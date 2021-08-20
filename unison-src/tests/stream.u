@@ -23,7 +23,7 @@ run' = cases Stream s -> s
 (++) : Stream {e} a r -> Stream {e} a r -> Stream {e} a r
 s1 ++ s2 = Stream '(forceBoth (run' s1) (run' s2))
 
-from : Nat -> Stream e Nat ()
+from : Nat -> Stream {} Nat ()
 from n = unfold n (n -> Some (n, n + 1))
 
 -- take : Nat -> Stream {} a () -> Stream {} a ()
@@ -53,7 +53,7 @@ toSeq s =
     {_} -> acc
   handle run s with step []
 
-fromSeq : [a] -> Stream e a ()
+fromSeq : [a] -> Stream {} a ()
 fromSeq a =
   step a = match List.at 0 a with
     None -> None

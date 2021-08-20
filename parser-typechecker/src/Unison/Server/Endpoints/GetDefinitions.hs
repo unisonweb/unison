@@ -24,6 +24,7 @@ import Servant.Docs
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
@@ -40,6 +41,7 @@ import Unison.Server.Types
     APIHeaders,
     DefinitionDisplayResults,
     HashQualifiedName,
+    NamespaceFQN,
     Suffixify (..),
     addHeaders,
     defaultWidth,
@@ -49,7 +51,7 @@ import Unison.Var (Var)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
-                  :> QueryParam "relativeTo" HashQualifiedName
+                  :> QueryParam "relativeTo" NamespaceFQN
                   :> QueryParams "names" HashQualifiedName
                   :> QueryParam "renderWidth" Width
                   :> QueryParam "suffixifyBindings" Suffixify
@@ -77,7 +79,7 @@ instance ToParam (QueryParam "suffixifyBindings" Suffixify) where
     Normal
 
 
-instance ToParam (QueryParam "relativeTo" HashQualifiedName) where
+instance ToParam (QueryParam "relativeTo" NamespaceFQN) where
   toParam _ = DocQueryParam
     "relativeTo"
     [".", ".base", "foo.bar"]
@@ -108,14 +110,15 @@ instance ToSample DefinitionDisplayResults where
 serveDefinitions
   :: Var v
   => Handler ()
+  -> Rt.Runtime v
   -> Codebase IO v Ann
   -> Maybe ShortBranchHash
-  -> Maybe HashQualifiedName
+  -> Maybe NamespaceFQN
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify
   -> Handler (APIHeaders DefinitionDisplayResults)
-serveDefinitions h codebase mayRoot relativePath hqns width suff =
+serveDefinitions h rt codebase mayRoot relativePath hqns width suff =
   addHeaders <$> do
     h
     rel <-
@@ -126,6 +129,7 @@ serveDefinitions h codebase mayRoot relativePath hqns width suff =
                                           root
                                           width
                                           (fromMaybe (Suffixify True) suff)
+                                          rt
                                           codebase
         $   HQ.unsafeFromText
         <$> hqns

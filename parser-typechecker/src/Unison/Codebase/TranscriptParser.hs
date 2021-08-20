@@ -298,6 +298,7 @@ run dir configFile stanzas codebase = do
                                      printNumbered
                                      loadPreviousUnisonBlock
                                      codebase
+                                     Nothing
                                      rng
                                      free
         case o of

@@ -7,21 +7,33 @@ Unison has cryptographic builtins for hashing and computing [HMACs](https://en.w
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
-  3.  drop                  (Nat -> Bytes -> Bytes)
-  4.  empty                 (Bytes)
-  5.  flatten               (Bytes -> Bytes)
-  6.  fromBase16            (Bytes -> Either Text Bytes)
-  7.  fromBase32            (Bytes -> Either Text Bytes)
-  8.  fromBase64            (Bytes -> Either Text Bytes)
-  9.  fromBase64UrlUnpadded (Bytes -> Either Text Bytes)
-  10. fromList              ([Nat] -> Bytes)
-  11. size                  (Bytes -> Nat)
-  12. take                  (Nat -> Bytes -> Bytes)
-  13. toBase16              (Bytes -> Bytes)
-  14. toBase32              (Bytes -> Bytes)
-  15. toBase64              (Bytes -> Bytes)
-  16. toBase64UrlUnpadded   (Bytes -> Bytes)
-  17. toList                (Bytes -> [Nat])
+  3.  decodeNat16be         (Bytes -> Optional (Nat, Bytes))
+  4.  decodeNat16le         (Bytes -> Optional (Nat, Bytes))
+  5.  decodeNat32be         (Bytes -> Optional (Nat, Bytes))
+  6.  decodeNat32le         (Bytes -> Optional (Nat, Bytes))
+  7.  decodeNat64be         (Bytes -> Optional (Nat, Bytes))
+  8.  decodeNat64le         (Bytes -> Optional (Nat, Bytes))
+  9.  drop                  (Nat -> Bytes -> Bytes)
+  10. empty                 (Bytes)
+  11. encodeNat16be         (Nat -> Bytes)
+  12. encodeNat16le         (Nat -> Bytes)
+  13. encodeNat32be         (Nat -> Bytes)
+  14. encodeNat32le         (Nat -> Bytes)
+  15. encodeNat64be         (Nat -> Bytes)
+  16. encodeNat64le         (Nat -> Bytes)
+  17. flatten               (Bytes -> Bytes)
+  18. fromBase16            (Bytes -> Either Text Bytes)
+  19. fromBase32            (Bytes -> Either Text Bytes)
+  20. fromBase64            (Bytes -> Either Text Bytes)
+  21. fromBase64UrlUnpadded (Bytes -> Either Text Bytes)
+  22. fromList              ([Nat] -> Bytes)
+  23. size                  (Bytes -> Nat)
+  24. take                  (Nat -> Bytes -> Bytes)
+  25. toBase16              (Bytes -> Bytes)
+  26. toBase32              (Bytes -> Bytes)
+  27. toBase64              (Bytes -> Bytes)
+  28. toBase64UrlUnpadded   (Bytes -> Bytes)
+  29. toList                (Bytes -> [Nat])
 
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
@@ -104,15 +116,15 @@ And here's the full API:
 ```ucm
 .builtin.crypto> find
 
-  1.  builtin type HashAlgorithm
-  2.  HashAlgorithm.Blake2b_256 : HashAlgorithm
-  3.  HashAlgorithm.Blake2b_512 : HashAlgorithm
-  4.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  5.  HashAlgorithm.Sha2_256 : HashAlgorithm
-  6.  HashAlgorithm.Sha2_512 : HashAlgorithm
-  7.  HashAlgorithm.Sha3_256 : HashAlgorithm
-  8.  HashAlgorithm.Sha3_512 : HashAlgorithm
-  9.  hash : HashAlgorithm -> a -> Bytes
+  1.  hash : HashAlgorithm -> a -> Bytes
+  2.  builtin type HashAlgorithm
+  3.  HashAlgorithm.Blake2b_256 : HashAlgorithm
+  4.  HashAlgorithm.Blake2b_512 : HashAlgorithm
+  5.  HashAlgorithm.Blake2s_256 : HashAlgorithm
+  6.  HashAlgorithm.Sha2_256 : HashAlgorithm
+  7.  HashAlgorithm.Sha2_512 : HashAlgorithm
+  8.  HashAlgorithm.Sha3_256 : HashAlgorithm
+  9.  HashAlgorithm.Sha3_512 : HashAlgorithm
   10. hashBytes : HashAlgorithm -> Bytes -> Bytes
   11. hmac : HashAlgorithm -> Bytes -> a -> Bytes
   12. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes

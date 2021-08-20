@@ -105,6 +105,7 @@ data Error v
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
+  | FloatPattern Ann
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -244,8 +245,7 @@ run' p s name env =
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-      env' = env { names = Names.suffixify (names env) }
-  in runParserT pTraced name (Input lex) env'
+  in runParserT pTraced name (Input lex) env
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""

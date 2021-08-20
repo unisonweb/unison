@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Names2
   ( Names0
@@ -49,10 +50,12 @@ import Unison.Prelude
 
 import qualified Data.Map                     as Map
 import qualified Data.Set                     as Set
+import qualified Data.Text                    as Text
 import           Prelude                      hiding (filter)
+import qualified Prelude
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
-import           Unison.Name                  (Name)
+import           Unison.Name                  (Name,Alphabetical)
 import qualified Unison.Name                  as Name
 import           Unison.Reference             (Reference)
 import qualified Unison.Reference             as Reference
@@ -85,10 +88,25 @@ fuzzyFind
 fuzzyFind query names =
   fmap flatten
     .  fuzzyFinds (Name.toString . fst) query
+    .  Prelude.filter prefilter
     .  Map.toList
-    $  R.toMultimap (R.mapRan Left $ terms names)
-    <> R.toMultimap (R.mapRan Right $ types names)
+    -- `mapMonotonic` is safe here and saves a log n factor
+    $  (Set.mapMonotonic Left <$> R.toMultimap (terms names))
+    <> (Set.mapMonotonic Right <$> R.toMultimap (types names))
  where
+  lowerqueryt = Text.toLower . Text.pack <$> query
+  -- For performance, case-insensitive substring matching as a pre-filter
+  -- This finds fewer matches than subsequence matching, but is
+  -- (currently) way faster even on large name sets.
+  prefilter (Name.toText -> name, _) = case lowerqueryt of
+    -- Special cases here just to help optimizer, since
+    -- not sure if `all` will get sufficiently unrolled for
+    -- Text fusion to work out.
+    [q] -> q `Text.isInfixOf` lowername
+    [q1,q2] -> q1 `Text.isInfixOf` lowername && q2 `Text.isInfixOf` lowername
+    query -> all (`Text.isInfixOf` lowername) query
+    where
+    lowername = Text.toLower name
   flatten (a, (b, c)) = (a, b, c)
   fuzzyFinds :: (a -> String) -> [String] -> [a] -> [(FZF.Alignment, a)]
   fuzzyFinds f query d =
@@ -247,7 +265,7 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Ord n => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
+hqName :: (Ord n, Alphabetical n) => Names' n -> n -> Either Reference Referent -> HQ.HashQualified n
 hqName b n = \case
   Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
   Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
@@ -256,31 +274,31 @@ hqName b n = \case
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Ord n => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
+hqTermName :: (Ord n, Alphabetical n) => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
   else HQ.fromName n
 
-hqTypeName :: Ord n => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
+hqTypeName :: (Ord n, Alphabetical n) => Int -> Names' n -> n -> Reference -> HQ.HashQualified n
 hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName' hqLen n r
   else HQ.fromName n
 
-_hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified n
+_hqTermName :: (Ord n, Alphabetical n) => Names' n -> n -> Referent -> HQ.HashQualified n
 _hqTermName b n r = if Set.size (termsNamed b n) > 1
   then _hqTermName' b n r
   else HQ.fromName n
 
-_hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified n
+_hqTypeName :: (Ord n, Alphabetical n) => Names' n -> n -> Reference -> HQ.HashQualified n
 _hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then _hqTypeName' b n r
   else HQ.fromName n
 
 _hqTypeAliases ::
-  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
+  (Ord n, Alphabetical n) => Names' n -> n -> Reference -> Set (HQ.HashQualified n)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-_hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
+_hqTermAliases :: (Ord n, Alphabetical n) => Names' n -> n -> Referent -> Set (HQ.HashQualified n)
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the

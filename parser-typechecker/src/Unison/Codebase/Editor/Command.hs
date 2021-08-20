@@ -78,6 +78,8 @@ data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
+  UI :: Command m i v ()
+
   HQNameQuery
     :: Maybe Path
     -> Branch m
@@ -177,13 +179,13 @@ data Command m i v a where
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
-    RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
+    ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -191,7 +193,7 @@ data Command m i v a where
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
   SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
@@ -246,6 +248,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
+  UI                          -> "UI"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"

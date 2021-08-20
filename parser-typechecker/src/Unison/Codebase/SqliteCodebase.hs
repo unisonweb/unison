@@ -69,7 +69,7 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), writeToRead, printWriteRepo)
 import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
@@ -992,7 +992,7 @@ syncProgress = Sync.Progress need done warn allDone
 viewRemoteBranch' ::
   forall m.
   (MonadIO m, MonadCatch m) =>
-  RemoteNamespace ->
+  ReadRemoteNamespace ->
   m (Either GitError (m (), Branch m, CodebasePath))
 viewRemoteBranch' (repo, sbh, path) = runExceptT do
   -- set up the cache dir
@@ -1036,7 +1036,7 @@ pushGitRootBranch ::
   (MonadIO m, MonadCatch m) =>
   Connection ->
   Branch m ->
-  RemoteRepo ->
+  WriteRepo ->
   m (Either GitError ())
 pushGitRootBranch srcConn branch repo = runExceptT @GitError do
   -- pull the remote repo to the staging directory
@@ -1048,7 +1048,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
   -- if it fails, rollback to the savepoint and clean up.
 
   -- set up the cache dir
-  remotePath <- time "Git fetch" $ pullBranch repo
+  remotePath <- time "Git fetch" $ pullBranch (writeToRead repo)
   destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
 
   flip runReaderT destConn $ Q.savepoint "push"
@@ -1085,7 +1085,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
     shutdownConnection destConn
     void $ push remotePath repo
   where
-    repoString = Text.unpack $ printRepo repo
+    repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
@@ -1132,8 +1132,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
+    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -1159,14 +1159,5 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
             -- Push our changes to the repo
-            case gitbranch of
-              Nothing -> gitIn remotePath ["push", "--quiet", url]
-              Just gitbranch ->
-                error $
-                  "Pushing to a specific branch isn't fully implemented or tested yet.\n"
-                    ++ "InputPatterns.parseUri was expected to have prevented you "
-                    ++ "from supplying the git treeish `"
-                    ++ Text.unpack gitbranch
-                    ++ "`!"
-                -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+            gitIn remotePath ["push", "--quiet", url]
             pure True

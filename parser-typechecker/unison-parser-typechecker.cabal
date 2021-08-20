@@ -79,7 +79,6 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.TypeEdit
       Unison.Codebase.Watch
-      Unison.Codecs
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.InputPattern
@@ -116,6 +115,7 @@ library
       Unison.Runtime.Vector
       Unison.Server.Backend
       Unison.Server.CodebaseServer
+      Unison.Server.Doc
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.ListNamespace
@@ -185,52 +185,43 @@ library
     , base16 >=0.2.1.0
     , base64-bytestring
     , basement
-    , bifunctors
     , bytes
     , bytestring
     , cereal
-    , comonad
-    , concurrent-supply
     , configurator
     , containers >=0.6.3
     , cryptonite
     , data-default
     , data-memocombinators
     , directory
-    , edit-distance
     , either
     , errors
     , exceptions
     , extra
     , filepath
-    , filepattern
     , fingertree
-    , free
     , fsnotify
     , fuzzyfind
     , generic-monoid
-    , guid
     , hashable
     , hashtables
     , haskeline
     , http-media
     , http-types
-    , io-streams
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mmorph
-    , monad-loops
     , monad-validate
     , mtl
-    , murmur-hash
     , mutable-containers
     , natural-transformation
     , network
     , network-simple
     , nonempty-containers
+    , open-browser
     , openapi3
-    , optparse-applicative
+    , optparse-applicative >=0.16.1.0
     , pem
     , primitive
     , process
@@ -241,12 +232,10 @@ library
     , safe
     , safe-exceptions
     , servant
-    , servant-auth-server
     , servant-docs
     , servant-openapi3
     , servant-server
     , shellmet
-    , split
     , sqlite-simple
     , stm
     , strings
@@ -265,10 +254,8 @@ library
     , unison-core1
     , unison-util
     , unliftio
-    , unliftio-core
+    , uri-encode
     , utf8-string
-    , util
-    , validation
     , vector
     , wai
     , warp
@@ -346,6 +333,7 @@ executable tests
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
+      Unison.Test.Util.Relation
       Unison.Test.Var
       Unison.Test.VersionParser
       Paths_unison_parser_typechecker
@@ -433,6 +421,8 @@ executable transcripts
 executable unison
   main-is: Main.hs
   other-modules:
+      ArgParse
+      Compat
       System.Path
       Version
       Paths_unison_parser_typechecker
@@ -463,6 +453,7 @@ executable unison
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative >=0.16.1.0
     , safe
     , shellmet
     , template-haskell

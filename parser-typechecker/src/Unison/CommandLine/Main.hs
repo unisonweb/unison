@@ -17,10 +17,11 @@ import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
+import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, printNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, printNamespace)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
@@ -39,7 +40,6 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
-import qualified Unison.Runtime.Interface      as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
@@ -144,7 +144,7 @@ welcomeMessage dir version =
          , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
          ]
 
-hintFreshCodebase :: RemoteNamespace -> P.Pretty P.ColorText
+hintFreshCodebase :: ReadRemoteNamespace -> P.Pretty P.ColorText
 hintFreshCodebase ns =
   P.wrap $ "Enter "
     <> (P.hiBlue . P.group)
@@ -153,14 +153,16 @@ hintFreshCodebase ns =
 
 main
   :: FilePath
-  -> Maybe RemoteNamespace
+  -> Maybe ReadRemoteNamespace
   -> Path.Absolute
   -> (Config, IO ())
   -> [Either Event Input]
+  -> Runtime.Runtime Symbol
   -> Codebase IO Symbol Ann
   -> String
+  -> Maybe Server.BaseUrl
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase version = do
+main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -169,7 +171,6 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase
       _ -> welcomeMessage dir' version
   eventQueue <- Q.newIO
   do
-    runtime                  <- RTI.startRuntime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
@@ -241,6 +242,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs codebase
                                       putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
+                                     serverBaseUrl
                                      (const Random.getSystemDRG)
                                      free
         case o of

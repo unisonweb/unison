@@ -1,4 +1,4 @@
-use Float abs max min toText fromText
+use Float abs max min toText fromText eq
 use Optional Some None
 
 withDefault : Optional a -> a -> a
@@ -12,4 +12,6 @@ withDefault opt d = match opt with
    min 1.1 1.5,
    toText 1.1,
    withDefault (fromText "1.5") -1.0,
-   withDefault (fromText "Hello world!") -1.0)
+   withDefault (fromText "Hello world!") -1.0,
+   eq 0.0 0.0,
+   eq 0.0 2.0)

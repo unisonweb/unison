@@ -30,6 +30,7 @@ import qualified Unison.Util.SyntaxText as S
 import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.CommandLine.OutputMessages as OutputMessages
 import qualified Unison.ConstructorType as CT
+import qualified Unison.Builtin as Builtin
 
 type Pretty = P.Pretty P.ColorText
 
@@ -132,19 +133,18 @@ displayPretty pped terms typeOf eval types tm = go tm
         tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
     typeMap <- let
       -- todo: populate the variable names / kind once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject ())
       go ref = (ref,) <$> do
         decl <- types ref
         let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
         pure $ maybe missing DO.UserObject decl
       in Map.fromList <$> traverse go tys
     termMap <- let
-      -- todo: populate the type signature once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-      go ref = (ref,) <$> do
-        tm <- terms ref
-        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-        pure $ maybe missing DO.UserObject tm
+      go ref = (ref,) <$> case ref of
+        Reference.Builtin _ -> pure $ Builtin.typeOf missing DO.BuiltinObject ref
+        _ -> maybe missing DO.UserObject <$> terms ref
+        where
+          missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
       in Map.fromList <$> traverse go tms
     -- in docs, we use suffixed names everywhere
     let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }

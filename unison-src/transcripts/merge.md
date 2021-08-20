@@ -99,3 +99,51 @@ These test that things we expect to be deleted are still deleted.
 ```ucm:error
 .> view P0.quux.x
 ```
+
+### Corner cases
+
+We're going to now do two concurrent edits with an update on one side to make sure 3-way merge behaves as expected.
+
+Here's the starting namespace, which will be the LCA.
+
+```unison:hide
+a = 1
+
+f = (x y -> y) a "woot!"
+```
+
+```ucm
+.c1> add
+.> fork c1 c1a
+.> fork c1 c1b
+```
+
+```unison:hide
+oog.b = 230948
+oog.c = 339249
+```
+
+In `c1a`, we add new definitions, `b` and `c`.
+
+```ucm
+.c1a> add
+```
+
+In `c1b`, we update the definition `a`, which is used by `f`.
+
+```unison:hide
+a = "hello world!"
+```
+
+```ucm
+.c1b> update
+```
+
+Now merging `c1b` into `c1a` should result in the updated version of `a` and `f`, and the new definitions `b` and `c`:
+
+```ucm
+.> merge c1b c1a
+.c1a> todo .c1b.patch
+.c1a> find
+.c1a> view 1-4
+```

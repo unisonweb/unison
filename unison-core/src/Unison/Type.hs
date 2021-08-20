@@ -26,7 +26,6 @@ import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
-import qualified Unison.Util.Relation as R
 import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
@@ -68,9 +67,10 @@ bindNames
   -> Names.Names0
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
-bindNames keepFree ns t = let
+bindNames keepFree ns0 t = let
+  ns = Names.Names ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
+  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t
@@ -95,6 +95,7 @@ arity _ = 0
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 pattern Arrows' spine <- (unArrows -> Just spine)
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)
@@ -481,15 +482,31 @@ freeEffectVars t =
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
+-- Converts all unadorned arrows in a type to have fresh
+-- existential ability requirements. For example:
+--
+--   (a -> b) -> [a] -> [b]
+--
+-- Becomes
+--
+--   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
 existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
-existentializeArrows freshVar = ABT.visit go
+existentializeArrows newVar t = ABT.visit go t
  where
   go t@(Arrow' a b) = case b of
-    Effect1' _ _ -> Nothing
+    -- If an arrow already has attached abilities,
+    -- leave it alone. Ex: `a ->{e} b` is kept as is.
+    Effect1' _ _ -> Just $ do
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
+      pure $ arrow (ABT.annotation t) a b
+    -- For unadorned arrows, make up a fresh variable.
+    -- So `a -> b` becomes `a ->{e} b`, using the
+    -- `newVar` variable generator.
     _            -> Just $ do
-      e <- freshVar
-      a <- existentializeArrows freshVar a
-      b <- existentializeArrows freshVar b
+      e <- newVar
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing
@@ -535,14 +552,29 @@ removeAllEffectVars t = let
 removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
+  generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
-    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
-    -- If an effect variable is mentioned only once, it is on
-    -- an arrow `a ->{e} b`. Generalizing this to
-    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
-    isPure v = ABT.occurrences v tu <= 1
+    vss = Set.fromList vs
+    fvs = freeEffectVars tu `Set.difference` keep
+
+    keep = keepVarsT True tu
+
+    keepVarsT pos (Arrow' i o)
+      = keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (Effect1' e o)
+      = keepVarsT pos e <> keepVarsT pos o
+    keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
+    keepVarsT pos (ForallNamed' _ t) = keepVarsT pos t
+    keepVarsT pos (IntroOuterNamed' _ t) = keepVarsT pos t
+    keepVarsT _ t = freeVars t
+
+    -- Note, this only allows removal if the variable was quantified,
+    -- so variables that were free in `t` will not be removed.
+    keepVarsE pos (Var' v)
+      | pos, v `Set.member` vss = mempty
+      | otherwise = Set.singleton v
+    keepVarsE pos e = keepVarsT pos e
 
 editFunctionResult
   :: forall v a
