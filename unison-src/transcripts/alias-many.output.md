@@ -438,12 +438,13 @@ Let's try it!
   348. Universal.> : a -> a -> Boolean
   349. Universal.>= : a -> a -> Boolean
   350. Universal.compare : a -> a -> Int
-  351. builtin type Value
-  352. Value.dependencies : Value -> [Term]
-  353. Value.deserialize : Bytes -> Either Text Value
-  354. Value.load : Value ->{IO} Either [Term] a
-  355. Value.serialize : Value -> Bytes
-  356. Value.value : a -> Value
+  351. unsafe.coerceAbilities : (a -> b) -> a -> b
+  352. builtin type Value
+  353. Value.dependencies : Value -> [Term]
+  354. Value.deserialize : Bytes -> Either Text Value
+  355. Value.load : Value ->{IO} Either [Term] a
+  356. Value.serialize : Value -> Bytes
+  357. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib
