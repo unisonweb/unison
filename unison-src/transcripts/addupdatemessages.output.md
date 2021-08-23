@@ -6,8 +6,8 @@ Let's set up some definitions to start:
 x = 1
 y = 2
 
-type X = One Nat
-type Y = Two Nat Nat
+structural type  X = One Nat
+structural type  Y = Two Nat Nat
 ```
 
 ```ucm
@@ -18,8 +18,8 @@ type Y = Two Nat Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      type X
-      type Y
+      structural type X
+      structural type Y
       x : Nat
       y : Nat
 
@@ -33,8 +33,8 @@ Expected: `x` and `y`, `X`, and `Y` exist as above. UCM tells you this.
 
   ⍟ I've added these definitions:
   
-    type X
-    type Y
+    structural type X
+    structural type Y
     x : Nat
     y : Nat
 
@@ -44,7 +44,7 @@ Let's add an alias for `1` and `One`:
 ```unison
 z = 1
 
-type Z = One Nat
+structural type  Z = One Nat
 ```
 
 ```ucm
@@ -55,7 +55,7 @@ type Z = One Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      type Z
+      structural type Z
         (also named X)
       z : Nat
         (also named x)
@@ -69,7 +69,7 @@ Also, `Z` is an alias for `X`.
 
   ⍟ I've added these definitions:
   
-    type Z
+    structural type Z
       (also named X)
     z : Nat
       (also named x)
@@ -79,7 +79,7 @@ Let's update something that has an alias (to a value that doesn't have a name al
 
 ```unison
 x = 3
-type X = Three Nat Nat Nat
+structural type  X = Three Nat Nat Nat
 ```
 
 ```ucm
@@ -91,7 +91,7 @@ type X = Three Nat Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      type X
+      structural type X
         (The old definition is also named Z. I'll update this
         name too.)
       x : Nat
@@ -106,7 +106,7 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
 
   ⍟ I've updated these names to your new definition:
   
-    type X
+    structural type X
       (The old definition was also named Z. I updated this name
       too.)
     x : Nat
@@ -118,7 +118,7 @@ Update it to something that already exists with a different name:
 
 ```unison
 x = 2
-type X = Two Nat Nat
+structural type  X = Two Nat Nat
 ```
 
 ```ucm
@@ -130,7 +130,7 @@ type X = Two Nat Nat
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      type X
+      structural type X
         (The old definition is also named Z. I'll update this
         name too.)
         (The new definition is already named Y as well.)
@@ -147,7 +147,7 @@ Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also 
 
   ⍟ I've updated these names to your new definition:
   
-    type X
+    structural type X
       (The old definition was also named Z. I updated this name
       too.)
       (The new definition is already named Y as well.)

@@ -87,10 +87,10 @@ Let's try it!
   64.  Doc.Link : Link -> Doc
   65.  Doc.Signature : Term -> Doc
   66.  Doc.Source : Link -> Doc
-  67.  type Either a b
+  67.  structural type Either a b
   68.  Either.Left : a -> Either a b
   69.  Either.Right : b -> Either a b
-  70.  ability Exception
+  70.  structural ability Exception
   71.  Exception.raise : Failure ->{Exception} x
   72.  builtin type Float
   73.  Float.* : Float -> Float -> Float
@@ -402,11 +402,11 @@ Let's try it!
   312. Nat.toText : Nat -> Text
   313. Nat.trailingZeros : Nat -> Nat
   314. Nat.xor : Nat -> Nat -> Nat
-  315. type Optional a
+  315. structural type Optional a
   316. Optional.None : Optional a
   317. Optional.Some : a -> Optional a
   318. builtin type Request
-  319. type SeqView a b
+  319. structural type SeqView a b
   320. SeqView.VElem : a -> b -> SeqView a b
   321. SeqView.VEmpty : SeqView a b
   322. unique type Test.Result
@@ -432,9 +432,9 @@ Let's try it!
   342. Text.uncons : Text -> Optional (Char, Text)
   343. Text.unsnoc : Text -> Optional (Text, Char)
   344. todo : a -> b
-  345. type Tuple a b
+  345. structural type Tuple a b
   346. Tuple.Cons : a -> b -> Tuple a b
-  347. type Unit
+  347. structural type Unit
   348. Unit.Unit : ()
   349. Universal.< : a -> a -> Boolean
   350. Universal.<= : a -> a -> Boolean
