@@ -10,8 +10,8 @@ Let's set up some definitions to start:
 x = 1
 y = 2
 
-structural type  X = One Nat
-structural type  Y = Two Nat Nat
+structural type X = One Nat
+structural type Y = Two Nat Nat
 ```
 
 ```ucm
