@@ -661,6 +661,14 @@ cast ri ro
  -> unbox x0 ri x
   $ TCon ro 0 [x]
 
+-- This version of unsafeCoerce is the identity function. It works
+-- only if the two types being coerced between are actually the same,
+-- because it keeps the same representation. It is not capable of
+-- e.g. correctly translating between two types with compatible bit
+-- representations, because tagging information will be retained.
+poly'coerce :: Var v => SuperNormal v
+poly'coerce = unop0 0 $ \[x] -> TVar x
+
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 
@@ -1369,6 +1377,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)
