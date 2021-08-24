@@ -19,7 +19,7 @@ ability MyAbility where const : a
 There should be no errors when `unique` or `structural` is provided:
 
 ```unison
-structural type AbcS = AbcSg
+structural type AbcS = AbcS
 unique type AbcU = AbcU
 structural ability MyAbilityS where const : a 
 unique ability MyAbilityU where const : a 
