@@ -77,6 +77,12 @@ import Network.Simple.TCP as SYS
 import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
 
+import Data.IORef as SYS
+  ( IORef
+  , newIORef
+  , readIORef
+  , writeIORef
+  )
 import System.IO as SYS
   ( IOMode(..)
   , openFile
@@ -671,6 +677,12 @@ poly'coerce = unop0 0 $ \[x] -> TVar x
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
+
+scope'run :: Var v => SuperNormal v
+scope'run
+  = unop0 1 $ \[e, un]
+ -> TLetD un BX (TCon Ty.unitRef 0 [])
+  $ TApp (FVar e) [un]
 
 fork'comp :: Var v => SuperNormal v
 fork'comp
@@ -1417,6 +1429,8 @@ builtinLookup
 
   , ("IO.forkComp.v2", fork'comp)
 
+  , ("Scope.run", scope'run)
+
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
   , ("Code.lookup", code'lookup)
@@ -1620,6 +1634,7 @@ declareForeigns = do
   declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
+
   declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
     \(ch :: Char) -> pure (Text.singleton ch)
 
@@ -1678,6 +1693,19 @@ declareForeigns = do
 
   declareForeign "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
+
+  -- Scope and Ref stuff
+  declareForeign "Scope.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "IO.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "Ref.read" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readIORef r
+
+  declareForeign "Ref.write" boxBoxTo0 . mkForeign $
+    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
   let
     defaultSupported :: TLS.Supported
