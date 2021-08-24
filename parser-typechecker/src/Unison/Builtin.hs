@@ -179,6 +179,8 @@ builtinTypesSrc =
   , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
+  , B' "Ref" CT.Data
+  , B' "Scope" CT.Effect
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -465,6 +467,14 @@ builtinsSrc =
   , B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
+  , B "Scope.run" . forall2 "r" "g" $ \r g ->
+      (forall1 "s" $ \s -> unit --> Type.effect () [scopet s, g] r) --> Type.effect1 () g r
+  , B "Scope.ref" . forall2 "a" "s" $ \a s ->
+      a --> Type.effect1 () (scopet s) (reft (Type.effects () [scopet s]) a)
+  , B "Ref.read" . forall2 "a" "g" $ \a g ->
+      reft g a --> Type.effect1 () g a
+  , B "Ref.write" . forall2 "a" "g" $ \a g ->
+      reft g a --> a --> Type.effect1 () g unit
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -576,6 +586,8 @@ ioBuiltins =
 
   , ("IO.delay.impl.v3", nat --> iof unit)
   , ("IO.kill.impl.v3", threadId --> iof unit)
+  , ("IO.ref", forall1 "a" $ \a ->
+        a --> io (reft (Type.effects () [Type.builtinIO ()]) a))
   , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake.impl.v3", tls --> iof unit)
@@ -648,6 +660,15 @@ forall1 name body =
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
 
+forall2
+  :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+forall2 na nb body = Type.foralls () [a,b] (body ta tb)
+  where
+  a = Var.named na
+  b = Var.named nb
+  ta = Type.var () a
+  tb = Type.var () b
+
 forall4
   :: Var v
   => Text -> Text -> Text -> Text
@@ -693,6 +714,12 @@ failure = DD.failureType ()
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r
+
+scopet :: Var v => Type v -> Type v
+scopet s = Type.scopeType () `app` s
+
+reft :: Var v => Type v -> Type v -> Type v
+reft s a = Type.refType () `app` s `app` a
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()
