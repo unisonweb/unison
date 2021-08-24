@@ -282,6 +282,8 @@ builtinsSrc =
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
   , B "Int.popCount" $ int --> nat
+  , B "Int.fromRepresentation" $ nat --> int
+  , B "Int.toRepresentation" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -335,6 +337,8 @@ builtinsSrc =
   , B "Float.<=" $ float --> float --> boolean
   , B "Float.>=" $ float --> float --> boolean
   , B "Float.==" $ float --> float --> boolean
+  , B "Float.fromRepresentation" $ nat --> float
+  , B "Float.toRepresentation" $ float --> nat
 
   -- Trigonmetric Functions
   , B "Float.acos" $ float --> float
@@ -463,6 +467,9 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "unsafe.coerceAbilities" $
+      forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
+        (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -645,6 +652,22 @@ forall1 name body =
   let
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
+
+forall4
+  :: Var v
+  => Text -> Text -> Text -> Text
+  -> (Type v -> Type v -> Type v -> Type v -> Type v)
+  -> Type v
+forall4 na nb nc nd body = Type.foralls () [a,b,c,d] (body ta tb tc td)
+  where
+  a = Var.named na
+  b = Var.named nb
+  c = Var.named nc
+  d = Var.named nd
+  ta = Type.var () a
+  tb = Type.var () b
+  tc = Type.var () c
+  td = Type.var () d
 
 app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()

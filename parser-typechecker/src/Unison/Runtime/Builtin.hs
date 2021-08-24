@@ -462,6 +462,11 @@ appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
 conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
 snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
 
+coerceType :: Var v => Reference -> Reference -> SuperNormal v
+coerceType fromType toType = unop0 1 $ \[x,r]
+     -> unbox x fromType r
+      $ TCon toType 0 [r]
+
 takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
 takes = binop0 1 $ \[x0,y,x]
      -> unbox x0 Ty.natRef x
@@ -658,6 +663,14 @@ cast ri ro
   = unop0 1 $ \[x0,x]
  -> unbox x0 ri x
   $ TCon ro 0 [x]
+
+-- This version of unsafeCoerce is the identity function. It works
+-- only if the two types being coerced between are actually the same,
+-- because it keeps the same representation. It is not capable of
+-- e.g. correctly translating between two types with compatible bit
+-- representations, because tagging information will be retained.
+poly'coerce :: Var v => SuperNormal v
+poly'coerce = unop0 0 $ \[x] -> TVar x
 
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
@@ -1245,6 +1258,8 @@ builtinLookup
   , ("Int.<=", lei)
   , ("Int.>", gti)
   , ("Int.>=", gei)
+  , ("Int.fromRepresentation", coerceType Ty.natRef Ty.intRef)
+  , ("Int.toRepresentation", coerceType Ty.intRef Ty.natRef)
   , ("Int.increment", inci)
   , ("Int.signum", sgni)
   , ("Int.negate", negi)
@@ -1302,6 +1317,8 @@ builtinLookup
   , ("Float.log", logf)
   , ("Float.logBase", logbf)
   , ("Float.sqrt", sqrtf)
+  , ("Float.fromRepresentation", coerceType Ty.natRef Ty.floatRef)
+  , ("Float.toRepresentation", coerceType Ty.floatRef Ty.natRef)
 
   , ("Float.min", minf)
   , ("Float.max", maxf)
@@ -1363,6 +1380,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)

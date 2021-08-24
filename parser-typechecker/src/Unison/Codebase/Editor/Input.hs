@@ -139,6 +139,7 @@ data Input
   | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
   | QuitI
+  | UiI
   deriving (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.

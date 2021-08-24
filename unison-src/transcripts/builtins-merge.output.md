@@ -27,9 +27,9 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   16. Exception     (type)
   17. Exception/    (1 definition)
   18. Float         (builtin type)
-  19. Float/        (36 definitions)
+  19. Float/        (38 definitions)
   20. Int           (builtin type)
-  21. Int/          (29 definitions)
+  21. Int/          (31 definitions)
   22. IsPropagated  (type)
   23. IsPropagated/ (1 definition)
   24. IsTest        (type)
@@ -60,5 +60,6 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   49. io2/          (121 definitions)
   50. metadata/     (2 definitions)
   51. todo          (a -> b)
+  52. unsafe/       (1 definition)
 
 ```

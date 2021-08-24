@@ -78,6 +78,8 @@ data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
+  UI :: Command m i v ()
+
   HQNameQuery
     :: Maybe Path
     -> Branch m
@@ -246,6 +248,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
+  UI                          -> "UI"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
