@@ -154,7 +154,7 @@ List.diagonal =
 -- -- Use binary search to do lookups and find insertion points
 -- -- This relies on the underlying sequence having efficient
 -- -- slicing and concatenation
-type Map k v = Map [k] [v]
+structural type Map k v = Map [k] [v]
 
 -- use Map Map
 
@@ -314,7 +314,7 @@ Multimap.insert k v m = match Map.lookup k m with
 Multimap.lookup : k -> Map k [v] -> [v]
 Multimap.lookup k m = Optional.orDefault [] (Map.lookup k m)
 
-type Set a = Set (Map a ())
+structural type Set a = Set (Map a ())
 
 Set.empty : Set k
 Set.empty = Set Map.empty
@@ -346,7 +346,7 @@ Set.size s = Map.size (underlying s)
 Set.intersect : Set k -> Set k -> Set k
 Set.intersect s1 s2 = Set (Map.intersect (underlying s1) (underlying s2))
 
-type Heap k v = Heap Nat k v [Heap k v]
+structural type Heap k v = Heap Nat k v [Heap k v]
 
 Heap.singleton : k -> v -> Heap k v
 Heap.singleton k v = Heap 1 k v []

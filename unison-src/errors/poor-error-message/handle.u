@@ -5,9 +5,9 @@
 --   27 |     let
 --
 
-type Optional a = None | Some a
+structural type Optional a = None | Some a
 
-ability State s where
+structural ability State s where
   put : s -> {State s} ()
   get : {State s} s
 

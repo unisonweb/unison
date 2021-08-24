@@ -1,5 +1,5 @@
 --Type.apply
-type List a = Nil | Cons a (List a)
+structural type List a = Nil | Cons a (List a)
 map : ∀ a b . (a -> b) -> List a -> List b
 map f = cases
   List.Nil -> List.Nil

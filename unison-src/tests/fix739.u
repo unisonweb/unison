@@ -1,4 +1,4 @@
-type MonoidRec a = {
+structural type MonoidRec a = {
   combine : a -> a -> a,
   empty   : a
 }

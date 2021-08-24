@@ -14,7 +14,7 @@ Unison documentation is written in Unison. Documentation is a value of the follo
     | Evaluate Term
 
 ```
-You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of type `Doc` can be created via syntax like:
+You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
 
 ```unison
 use .builtin

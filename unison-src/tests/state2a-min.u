@@ -1,5 +1,5 @@
 --State2 ability
-ability State s where
+structural ability State s where
   put : s -> {State s} ()
 
 state : s -> Request (State s) a -> a

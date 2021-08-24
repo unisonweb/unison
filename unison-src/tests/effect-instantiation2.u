@@ -2,7 +2,7 @@
 woot : a -> a -> a
 woot a a2 = a
 
-ability Hi where
+structural ability Hi where
   hi : Float ->{Hi} Int
 
 > woot Float.floor Hi.hi

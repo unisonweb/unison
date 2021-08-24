@@ -1,9 +1,9 @@
 use Universal <
 
-type Future a = Future ('{Remote} a)
+structural type Future a = Future ('{Remote} a)
 
 -- A simple distributed computation ability
-ability Remote where
+structural ability Remote where
 
   -- Spawn a new node
   spawn : {Remote} Node
@@ -16,7 +16,7 @@ ability Remote where
   -- await the result of the computation
   fork : '{Remote} a ->{Remote} Future a
 
-type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
+structural type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
 force = cases Future.Future r -> !r
@@ -51,7 +51,7 @@ List.map f as =
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
 
-type Monoid a = Monoid (a -> a -> a) a
+structural type Monoid a = Monoid (a -> a -> a) a
 
 Monoid.zero = cases Monoid.Monoid op z -> z
 Monoid.op   = cases Monoid.Monoid op z -> op

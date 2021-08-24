@@ -6,8 +6,8 @@ Let's set up some definitions to start:
 x = 1
 y = 2
 
-structural type  X = One Nat
-structural type  Y = Two Nat Nat
+structural type X = One Nat
+structural type Y = Two Nat Nat
 ```
 
 ```ucm
@@ -44,7 +44,7 @@ Let's add an alias for `1` and `One`:
 ```unison
 z = 1
 
-structural type  Z = One Nat
+structural type Z = One Nat
 ```
 
 ```ucm
@@ -79,7 +79,7 @@ Let's update something that has an alias (to a value that doesn't have a name al
 
 ```unison
 x = 3
-structural type  X = Three Nat Nat Nat
+structural type X = Three Nat Nat Nat
 ```
 
 ```ucm
@@ -118,7 +118,7 @@ Update it to something that already exists with a different name:
 
 ```unison
 x = 2
-structural type  X = Two Nat Nat
+structural type X = Two Nat Nat
 ```
 
 ```ucm

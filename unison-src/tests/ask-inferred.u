@@ -1,14 +1,14 @@
 --Ask inferred
 
-ability Ask a where
+structural ability Ask a where
   ask : {Ask a} a
 
-ability AskU where
+structural ability AskU where
   ask : {AskU} Nat
 
 use Nat +
 
-ability AskT where
+structural ability AskT where
   ask : {AskT} Text
 
 x = '(Ask.ask + 1)
