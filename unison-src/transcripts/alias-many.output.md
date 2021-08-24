@@ -163,70 +163,70 @@ Let's try it!
   140. Int.trailingZeros : Int -> Nat
   141. Int.truncate0 : Int -> Nat
   142. Int.xor : Int -> Int -> Int
-  143. IO.ref : a ->{IO} Ref {IO} a
-  144. unique type io2.BufferMode
-  145. io2.BufferMode.BlockBuffering : BufferMode
-  146. io2.BufferMode.LineBuffering : BufferMode
-  147. io2.BufferMode.NoBuffering : BufferMode
-  148. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
-  149. unique type io2.Failure
-  150. io2.Failure.Failure : Type -> Text -> Any -> Failure
-  151. unique type io2.FileMode
-  152. io2.FileMode.Append : FileMode
-  153. io2.FileMode.Read : FileMode
-  154. io2.FileMode.ReadWrite : FileMode
-  155. io2.FileMode.Write : FileMode
-  156. builtin type io2.Handle
-  157. builtin type io2.IO
-  158. io2.IO.clientSocket.impl : Text
+  143. unique type io2.BufferMode
+  144. io2.BufferMode.BlockBuffering : BufferMode
+  145. io2.BufferMode.LineBuffering : BufferMode
+  146. io2.BufferMode.NoBuffering : BufferMode
+  147. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
+  148. unique type io2.Failure
+  149. io2.Failure.Failure : Type -> Text -> Any -> Failure
+  150. unique type io2.FileMode
+  151. io2.FileMode.Append : FileMode
+  152. io2.FileMode.Read : FileMode
+  153. io2.FileMode.ReadWrite : FileMode
+  154. io2.FileMode.Write : FileMode
+  155. builtin type io2.Handle
+  156. builtin type io2.IO
+  157. io2.IO.clientSocket.impl : Text
                                   -> Text
                                   ->{IO} Either Failure Socket
-  159. io2.IO.closeFile.impl : Handle ->{IO} Either Failure ()
-  160. io2.IO.closeSocket.impl : Socket ->{IO} Either Failure ()
-  161. io2.IO.createDirectory.impl : Text
+  158. io2.IO.closeFile.impl : Handle ->{IO} Either Failure ()
+  159. io2.IO.closeSocket.impl : Socket ->{IO} Either Failure ()
+  160. io2.IO.createDirectory.impl : Text
                                      ->{IO} Either Failure ()
-  162. io2.IO.createTempDirectory.impl : Text
+  161. io2.IO.createTempDirectory.impl : Text
                                          ->{IO} Either
                                            Failure Text
-  163. io2.IO.delay.impl : Nat ->{IO} Either Failure ()
-  164. io2.IO.directoryContents.impl : Text
+  162. io2.IO.delay.impl : Nat ->{IO} Either Failure ()
+  163. io2.IO.directoryContents.impl : Text
                                        ->{IO} Either
                                          Failure [Text]
-  165. io2.IO.fileExists.impl : Text
+  164. io2.IO.fileExists.impl : Text
                                 ->{IO} Either Failure Boolean
-  166. io2.IO.forkComp : '{IO} a ->{IO} ThreadId
-  167. io2.IO.getBuffering.impl : Handle
+  165. io2.IO.forkComp : '{IO} a ->{IO} ThreadId
+  166. io2.IO.getBuffering.impl : Handle
                                   ->{IO} Either
                                     Failure BufferMode
-  168. io2.IO.getBytes.impl : Handle
+  167. io2.IO.getBytes.impl : Handle
                               -> Nat
                               ->{IO} Either Failure Bytes
-  169. io2.IO.getCurrentDirectory.impl : '{IO} Either
+  168. io2.IO.getCurrentDirectory.impl : '{IO} Either
                                            Failure Text
-  170. io2.IO.getEnv.impl : Text ->{IO} Either Failure Text
-  171. io2.IO.getFileSize.impl : Text ->{IO} Either Failure Nat
-  172. io2.IO.getFileTimestamp.impl : Text
+  169. io2.IO.getEnv.impl : Text ->{IO} Either Failure Text
+  170. io2.IO.getFileSize.impl : Text ->{IO} Either Failure Nat
+  171. io2.IO.getFileTimestamp.impl : Text
                                       ->{IO} Either Failure Nat
-  173. io2.IO.getLine.impl : Handle ->{IO} Either Failure Text
-  174. io2.IO.getTempDirectory.impl : '{IO} Either Failure Text
-  175. io2.IO.handlePosition.impl : Handle
+  172. io2.IO.getLine.impl : Handle ->{IO} Either Failure Text
+  173. io2.IO.getTempDirectory.impl : '{IO} Either Failure Text
+  174. io2.IO.handlePosition.impl : Handle
                                     ->{IO} Either Failure Nat
-  176. io2.IO.isDirectory.impl : Text
+  175. io2.IO.isDirectory.impl : Text
                                  ->{IO} Either Failure Boolean
-  177. io2.IO.isFileEOF.impl : Handle
+  176. io2.IO.isFileEOF.impl : Handle
                                ->{IO} Either Failure Boolean
-  178. io2.IO.isFileOpen.impl : Handle
+  177. io2.IO.isFileOpen.impl : Handle
                                 ->{IO} Either Failure Boolean
-  179. io2.IO.isSeekable.impl : Handle
+  178. io2.IO.isSeekable.impl : Handle
                                 ->{IO} Either Failure Boolean
-  180. io2.IO.kill.impl : ThreadId ->{IO} Either Failure ()
-  181. io2.IO.listen.impl : Socket ->{IO} Either Failure ()
-  182. io2.IO.openFile.impl : Text
+  179. io2.IO.kill.impl : ThreadId ->{IO} Either Failure ()
+  180. io2.IO.listen.impl : Socket ->{IO} Either Failure ()
+  181. io2.IO.openFile.impl : Text
                               -> FileMode
                               ->{IO} Either Failure Handle
-  183. io2.IO.putBytes.impl : Handle
+  182. io2.IO.putBytes.impl : Handle
                               -> Bytes
                               ->{IO} Either Failure ()
+  183. io2.IO.ref : a ->{IO} Ref {IO} a
   184. io2.IO.removeDirectory.impl : Text
                                      ->{IO} Either Failure ()
   185. io2.IO.removeFile.impl : Text ->{IO} Either Failure ()
