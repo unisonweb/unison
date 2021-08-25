@@ -227,6 +227,10 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
+scopeRef, refRef :: Reference
+scopeRef = Reference.Builtin "Scope"
+refRef = Reference.Builtin "Ref"
+
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -297,6 +301,12 @@ threadId a = ref a threadIdRef
 
 builtinIO :: Ord v => a -> Type v a
 builtinIO a = ref a builtinIORef
+
+scopeType :: Ord v => a -> Type v a
+scopeType a = ref a scopeRef
+
+refType :: Ord v => a -> Type v a
+refType a = ref a refRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
