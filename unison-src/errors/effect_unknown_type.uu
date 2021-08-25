@@ -1,4 +1,4 @@
-ability T where
+structural ability T where
   a : Unknown -> {T} ()
 
 --b : Unknown

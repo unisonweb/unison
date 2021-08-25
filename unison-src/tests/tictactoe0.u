@@ -1,7 +1,7 @@
 -- board piece
-type P = X | O | E
+structural type P = X | O | E
 
-type Board = Board P P P P P P P P P
+structural type Board = Board P P P P P P P P P
 
 use Board Board
 use P O X E

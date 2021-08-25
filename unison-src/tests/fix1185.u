@@ -8,7 +8,7 @@
 -- This file won't typecheck unless the definitions get
 -- the correct inferred types.
 
-ability Zonk where 
+structural ability Zonk where 
   zonk : Nat
 
 -- should be inferred as:

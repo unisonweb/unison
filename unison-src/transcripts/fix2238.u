@@ -1,5 +1,5 @@
 
-ability Abort where abort : x
+structural ability Abort where abort : x
 
 ex = {{
 

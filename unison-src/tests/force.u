@@ -1,4 +1,4 @@
-ability Woot where woot : {Woot} Text
+structural ability Woot where woot : {Woot} Text
 
 force : '{e} a ->{e} a
 force a = !a

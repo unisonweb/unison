@@ -1,4 +1,4 @@
-type Optional a = Some a | None
+structural type Optional a = Some a | None
 y : (Optional Int)
 y = 3
 ()

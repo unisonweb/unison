@@ -7,12 +7,12 @@ I can use `debug.file` to see the hashes of the last typechecked file.
 
 Given this .u file:
 ```unison:hide
-type outside.A = A Nat outside.B
-type outside.B = B Int
+structural type outside.A = A Nat outside.B
+structural type outside.B = B Int
 outside.c = 3
 outside.d = c < (p + 1)
 
-type inside.M = M outside.A
+structural type inside.M = M outside.A
 inside.p = c
 inside.q x = x + p * p
 inside.r = d
@@ -35,4 +35,4 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 .>
 ```
 
-We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the type that provided the constructor.
+We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

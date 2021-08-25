@@ -1,8 +1,8 @@
 --map/traverse
-ability Noop where
+structural ability Noop where
   noop : a -> {Noop} a
 
-type List a = Nil | Cons a (List a)
+structural type List a = Nil | Cons a (List a)
 
 map : (a ->{} b) -> List a -> List b
 map f = cases

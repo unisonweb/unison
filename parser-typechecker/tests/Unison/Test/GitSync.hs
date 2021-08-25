@@ -249,7 +249,7 @@ test = scope "gitsync22" . tests $
 -- simplest-author
     (\repo -> [i|
       ```unison
-      type Foo = Foo
+      structural type Foo = Foo
       ```
       ```ucm
       .myLib> debug.file
@@ -322,8 +322,8 @@ test = scope "gitsync22" . tests $
       .> builtins.merge
       ```
       ```unison
-      type A = A Nat
-      type B = B Int
+      structural type A = A Nat
+      structural type B = B Int
       x = 3
       y = 4
       ```

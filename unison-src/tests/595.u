@@ -1,5 +1,5 @@
 
-type Any = Any (∀ r . (∀ a . a -> r) -> r)
+structural type Any = Any (∀ r . (∀ a . a -> r) -> r)
 
 -- also typechecks as expected
 any : a -> Any

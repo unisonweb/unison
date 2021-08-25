@@ -6,7 +6,7 @@ FYI, here are the `Exception` and `Failure` types:
 ```ucm
 .> view Exception Failure
 
-  ability builtin.Exception where
+  structural ability builtin.Exception where
     raise : Failure ->{builtin.Exception} x
   
   unique type builtin.io2.Failure
