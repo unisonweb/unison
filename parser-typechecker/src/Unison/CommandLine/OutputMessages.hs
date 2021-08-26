@@ -1135,8 +1135,8 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
     case dt of
       MissingObject r -> missing n r
       BuiltinObject typ ->
-        P.hang ("builtin " <> prettyHashQualified n <> " :")
-               (TypePrinter.prettySyntax (ppeBody r) typ)
+        P.hang ("{- builtin " <> prettyHashQualified n <> " :")
+               (TypePrinter.prettySyntax (ppeBody r) typ) <> " -}"
       UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
