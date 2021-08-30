@@ -34,7 +34,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile          as UF
 import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.UnisonFile.Type as UF
 import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)

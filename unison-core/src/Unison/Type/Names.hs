@@ -10,23 +10,9 @@ module Unison.Type.Names where
 import Unison.Prelude
 
 import Unison.Type
-import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor.Identity (runIdentity)
-import Data.Monoid (Any(..))
-import           Data.List.Extra (nubOrd)
-import qualified Data.Map as Map
 import qualified Data.Set as Set
-import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
-import           Unison.Hashable (Hashable1)
-import qualified Unison.Hashable as Hashable
-import qualified Unison.Kind as K
-import           Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.Settings as Settings
+import Unison.Var (Var)
 import qualified Unison.Names3 as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name

@@ -5,41 +5,27 @@
 
 module Unison.UnisonFile.Names where
 
-import Control.Lens
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.Builtin.Decls as DD
-import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..), hashDecls)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.Names as DD.Names
-import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Names3 (Names0)
 import qualified Unison.Names3 as Names
 import Unison.Prelude
-import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import Unison.Term (Term)
 import qualified Unison.Term as Term
-import Unison.Type (Type)
-import qualified Unison.Type as Type
-import qualified Unison.Typechecker.TypeLookup as TL
 import Unison.UnisonFile.Env (Env(..))
 import Unison.UnisonFile.Error (Error (UnknownType, DupDataAndAbility))
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId), pattern UnisonFile)
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Error (pattern UnknownType, pattern DupDataAndAbility)
-import qualified Unison.Util.List as List
-import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Var (Var)
-import qualified Unison.Var as Var
 
 toNames :: Var v => UnisonFile v a -> Names0
 toNames uf = datas <> effects

@@ -17,66 +17,25 @@ import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform, uncons )
-import qualified Control.Monad.State           as State
-import           Control.Monad.State            ( StateT )
-import           Data.Bifunctor                 ( second )
-import qualified Data.Map                      as Map
-import qualified Data.Map.Merge.Lazy           as Map
-import qualified Data.Set                      as Set
-import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch          ( Patch )
-import qualified Unison.Codebase.Causal        as Causal
-import qualified Unison.Codebase.Causal.FoldHistory as Causal
-import           Unison.Codebase.Causal         ( Causal
-                                                , pattern RawOne
-                                                , pattern RawCons
-                                                , pattern RawMerge
-                                                )
-import           Unison.Codebase.Path           ( Path(..) )
-import qualified Unison.Codebase.Path          as Path
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.NameSegment            as NameSegment
-import qualified Unison.Codebase.Metadata      as Metadata
-import qualified Unison.Hash                   as Hash
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name(..) )
-import qualified Unison.Name                   as Name
-import qualified Unison.Names2                 as Names
-import qualified Unison.Names3                 as Names
-import           Unison.Names2                  ( Names'(Names), Names0 )
-import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent )
-import qualified Unison.Referent               as Referent
-import qualified Unison.Reference              as Reference
-
-import qualified U.Util.Cache             as Cache
-import qualified Unison.Util.Relation          as R
-import           Unison.Util.Relation            ( Relation )
-import qualified Unison.Util.Relation4         as R4
-import qualified Unison.Util.List              as List
-import           Unison.Util.Map                ( unionWithM )
-import qualified Unison.Util.Star3             as Star3
-import Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import qualified Unison.HashQualified as HQ
-import Unison.HashQualified (HashQualified)
-import qualified Unison.LabeledDependency as LD
-import Unison.LabeledDependency (LabeledDependency)
+import qualified Data.Set as Set
 import Unison.Codebase.Branch
+import qualified Unison.Codebase.Causal.FoldHistory as Causal
+import Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
+import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.LabeledDependency as LD
+import Unison.Name (Name (..))
+import Unison.Names2 (Names' (Names), Names0)
+import qualified Unison.Names2 as Names
+import qualified Unison.Names3 as Names
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Util.Relation as R
 
 toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
-
--- This stops searching for a given ShortHash once it encounters
--- any term or type in any Branch0 that satisfies that ShortHash.
-findHistoricalSHs
-  :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
-findHistoricalSHs = findInHistory
-  (\sh r _n -> sh `SH.isPrefixOf` Referent.toShortHash r)
-  (\sh r _n -> sh `SH.isPrefixOf` Reference.toShortHash r)
 
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.

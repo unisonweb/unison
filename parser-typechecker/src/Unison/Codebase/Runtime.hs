@@ -5,25 +5,24 @@ module Unison.Codebase.Runtime where
 
 import Unison.Prelude
 
-import qualified Unison.ABT                    as ABT
 import Data.Bifunctor (first)
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
+import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
+import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.Codebase.CodeLookup.Util as CL
-import           Unison.UnisonFile              ( UnisonFile )
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Term                   as Term
-import           Unison.Type                    ( Type )
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.UnisonFile.Type as UF
-import Unison.Builtin.Decls (pattern TupleTerm', tupleTerm)
-import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import Unison.UnisonFile (UnisonFile)
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 import Unison.WatchKind (WatchKind)
 import qualified Unison.WatchKind as WK
 

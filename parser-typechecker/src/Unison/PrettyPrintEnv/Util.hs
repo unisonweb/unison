@@ -4,22 +4,18 @@ module Unison.PrettyPrintEnv.Util where
 
 import Unison.Prelude
 
-import           Unison.HashQualified           ( HashQualified )
-import           Unison.Name                    ( Name )
-import           Unison.Names3                  ( Names )
-import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent )
-import           Unison.Util.List               (safeHead)
-import qualified Data.Map                      as Map
+import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified' as HQ'
-import qualified Unison.Name                   as Name
-import qualified Unison.Names3                 as Names
+import Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
+import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.PrettyPrintEnv
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl, suffixifiedPPE, unsuffixifiedPPE))
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 
 -- fromNames :: Int -> Names -> PrettyPrintEnv
 -- fromNames len names = PrettyPrintEnv terms' types' where

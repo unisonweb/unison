@@ -23,7 +23,6 @@ import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import Unison.UnisonFile (UnisonFile(..))
-import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Env as UF
 import Unison.UnisonFile.Names (environmentFor)
 import qualified Unison.Util.List as List
@@ -244,7 +243,7 @@ declaration = do
 dataDeclaration
   :: forall v
    . Var v
-  => Maybe (L.Token DD.Modifier) 
+  => Maybe (L.Token DD.Modifier)
   -> P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
   keywordTok       <- fmap void (reserved "type") <|> openBlockWith "type"
@@ -283,9 +282,9 @@ dataDeclaration mod = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  case mod of 
-    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name 
-    Just mod' -> 
+  case mod of
+    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name
+    Just mod' ->
       pure (L.payload name,
             DD.mkDataDecl' (L.payload mod') (ann mod' <> closingAnn) typeArgVs constructors,
             accessors)

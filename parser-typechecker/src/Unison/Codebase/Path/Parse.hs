@@ -20,23 +20,16 @@ import Unison.Prelude hiding (empty, toList)
 
 import Unison.Codebase.Path
 
-import           Data.Bifunctor                 ( first )
-import           Data.List.Extra                ( stripPrefix, dropPrefix )
-import Control.Lens hiding (unsnoc, cons, snoc)
+import Control.Lens (_1, over)
 import qualified Control.Lens as Lens
-import qualified Data.Foldable as Foldable
-import qualified Data.Text                     as Text
-import           Data.Sequence                  (Seq((:<|),(:|>) ))
-import qualified Data.Sequence                 as Seq
-import           Unison.Name                    ( Name, Convert, Parse )
-import qualified Unison.Name                   as Name
-import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Lexer                  as Lexer
+import Data.Bifunctor (first)
+import Data.List.Extra (stripPrefix)
+import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Lexer as Lexer
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.ShortHash as SH
-
-import           Unison.NameSegment             ( NameSegment(NameSegment))
-import qualified Unison.NameSegment            as NameSegment
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -89,10 +82,6 @@ wordyNameSegment s = case Lexer.wordyId0 s of
   Right (a, "") -> Right (NameSegment (Text.pack a))
   Right (a, rem) ->
     Left $ "trailing characters after " <> show a <> ": " <> show rem
-
-optionalWordyNameSegment :: String -> Either String NameSegment
-optionalWordyNameSegment "" = Right $ NameSegment ""
-optionalWordyNameSegment s  = wordyNameSegment s
 
 -- Parse a name segment like "()"
 unit' :: String -> Either String (String, String)
@@ -176,83 +165,3 @@ parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
     pure $ case x of
       (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
       x -> x
-
-toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
-toAbsoluteSplit a (p, s) = (resolve a p, s)
-
-fromSplit' :: (Path', a) -> (Path, a)
-fromSplit' (Path' (Left (Absolute p)), a) = (p, a)
-fromSplit' (Path' (Right (Relative p)), a) = (p, a)
-
-fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
-fromAbsoluteSplit (Absolute p, a) = (p, a)
-
--- splitFromName :: Name -> Maybe Split
--- splitFromName = unsnoc . fromName
-
-unprefixName :: Absolute -> Name -> Name
-unprefixName prefix = toName . unprefix prefix . fromName'
-
-prefixName :: Absolute -> Name -> Name
-prefixName p = toName . prefix p . fromName'
-
-singleton :: NameSegment -> Path
-singleton n = fromList [n]
-
-cons :: NameSegment -> Path -> Path
-cons = Lens.cons
-
-snoc :: Path -> NameSegment -> Path
-snoc = Lens.snoc
-
-snoc' :: Path' -> NameSegment -> Path'
-snoc' = Lens.snoc
-
-unsnoc :: Path -> Maybe (Path, NameSegment)
-unsnoc = Lens.unsnoc
-
-uncons :: Path -> Maybe (NameSegment, Path)
-uncons = Lens.uncons
-
---asDirectory :: Path -> Text
---asDirectory p = case toList p of
---  NameSegment "_root_" : (Seq.fromList -> tail) ->
---    "/" <> asDirectory (Path tail)
---  other -> Text.intercalate "/" . fmap NameSegment.toText $ other
-
--- -- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
--- -- /Foo/bar
--- -- Int./  -> "Int"/"/"
--- -- pkg/Int.. -> "pkg"/"Int"/"."
--- -- Int./foo -> error because "/foo" is not a valid NameSegment
--- --                      and "Int." is not a valid NameSegment
--- --                      and "Int" / "" / "foo" is not a valid path (internal "")
--- -- todo: fromName needs to be a little more complicated if we want to allow
--- --       identifiers called Function.(.)
--- fromName :: Name -> Path
--- fromName = fromList . Name.segments
-
--- fromName' :: Name -> Path'
--- fromName' n = case take 1 (Name.toString n) of
---   "." -> Path' . Left . Absolute $ Path seq
---   _   -> Path' . Right $ Relative path
---  where
---   path = fromName n
---   seq  = toSeq path
-
--- toName :: Path -> Name
--- toName = Name.unsafeFromText . toText
-
--- | Convert a Path' to a Name
-toName' :: Path' -> Name
-toName' = Name.unsafeFromText . toText'
-
-fromText :: Text -> Path
-fromText = \case
-  "" -> empty
-  t -> fromList $ NameSegment <$> Name.segments' t
-
-toText' :: Path' -> Text
-toText' = \case
-  Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
-  Path' (Right (Relative path)) -> toText path

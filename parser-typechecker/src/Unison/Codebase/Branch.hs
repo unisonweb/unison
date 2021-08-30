@@ -111,7 +111,6 @@ import qualified U.Util.Cache             as Cache
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
-import           Unison.Util.Map                ( unionWithM )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
 
@@ -503,29 +502,9 @@ uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
--- Modify the branch0 at the head of at `path` with `f`,
--- after creating it if necessary.  Preserves history.
-stepAt :: forall m. Applicative m
-       => Path
-       -> (Branch0 m -> Branch0 m)
-       -> Branch m -> Branch m
-stepAt p f = modifyAt p g where
-  g :: Branch m -> Branch m
-  g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
-
 stepManyAt :: (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
-
--- Modify the branch0 at the head of at `path` with `f`,
--- after creating it if necessary.  Preserves history.
-stepAtM :: forall n m. (Functor n, Applicative m)
-        => Path -> (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepAtM p f = modifyAtM p g where
-  g :: Branch m -> n (Branch m)
-  g (Branch b) = do
-    b0' <- f (Causal.head b)
-    pure $ Branch . Causal.consDistinct b0' $ b
 
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)

@@ -47,7 +47,6 @@ import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes              (Bytes)
 import Unison.Name as Name
 import Unison.Names3 (Names)
-import qualified Unison.Names3 as Names
 import qualified Unison.Names.ResolutionResult as Names
 import Control.Monad.Reader.Class (asks)
 import qualified Unison.Hashable as Hashable

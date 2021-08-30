@@ -25,6 +25,3 @@ data Env v a = Env
 
 datas :: Env v a -> Map v (Reference, DataDeclaration v a)
 datas = fmap (first Reference.DerivedId) . datasId
-
-effects :: Env v a -> Map v (Reference, EffectDeclaration v a)
-effects = fmap (first Reference.DerivedId) . effectsId

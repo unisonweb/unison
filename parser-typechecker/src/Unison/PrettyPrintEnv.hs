@@ -8,11 +8,9 @@ import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
-import qualified Data.Map                      as Map
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
-import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -32,18 +30,6 @@ unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 = PrettyPrintEnv
   (\r -> terms e1 r <|> terms e2 r)
   (\r -> types e1 r <|> types e2 r)
-
-assignTermName
-  :: Referent -> HashQualified Name -> PrettyPrintEnv -> PrettyPrintEnv
-assignTermName r name = (fromTermNames [(r, name)] `unionLeft`)
-
-fromTypeNames :: [(Reference, HashQualified Name)] -> PrettyPrintEnv
-fromTypeNames types =
-  let m = Map.fromList types in PrettyPrintEnv (const Nothing) (`Map.lookup` m)
-
-fromTermNames :: [(Referent, HashQualified Name)] -> PrettyPrintEnv
-fromTermNames tms =
-  let m = Map.fromList tms in PrettyPrintEnv (`Map.lookup` m) (const Nothing)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int

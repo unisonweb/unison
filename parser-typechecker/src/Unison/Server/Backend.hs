@@ -90,7 +90,6 @@ import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
-import qualified Unison.UnisonFile as UF
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv.Util as PPE

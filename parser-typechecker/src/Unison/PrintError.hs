@@ -24,7 +24,6 @@ import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
-import qualified Unison.Lexer.Pos as L
 import           Unison.Name                  ( Name )
 import Unison.Parser (Annotated, ann)
 import qualified Unison.Parser as Parser
@@ -39,7 +38,6 @@ import qualified Unison.Type                  as Type
 import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
 import qualified Unison.Typechecker.TypeVar   as TypeVar
-import qualified Unison.UnisonFile            as UF
 import qualified Unison.UnisonFile.Error as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
@@ -53,7 +51,6 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import Unison.Util.Pretty (Pretty, ColorText)
-import qualified Unison.Names3 as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
@@ -74,7 +71,7 @@ defaultWidth :: Pr.Width
 defaultWidth = 60
 
 -- Various links used in error messages, collected here for a quick overview
-structuralVsUniqueDocsLink :: IsString a => Pretty a 
+structuralVsUniqueDocsLink :: IsString a => Pretty a
 structuralVsUniqueDocsLink = "https://www.unisonweb.org/docs/language-reference/#unique-types"
 
 fromOverHere'
@@ -1295,12 +1292,12 @@ prettyParseError s = \case
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
-  go (Parser.MissingTypeModifier keyword name) = Pr.lines 
+  go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
-        "I expected to see `structural` or `unique` at the start of this line:" 
+        "I expected to see `structural` or `unique` at the start of this line:"
     , ""
     , tokensAsErrorSite s [void keyword, void name]
-    , Pr.wrap $ "Learn more about when to use `structural` vs `unique` in the Unison Docs: " 
+    , Pr.wrap $ "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
               <> structuralVsUniqueDocsLink
     ]
 

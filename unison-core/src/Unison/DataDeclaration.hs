@@ -38,39 +38,34 @@ where
 
 import Unison.Prelude
 
-import Control.Lens (_3, over)
+import Control.Lens (over, _3)
 import Control.Monad.State (evalState)
-
-import Data.Bifunctor (first, second, bimap)
-import qualified Unison.Util.Relation as Rel
-import           Unison.Hash                    ( Hash )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import           Prelude                 hiding ( cycle )
-import           Prelude.Extras                 ( Show1 )
-import qualified Unison.ABT                    as ABT
-import           Unison.Hashable                ( Accumulate
-                                                , Hashable1
-                                                )
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.Hashable               as Hashable
-import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Reference.Util         as Reference.Util
-import qualified Unison.Referent               as Referent
-import qualified Unison.Term                   as Term
-import           Unison.Term                    ( Term )
-import qualified Unison.Referent' as Referent'
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import qualified Unison.Type.Names as Type
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.Var.RefNamed as Var
-import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Pattern                as Pattern
+import Data.Bifunctor (bimap, first, second)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Prelude.Extras (Show1)
+import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hash (Hash)
+import Unison.Hashable (Hashable1)
+import qualified Unison.Hashable as Hashable
+import qualified Unison.Name as Name
+import qualified Unison.Names.ResolutionResult as Names
+import qualified Unison.Pattern as Pattern
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Reference.Util as Reference.Util
+import qualified Unison.Referent as Referent
+import qualified Unison.Referent' as Referent'
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+import qualified Unison.Var.RefNamed as Var
+import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
@@ -103,24 +98,11 @@ newtype EffectDeclaration v a = EffectDeclaration {
   toDataDecl :: DataDeclaration v a
 } deriving (Eq,Show,Functor)
 
-withEffectDecl
-  :: (DataDeclaration v a -> DataDeclaration v' a')
-  -> (EffectDeclaration v a -> EffectDeclaration v' a')
-withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
-
 withEffectDeclM :: Functor f
                 => (DataDeclaration v a -> f (DataDeclaration v' a'))
                 -> EffectDeclaration v a
                 -> f (EffectDeclaration v' a')
 withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
-
-generateConstructorRefs
-  :: (Reference -> ConstructorId -> Reference)
-  -> Reference.Id
-  -> Int
-  -> [(ConstructorId, Reference)]
-generateConstructorRefs hashCtor rid n =
-  (\i -> (i, hashCtor (Reference.DerivedId rid) i)) <$> [0 .. n]
 
 generateRecordAccessors
   :: (Semigroup a, Var v)
@@ -176,34 +158,6 @@ generateRecordAccessors fields typename typ =
                 then Term.apps' (Term.var ann fname') [Term.var ann v]
                 else Term.var ann v
               | ((v, _), j) <- fields `zip` [0..]]
-
--- Returns references to the constructors,
--- along with the terms for those references and their types.
-constructorTerms
-  :: (Reference -> ConstructorId -> Reference)
-  -> (a -> Reference -> ConstructorId -> Term v a)
-  -> Reference.Id
-  -> DataDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-constructorTerms hashCtor f rid dd =
-  (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
-    (constructors' dd)
-    (generateConstructorRefs hashCtor rid (length $ constructors dd))
-
-dataConstructorTerms
-  :: Ord v
-  => Reference.Id
-  -> DataDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
-
-effectConstructorTerms
-  :: Ord v
-  => Reference.Id
-  -> EffectDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-effectConstructorTerms rid ed =
-  constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
 
 constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
@@ -265,26 +219,13 @@ dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-third :: (a -> b) -> (x,y,a) -> (x,y,b)
-third f (x,y,a) = (x, y, f a)
-
 mkEffectDecl'
   :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration v ()
-mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
-
 mkDataDecl'
   :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration v a
 mkDataDecl' = DataDeclaration
-
-mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration v ()
-mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
-
-constructorArities :: DataDeclaration v a -> [Int]
-constructorArities (DataDeclaration _ _a _bound ctors) =
-  Type.arity . (\(_,_,t) -> t) <$> ctors
 
 data F a
   = Type (Type.F a)
@@ -324,24 +265,6 @@ instance Hashable.Hashable Modifier where
   type Foo a f = Foo Int (Bar a)
   type Bar a f = Bar Long (Foo a)
 -}
-
-hash :: (Eq v, Var v, Ord h, Accumulate h)
-     => [(v, ABT.Term F v ())] -> [(v, h)]
-hash recursiveDecls = zip (fst <$> recursiveDecls) hashes where
-  hashes = ABT.hash <$> toLetRec recursiveDecls
-
-toLetRec :: Ord v => [(v, ABT.Term F v ())] -> [ABT.Term F v ()]
-toLetRec decls = do1 <$> vs
- where
-  (vs, decls') = unzip decls
-  -- we duplicate this letrec once (`do1`)
-  -- for each of the mutually recursive types
-  do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
-
-unsafeUnwrapType :: (Var v) => ABT.Term F v a -> Type v a
-unsafeUnwrapType typ = ABT.transform f typ
-  where f (Type t) = t
-        f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
 toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'

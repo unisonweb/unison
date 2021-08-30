@@ -49,7 +49,6 @@ import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import qualified Unison.NameSegment as V1
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser as Ann
 import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as V1.Pattern
 import qualified Unison.Reference as V1
@@ -61,7 +60,6 @@ import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as V1.Star3
-import qualified Unison.Var as V1.Var
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as V1.WK
 

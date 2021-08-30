@@ -9,7 +9,6 @@ module Unison.Codebase.MainTerm where
 import Unison.Prelude
 
 import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser                 as Parser
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term )
 import           Unison.Var                     ( Var )

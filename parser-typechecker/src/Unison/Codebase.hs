@@ -30,12 +30,8 @@ import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), SyncToDir, 
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
-import Control.Lens ((%=), _1, _2)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
-import Control.Monad.State (State, evalState, get)
-import Data.Bifunctor (bimap)
 import Control.Error.Util (hush)
-import Data.Maybe as Maybe
 import Data.List as List
 import qualified Data.Map as Map
 import Unison.Symbol (Symbol)
@@ -58,7 +54,6 @@ import Unison.Typechecker.TypeLookup (TypeLookup(TypeLookup))
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
-import Control.Monad.Except (runExceptT, ExceptT (ExceptT))
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.GitError as GitError
 import U.Util.Timing (time)

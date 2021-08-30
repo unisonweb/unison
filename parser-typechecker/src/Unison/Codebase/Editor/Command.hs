@@ -32,7 +32,6 @@ import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )

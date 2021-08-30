@@ -70,15 +70,9 @@ toShortHash = \case
   Ref r -> R.toShortHash r
   Con r i _ -> patternShortHash r i
 
-toShortHashId :: Id -> ShortHash
-toShortHashId = toShortHash . fromId
-
 -- also used by HashQualified.fromPattern
 patternShortHash :: Reference -> Int -> ShortHash
 patternShortHash r i = (R.toShortHash r) { SH.cid = Just . Text.pack $ show i }
-
-showShort :: Int -> Referent -> Text
-showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 toText :: Referent -> Text
 toText = \case
@@ -95,31 +89,11 @@ pattern DataCtor = "d"
 toString :: Referent -> String
 toString = Text.unpack . toText
 
-isConstructor :: Referent -> Bool
-isConstructor Con{} = True
-isConstructor _     = False
-
-toTermReference :: Referent -> Maybe Reference
-toTermReference = \case
-  Ref r -> Just r
-  _ -> Nothing
-
 toReference :: Referent -> Reference
 toReference = toReference'
 
-fromId :: Id -> Referent
-fromId = fmap R.DerivedId
-
-toTypeReference :: Referent -> Maybe Reference
-toTypeReference = \case
-  Con r _i _t -> Just r
-  _ -> Nothing
-
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
-
-unsafeFromText :: Text -> Referent
-unsafeFromText = fromMaybe (error "invalid referent") . fromText
 
 -- #abc[.xy][#<T>cid]
 fromText :: Text -> Maybe Referent
