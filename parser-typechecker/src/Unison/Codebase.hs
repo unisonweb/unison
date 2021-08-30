@@ -187,6 +187,7 @@ debug = False
 
 data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
 
+-- Checkout out here. 
 getCodebaseDir :: MonadIO m => Maybe FilePath -> m FilePath
 getCodebaseDir = maybe getHomeDirectory pure
 

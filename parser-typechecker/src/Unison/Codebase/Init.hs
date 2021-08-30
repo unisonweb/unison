@@ -6,6 +6,7 @@ module Unison.Codebase.Init where
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.FileCodebase.Common as FCC
 import Unison.Parser (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
@@ -31,10 +32,44 @@ data Init m v a = Init
     codebasePath :: CodebasePath -> CodebasePath
   }
 
+type FinalizerAndCodebase m v a = (m (), Codebase m v a)
+
+data InitError 
+  = NoCodebaseFoundAtSpecifiedDir
+  | FoundV1Codebase
+  | CouldntCreateCodebase Pretty
+
+data InitResult m v a 
+  = OpenedCodebase CodebasePath (FinalizerAndCodebase m v a) 
+  | CreatedCodebase CodebasePath (FinalizerAndCodebase m v a) 
+  | Error CodebasePath InitError
+
+openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> Maybe CodebasePath -> m (InitResult m v a)
+openOrCreateCodebase cbInit debugName maybeSpecificedDir = do
+  resolvedDir <- Codebase.getCodebaseDir maybeSpecificedDir
+  openCodebase cbInit debugName resolvedDir >>= \case -- calls accessor function Init -> debug name -> blah blah 
+    Right cb -> pure (OpenedCodebase resolvedDir cb)
+    Left _ ->
+      case maybeSpecificedDir of
+        Nothing -> do
+          ifM (FCC.codebaseExists resolvedDir)
+            (do pure (Error resolvedDir FoundV1Codebase))
+            (do
+              -- Create V2 codebase if neither a V1 or V2 exists
+              createCodebase cbInit debugName resolvedDir >>= \case
+                Left errorMessage -> do pure (Error resolvedDir (CouldntCreateCodebase errorMessage))
+                Right cb -> do
+                  pure (CreatedCodebase resolvedDir cb)
+            )
+        Just specifiedDir -> do
+          ifM (FCC.codebaseExists specifiedDir)
+            (pure (Error specifiedDir FoundV1Codebase))
+            (pure (Error specifiedDir NoCodebaseFoundAtSpecifiedDir))
+
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
-createCodebase debugName cbInit path = do
+createCodebase cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase' debugName cbInit path <&> mapLeft \case
+  createCodebase' cbInit debugName path <&> mapLeft \case
     CreateCodebaseAlreadyExists ->
       P.wrap $
         "It looks like there's already a codebase in: "
@@ -52,9 +87,9 @@ createCodebase debugName cbInit path = do
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
 openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> m (m (), Codebase m Symbol Ann)
-openNewUcmCodebaseOrExit debugName cbInit path = do
+openNewUcmCodebaseOrExit cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase debugName cbInit path >>= \case
+  createCodebase cbInit debugName path >>= \case
     Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
     Right x@(_, codebase) -> do
       liftIO $
