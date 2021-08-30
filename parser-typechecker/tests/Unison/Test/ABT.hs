@@ -7,8 +7,6 @@ import EasyTest
 import Unison.ABT as ABT
 import Unison.Symbol (Symbol(..))
 import Unison.Var as Var
-import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
--- import qualified Unison.Codebase.FileCodebase.Serialization.V1 as V1
 
 test :: Test ()
 test = scope "abt" $ tests [

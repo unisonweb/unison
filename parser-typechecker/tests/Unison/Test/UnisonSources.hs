@@ -6,7 +6,6 @@ module Unison.Test.UnisonSources where
 import           Control.Exception      (throwIO)
 import           Control.Lens           ( view )
 import           Control.Lens.Tuple     ( _5 )
-import           Control.Monad          (void)
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.Map               as Map
 import           Data.Sequence          (Seq)
@@ -16,30 +15,22 @@ import           EasyTest
 import           System.FilePath        (joinPath, splitPath, replaceExtension)
 import           System.FilePath.Find   (always, extension, find, (==?))
 import           System.Directory       ( doesFileExist )
-import qualified Unison.ABT             as ABT
 import qualified Unison.Builtin         as Builtin
 import           Unison.Codebase.Runtime          ( Runtime, evaluateWatches )
-import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
-import           Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
-import           Unison.Parser          as Parser
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.PrintError      as PrintError
-import           Unison.Reference       ( Reference )
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
 import qualified Unison.Runtime.Interface as RTI
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
-import           Unison.Term            ( Term )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
-import           Unison.Type            ( Type )
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
 import           Unison.Util.Pretty     (toPlain)
-import qualified Unison.Var             as Var
 import qualified Unison.Test.Common as Common
 import qualified Unison.Names3
 
