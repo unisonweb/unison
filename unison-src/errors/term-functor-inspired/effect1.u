@@ -1,4 +1,4 @@
-ability State s where
+structural ability State s where
   get : () -> {State s} s
   set : s -> {State s} ()
 

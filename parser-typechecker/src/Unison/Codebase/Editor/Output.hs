@@ -211,6 +211,7 @@ data Output v
   | BadName String
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
+  | CouldntLoadBranch Branch.Hash
   | NoOp
   deriving (Show)
 
@@ -241,6 +242,7 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   BadRootBranch{} -> True
+  CouldntLoadBranch{} -> True
   NoUnisonFile{} -> True
   InvalidSourceName{} -> True
   SourceLoadFailed{} -> True
@@ -290,7 +292,7 @@ isFailure o = case o of
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered{} -> False
-  TodoOutput _ todo -> TO.todoScore todo /= 0 && not (TO.noConflicts todo)
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)

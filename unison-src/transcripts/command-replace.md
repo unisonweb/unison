@@ -10,8 +10,8 @@ Let's set up some definitions to start:
 x = 1
 y = 2
 
-type X = One Nat
-type Y = Two Nat Nat
+structural type X = One Nat
+structural type Y = Two Nat Nat
 ```
 
 ```ucm
@@ -27,6 +27,8 @@ Test that replace works with terms
 Test that replace works with types
 ```ucm
 .scratch> replace X Y
+.scratch> find
+.scratch> view.patch patch
 .scratch> view X
 ```
 
@@ -35,7 +37,7 @@ Try with a type/term mismatch
 .scratch> replace X x
 ```
 ```ucm:error
-.scratch> replace y Y 
+.scratch> replace y Y
 ```
 
 Try with missing references

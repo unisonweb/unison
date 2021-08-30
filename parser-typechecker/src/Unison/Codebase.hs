@@ -5,6 +5,7 @@ module Unison.Codebase
   ( Codebase (..),
     CodebasePath,
     GetRootBranchError (..),
+    getBranchForHash,
     getCodebaseDir,
     SyncToDir,
     addDefsToCodebase,
@@ -29,6 +30,13 @@ import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), SyncToDir, 
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
+import Control.Lens ((%=), _1, _2)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
+import Control.Monad.State (State, evalState, get)
+import Data.Bifunctor (bimap)
+import Control.Error.Util (hush)
+import Data.Maybe as Maybe
+import Data.List as List
 import qualified Data.Map as Map
 import Unison.Symbol (Symbol)
 import qualified Unison.Parser.Ann as Parser
@@ -58,6 +66,25 @@ import Unison.Codebase.Editor.Git (withStatus)
 import qualified Data.Set as Set
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Type as Type
+
+-- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
+-- If not found, attempt to find it in the Codebase (sqlite)
+getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
+getBranchForHash codebase h =
+  let
+    nestedChildrenForDepth depth b =
+      if depth == 0 then []
+      else
+        b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
+
+    headHashEq = (h ==) . Branch.headHash
+
+    find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
+  in do
+  rootBranch <- hush <$> getRootBranch codebase
+  case rootBranch of
+    Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
+    Nothing -> getBranchForHashImpl codebase h
 
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
 lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of

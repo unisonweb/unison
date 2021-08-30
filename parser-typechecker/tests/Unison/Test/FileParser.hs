@@ -19,25 +19,25 @@ module Unison.Test.FileParser where
   test1 = scope "test1" . tests . map parses $
     [
     -- , "type () = ()\n()"
-      "type Pair a b = Pair a b\n"
-    , "type Optional a = Just a | Nothing\n"
+      "structural type Pair a b = Pair a b\n"
+    , "structural type Optional a = Just a | Nothing\n"
     , unlines
-      ["type Optional2 a"
+      ["structural type Optional2 a"
       ,"  = Just a"
       ,"  | Nothing\n"]
     ------ -- ,unlines
-    ------ --   ["type Optional a b c where"
+    ------ --   ["structural type Optional a b c where"
     ------ --   ,"  Just : a -> Optional a"
     ------ --   ,"  Nothing : Optional Int"]
     ------ -- , unlines
-    ------ --   ["type Optional"
+    ------ --   ["structural type Optional"
     ------ --   ,"   a"
     ------ --   ,"   b"
     ------ --   ,"   c where"
     ------ --   ,"  Just : a -> Optional a"
     ------ --   ,"  Nothing : Optional Int"]
     , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
-      ["ability State s where"
+      ["structural ability State s where"
       ,"  get : {State s} s"
       ,"  set : s -> {State s} ()"
       ]

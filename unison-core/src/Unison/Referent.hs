@@ -17,6 +17,7 @@ module Unison.Referent
     isPrefixOf,
     toShortHash,
     toText,
+    toString,
     patternShortHash,
   )
 where

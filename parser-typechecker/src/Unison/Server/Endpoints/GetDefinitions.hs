@@ -42,6 +42,7 @@ import Unison.Server.Types
     APIHeaders,
     DefinitionDisplayResults,
     HashQualifiedName,
+    NamespaceFQN,
     Suffixify (..),
     addHeaders,
     defaultWidth,
@@ -51,7 +52,7 @@ import Unison.Var (Var)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
-                  :> QueryParam "relativeTo" HashQualifiedName
+                  :> QueryParam "relativeTo" NamespaceFQN
                   :> QueryParams "names" HashQualifiedName
                   :> QueryParam "renderWidth" Width
                   :> QueryParam "suffixifyBindings" Suffixify
@@ -79,7 +80,7 @@ instance ToParam (QueryParam "suffixifyBindings" Suffixify) where
     Normal
 
 
-instance ToParam (QueryParam "relativeTo" HashQualifiedName) where
+instance ToParam (QueryParam "relativeTo" NamespaceFQN) where
   toParam _ = DocQueryParam
     "relativeTo"
     [".", ".base", "foo.bar"]
@@ -113,7 +114,7 @@ serveDefinitions
   -> Rt.Runtime v
   -> Codebase IO v Ann
   -> Maybe ShortBranchHash
-  -> Maybe HashQualifiedName
+  -> Maybe NamespaceFQN
   -> [HashQualifiedName]
   -> Maybe Width
   -> Maybe Suffixify

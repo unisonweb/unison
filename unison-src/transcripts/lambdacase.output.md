@@ -117,7 +117,7 @@ it again shows the definition using the multi-argument `cases` syntax opportunis
 Here's another example:
 
 ```unison
-type B = T | F
+structural type B = T | F
 
 blah = cases
   T, x -> "hi"
@@ -140,7 +140,7 @@ blorf = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      type B
+      structural type B
       blah  : B -> B -> Text
       blorf : B -> B -> B
   
@@ -158,5 +158,68 @@ blorf = cases
     13 | > blorf T F
            ⧩
            F
+
+```
+## Patterns with multiple guards
+
+```unison
+merge3 : [a] -> [a] -> [a]
+merge3 = cases
+  [], ys -> ys
+  xs, [] -> xs
+  h +: t, h2 +: t2 | h <= h2   -> h  +: merge3 t (h2 +: t2)
+                   | otherwise -> h2 +: merge3 (h +: t) t2
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      merge3 : [a] -> [a] -> [a]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    merge3 : [a] -> [a] -> [a]
+
+.> view merge3
+
+  merge3 : [a] -> [a] -> [a]
+  merge3 = cases
+    [], ys           -> ys
+    xs, []           -> xs
+    h +: t, h2 +: t2  
+      | h <= h2      -> h +: merge3 t (h2 +: t2)
+      | otherwise    -> h2 +: merge3 (h +: t) t2
+
+```
+This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.
+
+```unison
+merge4 : [a] -> [a] -> [a]
+merge4 a b = match (a,b) with
+  [], ys -> ys
+  xs, [] -> xs
+  h +: t, h2 +: t2 | h <= h2   -> h  +: merge4 t (h2 +: t2)
+  h +: t, h2 +: t2 | otherwise -> h2 +: merge4 (h +: t) t2
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      merge4 : [a] -> [a] -> [a]
+        (also named merge3)
 
 ```

@@ -44,6 +44,7 @@ module Unison.Codebase.Path
     toList,
     toName,
     toName',
+    toPath',
     toText,
     unsplit,
     unsplit',

@@ -296,15 +296,15 @@ constructorName ref cid =
 source :: Text
 source = fromString [r|
 
-type Either a b = Left a | Right b
+structural type Either a b = Left a | Right b
 
-type Optional a = None | Some a
+structural type Optional a = None | Some a
 
 unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
   IsPropagated = IsPropagated
 
 d1 Doc.++ d2 =
-  use Doc
+  use Doc2
   match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds List.++ ds2)
     (Join ds, _) -> Join (ds `List.snoc` d2)
@@ -463,7 +463,7 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
   | Append w [Pretty.Annotated w txt]
 
-type Pretty txt = Pretty (Pretty.Annotated () txt)
+structural type Pretty txt = Pretty (Pretty.Annotated () txt)
 
 Pretty.get = cases Pretty p -> p
 

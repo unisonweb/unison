@@ -6,12 +6,16 @@ import Unison.Prelude
 
 import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hashable as H
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import qualified Unison.Type as Type
 
 data Pattern loc
@@ -35,6 +39,30 @@ data SeqOp = Cons
            | Snoc
            | Concat
            deriving (Eq, Show, Ord, Generic)
+
+updateDependencies :: Map Referent Referent -> Pattern loc -> Pattern loc
+updateDependencies tms p = case p of
+  Unbound{} -> p
+  Var{} -> p
+  Boolean{} -> p
+  Int{} -> p
+  Nat{} -> p
+  Float{} -> p
+  Text{} -> p
+  Char{} -> p
+  Constructor loc r cid ps -> case Map.lookup (Referent.Con r cid CT.Data) tms of
+    Just (Referent.Con r cid CT.Data) -> Constructor loc r cid (updateDependencies tms <$> ps)
+    _ -> Constructor loc r cid (updateDependencies tms <$> ps)
+  As loc p -> As loc (updateDependencies tms p)
+  EffectPure loc p -> EffectPure loc (updateDependencies tms p)
+  EffectBind loc r cid pats k -> case Map.lookup (Referent.Con r cid CT.Effect) tms of
+    Just (Referent.Con r cid CT.Effect) ->
+      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+    _ ->
+      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+  SequenceLiteral loc ps -> SequenceLiteral loc (updateDependencies tms <$> ps)
+  SequenceOp loc lhs op rhs ->
+    SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]

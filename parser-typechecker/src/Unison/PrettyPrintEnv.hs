@@ -12,6 +12,7 @@ import qualified Data.Map                      as Map
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
+import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests

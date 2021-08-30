@@ -23,8 +23,6 @@ data Element r = NumericLiteral
              | Reference r
              | Referent (Referent' r)
              | Op SeqOp
-             | Constructor
-             | Request
              | AbilityBraces
              -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
              | ControlKeyword

@@ -190,7 +190,6 @@ test = scope "termprinter" $ tests
   , tc "match x with 1 -> foo"
   , tc "match x with +1 -> foo"
   , tc "match x with -1 -> foo"
-  , tc "match x with 3.14159 -> foo"
   , tcDiffRtt False "match x with\n\
                       \  true  -> foo\n\
                       \  false -> bar"

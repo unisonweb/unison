@@ -41,7 +41,7 @@ data Codebase m v a = Codebase
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
-    getBranchForHash :: Branch.Hash -> m (Maybe (Branch m)),
+    getBranchForHashImpl :: Branch.Hash -> m (Maybe (Branch m)),
     putBranch :: Branch m -> m (),
     branchExists :: Branch.Hash -> m Bool,
     getPatch :: Branch.EditHash -> m (Maybe Patch),

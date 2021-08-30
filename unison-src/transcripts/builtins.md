@@ -1,5 +1,12 @@
 # Unit tests for builtin functions
 
+```ucm:hide
+.> builtins.mergeio
+.> cd builtin
+.> load unison-src/transcripts-using-base/base.u
+.> add
+```
+
 This transcript defines unit tests for builtin functions. There's a single `.> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
 
 ## `Int` functions

@@ -1,9 +1,9 @@
 
-type Point x y = { x : x, y : y }
+structural type Point x y = { x : x, y : y }
 
-type Point2 = { point2 : Nat, f : Nat }
+structural type Point2 = { point2 : Nat, f : Nat }
 
-type Monoid a = { zero : a, plus : a -> a -> a }
+structural type Monoid a = { zero : a, plus : a -> a -> a }
 
 > Point.x.set 10 (Point 0 0)
 > Point.x (Point 10 0)

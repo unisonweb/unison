@@ -57,9 +57,9 @@ file = do
   --
   -- There's some more complicated logic below to have suffix-based name resolution
   -- make use of _terms_ from the local file.
-  local (\e -> e { names = Names.push (Names.suffixify0 locals) namesStart }) $ do
+  local (\e -> e { names = Names.push locals namesStart }) $ do
     names <- asks names
-    stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    stanzas0 <- sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
@@ -73,7 +73,9 @@ file = do
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
-    let (curNames, resolveLocals) = (Names.deleteTerms0 locals (Names.currentNames names), resolveLocals)
+    let (curNames, resolveLocals) =
+          ( Names.shadowSuffixedTerms0 locals (Names.currentNames names)
+          , resolveLocals )
           where
           -- All locally declared term variables, running example:
           --   [foo.alice, bar.alice, zonk.bob]
@@ -215,18 +217,22 @@ declarations = do
       [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
       [ (v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad ]
 
-modifier :: Var v => P v (L.Token DD.Modifier)
+-- unique[someguid] type Blah = ...
+modifier :: Var v => P v (Maybe (L.Token DD.Modifier))
 modifier = do
-  o <- optional (openBlockWith "unique")
-  case o of
-    Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
-    Just tok -> do
+  optional (unique <|> structural)
+  where
+    unique = do
+      tok <- openBlockWith "unique"
       uid <- do
         o <- optional (reserved "[" *> wordyIdString <* reserved "]")
         case o of
           Nothing -> uniqueName 32
           Just uid -> pure (fromString . L.payload $ uid)
       pure (DD.Unique uid <$ tok)
+    structural = do
+      tok <- openBlockWith "structural"
+      pure (DD.Structural <$ tok)
 
 declaration :: Var v
             => P v (Either (v, DataDeclaration v Ann, Accessors v)
@@ -238,10 +244,10 @@ declaration = do
 dataDeclaration
   :: forall v
    . Var v
-  => L.Token DD.Modifier
+  => Maybe (L.Token DD.Modifier) 
   -> P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
-  _                <- fmap void (reserved "type") <|> openBlockWith "type"
+  keywordTok       <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
     (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
         <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
@@ -277,16 +283,19 @@ dataDeclaration mod = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure (L.payload name,
-        DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors,
-        accessors)
+  case mod of 
+    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name 
+    Just mod' -> 
+      pure (L.payload name,
+            DD.mkDataDecl' (L.payload mod') (ann mod' <> closingAnn) typeArgVs constructors,
+            accessors)
 
 effectDeclaration
-  :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration v Ann)
+  :: Var v => Maybe (L.Token DD.Modifier) -> P v (v, EffectDeclaration v Ann)
 effectDeclaration mod = do
-  _        <- fmap void (reserved "ability") <|> openBlockWith "ability"
-  name     <- TermParser.verifyRelativeVarName prefixDefinitionName
-  typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
+  keywordTok  <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  name        <- TermParser.verifyRelativeVarName prefixDefinitionName
+  typeArgs    <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
   blockStart   <- openBlockWith "where"
   constructors <- sepBy semi (constructor typeArgs name)
@@ -294,13 +303,17 @@ effectDeclaration mod = do
   _            <- closeBlock <* closeBlock
   let closingAnn =
         last $ ann blockStart : ((\(_, _, t) -> ann t) <$> constructors)
-  pure
-    ( L.payload name
-    , DD.mkEffectDecl' (L.payload mod)
-                       (ann mod <> closingAnn)
-                       typeArgVs
-                       constructors
-    )
+
+  case mod of
+    Nothing -> P.customFailure $ MissingTypeModifier ("ability" <$ keywordTok) name
+    Just mod' ->
+      pure
+        ( L.payload name
+        , DD.mkEffectDecl' (L.payload mod')
+                          (ann mod' <> closingAnn)
+                          typeArgVs
+                          constructors
+        )
  where
   constructor
     :: Var v => [L.Token v] -> L.Token v -> P v (Ann, v, Type v Ann)

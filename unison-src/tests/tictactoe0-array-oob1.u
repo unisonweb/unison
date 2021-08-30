@@ -1,6 +1,6 @@
 -- board piece
 
-type Board = Board Nat Nat Nat
+structural type Board = Board Nat Nat Nat
 
 use Board Board
 

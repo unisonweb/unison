@@ -1,6 +1,6 @@
  Example uses of the `names` command and output
 ```unison
-type IntTriple = IntTriple (Int, Int, Int)
+structural type IntTriple = IntTriple (Int, Int, Int)
 intTriple = IntTriple(+1, +1, +1)
 ```
 

@@ -81,7 +81,7 @@ Let's now merge these namespaces into `c`:
 
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
 
-```ucm
+```ucm:error
 .example.resolve> cd c
 .example.resolve.c> todo
 ```
@@ -102,7 +102,7 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
 
 We still have a remaining _name conflict_ since it just so happened that both of the definitions in the edits were named `foo`.
 
-```ucm
+```ucm:error
 .example.resolve.c> todo
 ```
 
@@ -110,6 +110,7 @@ We can resolve the name conflict by deleting one of the names.
 
 ```ucm
 .example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> todo
 ```
 
 And that's how you resolve edit conflicts with UCM.

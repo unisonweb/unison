@@ -6,8 +6,8 @@ Let's set up some definitions to start:
 x = 1
 y = 2
 
-type X = One Nat
-type Y = Two Nat Nat
+structural type X = One Nat
+structural type Y = Two Nat Nat
 ```
 
 ```ucm
@@ -18,8 +18,8 @@ type Y = Two Nat Nat
   
     ⍟ These new definitions are ok to `add`:
     
-      type X
-      type Y
+      structural type X
+      structural type Y
       x : Nat
       y : Nat
 
@@ -31,8 +31,8 @@ type Y = Two Nat Nat
 
   ⍟ I've added these definitions:
   
-    type X
-    type Y
+    structural type X
+    structural type Y
     x : Nat
     y : Nat
 
@@ -55,9 +55,29 @@ Test that replace works with types
 
   Done.
 
+.scratch> find
+
+  1. structural type X
+  2. x : Nat
+  3. X.One : Nat -> Nat -> X
+  4. structural type Y
+  5. y : Nat
+  6. Y.Two : Nat -> Nat -> X
+  
+
+.scratch> view.patch patch
+
+  Edited Types: X#d97e0jhkmd -> X
+  
+  Edited Terms: #jk19sm5bf8 -> x
+  
+  Tip: To remove entries from a patch, use
+       delete.term-replacement or delete.type-replacement, as
+       appropriate.
+
 .scratch> view X
 
-  type X = Two Nat Nat
+  structural type X = One Nat Nat
 
 ```
 Try with a type/term mismatch
@@ -70,7 +90,7 @@ Try with a type/term mismatch
 
 ```
 ```ucm
-.scratch> replace y Y 
+.scratch> replace y Y
 
   ⚠️
   

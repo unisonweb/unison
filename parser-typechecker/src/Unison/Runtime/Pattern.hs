@@ -412,7 +412,19 @@ splitMatrixBuiltin v (PM rs)
   . toList
   . fmap buildMatrix
   . fromListWith (flip (++))
+  . expandIrrefutable
   $ splitRowBuiltin v =<< rs
+
+expandIrrefutable
+  :: Var v
+  => [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
+  -> [(P.Pattern (), [([P.Pattern v], PatternRow v)])]
+expandIrrefutable rss = concatMap expand rss
+  where
+  specific = filter refutable $ fst <$> rss
+  expand tup@(p, rs)
+    | not (refutable p) = fmap (,rs) specific ++ [tup]
+  expand tup = [tup]
 
 matchPattern :: [(v,PType)] -> SeqMatch -> P.Pattern ()
 matchPattern vrs = \case
@@ -672,8 +684,6 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b))
           | otherwise ->
               internalBug "mkRow: guard variables do not match body"
         Nothing -> Nothing
-        _ -> internalBug "mkRow: impossible"
-mkRow _ _ = internalBug "mkRow: impossible"
 
 initialize
   :: Var v

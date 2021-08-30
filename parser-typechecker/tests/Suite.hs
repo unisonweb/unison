@@ -31,6 +31,7 @@ import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Pretty as Pretty
+import qualified Unison.Test.Util.Relation as Relation
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
@@ -54,6 +55,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , Relation.test
   , Path.test
   , Causal.test
   , Referent.test

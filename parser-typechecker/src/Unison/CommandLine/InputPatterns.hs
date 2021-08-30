@@ -311,6 +311,11 @@ docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
         [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
         _ -> Left (I.help docs))
 
+ui :: InputPattern
+ui = InputPattern "ui" [] []
+      "`ui` opens the Codebase UI in the default browser."
+      (const $ pure Input.UiI)
+
 undo :: InputPattern
 undo = InputPattern "undo" [] []
       "`undo` reverts the most recent change to the codebase."
@@ -929,11 +934,15 @@ diffNamespace :: InputPattern
 diffNamespace = InputPattern
   "diff.namespace"
   []
-  [(Required, pathArg), (Required, pathArg)]
+  [(Required, pathArg), (Optional, pathArg)]
   (P.column2
     [ ( "`diff.namespace before after`"
       , P.wrap
         "shows how the namespace `after` differs from the namespace `before`"
+      )
+    , ( "`diff.namespace before`"
+      , P.wrap
+        "shows how the current namespace differs from the namespace `before`"
       )
     ]
   )
@@ -942,6 +951,9 @@ diffNamespace = InputPattern
       before <- Path.parsePath' before
       after <- Path.parsePath' after
       pure $ Input.DiffNamespaceI before after
+    [before] -> first fromString $ do
+      before <- Path.parsePath' before
+      pure $ Input.DiffNamespaceI before Path.currentPath
     _ -> Left $ I.help diffNamespace
   )
 
@@ -1293,6 +1305,12 @@ debugDumpNamespace = InputPattern
   "Dump the namespace to a text file"
   (const $ Right Input.DebugDumpNamespacesI)
 
+debugDumpNamespaceSimple :: InputPattern
+debugDumpNamespaceSimple = InputPattern
+  "debug.dump-namespace-simple" [] [(Required, noCompletions)]
+  "Dump the namespace to a text file"
+  (const $ Right Input.DebugDumpNamespaceSimpleI)
+
 debugClearWatchCache :: InputPattern
 debugClearWatchCache = InputPattern
   "debug.clear-cache" [] [(Required, noCompletions)]
@@ -1390,6 +1408,7 @@ validInputs =
   , view
   , display
   , displayTo
+  , ui
   , docs
   , findPatch
   , viewPatch
@@ -1425,6 +1444,7 @@ validInputs =
   , debugNumberedArgs
   , debugFileHashes
   , debugDumpNamespace
+  , debugDumpNamespaceSimple
   , debugClearWatchCache
   ]
 

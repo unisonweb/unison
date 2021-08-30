@@ -20,12 +20,12 @@ def2 = 2
   Added definitions:
   
     1. metadata.authors.alicecoder          : Author
-    2. metadata.authors.alicecoder.guid     : GUID
-    3. metadata.copyrightHolders.alicecoder : CopyrightHolder
+    2. metadata.copyrightHolders.alicecoder : CopyrightHolder
+    3. metadata.authors.alicecoder.guid     : GUID
   
   Tip: Add License values for alicecoder under metadata.
 
-.foo> view 3
+.foo> view 2
 
   metadata.copyrightHolders.alicecoder : CopyrightHolder
   metadata.copyrightHolders.alicecoder =

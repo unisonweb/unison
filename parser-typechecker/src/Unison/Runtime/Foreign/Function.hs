@@ -18,6 +18,7 @@ import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate)
 import qualified Data.Char as Char
+import Data.IORef (IORef)
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -28,7 +29,7 @@ import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 
 import Unison.Reference (Reference)
-import Unison.Type (mvarRef, tvarRef, typeLinkRef)
+import Unison.Type (mvarRef, tvarRef, typeLinkRef, refRef)
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF (SuperGroup, Mem(..), Value, internalBug)
@@ -347,6 +348,10 @@ instance ForeignConvention (MVar Closure) where
 instance ForeignConvention (TVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap tvarRef)
+
+instance ForeignConvention (IORef Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap refRef)
 
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin

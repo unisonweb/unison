@@ -232,8 +232,9 @@ library
     , network
     , network-simple
     , nonempty-containers
+    , open-browser
     , openapi3
-    , optparse-applicative
+    , optparse-applicative >=0.16.1.0
     , pem
     , prelude-extras
     , primitive
@@ -267,6 +268,7 @@ library
     , unison-core1
     , unison-util
     , unliftio
+    , uri-encode
     , utf8-string
     , vector
     , wai
@@ -341,6 +343,7 @@ executable tests
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
+      Unison.Test.Util.Relation
       Unison.Test.Var
       Unison.Test.VersionParser
       Paths_unison_parser_typechecker
@@ -428,6 +431,8 @@ executable transcripts
 executable unison
   main-is: Main.hs
   other-modules:
+      ArgParse
+      Compat
       System.Path
       Version
       Paths_unison_parser_typechecker
@@ -458,6 +463,7 @@ executable unison
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative >=0.16.1.0
     , safe
     , shellmet
     , template-haskell

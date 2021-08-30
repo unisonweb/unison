@@ -72,8 +72,8 @@ library:
     - network
     - network-simple
     - nonempty-containers
+    - optparse-applicative >= 0.16.1.0
     - openapi3
-    - optparse-applicative
     - pem
     - prelude-extras
     - process
@@ -115,6 +115,8 @@ library:
     - unison-core
     - unison-core1
     - unison-util
+    - open-browser
+    - uri-encode
 
 executables:
   unison:
@@ -132,6 +134,7 @@ executables:
       - lens
       - megaparsec
       - mtl
+      - optparse-applicative >= 0.16.1.0
       - safe
       - shellmet
       - template-haskell
