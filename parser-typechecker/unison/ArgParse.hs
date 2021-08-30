@@ -24,7 +24,6 @@ import Options.Applicative
        , command
        , customExecParser
        , flag
-       , flag'
        , footerDoc
        , fullDesc
        , headerDoc
@@ -90,15 +89,9 @@ data Command
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
   deriving (Show, Eq)
 
-data CodebaseFormat
-    = V1
-    | V2
-    deriving (Show, Eq)
-
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePath :: Maybe FilePath
-  , codebaseFormat :: CodebaseFormat
   } deriving (Show, Eq)
 
 -- | The root-level 'ParserInfo'.
@@ -201,7 +194,6 @@ commandParser envOpts =
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do -- ApplicativeDo
     codebasePath <- codebasePathParser
-    codebaseFormat <- codebaseFormatParser
     pure GlobalOptions{..}
 
 codebasePathParser :: Parser (Maybe FilePath)
@@ -210,12 +202,6 @@ codebasePathParser =
          long "codebase"
       <> metavar "path/to/codebase"
       <> help "The path to the codebase, defaults to the home directory"
-
-codebaseFormatParser :: Parser CodebaseFormat
-codebaseFormatParser =
-        flag' V1 (long "old-codebase" <> help "Use a v1 codebase on startup.")
-    <|> flag' V2 (long "new-codebase" <> help "Use a v2 codebase on startup.")
-    <|> pure V2
 
 launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
 launchHeadlessCommand envOpts =
