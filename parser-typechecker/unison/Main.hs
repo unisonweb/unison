@@ -82,7 +82,7 @@ main = do
      Init ->
        CodebaseInit.initCodebaseAndExit cbInit "main.init" mcodepath
      Run (RunFromSymbol mainName) -> do
-      (closeCodebase, theCodebase) <- getCodebase cbFormat mcodepath
+      (closeCodebase, theCodebase) <- getCodebase mcodepath
       runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
       closeCodebase
@@ -93,7 +93,7 @@ main = do
             case e of
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
-                (closeCodebase, theCodebase) <- getCodebase cbFormat mcodepath
+                (closeCodebase, theCodebase) <- getCodebase mcodepath
                 rt <- RTI.startRuntime
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                 launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing
@@ -103,7 +103,7 @@ main = do
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          (closeCodebase, theCodebase) <- getCodebase cbFormat mcodepath
+          (closeCodebase, theCodebase) <- getCodebase mcodepath
           rt <- RTI.startRuntime
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
@@ -115,7 +115,7 @@ main = do
        runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveCodebase mcodepath transcriptFiles
      UpgradeCodebase -> upgradeCodebase mcodepath
      Launch isHeadless codebaseServerOpts -> do
-       (closeCodebase, theCodebase) <- getCodebase cbFormat mcodepath
+       (closeCodebase, theCodebase) <- getCodebase mcodepath
        runtime <- RTI.startRuntime
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          PT.putPrettyLn $ P.lines
@@ -159,7 +159,7 @@ prepareTranscriptDir cbFormat shouldFork mcodepath = do
   let cbInit = cbInitFor cbFormat
   case shouldFork of
     UseFork -> do
-      getCodebase cbFormat mcodepath
+      getCodebase mcodepath
       path <- Codebase.getCodebaseDir mcodepath
       PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
@@ -172,12 +172,11 @@ prepareTranscriptDir cbFormat shouldFork mcodepath = do
   pure tmp
 
 runTranscripts'
-  :: CodebaseFormat
-  -> Maybe FilePath
+  :: Maybe FilePath
   -> FilePath
   -> NonEmpty String
   -> IO Bool
-runTranscripts' codebaseFormat mcodepath transcriptDir args = do
+runTranscripts' mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   let (markdownFiles, invalidArgs) = NonEmpty.partition isMarkdown args
   for_ markdownFiles $ \fileName -> do
@@ -190,7 +189,7 @@ runTranscripts' codebaseFormat mcodepath transcriptDir args = do
             P.indentN 2 $ P.string err])
       Right stanzas -> do
         configFilePath <- getConfigFilePath mcodepath
-        (closeCodebase, theCodebase) <- getCodebase codebaseFormat $ Just transcriptDir
+        (closeCodebase, theCodebase) <- getCodebase $ Just transcriptDir
         mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
         closeCodebase
         let out = currentDir FP.</>
@@ -221,7 +220,7 @@ runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveTempCodebase mcodep
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir cbFormat shouldFork mcodepath
   completed <-
-    runTranscripts' cbFormat (Just transcriptDir) transcriptDir args
+    runTranscripts' (Just transcriptDir) transcriptDir args
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
     SaveCodebase ->
@@ -233,7 +232,7 @@ runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveTempCodebase mcodep
                 "I've finished running the transcript(s) in this codebase:", "",
                 P.indentN 2 (P.string transcriptDir), "",
                 P.wrap $ "You can run"
-                      <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
+                      <> P.backticked (P.string progName <> " --codebase " <> P.string transcriptDir)
                       <> "to do more work with it."])
         else do
           putStrLn (renderUsageInfo $ Just "transcript")
@@ -283,12 +282,12 @@ defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
 
-getCodebase :: CodebaseFormat -> Maybe Codebase.CodebasePath -> IO (IO (), Codebase.Codebase IO Symbol Ann)
-getCodebase cbFormat maybeSpecifiedDir =
+getCodebase :: Maybe Codebase.CodebasePath -> IO (IO (), Codebase.Codebase IO Symbol Ann)
+getCodebase maybeSpecifiedDir =
   -- Likely we should only change codebase format 2? Or both? 
   -- Notes for selves: create a function 'openOrCreateCodebase' which handles v1/v2 codebase provided / no codebase specified
   -- encode error messages as types. Our spike / idea is below:   
-  CodebaseInit.openOrCreateCodebase (cbInitFor cbFormat) "main" maybeSpecifiedDir >>= \case
+  CodebaseInit.openOrCreateCodebase SC.init "main" maybeSpecifiedDir >>= \case
     Error dir error ->
       let
         message = do
