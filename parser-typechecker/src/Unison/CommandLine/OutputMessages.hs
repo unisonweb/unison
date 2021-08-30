@@ -689,11 +689,12 @@ notifyUser dir o = case o of
       GitCouldntParseRootBranchHash repo s -> P.wrap $ "I couldn't parse the string"
         <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
         <> P.group (prettyReadRepo repo <> ".")
-    -- CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
-    --   <> P.red (P.shown h) <> "but now I can't find it."
     GitProtocolError e -> case e of
       NoGit -> P.wrap $
         "I couldn't find git. Make sure it's installed and on your path."
+      CleanupError e -> P.wrap $
+        "I encountered an exception while trying to clean up a git cache directory:"
+        <> P.group (P.shown e)
       CloneException repo msg -> P.wrap $
         "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
         <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
@@ -729,6 +730,10 @@ notifyUser dir o = case o of
         $ "I couldn't load the designated root hash"
         <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
         <> "from the repository at" <> prettyReadRepo repo
+      CouldntLoadSyncedBranch ns h -> P.wrap
+        $ "I just finished importing the branch" <> P.red (P.shown h)
+        <> "from" <> P.red (prettyRemoteNamespace ns)
+        <> "but now I can't find it."
       NoRemoteNamespaceWithHash repo sbh -> P.wrap
         $ "The repository at" <> prettyReadRepo repo
         <> "doesn't contain a namespace with the hash prefix"
