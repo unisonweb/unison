@@ -135,7 +135,6 @@ data Input
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
   | DebugNumberedArgsI
-  | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
   | DebugClearWatchI

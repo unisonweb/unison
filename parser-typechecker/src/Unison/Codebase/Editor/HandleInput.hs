@@ -469,7 +469,6 @@ loop = do
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugNumberedArgsI{} -> wat
-          DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
           DebugDumpNamespacesI{} -> wat
           DebugClearWatchI {} -> wat

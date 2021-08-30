@@ -1282,12 +1282,6 @@ debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
 
-debugBranchHistory :: InputPattern
-debugBranchHistory = InputPattern "debug.history" []
-  [(Optional, noCompletions)]
-  "Dump codebase history, compatible with bit-booster.com/graph.html"
-  (const $ Right Input.DebugBranchHistoryI)
-
 debugFileHashes :: InputPattern
 debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
@@ -1429,7 +1423,6 @@ validInputs =
   , mergeIOBuiltins
   , dependents, dependencies
   , debugNumberedArgs
-  , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
   , debugClearWatchCache

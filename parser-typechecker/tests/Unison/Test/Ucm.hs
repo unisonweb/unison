@@ -22,7 +22,6 @@ import qualified System.IO.Temp as Temp
 import U.Util.String (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR

@@ -56,26 +56,6 @@ library
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
-      Unison.Codebase.FileCodebase
-      Unison.Codebase.FileCodebase.Branch
-      Unison.Codebase.FileCodebase.Branch.Dependencies
-      Unison.Codebase.FileCodebase.Codebase
-      Unison.Codebase.FileCodebase.Common
-      Unison.Codebase.FileCodebase.DataDeclaration
-      Unison.Codebase.FileCodebase.Init
-      Unison.Codebase.FileCodebase.LabeledDependency
-      Unison.Codebase.FileCodebase.Metadata
-      Unison.Codebase.FileCodebase.Patch
-      Unison.Codebase.FileCodebase.Pattern
-      Unison.Codebase.FileCodebase.Reference
-      Unison.Codebase.FileCodebase.Reference.Util
-      Unison.Codebase.FileCodebase.Referent
-      Unison.Codebase.FileCodebase.Serialization.V1
-      Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
-      Unison.Codebase.FileCodebase.Term
-      Unison.Codebase.FileCodebase.TermEdit
-      Unison.Codebase.FileCodebase.Type
-      Unison.Codebase.FileCodebase.TypeEdit
       Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError

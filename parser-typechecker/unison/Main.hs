@@ -37,7 +37,6 @@ import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
-import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
@@ -383,7 +382,7 @@ getCodebaseOrExit cbFormat mdir = do
         prettyDir = P.string <$> canonicalizePath dir
       PT.putPrettyLn' =<< case cbFormat of
         V1 -> sayNoCodebase
-        V2 -> FC.openCodebase dir >>= \case
+        V2 -> undefined >>= \case
           Left {} -> sayNoCodebase
           Right {} -> suggestUpgrade
       Exit.exitFailure

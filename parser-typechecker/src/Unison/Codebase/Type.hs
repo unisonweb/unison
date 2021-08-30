@@ -21,7 +21,6 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.GitError (GitProtocolError, GitCodebaseError)
-import Unison.Codebase.FileCodebase.Codebase (GitFileCodebaseError)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 
 type SyncToDir m =
@@ -96,6 +95,5 @@ data GetRootBranchError
 data GitError
   = GitProtocolError GitProtocolError
   | GitCodebaseError (GitCodebaseError Branch.Hash)
-  | GitFileCodebaseError GitFileCodebaseError
   | GitSqliteCodebaseError GitSqliteCodebaseError
   deriving Show
