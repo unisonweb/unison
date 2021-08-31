@@ -994,7 +994,7 @@ hashComponents
 hashComponents = ReferenceUtil.hashComponents $ refId ()
 
 hashClosedTerm :: Var v => Term v a -> Reference.Id
-hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
+hashClosedTerm tm = Reference.Id (ABT.hash tm) 0
 
 -- The hash for a constructor
 hashConstructor'
@@ -1035,12 +1035,11 @@ instance Var v => Hashable1 (F v a p) where
         -- are 'transparent' wrt hash and hashing is unaffected by whether
         -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
         -- the same.
-          Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
-          Ref (Reference.Derived h i n) -> Hashable.accumulate
+          Ref (Reference.Derived h 0) -> Hashable.fromBytes (Hash.toBytes h)
+          Ref (Reference.Derived h i) -> Hashable.accumulate
             [ tag 1
             , hashed $ Hashable.fromBytes (Hash.toBytes h)
             , Hashable.Nat i
-            , Hashable.Nat n
             ]
           -- Note: start each layer with leading `1` byte, to avoid collisions
           -- with types, which start each layer with leading `0`.

@@ -670,7 +670,7 @@ hashComponent byName = let
 -- overall component has no free variables.
 hashComponents
   :: (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
-  => (h -> Word64 -> Word64 -> Term f v ())
+  => (h -> Word64 -> Term f v ())
   -> Map.Map v (Term f v a)
   -> [(h, [(v, Term f v a)])]
 hashComponents termFromHash termsByName = let
@@ -681,8 +681,7 @@ hashComponents termFromHash termsByName = let
   go prevHashes (component : rest) = let
     sub = substsInheritAnnotation (Map.toList prevHashes)
     (h, sortedComponent) = hashComponent $ Map.fromList [ (v, sub t) | (v, t) <- component ]
-    size = fromIntegral (length sortedComponent)
-    curHashes = Map.fromList [ (v, termFromHash h i size) | ((v, _),i) <- sortedComponent `zip` [0..]]
+    curHashes = Map.fromList [ (v, termFromHash h i) | ((v, _),i) <- sortedComponent `zip` [0..]]
     newHashes = prevHashes `Map.union` curHashes
     newHashesL = Map.toList newHashes
     sortedComponent' = [ (v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent ]

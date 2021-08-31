@@ -10,12 +10,13 @@ module Unison.Reference
      pattern DerivedId,
    Id(..),
    Pos,
-   Size,
+   CycleSize, Size,
    derivedBase32Hex,
    Component, members,
    components,
    groupByComponent,
    componentFor,
+   componentFor',
    unsafeFromText,
    idFromText,
    isPrefixOf,
@@ -52,16 +53,15 @@ data Reference
   -- The `Pos` refers to a particular element of the component
   -- and the `Size` is the number of elements in the component.
   -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq,Ord,Generic)
+  | DerivedId Id deriving (Eq, Ord)
 
-pattern Derived :: H.Hash -> Pos -> Size -> Reference
-pattern Derived h i n = DerivedId (Id h i n)
+pattern Derived :: H.Hash -> Pos -> Reference
+pattern Derived h i = DerivedId (Id h i)
 
--- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
---{-# COMPLETE Builtin, Derived #-}
+{-# COMPLETE Builtin, Derived #-}
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
-data Id = Id H.Hash Pos Size deriving (Generic)
+data Id = Id H.Hash Pos deriving (Eq, Ord)
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
@@ -71,16 +71,11 @@ unsafeId (DerivedId x) = x
 idToShortHash :: Id -> ShortHash
 idToShortHash = toShortHash . DerivedId
 
--- todo: move these to ShortHash module?
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h _ 1) = SH.ShortHash (H.base32Hex h) Nothing Nothing
-toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
-  where
-    -- todo: remove `n` parameter; must also update readSuffix
-    index = Just $ showSuffix i n
-toShortHash (DerivedId _) = error "this should be covered above"
+toShortHash (Derived h 0) = SH.ShortHash (H.base32Hex h) Nothing Nothing
+toShortHash (Derived h i) = SH.ShortHash (H.base32Hex h) (Just $ showSuffix i) Nothing
 
 -- toShortHash . fromJust . fromShortHash == id and
 -- fromJust . fromShortHash . toShortHash == id
@@ -93,23 +88,17 @@ fromShortHash (SH.Builtin b) = Just (Builtin b)
 fromShortHash (SH.ShortHash prefix cycle Nothing) = do
   h <- H.fromBase32Hex prefix
   case cycle of
-    Nothing -> Just (Derived h 0 1)
-    Just t -> case Text.splitOn "c" t of
-      [i,n] -> Derived h <$> readMay (Text.unpack i) <*> readMay (Text.unpack n)
-      _ -> Nothing
+    Nothing -> Just (Derived h 0)
+    Just i -> Derived h <$> readMay (Text.unpack i)
 fromShortHash (SH.ShortHash _prefix _cycle (Just _cid)) = Nothing
 
--- (3,10) encoded as "3c10"
--- (0,93) encoded as "0c93"
-showSuffix :: Pos -> Size -> Text
-showSuffix i n = Text.pack $ show i <> "c" <> show n
+showSuffix :: Pos -> Text
+showSuffix = Text.pack . show
 
--- todo: don't read or return size; must also update showSuffix and fromText
-readSuffix :: Text -> Either String (Pos, Size)
-readSuffix t = case Text.breakOn "c" t of
-  (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
-    Right (read (Text.unpack pos), read (Text.unpack size))
-  _ -> Left "suffix decoding error"
+readSuffix :: Text -> Either String Pos
+readSuffix = \case
+  pos | Text.all isDigit pos -> Right (read (Text.unpack pos))
+  t -> Left ("suffix decoding error: " ++ show t)
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
@@ -121,20 +110,22 @@ showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 type Pos = Word64
-type Size = Word64
+type Size = CycleSize
+type CycleSize = Word64
 
 newtype Component = Component { members :: Set Reference }
 
 -- Gives the component (dependency cycle) that the reference is a part of
-componentFor :: Reference -> Component
-componentFor b@(Builtin        _         ) = Component (Set.singleton b)
-componentFor (  DerivedId (Id h _ n)) = Component
-  (Set.fromList
-    [ DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
-  )
+componentFor :: Reference -> CycleSize -> Component
+componentFor r n = case r of
+  b@Builtin{} -> Component (Set.singleton b)
+  DerivedId (Id h _) -> Component . Set.fromList $ DerivedId . Id h <$> [0 .. n]
 
-derivedBase32Hex :: Text -> Pos -> Size -> Reference
-derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
+componentFor' :: H.Hash -> [a] -> [(Reference, a)]
+componentFor' h as = [ (Derived h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
+
+derivedBase32Hex :: Text -> Pos -> Reference
+derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
   where
   msg = error $ "Reference.derivedBase32Hex " <> show h
   h = H.fromBase32Hex b32Hex
@@ -161,16 +152,15 @@ fromText :: Text -> Either String Reference
 fromText t = case Text.split (=='#') t of
   [_, "", b] -> Right (Builtin b)
   [_, h]     -> case Text.split (=='.') h of
-    [hash]         -> Right (derivedBase32Hex hash 0 1)
-    [hash, suffix] -> uncurry (derivedBase32Hex hash) <$> readSuffix suffix
+    [hash]         -> Right (derivedBase32Hex hash 0)
+    [hash, suffix] -> derivedBase32Hex hash <$> readSuffix suffix
     _ -> bail
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
 component :: H.Hash -> [k] -> [(k, Id)]
 component h ks = let
-  size = fromIntegral (length ks)
-  in [ (k, (Id h i size)) | (k, i) <- ks `zip` [0..]]
+  in [ (k, (Id h i)) | (k, i) <- ks `zip` [0..]]
 
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
@@ -178,7 +168,7 @@ components sccs = uncurry component =<< sccs
 groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]
 groupByComponent refs = done $ foldl' insert Map.empty refs
   where
-    insert m (k, r@(Derived h _ _)) =
+    insert m (k, r@(Derived h _)) =
       Map.unionWith (<>) m (Map.fromList [(Right h, [(k,r)])])
     insert m (k, r) =
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
@@ -189,8 +179,4 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
-  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
-
--- | Two references mustn't differ in cycle length only.
-instance Eq Id where x == y = compare x y == EQ
-instance Ord Id where Id h i _ `compare` Id h2 i2 _  = compare h h2 <> compare i i2
+  tokens (DerivedId (Id h i)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i]

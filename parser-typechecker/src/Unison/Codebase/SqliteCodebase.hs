@@ -284,7 +284,7 @@ sqliteCodebase debugName root = do
       cycleLengthCache <- Cache.semispaceCache 8192
       declTypeCache <- Cache.semispaceCache 2048
       let getTerm :: MonadIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
-          getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
+          getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
               Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
