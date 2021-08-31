@@ -37,7 +37,6 @@ library
       Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
-      Unison.Codebase.Conversion.Sync12
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
