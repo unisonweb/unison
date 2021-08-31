@@ -258,6 +258,50 @@ findShallow codebase path' = do
     Nothing -> pure []
     Just b  -> findShallowInBranch codebase b
 
+findShallowReadmeInBranch ::
+  (Monad m, Var v) =>
+  Codebase m v Ann ->
+  Branch m ->
+  Backend m (Maybe (TermEntry v Ann))
+findShallowReadmeInBranch codebase branch =
+  let find :: [ShallowListEntry v Ann] -> Maybe (TermEntry v Ann)
+      find entries =
+        case entries of
+          [] -> Nothing
+          e : rest ->
+            case e of
+              ShallowTermEntry termEntry@(TermEntry _ segment _ _) ->
+                if (Text.toUpper . HQ'.toText $ segment) == "README"
+                  then Just termEntry
+                  else find rest
+              _ ->
+                find rest
+   in fmap find (findShallowInBranch codebase branch)
+
+
+findShallowReadmeInBranchAndRender ::
+  Var v =>
+  Width ->
+  Rt.Runtime v ->
+  Codebase IO v Ann ->
+  Branch IO ->
+  Backend IO (Maybe Doc.Doc)
+findShallowReadmeInBranchAndRender width runtime codebase branch =
+  let ppe hqLen = PPE.fromNamesDecl hqLen printNames
+
+      printNames = getCurrentPrettyNames (Path.fromList []) branch
+
+      renderReadme ppe (TermEntry r _ _ _) = do
+        res <- renderDoc ppe width runtime codebase (Referent.toReference r)
+        pure $ case res of
+          (_, _, doc) : _ -> Just doc
+          _ -> Nothing
+   in do
+        hqLen <- liftIO $ Codebase.hashLength codebase
+        readmeTerm <- findShallowReadmeInBranch codebase branch
+        join <$> traverse (renderReadme (ppe hqLen)) readmeTerm
+
+
 termListEntry
   :: Monad m
   => Var v
@@ -333,7 +377,7 @@ termEntryToNamedTerm
 termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
   { termName = HQ'.toText name
   , termHash = Referent.toText r
-  , termType = formatType ppe (mayDefault typeWidth) <$> mayType
+  , termType = formatType ppe (mayDefaultWidth typeWidth) <$> mayType
   , termTag  = tag
   }
 
@@ -610,7 +654,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       parseNames =
         getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
-      width = mayDefault renderWidth
+      width = mayDefaultWidth renderWidth
       isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
@@ -638,34 +682,6 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           _ -> pure []
         pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
 
-      renderDoc :: Reference -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      renderDoc r = do
-        let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
-        let hash = Reference.toText r
-        map (name,hash,) . pure <$>
-          let tm = Term.ref () r
-          in Doc.renderDoc @v ppe terms typeOf eval decls tm
-        where
-          terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
-          terms (Reference.DerivedId r) =
-            fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
-
-          typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
-          eval (Term.amap (const mempty) -> tm) = do
-            let ppes = PPE.suffixifiedPPE ppe
-            let codeLookup = Codebase.toCodeLookup codebase
-            let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
-            r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
-            lift $ case r of
-              Just tmr -> Codebase.putWatch codebase WK.RegularWatch
-                             (Term.hashClosedTerm tm)
-                             (Term.amap (const mempty) tmr)
-              Nothing -> pure ()
-            pure $ r <&> Term.amap (const mempty)
-
-          decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
-          decls _ = pure Nothing
-
       -- rs0 can be empty or the term fetched, so when viewing a doc term
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
@@ -675,7 +691,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> traverse renderDoc docs
+        join <$> traverse (renderDoc ppe width rt codebase) docs
 
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
@@ -719,6 +735,46 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                     renderedDisplayTypes
                                     renderedMisses
 
+renderDoc ::
+  forall v.
+  Var v =>
+  PPE.PrettyPrintEnvDecl ->
+  Width ->
+  Rt.Runtime v ->
+  Codebase IO v Ann ->
+  Reference ->
+  Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+renderDoc ppe width rt codebase r = do
+  let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+  let hash = Reference.toText r
+  map (name,hash,) . pure
+    <$> let tm = Term.ref () r
+         in Doc.renderDoc @v ppe terms typeOf eval decls tm
+  where
+    terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
+    terms (Reference.DerivedId r) =
+      fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+
+    typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+    eval (Term.amap (const mempty) -> tm) = do
+      let ppes = PPE.suffixifiedPPE ppe
+      let codeLookup = Codebase.toCodeLookup codebase
+      let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
+      lift $ case r of
+        Just tmr ->
+          Codebase.putWatch
+            codebase
+            WK.RegularWatch
+            (Term.hashClosedTerm tm)
+            (Term.amap (const mempty) tmr)
+        Nothing -> pure ()
+      pure $ r <&> Term.amap (const mempty)
+
+    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+    decls _ = pure Nothing
+
+
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
@@ -737,13 +793,24 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-resolveBranchHash
-  :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
+resolveBranchHash ::
+  Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
 resolveBranchHash h codebase = case h of
-  Nothing    -> getRootBranch codebase
+  Nothing -> getRootBranch codebase
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     mayBranch ?? NoBranchForHash bhash
+
+
+resolveRootBranchHash ::
+  Monad m => Maybe ShortBranchHash -> Codebase m v Ann -> Backend m (Branch m)
+resolveRootBranchHash mayRoot codebase = case mayRoot of
+  Nothing ->
+    getRootBranch codebase
+  Just sbh -> do
+    h <- expandShortBranchHash codebase sbh
+    resolveBranchHash (Just h) codebase
+
 
 definitionsBySuffixes
   :: forall m v

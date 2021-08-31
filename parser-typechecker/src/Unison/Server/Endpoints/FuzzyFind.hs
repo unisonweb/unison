@@ -53,7 +53,7 @@ import Unison.Server.Types
     NamedTerm,
     NamedType,
     addHeaders,
-    mayDefault,
+    mayDefaultWidth,
   )
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
@@ -162,7 +162,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
               ( a
               , FoundTermResult
                 . FoundTerm
-                    (Backend.bestNameForTerm @v ppe (mayDefault typeWidth) r)
+                    (Backend.bestNameForTerm @v ppe (mayDefaultWidth typeWidth) r)
                 $ Backend.termEntryToNamedTerm ppe typeWidth te
               )
             )
@@ -170,7 +170,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
         Backend.FoundTypeRef r -> do
           te <- Backend.typeListEntry codebase r n
           let namedType = Backend.typeEntryToNamedType te
-          let typeName = Backend.bestNameForType @v ppe (mayDefault typeWidth) r
+          let typeName = Backend.bestNameForType @v ppe (mayDefaultWidth typeWidth) r
           typeHeader <- Backend.typeDeclHeader codebase ppe r
           let ft = FoundType typeName typeHeader namedType
           pure (a, FoundTypeResult ft)

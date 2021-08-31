@@ -30,6 +30,9 @@ import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Hash as Hash
+import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
   )
@@ -207,6 +210,8 @@ instance ToSchema Doc.SpecialForm where
 instance ToSchema Doc.Src where
 instance ToSchema a => ToSchema (Doc.Ref a) where
 
+-- Helpers
+
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict
 
@@ -222,8 +227,12 @@ defaultWidth = 80
 discard :: Applicative m => a -> m ()
 discard = const $ pure ()
 
-mayDefault :: Maybe Width -> Width
-mayDefault = fromMaybe defaultWidth
+mayDefaultWidth :: Maybe Width -> Width
+mayDefaultWidth = fromMaybe defaultWidth
 
 addHeaders :: v -> APIHeaders v
 addHeaders = addHeader "*" . addHeader "public"
+
+branchToUnisonHash :: Branch.Branch m -> UnisonHash
+branchToUnisonHash b =
+  ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash b

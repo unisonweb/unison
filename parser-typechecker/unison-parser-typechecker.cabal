@@ -128,7 +128,8 @@ library
       Unison.Server.Doc
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
-      Unison.Server.Endpoints.ListNamespace
+      Unison.Server.Endpoints.NamespaceDetails
+      Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
