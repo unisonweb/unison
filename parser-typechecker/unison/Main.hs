@@ -22,12 +22,12 @@ import qualified System.IO.Temp as Temp
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Init as Codebase
+import Unison.Codebase.Init (InitResult(..), InitError(..))
+import qualified Unison.Codebase.Init as CodebaseInit
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
 import Unison.Codebase.Execute (execute)
-import Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
@@ -73,7 +73,7 @@ main = do
      PrintVersion ->
        putStrLn $ progName ++ " version: " ++ Version.gitDescribe
      Init ->
-       Codebase.initCodebaseAndExit cbInit "main.init" mcodepath
+       CodebaseInit.initCodebaseAndExit cbInit "main.init" mcodepath
      Run (RunFromSymbol mainName) -> do
       (closeCodebase, theCodebase) <- getCodebaseOrExit mcodepath
       runtime <- RTI.startRuntime
@@ -140,10 +140,10 @@ prepareTranscriptDir shouldFork mcodepath = do
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
         P.indentN 2 (P.string path)
         ]
-      Path.copyDir (Codebase.codebasePath cbInit path) (Codebase.codebasePath cbInit tmp)
+      Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
     DontFork -> do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      void $ Codebase.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
+      void $ CodebaseInit.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
   pure tmp
 
 runTranscripts'
@@ -206,7 +206,7 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mcodepath args 
                 "I've finished running the transcript(s) in this codebase:", "",
                 P.indentN 2 (P.string transcriptDir), "",
                 P.wrap $ "You can run"
-                      <> P.backticked (P.string progName <> " -codebase " <> P.string transcriptDir)
+                      <> P.backticked (P.string progName <> " --codebase " <> P.string transcriptDir)
                       <> "to do more work with it."])
         else do
           putStrLn (renderUsageInfo $ Just "transcript")
@@ -256,58 +256,48 @@ defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
 
--- | load an existing codebase or exit.
 getCodebaseOrExit :: Maybe Codebase.CodebasePath -> IO (IO (), Codebase.Codebase IO Symbol Ann)
-getCodebaseOrExit mdir = do
-  let cbInit = SC.init
-  dir <- Codebase.getCodebaseDir mdir
-  Codebase.openCodebase cbInit "main" dir >>= \case
-    Left _errRequestedVersion -> do
+getCodebaseOrExit maybeSpecifiedDir = do
+  -- Likely we should only change codebase format 2? Or both? 
+  -- Notes for selves: create a function 'openOrCreateCodebase' which handles v1/v2 codebase provided / no codebase specified
+  -- encode error messages as types. Our spike / idea is below:   
+  codebaseDir <- CodebaseInit.homeOrSpecifiedDir maybeSpecifiedDir
+  CodebaseInit.openOrCreateCodebase SC.init "main" codebaseDir >>= \case
+    Error dir error ->
       let
-        sayNoCodebase = noCodebaseMsg <$> prettyExe <*> prettyDir <*> pure (fmap P.string mdir)
-        suggestUpgrade = suggestUpgradeMessage <$> prettyExe <*> prettyDir <*> pure (fmap P.string mdir)
-        prettyExe = P.text . Text.pack <$> getProgName
-        prettyDir = P.string <$> canonicalizePath dir
-      PT.putPrettyLn' =<< (FC.codebaseExists dir >>= \case
-          False -> sayNoCodebase
-          True -> suggestUpgrade)
-      Exit.exitFailure
-    Right x -> pure x
+        message = do
+          pDir <- prettyDir dir
+          executableName <- P.text . Text.pack <$> getProgName
+
+          case error of
+            NoCodebaseFoundAtSpecifiedDir -> 
+              -- TODO: Perhaps prompt the user to create a codebase in that directory right away?
+              pure (P.lines
+                [ "No codebase exists in " <> pDir <> ".", 
+                  "Run `" <> executableName <> " --codebase " <> P.string dir <> " init` to create one, then try again!"
+                ])
+
+            FoundV1Codebase ->
+              pure (P.lines
+                [ "Found a v1 codebase at " <> pDir <> ".", 
+                  "v1 codebases are no longer supported in this version of the UCM.",
+                  "Please download version M2g of the UCM to upgrade."
+                ])
+            CouldntCreateCodebase errMessage ->
+              pure errMessage
+      in do
+        msg <- message
+        PT.putPrettyLn' msg
+        Exit.exitFailure
+
+    CreatedCodebase dir cb -> do
+      pDir <- prettyDir dir
+      PT.putPrettyLn' ""
+      PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> pDir
+      pure cb
+
+    OpenedCodebase _ cb -> 
+      pure cb
+
   where
-    noCodebaseMsg :: _
-    noCodebaseMsg executable prettyDir mdir =
-      let secondLine =
-            case mdir of
-              Just dir ->
-                "Run `" <> executable <> " -codebase " <> dir
-                  <> " init` to create one, then try again!"
-              Nothing ->
-                "Run `" <> executable <> " init` to create one there,"
-                  <> " then try again;"
-                  <> " or `"
-                  <> executable
-                  <> " -codebase <dir>` to load a codebase from someplace else!"
-       in P.lines
-            [ "No codebase exists in " <> prettyDir <> ".",
-              secondLine
-            ]
-    suggestUpgradeMessage exec resolvedDir specifiedDir =
-      P.lines
-        ( P.wrap
-            <$> [ "I looked for a v2 codebase in " <> P.backticked' resolvedDir ","
-                    <> "but found only a v1 codebase there.",
-                  "",
-                  "You can use:"
-                ]
-        )
-        <> P.newline
-        <> P.bulleted
-          ( P.wrap
-              <$> [ P.backticked (P.wrap $ exec <> maybe mempty ("-codebase" <>) specifiedDir <> "init")
-                      <> "to create a new v2 codebase alongside it, or",
-                    P.backticked (P.wrap $ exec <> "-codebase <dir>")
-                      <> "to load a v2 codebase from elsewhere, or",
-                    "Use the M2g or M2h release of ucm to upgrade a v1 codebase;"
-                      <> "they are available at https://github.com/unisonweb/unison/releases."
-                  ]
-          )
+    prettyDir dir = P.string <$> canonicalizePath dir
