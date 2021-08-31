@@ -265,15 +265,6 @@ discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
 discardHistory0 = over children (fmap tweak) where
   tweak b = cons (discardHistory0 (head b)) empty
 
-
--- -- `before' lca b1 b2` is true if `b2` incorporates all of `b1`
--- -- It's defined as: lca b1 b2 == Just b1
--- before' :: Monad m => (Branch m -> Branch m -> m (Maybe (Branch m)))
---                    -> Branch m -> Branch m -> m Bool
--- before' lca (Branch x) (Branch y) = Causal.before' lca' x y
---   where
---     lca' c1 c2 = fmap _history <$> lca (Branch c1) (Branch c2)
-
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch b1) (Branch b2) = Causal.before b1 b2
@@ -286,38 +277,15 @@ toList0 = go Path.empty where
   go p b = (p, b) : (Map.toList (_children b) >>= (\(seg, cb) ->
     go (Path.snoc p seg) (head cb) ))
 
--- printDebugPaths :: Branch m -> String
--- printDebugPaths = unlines . map show . Set.toList . debugPaths
-
--- debugPaths :: Branch m -> Set (Path, Hash)
--- debugPaths = go Path.empty where
---   go p b = Set.insert (p, headHash b) . Set.unions $
---     [ go (Path.snoc p seg) b | (seg, b) <- Map.toList $ _children (head b) ]
-
--- data Target = TargetType | TargetTerm | TargetBranch
---   deriving (Eq, Ord, Show)
-
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
     && view types a == view types b
     && view children a == view children b
     && (fmap fst . view edits) a == (fmap fst . view edits) b
 
--- data ForkFailure = SrcNotFound | DestExists
-
--- -- consider delegating to Names.numHashChars when ready to implement?
--- -- are those enough?
--- -- could move this to a read-only field in Branch0
--- -- could move a Names0 to a read-only field in Branch0 until it gets too big
--- numHashChars :: Branch m -> Int
--- numHashChars _b = 3
-
 -- This type is a little ugly, so we wrap it up with a nice type alias for
 -- use outside this module.
 type Cache m = Cache.Cache (Causal.RawHash Raw) (UnwrappedBranch m)
-
--- boundedCache :: MonadIO m => Word -> m (Cache m2)
--- boundedCache = Cache.semispaceCache
 
 -- Can use `Cache.nullCache` to disable caching if needed
 cachedRead :: forall m . MonadIO m
@@ -398,52 +366,6 @@ toCausalRaw = \case
   Branch (Causal.One _h e)           -> RawOne (toRaw e)
   Branch (Causal.Cons _h e (ht, _m)) -> RawCons (toRaw e) ht
   Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
-
--- -- copy a path to another path
--- fork
---   :: Applicative m
---   => Path
---   -> Path
---   -> Branch m
---   -> Either ForkFailure (Branch m)
--- fork src dest root = case getAt src root of
---   Nothing -> Left SrcNotFound
---   Just src' -> case setIfNotExists dest src' root of
---     Nothing -> Left DestExists
---     Just root' -> Right root'
-
--- -- Move the node at src to dest.
--- -- It's okay if `dest` is inside `src`, just create empty levels.
--- -- Try not to `step` more than once at each node.
--- move :: Applicative m
---      => Path
---      -> Path
---      -> Branch m
---      -> Either ForkFailure (Branch m)
--- move src dest root = case getAt src root of
---   Nothing -> Left SrcNotFound
---   Just src' ->
---     -- make sure dest doesn't already exist
---     case getAt dest root of
---       Just _destExists -> Left DestExists
---       Nothing ->
---       -- find and update common ancestor of `src` and `dest`:
---         Right $ modifyAt ancestor go root
---         where
---         (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
---         go = deleteAt relSrc . setAt relDest src'
-
--- setIfNotExists
---   :: Applicative m => Path -> Branch m -> Branch m -> Maybe (Branch m)
--- setIfNotExists dest b root = case getAt dest root of
---   Just _destExists -> Nothing
---   Nothing -> Just $ setAt dest b root
-
--- setAt :: Applicative m => Path -> Branch m -> Branch m -> Branch m
--- setAt path b = modifyAt path (const b)
-
--- deleteAt :: Applicative m => Path -> Branch m -> Branch m
--- deleteAt path = setAt path empty
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
 getAt :: Path
@@ -629,10 +551,6 @@ instance Hashable (Branch0 m) where
     , H.accumulateToken (fst <$> _edits b)
     ]
 
--- getLocalBranch :: Hash -> IO Branch
--- getGithubBranch :: RemotePath -> IO Branch
--- getLocalEdit :: GUID -> IO Patch
-
 -- todo: consider inlining these into Actions2
 addTermName
   :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
@@ -644,9 +562,6 @@ addTypeName
 addTypeName r new md =
   over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
--- addTermNameAt :: Path.Split -> Referent -> Branch0 m -> Branch0 m
--- addTypeNameAt :: Path.Split -> Reference -> Branch0 m -> Branch0 m
-
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b | Star3.memberD1 (r,n) (view terms b)
                      = over terms (Star3.deletePrimaryD1 (r,n)) b
@@ -656,9 +571,6 @@ deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | Star3.memberD1 (r,n) (view types b)
                      = over types (Star3.deletePrimaryD1 (r,n)) b
 deleteTypeName _ _ b = b
-
--- namesDiff :: Branch m -> Branch m -> Names.Diff
--- namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
@@ -694,30 +606,3 @@ transform f b = case _history b of
                -> Causal m Raw (Branch0 m)
                -> Causal m Raw (Branch0 n)
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
-
--- data BranchAttentions = BranchAttentions
---   { -- Patches that were edited on the right but entirely removed on the left.
---     removedPatchEdited :: [Name]
---   -- Patches that were edited on the left but entirely removed on the right.
---   , editedPatchRemoved :: [Name]
---   }
-
--- instance Semigroup BranchAttentions where
---   BranchAttentions edited1 removed1 <> BranchAttentions edited2 removed2
---     = BranchAttentions (edited1 <> edited2) (removed1 <> removed2)
-
--- instance Monoid BranchAttentions where
---   mempty = BranchAttentions [] []
---   mappend = (<>)
-
--- data RefCollisions =
---   RefCollisions { termCollisions :: Relation Name Name
---                 , typeCollisions :: Relation Name Name
---                 } deriving (Eq, Show)
-
--- instance Semigroup RefCollisions where
---   (<>) = mappend
--- instance Monoid RefCollisions where
---   mempty = RefCollisions mempty mempty
---   mappend r1 r2 = RefCollisions (termCollisions r1 <> termCollisions r2)
---                                 (typeCollisions r1 <> typeCollisions r2)

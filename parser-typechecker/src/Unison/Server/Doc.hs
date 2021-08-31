@@ -49,6 +49,8 @@ import qualified Unison.Util.SyntaxText as S
 
 type Nat = Word64
 
+type SSyntaxText = S.SyntaxText' Reference
+
 data Doc
   = Word Text
   | Code Doc
@@ -154,7 +156,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   source :: Term v () -> m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
 
-  goSignatures :: [Referent] -> m [P.Pretty (S.SyntaxText' Reference)]
+  goSignatures :: [Referent] -> m [P.Pretty SSyntaxText]
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
@@ -185,9 +187,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     -- Link (Either Link.Type Doc2.Term)
     DD.Doc2SpecialFormLink e -> let
       ppe = PPE.suffixifiedPPE pped
-      tm :: Referent -> P.Pretty (S.SyntaxText' Reference)
+      tm :: Referent -> P.Pretty SSyntaxText
       tm r = (NP.styleHashQualified'' (NP.fmt (S.Referent r)) . PPE.termName ppe) r
-      ty :: Reference -> P.Pretty (S.SyntaxText' Reference)
+      ty :: Reference -> P.Pretty SSyntaxText
       ty r = (NP.styleHashQualified'' (NP.fmt (S.Reference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r

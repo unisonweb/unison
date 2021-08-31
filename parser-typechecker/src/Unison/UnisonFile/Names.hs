@@ -119,13 +119,3 @@ environmentFor names dataDecls0 effectDecls0 = do
     if null overlaps && null unknownTypeRefs
     then pure $ Env dataDecls' effectDecls' names'
     else Left (unknownTypeRefs ++ overlaps)
-
--- allVars :: Ord v => UnisonFile v a -> Set v
--- allVars (UnisonFile ds es ts ws) = Set.unions
---   [ Map.keysSet ds
---   , foldMap (DD.allVars . snd) ds
---   , Map.keysSet es
---   , foldMap (DD.allVars . toDataDecl . snd) es
---   , Set.unions [ Set.insert v (Term.allVars t) | (v, t) <- ts ]
---   , Set.unions [ Set.insert v (Term.allVars t) | (v, t) <- join . Map.elems $ ws ]
---   ]

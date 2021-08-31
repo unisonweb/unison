@@ -6,7 +6,6 @@ module Unison.Test.Ucm
   ( initCodebase,
     deleteCodebase,
     runTranscript,
-    upgradeCodebase,
     lowLevel,
     CodebaseFormat (..),
     Transcript,
@@ -59,9 +58,6 @@ initCodebase fmt = do
 
 deleteCodebase :: Codebase -> IO ()
 deleteCodebase (Codebase path _) = removeDirectoryRecursive path
-
-upgradeCodebase :: Codebase -> IO Codebase
-upgradeCodebase = undefined
 
 runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do

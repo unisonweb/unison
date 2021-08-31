@@ -678,9 +678,6 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
-    -- CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
-    --   <> prettyReadRepo repo <> "in the cache directory at"
-    --   <> P.backticked' (P.string localPath) "."
     GitSqliteCodebaseError e -> case e of
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
         $ "I don't know how to interpret schema version " <> P.shown v
@@ -750,11 +747,6 @@ notifyUser dir o = case o of
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
         ]
-    -- SomeOtherError msg -> P.callout "‼" . P.lines $ [
-    --   P.wrap "I ran into an error:", "",
-    --   P.indentN 2 (P.string msg), "",
-    --   P.wrap $ "Check the logging messages above for more info."
-    --   ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch

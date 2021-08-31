@@ -1,34 +1,13 @@
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnv.Util where
+module Unison.PrettyPrintEnv.Util (declarationPPE) where
 
-import Unison.Prelude
-
-import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
-import Unison.Name (Name)
-import qualified Unison.Name as Name
-import Unison.PrettyPrintEnv
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-
--- fromNames :: Int -> Names -> PrettyPrintEnv
--- fromNames len names = PrettyPrintEnv terms' types' where
---   terms' r = shortestName . Set.map HQ'.toHQ $ Names.termName len r names
---   types' r = shortestName . Set.map HQ'.toHQ $ Names.typeName len r names
---   shortestName ns = safeHead $ HQ.sortByLength (toList ns)
-
--- fromSuffixNames :: Int -> Names -> PrettyPrintEnv
--- fromSuffixNames len names = fromNames len (Names.suffixify names)
-
--- fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
--- fromNamesDecl len names =
---   PrettyPrintEnvDecl (fromNames len names) (fromSuffixNames len names)
 
 -- declarationPPE uses the full name for references that are
 -- part the same cycle as the input reference, used to ensures
@@ -38,69 +17,15 @@ import qualified Unison.Referent as Referent
 -- and not
 -- foo.bar x = bar x
 declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv
-declarationPPE ppe rd = PrettyPrintEnv tm ty where
-  comp = Reference.members (Reference.componentFor rd)
-  tm r0@(Referent.Ref r) = if Set.member r comp
-                           then terms (unsuffixifiedPPE ppe) r0
-                           else terms (suffixifiedPPE ppe) r0
-  tm r = terms (suffixifiedPPE ppe) r
-  ty r = if Set.member r comp then types (unsuffixifiedPPE ppe) r
-         else types (suffixifiedPPE ppe) r
-
--- Left-biased union of environments
-unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-unionLeft e1 e2 = PrettyPrintEnv
-  (\r -> terms e1 r <|> terms e2 r)
-  (\r -> types e1 r <|> types e2 r)
-
-assignTermName
-  :: Referent -> HashQualified Name -> PrettyPrintEnv -> PrettyPrintEnv
-assignTermName r name = (fromTermNames [(r, name)] `unionLeft`)
-
-fromTypeNames :: [(Reference, HashQualified Name)] -> PrettyPrintEnv
-fromTypeNames types =
-  let m = Map.fromList types in PrettyPrintEnv (const Nothing) (`Map.lookup` m)
-
-fromTermNames :: [(Referent, HashQualified Name)] -> PrettyPrintEnv
-fromTermNames tms =
-  let m = Map.fromList tms in PrettyPrintEnv (`Map.lookup` m) (const Nothing)
-
--- todo: these need to be a dynamic length, but we need additional info
-todoHashLength :: Int
-todoHashLength = 10
-
--- termName :: PrettyPrintEnv -> Referent -> HashQualified Name
--- termName env r =
---   fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)
-
--- typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
--- typeName env r =
---   fromMaybe (HQ.take todoHashLength $ HQ.fromReference r) (types env r)
-
-patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
-patternName env r cid =
-  case patterns env r cid of
-    Just name -> name
-    Nothing -> HQ.take todoHashLength $ HQ.fromPattern r cid
-
--- Type aliases relating to Fully-Qualified Names, e.g. 'Acme.API.foo'
--- Used primarily by the FQN elision code - see TermPrinter.PrintAnnotation.
-
--- Note that a Suffix can include dots.
-type Suffix = Text
--- Each member of a Prefix list is dot-free.
-type Prefix = [Text]
--- Keys are FQNs, values are shorter names which are equivalent, thanks to use
--- statements that are in scope.
-type Imports = Map Name Suffix
-
--- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
-elideFQN :: Imports -> HQ.HashQualified Name -> HQ.HashQualified Name
-elideFQN imports hq =
-  let hash = HQ.toHash hq
-      name' = do name <- HQ.toName hq
-                 let hit = fmap Name.unsafeFromText (Map.lookup name imports)
-                 -- Cut out the "const id $" to get tracing of FQN elision attempts.
-                 let t = const id $ trace ("hit: " ++ show hit ++ " finding: " ++ show hq ++ " in imports: " ++ show imports)
-                 t (pure $ fromMaybe name hit)
-  in HQ.fromNameHash name' hash
+declarationPPE ppe rd = PrettyPrintEnv tm ty
+  where
+    comp = Reference.members (Reference.componentFor rd)
+    tm r0@(Referent.Ref r) =
+      if Set.member r comp
+        then terms (unsuffixifiedPPE ppe) r0
+        else terms (suffixifiedPPE ppe) r0
+    tm r = terms (suffixifiedPPE ppe) r
+    ty r =
+      if Set.member r comp
+        then types (unsuffixifiedPPE ppe) r
+        else types (suffixifiedPPE ppe) r

@@ -6,16 +6,13 @@ module Unison.Var where
 
 import Unison.Prelude
 
-import Data.Char (toLower, isLower)
+import Data.Char (isLower, toLower)
 import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.NameSegment as Name
-import Unison.WatchKind
-
 import Unison.Util.Monoid (intercalateMap)
--- import Unison.Reference (Reference)
--- import qualified Unison.Reference as R
+import Unison.WatchKind (WatchKind, pattern TestWatch)
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:

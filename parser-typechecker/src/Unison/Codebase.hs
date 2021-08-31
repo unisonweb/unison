@@ -93,35 +93,8 @@ lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl co
         Nothing -> pure Nothing -- no common ancestor
     else Branch.lca b1 b2
 
--- before :: Monad m => Codebase m v a -> Branch m -> Branch m -> m Bool
--- before code b1 b2 = case beforeImpl code of
---   Nothing -> Branch.before b1 b2
---   Just before -> before' (branchExists code) before b1 b2
-
--- before' :: Monad m => (Branch.Hash -> m Bool) -> (Branch.Hash -> Branch.Hash -> m Bool) -> Branch m -> Branch m -> m Bool
--- before' branchExists before b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) =
---   ifM
---     (branchExists h2)
---     (ifM
---       (branchExists h2)
---       (before h1 h2)
---       (pure False))
---     (Branch.before b1 b2)
-
-
--- data GetRootBranchError
---   = NoRootBranch
---   | CouldntParseRootBranch String
---   | CouldntLoadRootBranch Branch.Hash
---   deriving Show
-
 debug :: Bool
 debug = False
-
--- data SyncFileCodebaseResult = SyncOk | UnknownDestinationRootBranch Branch.Hash | NotFastForward
-
--- getCodebaseDir :: MonadIO m => Maybe FilePath -> m FilePath
--- getCodebaseDir = maybe getHomeDirectory pure
 
 -- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
 installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
@@ -182,32 +155,6 @@ typeLookupForDependencies codebase s = do
         Nothing -> pure mempty
   go tl Reference.Builtin{} = pure tl -- codebase isn't consulted for builtins
 
--- -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
--- -- todo: add some tests on this guy?
--- transitiveDependencies
---   :: (Monad m, Var v)
---   => CL.CodeLookup v m a
---   -> Set Reference.Id
---   -> Reference.Id
---   -> m (Set Reference.Id)
--- transitiveDependencies code seen0 rid = if Set.member rid seen0
---   then pure seen0
---   else
---     let seen = Set.insert rid seen0
---         getIds = Set.mapMaybe Reference.toId
---     in CL.getTerm code rid >>= \case
---       Just t ->
---         foldM (transitiveDependencies code) seen (getIds $ Term.dependencies t)
---       Nothing ->
---         CL.getTypeDeclaration code rid >>= \case
---           Nothing        -> pure seen
---           Just (Left ed) -> foldM (transitiveDependencies code)
---                                   seen
---                                   (getIds $ DD.dependencies (DD.toDataDecl ed))
---           Just (Right dd) -> foldM (transitiveDependencies code)
---                                    seen
---                                    (getIds $ DD.dependencies dd)
-
 toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
@@ -260,13 +207,7 @@ isType c r = case r of
   Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
--- class BuiltinAnnotation a where
---   builtinAnnotation :: a
-
--- instance BuiltinAnnotation Parser.Ann where
---   builtinAnnotation = Parser.Intrinsic
-
--- -- * Git stuff
+-- * Git stuff
 
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
