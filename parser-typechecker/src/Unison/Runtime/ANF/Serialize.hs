@@ -767,17 +767,16 @@ putReference r = case r of
   Builtin name -> do
     putWord8 0
     putText name
-  Derived hash i n -> do
+  Derived hash i-> do
     putWord8 1
     putHash hash
     putLength i
-    putLength n
 
 getReference :: MonadGet m => m Reference
 getReference = do
   tag <- getWord8
   case tag of
     0 -> Builtin <$> getText
-    1 -> DerivedId <$> (Id <$> getHash <*> getLength <*> getLength)
+    1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
 

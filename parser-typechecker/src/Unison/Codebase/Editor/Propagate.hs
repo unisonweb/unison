@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Codebase.Editor.Propagate (propagateAndApply) where
+module Unison.Codebase.Editor.Propagate (computeFrontier, propagateAndApply) where
 
 import           Control.Error.Util             ( hush )
 import           Control.Lens
@@ -256,7 +256,7 @@ propagate rootNames patch b = case validatePatch patch of
         [] -> Referent.toString r
         n : _ -> show n
 
-    initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
+    initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -633,9 +633,9 @@ computeFrontier
    . Monad m
   => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
   -> Patch
-  -> Names0
+  -> (Reference -> Bool)
   -> m (R.Relation Reference Reference)
-computeFrontier getDependents patch names = do
+computeFrontier getDependents patch shouldUpdate = do
       -- (r,r2) ∈ dependsOn if r depends on r2
   dependsOn <- foldM addDependents R.empty edited
   -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
@@ -649,5 +649,5 @@ computeFrontier getDependents patch names = do
     -> m (R.Relation Reference Reference)
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents)
-      .   Set.filter (Names.contains names)
+      .   Set.filter shouldUpdate
       <$> getDependents ref

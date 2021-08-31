@@ -2,7 +2,6 @@
 
 module Unison.PrettyPrintEnv.Util (declarationPPE) where
 
-import qualified Data.Set as Set
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
 import Unison.Reference (Reference)
@@ -20,7 +19,6 @@ declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv
 declarationPPE ppe ref = PrettyPrintEnv tm ty
   where
     rootH = hash ref
-    comp = Reference.members (Reference.componentFor rd n)
     hash Reference.Builtin {} = Nothing
     hash (Reference.Derived h _) = Just h
     tm r0@(Referent.Ref r)

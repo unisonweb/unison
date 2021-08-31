@@ -916,7 +916,7 @@ loop = do
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
-      UiI -> eval UI 
+      UiI -> eval UI
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
@@ -2013,8 +2013,8 @@ showTodoOutput getPpe patch names0 = do
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
-  let careToUpdate = Names.contains names0
-  f <- Propagate.computeFrontier (eval . GetDependents) patch careToUpdate
+  let shouldUpdate = Names.contains names0
+  f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier

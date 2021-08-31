@@ -1310,26 +1310,25 @@ declReferentsByPrefix ::
   Text ->
   Maybe C.Reference.Pos ->
   Maybe ConstructorId ->
-  m [(H.Hash, C.Reference.Pos, Word64, C.DeclType, [C.Decl.ConstructorId])]
+  m [(H.Hash, C.Reference.Pos, C.DeclType, [C.Decl.ConstructorId])]
 declReferentsByPrefix b32prefix pos cid = do
   componentReferencesByPrefix OT.DeclComponent b32prefix pos
     >>= traverse (loadConstructors cid)
   where
-    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, Word64, C.DeclType, [ConstructorId])
+    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
-      (dt, len, ctorCount) <- getDeclCtorCount rid
+      (dt, ctorCount) <- getDeclCtorCount rid
       h <- loadHashByObjectId oId
       let test :: ConstructorId -> Bool
           test = maybe (const True) (==) cid
           cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
-      pure (h, pos, len, dt, cids)
-    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
+      pure (h, pos, dt, cids)
+    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, ConstructorId)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       bs <- liftQ (Q.loadObjectById r)
-      len <- decodeComponentLengthOnly bs
       (_localIds, decl) <- decodeDeclElement i bs
-      pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
+      pure (C.Decl.declType decl, fromIntegral $ length (C.Decl.constructorTypes decl))
 
 branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do

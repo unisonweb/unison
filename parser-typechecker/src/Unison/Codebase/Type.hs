@@ -6,12 +6,15 @@ module Unison.Codebase.Type (Codebase (..), CodebasePath, GitError(..), GetRootB
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
+import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -20,8 +23,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
-import Unison.Codebase.GitError (GitProtocolError, GitCodebaseError)
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
