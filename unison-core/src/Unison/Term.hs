@@ -29,12 +29,13 @@ import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.Referent (Referent)
+import           Unison.Referent (Referent, ConstructorId)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -42,14 +43,12 @@ import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap, validate)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Var.RefNamed as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
-
--- This gets reexported; should maybe live somewhere other than Pattern, though.
-type ConstructorId = Pattern.ConstructorId
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -121,8 +120,6 @@ bindNames
   -> Names0
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
--- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
---                             || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns0 e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
       -- !_ = trace "bindNames.free term vars: " ()
@@ -1000,6 +997,7 @@ unhashComponent m = let
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
   in second unhash1 <$> m'
+
 
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)

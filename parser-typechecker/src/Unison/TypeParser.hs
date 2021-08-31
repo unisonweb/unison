@@ -7,6 +7,7 @@ import Unison.Prelude
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser
+import Unison.Parser.Ann (Ann(..))
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)

@@ -23,7 +23,6 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference(DerivedId) )
 import qualified Unison.Util.SyntaxText        as S
-import           Unison.Util.SyntaxText         ( SyntaxText )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -31,6 +30,8 @@ import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+
+type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl
   :: Var v

@@ -9,18 +9,20 @@ import qualified Data.Map              as Map
 import           Unison.HashQualified  (HashQualified)
 import           Unison.Name           ( Name )
 import           Unison.NamePrinter    (styleHashQualified'')
-import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
+import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
-import           Unison.Reference      (pattern Builtin)
+import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
+import Unison.Reference (Reference, pattern Builtin)
 import           Unison.Type
 import           Unison.Util.Pretty    (ColorText, Pretty, Width)
 import           Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.SyntaxText as S
-import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
+
+type SyntaxText = S.SyntaxText' Reference
 
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe = PP.syntaxToColor . prettySyntax ppe

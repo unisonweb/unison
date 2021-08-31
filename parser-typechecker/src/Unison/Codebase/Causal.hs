@@ -1,7 +1,32 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.Codebase.Causal where
+module Unison.Codebase.Causal
+  ( Causal (..),
+    Raw (..),
+    RawHash (..),
+    one,
+    cons,
+    cons',
+    consDistinct,
+    uncons,
+    hash,
+    children,
+    Deserialize,
+    Serialize,
+    cachedRead,
+    threeWayMerge,
+    threeWayMerge',
+    squashMerge',
+    lca,
+    stepDistinct,
+    stepDistinctM,
+    sync,
+    transform,
+    unsafeMapHashPreserving,
+    before,
+  )
+where
 
 import Unison.Prelude
 
@@ -65,44 +90,12 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
--- Convert the Causal to an adjacency matrix for debugging purposes.
-toGraph
-  :: Monad m
-  => Set (RawHash h)
-  -> Causal m h e
-  -> m (Seq (RawHash h, RawHash h))
-toGraph seen c = case c of
-  One _ _           -> pure Seq.empty
-  Cons h1 _ (h2, m) -> if Set.notMember h1 seen
-    then do
-      tail <- m
-      g    <- toGraph (Set.insert h1 seen) tail
-      pure $ (h1, h2) Seq.<| g
-    else pure Seq.empty
-  Merge h _ ts -> if Set.notMember h seen
-    then do
-      tails <- sequence $ Map.elems ts
-      gs    <- Seq.fromList <$> traverse (toGraph (Set.insert h seen)) tails
-      pure $ Seq.fromList ((h, ) <$> Set.toList (Map.keysSet ts)) <> join gs
-    else pure Seq.empty
-
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
 data Raw h e
   = RawOne e
   | RawCons e (RawHash h)
   | RawMerge e (Set (RawHash h))
-
-rawHead :: Raw h e -> e
-rawHead (RawOne e    ) = e
-rawHead (RawCons  e _) = e
-rawHead (RawMerge e _) = e
-
--- Don't need to deserialize the `e` to calculate `before`.
-data Tails h
-  = TailsOne
-  | TailsCons (RawHash h)
-  | TailsMerge (Set (RawHash h))
 
 type Deserialize m h e = RawHash h -> m (Raw h e)
 
@@ -263,36 +256,14 @@ threeWayMerge' lca combine c1 c2 = do
   done newHead =
     Merge (RawHash (hash (newHead, Map.keys children))) newHead children
 
-before' :: Monad m
-        => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
-        -> Causal m h e
-        -> Causal m h e
-        -> m Bool
-before' lca a b = (== Just a) <$> lca a b
-
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
-step :: (Applicative m, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
-step f c = f (head c) `cons` c
-
 stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 stepDistinct f c = f (head c) `consDistinct` c
-
-stepIf
-  :: (Applicative m, Hashable e)
-  => (e -> Bool)
-  -> (e -> e)
-  -> Causal m h e
-  -> Causal m h e
-stepIf cond f c = if cond (head c) then step f c else c
-
-stepM
-  :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
-stepM f c = (`cons` c) <$> f (head c)
 
 stepDistinctM
   :: (Applicative m, Functor n, Eq e, Hashable e)
@@ -331,55 +302,3 @@ unsafeMapHashPreserving f c = case c of
   Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
 
 data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
-
--- foldHistoryUntil some condition on the accumulator is met,
--- attempting to work backwards fairly through merge nodes
--- (rather than following one back all the way to its root before working
--- through others).  Returns Unsatisfied if the condition was never satisfied,
--- otherwise Satisfied.
---
--- NOTE by RÓB: this short-circuits immediately and only looks at the first
--- entry in the history, since this operation is far too slow to be practical.
-foldHistoryUntil
-  :: forall m h e a
-   . (Monad m)
-  => (a -> e -> (a, Bool))
-  -> a
-  -> Causal m h e
-  -> m (FoldHistoryResult a)
-foldHistoryUntil f a c = step a mempty (pure c) where
-  step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
-  step a _seen Seq.Empty = pure (Unsatisfied a)
-  step a seen (c Seq.:<| rest) | currentHash c `Set.member` seen =
-    step a seen rest
-  step a seen (c Seq.:<| rest) = case f a (head c) of
-    (a, True ) -> pure (Satisfied a)
-    (a, False) -> do
-      tails <- case c of
-        One{} -> pure mempty
-        Cons{} ->
-          let (_, t) = tail c
-          in  --if h `Set.member` seen
-            if not (Set.null seen) then pure mempty else Seq.singleton <$> t
-        Merge{} ->
-          fmap Seq.fromList
-            . traverse snd
-            . filter (\(_, _) -> not (Set.null seen))
-            . Map.toList
-            $ tails c
-      step a (Set.insert (currentHash c) seen) (rest <> tails)
-
-hashToRaw ::
-  forall m h e. Monad m => Causal m h e -> m (Map (RawHash h) [RawHash h])
-hashToRaw c = go mempty [c] where
-  go :: Map (RawHash h) [RawHash h] -> [Causal m h e]
-                                    -> m (Map (RawHash h) [RawHash h])
-  go output [] = pure output
-  go output (c : queue) = case c of
-    One h _ -> go (Map.insert h [] output) queue
-    Cons h _ (htail, mctail) -> do
-      ctail <- mctail
-      go (Map.insert h [htail] output) (ctail : queue)
-    Merge h _ mtails -> do
-      tails <- sequence mtails
-      go (Map.insert h (Map.keys tails) output) (toList tails ++ queue)

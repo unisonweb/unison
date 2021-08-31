@@ -4,14 +4,12 @@ module Unison.Util.SyntaxText where
 
 import Unison.Prelude
 import Unison.Name (Name)
-import Unison.Reference (Reference)
-import Unison.Referent (Referent')
+import Unison.Referent' (Referent')
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, segment)
 
-type SyntaxText = SyntaxText' Reference
 type SyntaxText' r = AnnotatedText (Element r)
 
 -- The elements of the Unison grammar, for syntax highlighting purposes

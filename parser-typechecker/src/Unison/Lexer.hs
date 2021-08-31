@@ -39,13 +39,8 @@ import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Char as CP
 import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char.Lexer as LP
+import Unison.Lexer.Pos (Pos (Pos), Column, Line, column, line)
 import qualified Unison.Util.Bytes as Bytes
-
-type Line = Int
-type Column = Int
-
-data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord)
-instance Show Pos where show (Pos line col) = "line " <> show line <> ", column " <> show col
 
 type BlockName = String
 type Layout = [(BlockName,Column)]
@@ -917,12 +912,6 @@ notLayout t = case payload t of
   Open _ -> False
   _ -> True
 
-line :: Pos -> Line
-line (Pos line _) = line
-
-column :: Pos -> Column
-column (Pos _ column) = column
-
 -- `True` if the tokens are adjacent, with no space separating the two
 touches :: Token a -> Token b -> Bool
 touches (end -> t) (start -> t2) =
@@ -1200,12 +1189,3 @@ instance ShowToken (Token Lexeme) where
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)
   Token f start _ <*> Token a _ end = Token (f a) start end
-
-instance Semigroup Pos where (<>) = mappend
-
-instance Monoid Pos where
-  mempty = Pos 0 0
-  Pos line col `mappend` Pos line2 col2 =
-    if line2 == 0 then Pos line (col + col2)
-    else Pos (line + line2) col2
-

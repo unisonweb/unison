@@ -19,6 +19,8 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import qualified Unison.ShortHash as SH

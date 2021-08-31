@@ -75,6 +75,7 @@ library:
     - optparse-applicative >= 0.16.1.0
     - openapi3
     - pem
+    - prelude-extras
     - process
     - primitive
     - random >= 1.2.0

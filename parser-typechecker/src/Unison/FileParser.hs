@@ -15,18 +15,22 @@ import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
+import Unison.Parser.Ann (Ann)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
-import           Unison.UnisonFile (UnisonFile(..), environmentFor)
-import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile (UnisonFile(..))
+import qualified Unison.UnisonFile.Env as UF
+import Unison.UnisonFile.Names (environmentFor)
 import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.WatchKind as UF
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
@@ -239,7 +243,7 @@ declaration = do
 dataDeclaration
   :: forall v
    . Var v
-  => Maybe (L.Token DD.Modifier) 
+  => Maybe (L.Token DD.Modifier)
   -> P v (v, DataDeclaration v Ann, Accessors v)
 dataDeclaration mod = do
   keywordTok       <- fmap void (reserved "type") <|> openBlockWith "type"
@@ -278,9 +282,9 @@ dataDeclaration mod = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  case mod of 
-    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name 
-    Just mod' -> 
+  case mod of
+    Nothing -> P.customFailure $ MissingTypeModifier ("type" <$ keywordTok) name
+    Just mod' ->
       pure (L.payload name,
             DD.mkDataDecl' (L.payload mod') (ann mod' <> closingAnn) typeArgVs constructors,
             accessors)

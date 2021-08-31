@@ -8,8 +8,7 @@ module Unison.Names3 where
 import Unison.Prelude
 
 import Control.Lens (view, _4)
-import Data.List (sort)
-import Data.List.Extra (nubOrd)
+import Data.List.Extra (nubOrd, sort)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -29,14 +28,8 @@ import qualified Unison.ConstructorType as CT
 data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
 type Names0 = Unison.Names2.Names0
+pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n
 pattern Names0 terms types = Unison.Names2.Names terms types
-
-data ResolutionFailure v a
-  = TermResolutionFailure v a (Set Referent)
-  | TypeResolutionFailure v a (Set Reference)
-  deriving (Eq,Ord,Show)
-
-type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
