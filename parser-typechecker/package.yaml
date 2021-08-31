@@ -116,6 +116,8 @@ library:
     - unison-core
     - unison-core1
     - unison-util
+    - open-browser
+    - uri-encode
 
 executables:
   unison:

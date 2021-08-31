@@ -10,11 +10,9 @@ module Main where
 
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
-import Data.ByteString.Char8 (unpack)
 import Data.Configurator.Types (Config)
 import qualified Data.Text as Text
 import qualified GHC.Conc
-import qualified Network.URI.Encode as URI
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
 import qualified System.Exit as Exit
@@ -97,7 +95,7 @@ main = do
                 (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
                 rt <- RTI.startRuntime
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing
                 closeCodebase
      Run (RunFromPipe mainName) -> do
       e <- safeReadUtf8StdIn
@@ -110,6 +108,7 @@ main = do
           launch
             currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+            Nothing
           closeCodebase
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo cbFormat shouldFork shouldSaveCodebase mcodepath transcriptFiles
@@ -117,15 +116,13 @@ main = do
      Launch isHeadless codebaseServerOpts -> do
        (closeCodebase, theCodebase) <- getCodebaseOrExit cbFormat mcodepath
        runtime <- RTI.startRuntime
-       Server.startServer codebaseServerOpts runtime theCodebase $ \token port -> do
-         let url =
-              "http://127.0.0.1:" <> show port <> "/" <> URI.encode (unpack token)
+       Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          PT.putPrettyLn $ P.lines
-           ["The Unison Codebase UI is running at", P.string $ url <> "/ui"]
+           ["The Unison Codebase UI is running at", P.string $ Server.urlFor Server.UI baseUrl]
          case isHeadless of
              Headless -> do
                  PT.putPrettyLn $ P.lines
-                    ["I've started the codebase API server at" , P.string $ url <> "/api"]
+                    ["I've started the codebase API server at" , P.string $ Server.urlFor Server.Api baseUrl]
                  PT.putPrettyLn $ P.string "Running the codebase manager headless with "
                      <> P.shown GHC.Conc.numCapabilities
                      <> " "
@@ -135,7 +132,7 @@ main = do
                  takeMVar mvar
              WithCLI -> do
                  PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
-                 launch currentDir config runtime theCodebase []
+                 launch currentDir config runtime theCodebase [] (Just baseUrl)
                  closeCodebase
 
 upgradeCodebase :: Maybe Codebase.CodebasePath -> IO ()
@@ -250,9 +247,19 @@ launch
   -> Rt.Runtime Symbol
   -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
+  -> Maybe Server.BaseUrl
   -> IO ()
-launch dir config rt code inputs =
-  CommandLine.main dir defaultBaseLib initialPath config inputs rt code Version.gitDescribe
+launch dir config runtime codebase inputs serverBaseUrl =
+  CommandLine.main 
+    dir 
+    defaultBaseLib 
+    initialPath 
+    config 
+    inputs 
+    runtime 
+    codebase 
+    Version.gitDescribe
+    serverBaseUrl
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of

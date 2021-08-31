@@ -36,7 +36,7 @@ identical err x y =
   then ()
   else throw ("mismatch" ++ err)
 
-type Three a b c = zero a | one b | two c
+structural type Three a b c = zero a | one b | two c
 
 showThree : Three Nat Nat Nat -> Text
 showThree = cases
@@ -89,7 +89,7 @@ identicality t x
 ```
 
 ```unison
-ability Zap where
+structural ability Zap where
   zap : Three Nat Nat Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat

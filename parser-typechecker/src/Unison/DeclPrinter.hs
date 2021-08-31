@@ -157,7 +157,7 @@ fieldNames env r name dd = case DD.constructors dd of
   _ -> Nothing
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
-prettyModifier DD.Structural = mempty
+prettyModifier DD.Structural = fmt S.DataTypeModifier "structural" 
 prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 

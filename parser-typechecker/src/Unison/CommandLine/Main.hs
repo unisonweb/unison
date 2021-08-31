@@ -17,6 +17,7 @@ import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
+import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
@@ -159,8 +160,9 @@ main
   -> Runtime.Runtime Symbol
   -> Codebase IO Symbol Ann
   -> String
+  -> Maybe Server.BaseUrl
   -> IO ()
-main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs runtime codebase version = do
+main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   putPrettyLn $ case defaultBaseLib of
@@ -240,6 +242,7 @@ main dir defaultBaseLib initialPath (config,cancelConfig) initialInputs runtime 
                                       putPrettyNonempty p $> args)
                                      loadSourceFile
                                      codebase
+                                     serverBaseUrl
                                      (const Random.getSystemDRG)
                                      free
         case o of

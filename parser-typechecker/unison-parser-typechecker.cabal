@@ -221,6 +221,7 @@ library
     , network
     , network-simple
     , nonempty-containers
+    , open-browser
     , openapi3
     , optparse-applicative >=0.16.1.0
     , pem
@@ -255,6 +256,7 @@ library
     , unison-core1
     , unison-util
     , unliftio
+    , uri-encode
     , utf8-string
     , vector
     , wai

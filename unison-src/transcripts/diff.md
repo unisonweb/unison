@@ -40,8 +40,8 @@ bdependent = b
 c = 3
 helloWorld = "Hello, world!"
 
-type A a = A Nat
-ability X a1 a2 where x : Nat
+structural type A a = A Nat
+structural ability X a1 a2 where x : Nat
 ```
 
 ```ucm

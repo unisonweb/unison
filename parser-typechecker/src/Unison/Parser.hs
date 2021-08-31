@@ -5,6 +5,20 @@
 module Unison.Parser where
 
 import Unison.Prelude
+    ( trace,
+      join,
+      foldl',
+      Text,
+      optional,
+      Alternative((<|>), many),
+      Set,
+      void,
+      when,
+      fromMaybe,
+      isJust,
+      listToMaybe,
+      encodeUtf8,
+      lastMay )
 
 import qualified Crypto.Random        as Random
 import           Data.Bytes.Put                 (runPutS)
@@ -101,6 +115,8 @@ data Error v
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
+  -- MissingTypeModifier (type|ability) name
+  | MissingTypeModifier (L.Token String) (L.Token v)
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]

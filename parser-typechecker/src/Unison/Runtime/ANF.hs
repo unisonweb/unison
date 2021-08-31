@@ -42,6 +42,7 @@ module Unison.Runtime.ANF
   , float
   , lamLift
   , inlineAlias
+  , addDefaultCases
   , ANormalF(.., AApv, ACom, ACon, AKon, AReq, APrm, AFOp)
   , ANormal
   , RTag
@@ -94,7 +95,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Type as Ty
-import qualified Unison.Builtin.Decls as Ty (unitRef,seqViewRef)
+import qualified Unison.Builtin.Decls as Ty
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (SeqOp(..))
@@ -353,6 +354,24 @@ saturate dat = ABT.visitPure $ \case
     m = length args
     fvs = foldMap freeVars args
     args' = saturate dat <$> args
+
+addDefaultCases :: Var v => Monoid a => String -> Term v a -> Term v a
+addDefaultCases = ABT.visitPure . defaultCaseVisitor
+
+defaultCaseVisitor
+  :: Var v => Monoid a => String -> Term v a -> Maybe (Term v a)
+defaultCaseVisitor func m@(Match' scrut cases)
+  | scrut <- addDefaultCases func scrut
+  , cases <- fmap (addDefaultCases func) <$> cases
+  = Just $ match a scrut (cases ++ [dflt])
+  where
+  a = ABT.annotation m
+  v = Var.freshIn mempty $ typed Var.Blank
+  txt = "pattern match failure in function `" <> func <> "`"
+  dflt = MatchCase (P.Var a) Nothing
+       . ABT.abs' a v
+       $ apps' (placeholder a txt) [var a v]
+defaultCaseVisitor _ _ = Nothing
 
 inlineAlias :: Var v => Monoid a => Term v a -> Term v a
 inlineAlias = ABT.visitPure $ \case
@@ -1039,6 +1058,14 @@ anfBlock (Let1Named' v b e)
         d <- bindDirection d0
         let octx = bctx <> directed [ST1 d v BX cb] <> ectx
         pure (octx, ce)
+anfBlock (Apps' (Blank' b) args) = do
+  nm <- fresh
+  (actx, cas) <- anfArgs args
+  pure ( actx <> pure [ST1 Direct nm BX (TLit (T msg))]
+       , pure $ TPrm EROR (nm : cas)
+       )
+  where
+  msg = Text.pack . fromMaybe "blank expression" $ nameb b
 anfBlock (Apps' f args) = do
   (fctx, (d, cf)) <- anfFunc f
   (actx, cas) <- anfArgs args

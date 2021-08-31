@@ -1,5 +1,4 @@
-
-ability Foo where
+structural ability Foo where
   foo : {Foo} Text
 
 x = 'let

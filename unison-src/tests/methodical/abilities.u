@@ -1,7 +1,7 @@
 
 -- ABILITIES
 
-ability A where
+structural ability A where
   woot : {A} Nat
 
 unA = cases
@@ -15,7 +15,7 @@ a1 = handle
     x
   with unA
 
-ability B where
+structural ability B where
   zing : {B} Int
 
 abh = cases
@@ -43,7 +43,7 @@ ab2 =
     with nh
   with abh
 
-ability C where
+structural ability C where
   n : Nat
   i : Int
 

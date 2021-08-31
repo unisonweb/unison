@@ -10,7 +10,9 @@ module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
+import Data.ByteString.Char8 (unpack)
 import Control.Exception (ErrorCall (..), throwIO)
+import qualified Network.URI.Encode as URI
 import Control.Lens ((&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -113,6 +115,26 @@ type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI
 instance ToSample Char where
   toSamples _ = singleSample 'x'
 
+-- BaseUrl and helpers
+
+data BaseUrl = BaseUrl
+  { urlHost :: String,
+    urlToken :: Strict.ByteString,
+    urlPort :: Port
+  }
+
+data BaseUrlPath = UI | Api
+
+instance Show BaseUrl where
+  show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
+
+urlFor :: BaseUrlPath -> BaseUrl -> String
+urlFor path baseUrl =
+  case path of
+    UI -> show baseUrl <> "/ui"
+    Api -> show baseUrl <> "/api"
+
+
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
   if Text.decodeUtf8 expectedToken == gotToken
@@ -203,26 +225,27 @@ startServer
   => CodebaseServerOpts
   -> Rt.Runtime v
   -> Codebase IO v Ann
-  -> (Strict.ByteString -> Port -> IO ())
+  -> (BaseUrl -> IO ())
   -> IO ()
-startServer opts rt codebase k = do
+startServer opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
   token <- case token opts of
     Just t -> return $ C8.pack t
     _      -> genToken
+  let baseUrl = BaseUrl "http://127.0.0.1" token
   let settings = defaultSettings
                & maybe id setPort (port opts)
                & maybe id (setHost . fromString) (host opts)
   let a = app rt codebase envUI token
-  case (port opts) of
-    Nothing -> withApplicationSettings settings (pure a) (k token)
+  case port opts of
+    Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p  -> do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
       result <- race (runSettings settings' a)
-                     (waitFor started *> k token p)
+                     (waitFor started *> onStart (baseUrl p))
       case result of
         Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
         Right x  -> pure x
