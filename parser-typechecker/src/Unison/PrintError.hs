@@ -365,6 +365,30 @@ renderTypeError e env src = case e of
     , debugSummary note
     ]
   AbilityCheckFailure {..}
+    | [tv@(Type.Var' ev)] <- ambient
+    , ev `Set.member` foldMap Type.freeVars requested -> mconcat
+    [ "I tried to infer a cyclic ability."
+    , "\n\n"
+    , "The expression "
+    , describeStyle ErrorSite
+    , " was inferred to require the "
+    , case length requested of
+        1 -> "ability: "
+        _ -> "abilities: "
+    , "\n\n    {"
+    , commas (renderType' env) requested
+    , "}"
+    , "\n\n"
+    , "where `"
+    , renderType' env tv
+    , "` is its overall abilities."
+    , "\n\n"
+    , "I need a type signature to help figure this out."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
+    , debugSummary note
+    ]
+  AbilityCheckFailure {..}
     | C.InSubtype{} :<| _ <- C.path note -> mconcat
     [ "The expression "
     , describeStyle ErrorSite
