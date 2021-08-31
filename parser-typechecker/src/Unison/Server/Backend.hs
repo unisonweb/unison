@@ -258,27 +258,6 @@ findShallow codebase path' = do
     Nothing -> pure []
     Just b  -> findShallowInBranch codebase b
 
-findShallowReadmeInBranch ::
-  (Monad m, Var v) =>
-  Codebase m v Ann ->
-  Branch m ->
-  Backend m (Maybe (TermEntry v Ann))
-findShallowReadmeInBranch codebase branch =
-  let find :: [ShallowListEntry v Ann] -> Maybe (TermEntry v Ann)
-      find entries =
-        case entries of
-          [] -> Nothing
-          e : rest ->
-            case e of
-              ShallowTermEntry termEntry@(TermEntry _ segment _ _) ->
-                if (Text.toUpper . HQ'.toText $ segment) == "README"
-                  then Just termEntry
-                  else find rest
-              _ ->
-                find rest
-   in fmap find (findShallowInBranch codebase branch)
-
-
 findShallowReadmeInBranchAndRender ::
   Var v =>
   Width ->
@@ -291,15 +270,21 @@ findShallowReadmeInBranchAndRender width runtime codebase branch =
 
       printNames = getCurrentPrettyNames (Path.fromList []) branch
 
-      renderReadme ppe (TermEntry r _ _ _) = do
+      renderReadme ppe r = do
         res <- renderDoc ppe width runtime codebase (Referent.toReference r)
         pure $ case res of
           (_, _, doc) : _ -> Just doc
           _ -> Nothing
+
+      -- allow any of these capitalizations
+      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme" ]
+      readmes :: Set Referent
+      readmes = foldMap lookup toCheck
+        where lookup seg = R.lookupRan seg rel
+              rel = Star3.d1 (Branch._terms (Branch.head branch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
-        readmeTerm <- findShallowReadmeInBranch codebase branch
-        join <$> traverse (renderReadme (ppe hqLen)) readmeTerm
+        join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
 
 termListEntry
