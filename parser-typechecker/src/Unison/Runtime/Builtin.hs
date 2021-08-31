@@ -1090,10 +1090,10 @@ boxBoxTo0 instr
   (arg1, arg2) = fresh2
 
 -- Nat -> ()
-natToUnit :: ForeignOp
-natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
-  where
-    (arg, nat, result) = fresh3
+-- natToUnit :: ForeignOp
+-- natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
+--   where
+--     (arg, nat, result) = fresh3
 
 -- a -> Bool
 boxToBool :: ForeignOp
@@ -1233,11 +1233,28 @@ boxBoxToEFBox = inBxBx arg1 arg2 result
   where
     (arg1, arg2, result, stack1, stack2, fail) = fresh6
 
--- a -> Nat -> Either Failure
+-- a -> Nat -> Either Failure b
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox = inBxNat arg1 arg2 nat result
            $ outIoFail stack1 stack2 fail result
   where (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- Nat -> Either Failure ()
+natToEFUnit :: ForeignOp
+natToEFUnit
+  = inNat arg nat result
+  . TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ TCon eitherReference 0 [fail])
+  , (1, ([],)
+      . TLetD unit BX (TCon Ty.unitRef 0 [])
+      $ TCon eitherReference 1 [unit])
+
+  ]
+  where
+    (arg, nat, result, fail, stack1, stack2, unit) = fresh7
 
 -- a -> Either b c
 boxToEBoxBox :: ForeignOp
@@ -1595,7 +1612,8 @@ declareForeigns = do
 
   declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.impl.v3" natToUnit $ mkForeignIOF threadDelay
+  declareForeign "IO.delay.impl.v3" natToEFUnit
+    $ mkForeignIOF threadDelay
 
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
