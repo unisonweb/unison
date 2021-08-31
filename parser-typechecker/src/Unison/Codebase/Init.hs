@@ -12,9 +12,22 @@ import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
-import UnliftIO.Directory (canonicalizePath)
+import UnliftIO.Directory (canonicalizePath, getHomeDirectory)
 
 type Pretty = P.Pretty P.ColorText
+
+-- CodebaseDir is used to help pass around a Home directory that isn't the
+-- actual home directory of the user. Useful in tests.
+data CodebaseDir = Home CodebasePath | Specified CodebasePath
+
+homeOrSpecifiedDir :: Maybe CodebasePath -> IO CodebaseDir
+homeOrSpecifiedDir specifiedDir = do
+  homeDir <- getHomeDirectory
+  pure $ maybe (Home homeDir) Specified specifiedDir
+
+codebaseDirToCodebasePath :: CodebaseDir -> CodebasePath
+codebaseDirToCodebasePath (Home dir) = dir
+codebaseDirToCodebasePath (Specified dir) = dir
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
@@ -32,7 +45,7 @@ data Init m v a = Init
     codebasePath :: CodebasePath -> CodebasePath
   }
 
-type FinalizerAndCodebase m v a = (m (), Codebase m v a)
+type FinalizerAndCodebase m v a = (m (), Codebase m v a) 
 
 data InitError 
   = NoCodebaseFoundAtSpecifiedDir
@@ -42,26 +55,28 @@ data InitError
 data InitResult m v a 
   = OpenedCodebase CodebasePath (FinalizerAndCodebase m v a) 
   | CreatedCodebase CodebasePath (FinalizerAndCodebase m v a) 
-  | Error CodebasePath InitError
+  | Error CodebasePath InitError 
 
-openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> Maybe CodebasePath -> m (InitResult m v a)
-openOrCreateCodebase cbInit debugName maybeSpecificedDir = do
-  resolvedDir <- Codebase.getCodebaseDir maybeSpecificedDir
-  openCodebase cbInit debugName resolvedDir >>= \case -- calls accessor function Init -> debug name -> blah blah 
-    Right cb -> pure (OpenedCodebase resolvedDir cb)
+
+openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseDir -> m (InitResult m v a)
+openOrCreateCodebase cbInit debugName codebaseDir = do
+  let resolvedPath = (codebaseDirToCodebasePath codebaseDir)  
+  openCodebase cbInit debugName resolvedPath >>= \case 
+    Right cb -> pure (OpenedCodebase resolvedPath cb)
     Left _ ->
-      case maybeSpecificedDir of
-        Nothing -> do
-          ifM (FCC.codebaseExists resolvedDir)
-            (do pure (Error resolvedDir FoundV1Codebase))
+      case codebaseDir of
+        Home homeDir -> do
+          ifM (FCC.codebaseExists homeDir)
+            (do pure (Error homeDir FoundV1Codebase))
             (do
               -- Create V2 codebase if neither a V1 or V2 exists
-              createCodebase cbInit debugName resolvedDir >>= \case
-                Left errorMessage -> do pure (Error resolvedDir (CouldntCreateCodebase errorMessage))
+              createCodebase cbInit debugName homeDir >>= \case
+                Left errorMessage -> do
+                  pure (Error homeDir (CouldntCreateCodebase errorMessage))
                 Right cb -> do
-                  pure (CreatedCodebase resolvedDir cb)
+                  pure (CreatedCodebase homeDir cb)
             )
-        Just specifiedDir -> do
+        Specified specifiedDir -> do
           ifM (FCC.codebaseExists specifiedDir)
             (pure (Error specifiedDir FoundV1Codebase))
             (pure (Error specifiedDir NoCodebaseFoundAtSpecifiedDir))

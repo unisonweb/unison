@@ -40,6 +40,7 @@ import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 import qualified Unison.Test.GitSync as GitSync
 import qualified Unison.Test.Codebase.Upgrade12 as Upgrade12
+import qualified Unison.Test.CodebaseInit as CodebaseInit
 -- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
@@ -79,6 +80,7 @@ test = tests
   , VersionParser.test
   , Pretty.test
   , PinBoard.test
+  , CodebaseInit.test
  ]
 
 main :: IO ()

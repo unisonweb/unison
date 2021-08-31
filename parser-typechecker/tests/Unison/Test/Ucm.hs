@@ -11,6 +11,7 @@ module Unison.Test.Ucm
     CodebaseFormat (..),
     Transcript,
     unTranscript,
+    Codebase (..),
   )
 where
 

@@ -283,11 +283,12 @@ defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
 
 getCodebase :: Maybe Codebase.CodebasePath -> IO (IO (), Codebase.Codebase IO Symbol Ann)
-getCodebase maybeSpecifiedDir =
+getCodebase maybeSpecifiedDir = do
   -- Likely we should only change codebase format 2? Or both? 
   -- Notes for selves: create a function 'openOrCreateCodebase' which handles v1/v2 codebase provided / no codebase specified
   -- encode error messages as types. Our spike / idea is below:   
-  CodebaseInit.openOrCreateCodebase SC.init "main" maybeSpecifiedDir >>= \case
+  codebaseDir <- CodebaseInit.homeOrSpecifiedDir maybeSpecifiedDir
+  CodebaseInit.openOrCreateCodebase SC.init "main" codebaseDir >>= \case
     Error dir error ->
       let
         message = do
