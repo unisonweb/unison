@@ -18,8 +18,6 @@ import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
 import qualified Data.Text as Text
-import qualified Codec.Compression.Zlib as Zlib
-import qualified Codec.Compression.GZip as GZip
 
 -- Block is just `newtype Block a = Block ByteArray#`
 type ByteString = Block Word8
@@ -37,18 +35,6 @@ empty = Bytes mempty
 
 fromArray :: B.ByteArrayAccess ba => ba -> Bytes
 fromArray = snoc empty
-
-zlibCompress :: Bytes -> Bytes
-zlibCompress = fromLazyByteString . Zlib.compress . toLazyByteString
-
-gzipCompress :: Bytes -> Bytes
-gzipCompress = fromLazyByteString . GZip.compress . toLazyByteString
-
-gzipDecompress :: Bytes -> Bytes
-gzipDecompress = fromLazyByteString . GZip.decompress . toLazyByteString
-
-zlibDecompress :: Bytes -> Bytes
-zlibDecompress = fromLazyByteString . Zlib.decompress . toLazyByteString
 
 toArray :: forall bo . B.ByteArray bo => Bytes -> bo
 toArray b = B.concat (map B.convert (chunks b) :: [bo])

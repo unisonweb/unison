@@ -63,6 +63,7 @@ import Data.Set (insert)
 import qualified Data.Map as Map
 import Unison.Prelude
 import qualified Unison.Util.Bytes as Bytes
+import qualified Unison.Util.Bytes.Compress as Bytes
 import Network.Socket as SYS
   ( accept
   , socketPort

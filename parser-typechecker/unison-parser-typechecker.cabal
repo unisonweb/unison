@@ -139,6 +139,7 @@ library
       Unison.UnisonFile
       Unison.Util.AnnotatedText
       Unison.Util.Bytes
+      Unison.Util.Bytes.Compress
       Unison.Util.ColorText
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
