@@ -453,16 +453,16 @@ putTerm
   -> Term v a
   -> Type v a
   -> m ()
-putTerm putV putA path h e typ = do
+putTerm putV putA path rId@(Reference.Id h _i) e typ = do
   let typeForIndexing = Type.removeAllEffectVars typ
       rootTypeHash = Type.toReference typeForIndexing
       typeMentions = Type.toReferenceMentions typeForIndexing
-  S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
-  S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
+  S.putWithParentDirs (V1.putTerm putV putA) (termPath path rId) e
+  S.putWithParentDirs (V1.putType putV putA) (typePath path rId) typ
   -- Add the term as a dependent of its dependencies
-  let r = Referent.Ref (Reference.DerivedId h)
+  let r = Referent.Ref (Reference.DerivedId rId)
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
-  traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ (touchIdFile rId . dependentsDir path) deps
   traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
   touchReferentFile r (typeIndexDir path rootTypeHash)
 
@@ -484,7 +484,7 @@ putDecl
   -> Reference.Id
   -> DD.Decl v a
   -> m ()
-putDecl putV putA path h decl = do
+putDecl putV putA path h@(Reference.Id hash _i) decl = do
   S.putWithParentDirs
     (V1.putEither
       (V1.putEffectDeclaration putV putA)
@@ -494,7 +494,7 @@ putDecl putV putA path h decl = do
   traverse_ (touchIdFile h . dependentsDir path) deps
   traverse_ addCtorToTypeIndex ctors
  where
-  deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
+  deps = deleteComponent hash . DD.dependencies $ either DD.toDataDecl id decl
   r = Reference.DerivedId h
   decl' = either DD.toDataDecl id decl
   addCtorToTypeIndex (r, typ) = do
@@ -602,6 +602,7 @@ listDirectory dir = liftIO $
   System.Directory.listDirectory dir `catch` (\(_ :: IOException) -> pure mempty)
 
 -- | delete all the elements of a given reference component from a set
-deleteComponent :: Reference.Id -> Set Reference -> Set Reference
-deleteComponent r rs = Set.difference rs
-  (Reference.members . Reference.componentFor . Reference.DerivedId $ r)
+deleteComponent :: Hash.Hash -> Set Reference -> Set Reference
+deleteComponent h = Set.filter \case
+  Reference.Derived h' _ -> h /= h'
+  _ -> True

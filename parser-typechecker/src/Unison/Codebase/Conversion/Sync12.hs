@@ -24,16 +24,10 @@ import Control.Monad.Validate (MonadValidate, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Control.Natural (type (~>))
 import Data.Bifoldable (bitraverse_)
-import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
-import Data.Functor (($>))
 import qualified Data.List as List
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes)
 import qualified Data.Set as Set
-import Data.Traversable (for)
-import Debug.Trace (traceM)
 import System.IO (stdout)
 import System.IO.Extra (hFlush)
 import U.Codebase.Sqlite.Connection (Connection)
@@ -55,7 +49,7 @@ import Unison.Hash (Hash)
 import qualified Unison.Hashable as H
 import qualified Unison.LabeledDependency as LD
 import Unison.NameSegment (NameSegment)
-import Unison.Prelude (Set)
+import Unison.Prelude
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -80,9 +74,9 @@ data Env m a = Env
 
 data Entity m
   = C Branch.Hash (m (UnwrappedBranch m))
-  | T Hash Reference.Size
+  | T Hash
   | W WatchKind Reference.Id
-  | D Hash Reference.Size
+  | D Hash
   | P Branch.EditHash
 
 type V m n = MonadValidate (Set (Entity m)) n
@@ -179,11 +173,11 @@ trySync t e = do
                   else do
                     setBranchStatus h (BranchReplaced h' c')
                     pure Sync.NonFatalError
-    T h n ->
+    T h ->
       getTermStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
         Nothing -> do
-          runExceptT (runValidateT (checkTermComponent (lift . lift . t) h n)) >>= \case
+          runExceptT (runValidateT (checkTermComponent (lift . lift . t) h)) >>= \case
             Left status -> do
               setTermStatus h status
               pure Sync.NonFatalError
@@ -191,7 +185,7 @@ trySync t e = do
               pure . Sync.Missing $ Foldable.toList deps
             Right (Right component) -> do
               Foldable.for_ (zip component [0 ..]) \((term, typ), i) ->
-                t $ Codebase.putTerm dest (Reference.Id h i n) term typ
+                t $ Codebase.putTerm dest (Reference.Id h i) term typ
               setTermStatus h TermOk
               pure Sync.Done
     W k r ->
@@ -208,11 +202,11 @@ trySync t e = do
               t $ Codebase.putWatch dest k r watchResult
               setWatchStatus k r WatchOk
               pure Sync.Done
-    D h n ->
+    D h ->
       getDeclStatus h >>= \case
         Just {} -> pure Sync.PreviouslyDone
         Nothing ->
-          runExceptT (runValidateT (checkDeclComponent (lift . lift . t) h n)) >>= \case
+          runExceptT (runValidateT (checkDeclComponent (lift . lift . t) h)) >>= \case
             Left status -> do
               setDeclStatus h status
               pure Sync.NonFatalError
@@ -220,7 +214,7 @@ trySync t e = do
               pure . Sync.Missing $ Foldable.toList deps
             Right (Right component) -> do
               Foldable.for_ (zip component [0 ..]) \(decl, i) ->
-                t $ Codebase.putTypeDeclaration dest (Reference.Id h i n) decl
+                t $ Codebase.putTypeDeclaration dest (Reference.Id h i) decl
               setDeclStatus h DeclOk
               pure Sync.Done
     P h ->
@@ -271,20 +265,21 @@ setBranchStatus h s = do
   branchStatus . at h .= Just s
 
 setWatchStatus :: S m n => WatchKind -> Reference.Id -> WatchStatus -> n ()
-setWatchStatus k r@(Reference.Id h i _) s = do
+setWatchStatus k r@(Reference.Id h i) s = do
   when debug (traceM $ "setWatchStatus " ++ show k ++ " " ++ take 10 (show h) ++ " " ++ show i)
   watchStatus . at (k, r) .= Just s
 
+-- | verifies that the entire term component, the types-of-terms, and dependencies are available
 checkTermComponent ::
   forall m n a.
   (RS m n a, V m n, E TermStatus n) =>
   (m ~> n) ->
   Hash ->
-  Reference.Size ->
   n [(Term Symbol a, Type Symbol a)]
-checkTermComponent t h n = do
+checkTermComponent t h = do
   Env src _ _ <- Reader.ask
-  for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
+  n <- t $ Codebase.getTermComponentLength src h
+  for [Reference.Id h i | i <- [0 .. n -1]] \r -> do
     term <- t $ Codebase.getTerm src r
     typ <- t $ Codebase.getTypeOfTermImpl src r
     case (term, typ) of
@@ -295,22 +290,22 @@ checkTermComponent t h n = do
             typeDeps = Type.dependencies typ
         let checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _ n') ->
+              Reference.DerivedId (Reference.Id h' _) ->
                 getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
-                  Nothing -> Validate.dispute . Set.singleton $ D h' n'
+                  Nothing -> Validate.dispute . Set.singleton $ D h'
             checkTerm = \case
               Reference.Builtin {} ->
                 pure ()
-              Reference.DerivedId (Reference.Id h' _ _)
+              Reference.DerivedId (Reference.Id h' _)
                 | h == h' ->
                   pure () -- ignore self-references
-              Reference.DerivedId (Reference.Id h' _ n') ->
+              Reference.DerivedId (Reference.Id h' _) ->
                 getTermStatus h' >>= \case
                   Just TermOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
-                  Nothing -> Validate.dispute . Set.singleton $ T h' n'
+                  Nothing -> Validate.dispute . Set.singleton $ T h'
         traverse_ (bitraverse_ checkDecl checkTerm . LD.toReference) termDeps
         traverse_ checkDecl typeDeps
         pure (term, typ)
@@ -322,7 +317,7 @@ checkWatchComponent ::
   WatchKind ->
   Reference.Id ->
   n (Term Symbol a)
-checkWatchComponent t k r@(Reference.Id h _ _) = do
+checkWatchComponent t k r@(Reference.Id h _) = do
   Env src _ _ <- Reader.ask
   (t $ Codebase.getWatch src k r) >>= \case
     Nothing -> Except.throwError WatchNotCached
@@ -330,22 +325,22 @@ checkWatchComponent t k r@(Reference.Id h _ _) = do
       let deps = Term.labeledDependencies watchResult
       let checkDecl = \case
             Reference.Builtin {} -> pure ()
-            Reference.DerivedId (Reference.Id h' _ n') ->
+            Reference.DerivedId (Reference.Id h' _) ->
               getDeclStatus h' >>= \case
                 Just DeclOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
-                Nothing -> Validate.dispute . Set.singleton $ D h' n'
+                Nothing -> Validate.dispute . Set.singleton $ D h'
           checkTerm = \case
             Reference.Builtin {} ->
               pure ()
-            Reference.DerivedId (Reference.Id h' _ _)
+            Reference.DerivedId (Reference.Id h' _)
               | h == h' ->
                 pure () -- ignore self-references
-            Reference.DerivedId (Reference.Id h' _ n') ->
+            Reference.DerivedId (Reference.Id h' _) ->
               getTermStatus h' >>= \case
                 Just TermOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
-                Nothing -> Validate.dispute . Set.singleton $ T h' n'
+                Nothing -> Validate.dispute . Set.singleton $ T h'
       traverse_ (bitraverse_ checkDecl checkTerm . LD.toReference) deps
       pure watchResult
 
@@ -354,11 +349,11 @@ checkDeclComponent ::
   (RS m n a, E DeclStatus n, V m n) =>
   (m ~> n) ->
   Hash ->
-  Reference.Size ->
   n [Decl Symbol a]
-checkDeclComponent t h n = do
+checkDeclComponent t h = do
   Env src _ _ <- Reader.ask
-  for [Reference.Id h i n | i <- [0 .. n -1]] \r -> do
+  n <- t $ Codebase.getDeclComponentLength src h
+  for [Reference.Id h i | i <- [0 .. n - 1]] \r -> do
     decl <- t $ Codebase.getTypeDeclaration src r
     case decl of
       Nothing -> Except.throwError DeclMissing
@@ -366,12 +361,11 @@ checkDeclComponent t h n = do
         let deps = DD.declDependencies decl
             checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _ _) | h == h' -> pure ()
-              Reference.DerivedId (Reference.Id h' _ n') ->
-                getDeclStatus h' >>= \case
+              Reference.DerivedId (Reference.Id h' _) ->
+                unless (h == h') $ getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError DeclMissingDependencies
-                  Nothing -> Validate.dispute . Set.singleton $ D h' n'
+                  Nothing -> Validate.dispute . Set.singleton $ D h'
         traverse_ checkDecl deps
         pure decl
 
@@ -450,16 +444,16 @@ repairPatch (Patch termEdits typeEdits) = do
     -- reference to it.  See Sync22.syncPatchLocalIds
     helpTermEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _ n) ->
+      Reference.DerivedId (Reference.Id h _) ->
         getTermStatus h >>= \case
-          Nothing -> Validate.refute . Set.singleton $ T h n
+          Nothing -> Validate.refute . Set.singleton $ T h
           Just TermOk -> pure True
           Just _ -> pure False
     helpTypeEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _ n) ->
+      Reference.DerivedId (Reference.Id h _) ->
         getDeclStatus h >>= \case
-          Nothing -> Validate.refute . Set.singleton $ D h n
+          Nothing -> Validate.refute . Set.singleton $ D h
           Just DeclOk -> pure True
           Just _ -> pure False
     filterTermEdit old new = do
@@ -506,18 +500,18 @@ validateTermReferent = \case
 validateTermReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTermReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i n) ->
+  Reference.DerivedId (Reference.Id h _i) ->
     getTermStatus h >>= \case
-      Nothing -> Validate.refute . Set.singleton $ T h n
+      Nothing -> Validate.refute . Set.singleton $ T h
       Just TermOk -> pure True
       Just _ -> pure False
 
 validateTypeReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTypeReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i n) ->
+  Reference.DerivedId (Reference.Id h _i) ->
     getDeclStatus h >>= \case
-      Nothing -> Validate.refute . Set.singleton $ D h n
+      Nothing -> Validate.refute . Set.singleton $ D h
       Just DeclOk -> pure True
       Just _ -> pure False
 
@@ -666,8 +660,8 @@ data Entity'
 toEntity' :: Entity m -> Entity'
 toEntity' = \case
   C h _ -> C' h
-  T h _ -> T' h
-  D h _ -> D' h
+  T h -> T' h
+  D h -> D' h
   P h -> P' h
   W k r -> W' k r
 

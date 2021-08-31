@@ -43,7 +43,7 @@ import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
-import           Unison.Reference               ( Reference )
+import           Unison.Reference.V1            ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( Term )
 import qualified Data.ByteString               as B
@@ -55,11 +55,11 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
-import qualified Unison.Reference              as Reference
-import           Unison.Referent               (Referent)
-import qualified Unison.Referent               as Referent
-import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
+import qualified Unison.Reference.V1           as Reference
+import           Unison.Referent.V1            (Referent)
+import qualified Unison.Referent.V1            as Referent
+import qualified Unison.Term.V1                as Term
+import qualified Unison.Type.V1                as Type
 import qualified Unison.Util.Bytes             as Bytes
 import           Unison.Util.Star3             ( Star3 )
 import qualified Unison.Util.Star3             as Star3

@@ -81,6 +81,15 @@ import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.Watch as Watch
 import Unison.Parser (Ann ())
 import Unison.Prelude
+    ( toList,
+      fromMaybe,
+      Text,
+      Set,
+      unlessM,
+      forever,
+      ifM,
+      MonadTrans(lift),
+      MonadIO(..) )
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -149,6 +158,11 @@ codebase1' syncToDirectory branchCache fmtV@(S.Format getV putV) fmtA@(S.Format 
           (Cache.applyDefined termCache $ getTerm getV getA path)
           (Cache.applyDefined typeOfTermCache $ getTypeOfTerm getV getA path)
           (Cache.applyDefined declCache $ getDecl getV getA path)
+          (error "todo: getTermComponent :: Hash -> m (Maybe [Term v a])")
+          (error "todo: getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)])")
+          (error "todo: getTermComponentLength :: Hash -> m (Reference.CycleSize)")
+          (error "todo: getDeclComponent :: Hash -> m (Maybe [Decl v a])")
+          (error "todo: getDeclComponentLength :: Hash -> m (Reference.CycleSize)")
           (putTerm putV putA path)
           (putDecl putV putA path)
           (getRootBranch branchCache path)

@@ -20,7 +20,6 @@ import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
-import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )
@@ -48,6 +47,8 @@ import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
 import           Unison.ConstructorType         ( ConstructorType )
 import qualified Unison.Runtime.IOSource       as IOSource
+import Unison.Hash (Hash)
+import Data.Maybe (fromJust)
 
 type F m i v = Free (Command m i v)
 
@@ -136,21 +137,23 @@ propagate
   -> Branch0 m
   -> F m i v (Edits v)
 propagate patch b = case validatePatch patch of
+  {- this is probably too strict, you could have some conflicts and
+     still propagate the unconflicted parts of the patch -AI -}
   Nothing -> do
     eval $ Notify PatchNeedsToBeConflictFree
     pure noEdits
   Just (initialTermEdits, initialTypeEdits) -> do
     let
+      entireBranch :: Set Reference
       entireBranch = Set.union
         (Branch.deepTypeReferences b)
         (Set.fromList
           [ r | Referent.Ref r <- Set.toList $ Branch.deepReferents b ]
         )
     initialDirty <-
-      R.dom <$> computeFrontier (eval . GetDependents) patch names0
+      R.dom <$> computeFrontier (eval . GetDependents) patch careToUpdate
     order <- sortDependentsGraph initialDirty entireBranch
     let
-
       getOrdered :: Set Reference -> Map Int Reference
       getOrdered rs =
         Map.fromList [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order] ]
@@ -164,9 +167,11 @@ propagate patch b = case validatePatch patch of
         Nothing        -> pure es
         Just (r, todo) -> case r of
           Reference.Builtin   _ -> collectEdits es seen todo
-          Reference.DerivedId _ -> go r todo
+          Reference.DerivedId rId -> go rId todo
        where
-        go r todo =
+        go :: Reference.Id -> Map Int Reference -> F m i v (Edits v)
+        go rId@(Reference.Id h _i) todo =
+          let r = Reference.DerivedId rId in
           if Map.member r termEdits
              || Map.member r typeEdits
              || Set.member r seen
@@ -174,29 +179,24 @@ propagate patch b = case validatePatch patch of
             collectEdits es seen todo
           else
             do
-              haveType <- eval $ IsType r
-              haveTerm <- eval $ IsTerm r
+              haveType <- eval $ IsDerivedType h
+              haveTerm <- eval $ IsDerivedTerm h
               let message =
                     "This reference is not a term nor a type " <> show r
-                  mmayEdits | haveTerm  = doTerm r
-                            | haveType  = doType r
+                  mmayEdits | haveTerm  = doTerm h
+                            | haveType  = doType h
                             | otherwise = error message
               mayEdits <- mmayEdits
               case mayEdits of
                 (Nothing    , seen') -> collectEdits es seen' todo
                 (Just edits', seen') -> do
                   -- plan to update the dependents of this component too
-                  dependents <-
-                    fmap Set.unions
-                    . traverse (eval . GetDependents)
-                    . toList
-                    . Reference.members
-                    $ Reference.componentFor r
+                  dependents <- eval $ GetDependentsOfComponent h
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
-        doType :: Reference -> F m i v (Maybe (Edits v), Set Reference)
-        doType r = do
-          componentMap <- unhashTypeComponent r
+        doType :: Hash -> F m i v (Maybe (Edits v), Set Reference)
+        doType h = do
+          componentMap <- unhashTypeComponent h
           let componentMap' =
                 over _2 (Decl.updateDependencies typeReplacements)
                   <$> componentMap
@@ -209,7 +209,7 @@ propagate patch b = case validatePatch patch of
             Left _ ->
               error
                 $ "Edit propagation failed because some of the dependencies of "
-                <> show r
+                <> show h
                 <> " could not be resolved."
             Right c -> pure . Map.fromList $ (\(v, r, d) -> (v, (r, d))) <$> c
           let
@@ -252,9 +252,9 @@ propagate patch b = case validatePatch patch of
                            constructorMapping
             , seen'
             )
-        doTerm :: Reference -> F m i v (Maybe (Edits v), Set Reference)
-        doTerm r = do
-          componentMap <- unhashTermComponent r
+        doTerm :: Hash -> F m i v (Maybe (Edits v), Set Reference)
+        doTerm h = do
+          componentMap <- unhashTermComponent h
           let componentMap' =
                 over
                     _2
@@ -328,64 +328,47 @@ propagate patch b = case validatePatch patch of
       (zip (view _1 . getReference <$> Graph.topSort graph) [0 ..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
-  names0 = Branch.toNames0 b
+  careToUpdate = Names.contains $ Branch.toNames0 b
   validatePatch
     :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
   validatePatch p =
     (,) <$> R.toMap (Patch._termEdits p) <*> R.toMap (Patch._typeEdits p)
-  -- Turns a cycle of references into a term with free vars that we can edit
-  -- and hash again.
-  -- todo: Maybe this an others can be moved to HandleCommand, in the
-  --  Free (Command m i v) monad, passing in the actions that are needed.
-  -- However, if we want this to be parametric in the annotation type, then
-  -- Command would have to be made parametric in the annotation type too.
-  unhashTermComponent
-    :: forall m v
-     . (Applicative m, Var v)
-    => Reference
-    -> F m i v (Map v (Reference, Term v _, Type v _))
-  unhashTermComponent ref = do
-    let component = Reference.members $ Reference.componentFor ref
-        termInfo
-          :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
-        termInfo termRef = do
-          tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (error $ "Missing type for term " <> show termRef)
-                       pure
-                       tpm
-          case termRef of
-            Reference.DerivedId id -> do
-              mtm <- eval $ LoadTerm id
-              tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
-              pure $ Just (termRef, (tm, tp))
-            Reference.Builtin{} -> pure Nothing
-        unhash m =
-          let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
-              m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
-          in  Map.fromList
-                [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
-    unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
+
+  -- |Loads and converts a cycle of references into terms that reference each
+  -- other with free vars, that we can edit and hash again. The heavy lifting
+  -- happens in `Term.unhashComponent`.
+  unhashTermComponent ::
+    forall m v.
+    (Applicative m, Var v) =>
+    Hash ->
+    F m i v (Map v (Reference, Term v _, Type v _))
+  unhashTermComponent h = do
+    component <- fromJust <$> eval (LoadTermComponentWithType h)
+    pure . unhash . Map.fromList . Reference.componentFor' h $ component
+    where
+      unhash :: Map Reference (Term v a, Type v a) -> Map v (Reference, Term v a, Type v a)
+      unhash m =
+        let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
+            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+        in  Map.fromList
+              [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
+
+  -- |Loads and converts a cycle of references into decls that reference each
+  -- other with free vars, that we can edit and hash again. The heavy lifting
+  -- happens in `Decl.unhashComponent`.
   unhashTypeComponent
     :: forall m v
      . (Applicative m, Var v)
-    => Reference
+    => Hash
     -> F m i v (Map v (Reference, Decl v _))
-  unhashTypeComponent ref = do
-    let
-      component = Reference.members $ Reference.componentFor ref
-      typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
-      typeInfo typeRef = case typeRef of
-        Reference.DerivedId id -> do
-          declm <- eval $ LoadType id
-          decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
-                         pure
-                         declm
-          pure $ Just (typeRef, decl)
-        Reference.Builtin{} -> pure Nothing
+  unhashTypeComponent h = do
+    component <- fromJust <$> eval (LoadDeclComponent h)
+    pure . unhash . Map.fromList . Reference.componentFor' h $ component
+    where
+      unhash :: Map Reference (Decl v a) -> Map v (Reference, Decl v a)
       unhash =
         Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
         where reshuffle (r, (v, decl)) = (v, (r, decl))
-    unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
@@ -500,12 +483,14 @@ applyPropagate patch Edits {..} = do
 computeFrontier
   :: forall m
    . Monad m
-  => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+  => (Reference -> m (Set Reference)) -- ^eg Codebase.dependents codebase
   -> Patch
-  -> Names0
+  -> (Reference -> Bool)
+  {-^ there may be dependents known to the codebase that we don't care to
+      update because they aren't in scope -}
   -> m (R.Relation Reference Reference)
-computeFrontier getDependents patch names = do
-      -- (r,r2) ∈ dependsOn if r depends on r2
+computeFrontier getDependents patch careToUpdate = do
+  -- (r,r2) ∈ dependsOn if r depends on r2
   dependsOn <- foldM addDependents R.empty edited
   -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
   pure $ R.filterDom (not . flip Set.member edited) dependsOn
@@ -518,5 +503,5 @@ computeFrontier getDependents patch names = do
     -> m (R.Relation Reference Reference)
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents)
-      .   Set.filter (Names.contains names)
+      .   Set.filter careToUpdate
       <$> getDependents ref

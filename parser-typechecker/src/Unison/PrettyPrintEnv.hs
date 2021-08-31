@@ -66,9 +66,9 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
 -- foo.bar x = foo.bar x
 -- and not
 -- foo.bar x = bar x
-declarationPPE :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnv
-declarationPPE ppe rd = PrettyPrintEnv tm ty where
-  comp = Reference.members (Reference.componentFor rd)
+declarationPPE :: PrettyPrintEnvDecl -> Reference -> Reference.CycleSize -> PrettyPrintEnv
+declarationPPE ppe rd n = PrettyPrintEnv tm ty where
+  comp = Reference.members (Reference.componentFor rd n)
   tm r0@(Referent.Ref r) = if Set.member r comp
                            then terms (unsuffixifiedPPE ppe) r0
                            else terms (suffixifiedPPE ppe) r0

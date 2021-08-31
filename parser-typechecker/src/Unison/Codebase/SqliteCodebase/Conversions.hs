@@ -146,15 +146,15 @@ term1to2 h =
       V1.Pattern.Snoc -> V2.Term.PSnoc
       V1.Pattern.Concat -> V2.Term.PConcat
 
-term2to1 :: forall m. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
-term2to1 h lookupSize lookupCT tm =
-  V1.ABT.transformM (termF2to1 h lookupSize lookupCT)
+term2to1 :: forall m. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.Term V2.Symbol -> m (V1.Term.Term V1.Symbol Ann)
+term2to1 h lookupCT tm =
+  V1.ABT.transformM (termF2to1 h lookupCT)
     . V1.ABT.vmap symbol2to1
     . V1.ABT.amap (const Ann.External)
     $ abt2to1 tm
   where
-    termF2to1 :: forall m a. Monad m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
-    termF2to1 h lookupSize lookupCT = go
+    termF2to1 :: forall m a. Monad m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
+    termF2to1 h lookupCT = go
       where
         go :: V2.Term.F V2.Symbol a -> m (V1.Term.F V1.Symbol Ann Ann a)
         go = \case
@@ -164,14 +164,14 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.Boolean b -> pure $ V1.Term.Boolean b
           V2.Term.Text t -> pure $ V1.Term.Text t
           V2.Term.Char c -> pure $ V1.Term.Char c
-          V2.Term.Ref r -> V1.Term.Ref <$> rreference2to1 h lookupSize r
+          V2.Term.Ref r -> pure $ V1.Term.Ref (rreference2to1 h r)
           V2.Term.Constructor r i ->
-            V1.Term.Constructor <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+            pure $ V1.Term.Constructor (reference2to1 r) (fromIntegral i)
           V2.Term.Request r i ->
-            V1.Term.Request <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+            pure $ V1.Term.Request (reference2to1 r) (fromIntegral i)
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
           V2.Term.App a a4 -> pure $ V1.Term.App a a4
-          V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 lookupSize t2
+          V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 t2
           V2.Term.List sa -> pure $ V1.Term.List sa
           V2.Term.If a a4 a5 -> pure $ V1.Term.If a a4 a5
           V2.Term.And a a4 -> pure $ V1.Term.And a a4
@@ -180,8 +180,8 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.LetRec as a -> pure $ V1.Term.LetRec False as a
           V2.Term.Let a a4 -> pure $ V1.Term.Let False a a4
           V2.Term.Match a cases -> V1.Term.Match a <$> traverse goCase cases
-          V2.Term.TermLink rr -> V1.Term.TermLink <$> rreferent2to1 h lookupSize lookupCT rr
-          V2.Term.TypeLink r -> V1.Term.TypeLink <$> reference2to1 lookupSize r
+          V2.Term.TermLink rr -> V1.Term.TermLink <$> rreferent2to1 h lookupCT rr
+          V2.Term.TypeLink r -> pure $ V1.Term.TypeLink (reference2to1 r)
         goCase = \case
           V2.Term.MatchCase pat cond body ->
             V1.Term.MatchCase <$> (goPat pat) <*> pure cond <*> pure body
@@ -195,10 +195,10 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.PText t -> pure $ V1.Pattern.Text a t
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
-            V1.Pattern.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
+            V1.Pattern.Constructor a (reference2to1 r) i <$> (traverse goPat ps)
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
-          V2.Term.PEffectBind r i ps p -> V1.Pattern.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
+          V2.Term.PEffectBind r i ps p -> V1.Pattern.EffectBind a (reference2to1 r) i <$> traverse goPat ps <*> goPat p
           V2.Term.PSequenceLiteral ps -> V1.Pattern.SequenceLiteral a <$> traverse goPat ps
           V2.Term.PSequenceOp p1 op p2 -> V1.Pattern.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
         goOp = \case
@@ -247,8 +247,7 @@ symbol1to2 x = error $ "unimplemented: symbol1to2 " ++ show x
 
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
-  fst
-    . fromRight (error "todo: move suffix parsing to frontend")
+  fromRight (error "todo: move suffix parsing to frontend")
     . V1.Reference.readSuffix
 
 abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
@@ -269,24 +268,22 @@ abt1to2 (V1.ABT.Term fv a out) = V2.ABT.Term fv a (go out)
       V1.ABT.Var v -> V2.ABT.Var v
       V1.ABT.Tm tm -> V2.ABT.Tm (abt1to2 <$> tm)
 
-rreference2to1 :: Applicative m => Hash -> (Hash -> m V1.Reference.Size) -> V2.Reference' Text (Maybe V2.Hash) -> m V1.Reference
-rreference2to1 h lookupSize = \case
+rreference2to1 :: Applicative m => Hash -> V2.Reference' Text (Maybe V2.Hash) -> m V1.Reference
+rreference2to1 h = \case
   V2.ReferenceBuiltin t -> pure $ V1.Reference.Builtin t
-  V2.ReferenceDerived i -> V1.Reference.DerivedId <$> rreferenceid2to1 h lookupSize i
+  V2.ReferenceDerived i -> V1.Reference.DerivedId <$> rreferenceid2to1 h i
 
 rreference1to2 :: Hash -> V1.Reference -> V2.Reference' Text (Maybe V2.Hash)
 rreference1to2 h = \case
   V1.Reference.Builtin t -> V2.ReferenceBuiltin t
   V1.Reference.DerivedId i -> V2.ReferenceDerived (rreferenceid1to2 h i)
 
-rreferenceid2to1 :: Functor m => Hash -> (Hash -> m V1.Reference.Size) -> V2.Reference.Id' (Maybe V2.Hash) -> m V1.Reference.Id
-rreferenceid2to1 h lookupSize (V2.Reference.Id oh i) =
-  V1.Reference.Id h' i <$> lookupSize h'
-  where
-    h' = maybe h hash2to1 oh
+rreferenceid2to1 :: Hash -> V2.Reference.Id' (Maybe V2.Hash) -> V1.Reference.Id
+rreferenceid2to1 h (V2.Reference.Id oh i) = V1.Reference.Id h' i
+  where h' = maybe h hash2to1 oh
 
 rreferenceid1to2 :: Hash -> V1.Reference.Id -> V2.Reference.Id' (Maybe V2.Hash)
-rreferenceid1to2 h (V1.Reference.Id h' i _n) = V2.Reference.Id oh i
+rreferenceid1to2 h (V1.Reference.Id h' i) = V2.Reference.Id oh i
   where
     oh = if h == h' then Nothing else Just (hash1to2 h')
 
@@ -302,10 +299,10 @@ branchHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
 patchHash1to2 :: V1.Branch.EditHash -> V2.PatchHash
 patchHash1to2 = V2.PatchHash . hash1to2
 
-reference2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> V2.Reference -> m V1.Reference
-reference2to1 lookupSize = \case
-  V2.ReferenceBuiltin t -> pure $ V1.Reference.Builtin t
-  V2.ReferenceDerived i -> V1.Reference.DerivedId <$> referenceid2to1 lookupSize i
+reference2to1 :: V2.Reference -> V1.Reference
+reference2to1 = \case
+  V2.ReferenceBuiltin t -> V1.Reference.Builtin t
+  V2.ReferenceDerived i -> V1.Reference.DerivedId $ referenceid2to1 i
 
 reference1to2 :: V1.Reference -> V2.Reference
 reference1to2 = \case
@@ -313,41 +310,38 @@ reference1to2 = \case
   V1.Reference.DerivedId i -> V2.ReferenceDerived (referenceid1to2 i)
 
 referenceid1to2 :: V1.Reference.Id -> V2.Reference.Id
-referenceid1to2 (V1.Reference.Id h i _n) = V2.Reference.Id (hash1to2 h) i
+referenceid1to2 (V1.Reference.Id h i) = V2.Reference.Id (hash1to2 h) i
 
-referenceid2to1 :: Functor m => (Hash -> m V1.Reference.Size) -> V2.Reference.Id -> m V1.Reference.Id
-referenceid2to1 lookupSize (V2.Reference.Id h i) =
-  V1.Reference.Id sh i <$> lookupSize sh
+referenceid2to1 :: V2.Reference.Id -> V1.Reference.Id
+referenceid2to1 (V2.Reference.Id h i) = V1.Reference.Id sh i
   where
     sh = hash2to1 h
 
-rreferent2to1 :: Applicative m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
-rreferent2to1 h lookupSize lookupCT = \case
-  V2.Ref r -> V1.Ref <$> rreference2to1 h lookupSize r
-  V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
+rreferent2to1 :: Applicative m => Hash -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
+rreferent2to1 h lookupCT = \case
+  V2.Ref r -> V1.Ref <$> rreference2to1 h r
+  V2.Con r i -> V1.Con (reference2to1 r) (fromIntegral i) <$> lookupCT r
 
 rreferent1to2 :: Hash -> V1.Referent -> V2.ReferentH
 rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
   V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
-referent2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
-referent2to1 lookupSize lookupCT = \case
-  V2.Ref r -> V1.Ref <$> reference2to1 lookupSize r
-  V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
+referent2to1 :: Applicative m => (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
+referent2to1 lookupCT = \case
+  V2.Ref r -> pure $ V1.Ref (reference2to1 r)
+  V2.Con r i -> V1.Con (reference2to1 r) (fromIntegral i) <$> lookupCT r
 
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r
   V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
-referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
-referentid2to1 lookupSize lookupCT = \case
-  V2.RefId r -> V1.Ref' <$> referenceid2to1 lookupSize r
+referentid2to1 :: Applicative m => (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
+referentid2to1 lookupCT = \case
+  V2.RefId r -> pure $ V1.Ref' (referenceid2to1 r)
   V2.ConId r i ->
-    V1.Con' <$> referenceid2to1 lookupSize r
-      <*> pure (fromIntegral i)
-      <*> lookupCT (V2.ReferenceDerived r)
+    V1.Con' (referenceid2to1 r) (fromIntegral i) <$> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)

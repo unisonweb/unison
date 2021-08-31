@@ -641,7 +641,7 @@ toReference :: (ABT.Var v, Show v) => Type v a -> Reference
 toReference (Ref' r) = r
 -- a bit of normalization - any unused type parameters aren't part of the hash
 toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
-toReference t = Reference.Derived (ABT.hash t) 0 1
+toReference t = Reference.Derived (ABT.hash t) 0
 
 toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
 toReferenceMentions ty =

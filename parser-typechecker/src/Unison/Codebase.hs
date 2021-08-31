@@ -45,6 +45,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import UnliftIO.Directory (getHomeDirectory)
 import qualified Unison.Codebase.GitError as GitError
+import Unison.Hash (Hash)
 
 type DataDeclaration v a = DD.DataDeclaration v a
 
@@ -66,6 +67,12 @@ data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a))
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
+
+           , getTermComponent :: Hash -> m (Maybe [Term v a])
+           , getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)])
+           , getTermComponentLength :: Hash -> m (Reference.CycleSize)
+           , getDeclComponent :: Hash -> m (Maybe [Decl v a])
+           , getDeclComponentLength :: Hash -> m (Reference.CycleSize)
 
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
