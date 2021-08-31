@@ -22,7 +22,7 @@ packages:
 - codebase2/util-term
 
 #compiler-check: match-exact
-resolver: lts-18.7
+resolver: lts-18.6
 
 extra-deps:
 - github: unisonweb/configurator
