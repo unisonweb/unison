@@ -404,6 +404,8 @@ executable transcripts
       TupleSections
       TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  build-tools:
+      unison
   build-depends:
       base
     , directory

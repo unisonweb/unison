@@ -203,6 +203,8 @@ executables:
       - text
       - unison-core1
       - unison-parser-typechecker
+    build-tools:
+      - unison-parser-typechecker:unison
 
 benchmarks:
   runtime:
