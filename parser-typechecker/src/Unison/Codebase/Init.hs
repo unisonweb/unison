@@ -1,8 +1,17 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Init where
+module Unison.Codebase.Init
+  ( Init (..),
+    DebugName,
+    Pretty,
+    createCodebase,
+    initCodebaseAndExit,
+    openNewUcmCodebaseOrExit,
+  )
+where
 
+import Unison.Codebase.Init.Type
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
@@ -13,6 +22,10 @@ import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath, getHomeDirectory)
+import qualified Unison.Codebase.Init.CreateCodebaseError as E
+import Unison.Codebase.Init.CreateCodebaseError (Pretty)
+
+type DebugName = String
 
 type Pretty = P.Pretty P.ColorText
 
@@ -85,11 +98,11 @@ createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (Eit
 createCodebase cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
   createCodebase' cbInit debugName path <&> mapLeft \case
-    CreateCodebaseAlreadyExists ->
+    E.CreateCodebaseAlreadyExists ->
       P.wrap $
         "It looks like there's already a codebase in: "
           <> prettyDir
-    CreateCodebaseOther message ->
+    E.CreateCodebaseOther message ->
       P.wrap ("I ran into an error when creating the codebase in: " <> prettyDir)
         <> P.newline
         <> P.newline

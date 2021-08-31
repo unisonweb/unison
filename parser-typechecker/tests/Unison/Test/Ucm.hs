@@ -6,7 +6,6 @@ module Unison.Test.Ucm
   ( initCodebase,
     deleteCodebase,
     runTranscript,
-    upgradeCodebase,
     lowLevel,
     CodebaseFormat (..),
     Transcript,
@@ -23,18 +22,16 @@ import qualified System.IO.Temp as Temp
 import U.Util.String (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Conversion.Upgrade12 as Upgrade12
-import qualified Unison.Codebase.FileCodebase as FC
 import qualified Unison.Codebase.Init as Codebase.Init
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.Prelude (traceM)
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Util.Pretty as P
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
 
-data CodebaseFormat = CodebaseFormat1 | CodebaseFormat2 deriving (Show, Enum, Bounded)
+data CodebaseFormat = CodebaseFormat2 deriving (Show, Enum, Bounded)
 
 data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 
@@ -51,7 +48,7 @@ debugTranscriptOutput = False
 
 initCodebase :: CodebaseFormat -> IO Codebase
 initCodebase fmt = do
-  let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
+  let cbInit = case fmt of CodebaseFormat2 -> SC.init
   tmp <-
     Temp.getCanonicalTemporaryDirectory
       >>= flip Temp.createTempDirectory "ucm-test"
@@ -63,13 +60,6 @@ initCodebase fmt = do
 deleteCodebase :: Codebase -> IO ()
 deleteCodebase (Codebase path _) = removeDirectoryRecursive path
 
-upgradeCodebase :: Codebase -> IO Codebase
-upgradeCodebase = \case
-  c@(Codebase _ CodebaseFormat2) -> fail $ show c ++ " already in V2 format."
-  Codebase path CodebaseFormat1 -> do
-    Upgrade12.upgradeCodebase path
-    pure $ Codebase path CodebaseFormat2
-
 runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
   -- this configFile ought to be optional
@@ -79,7 +69,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
         >>= flip Temp.createTempDirectory ("ucm-test")
     pure $ tmpDir </> ".unisonConfig"
   let err err = fail $ "Parse error: \n" <> show err
-      cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
+      cbInit = case fmt of CodebaseFormat2 -> SC.init
   (closeCodebase, codebase) <-
     Codebase.Init.openCodebase cbInit "transcript" codebasePath >>= \case
       Left e -> fail $ P.toANSI 80 e
@@ -100,7 +90,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) f = do
-  let cbInit = case fmt of CodebaseFormat1 -> FC.init; CodebaseFormat2 -> SC.init
+  let cbInit = case fmt of CodebaseFormat2 -> SC.init
   Codebase.Init.openCodebase cbInit "lowLevel" root >>= \case
     Left p -> PT.putPrettyLn p *> pure (error "This really should have loaded")
     Right (close, cb) -> f cb <* close

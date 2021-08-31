@@ -60,6 +60,8 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
@@ -69,6 +71,7 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Server.SearchResult   ( SearchResult )
 import qualified Unison.Server.SearchResult  as SR
@@ -86,7 +89,7 @@ import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
@@ -96,8 +99,10 @@ import qualified Unison.ShortHash as SH
 import           Unison.Term                    (Term)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Type.Names as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
@@ -111,8 +116,13 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Monoid            as Monoid
@@ -461,7 +471,6 @@ loop = do
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugNumberedArgsI{} -> wat
-          DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
           DebugDumpNamespacesI{} -> wat
           DebugDumpNamespaceSimpleI{} -> wat
@@ -673,7 +682,7 @@ loop = do
         -- discontinuity in the reflog.
         convertEntries :: Maybe Branch.Hash
                        -> [Output.ReflogEntry]
-                       -> [Reflog.Entry]
+                       -> [Reflog.Entry Branch.Hash]
                        -> [Output.ReflogEntry]
         convertEntries _ acc [] = acc
         convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
@@ -1516,7 +1525,7 @@ loop = do
             | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
-        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
+        cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
         let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
         names <- makePrintNamesFromLabeled' $
           LD.referents testTerms <>
@@ -1541,7 +1550,7 @@ loop = do
                       Left e -> respond (EvaluationFailure e) $> []
                       Right tm' -> do
                         -- After evaluation, cache the result of the test
-                        eval $ PutWatch UF.TestWatch rid tm'
+                        eval $ PutWatch WK.TestWatch rid tm'
                         respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
                         pure [(r, tm')]
               r -> error $ "unpossible, tests can't be builtins: " <> show r
@@ -1737,9 +1746,6 @@ loop = do
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
-      DebugBranchHistoryI ->
-        eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
-          (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> let
@@ -2577,7 +2583,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   termActions = map doTerm . toList $
     SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
-  tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
+  tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
   md v =
     if Set.member v tests then Metadata.singleton isTestType isTestValue
@@ -2829,7 +2835,7 @@ addWatch watchName (Just uf) = do
            (UF.dataDeclarationsId' uf)
            (UF.effectDeclarationsId' uf)
            (UF.topLevelComponents' uf)
-           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])]))
+           (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])]))
     _ -> addWatch watchName Nothing
 
 -- Given a typechecked file with a main function called `mainName`

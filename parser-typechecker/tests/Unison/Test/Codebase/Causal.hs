@@ -10,6 +10,7 @@ import Unison.Codebase.Causal ( Causal(Cons, Merge)
                               , before
                               )
 import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Causal.FoldHistory as Causal
 import Control.Monad.Trans.State (State, state, put)
 import Data.Int (Int64)
 import qualified Data.Map as Map

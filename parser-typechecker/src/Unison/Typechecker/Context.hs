@@ -2109,11 +2109,16 @@ refineEffectVar
   -> [Type v loc]
   -> B.Blank loc
   -> v
+  -> Type v loc
   -> M v loc ()
-refineEffectVar _ es _ v
+refineEffectVar _ es _ v _
   | debugShow ("refineEffectVar", es, v) = undefined
-refineEffectVar _ [] _ _ = pure ()
-refineEffectVar l es blank v = do
+refineEffectVar _ [] _ _ _ = pure ()
+refineEffectVar l es blank v tv
+  | ev <- TypeVar.Existential blank v
+  , any (\e -> ev `Set.member` Type.freeVars e) es
+  = getContext >>= failWith . AbilityCheckFailure [tv] es
+  | otherwise = do
   slack <- freshenVar Var.inferAbility
   evs <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
   let locs = loc <$> es
@@ -2277,11 +2282,11 @@ subAbilities want have = do
   have <- expandAbilities have
   case (want , mapMaybe ex have) of
     ([], _) -> pure ()
-    (want@((_, w):_), [(b, ve)]) ->
-      refineEffectVar (loc w) (snd <$> want) b ve -- `orElse` die src w
+    (want@((_, w):_), [(b, ve, tv)]) ->
+      refineEffectVar (loc w) (snd <$> want) b ve tv -- `orElse` die src w
     ((src, w):_, _) -> die src w
   where
-  ex (Type.Var' (TypeVar.Existential b v)) = Just (b, v)
+  ex t@(Type.Var' (TypeVar.Existential b v)) = Just (b, v, t)
   ex _ = Nothing
   die src w = maybe id (scope . InSynthesize) src do
     ctx <- getContext

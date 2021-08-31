@@ -6,47 +6,49 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
-import           Control.Monad.State            (evalState)
-import qualified Control.Monad.State           as State
-import           Data.List
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import           Data.Text                      ( unpack )
-import qualified Data.Text                     as Text
-import qualified Text.Show.Unicode             as U
-import           Data.Vector                    ( )
-import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
-import qualified Unison.ABT                    as ABT
-import qualified Unison.Blank                  as Blank
-import qualified Unison.HashQualified          as HQ
-import           Unison.Lexer                   ( symbolyId, showEscapeChar )
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.NamePrinter             ( styleHashQualified'' )
-import qualified Unison.Pattern                as Pattern
-import           Unison.Pattern                 ( Pattern )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import           Unison.Referent                ( Referent )
-import qualified Unison.Util.SyntaxText        as S
-import           Unison.Util.SyntaxText         ( SyntaxText )
-import           Unison.Term
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.Util.Bytes             as Bytes
-import           Unison.Util.Monoid             ( intercalateMap )
-import qualified Unison.Util.Pretty             as PP
-import           Unison.Util.Pretty             ( Pretty, ColorText, Width )
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
-import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
-import qualified Unison.Builtin.Decls          as DD
+import Control.Monad.State (evalState)
+import qualified Control.Monad.State as State
+import Data.List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.Text (unpack)
+import qualified Data.Text as Text
+import Data.Vector ()
+import qualified Text.Show.Unicode as U
+import Unison.ABT (annotation, reannotateUp, pattern AbsN')
+import qualified Unison.ABT as ABT
+import qualified Unison.Blank as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.ConstructorType as CT
+import qualified Unison.HashQualified as HQ
+import Unison.Lexer (showEscapeChar, symbolyId)
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NamePrinter (styleHashQualified'')
+import qualified Unison.NameSegment as NameSegment
+import Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import Unison.Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Pretty (ColorText, Pretty, Width)
+import qualified Unison.Util.Pretty as PP
+import qualified Unison.Util.SyntaxText as S
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+
+type SyntaxText = S.SyntaxText' Reference
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
@@ -210,14 +212,14 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' ref cid -> 
+    Constructor' ref cid ->
       styleHashQualified'' (fmt $ S.Referent conRef) name
-      where 
+      where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref cid CT.Data
-    Request' ref cid -> 
+    Request' ref cid ->
       styleHashQualified'' (fmt $ S.Referent conRef) name
-      where 
+      where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref cid CT.Effect
     Handle' h body -> paren (p >= 2) $
@@ -322,7 +324,7 @@ pretty0
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
-    (TupleTerm' [x], _) -> 
+    (TupleTerm' [x], _) ->
       let
           conRef = DD.pairCtorRef
           name = elideFQN im $ PrettyPrintEnv.termName n conRef
@@ -331,10 +333,10 @@ pretty0
       paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt (S.Referent DD.unitCtorRef) "()" ]
 
-    (TupleTerm' xs, _) -> 
+    (TupleTerm' xs, _) ->
       let tupleLink p = fmt (S.Reference DD.unitRef) p
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
-      
+
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -447,7 +449,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref cid [] ->
     (styleHashQualified'' (fmt $ S.Referent conRef) name, vs)
-    where 
+    where
       name = elideFQN im $ PrettyPrintEnv.termName n conRef
       conRef = Referent.Con ref cid CT.Data
   Pattern.Constructor _ ref cid pats ->
@@ -472,7 +474,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         conRef = Referent.Con ref cid CT.Effect
     in  ( PP.group (
             fmt S.DelimiterChar "{"  <>
-            (PP.sep " " . PP.nonEmpty $ 
+            (PP.sep " " . PP.nonEmpty $
               [ styleHashQualified'' (fmt (S.Referent conRef)) $ name
               , pats_printed
               , fmt S.ControlKeyword "->"

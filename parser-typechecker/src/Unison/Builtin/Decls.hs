@@ -19,10 +19,10 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent)
+import Unison.Referent (Referent, ConstructorId)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
-import Unison.Term (ConstructorId, Term, Term2)
+import Unison.Term (Term, Term2)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type

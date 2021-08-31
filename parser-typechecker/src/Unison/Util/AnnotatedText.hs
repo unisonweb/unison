@@ -14,7 +14,7 @@ import qualified Data.Foldable      as Foldable
 import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>), (:<|)))
 import qualified Data.Sequence      as Seq
-import           Unison.Lexer       (Line, Pos (..))
+import           Unison.Lexer.Pos   (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range  (Range (..), inRange)
 import qualified Data.ListLike      as LL

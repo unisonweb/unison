@@ -27,8 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -1291,12 +1294,6 @@ debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
 
-debugBranchHistory :: InputPattern
-debugBranchHistory = InputPattern "debug.history" []
-  [(Optional, noCompletions)]
-  "Dump codebase history, compatible with bit-booster.com/graph.html"
-  (const $ Right Input.DebugBranchHistoryI)
-
 debugFileHashes :: InputPattern
 debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
@@ -1445,7 +1442,6 @@ validInputs =
   , mergeIOBuiltins
   , dependents, dependencies
   , debugNumberedArgs
-  , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
   , debugDumpNamespaceSimple

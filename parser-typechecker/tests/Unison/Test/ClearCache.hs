@@ -9,7 +9,7 @@ import Data.String.Here (i)
 import EasyTest
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Test.Ucm as Ucm
-import qualified Unison.Var as WatchKind
+import qualified Unison.WatchKind as WatchKind
 
 test :: Test ()
 test = scope "clearWatchCache" $

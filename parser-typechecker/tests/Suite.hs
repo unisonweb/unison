@@ -10,9 +10,7 @@ import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.ClearCache as ClearCache
-import qualified Unison.Test.Codebase as Codebase
 import qualified Unison.Test.Codebase.Causal as Causal
-import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
@@ -63,19 +61,15 @@ test = tests
   , Path.test
   , Causal.test
   , Referent.test
-  , FileCodebase.test
   , ABT.test
   , ANF.test
   , MCode.test
   , Var.test
-  , Codebase.test
   , ClearCache.test
   , Typechecker.test
   , UriParser.test
   , Context.test
-  , Upgrade12.test
   , GitSync.test
-  -- , BaseUpgradePushPullTest.test -- slowwwwww test involving upgrading base, hard-coded to arya's filesystem
   , Name.test
   , VersionParser.test
   , Pretty.test

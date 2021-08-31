@@ -9,7 +9,7 @@ import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import qualified Data.Set                      as S
 import qualified Data.Map                      as Map
-import qualified Data.Map.Internal             as Map
+import qualified Data.Map.Internal as Map
 import qualified Unison.Hashable               as H
 import qualified Control.Monad as Monad
 

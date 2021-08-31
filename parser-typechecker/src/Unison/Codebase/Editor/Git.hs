@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Editor.Git where
+module Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus) where
 
 import Unison.Prelude
 
@@ -11,16 +11,16 @@ import qualified Data.Text as Text
 import Shellmet (($?), ($^), ($|))
 import System.FilePath ((</>))
 import Unison.Codebase.Editor.RemoteRepo (ReadRepo (ReadGitRepo))
-import Unison.Codebase.GitError (GitError)
 import qualified Unison.Codebase.GitError as GitError
+import Unison.CodebasePath (CodebasePath)
 import qualified Unison.Util.Exception as Ex
 import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExecutable, getXdgDirectory, removeDirectoryRecursive)
 import UnliftIO.IO (hFlush, stdout)
 import qualified Data.ByteString.Base16 as ByteString
 import qualified Data.Char as Char
 import Control.Exception.Safe (catchIO, MonadCatch)
+import Unison.Codebase.GitError (GitProtocolError)
 
-type CodebasePath = FilePath
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: String -> FilePath
@@ -56,7 +56,7 @@ withStatus str ma = do
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadIO m, MonadCatch m, MonadError GitError m) => ReadRepo -> m CodebasePath
+pullBranch :: (MonadIO m, MonadCatch m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
 pullBranch repo@(ReadGitRepo uri) = do
   checkForGit
   localPath <- tempGitDir uri
@@ -64,14 +64,14 @@ pullBranch repo@(ReadGitRepo uri) = do
     -- try to update existing directory
     (ifM (isGitRepo localPath)
       (checkoutExisting localPath)
-      (throwError (GitError.UnrecognizableCacheDir uri localPath)))
+      (throwError (GitError.UnrecognizableCacheDir repo localPath)))
     -- directory doesn't exist, so clone anew
     (checkOutNew localPath Nothing)
   pure localPath
 
   where
   -- | Do a `git clone` (for a not-previously-cached repo).
-  checkOutNew :: (MonadIO m, MonadError GitError m) => CodebasePath -> Maybe Text -> m ()
+  checkOutNew :: (MonadIO m, MonadError GitProtocolError m) => CodebasePath -> Maybe Text -> m ()
   checkOutNew localPath branch = do
     withStatus ("Downloading from " ++ Text.unpack uri ++ " ...") $
       (liftIO $
@@ -80,10 +80,10 @@ pullBranch repo@(ReadGitRepo uri) = do
          ++ [uri, Text.pack localPath]))
         `withIOError` (throwError . GitError.CloneException repo . show)
     isGitDir <- liftIO $ isGitRepo localPath
-    unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir uri localPath
+    unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir repo localPath
 
   -- | Do a `git pull` on a cached repo.
-  checkoutExisting :: (MonadIO m, MonadCatch m, MonadError GitError m) => FilePath -> m ()
+  checkoutExisting :: (MonadIO m, MonadCatch m, MonadError GitProtocolError m) => FilePath -> m ()
   checkoutExisting localPath =
     ifM (isEmptyGitRepo localPath)
       -- I don't know how to properly update from an empty remote repo.
@@ -99,7 +99,7 @@ pullBranch repo@(ReadGitRepo uri) = do
         (const $ goFromScratch))
 
     where
-      goFromScratch :: (MonadIO m, MonadError GitError m) => m  ()
+      goFromScratch :: (MonadIO m, MonadError GitProtocolError m) => m  ()
       goFromScratch = do wipeDir localPath; checkOutNew localPath Nothing
 
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
@@ -113,11 +113,11 @@ pullBranch repo@(ReadGitRepo uri) = do
     e <- Ex.tryAny . whenM (doesDirectoryExist localPath) $
       removeDirectoryRecursive localPath
     case e of
-      Left e -> throwError (GitError.SomeOtherError (show e))
+      Left e -> throwError (GitError.CleanupError e)
       Right _ -> pure ()
 
 -- | See if `git` is on the system path.
-checkForGit :: MonadIO m => MonadError GitError m => m ()
+checkForGit :: MonadIO m => MonadError GitProtocolError m => m ()
 checkForGit = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError GitError.NoGit

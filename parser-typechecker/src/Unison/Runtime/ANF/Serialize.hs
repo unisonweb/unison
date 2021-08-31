@@ -483,7 +483,7 @@ putBranches ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase ctx)) m
     putNormal (v:ctx) df
-    where 
+    where
   MatchData r m df -> do
     putTag MDataT
     putReference r
