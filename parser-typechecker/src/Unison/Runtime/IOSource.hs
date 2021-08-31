@@ -14,12 +14,13 @@ import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser (Ann(..))
+import Unison.Parser.Ann (Ann(..))
 import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
-import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.Codebase.CodeLookup.Util as CL
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.DataDeclaration.ConstructorId as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
@@ -103,6 +104,64 @@ prettyAnnotatedRef = typeNamed "Pretty.Annotated"
 ansiColorRef = typeNamed "ANSI.Color"
 consoleTextRef = typeNamed "ConsoleText"
 
+pattern Doc2Ref <- ((== doc2Ref) -> True)
+doc2WordId = constructorNamed doc2Ref "Doc2.Word"
+doc2CodeId = constructorNamed doc2Ref "Doc2.Code"
+doc2CodeBlockId = constructorNamed doc2Ref "Doc2.CodeBlock"
+doc2BoldId = constructorNamed doc2Ref "Doc2.Bold"
+doc2ItalicId = constructorNamed doc2Ref "Doc2.Italic"
+doc2StrikethroughId = constructorNamed doc2Ref "Doc2.Strikethrough"
+doc2StyleId = constructorNamed doc2Ref "Doc2.Style"
+doc2AnchorId = constructorNamed doc2Ref "Doc2.Anchor"
+doc2BlockquoteId = constructorNamed doc2Ref "Doc2.Blockquote"
+doc2BlanklineId = constructorNamed doc2Ref "Doc2.Blankline"
+doc2LinebreakId = constructorNamed doc2Ref "Doc2.Linebreak"
+doc2SectionBreakId = constructorNamed doc2Ref "Doc2.SectionBreak"
+doc2TooltipId = constructorNamed doc2Ref "Doc2.Tooltip"
+doc2AsideId = constructorNamed doc2Ref "Doc2.Aside"
+doc2CalloutId = constructorNamed doc2Ref "Doc2.Callout"
+doc2TableId = constructorNamed doc2Ref "Doc2.Table"
+doc2FoldedId = constructorNamed doc2Ref "Doc2.Folded"
+doc2ParagraphId = constructorNamed doc2Ref "Doc2.Paragraph"
+doc2BulletedListId = constructorNamed doc2Ref "Doc2.BulletedList"
+doc2NumberedListId = constructorNamed doc2Ref "Doc2.NumberedList"
+doc2SectionId = constructorNamed doc2Ref "Doc2.Section"
+doc2NamedLinkId = constructorNamed doc2Ref "Doc2.NamedLink"
+doc2ImageId = constructorNamed doc2Ref "Doc2.Image"
+doc2SpecialId = constructorNamed doc2Ref "Doc2.Special"
+doc2JoinId = constructorNamed doc2Ref "Doc2.Join"
+doc2UntitledSectionId = constructorNamed doc2Ref "Doc2.UntitledSection"
+doc2ColumnId = constructorNamed doc2Ref "Doc2.Column"
+doc2GroupId = constructorNamed doc2Ref "Doc2.Group"
+
+pattern Doc2Word txt <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2WordId -> True)) (Term.Text' txt)
+pattern Doc2Code d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2CodeId -> True)) d
+pattern Doc2CodeBlock lang d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2CodeBlockId -> True)) [Term.Text' lang, d]
+pattern Doc2Bold d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BoldId -> True)) d
+pattern Doc2Italic d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ItalicId -> True)) d
+pattern Doc2Strikethrough d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2StrikethroughId -> True)) d
+pattern Doc2Style s d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2StyleId -> True)) [Term.Text' s, d]
+pattern Doc2Anchor id d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2AnchorId -> True)) [Term.Text' id, d]
+pattern Doc2Blockquote d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BlockquoteId -> True)) d
+pattern Doc2Blankline <- Term.Constructor' Doc2Ref ((==) doc2BlanklineId -> True)
+pattern Doc2Linebreak <- Term.Constructor' Doc2Ref ((==) doc2LinebreakId -> True)
+pattern Doc2SectionBreak <- Term.Constructor' Doc2Ref ((==) doc2SectionBreakId -> True)
+pattern Doc2Tooltip d tip <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2TooltipId -> True)) [d, tip]
+pattern Doc2Aside d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2AsideId -> True)) d
+pattern Doc2Callout icon d <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2CalloutId -> True)) [icon, d]
+pattern Doc2Table ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2TableId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Folded isFolded d d2 <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2FoldedId -> True)) [Term.Boolean' isFolded, d, d2]
+pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ParagraphId -> True)) (Term.List' (toList -> ds))
+pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BulletedListId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2SectionId -> True)) [title, Term.List' (toList -> ds)]
+pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NamedLinkId -> True)) [name, dest]
+pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2ImageId -> True)) [alt, link, caption]
+pattern Doc2Special sf <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2SpecialId -> True)) sf
+pattern Doc2Join ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2JoinId -> True)) (Term.List' (toList -> ds))
+pattern Doc2UntitledSection ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2UntitledSectionId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Column ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ColumnId -> True)) (Term.List' (toList -> ds))
+pattern Doc2Group d <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2GroupId -> True)) d
+
 pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
 doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
 doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.FoldedSource"
@@ -134,8 +193,6 @@ pattern Doc2Example vs body <- Term.App' _term (Term.App' _any (Term.LamNamed' _
 
 -- pulls out `body` in `Doc2.Term (Any 'body)`
 pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body))
-
-pattern Doc2Ref <- ((== doc2Ref) -> True)
 
 pattern Doc2TermRef <- ((== doc2TermRef) -> True)
 
@@ -239,15 +296,15 @@ constructorName ref cid =
 source :: Text
 source = fromString [r|
 
-type Either a b = Left a | Right b
+structural type Either a b = Left a | Right b
 
-type Optional a = None | Some a
+structural type Optional a = None | Some a
 
 unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
   IsPropagated = IsPropagated
 
 d1 Doc.++ d2 =
-  use Doc
+  use Doc2
   match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds List.++ ds2)
     (Join ds, _) -> Join (ds `List.snoc` d2)
@@ -406,7 +463,7 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
   | Append w [Pretty.Annotated w txt]
 
-type Pretty txt = Pretty (Pretty.Annotated () txt)
+structural type Pretty txt = Pretty (Pretty.Annotated () txt)
 
 Pretty.get = cases Pretty p -> p
 
@@ -535,7 +592,9 @@ syntax.docEmbedSignatureLink tm =
 syntax.docCode c = Code c
 syntax.docCodeBlock typ c = CodeBlock typ (docWord c)
 syntax.docVerbatim c = CodeBlock "raw" c
+syntax.docEval : '{} a -> Doc2
 syntax.docEval d = Special (Eval (Doc2.term d))
+syntax.docEvalInline : '{} a -> Doc2
 syntax.docEvalInline a = Special (EvalInline (Doc2.term a))
 syntax.docExample n a = Special (Example n (Doc2.term a))
 syntax.docExampleBlock n a = Special (ExampleBlock n (Doc2.term a))

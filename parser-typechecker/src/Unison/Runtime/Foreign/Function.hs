@@ -16,7 +16,9 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM (TVar)
+import Control.Exception (evaluate)
 import qualified Data.Char as Char
+import Data.IORef (IORef)
 import Data.Foldable (toList)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -27,7 +29,7 @@ import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
 
 import Unison.Reference (Reference)
-import Unison.Type (mvarRef, tvarRef, typeLinkRef)
+import Unison.Type (mvarRef, tvarRef, typeLinkRef, refRef)
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF (SuperGroup, Mem(..), Value, internalBug)
@@ -95,7 +97,7 @@ instance ForeignConvention Closure where
   readForeign _  [    ] _ _    = foreignCCError "Closure"
   writeForeign ustk bstk c = do
     bstk <- bump bstk
-    (ustk, bstk) <$ poke bstk c
+    (ustk, bstk) <$ (poke bstk =<< evaluate c)
 
 instance ForeignConvention Text where
   readForeign = readForeignBuiltin
@@ -346,6 +348,10 @@ instance ForeignConvention (MVar Closure) where
 instance ForeignConvention (TVar Closure) where
   readForeign = readForeignAs (unwrapForeign . marshalToForeign)
   writeForeign = writeForeignAs (Foreign . Wrap tvarRef)
+
+instance ForeignConvention (IORef Closure) where
+  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
+  writeForeign = writeForeignAs (Foreign . Wrap refRef)
 
 instance ForeignConvention (SuperGroup Symbol) where
   readForeign = readForeignBuiltin

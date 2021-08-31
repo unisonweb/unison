@@ -308,6 +308,7 @@ data UPrim1
 data UPrim2
   -- integral
   = ADDI | SUBI | MULI | DIVI | MODI -- +,-,*,/,mod
+  | DIVN | MODN
   | SHLI | SHRI | SHRN | POWI        -- shiftl,shiftr,shiftr,pow
   | EQLI | LEQI | LEQN               -- ==,<=,<=
   | ANDN | IORN | XORN               -- and,or,xor
@@ -407,7 +408,8 @@ data Instr
          !Args      -- arguments to pack
 
   -- Unpack the contents of a data type onto the stack
-  | Unpack !Int -- stack index of data to unpack
+  | Unpack !(Maybe Reference) -- debug reference
+           !Int               -- stack index of data to unpack
 
   -- Push a particular value onto the appropriate stack
   | Lit !MLit -- value to push onto the stack
@@ -737,13 +739,13 @@ emitSection _   _   _   ctx (TLit l)
     | otherwise = addCount 1 0
 emitSection rns grpn rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
-  , MatchData _ cs df <- bs
-  =  Ins (Unpack i)
+  , MatchData r cs df <- bs
+  =  Ins (Unpack (Just r) i)
  <$> emitDataMatching rns grpn rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
   , MatchRequest hs0 df <- bs
   , hs <- mapFromList $ first (dnum rns) <$> M.toList hs0
-  =  Ins (Unpack i)
+  =  Ins (Unpack Nothing i)
  <$> emitRequestMatching rns grpn rec ctx hs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
@@ -914,7 +916,7 @@ emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grp rec d vcs ctx bnd
   | Direct <- d
-  = internalBug $ "unsupported compound direct let" ++ show bnd
+  = internalBug $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d
   = \esect ->
       f <$> emitSection rns grp rec (Block ctx) bnd
@@ -937,9 +939,9 @@ emitPOp ANF.SUBN = emitP2 SUBI
 emitPOp ANF.MULI = emitP2 MULI
 emitPOp ANF.MULN = emitP2 MULI
 emitPOp ANF.DIVI = emitP2 DIVI
-emitPOp ANF.DIVN = emitP2 DIVI
+emitPOp ANF.DIVN = emitP2 DIVN
 emitPOp ANF.MODI = emitP2 MODI -- TODO: think about how these behave
-emitPOp ANF.MODN = emitP2 MODI -- TODO: think about how these behave
+emitPOp ANF.MODN = emitP2 MODN -- TODO: think about how these behave
 emitPOp ANF.POWI = emitP2 POWI
 emitPOp ANF.POWN = emitP2 POWI
 emitPOp ANF.SHLI = emitP2 SHLI

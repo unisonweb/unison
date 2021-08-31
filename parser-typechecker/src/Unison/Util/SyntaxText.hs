@@ -4,14 +4,12 @@ module Unison.Util.SyntaxText where
 
 import Unison.Prelude
 import Unison.Name (Name)
-import Unison.Reference (Reference)
-import Unison.Referent (Referent')
+import Unison.Referent' (Referent')
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate, segment)
 
-type SyntaxText = SyntaxText' Reference
 type SyntaxText' r = AnnotatedText (Element r)
 
 -- The elements of the Unison grammar, for syntax highlighting purposes
@@ -25,8 +23,6 @@ data Element r = NumericLiteral
              | Reference r
              | Referent (Referent' r)
              | Op SeqOp
-             | Constructor
-             | Request
              | AbilityBraces
              -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
              | ControlKeyword
@@ -57,7 +53,7 @@ data Element r = NumericLiteral
              | DocDelimiter
              -- the 'include' in @[include], etc
              | DocKeyword
-             deriving (Eq, Ord, Show, Generic, Functor)
+             deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate

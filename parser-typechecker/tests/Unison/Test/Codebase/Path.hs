@@ -4,6 +4,7 @@ module Unison.Test.Codebase.Path where
 
 import EasyTest
 import Unison.Codebase.Path
+import Unison.Codebase.Path.Parse
 import Data.Sequence
 import Data.Text
 import Unison.NameSegment

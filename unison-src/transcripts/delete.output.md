@@ -18,7 +18,7 @@ unambiguous type.
 
 ```unison
 foo = 1
-type Foo = Foo Nat
+structural type Foo = Foo Nat
 ```
 
 ```ucm
@@ -26,7 +26,7 @@ type Foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    type Foo
+    structural type Foo
     foo : Nat
 
 .> delete foo
@@ -41,7 +41,7 @@ type Foo = Foo Nat
 
   Removed definitions:
   
-    1. type Foo
+    1. structural type Foo
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -113,8 +113,8 @@ A delete should remove both versions of the term.
   Name changes:
   
     Original               Changes
-    2. a.foo#0ja1qfpej6 ┐  3. a.foo#0ja1qfpej6 (removed)
-    4. b.foo            ┘  
+    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
+    4. a.foo#0ja1qfpej6 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -128,7 +128,7 @@ A delete should remove both versions of the term.
 Let's repeat all that on a type, for completeness.
 
 ```unison
-type Foo = Foo Nat
+structural type Foo = Foo Nat
 ```
 
 ```ucm
@@ -136,11 +136,11 @@ type Foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    type Foo
+    structural type Foo
 
 ```
 ```unison
-type Foo = Foo Boolean
+structural type Foo = Foo Boolean
 ```
 
 ```ucm
@@ -148,7 +148,7 @@ type Foo = Foo Boolean
 
   ⍟ I've added these definitions:
   
-    type Foo
+    structural type Foo
 
 .a> merge .b
 
@@ -157,12 +157,12 @@ type Foo = Foo Boolean
   
   New name conflicts:
   
-    1. type Foo#d97e0jhkmd
+    1. structural type Foo#d97e0jhkmd
          
        ↓
-    2. ┌ type Foo#d97e0jhkmd
+    2. ┌ structural type Foo#d97e0jhkmd
            
-    3. └ type Foo#gq9inhvg9h
+    3. └ structural type Foo#gq9inhvg9h
            
     
     4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
@@ -181,13 +181,13 @@ type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. type a.Foo#d97e0jhkmd
+    1. structural type a.Foo#d97e0jhkmd
   
   Name changes:
   
     Original               Changes
-    2. a.Foo#gq9inhvg9h ┐  3. a.Foo#gq9inhvg9h (removed)
-    4. b.Foo            ┘  
+    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
+    4. a.Foo#gq9inhvg9h ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -202,8 +202,8 @@ type Foo = Foo Boolean
   Name changes:
   
     Original                     Changes
-    2. a.Foo.Foo#gq9inhvg9h#0 ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-    4. b.Foo.Foo              ┘  
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
+    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -212,7 +212,7 @@ Finally, let's try to delete a term and a type with the same name.
 
 ```unison
 foo = 1
-type foo = Foo Nat
+structural type foo = Foo Nat
 ```
 
 ```ucm
@@ -220,7 +220,7 @@ type foo = Foo Nat
 
   ⍟ I've added these definitions:
   
-    type foo
+    structural type foo
     foo : Nat
 
 ```
@@ -229,7 +229,7 @@ type foo = Foo Nat
 
   Removed definitions:
   
-    1. type foo
+    1. structural type foo
     2. foo : Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.

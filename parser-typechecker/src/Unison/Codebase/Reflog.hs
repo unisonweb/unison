@@ -1,30 +1,29 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Reflog where
+module Unison.Codebase.Reflog (Entry(..), fromText, toText) where
 
+import Data.Coerce (Coercible, coerce)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Unison.Codebase.Branch (Hash)
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Hash as Hash
 
-data Entry =
-  Entry
-    { from :: Hash
-    , to :: Hash
-    , reason :: Text
-    }
+data Entry h = Entry
+  { from :: h,
+    to :: h,
+    reason :: Text
+  }
 
-fromText :: Text -> Maybe Entry
+fromText :: Coercible h Hash.Hash => Text -> Maybe (Entry h)
 fromText t =
   case Text.words t of
     (Hash.fromBase32Hex -> Just old) : (Hash.fromBase32Hex -> Just new) : (Text.unwords -> reason) ->
-      Just $ Entry (Causal.RawHash old) (Causal.RawHash new) reason
+      Just $ Entry (coerce old) (coerce new) reason
     _ -> Nothing
 
-
-toText :: Entry -> Text
+toText :: Coercible h Hash.Hash => Entry h -> Text
 toText (Entry old new reason) =
-  Text.unwords [ Hash.base32Hex . Causal.unRawHash $ old
-               , Hash.base32Hex . Causal.unRawHash $ new
-               , reason ]
+  Text.unwords
+    [ Hash.base32Hex . coerce $ old,
+      Hash.base32Hex . coerce $ new,
+      reason
+    ]

@@ -11,6 +11,7 @@ module Unison.TermParser where
 import Unison.Prelude
 
 import           Control.Monad.Reader (asks, local)
+import           Data.Foldable (foldrM)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -39,6 +40,7 @@ import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -129,12 +131,16 @@ match = do
   _         <- P.try (openBlockWith "with") <|> do
     t <- anyToken
     P.customFailure (ExpectedBlockOpen "with" t)
-  (_arities, cases) <- unzip <$> sepBy1 semi matchCase
+  (_arities, cases) <- unzip <$> matchCases
   when (null cases) $ P.customFailure EmptyMatch
   _ <- closeBlock
   pure $ Term.match (ann start <> maybe (ann start) ann (lastMay cases))
                     scrutinee
                     cases
+
+matchCases :: Var v => P v [(Int, Term.MatchCase Ann (Term v Ann))]
+matchCases = sepBy1 semi matchCase
+         <&> \cases -> [ (n,c) | (n,cs) <- cases, c <- cs ]
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -146,7 +152,7 @@ match = do
 --
 --   42, x -> ...
 --   (42, x) -> ...
-matchCase :: Var v => P v (Int, Term.MatchCase Ann (Term v Ann))
+matchCase :: Var v => P v (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
   pats <- sepBy1 (reserved ",") parsePattern
   let boundVars' = [ v | (_,vs) <- pats, (_ann,v) <- vs ]
@@ -155,10 +161,14 @@ matchCase = do
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann DD.unitRef 0 []
       pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2]
-  guard <- optional $ reserved "|" *> infixAppOrBooleanOp
-  t <- block "->"
+  guardsAndBlocks <- many $ do
+    guard <- asum [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise")
+                  , optional $ reserved "|" *> infixAppOrBooleanOp ]
+    t <- block "->"
+    pure (guard, t)
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
-  pure $ (length pats, Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t))
+  let mk (guard,t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
+  pure $ (length pats, mk <$> guardsAndBlocks)
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = root
@@ -182,7 +192,11 @@ parsePattern = root
   literal = (,[]) <$> asum [true, false, number, text, char]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
-  number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
+  number = join $
+    number'
+      (pure . tok Pattern.Int)
+      (pure . tok Pattern.Nat)
+      (tok (const . failCommitted . FloatPattern))
   text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
   char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
@@ -290,7 +304,7 @@ checkCasesArities cases = go Nothing cases where
 
 lamCase = do
   start          <- openBlockWith "cases"
-  cases          <- sepBy1 semi matchCase
+  cases          <- matchCases
   (arity, cases) <- checkCasesArities cases
   when (null cases) (P.customFailure EmptyMatch)
   _       <- closeBlock
@@ -331,6 +345,11 @@ hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
 
 hashQualifiedInfixTerm :: Var v => TermP v
 hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
+
+quasikeyword :: Ord v => String -> P v (L.Token ())
+quasikeyword kw = queryToken $ \case
+  L.WordyId s Nothing | s == kw -> Just ()
+  _ -> Nothing
 
 -- If the hash qualified is name only, it is treated as a var, if it
 -- has a short hash, we resolve that short hash immediately and fail
@@ -1021,21 +1040,23 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
             Right tm -> pure tm
           toTm bs = do
             (bs, body) <- body bs
-            finish $ foldr step body bs
+            finish =<< foldrM step body bs
             where
-            step :: BlockElement v -> Term v Ann -> Term v Ann
             step elem body = case elem of
-              Binding ((a,v), tm) -> Term.consLetRec
-                isTop
-                (ann a <> ann body)
-                (a,v,tm)
-                body
-              Action tm -> Term.consLetRec
-                isTop
-                (ann tm <> ann body)
-                (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
-                body
-              DestructuringBind (_, f) -> f body
+              Binding ((a,v), tm) -> pure $
+                Term.consLetRec
+                  isTop
+                  (ann a <> ann body)
+                  (a,v,tm)
+                  body
+              Action tm -> pure $
+                Term.consLetRec
+                  isTop
+                  (ann tm <> ann body)
+                  (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
+                  body
+              DestructuringBind (_, f) ->
+                f <$> finish body
           body bs = case reverse bs of
             Binding ((a, _v), _) : _ -> pure $
               if implicitUnitAtEnd then (bs, DD.unitTerm a)

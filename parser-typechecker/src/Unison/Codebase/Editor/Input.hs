@@ -9,11 +9,13 @@ module Unison.Codebase.Editor.Input
 
 import Unison.Prelude
 
-import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -50,10 +52,10 @@ data Input
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe RemoteNamespace) Path' SyncMode
-    | PushRemoteBranchI (Maybe RemoteHead) Path' SyncMode
-    | CreatePullRequestI RemoteNamespace RemoteNamespace
-    | LoadPullRequestI RemoteNamespace RemoteNamespace Path'
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode
+    | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
+    | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
+    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
@@ -98,8 +100,7 @@ data Input
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
-    | ReplaceTermI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
-    | ReplaceTypeI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
+    | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
   | UndoI
@@ -134,11 +135,12 @@ data Input
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
   | DebugNumberedArgsI
-  | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
+  | DebugDumpNamespaceSimpleI
   | DebugClearWatchI
   | QuitI
+  | UiI
   deriving (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.

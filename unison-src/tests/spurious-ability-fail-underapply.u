@@ -1,8 +1,9 @@
-ability Woot where
+structural ability Woot where
   woot : {Woot} Nat
 
 wha : ((a ->{Woot} a) -> a ->{Woot} a) -> Nat
 wha f =
   blah a = f' a
+  f' : a ->{Woot} a
   f' = f blah
   42

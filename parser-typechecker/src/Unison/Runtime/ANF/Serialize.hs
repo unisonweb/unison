@@ -1,33 +1,52 @@
 {-# language LambdaCase #-}
 {-# language BangPatterns #-}
+{-# language PatternSynonyms #-}
 
 module Unison.Runtime.ANF.Serialize where
 
+import Prelude hiding (putChar, getChar)
+
+import Basement.Block (Block)
+
+import Control.Applicative (liftA2)
 import Control.Monad
 
+import Data.Bits (Bits)
 import Data.Bytes.Put
 import Data.Bytes.Get hiding (getBytes)
+import qualified Data.Bytes.Get as Ser
 import Data.Bytes.VarInt
 import Data.Bytes.Serial
+import Data.Bytes.Signed (Unsigned)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Map as Map (Map, fromList, lookup)
+import Data.Map as Map (Map, fromList, lookup, toList)
 import Data.Serialize.Put (runPutLazy)
+import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Word (Word8, Word16, Word64)
+import Data.Int (Int64)
 
+import qualified Data.ByteArray as BA
 import qualified Data.Sequence as Seq
 import qualified Data.ByteString.Lazy as L
 
 import GHC.Stack
 
-import Unison.Codebase.Serialization.V1 as V1
+import Unison.Hash (Hash)
 import Unison.Util.EnumContainers as EC
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(..), pattern Derived, Id(..))
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import Unison.ABT.Normalized (Term(..))
 import Unison.Runtime.Exception
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Var (Var(..), Type(ANFBlank))
+
+import qualified Unison.Util.Bytes as Bytes
+import qualified Unison.Hash as Hash
+import qualified Unison.ConstructorType as CT
 
 data TmTag
   = VarT | ForceT | AppT | HandleT
@@ -48,6 +67,9 @@ data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT
 
 data VaTag = PartialT | DataT | ContT | BLitT
 data CoTag = KET | MarkT | PushT
+
+unknownTag :: String -> a
+unknownTag t = exn $ "unknown " ++ t ++ " word"
 
 class Tag t where
   tag2word :: t -> Word8
@@ -78,7 +100,7 @@ instance Tag TmTag where
     9 -> NameVarT
     10 -> LetDirT
     11 -> LetIndT
-    _ -> exn "unknown TmTag word"
+    _ -> unknownTag "TmTag"
 
 instance Tag FnTag where
   tag2word = \case
@@ -96,7 +118,7 @@ instance Tag FnTag where
     3 -> FConT
     4 -> FReqT
     5 -> FPrimT
-    _ -> exn "unknown FnTag word"
+    _ -> unknownTag "FnTag"
 
 instance Tag MtTag where
   tag2word = \case
@@ -114,7 +136,7 @@ instance Tag MtTag where
     3 -> MEmptyT
     4 -> MDataT
     5 -> MSumT
-    _ -> exn "unknown MtTag word"
+    _ -> unknownTag "MtTag"
 
 instance Tag LtTag where
   tag2word = \case
@@ -134,7 +156,7 @@ instance Tag LtTag where
     4 -> CT
     5 -> LMT
     6 -> LYT
-    _ -> exn "unknown LtTag word"
+    _ -> unknownTag "LtTag"
 
 instance Tag BLTag where
   tag2word = \case
@@ -150,7 +172,7 @@ instance Tag BLTag where
     2 -> TmLinkT
     3 -> TyLinkT
     4 -> BytesT
-    _ -> exn "unknown BLTag word"
+    t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
   tag2word = \case
@@ -164,7 +186,7 @@ instance Tag VaTag where
     1 -> DataT
     2 -> ContT
     3 -> BLitT
-    _ -> exn "unknown VaTag word"
+    t -> unknownTag "VaTag" t
 
 instance Tag CoTag where
   tag2word = \case
@@ -175,7 +197,7 @@ instance Tag CoTag where
     0 -> KET
     1 -> MarkT
     2 -> PushT
-    _ -> exn "unknown CoTag word"
+    t -> unknownTag "CoTag" t
 
 putTag :: MonadPut m => Tag t => t -> m ()
 putTag = putWord8 . tag2word
@@ -402,7 +424,7 @@ putLit (I i) = putTag IT *> putInt i
 putLit (N n) = putTag NT *> putNat n
 putLit (F f) = putTag FT *> putFloat f
 putLit (T t) = putTag TT *> putText t
-putLit (C c) = putTag CT *> V1.putChar c
+putLit (C c) = putTag CT *> putChar c
 putLit (LM r) = putTag LMT *> putReferent r
 putLit (LY r) = putTag LYT *> putReference r
 
@@ -412,7 +434,7 @@ getLit = getTag >>= \case
   NT -> N <$> getNat
   FT -> F <$> getFloat
   TT -> T <$> getText
-  CT -> C <$> V1.getChar
+  CT -> C <$> getChar
   LMT -> LM <$> getReferent
   LYT -> LY <$> getReference
 
@@ -461,7 +483,7 @@ putBranches ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase ctx)) m
     putNormal (v:ctx) df
-    where 
+    where
   MatchData r m df -> do
     putTag MDataT
     putReference r
@@ -605,3 +627,157 @@ serializeValue v = runPutS (putVersion *> putValue v)
 serializeValueLazy :: Value -> L.ByteString
 serializeValueLazy v = runPutLazy (putVersion *> putValue v)
   where putVersion = putWord32be 1
+
+-- Some basics, moved over from V1 serialization
+putChar :: MonadPut m => Char -> m ()
+putChar = serialize . VarInt . fromEnum
+
+getChar :: MonadGet m => m Char
+getChar = toEnum . unVarInt <$> deserialize
+
+putFloat :: MonadPut m => Double -> m ()
+putFloat = serializeBE
+
+getFloat :: MonadGet m => m Double
+getFloat = deserializeBE
+
+putNat :: MonadPut m => Word64 -> m ()
+putNat = putWord64be
+
+getNat :: MonadGet m => m Word64
+getNat = getWord64be
+
+putInt :: MonadPut m => Int64 -> m ()
+putInt = serializeBE
+
+getInt :: MonadGet m => m Int64
+getInt = deserializeBE
+
+putLength ::
+  (MonadPut m, Integral n, Integral (Unsigned n),
+   Bits n, Bits (Unsigned n))
+  => n -> m ()
+putLength = serialize . VarInt
+
+getLength ::
+  (MonadGet m, Integral n, Integral (Unsigned n),
+   Bits n, Bits (Unsigned n))
+  => m n
+getLength = unVarInt <$> deserialize
+
+putFoldable
+  :: (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
+putFoldable putA as = do
+  putLength (length as)
+  traverse_ putA as
+
+putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+
+getList :: MonadGet m => m a -> m [a]
+getList a = getLength >>= (`replicateM` a)
+
+getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
+getMap getA getB = Map.fromList <$> getList (getPair getA getB)
+
+putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
+putMaybe Nothing _ = putWord8 0
+putMaybe (Just a) putA = putWord8 1 *> putA a
+
+getMaybe :: MonadGet m => m a -> m (Maybe a)
+getMaybe getA = getWord8 >>= \tag -> case tag of
+  0 -> pure Nothing
+  1 -> Just <$> getA
+  _ -> unknownTag "Maybe" tag
+
+putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
+putPair putA putB (a,b) = putA a *> putB b
+
+getPair :: MonadGet m => m a -> m b -> m (a,b)
+getPair = liftA2 (,)
+
+getBytes :: MonadGet m => m Bytes.Bytes
+getBytes = Bytes.fromChunks <$> getList getBlock
+
+putBytes :: MonadPut m => Bytes.Bytes -> m ()
+putBytes = putFoldable putBlock . Bytes.chunks
+
+getBlock :: MonadGet m => m (Bytes.View (Block Word8))
+getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString
+
+putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
+putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
+
+putHash :: MonadPut m => Hash -> m ()
+putHash h = do
+  let bs = Hash.toBytes h
+  putLength (B.length bs)
+  putByteString bs
+
+getHash :: MonadGet m => m Hash
+getHash = do
+  len <- getLength
+  bs <- B.copy <$> Ser.getBytes len
+  pure $ Hash.fromBytes bs
+
+putReferent :: MonadPut m => Referent -> m ()
+putReferent = \case
+  Ref r -> do
+    putWord8 0
+    putReference r
+  Con r i ct -> do
+    putWord8 1
+    putReference r
+    putLength i
+    putConstructorType ct
+
+getReferent :: MonadGet m => m Referent
+getReferent = do
+  tag <- getWord8
+  case tag of
+    0 -> Ref <$> getReference
+    1 -> Con <$> getReference <*> getLength <*> getConstructorType
+    _ -> unknownTag "getReferent" tag
+
+getConstructorType :: MonadGet m => m CT.ConstructorType
+getConstructorType = getWord8 >>= \case
+  0 -> pure CT.Data
+  1 -> pure CT.Effect
+  t -> unknownTag "getConstructorType" t
+
+putConstructorType :: MonadPut m => CT.ConstructorType -> m ()
+putConstructorType = \case
+  CT.Data -> putWord8 0
+  CT.Effect -> putWord8 1
+
+putText :: MonadPut m => Text -> m ()
+putText text = do
+  let bs = encodeUtf8 text
+  putLength $ B.length bs
+  putByteString bs
+
+getText :: MonadGet m => m Text
+getText = do
+  len <- getLength
+  bs <- B.copy <$> Ser.getBytes len
+  pure $ decodeUtf8 bs
+
+putReference :: MonadPut m => Reference -> m ()
+putReference r = case r of
+  Builtin name -> do
+    putWord8 0
+    putText name
+  Derived hash i n -> do
+    putWord8 1
+    putHash hash
+    putLength i
+    putLength n
+
+getReference :: MonadGet m => m Reference
+getReference = do
+  tag <- getWord8
+  case tag of
+    0 -> Builtin <$> getText
+    1 -> DerivedId <$> (Id <$> getHash <*> getLength <*> getLength)
+    _ -> unknownTag "Reference" tag
+

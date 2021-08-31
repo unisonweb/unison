@@ -1,4 +1,4 @@
-type Foo a b = Foo a b
+structural type Foo a b = Foo a b
 use Foo Foo
 use Optional Some
 setA : Foo a b -> Optional a -> Foo a b

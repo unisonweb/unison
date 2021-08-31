@@ -6,6 +6,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Unison.Term where
 
@@ -28,28 +29,26 @@ import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
-import           Unison.Referent (Referent)
+import           Unison.Referent (Referent, ConstructorId)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap, validate)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Var.RefNamed as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
-
--- This gets reexported; should maybe live somewhere other than Pattern, though.
-type ConstructorId = Pattern.ConstructorId
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -115,47 +114,36 @@ type Term0 v = Term v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term0' vt v = Term' vt v ()
 
--- bindExternals
---   :: forall v a b b2
---    . Var v
---   => [(v, Term2 v b a v b2)]
---   -> [(v, Reference)]
---   -> Term2 v b a v a
---   -> Term2 v b a v a
--- bindBuiltins termBuiltins typeBuiltins = f . g
---  where
---   f :: Term2 v b a v a -> Term2 v b a v a
---   f = typeMap (Type.bindBuiltins typeBuiltins)
---   g :: Term2 v b a v a -> Term2 v b a v a
---   g = ABT.substsInheritAnnotation termBuiltins
 bindNames
   :: forall v a . Var v
   => Set v
   -> Names0
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
--- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
---                            || traceShow keepFreeTerms False = undefined
-bindNames keepFreeTerms ns e = do
+bindNames keepFreeTerms ns0 e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
-      -- !_ = trace "free term vars: " ()
+      -- !_ = trace "bindNames.free term vars: " ()
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
-      -- !_ = trace "free type vars: " ()
+      ns = Names.Names ns0 mempty
+      -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
+      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
            | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
-      okTy (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.types0 ns) of
+      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
            | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
+-- This function replaces free term and type variables with
+-- hashes found in the provided `Names0`, using suffix-based
+-- lookup. Any terms not found in the `Names0` are kept free.
 bindSomeNames
   :: forall v a . Var v
   => Names0
@@ -166,11 +154,21 @@ bindSomeNames
 --                   || traceShow ns False
 --                   || trace "Free type vars:" False
 --                   || traceShow (freeTypeVars e) False
+--                   || trace "Free term vars:" False
+--                   || traceShow (freeVars e) False
 --                   || traceShow e False
 --                   = undefined
-bindSomeNames ns e = bindNames keepFree ns e where
-  keepFree = Set.difference (freeVars e)
-                            (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
+bindSomeNames ns e = bindNames varsToTDNR ns e where
+  -- `Term.bindNames` takes a set of variables that are not substituted.
+  -- These should be the variables that will be subject to TDNR, which
+  -- we compute as the set of variables whose names cannot be found in `ns`.
+  --
+  -- This allows TDNR to disambiguate those names (if multiple definitions
+  -- share the same suffix) or to report the type expected for that name
+  -- (if a free variable is being used as a typed hole).
+  varsToTDNR = Set.filter notFound (freeVars e)
+  notFound var =
+    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms0 ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -929,18 +927,29 @@ labeledDependencies = generalizedDependencies LD.termRef
 
 updateDependencies
   :: Ord v
-  => Map Reference Reference
+  => Map Referent Referent
   -> Map Reference Reference
   -> Term v a
   -> Term v a
 updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
-  -- todo: this function might need tweaking if we ever allow type replacements
-  -- would need to look inside pattern matching and constructor calls
-  go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
-  go (TermLink (Referent.Ref r)) = TermLink (Referent.Ref $ Map.findWithDefault r r termUpdates)
+  referent (Referent.Ref r) = Ref r
+  referent (Referent.Con r cid CT.Data) = Constructor r cid
+  referent (Referent.Con r cid CT.Effect) = Request r cid
+  go (Ref r    ) = case Map.lookup (Referent.Ref r) termUpdates of
+    Nothing -> Ref r
+    Just r -> referent r
+  go ct@(Constructor r cid) = case Map.lookup (Referent.Con r cid CT.Data) termUpdates of
+    Nothing -> ct
+    Just r -> referent r
+  go req@(Request r cid) = case Map.lookup (Referent.Con r cid CT.Effect) termUpdates of
+    Nothing -> req
+    Just r -> referent r
+  go (TermLink r) = TermLink (Map.findWithDefault r r termUpdates)
   go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
+  go (Match tm cases) = Match tm (u <$> cases) where
+    u (MatchCase pat g b) = MatchCase (Pattern.updateDependencies termUpdates pat) g b
   go f           = f
 
 -- | If the outermost term is a function application,
@@ -988,6 +997,7 @@ unhashComponent m = let
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
   in second unhash1 <$> m'
+
 
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
@@ -1092,8 +1102,6 @@ instance Var v => Hashable1 (F v a p) where
                   Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermLink r -> [tag 18, accumulateToken r]
                   TypeLink r -> [tag 19, accumulateToken r]
-                  _ ->
-                    error $ "unhandled case in hash: " <> show (void e)
 
 -- mostly boring serialization code below ...
 

@@ -28,13 +28,16 @@ library
       Unison.Builtin.Terms
       Unison.Codebase
       Unison.Codebase.Branch
+      Unison.Codebase.Branch.Merge
+      Unison.Codebase.Branch.Names
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
+      Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Classes
+      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.CodeLookup
+      Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Conversion.Sync12
-      Unison.Codebase.Conversion.Upgrade12
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
@@ -54,32 +57,32 @@ library
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
-      Unison.Codebase.FileCodebase.Branch.Dependencies
-      Unison.Codebase.FileCodebase.Common
-      Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
       Unison.Codebase.GitError
       Unison.Codebase.Init
+      Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
-      Unison.Codebase.NameEdit
       Unison.Codebase.Patch
       Unison.Codebase.Path
+      Unison.Codebase.Path.Parse
       Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
-      Unison.Codebase.Serialization.PutT
-      Unison.Codebase.Serialization.V1
       Unison.Codebase.ShortBranchHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
+      Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
+      Unison.Codebase.TermEdit.Typing
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Type
       Unison.Codebase.TypeEdit
       Unison.Codebase.Watch
-      Unison.Codecs
+      Unison.CodebasePath
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.InputPattern
@@ -90,11 +93,17 @@ library
       Unison.FileParser
       Unison.FileParsers
       Unison.Lexer
+      Unison.Lexer.Pos
       Unison.NamePrinter
       Unison.Parser
+      Unison.Parser.Ann
       Unison.Parsers
-      Unison.Path
       Unison.PrettyPrintEnv
+      Unison.PrettyPrintEnv.FQN
+      Unison.PrettyPrintEnv.Names
+      Unison.PrettyPrintEnv.Util
+      Unison.PrettyPrintEnvDecl
+      Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyTerminal
       Unison.PrintError
       Unison.Result
@@ -116,6 +125,7 @@ library
       Unison.Runtime.Vector
       Unison.Server.Backend
       Unison.Server.CodebaseServer
+      Unison.Server.Doc
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.ListNamespace
@@ -137,9 +147,14 @@ library
       Unison.TypeParser
       Unison.TypePrinter
       Unison.UnisonFile
+      Unison.UnisonFile.Env
+      Unison.UnisonFile.Error
+      Unison.UnisonFile.Names
+      Unison.UnisonFile.Type
       Unison.Util.AnnotatedText
       Unison.Util.Bytes
       Unison.Util.ColorText
+      Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd
@@ -150,7 +165,6 @@ library
       Unison.Util.Less
       Unison.Util.Logger
       Unison.Util.Map
-      Unison.Util.Menu
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
@@ -185,53 +199,45 @@ library
     , base16 >=0.2.1.0
     , base64-bytestring
     , basement
-    , bifunctors
     , bytes
     , bytestring
     , cereal
-    , comonad
-    , concurrent-supply
     , configurator
     , containers >=0.6.3
     , cryptonite
     , data-default
     , data-memocombinators
     , directory
-    , edit-distance
     , either
     , errors
     , exceptions
     , extra
     , filepath
-    , filepattern
     , fingertree
-    , free
     , fsnotify
     , fuzzyfind
     , generic-monoid
-    , guid
     , hashable
     , hashtables
     , haskeline
     , http-media
     , http-types
-    , io-streams
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mmorph
-    , monad-loops
     , monad-validate
     , mtl
-    , murmur-hash
     , mutable-containers
     , natural-transformation
     , network
     , network-simple
     , nonempty-containers
+    , open-browser
     , openapi3
-    , optparse-applicative
+    , optparse-applicative >=0.16.1.0
     , pem
+    , prelude-extras
     , primitive
     , process
     , random >=1.2.0
@@ -241,12 +247,10 @@ library
     , safe
     , safe-exceptions
     , servant
-    , servant-auth-server
     , servant-docs
     , servant-openapi3
     , servant-server
     , shellmet
-    , split
     , sqlite-simple
     , stm
     , strings
@@ -265,10 +269,8 @@ library
     , unison-core1
     , unison-util
     , unliftio
-    , unliftio-core
+    , uri-encode
     , utf8-string
-    , util
-    , validation
     , vector
     , wai
     , warp
@@ -314,14 +316,10 @@ executable tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.BaseUpgradePushPullTest
       Unison.Test.Cache
       Unison.Test.ClearCache
-      Unison.Test.Codebase
       Unison.Test.Codebase.Causal
-      Unison.Test.Codebase.FileCodebase
       Unison.Test.Codebase.Path
-      Unison.Test.Codebase.Upgrade12
       Unison.Test.ColorText
       Unison.Test.Common
       Unison.Test.DataDeclaration
@@ -346,6 +344,7 @@ executable tests
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
+      Unison.Test.Util.Relation
       Unison.Test.Var
       Unison.Test.VersionParser
       Paths_unison_parser_typechecker
@@ -433,6 +432,8 @@ executable transcripts
 executable unison
   main-is: Main.hs
   other-modules:
+      ArgParse
+      Compat
       System.Path
       Version
       Paths_unison_parser_typechecker
@@ -463,6 +464,7 @@ executable unison
     , lens
     , megaparsec
     , mtl
+    , optparse-applicative >=0.16.1.0
     , safe
     , shellmet
     , template-haskell

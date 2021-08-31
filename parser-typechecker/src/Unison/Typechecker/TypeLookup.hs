@@ -3,7 +3,7 @@ module Unison.Typechecker.TypeLookup where
 import Unison.Prelude
 
 import Unison.Reference (Reference)
-import Unison.Referent (Referent)
+import Unison.Referent (Referent, ConstructorId)
 import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
@@ -35,11 +35,11 @@ constructorType tl r =
   (const CT.Data <$> Map.lookup r (dataDecls tl)) <|>
   (const CT.Effect <$> Map.lookup r (effectDecls tl))
 
-typeOfDataConstructor :: TypeLookup v a -> Reference -> Int -> Maybe (Type v a)
+typeOfDataConstructor :: TypeLookup v a -> Reference -> ConstructorId -> Maybe (Type v a)
 typeOfDataConstructor tl r cid = go =<< Map.lookup r (dataDecls tl)
   where go dd = DD.typeOfConstructor dd cid
 
-typeOfEffectConstructor :: TypeLookup v a -> Reference -> Int -> Maybe (Type v a)
+typeOfEffectConstructor :: TypeLookup v a -> Reference -> ConstructorId -> Maybe (Type v a)
 typeOfEffectConstructor tl r cid = go =<< Map.lookup r (effectDecls tl)
   where go dd = DD.typeOfConstructor (DD.toDataDecl dd) cid
 

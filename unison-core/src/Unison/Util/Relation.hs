@@ -9,6 +9,7 @@ import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import qualified Data.Set                      as S
 import qualified Data.Map                      as Map
+import qualified Data.Map.Internal as Map
 import qualified Unison.Hashable               as H
 import qualified Control.Monad as Monad
 
@@ -408,6 +409,43 @@ lookupRan b r = fromMaybe S.empty $ lookupRan' b r
 
 lookupDom :: Ord a => a -> Relation a b -> Set b
 lookupDom a r = fromMaybe S.empty $ lookupDom' a r
+
+-- Efficiently locate the `Set b` for which the corresponding `a` tests
+-- as `EQ` according to the provided function `f`, assuming that such
+-- elements are contiguous via the `Ord a`. That is, `f <$> toList (dom r)`
+-- must look something like [LT,LT,EQ,EQ,EQ,GT], or more generally, 0 or
+-- more LT followed by 0 or more EQ, followed by 0 or more GT.
+--
+-- For example, given a `Relation (Int,y) z`,
+-- `searchDom (\(i,_) -> compare i 10)` will return all the `z` whose
+-- associated `(Int,y)` is of the form `(10,y)` for any choice of `y`.
+--
+-- Takes logarithmic time to find the smallest `amin` such that `f a == EQ`,
+-- and the largest `amax` such that `f amax == EQ`. The rest of the runtime is
+-- just assembling the returned `Set b`, so when the returned `Set b` is small
+-- or empty, this function takes time logarithmic in the number of unique keys
+-- of the domain, `a`.
+searchDom :: (Ord a, Ord b) => (a -> Ordering) -> Relation a b -> Set b
+searchDom f r = go (domain r) where
+  go Map.Tip = mempty
+  go (Map.Bin _ amid bs l r) = case f amid of
+    EQ -> bs <> goL l <> goR r
+    LT -> go r
+    GT -> go l
+  goL Map.Tip = mempty
+  goL (Map.Bin _ amid bs l r) = case f amid of
+    EQ -> bs <> goL l <> S.unions (Map.elems r)
+    LT -> goL r
+    GT -> error "predicate not monotone with respect to ordering"
+  goR Map.Tip = mempty
+  goR (Map.Bin _ amid bs l r) = case f amid of
+    EQ -> bs <> goR r <> S.unions (Map.elems l)
+    GT -> goR l
+    LT -> error "predicate not monotone with respect to ordering"
+
+-- Like `searchDom`, but searches the `b` of this `Relation`.
+searchRan :: (Ord a, Ord b) => (b -> Ordering) -> Relation a b -> Set a
+searchRan f r = searchDom f (swap r)
 
 replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =

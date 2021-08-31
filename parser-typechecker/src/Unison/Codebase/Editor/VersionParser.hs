@@ -13,7 +13,7 @@ import Data.Void (Void)
 
 -- |"release/M1j.2" -> "releases._M1j"
 --  "devel/*" -> "trunk"
-defaultBaseLib :: Parsec Void Text RemoteNamespace
+defaultBaseLib :: Parsec Void Text ReadRemoteNamespace
 defaultBaseLib = fmap makeNS $ devel <|> release
   where
   devel, release, version :: Parsec Void Text Text
@@ -21,7 +21,7 @@ defaultBaseLib = fmap makeNS $ devel <|> release
   release = fmap ("releases._" <>) $ "release/" *> version <* eof
   version = fmap Text.pack $
               try (someTill anyChar "." <* many anyChar) <|> many anyChar
-  makeNS :: Text -> RemoteNamespace
-  makeNS t = ( GitRepo "https://github.com/unisonweb/base" Nothing
+  makeNS :: Text -> ReadRemoteNamespace
+  makeNS t = ( ReadGitRepo "https://github.com/unisonweb/base"
              , Nothing
              , Path.fromText t)

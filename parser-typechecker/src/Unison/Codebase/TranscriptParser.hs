@@ -25,7 +25,7 @@ import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
@@ -41,6 +41,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Runtime.Interface as RTI
@@ -298,6 +299,7 @@ run dir configFile stanzas codebase = do
                                      printNumbered
                                      loadPreviousUnisonBlock
                                      codebase
+                                     Nothing
                                      rng
                                      free
         case o of

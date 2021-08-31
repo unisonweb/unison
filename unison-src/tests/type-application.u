@@ -1,8 +1,8 @@
 
-ability Foo where
+structural ability Foo where
   foo : {Foo} Nat
 
-type Wrap a = Wrap Nat
+structural type Wrap a = Wrap Nat
 
 blah : Wrap {Foo} -> Nat
 blah = cases

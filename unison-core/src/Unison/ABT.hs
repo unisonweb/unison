@@ -175,6 +175,7 @@ pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 -- pattern Abs' v body <- Term _ _ (Abs v body)
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
+{-# COMPLETE AbsN' #-}
 pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
@@ -718,7 +719,7 @@ hash = hash' [] where
             die = error $ "unknown var in environment: " ++ show v
                         ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
-    Cycle t -> hash' env t
+    -- Cycle t -> hash' env t
     Abs v t -> hash' (Right v : env) t
     Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
 

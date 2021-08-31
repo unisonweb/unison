@@ -46,6 +46,7 @@ import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -76,6 +77,12 @@ import Network.Simple.TCP as SYS
 import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
 
+import Data.IORef as SYS
+  ( IORef
+  , newIORef
+  , readIORef
+  , writeIORef
+  )
 import System.IO as SYS
   ( IOMode(..)
   , openFile
@@ -112,6 +119,9 @@ import System.Directory as SYS
   , getDirectoryContents
   , getModificationTime
   , getFileSize
+  )
+import System.Environment as SYS
+  ( getEnv
   )
 import System.IO.Temp (createTempDirectory)
 
@@ -455,6 +465,11 @@ appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
 conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
 snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
 
+coerceType :: Var v => Reference -> Reference -> SuperNormal v
+coerceType fromType toType = unop0 1 $ \[x,r]
+     -> unbox x fromType r
+      $ TCon toType 0 [r]
+
 takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
 takes = binop0 1 $ \[x0,y,x]
      -> unbox x0 Ty.natRef x
@@ -652,8 +667,22 @@ cast ri ro
  -> unbox x0 ri x
   $ TCon ro 0 [x]
 
+-- This version of unsafeCoerce is the identity function. It works
+-- only if the two types being coerced between are actually the same,
+-- because it keeps the same representation. It is not capable of
+-- e.g. correctly translating between two types with compatible bit
+-- representations, because tagging information will be retained.
+poly'coerce :: Var v => SuperNormal v
+poly'coerce = unop0 0 $ \[x] -> TVar x
+
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
+
+scope'run :: Var v => SuperNormal v
+scope'run
+  = unop0 1 $ \[e, un]
+ -> TLetD un BX (TCon Ty.unitRef 0 [])
+  $ TApp (FVar e) [un]
 
 fork'comp :: Var v => SuperNormal v
 fork'comp
@@ -676,6 +705,20 @@ watch
   = binop0 0 $ \[t,v]
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
+
+raise :: Var v => SuperNormal v
+raise
+  = unop0 4 $ \[r,f,n,j,k]
+ -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
+  [ (0, ([BX], TAbs f $ TVar f))
+  , (i, ([UN,BX]
+      , TAbss [j,f]
+      . TShift Ty.exceptionRef k
+      . TLetD n BX (TLit $ T "builtin.raise")
+      $ TPrm EROR [n, f]))
+  ]
+  where
+  i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
 code'missing :: Var v => SuperNormal v
 code'missing
@@ -899,6 +942,18 @@ outMaybe maybe result =
   , (1, ([BX], TAbs maybe $ TCon Ty.optionalRef 1 [maybe]))
   ]
 
+outMaybeTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeTup a b n u bp p result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([], TCon Ty.optionalRef 0 []))
+  , (1, ([UN,BX], TAbss [a,b]
+                . TLetD u BX (TCon Ty.unitRef 0 [])
+                . TLetD bp BX (TCon Ty.pairRef 0 [b,u])
+                . TLetD n BX (TCon Ty.natRef 0 [a])
+                . TLetD p BX (TCon Ty.pairRef 0 [n,bp])
+                $ TCon Ty.optionalRef 1 [p]))
+  ]
+
 outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
 outIoFail stack1 stack2 fail result =
   TMatch result . MatchSum $ mapFromList
@@ -960,6 +1015,20 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
         . TAbs stack3
         . TLet (Indirect 1) bool BX (boolift stack3)
         $ TCon eitherReference 1 [bool])
+  ]
+
+outIoFailG
+  :: Var v => v -> v -> v -> v -> v
+  -> ((ANormal v -> ANormal v) -> ([Mem], ANormal v))
+  -> ANormal v
+outIoFailG stack1 stack2 fail result output k
+  = TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ TCon eitherReference 0 [fail])
+  , (1, k $ \t -> TLetD output BX t
+                $ TCon eitherReference 1 [output])
   ]
 
 -- Input / Output glue
@@ -1046,6 +1115,7 @@ wordDirect wordType instr
   where
   (b1,ub1) = fresh2
 
+
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
 -- pass `wordBoxDirect Ty.natRef`, `wordBoxDirect Ty.floatRef`
@@ -1085,12 +1155,33 @@ boxToEFBox =
   where
     (arg, result, stack1, stack2, fail) = fresh5
 
+-- a -> Either Failure (Maybe b)
+boxToEFMBox :: ForeignOp
+boxToEFMBox
+  = inBx arg result
+  . outIoFailG stack1 stack2 fail result output $ \k ->
+  ([UN], TAbs stack3 . TMatch stack3 . MatchSum $ mapFromList
+         [ (0, ([], k $ TCon Ty.optionalRef 0 []))
+         , (1, ([BX], TAbs stack4 . k $ TCon Ty.optionalRef 1 [stack4]))
+         ])
+  where
+  (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh8
+
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
 boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh3
+
+-- a -> Maybe b
+boxToMaybeTup :: ForeignOp
+boxToMaybeTup =
+  inBx arg result $ outMaybeTup a b c u bp p result
+  where
+    (arg, a, b, c, u, bp, p, result) = fresh8
+
+
 
 -- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
@@ -1176,6 +1267,8 @@ builtinLookup
   , ("Int.<=", lei)
   , ("Int.>", gti)
   , ("Int.>=", gei)
+  , ("Int.fromRepresentation", coerceType Ty.natRef Ty.intRef)
+  , ("Int.toRepresentation", coerceType Ty.intRef Ty.natRef)
   , ("Int.increment", inci)
   , ("Int.signum", sgni)
   , ("Int.negate", negi)
@@ -1225,7 +1318,6 @@ builtinLookup
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
   , ("Nat.popCount", popn)
-
   , ("Float.+", addf)
   , ("Float.-", subf)
   , ("Float.*", mulf)
@@ -1234,6 +1326,8 @@ builtinLookup
   , ("Float.log", logf)
   , ("Float.logBase", logbf)
   , ("Float.sqrt", sqrtf)
+  , ("Float.fromRepresentation", coerceType Ty.natRef Ty.floatRef)
+  , ("Float.toRepresentation", coerceType Ty.floatRef Ty.natRef)
 
   , ("Float.min", minf)
   , ("Float.max", maxf)
@@ -1295,6 +1389,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)
@@ -1328,9 +1423,13 @@ builtinLookup
   , ("Universal.>=", geu)
   , ("Universal.<=", leu)
 
+  -- internal stuff
   , ("jumpCont", jumpk)
+  , ("raise", raise)
 
   , ("IO.forkComp.v2", fork'comp)
+
+  , ("Scope.run", scope'run)
 
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
@@ -1408,7 +1507,10 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromArray <$> hGet h n
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF Text.hGetLine
+
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+    $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
@@ -1430,6 +1532,9 @@ declareForeigns = do
 
   declareForeign "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
+
+  declareForeign "IO.getEnv.impl.v1" boxToEFBox
+    $ mkForeignIOF getEnv
 
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
@@ -1526,8 +1631,9 @@ declareForeigns = do
   declareForeign "MVar.read.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign "MVar.tryRead.impl.v3" boxToEFBox
+  declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
+
 
   declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
     \(ch :: Char) -> pure (Text.singleton ch)
@@ -1587,6 +1693,19 @@ declareForeigns = do
 
   declareForeign "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
+
+  -- Scope and Ref stuff
+  declareForeign "Scope.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "IO.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "Ref.read" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readIORef r
+
+  declareForeign "Ref.write" boxBoxTo0 . mkForeign $
+    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
   let
     defaultSupported :: TLS.Supported
@@ -1722,6 +1841,20 @@ declareForeigns = do
   declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase32
   declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase64
   declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
+
+  declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
+  declareForeign "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
+
+  declareForeign "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
+  declareForeign "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
+  declareForeign "Bytes.encodeNat32be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32be
+  declareForeign "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
+  declareForeign "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
+  declareForeign "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

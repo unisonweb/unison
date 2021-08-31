@@ -21,12 +21,12 @@ import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
-import Unison.Codebase.GitError
-import Unison.Codebase.Path (Path', Path)
+import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
-import Unison.Parser ( Ann )
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
@@ -41,6 +41,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
@@ -49,6 +50,7 @@ import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
 import Unison.NameSegment (NameSegment)
@@ -57,6 +59,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.WatchKind as WK
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -79,7 +82,7 @@ data NumberedOutput v
   | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterCreatePR RemoteNamespace RemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   -- <authorIdentifier> <authorPath> <relativeBase>
   | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
@@ -98,7 +101,7 @@ data Output v
   | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
   | BranchEmpty (Either ShortBranchHash Path')
   | BranchNotEmpty Path'
-  | LoadPullRequest RemoteNamespace RemoteNamespace Path' Path' Path' Path'
+  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | PatchAlreadyExists Path.Split'
@@ -121,6 +124,7 @@ data Output v
   | TermNotFound Path.HQSplit'
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
+  | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
   | SearchTermsNotFound [HQ.HashQualified Name]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
@@ -151,14 +155,14 @@ data Output v
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
+              (Map v (Ann, WK.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        PPE.PrettyPrintEnvDecl
-                       (Map Reference (DisplayObject (Decl v Ann)))
-                       (Map Reference (DisplayObject (Term v Ann)))
+                       (Map Reference (DisplayObject () (Decl v Ann)))
+                       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   -- | Invariant: there's at least one conflict or edit in the TodoOutput.
   | TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
@@ -178,10 +182,9 @@ data Output v
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
-  | ConfiguredGitUrlIncludesShortBranchHash PushPull RemoteRepo ShortBranchHash Path
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayObject (Decl v Ann)))
-               (Map Reference (DisplayObject (Term v Ann)))
+               (Map Reference (DisplayObject () (Decl v Ann)))
+               (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -193,7 +196,7 @@ data Output v
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | PullAlreadyUpToDate RemoteNamespace Path'
+  | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   -- | No conflicts or edits remain for the current patch.
@@ -208,6 +211,7 @@ data Output v
   | BadName String
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
+  | CouldntLoadBranch Branch.Hash
   | NoOp
   deriving (Show)
 
@@ -238,6 +242,7 @@ isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
   BadRootBranch{} -> True
+  CouldntLoadBranch{} -> True
   NoUnisonFile{} -> True
   InvalidSourceName{} -> True
   SourceLoadFailed{} -> True
@@ -267,6 +272,7 @@ isFailure o = case o of
   TypeNotFound'{} -> True
   TermNotFound{} -> True
   TermNotFound'{} -> True
+  TypeTermMismatch{} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation{} -> False
   CantDelete{} -> True
@@ -286,7 +292,7 @@ isFailure o = case o of
   Typechecked{} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered{} -> False
-  TodoOutput _ todo -> TO.todoScore todo /= 0 && not (TO.noConflicts todo)
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   TestIncrementalOutputStart{} -> False
   TestIncrementalOutputEnd{} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
@@ -297,7 +303,6 @@ isFailure o = case o of
   ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
-  ConfiguredGitUrlIncludesShortBranchHash{} -> True
   DisplayLinks{} -> False
   MetadataMissingType{} -> True
   MetadataAmbiguous{} -> True

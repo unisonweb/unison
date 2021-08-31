@@ -10,7 +10,9 @@ module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
+import Data.ByteString.Char8 (unpack)
 import Control.Exception (ErrorCall (..), throwIO)
+import qualified Network.URI.Encode as URI
 import Control.Lens ((&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -18,7 +20,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.UTF8 as BLU
-import Data.Monoid (Endo (..), appEndo)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import qualified Data.OpenApi.Lens as OpenApi
 import Data.Proxy (Proxy (..))
@@ -36,22 +37,6 @@ import Network.Wai.Handler.Warp
     setHost,
     setPort,
     withApplicationSettings,
-  )
-import Options.Applicative
-  ( argument,
-    auto,
-    defaultPrefs,
-    execParserPure,
-    forwardOptions,
-    getParseResult,
-    help,
-    info,
-    internal,
-    long,
-    metavar,
-    option,
-    str,
-    strOption,
   )
 import Servant
   ( MimeRender (..),
@@ -87,12 +72,13 @@ import Servant.Server
   )
 import Servant.Server.StaticFiles (serveDirectoryWebApp)
 import System.Directory (canonicalizePath, doesFileExist)
-import System.Environment (getArgs, getExecutablePath, lookupEnv)
+import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
-import Unison.Parser (Ann)
+import qualified Unison.Codebase.Runtime as Rt
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
@@ -128,6 +114,26 @@ type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI
 
 instance ToSample Char where
   toSamples _ = singleSample 'x'
+
+-- BaseUrl and helpers
+
+data BaseUrl = BaseUrl
+  { urlHost :: String,
+    urlToken :: Strict.ByteString,
+    urlPort :: Port
+  }
+
+data BaseUrlPath = UI | Api
+
+instance Show BaseUrl where
+  show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
+
+urlFor :: BaseUrlPath -> BaseUrl -> String
+urlFor path baseUrl =
+  case path of
+    UI -> show baseUrl <> "/ui"
+    Api -> show baseUrl <> "/api"
+
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -166,12 +172,13 @@ serverAPI = Proxy
 
 app
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> FilePath
   -> Strict.ByteString
   -> Application
-app codebase uiPath expectedToken =
-  serve serverAPI $ server codebase uiPath expectedToken
+app rt codebase uiPath expectedToken =
+  serve serverAPI $ server rt codebase uiPath expectedToken
 
 genToken :: IO Strict.ByteString
 genToken = do
@@ -205,86 +212,40 @@ ucmHostVar = "UCM_HOST"
 ucmTokenVar :: String
 ucmTokenVar = "UCM_TOKEN"
 
--- The auth token required for accessing the server is passed to the function k
-start
-  :: Var v
-  => Codebase IO v Ann
-  -> (Strict.ByteString -> Port -> IO ())
-  -> IO ()
-start codebase k = do
-  envToken <- lookupEnv ucmTokenVar
-  envHost  <- lookupEnv ucmHostVar
-  envPort  <- (readMaybe =<<) <$> lookupEnv ucmPortVar
-  envUI    <- lookupEnv ucmUIVar
-  args     <- getArgs
-  let
-    p =
-      (,,,,)
-        <$> ( many $ argument str internal )
-        <*> (   (<|> envToken)
-            <$> (  optional
-                .  strOption
-                $  long "token"
-                <> metavar "STRING"
-                <> help "API auth token"
-                )
-            )
-        <*> (   (<|> envHost)
-            <$> (  optional
-                .  strOption
-                $  long "host"
-                <> metavar "STRING"
-                <> help "UCM server host"
-                )
-            )
-        <*> (   (<|> envPort)
-            <$> (  optional
-                .  option auto
-                $  long "port"
-                <> metavar "NUMBER"
-                <> help "UCM server port"
-                )
-            )
-        <*> (   (<|> envUI)
-            <$> (optional . strOption $ long "ui" <> metavar "DIR" <> help
-                  "Path to codebase ui root"
-                )
-            )
-    mayOpts =
-      getParseResult $ execParserPure defaultPrefs (info p forwardOptions) args
-  case mayOpts of
-    Just (_, token, host, port, ui) -> startServer codebase k token host port ui
-    Nothing -> startServer codebase k Nothing Nothing Nothing Nothing
+data CodebaseServerOpts = CodebaseServerOpts
+  { token :: Maybe String
+  , host :: Maybe String
+  , port :: Maybe Int
+  , codebaseUIPath :: Maybe FilePath
+  } deriving (Show, Eq)
 
+-- The auth token required for accessing the server is passed to the function k
 startServer
   :: Var v
-  => Codebase IO v Ann
-  -> (Strict.ByteString -> Port -> IO ())
-  -> Maybe String
-  -> Maybe String
-  -> Maybe Port
-  -> Maybe String
+  => CodebaseServerOpts
+  -> Rt.Runtime v
+  -> Codebase IO v Ann
+  -> (BaseUrl -> IO ())
   -> IO ()
-startServer codebase k envToken envHost envPort envUI0 = do
+startServer opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
-  envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") envUI0
-  token <- case envToken of
+  envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
+  token <- case token opts of
     Just t -> return $ C8.pack t
     _      -> genToken
-  let settings = appEndo
-        (  foldMap (Endo . setPort)              envPort
-        <> foldMap (Endo . setHost . fromString) envHost
-        )
-        defaultSettings
-      a = app codebase envUI token
-  case envPort of
-    Nothing -> withApplicationSettings settings (pure a) (k token)
+  let baseUrl = BaseUrl "http://127.0.0.1" token
+  let settings = defaultSettings
+               & maybe id setPort (port opts)
+               & maybe id (setHost . fromString) (host opts)
+  let a = app rt codebase envUI token
+  case port opts of
+    Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
     Just p  -> do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
       result <- race (runSettings settings' a)
-                     (waitFor started *> k token p)
+                     (waitFor started *> onStart (baseUrl p))
       case result of
         Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
         Right x  -> pure x
@@ -311,16 +272,17 @@ serveUI tryAuth path _ = tryAuth *> serveIndex path
 
 server
   :: Var v
-  => Codebase IO v Ann
+  => Rt.Runtime v
+  -> Codebase IO v Ann
   -> FilePath
   -> Strict.ByteString
   -> Server AuthedServerAPI
-server codebase uiPath token =
+server rt codebase uiPath token =
   serveDirectoryWebApp (uiPath </> "static")
     :<|> ((\t ->
             serveUI (tryAuth t) uiPath
               :<|> (    (    (serveNamespace (tryAuth t) codebase)
-                        :<|> (serveDefinitions (tryAuth t) codebase)
+                        :<|> (serveDefinitions (tryAuth t) rt codebase)
                         :<|> (serveFuzzyFind (tryAuth t) codebase)
                         )
                    :<|> serveOpenAPI

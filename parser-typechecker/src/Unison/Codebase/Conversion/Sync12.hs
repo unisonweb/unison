@@ -58,10 +58,10 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import Unison.UnisonFile (WatchKind)
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
+import Unison.WatchKind (WatchKind)
 
 debug :: Bool
 debug = False
@@ -290,7 +290,7 @@ checkTermComponent t h = do
             typeDeps = Type.dependencies typ
         let checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _) ->
+              Reference.Derived h' _ ->
                 getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
@@ -298,11 +298,9 @@ checkTermComponent t h = do
             checkTerm = \case
               Reference.Builtin {} ->
                 pure ()
-              Reference.DerivedId (Reference.Id h' _)
-                | h == h' ->
-                  pure () -- ignore self-references
-              Reference.DerivedId (Reference.Id h' _) ->
-                getTermStatus h' >>= \case
+              Reference.Derived h' _
+                | h == h' -> pure () -- ignore self-references
+                | otherwise -> getTermStatus h' >>= \case
                   Just TermOk -> pure ()
                   Just _ -> Except.throwError TermMissingDependencies
                   Nothing -> Validate.dispute . Set.singleton $ T h'
@@ -325,7 +323,7 @@ checkWatchComponent t k r@(Reference.Id h _) = do
       let deps = Term.labeledDependencies watchResult
       let checkDecl = \case
             Reference.Builtin {} -> pure ()
-            Reference.DerivedId (Reference.Id h' _) ->
+            Reference.Derived h' _ ->
               getDeclStatus h' >>= \case
                 Just DeclOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
@@ -333,11 +331,9 @@ checkWatchComponent t k r@(Reference.Id h _) = do
           checkTerm = \case
             Reference.Builtin {} ->
               pure ()
-            Reference.DerivedId (Reference.Id h' _)
-              | h == h' ->
-                pure () -- ignore self-references
-            Reference.DerivedId (Reference.Id h' _) ->
-              getTermStatus h' >>= \case
+            Reference.Derived h' _
+              | h == h' -> pure () -- ignore self-references
+              | otherwise -> getTermStatus h' >>= \case
                 Just TermOk -> pure ()
                 Just _ -> Except.throwError WatchMissingDependencies
                 Nothing -> Validate.dispute . Set.singleton $ T h'
@@ -361,7 +357,7 @@ checkDeclComponent t h = do
         let deps = DD.declDependencies decl
             checkDecl = \case
               Reference.Builtin {} -> pure ()
-              Reference.DerivedId (Reference.Id h' _) ->
+              Reference.Derived h' _ ->
                 unless (h == h') $ getDeclStatus h' >>= \case
                   Just DeclOk -> pure ()
                   Just _ -> Except.throwError DeclMissingDependencies
@@ -444,14 +440,14 @@ repairPatch (Patch termEdits typeEdits) = do
     -- reference to it.  See Sync22.syncPatchLocalIds
     helpTermEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _) ->
+      Reference.Derived h _ ->
         getTermStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ T h
           Just TermOk -> pure True
           Just _ -> pure False
     helpTypeEdit = \case
       Reference.Builtin _ -> pure True
-      Reference.DerivedId (Reference.Id h _) ->
+      Reference.Derived h _ ->
         getDeclStatus h >>= \case
           Nothing -> Validate.refute . Set.singleton $ D h
           Just DeclOk -> pure True
@@ -500,7 +496,7 @@ validateTermReferent = \case
 validateTermReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTermReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i) ->
+  Reference.Derived h _i ->
     getTermStatus h >>= \case
       Nothing -> Validate.refute . Set.singleton $ T h
       Just TermOk -> pure True
@@ -509,7 +505,7 @@ validateTermReference = \case
 validateTypeReference :: (S m n, V m n) => Reference.Reference -> n Bool
 validateTypeReference = \case
   Reference.Builtin {} -> pure True
-  Reference.DerivedId (Reference.Id h _i) ->
+  Reference.Derived h _i ->
     getDeclStatus h >>= \case
       Nothing -> Validate.refute . Set.singleton $ D h
       Just DeclOk -> pure True

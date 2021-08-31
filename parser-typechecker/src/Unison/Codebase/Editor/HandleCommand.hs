@@ -26,12 +26,14 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Parser                  ( Ann )
+import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Server.CodebaseServer  as Server
 import qualified Unison.Term                   as Term
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -45,6 +47,9 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
+import qualified Unison.Parser.Ann as Ann
+import qualified Unison.WatchKind as WK
+import Web.Browser (openBrowser)
 
 typecheck
   :: (Monad m, Var v)
@@ -84,17 +89,22 @@ commandLine
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
+  -> Maybe Server.BaseUrl
   -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase rngGen =
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen =
  flip State.evalStateT 0 . Free.fold go
  where
   go :: forall x . Command IO i v x -> State.StateT Int IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
-    Eval m        -> lift $ m
-    Input         -> lift $ awaitInput
+    Eval m        -> lift m
+    UI            ->
+      case serverBaseUrl of
+        Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
+        Nothing -> lift (return ())
+    Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output
     ConfigLookup name ->
@@ -170,7 +180,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ evalUnisonFile ppe uf
     AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
     LoadReflog -> lift $ Codebase.getReflog codebase
-    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Parser.External t
+    CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
     HQNameQuery mayPath branch query ->
       lift $ Backend.hqNameQuery mayPath branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
@@ -180,8 +190,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
 
   watchCache (Reference.DerivedId h) = do
-    m1 <- Codebase.getWatch codebase UF.RegularWatch h
-    m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
+    m1 <- Codebase.getWatch codebase WK.RegularWatch h
+    m2 <- maybe (Codebase.getWatch codebase WK.TestWatch h) (pure . Just) m1
     pure $ Term.amap (const ()) <$> m2
   watchCache Reference.Builtin{} = pure Nothing
 
@@ -191,19 +201,15 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
         cache = if useCache then watchCache else Runtime.noCache
     r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
     when useCache $ case r of
-      Right tmr -> Codebase.putWatch codebase UF.RegularWatch (Term.hashClosedTerm tm)
-                                     (Term.amap (const Parser.External) tmr)
+      Right tmr -> Codebase.putWatch codebase WK.RegularWatch (Term.hashClosedTerm tm)
+                                     (Term.amap (const Ann.External) tmr)
       Left _ -> pure ()
-    pure $ r <&> Term.amap (const Parser.External)
+    pure $ r <&> Term.amap (const Ann.External)
 
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
-    evalFile <-
-      if Runtime.needsContainment rt
-        then Codebase.makeSelfContained' codeLookup unisonFile
-        else pure unisonFile
-    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt evalFile
+    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
     case r of
       Left e -> pure (Left e)
       Right rs@(_,map) -> do
@@ -211,7 +217,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
           if isHit then pure ()
           else case hash of
             Reference.DerivedId h -> do
-              let value' = Term.amap (const Parser.External) value
+              let value' = Term.amap (const Ann.External) value
               Codebase.putWatch codebase kind h value'
             Reference.Builtin{} -> pure ()
         pure $ Right rs

@@ -11,6 +11,11 @@ blocks, Queues, etc.
 
 
 ```unison
+eitherCk : (a -> Boolean) -> Either e a -> Boolean
+eitherCk f = cases
+  Left _ -> false
+  Right x -> f x
+
 testMvars: '{io2.IO}[Result]
 testMvars _ =
   test = 'let
@@ -28,11 +33,15 @@ testMvars _ =
     expectU "swap returns old contents" test2 test'''
 
     ma2 = !MVar.newEmpty
+    check "tryRead should succeed when not empty"
+      (eitherCk (x -> not (isNone x)) (tryRead.impl ma))
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 
     check "ma2 should be empty" (isEmpty ma2)
     check "tryTake should fail when empty" (isNone (tryTake ma2))
+    check "tryRead should fail when empty"
+      (eitherCk isNone (tryRead.impl ma2))
 
 
   runTest test
@@ -46,7 +55,8 @@ testMvars _ =
   
     ⍟ These new definitions are ok to `add`:
     
-      testMvars : '{io2.IO} [Result]
+      eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
+      testMvars : '{IO} [Result]
 
 ```
 ```ucm
@@ -54,7 +64,8 @@ testMvars _ =
 
   ⍟ I've added these definitions:
   
-    testMvars : '{io2.IO} [Result]
+    eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
+    testMvars : '{IO} [Result]
 
 .> io.test testMvars
 
@@ -65,12 +76,14 @@ testMvars _ =
   ◉ testMvars   ma should be empty
   ◉ testMvars   swap returns old contents
   ◉ testMvars   swap returns old contents
+  ◉ testMvars   tryRead should succeed when not empty
   ◉ testMvars   tryTake should succeed when not empty
   ◉ testMvars   tryTake should not succeed when empty
   ◉ testMvars   ma2 should be empty
   ◉ testMvars   tryTake should fail when empty
+  ◉ testMvars   tryRead should fail when empty
   
-  ✅ 9 test(s) passing
+  ✅ 11 test(s) passing
   
   Tip: Use view testMvars to view the source of a test.
 

@@ -3,26 +3,25 @@ module Unison.Codebase.GitError where
 import Unison.Prelude
 
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
-import U.Codebase.Sqlite.DbId (SchemaVersion)
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo, ReadRemoteNamespace)
 
 type CodebasePath = FilePath
 
-data GitError = NoGit
-              | UnrecognizableCacheDir Text CodebasePath
-              | UnrecognizableCheckoutDir Text CodebasePath
-              | CloneException RemoteRepo String
-              | PushException RemoteRepo String
-              | PushNoOp RemoteRepo
-              -- url commit Diff of what would change on merge with remote
-              | PushDestinationHasNewStuff RemoteRepo
-              | NoRemoteNamespaceWithHash RemoteRepo ShortBranchHash
-              | RemoteNamespaceHashAmbiguous RemoteRepo ShortBranchHash (Set Branch.Hash)
-              | CouldntLoadRootBranch RemoteRepo Branch.Hash
-              | CouldntParseRootBranch RemoteRepo String
-              | CouldntOpenCodebase RemoteRepo CodebasePath
-              | UnrecognizedSchemaVersion RemoteRepo CodebasePath SchemaVersion
-              | SomeOtherError String
-              | CouldntLoadSyncedBranch Branch.Hash
-              deriving Show
+data GitProtocolError
+  = NoGit
+  | UnrecognizableCacheDir ReadRepo CodebasePath
+  | UnrecognizableCheckoutDir ReadRepo CodebasePath
+  | CloneException ReadRepo String
+  | PushException WriteRepo String
+  | PushNoOp WriteRepo
+    -- url commit Diff of what would change on merge with remote
+  | PushDestinationHasNewStuff WriteRepo
+  | CleanupError SomeException
+  deriving Show
+
+data GitCodebaseError h
+  = NoRemoteNamespaceWithHash ReadRepo ShortBranchHash
+  | RemoteNamespaceHashAmbiguous ReadRepo ShortBranchHash (Set h)
+  | CouldntLoadRootBranch ReadRepo h
+  | CouldntLoadSyncedBranch ReadRemoteNamespace h
+  deriving Show

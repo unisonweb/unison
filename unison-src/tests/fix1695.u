@@ -1,5 +1,5 @@
 
-ability G a where
+structural ability G a where
   get : a
 
 f x y =

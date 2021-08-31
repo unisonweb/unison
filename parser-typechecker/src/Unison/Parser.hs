@@ -5,6 +5,20 @@
 module Unison.Parser where
 
 import Unison.Prelude
+    ( trace,
+      join,
+      foldl',
+      Text,
+      optional,
+      Alternative((<|>), many),
+      Set,
+      void,
+      when,
+      fromMaybe,
+      isJust,
+      listToMaybe,
+      encodeUtf8,
+      lastMay )
 
 import qualified Crypto.Random        as Random
 import           Data.Bytes.Put                 (runPutS)
@@ -29,15 +43,16 @@ import qualified Unison.Pattern      as Pattern
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
-import qualified Unison.UnisonFile    as UF
+import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes              (Bytes)
 import Unison.Name as Name
 import Unison.Names3 (Names)
-import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import Control.Monad.Reader.Class (asks)
 import qualified Unison.Hashable as Hashable
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
+import Unison.Parser.Ann (Ann(..))
 
 debug :: Bool
 debug = False
@@ -101,33 +116,14 @@ data Error v
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
+  -- MissingTypeModifier (type|ability) name
+  | MissingTypeModifier (L.Token String) (L.Token v)
   | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   | DuplicateTermNames [(v, [Ann])]
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
+  | FloatPattern Ann
   deriving (Show, Eq, Ord)
-
-data Ann
-  = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
-  | External
-  | Ann { start :: L.Pos, end :: L.Pos }
-  deriving (Eq, Ord, Show)
-
-startingLine :: Ann -> Maybe L.Line
-startingLine (Ann (L.line -> line) _) = Just line
-startingLine _ = Nothing
-
-instance Monoid Ann where
-  mempty = External
-  mappend = (<>)
-
-instance Semigroup Ann where
-  Ann s1 _ <> Ann _ e2 = Ann s1 e2
-  -- If we have a concrete location from a file, use it
-  External <> a = a
-  a <> External = a
-  Intrinsic <> a = a
-  a <> Intrinsic = a
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)
@@ -244,8 +240,7 @@ run' p s name env =
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-      env' = env { names = Names.suffixify (names env) }
-  in runParserT pTraced name (Input lex) env'
+  in runParserT pTraced name (Input lex) env
 
 run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""

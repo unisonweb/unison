@@ -1,0 +1,9 @@
+
+structural ability Abort where abort : x
+
+ex = {{
+
+```
+abort + 1
+```
+}}

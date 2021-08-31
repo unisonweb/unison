@@ -119,7 +119,7 @@ newtype Component = Component { members :: Set Reference }
 componentFor :: Reference -> CycleSize -> Component
 componentFor r n = case r of
   b@Builtin{} -> Component (Set.singleton b)
-  DerivedId (Id h _) -> Component . Set.fromList $ DerivedId . Id h <$> [0 .. n]
+  Derived h _ -> Component . Set.fromList $ Derived h <$> [0 .. n]
 
 componentFor' :: H.Hash -> [a] -> [(Reference, a)]
 componentFor' h as = [ (Derived h i, a) | (fromIntegral -> i, a) <- zip [0..] as]

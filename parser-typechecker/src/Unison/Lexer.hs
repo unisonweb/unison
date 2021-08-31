@@ -11,6 +11,9 @@ module Unison.Lexer (
   escapeChars,
   debugFileLex, debugLex', debugLex'', debugLex''',
   showEscapeChar, touches,
+  typeModifiers,
+  typeOrAbilityAlt,
+  typeModifiersAlt,
   -- todo: these probably don't belong here
   wordyIdChar, wordyIdStartChar,
   wordyId, symbolyId, wordyId0, symbolyId0)
@@ -36,13 +39,8 @@ import qualified Text.Megaparsec.Error as EP
 import qualified Text.Megaparsec.Char as CP
 import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char.Lexer as LP
+import Unison.Lexer.Pos (Pos (Pos), Column, Line, column, line)
 import qualified Unison.Util.Bytes as Bytes
-
-type Line = Int
-type Column = Int
-
-data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord)
-instance Show Pos where show (Pos line col) = "line " <> show line <> ", column " <> show col
 
 type BlockName = String
 type Layout = [(BlockName,Column)]
@@ -330,7 +328,9 @@ lexemes' eof = P.optional space >> do
     wordyKw kw = separated wordySep (lit kw)
     subsequentTypeName = P.lookAhead . P.optional $ do
       let lit' s = lit s <* sp
-      _ <- P.optional (lit' "unique") *> (wordyKw "type" <|> wordyKw "ability") <* sp
+      let modifier = typeModifiersAlt lit'
+      let typeOrAbility' = typeOrAbilityAlt wordyKw
+      _ <- modifier <* typeOrAbility' *> sp
       wordyId
     ignore _ _ _ = []
     body = join <$> P.many (sectionElem <* CP.space)
@@ -392,7 +392,7 @@ lexemes' eof = P.optional space >> do
           pure s
 
     typeLink = wrap "syntax.docEmbedTypeLink" $ do
-      _ <- (lit "type" <|> lit "ability") <* CP.space
+      _ <- typeOrAbilityAlt lit <* CP.space
       tok (symbolyId <|> wordyId) <* CP.space
 
     termLink = wrap "syntax.docEmbedTermLink" $
@@ -792,7 +792,9 @@ lexemes' eof = P.optional space >> do
       where
         ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
                              <|> close' (Just "else") ["then"] (lit "else")
-        typ = openKw1 wordySep "unique" <|> openTypeKw1 "type" <|> openTypeKw1 "ability"
+        modKw = typeModifiersAlt (openKw1 wordySep)
+        typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
+        typ = modKw <|> typeOrAbilityKw
 
         withKw = do
           [Token _ pos1 pos2] <- wordyKw "with"
@@ -807,12 +809,14 @@ lexemes' eof = P.optional space >> do
               let opens = [Token (Open "with") pos1 pos2]
               pure $ replicate n (Token Close pos1 pos2) ++ opens
 
-        -- In `unique type` and `unique ability`, only the `unique` opens a layout block,
+        -- In `structural/unique type` and `structural/unique ability`, 
+        -- only the `structural` or `unique` opens a layout block,
         -- and `ability` and `type` are just keywords.
         openTypeKw1 t = do
           b <- S.gets (topBlockName . layout)
-          case b of Just "unique" -> wordyKw t
-                    _             -> openKw1 wordySep t
+          case b of 
+            Just mod | Set.member mod typeModifiers -> wordyKw t
+            _                                       -> openKw1 wordySep t
 
         -- layout keyword which bumps the layout column by 1, rather than looking ahead
         -- to the next token to determine the layout column
@@ -827,7 +831,7 @@ lexemes' eof = P.optional space >> do
           env <- S.get
           case topBlockName (layout env) of
             -- '=' does not open a layout block if within a type declaration
-            Just t | t == "type" || t == "unique" -> pure [Token (Reserved "=") start end]
+            Just t | t == "type" || Set.member t typeModifiers -> pure [Token (Reserved "=") start end]
             Just _ -> S.put (env { opening = Just "=" }) >> pure [Token (Open "=") start end]
             _ -> err start LayoutError
 
@@ -908,12 +912,6 @@ notLayout t = case payload t of
   Open _ -> False
   _ -> True
 
-line :: Pos -> Line
-line (Pos line _) = line
-
-column :: Pos -> Column
-column (Pos _ column) = column
-
 -- `True` if the tokens are adjacent, with no space separating the two
 touches :: Token a -> Token b -> Bool
 touches (end -> t) (start -> t2) =
@@ -981,9 +979,8 @@ reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
 reorder = join . sortWith f . stanzas where
   f [] = 3 :: Int
   f (t0 : _) = case payload $ headToken t0 of
-    Open "type" -> 1
-    Open "unique" -> 1
-    Open "ability" -> 1
+    Open mod | Set.member mod typeModifiers -> 1
+    Open typOrA | Set.member typOrA typeOrAbility -> 1
     Reserved "use" -> 0
     _ -> 3 :: Int
 
@@ -1089,11 +1086,25 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "with", "unique",
+  "handle", "with", 
   "where", "use",
   "true", "false",
-  "type", "ability", "alias", "typeLink", "termLink",
-  "let", "namespace", "match", "cases"]
+  "alias", "typeLink", "termLink",
+  "let", "namespace", "match", "cases"] <> typeModifiers <> typeOrAbility
+
+typeOrAbility :: Set String
+typeOrAbility = Set.fromList ["type", "ability"]
+
+typeOrAbilityAlt :: Alternative f => (String -> f a) -> f a
+typeOrAbilityAlt f =
+  asum $ map f (toList typeOrAbility)
+
+typeModifiers :: Set String
+typeModifiers = Set.fromList ["structural", "unique"]
+
+typeModifiersAlt :: Alternative f => (String -> f a) -> f a
+typeModifiersAlt f =
+  asum $ map f (toList typeModifiers)
 
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
@@ -1178,12 +1189,3 @@ instance ShowToken (Token Lexeme) where
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)
   Token f start _ <*> Token a _ end = Token (f a) start end
-
-instance Semigroup Pos where (<>) = mappend
-
-instance Monoid Pos where
-  mempty = Pos 0 0
-  Pos line col `mappend` Pos line2 col2 =
-    if line2 == 0 then Pos line (col + col2)
-    else Pos (line + line2) col2
-

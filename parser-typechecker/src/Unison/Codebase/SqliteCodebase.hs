@@ -15,8 +15,9 @@ where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
+import Control.Exception.Safe (MonadCatch)
 import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT(ExceptT), MonadError (throwError), runExceptT)
+import Control.Monad.Except (ExceptT (ExceptT), MonadError (throwError), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
@@ -26,10 +27,10 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
-import qualified Data.Either.Combinators as Either
 import qualified Data.Char as Char
+import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>), ($>))
+import Data.Functor (void, ($>), (<&>))
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -47,12 +48,13 @@ import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
-import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
+import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
+import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
@@ -62,6 +64,7 @@ import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
 import qualified U.Util.Set as Set
+import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase1
@@ -69,23 +72,25 @@ import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch)
-import Unison.Codebase.Editor.RemoteRepo (RemoteNamespace, RemoteRepo (GitRepo), printRepo)
-import Unison.Codebase.GitError (GitError)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), printWriteRepo, writeToRead)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init as Codebase1
+import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
+import qualified Unison.Codebase.Type as C
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -98,14 +103,11 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
-import U.Util.Timing (time)
+import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
-import Control.Exception.Safe (MonadCatch)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -626,7 +628,7 @@ sqliteCodebase debugName root = do
           clearWatches :: MonadIO m => m ()
           clearWatches = runDB conn Ops.clearWatches
 
-          getReflog :: MonadIO m => m [Reflog.Entry]
+          getReflog :: MonadIO m => m [Reflog.Entry Branch.Hash]
           getReflog =
             liftIO $
               ( do
@@ -695,7 +697,7 @@ sqliteCodebase debugName root = do
                 >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
-                  [ Referent.Con' (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
+                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
                     | (h, pos, len, ct, cids) <- declReferents',
                       cid <- cids
                   ]
@@ -992,16 +994,16 @@ syncProgress = Sync.Progress need done warn allDone
 viewRemoteBranch' ::
   forall m.
   (MonadIO m, MonadCatch m) =>
-  RemoteNamespace ->
-  m (Either GitError (m (), Branch m, CodebasePath))
-viewRemoteBranch' (repo, sbh, path) = runExceptT do
+  ReadRemoteNamespace ->
+  m (Either C.GitError (m (), Branch m, CodebasePath))
+viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
   -- set up the cache dir
-  remotePath <- time "Git fetch" $ pullBranch repo
-  ifM
+  remotePath <- time "Git fetch" . withExceptT C.GitProtocolError $ pullBranch repo
+  ifM @(ExceptT C.GitError m)
     (codebaseExists remotePath)
     do
       lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath) >>= \case
-        Left sv -> ExceptT . pure . Left $ GitError.UnrecognizedSchemaVersion repo remotePath sv
+        Left sv -> ExceptT . pure . Left . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath sv
         Right (closeCodebase, codebase) -> do
           -- try to load the requested branch from it
           branch <- time "Git fetch (sbh)" $ case sbh of
@@ -1011,20 +1013,20 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT do
                 -- this NoRootBranch case should probably be an error too.
                 Left Codebase1.NoRootBranch -> pure Branch.empty
                 Left (Codebase1.CouldntLoadRootBranch h) ->
-                  throwError $ GitError.CouldntLoadRootBranch repo h
+                  throwError . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
                 Left (Codebase1.CouldntParseRootBranch s) ->
-                  throwError $ GitError.CouldntParseRootBranch repo s
+                  throwError . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
                 Right b -> pure b
             -- load from a specific `ShortBranchHash`
             Just sbh -> do
               branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
               case toList branchCompletions of
-                [] -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                [] -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
                 [h] ->
                   lift (Codebase1.getBranchForHash codebase h) >>= \case
                     Just b -> pure b
-                    Nothing -> throwError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                _ -> throwError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+                    Nothing -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+                _ -> throwError . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
           pure (closeCodebase, Branch.getAt' path branch, remotePath)
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.
     -- I'm thinking we should probably return an error value instead.
@@ -1036,9 +1038,9 @@ pushGitRootBranch ::
   (MonadIO m, MonadCatch m) =>
   Connection ->
   Branch m ->
-  RemoteRepo ->
-  m (Either GitError ())
-pushGitRootBranch srcConn branch repo = runExceptT @GitError do
+  WriteRepo ->
+  m (Either C.GitError ())
+pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
   -- create a savepoint on the staging codebase
@@ -1048,7 +1050,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
   -- if it fails, rollback to the savepoint and clean up.
 
   -- set up the cache dir
-  remotePath <- time "Git fetch" $ pullBranch repo
+  remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
   destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
 
   flip runReaderT destConn $ Q.savepoint "push"
@@ -1073,7 +1075,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
                 ++ "."
           Just False -> do
             Q.rollbackRelease "push"
-            throwError $ GitError.PushDestinationHasNewStuff repo
+            throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
 
           Just True -> do
             setRepoRoot newRootHash
@@ -1085,7 +1087,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
     shutdownConnection destConn
     void $ push remotePath repo
   where
-    repoString = Text.unpack $ printRepo repo
+    repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
@@ -1132,8 +1134,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: CodebasePath -> RemoteRepo -> IO Bool -- withIOError needs IO
-    push remotePath (GitRepo url gitbranch) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
+    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -1159,14 +1161,5 @@ pushGitRootBranch srcConn branch repo = runExceptT @GitError do
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
             -- Push our changes to the repo
-            case gitbranch of
-              Nothing -> gitIn remotePath ["push", "--quiet", url]
-              Just gitbranch ->
-                error $
-                  "Pushing to a specific branch isn't fully implemented or tested yet.\n"
-                    ++ "InputPatterns.parseUri was expected to have prevented you "
-                    ++ "from supplying the git treeish `"
-                    ++ Text.unpack gitbranch
-                    ++ "`!"
-                -- gitIn remotePath ["push", "--quiet", url, gitbranch]
+            gitIn remotePath ["push", "--quiet", url]
             pure True

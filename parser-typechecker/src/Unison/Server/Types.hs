@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -18,7 +19,7 @@ import Data.OpenApi
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
-  ( FromHttpApiData,
+  ( FromHttpApiData (..),
     Get,
     Header,
     Headers,
@@ -28,6 +29,7 @@ import Servant.API
 import Unison.Codebase.Editor.DisplayObject
   ( DisplayObject,
   )
+import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash (..),
   )
@@ -35,17 +37,11 @@ import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Prelude
-import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Server.Doc (Doc)
+import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
-import qualified Unison.Server.Syntax as Syntax
 import Unison.ShortHash (ShortHash)
-import Unison.Type (Type)
-import qualified Unison.TypePrinter as TypePrinter
-import Unison.Util.Pretty
-  ( Width (..),
-    render,
-  )
-import Unison.Var (Var)
+import Unison.Util.Pretty ( Width (..) )
 
 type APIHeaders x =
   Headers
@@ -57,6 +53,8 @@ type APIHeaders x =
 type APIGet c = Get '[JSON] (APIHeaders c)
 
 type HashQualifiedName = Text
+
+type NamespaceFQN = Text
 
 type Size = Int
 
@@ -71,15 +69,17 @@ deriving instance ToSchema Name
 deriving via Bool instance FromHttpApiData Suffixify
 deriving instance ToParamSchema Suffixify
 
-deriving via Text instance FromHttpApiData ShortBranchHash
+instance FromHttpApiData ShortBranchHash where
+  parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
+
 deriving instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
 deriving instance ToParamSchema Width
 
-instance ToJSON a => ToJSON (DisplayObject a) where
+instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
    toEncoding = genericToEncoding defaultOptions
-deriving instance ToSchema a => ToSchema (DisplayObject a)
+deriving instance (ToSchema b, ToSchema a) => ToSchema (DisplayObject b a)
 
 instance ToJSON ShortHash where
    toEncoding = genericToEncoding defaultOptions
@@ -117,15 +117,17 @@ data TermDefinition = TermDefinition
   { termNames :: [HashQualifiedName]
   , bestTermName :: HashQualifiedName
   , defnTermTag :: Maybe TermTag
-  , termDefinition :: DisplayObject SyntaxText
+  , termDefinition :: DisplayObject SyntaxText SyntaxText
   , signature :: SyntaxText
+  , termDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data TypeDefinition = TypeDefinition
   { typeNames :: [HashQualifiedName]
   , bestTypeName :: HashQualifiedName
   , defnTypeTag :: Maybe TypeTag
-  , typeDefinition :: DisplayObject SyntaxText
+  , typeDefinition :: DisplayObject SyntaxText SyntaxText
+  , typeDocs :: [(HashQualifiedName, UnisonHash, Doc)]
   } deriving (Eq, Show, Generic)
 
 data DefinitionDisplayResults =
@@ -196,9 +198,14 @@ instance ToJSON TypeTag where
 
 deriving instance ToSchema TypeTag
 
-formatType :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
-formatType ppe w =
-  fmap Syntax.convertElement . render w . TypePrinter.pretty0 ppe mempty (-1)
+instance ToJSON Doc where
+instance ToJSON Doc.SpecialForm where
+instance ToJSON Doc.Src where
+instance ToJSON a => ToJSON (Doc.Ref a) where
+instance ToSchema Doc where
+instance ToSchema Doc.SpecialForm where
+instance ToSchema Doc.Src where
+instance ToSchema a => ToSchema (Doc.Ref a) where
 
 munge :: Text -> LZ.ByteString
 munge = Text.encodeUtf8 . Text.fromStrict

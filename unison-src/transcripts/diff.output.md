@@ -65,8 +65,24 @@ fslkdjflskdjflksjdf = 663
   Name changes:
   
     Original                             Changes
-    4. fslkdjflskdjflksjdf#4kipsv2tm6 ┐  5. abc (added)
-    6. x                              ┘  7. fslkdjflskdjflksjdf (added)
+    4. x                              ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
+                                         8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
+
+.b2> diff.namespace .b1
+
+  Resolved name conflicts:
+  
+    1. ┌ fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+    2. └ fslkdjflskdjflksjdf#s5tu4n7rlb : Nat
+       ↓
+    3. fslkdjflskdjflksjdf#4kipsv2tm6 : Nat
+  
+  Name changes:
+  
+    Original                             Changes
+    4. x                              ┐  5. abc (added)
+    6. fslkdjflskdjflksjdf#4kipsv2tm6 ┘  7. fslkdjflskdjflksjdf (added)
                                          8. fslkdjflskdjflksjdf#4kipsv2tm6 (removed)
 
 ```
@@ -89,8 +105,8 @@ bdependent = b
 c = 3
 helloWorld = "Hello, world!"
 
-type A a = A Nat
-ability X a1 a2 where x : Nat
+structural type A a = A Nat
+structural ability X a1 a2 where x : Nat
 ```
 
 ```ucm
@@ -100,8 +116,8 @@ ability X a1 a2 where x : Nat
 
   ⍟ I've added these definitions:
   
-    type A a
-    ability X a1 a2
+    structural type A a
+    structural ability X a1 a2
     b          : Nat
     bdependent : Nat
     c          : Nat
@@ -139,8 +155,8 @@ Here's what we've done so far:
 
   Added definitions:
   
-    1.  type A a
-    2.  ability X a1 a2
+    1.  structural type A a
+    2.  structural ability X a1 a2
     3.  A.A           : Nat -> A a
     4.  X.x           : {X a1 a2} Nat
     5.  b             : Nat

@@ -12,9 +12,10 @@ import Unison.TermPrinter
 import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
 import qualified Unison.Builtin
-import Unison.Parser (Ann(..))
+import Unison.Parser.Ann (Ann(..))
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Util.ColorText as CT
 import Unison.Test.Common (t, tm)
 import qualified Unison.Test.Common as Common
@@ -189,7 +190,6 @@ test = scope "termprinter" $ tests
   , tc "match x with 1 -> foo"
   , tc "match x with +1 -> foo"
   , tc "match x with -1 -> foo"
-  , tc "match x with 3.14159 -> foo"
   , tcDiffRtt False "match x with\n\
                       \  true  -> foo\n\
                       \  false -> bar"

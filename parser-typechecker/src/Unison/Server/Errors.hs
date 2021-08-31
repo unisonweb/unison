@@ -9,7 +9,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import Servant (ServerError (..), err400, err404, err500)
+import Servant (ServerError (..), err400, err404, err500, err409)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -21,6 +21,7 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
+import qualified Unison.Codebase.Branch as Branch
 
 badHQN :: HashQualifiedName -> ServerError
 badHQN hqn = err400
@@ -36,6 +37,8 @@ backendError = \case
   Backend.BadRootBranch e -> rootBranchError e
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
+  Backend.CouldntLoadBranch h ->
+    couldntLoadBranch h
   Backend.CouldntExpandBranchHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
   Backend.AmbiguousBranchHash sbh hashes ->
@@ -64,8 +67,14 @@ noSuchNamespace :: HashQualifiedName -> ServerError
 noSuchNamespace namespace =
   err404 { errBody = "The namespace " <> munge namespace <> " does not exist." }
 
+couldntLoadBranch :: Branch.Hash -> ServerError
+couldntLoadBranch h =
+  err404 { errBody = "The namespace "
+    <> munge (Text.toStrict . Text.pack $ show h)
+    <> " exists but couldn't be loaded." }
+
 ambiguousNamespace :: HashQualifiedName -> Set HashQualifiedName -> ServerError
-ambiguousNamespace name namespaces = err400
+ambiguousNamespace name namespaces = err409
   { errBody = "Ambiguous namespace reference: "
               <> munge name
               <> ". It could refer to any of "

@@ -16,6 +16,7 @@ module Unison.Builtin
   ,intrinsicTermReferences
   ,intrinsicTypeReferences
   ,isBuiltinType
+  ,typeOf
   ,typeLookup
   ,termRefTypes
   ) where
@@ -32,7 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
@@ -178,6 +179,8 @@ builtinTypesSrc =
   , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
+  , B' "Ref" CT.Data
+  , B' "Scope" CT.Effect
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -247,6 +250,9 @@ termRefTypes = foldl' go mempty builtinsSrc where
     D r t -> Map.insert (R.Builtin r) t m
     _ -> m
 
+typeOf :: Var v => a -> (Type v -> a) -> R.Reference -> a
+typeOf a f r = maybe a f (Map.lookup r termRefTypes)
+
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
   [ B "Int.+" $ int --> int --> int
@@ -278,6 +284,8 @@ builtinsSrc =
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
   , B "Int.popCount" $ int --> nat
+  , B "Int.fromRepresentation" $ nat --> int
+  , B "Int.toRepresentation" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -308,6 +316,20 @@ builtinsSrc =
   , B "Nat.trailingZeros" $ nat --> nat
   , B "Nat.popCount" $ nat --> nat
 
+  , B "Bytes.decodeNat64be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat64le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16le" $ bytes --> optionalt (tuple [nat, bytes])
+
+  , B "Bytes.encodeNat64be" $ nat --> bytes
+  , B "Bytes.encodeNat64le" $ nat --> bytes
+  , B "Bytes.encodeNat32be" $ nat --> bytes
+  , B "Bytes.encodeNat32le" $ nat --> bytes
+  , B "Bytes.encodeNat16be" $ nat --> bytes
+  , B "Bytes.encodeNat16le" $ nat --> bytes
+
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
   , B "Float.*" $ float --> float --> float
@@ -317,6 +339,8 @@ builtinsSrc =
   , B "Float.<=" $ float --> float --> boolean
   , B "Float.>=" $ float --> float --> boolean
   , B "Float.==" $ float --> float --> boolean
+  , B "Float.fromRepresentation" $ nat --> float
+  , B "Float.toRepresentation" $ float --> nat
 
   -- Trigonmetric Functions
   , B "Float.acos" $ float --> float
@@ -440,6 +464,17 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "unsafe.coerceAbilities" $
+      forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
+        (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
+  , B "Scope.run" . forall2 "r" "g" $ \r g ->
+      (forall1 "s" $ \s -> unit --> Type.effect () [scopet s, g] r) --> Type.effect1 () g r
+  , B "Scope.ref" . forall2 "a" "s" $ \a s ->
+      a --> Type.effect1 () (scopet s) (reft (Type.effects () [scopet s]) a)
+  , B "Ref.read" . forall2 "a" "g" $ \a g ->
+      reft g a --> Type.effect1 () g a
+  , B "Ref.write" . forall2 "a" "g" $ \a g ->
+      reft g a --> a --> Type.effect1 () g unit
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -517,10 +552,12 @@ ioBuiltins =
   , ("IO.isSeekable.impl.v3", handle --> iof boolean)
   , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
   , ("IO.handlePosition.impl.v3", handle --> iof nat)
+  , ("IO.getEnv.impl.v1", text --> iof text)
   , ("IO.getBuffering.impl.v3", handle --> iof bmode)
   , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
+  , ("IO.getLine.impl.v1", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
@@ -549,6 +586,8 @@ ioBuiltins =
 
   , ("IO.delay.impl.v3", nat --> iof unit)
   , ("IO.kill.impl.v3", threadId --> iof unit)
+  , ("IO.ref", forall1 "a" $ \a ->
+        a --> io (reft (Type.effects () [Type.builtinIO ()]) a))
   , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake.impl.v3", tls --> iof unit)
@@ -621,6 +660,31 @@ forall1 name body =
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
 
+forall2
+  :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+forall2 na nb body = Type.foralls () [a,b] (body ta tb)
+  where
+  a = Var.named na
+  b = Var.named nb
+  ta = Type.var () a
+  tb = Type.var () b
+
+forall4
+  :: Var v
+  => Text -> Text -> Text -> Text
+  -> (Type v -> Type v -> Type v -> Type v -> Type v)
+  -> Type v
+forall4 na nb nc nd body = Type.foralls () [a,b,c,d] (body ta tb tc td)
+  where
+  a = Var.named na
+  b = Var.named nb
+  c = Var.named nc
+  d = Var.named nd
+  ta = Type.var () a
+  tb = Type.var () b
+  tc = Type.var () c
+  td = Type.var () d
+
 app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()
 
@@ -650,6 +714,12 @@ failure = DD.failureType ()
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r
+
+scopet :: Var v => Type v -> Type v
+scopet s = Type.scopeType () `app` s
+
+reft :: Var v => Type v -> Type v -> Type v
+reft s a = Type.refType () `app` s `app` a
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()

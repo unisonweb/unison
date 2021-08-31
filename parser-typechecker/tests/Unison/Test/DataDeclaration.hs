@@ -9,7 +9,7 @@ import           Text.RawString.QQ
 import qualified Unison.DataDeclaration as DD
 import           Unison.DataDeclaration  ( DataDeclaration(..), Decl, hashDecls )
 import qualified Unison.Hash            as Hash
-import           Unison.Parser           ( Ann )
+import Unison.Parser.Ann (Ann)
 import           Unison.Parsers          ( unsafeParseFile )
 import qualified Unison.Reference       as R
 import           Unison.Symbol           ( Symbol )
@@ -17,6 +17,7 @@ import qualified Unison.Test.Common     as Common
 import qualified Unison.Type            as Type
 import           Unison.UnisonFile       ( UnisonFile(..) )
 import qualified Unison.Var             as Var
+import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test = scope "datadeclaration" $
@@ -38,23 +39,23 @@ test = scope "datadeclaration" $
 file :: UnisonFile Symbol Ann
 file = flip unsafeParseFile Common.parsingEnv $ [r|
 
-type Bool = True | False
-type Bool' = False | True
+structural type Bool = True | False
+structural type Bool' = False | True
 
-type Option a = Some a | None
-type Option' b = Nothing | Just b
+structural type Option a = Some a | None
+structural type Option' b = Nothing | Just b
 
-type List a = Nil | Cons a (List a)
-type List' b = Prepend b (List' b) | Empty
-type SnocList a = Snil | Snoc (List a) a
+structural type List a = Nil | Cons a (List a)
+structural type List' b = Prepend b (List' b) | Empty
+structural type SnocList a = Snil | Snoc (List a) a
 
-type ATree a = Tree a (List (ATree a)) | Leaf (Option a)
+structural type ATree a = Tree a (List (ATree a)) | Leaf (Option a)
 
-type Ping a = Ping a (Pong a)
-type Pong a = Pnong | Pong (Ping a)
+structural type Ping a = Ping a (Pong a)
+structural type Pong a = Pnong | Pong (Ping a)
 
-type Long' a = Long' (Ling' a) | Lnong
-type Ling' a = Ling' a (Long' a)
+structural type Long' a = Long' (Ling' a) | Lnong
+structural type Ling' a = Ling' a (Long' a)
 |]
 
 

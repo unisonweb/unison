@@ -4,16 +4,19 @@ module Unison.Pattern where
 
 import Unison.Prelude
 
+import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
-import Data.Foldable as Foldable hiding (foldMap')
-import Unison.Reference (Reference)
-import qualified Unison.Hashable as H
-import qualified Unison.Type as Type
+import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.LabeledDependency as LD
+import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import qualified Unison.Hashable as H
 import Unison.LabeledDependency (LabeledDependency)
-
-type ConstructorId = Int
+import qualified Unison.LabeledDependency as LD
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Type as Type
 
 data Pattern loc
   = Unbound loc
@@ -24,10 +27,10 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !Reference !Int [Pattern loc]
+  | Constructor loc !Reference !ConstructorId [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
-  | EffectBind loc !Reference !Int [Pattern loc] (Pattern loc)
+  | EffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
     deriving (Ord,Generic,Functor,Foldable,Traversable)
@@ -36,6 +39,30 @@ data SeqOp = Cons
            | Snoc
            | Concat
            deriving (Eq, Show, Ord, Generic)
+
+updateDependencies :: Map Referent Referent -> Pattern loc -> Pattern loc
+updateDependencies tms p = case p of
+  Unbound{} -> p
+  Var{} -> p
+  Boolean{} -> p
+  Int{} -> p
+  Nat{} -> p
+  Float{} -> p
+  Text{} -> p
+  Char{} -> p
+  Constructor loc r cid ps -> case Map.lookup (Referent.Con r cid CT.Data) tms of
+    Just (Referent.Con r cid CT.Data) -> Constructor loc r cid (updateDependencies tms <$> ps)
+    _ -> Constructor loc r cid (updateDependencies tms <$> ps)
+  As loc p -> As loc (updateDependencies tms p)
+  EffectPure loc p -> EffectPure loc (updateDependencies tms p)
+  EffectBind loc r cid pats k -> case Map.lookup (Referent.Con r cid CT.Effect) tms of
+    Just (Referent.Con r cid CT.Effect) ->
+      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+    _ ->
+      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+  SequenceLiteral loc ps -> SequenceLiteral loc (updateDependencies tms <$> ps)
+  SequenceOp loc lhs op rhs ->
+    SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]

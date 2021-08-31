@@ -31,11 +31,11 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.GitError
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Names3                  ( Names, Names0 )
-import           Unison.Parser                  ( Ann )
+import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
@@ -61,6 +61,8 @@ import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Hash as H
+import qualified Unison.WatchKind as WK
+import Unison.Codebase.Type (GitError)
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -78,6 +80,8 @@ type TypecheckingResult v =
 data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
+
+  UI :: Command m i v ()
 
   HQNameQuery
     :: Maybe Path
@@ -161,10 +165,10 @@ data Command m i v a where
   Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
 
   -- Add a cached watch to the codebase
-  PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
+  PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
 
   -- Loads any cached watches of the given kind
-  LoadWatches :: UF.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
+  LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
   -- Any definitions in the head of the requested root that aren't in the local
@@ -178,13 +182,13 @@ data Command m i v a where
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
-    RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
+    ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -192,12 +196,12 @@ data Command m i v a where
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
   SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
@@ -244,7 +248,7 @@ type UseCache = Bool
 
 type EvalResult v =
   ( [(v, Term v ())]
-  , Map v (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  , Map v (Ann, WK.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
@@ -253,6 +257,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
+  UI                          -> "UI"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
