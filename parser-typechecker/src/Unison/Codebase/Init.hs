@@ -4,30 +4,29 @@
 module Unison.Codebase.Init
   ( Init (..),
     DebugName,
+    InitError (..),
+    CodebaseDir (..),
+    InitResult (..),
     Pretty,
     createCodebase,
     initCodebaseAndExit,
+    openOrCreateCodebase,
     openNewUcmCodebaseOrExit,
+    homeOrSpecifiedDir
   )
 where
 
-import Unison.Codebase.Init.Type
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.FileCodebase.Common as FCC
-import Unison.Parser (Ann)
+import qualified Unison.Codebase.FileCodebase as FCC
+import Unison.Parser.Ann (Ann(..))
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath, getHomeDirectory)
-import qualified Unison.Codebase.Init.CreateCodebaseError as E
-import Unison.Codebase.Init.CreateCodebaseError (Pretty)
-
-type DebugName = String
-
-type Pretty = P.Pretty P.ColorText
+import Unison.Codebase.Init.CreateCodebaseError 
 
 -- CodebaseDir is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
@@ -41,10 +40,6 @@ homeOrSpecifiedDir specifiedDir = do
 codebaseDirToCodebasePath :: CodebaseDir -> CodebasePath
 codebaseDirToCodebasePath (Home dir) = dir
 codebaseDirToCodebasePath (Specified dir) = dir
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseOther Pretty
 
 type DebugName = String
 
@@ -69,7 +64,6 @@ data InitResult m v a
   = OpenedCodebase CodebasePath (FinalizerAndCodebase m v a) 
   | CreatedCodebase CodebasePath (FinalizerAndCodebase m v a) 
   | Error CodebasePath InitError 
-
 
 openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseDir -> m (InitResult m v a)
 openOrCreateCodebase cbInit debugName codebaseDir = do
@@ -98,11 +92,11 @@ createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (Eit
 createCodebase cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
   createCodebase' cbInit debugName path <&> mapLeft \case
-    E.CreateCodebaseAlreadyExists ->
+    CreateCodebaseAlreadyExists ->
       P.wrap $
         "It looks like there's already a codebase in: "
           <> prettyDir
-    E.CreateCodebaseOther message ->
+    CreateCodebaseOther message ->
       P.wrap ("I ran into an error when creating the codebase in: " <> prettyDir)
         <> P.newline
         <> P.newline

@@ -320,11 +320,7 @@ executable tests
       Unison.Test.ClearCache
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
-<<<<<<< HEAD
-      Unison.Test.Codebase.Upgrade12
       Unison.Test.CodebaseInit
-=======
->>>>>>> trunk
       Unison.Test.ColorText
       Unison.Test.Common
       Unison.Test.DataDeclaration
