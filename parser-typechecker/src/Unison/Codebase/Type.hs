@@ -14,7 +14,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
-import Unison.Hash (Hash)
+-- import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -39,11 +39,11 @@ data Codebase m v a = Codebase
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
     putTerm :: Reference.Id -> Term v a -> Type v a -> m (),
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
-    getTermComponent :: Hash -> m (Maybe [Term v a]),
-    getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
-    getTermComponentLength :: Hash -> m (Reference.CycleSize),
-    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
-    getDeclComponentLength :: Hash -> m (Reference.CycleSize),
+    -- getTermComponent :: Hash -> m (Maybe [Term v a]),
+    -- getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
+    -- getTermComponentLength :: Hash -> m (Reference.CycleSize),
+    -- getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    -- getDeclComponentLength :: Hash -> m (Reference.CycleSize),
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),

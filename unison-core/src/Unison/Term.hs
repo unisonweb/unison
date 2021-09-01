@@ -984,20 +984,20 @@ etaReduceEtaVars tm = case tm of
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent :: forall v a. Var v
-                => Map Reference (Term v a)
-                -> Map Reference (v, Term v a)
+                => Map Reference.Id (Term v a)
+                -> Map Reference.Id (v, Term v a)
 unhashComponent m = let
   usedVars = foldMap (Set.fromList . ABT.allVars) m
-  m' :: Map Reference (v, Term v a)
+  m' :: Map Reference.Id (v, Term v a)
   m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
+    assignVar r t = (,t) <$> ABT.freshenS (Var.refIdNamed r)
+  unhash1 :: Term v a -> Term v a
   unhash1 = ABT.rebuildUp' go where
-    go e@(Ref' r) = case Map.lookup r m' of
+    go e@(Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
       Nothing -> e
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
   in second unhash1 <$> m'
-
 
 hashComponents
   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)

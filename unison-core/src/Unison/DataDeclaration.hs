@@ -287,16 +287,16 @@ updateDependencies typeUpdates decl = back $ dataDecl
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent
-  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
+  :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m
   = let
       usedVars = foldMap allVars' m
-      m' :: Map Reference (v, Decl v a)
+      m' :: Map Reference.Id (v, Decl v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refIdNamed r)
       unhash1  = ABT.rebuildUp' go
        where
-        go e@(Type.Ref' r) = case Map.lookup r m' of
+        go e@(Type.Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
           Nothing -> e
           Just (v,_)  -> Type.var (ABT.annotation e) v
         go e = e

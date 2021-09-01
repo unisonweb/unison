@@ -204,7 +204,7 @@ data Command m i v a where
   LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
-  LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
+  -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
   LoadTermComponentWithType :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
 
   -- todo: change this to take Reference and return DeclOrBuiltin
@@ -221,8 +221,8 @@ data Command m i v a where
   -- (why, again? because we can know from the Reference?)
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
-  IsDerivedTerm :: H.Hash -> Command m i v Bool
-  IsDerivedType :: H.Hash -> Command m i v Bool
+  -- IsDerivedTerm :: H.Hash -> Command m i v Bool
+  -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   -- Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
@@ -294,6 +294,7 @@ commandName = \case
   IsTerm{}                    -> "IsTerm"
   IsType{}                    -> "IsType"
   GetDependents{}             -> "GetDependents"
+  GetDependentsOfComponent{}  -> "GetDependentsOfComponent"
   GetTermsOfType{}            -> "GetTermsOfType"
   GetTermsMentioningType{}    -> "GetTermsMentioningType"
   Execute{}                   -> "Execute"

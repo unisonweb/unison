@@ -4,6 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor.Propagate (computeFrontier, propagateAndApply) where
 
@@ -23,6 +24,7 @@ import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
+import Unison.Hash (Hash)
 import qualified Unison.Name                   as Name
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
@@ -304,12 +306,9 @@ propagate rootNames patch b = case validatePatch patch of
                 (Nothing    , seen') -> collectEdits es seen' todo
                 (Just edits', seen') -> do
                   -- plan to update the dependents of this component too
-                  dependents <-
-                    fmap Set.unions
-                    . traverse (eval . GetDependents)
-                    . toList
-                    . Reference.members
-                    $ Reference.componentFor r
+                  dependents <- case r of
+                    Reference.Builtin{} -> eval $ GetDependents r
+                    Reference.Derived h _i -> eval $ GetDependentsOfComponent h
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
 
@@ -459,6 +458,7 @@ propagate rootNames patch b = case validatePatch patch of
     :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
   validatePatch p =
     (,) <$> R.toMap (Patch._termEdits p) <*> R.toMap (Patch._typeEdits p)
+
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.
   -- todo: Maybe this an others can be moved to HandleCommand, in the
@@ -470,27 +470,29 @@ propagate rootNames patch b = case validatePatch patch of
      . (Applicative m, Var v)
     => Reference
     -> F m i v (Map v (Reference, Term v _, Type v _))
-  unhashTermComponent ref = do
-    let component = Reference.members $ Reference.componentFor ref
-        termInfo
-          :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
-        termInfo termRef = do
-          tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (error $ "Missing type for term " <> show termRef)
-                       pure
-                       tpm
-          case termRef of
-            Reference.DerivedId id -> do
-              mtm <- eval $ LoadTerm id
-              tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
-              pure $ Just (termRef, (tm, tp))
-            Reference.Builtin{} -> pure Nothing
-        unhash m =
-          let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
-              m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
-          in  Map.fromList
-                [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
-    unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
+  unhashTermComponent r = case Reference.toId r of
+    Nothing -> pure mempty
+    Just r -> do
+      unhashed <- unhashTermComponent' (Reference.idToHash r)
+      pure $ fmap (over _1 Reference.DerivedId) unhashed
+
+  unhashTermComponent'
+    :: forall m v
+      . (Applicative m, Var v)
+    => Hash
+    -> F m i v (Map v (Reference.Id, Term v _, Type v _))
+  unhashTermComponent' h =
+    eval (LoadTermComponentWithType h) <&> foldMap \termsWithTypes ->
+      unhash $ Map.fromList (Reference.componentFor' h termsWithTypes)
+    where
+      unhash m =
+        -- this grabs the corresponding input map values (with types)
+        -- and arranges them with the newly unhashed terms.
+        let f (_oldTm, typ) (v, newTm) = (v, newTm, typ)
+            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+        in  Map.fromList
+              [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
+
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
@@ -524,22 +526,20 @@ propagate rootNames patch b = case validatePatch patch of
           >>= hush
 
 unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
-unhashTypeComponent ref = do
-  let
-    component = Reference.members $ Reference.componentFor ref
-    typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
-    typeInfo typeRef = case typeRef of
-      Reference.DerivedId id -> do
-        declm <- eval $ LoadType id
-        decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
-                       pure
-                       declm
-        pure $ Just (typeRef, decl)
-      Reference.Builtin{} -> pure Nothing
+unhashTypeComponent r = case Reference.toId r of
+  Nothing -> pure mempty
+  Just id -> do
+    unhashed <- unhashTypeComponent' (Reference.idToHash id)
+    pure $ over _1 Reference.DerivedId <$> unhashed
+
+unhashTypeComponent' :: Var v => Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
+unhashTypeComponent' h =
+  eval (LoadDeclComponent h) <&> foldMap \decls ->
+      unhash $ Map.fromList (Reference.componentFor' h decls)
+  where
     unhash =
       Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
       where reshuffle (r, (v, decl)) = (v, (r, decl))
-  unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms

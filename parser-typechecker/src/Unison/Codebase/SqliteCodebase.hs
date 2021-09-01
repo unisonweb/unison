@@ -740,11 +740,11 @@ sqliteCodebase debugName root = do
             (Cache.applyDefined declCache getTypeDeclaration)
             putTerm
             putTypeDeclaration
-            _getTermComponent
-            _getTermComponentWithTypes
-            _getTermComponentLength
-            _getDeclComponent
-            _getDeclComponentLength
+            -- _getTermComponent
+            -- _getTermComponentWithTypes
+            -- _getTermComponentLength
+            -- _getDeclComponent
+            -- _getDeclComponentLength
             (getRootBranch rootBranchCache)
             (putRootBranch rootBranchCache)
             (rootBranchUpdates rootBranchCache)

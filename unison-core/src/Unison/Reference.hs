@@ -29,6 +29,7 @@ module Unison.Reference
    toText,
    unsafeId,
    toShortHash,
+   idToHash,
    idToShortHash) where
 
 import Unison.Prelude
@@ -67,6 +68,9 @@ unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
 unsafeId (DerivedId x) = x
+
+idToHash :: Id -> H.Hash
+idToHash (Id h _) = h
 
 idToShortHash :: Id -> ShortHash
 idToShortHash = toShortHash . DerivedId
@@ -121,8 +125,8 @@ componentFor r n = case r of
   b@Builtin{} -> Component (Set.singleton b)
   Derived h _ -> Component . Set.fromList $ Derived h <$> [0 .. n]
 
-componentFor' :: H.Hash -> [a] -> [(Reference, a)]
-componentFor' h as = [ (Derived h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
+componentFor' :: H.Hash -> [a] -> [(Id, a)]
+componentFor' h as = [ (Id h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
 
 derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
