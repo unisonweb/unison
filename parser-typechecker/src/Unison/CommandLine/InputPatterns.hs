@@ -27,8 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -558,6 +561,13 @@ aliasMany = InputPattern "alias.many" ["copy"]
     _ -> Left (I.help aliasMany)
   )
 
+up :: InputPattern
+up = InputPattern "up" [] []
+    (P.wrapColumn2 [ (makeExample up [], "move current path up one level") ])
+    (\case
+      [] -> Right Input.UpI
+      _ -> Left (I.help up)
+    )
 
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
@@ -567,6 +577,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       , (makeExample cd [".cat.dog"],
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
+      [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
         pure . Input.SwitchBranchI $ p
@@ -1291,12 +1302,6 @@ debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
 
-debugBranchHistory :: InputPattern
-debugBranchHistory = InputPattern "debug.history" []
-  [(Optional, noCompletions)]
-  "Dump codebase history, compatible with bit-booster.com/graph.html"
-  (const $ Right Input.DebugBranchHistoryI)
-
 debugFileHashes :: InputPattern
 debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
@@ -1399,6 +1404,7 @@ validInputs =
   , createPullRequest
   , loadPullRequest
   , cd
+  , up
   , back
   , deleteBranch
   , renameBranch
@@ -1445,7 +1451,6 @@ validInputs =
   , mergeIOBuiltins
   , dependents, dependencies
   , debugNumberedArgs
-  , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
   , debugDumpNamespaceSimple

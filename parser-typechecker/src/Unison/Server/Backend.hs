@@ -32,6 +32,8 @@ import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
+import qualified Unison.Codebase.Causal (RawHash(RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
@@ -58,9 +60,11 @@ import Unison.Names3
     Names0,
   )
 import qualified Unison.Names3 as Names3
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -86,8 +90,11 @@ import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
-import qualified Unison.UnisonFile as UF
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
+import qualified Unison.WatchKind as WK
+import qualified Unison.PrettyPrintEnv.Util as PPE
+
+type SyntaxText = UST.SyntaxText' Reference
 
 data ShallowListEntry v a
   = ShallowTermEntry (TermEntry v a)
@@ -251,6 +258,35 @@ findShallow codebase path' = do
     Nothing -> pure []
     Just b  -> findShallowInBranch codebase b
 
+findShallowReadmeInBranchAndRender ::
+  Var v =>
+  Width ->
+  Rt.Runtime v ->
+  Codebase IO v Ann ->
+  Branch IO ->
+  Backend IO (Maybe Doc.Doc)
+findShallowReadmeInBranchAndRender width runtime codebase branch =
+  let ppe hqLen = PPE.fromNamesDecl hqLen printNames
+
+      printNames = getCurrentPrettyNames (Path.fromList []) branch
+
+      renderReadme ppe r = do
+        res <- renderDoc ppe width runtime codebase (Referent.toReference r)
+        pure $ case res of
+          (_, _, doc) : _ -> Just doc
+          _ -> Nothing
+
+      -- allow any of these capitalizations
+      toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme" ]
+      readmes :: Set Referent
+      readmes = foldMap lookup toCheck
+        where lookup seg = R.lookupRan seg rel
+              rel = Star3.d1 (Branch._terms (Branch.head branch))
+   in do
+        hqLen <- liftIO $ Codebase.hashLength codebase
+        join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
+
+
 termListEntry
   :: Monad m
   => Var v
@@ -315,7 +351,7 @@ formatTypeName :: PPE.PrettyPrintEnv -> Reference -> Syntax.SyntaxText
 formatTypeName ppe =
   fmap Syntax.convertElement . formatTypeName' ppe
 
-formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> UST.SyntaxText
+formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> SyntaxText
 formatTypeName' ppe r =
   Pretty.renderUnbroken .
   NP.styleHashQualified id $
@@ -326,7 +362,7 @@ termEntryToNamedTerm
 termEntryToNamedTerm ppe typeWidth (TermEntry r name mayType tag) = NamedTerm
   { termName = HQ'.toText name
   , termHash = Referent.toText r
-  , termType = formatType ppe (mayDefault typeWidth) <$> mayType
+  , termType = formatType ppe (mayDefaultWidth typeWidth) <$> mayType
   , termTag  = tag
   }
 
@@ -556,7 +592,7 @@ expandShortBranchHash codebase hash = do
     _ ->
       throwError . AmbiguousBranchHash hash $ Set.map (SBH.fromHash len) hashSet
 
-formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> UST.SyntaxText
+formatType' :: Var v => PPE.PrettyPrintEnv -> Width -> Type v a -> SyntaxText
 formatType' ppe w =
   Pretty.render w . TypePrinter.pretty0 ppe mempty (-1)
 
@@ -603,14 +639,14 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       parseNames =
         getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
       ppe   = PPE.fromNamesDecl hqLength printNames
-      width = mayDefault renderWidth
+      width = mayDefaultWidth renderWidth
       isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
         rel = Names.terms $ currentNames parseNames
         f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
-              $ R.lookupRan (Referent.Ref' k) rel
+              $ R.lookupRan (Referent.Ref k) rel
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
@@ -631,34 +667,6 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           _ -> pure []
         pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
 
-      renderDoc :: Reference -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
-      renderDoc r = do
-        let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
-        let hash = Reference.toText r
-        map (name,hash,) . pure <$>
-          let tm = Term.ref () r
-          in Doc.renderDoc @v ppe terms typeOf eval decls tm
-        where
-          terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
-          terms (Reference.DerivedId r) =
-            fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
-
-          typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
-          eval (Term.amap (const mempty) -> tm) = do
-            let ppes = PPE.suffixifiedPPE ppe
-            let codeLookup = Codebase.toCodeLookup codebase
-            let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
-            r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
-            lift $ case r of
-              Just tmr -> Codebase.putWatch codebase UF.RegularWatch
-                             (Term.hashClosedTerm tm)
-                             (Term.amap (const mempty) tmr)
-              Nothing -> pure ()
-            pure $ r <&> Term.amap (const mempty)
-
-          decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
-          decls _ = pure Nothing
-
       -- rs0 can be empty or the term fetched, so when viewing a doc term
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
@@ -668,7 +676,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> traverse renderDoc docs
+        join <$> traverse (renderDoc ppe width rt codebase) docs
 
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
@@ -712,6 +720,46 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                     renderedDisplayTypes
                                     renderedMisses
 
+renderDoc ::
+  forall v.
+  Var v =>
+  PPE.PrettyPrintEnvDecl ->
+  Width ->
+  Rt.Runtime v ->
+  Codebase IO v Ann ->
+  Reference ->
+  Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+renderDoc ppe width rt codebase r = do
+  let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+  let hash = Reference.toText r
+  map (name,hash,) . pure
+    <$> let tm = Term.ref () r
+         in Doc.renderDoc @v ppe terms typeOf eval decls tm
+  where
+    terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
+    terms (Reference.DerivedId r) =
+      fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+
+    typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+    eval (Term.amap (const mempty) -> tm) = do
+      let ppes = PPE.suffixifiedPPE ppe
+      let codeLookup = Codebase.toCodeLookup codebase
+      let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
+      lift $ case r of
+        Just tmr ->
+          Codebase.putWatch
+            codebase
+            WK.RegularWatch
+            (Term.hashClosedTerm tm)
+            (Term.amap (const mempty) tmr)
+        Nothing -> pure ()
+      pure $ r <&> Term.amap (const mempty)
+
+    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+    decls _ = pure Nothing
+
+
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
@@ -730,13 +778,24 @@ bestNameForType ppe width =
     . TypePrinter.pretty0 @v ppe mempty (-1)
     . Type.ref ()
 
-resolveBranchHash
-  :: Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
+resolveBranchHash ::
+  Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
 resolveBranchHash h codebase = case h of
-  Nothing    -> getRootBranch codebase
+  Nothing -> getRootBranch codebase
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     mayBranch ?? NoBranchForHash bhash
+
+
+resolveRootBranchHash ::
+  Monad m => Maybe ShortBranchHash -> Codebase m v Ann -> Backend m (Branch m)
+resolveRootBranchHash mayRoot codebase = case mayRoot of
+  Nothing ->
+    getRootBranch codebase
+  Just sbh -> do
+    h <- expandShortBranchHash codebase sbh
+    resolveBranchHash (Just h) codebase
+
 
 definitionsBySuffixes
   :: forall m v
@@ -800,7 +859,7 @@ termsToSyntax
   -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject (Type v a) (Term v a))
-  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
+  -> Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 termsToSyntax suff width ppe0 terms =
   Map.fromList . map go . Map.toList $ Map.mapKeys
     (first (PPE.termName ppeDecl . Referent.Ref) . dupe)
@@ -825,7 +884,7 @@ typesToSyntax
   -> Width
   -> PPE.PrettyPrintEnvDecl
   -> Map Reference.Reference (DisplayObject () (DD.Decl v a))
-  -> Map Reference.Reference (DisplayObject UST.SyntaxText UST.SyntaxText)
+  -> Map Reference.Reference (DisplayObject SyntaxText SyntaxText)
 typesToSyntax suff width ppe0 types =
   Map.fromList $ map go . Map.toList $ Map.mapKeys
     (first (PPE.typeName ppeDecl) . dupe)

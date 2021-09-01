@@ -269,7 +269,7 @@ toHTML cssPrefix avail p = CT.toHTML cssPrefix (render avail p)
 toPlainUnbroken :: Pretty ColorText -> String
 toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 
-syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
+syntaxToColor :: Pretty (ST.SyntaxText' r) -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
 -- set the syntax, overriding any present syntax

@@ -33,7 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )

@@ -24,12 +24,13 @@ import Servant.Docs
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
 import qualified Unison.HashQualified as HQ
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors

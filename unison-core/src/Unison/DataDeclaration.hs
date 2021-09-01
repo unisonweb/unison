@@ -6,42 +6,66 @@
 {-# Language PatternSynonyms #-}
 {-# Language ViewPatterns #-}
 
-module Unison.DataDeclaration where
+module Unison.DataDeclaration
+  ( DataDeclaration (..),
+    EffectDeclaration (..),
+    Decl,
+    DeclOrBuiltin(..),
+    Modifier(..),
+    allVars,
+    asDataDecl,
+    bindReferences,
+    constructorNames,
+    constructors,
+    constructorType,
+    constructorTypes,
+    constructorVars,
+    declConstructorReferents,
+    declDependencies,
+    declFields,
+    dependencies,
+    generateRecordAccessors,
+    hashDecls,
+    unhashComponent,
+    mkDataDecl',
+    mkEffectDecl',
+    typeOfConstructor,
+    withEffectDeclM,
+    amap,
+    updateDependencies,
+  )
+where
 
 import Unison.Prelude
 
-import Control.Lens (_3, over)
+import Control.Lens (over, _3)
 import Control.Monad.State (evalState)
-
-import Data.Bifunctor (first, second, bimap)
-import qualified Unison.Util.Relation as Rel
-import           Unison.Hash                    ( Hash )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import           Prelude                 hiding ( cycle )
-import           Prelude.Extras                 ( Show1 )
-import qualified Unison.ABT                    as ABT
-import           Unison.Hashable                ( Accumulate
-                                                , Hashable1
-                                                )
-import qualified Unison.Hashable               as Hashable
-import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Reference.Util         as Reference.Util
-import qualified Unison.Referent               as Referent
-import qualified Unison.Term                   as Term
-import           Unison.Term                    ( Term )
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import           Unison.Names3                 (Names0)
-import qualified Unison.Names3                 as Names
-import qualified Unison.Pattern                as Pattern
+import Data.Bifunctor (bimap, first, second)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Prelude.Extras (Show1)
+import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
-
-type ConstructorId = Term.ConstructorId
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hash (Hash)
+import Unison.Hashable (Hashable1)
+import qualified Unison.Hashable as Hashable
+import qualified Unison.Name as Name
+import qualified Unison.Names.ResolutionResult as Names
+import qualified Unison.Pattern as Pattern
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Reference.Util as Reference.Util
+import qualified Unison.Referent as Referent
+import qualified Unison.Referent' as Referent'
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+import qualified Unison.Var.RefNamed as Var
+import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
@@ -74,24 +98,11 @@ newtype EffectDeclaration v a = EffectDeclaration {
   toDataDecl :: DataDeclaration v a
 } deriving (Eq,Show,Functor)
 
-withEffectDecl
-  :: (DataDeclaration v a -> DataDeclaration v' a')
-  -> (EffectDeclaration v a -> EffectDeclaration v' a')
-withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
-
 withEffectDeclM :: Functor f
                 => (DataDeclaration v a -> f (DataDeclaration v' a'))
                 -> EffectDeclaration v a
                 -> f (EffectDeclaration v' a')
 withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
-
-generateConstructorRefs
-  :: (Reference -> ConstructorId -> Reference)
-  -> Reference.Id
-  -> Int
-  -> [(ConstructorId, Reference)]
-generateConstructorRefs hashCtor rid n =
-  (\i -> (i, hashCtor (Reference.DerivedId rid) i)) <$> [0 .. n]
 
 generateRecordAccessors
   :: (Semigroup a, Var v)
@@ -148,37 +159,10 @@ generateRecordAccessors fields typename typ =
                 else Term.var ann v
               | ((v, _), j) <- fields `zip` [0..]]
 
--- Returns references to the constructors,
--- along with the terms for those references and their types.
-constructorTerms
-  :: (Reference -> ConstructorId -> Reference)
-  -> (a -> Reference -> ConstructorId -> Term v a)
-  -> Reference.Id
-  -> DataDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-constructorTerms hashCtor f rid dd =
-  (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
-    (constructors' dd)
-    (generateConstructorRefs hashCtor rid (length $ constructors dd))
-
-dataConstructorTerms
-  :: Ord v
-  => Reference.Id
-  -> DataDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
-
-effectConstructorTerms
-  :: Ord v
-  => Reference.Id
-  -> EffectDeclaration v a
-  -> [(Reference.Id, Term v a, Type v a)]
-effectConstructorTerms rid ed =
-  constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
-
 constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
+-- what is declFields? —AI
 declFields :: Var v => Decl v a -> Either [Int] [Int]
 declFields = bimap cf cf . first toDataDecl
   where
@@ -199,12 +183,15 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
+-- This function is unsound, since the `rid` and the `decl` have to match.
+-- It should probably be hashed directly from the Decl, once we have a
+-- reliable way of doing that. —AI
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
-  [ Referent.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
+  [ Referent'.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
-constructorIds :: DataDeclaration v a -> [Int]
+constructorIds :: DataDeclaration v a -> [ConstructorId]
 constructorIds dd = [0 .. length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
@@ -218,63 +205,27 @@ allVars (DataDeclaration _ _ bound ctors) = Set.unions $
 allVars' :: Ord v => Decl v a -> Set v
 allVars' = allVars . either toDataDecl id
 
-bindNames :: Var v
+bindReferences :: Var v
           => Set v
-          -> Names0
+          -> Map Name.Name Reference
           -> DataDeclaration v a
           -> Names.ResolutionResult v a (DataDeclaration v a)
-bindNames keepFree names (DataDeclaration m a bound constructors) = do
+bindReferences keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindNames keepFree names ty
+    (a,v,) <$> Type.bindReferences keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
 dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =
   Set.unions (Type.dependencies <$> constructorTypes dd)
 
-third :: (a -> b) -> (x,y,a) -> (x,y,b)
-third f (x,y,a) = (x, y, f a)
-
--- implementation of dataDeclToNames and effectDeclToNames
-toNames0 :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> Names0
-toNames0 ct typeSymbol (Reference.DerivedId -> r) dd =
-  -- constructor names
-  foldMap names (constructorVars dd `zip` [0 ..])
-  -- name of the type itself
-  <> Names.names0 mempty (Rel.singleton (Name.fromVar typeSymbol) r)
-  where
-  names (ctor, i) =
-    Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
-
-dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names0
-dataDeclToNames = toNames0 CT.Data
-
-effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration v a -> Names0
-effectDeclToNames typeSymbol r ed = toNames0 CT.Effect typeSymbol r $ toDataDecl ed
-
-dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration v a)) -> Names0
-dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
-
-effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration v a)) -> Names0
-effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
-
 mkEffectDecl'
   :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration v ()
-mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
-
 mkDataDecl'
   :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration v a
 mkDataDecl' = DataDeclaration
-
-mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration v ()
-mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
-
-constructorArities :: DataDeclaration v a -> [Int]
-constructorArities (DataDeclaration _ _a _bound ctors) =
-  Type.arity . (\(_,_,t) -> t) <$> ctors
 
 data F a
   = Type (Type.F a)
@@ -314,24 +265,6 @@ instance Hashable.Hashable Modifier where
   type Foo a f = Foo Int (Bar a)
   type Bar a f = Bar Long (Foo a)
 -}
-
-hash :: (Eq v, Var v, Ord h, Accumulate h)
-     => [(v, ABT.Term F v ())] -> [(v, h)]
-hash recursiveDecls = zip (fst <$> recursiveDecls) hashes where
-  hashes = ABT.hash <$> toLetRec recursiveDecls
-
-toLetRec :: Ord v => [(v, ABT.Term F v ())] -> [ABT.Term F v ()]
-toLetRec decls = do1 <$> vs
- where
-  (vs, decls') = unzip decls
-  -- we duplicate this letrec once (`do1`)
-  -- for each of the mutually recursive types
-  do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
-
-unsafeUnwrapType :: (Var v) => ABT.Term F v a -> Type v a
-unsafeUnwrapType typ = ABT.transform f typ
-  where f (Type t) = t
-        f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
 toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
@@ -404,12 +337,11 @@ hashDecls decls = do
       varToRef' = second Reference.DerivedId <$> varToRef
       decls'   = bindTypes <$> decls
       bindTypes dd = dd { constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd }
-      typeNames0 = Names.names0 mempty
-                 $ Rel.fromList (first Name.fromVar <$> varToRef')
+      typeReferences = Map.fromList (first Name.fromVar <$> varToRef')
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
       hash3 (_, _, typ) = ABT.hash typ :: Hash
-  decls' <- fmap sortCtors <$> traverse (bindNames mempty typeNames0) decls'
+  decls' <- fmap sortCtors <$> traverse (bindReferences mempty typeReferences) decls'
   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 amap :: (a -> a2) -> Decl v a -> Decl v a2

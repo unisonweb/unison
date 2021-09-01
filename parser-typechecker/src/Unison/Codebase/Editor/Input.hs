@@ -9,11 +9,13 @@ module Unison.Codebase.Editor.Input
 
 import Unison.Prelude
 
-import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -59,6 +61,7 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI Path'
+    | UpI
     | PopBranchI
     -- > names foo
     -- > names foo.bar
@@ -133,7 +136,6 @@ data Input
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
   | DebugNumberedArgsI
-  | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
   | DebugDumpNamespaceSimpleI

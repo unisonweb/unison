@@ -12,10 +12,11 @@ import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
 import           Unison.ShortHash     (ShortHash)
 import qualified Unison.ShortHash     as SH
-import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.SyntaxText as S
 import           Unison.Util.Pretty   (Pretty)
 import qualified Unison.Util.Pretty   as PP
+
+type SyntaxText = S.SyntaxText' Reference
 
 prettyName :: IsString s => Name -> Pretty s
 prettyName = PP.text . Name.toText

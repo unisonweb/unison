@@ -14,12 +14,13 @@ import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser (Ann(..))
+import Unison.Parser.Ann (Ann(..))
 import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
-import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.Codebase.CodeLookup.Util as CL
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.DataDeclaration.ConstructorId as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result

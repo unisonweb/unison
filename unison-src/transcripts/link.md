@@ -48,6 +48,7 @@ We can look at the links we have:
 
 ```ucm
 .> links coolFunction
+.> links coolFunction License
 ```
 
 We can link the same metadata simultaneously to multiple definitions:
@@ -67,4 +68,6 @@ myLibrary.h x = x + 3
 .myLibrary> links g
 .myLibrary> links h
 .myLibrary> history
+
+.> unlink coolFunction.doc coolFunction
 ```

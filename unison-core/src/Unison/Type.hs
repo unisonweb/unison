@@ -26,7 +26,7 @@ import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
-import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
 
@@ -61,18 +61,17 @@ bindExternal
   :: ABT.Var v => [(v, Reference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [ (v, ref () r) | (v, r) <- bs ]
 
-bindNames
+bindReferences
   :: Var v
   => Set v
-  -> Names.Names0
+  -> Map Name.Name Reference
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
-bindNames keepFree ns0 t = let
-  ns = Names.Names ns0 mempty
+bindReferences keepFree ns t = let
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
-  ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
-                  else Left (pure (Names.TypeResolutionFailure v a rs))
+  rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
+  ok (v, _a, Just r) = pure (v, r)
+  ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a mempty))
   in List.validate ok rs <&> \es -> bindExternal es t
 
 newtype Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
@@ -186,9 +185,6 @@ isArrow _ = False
 
 -- some smart constructors
 
---vectorOf :: Ord v => a -> Type v a -> Type v
---vectorOf a t = vector `app` t
-
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
@@ -203,9 +199,6 @@ typeLink a = ABT.tm' a . Ref $ typeLinkRef
 
 derivedBase32Hex :: Ord v => Reference -> a -> Type v a
 derivedBase32Hex r a = ref a r
-
--- derivedBase58' :: Text -> Reference
--- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
 intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
 intRef = Reference.Builtin "Int"

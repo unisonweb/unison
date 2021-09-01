@@ -11,6 +11,7 @@ import           Unison.Symbol    ( Symbol )
 import qualified Unison.Term      as Term
 import qualified Unison.Type      as Type
 import qualified Unison.Var       as Var
+import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test = scope "term" $ tests

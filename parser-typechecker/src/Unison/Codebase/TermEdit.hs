@@ -3,9 +3,6 @@ module Unison.Codebase.TermEdit where
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 import Unison.Reference (Reference)
-import qualified Unison.Typechecker as Typechecker
-import Unison.Type (Type)
-import Unison.Var (Var)
 
 data TermEdit = Replace Reference Typing | Deprecate
   deriving (Eq, Ord, Show)
@@ -43,9 +40,3 @@ isSame :: TermEdit -> Bool
 isSame e = case e of
   Replace _ Same -> True
   _              -> False
-
-typing :: Var v => Type v loc -> Type v loc -> Typing
-typing newType oldType | Typechecker.isEqual newType oldType = Same
-                       | Typechecker.isSubtype newType oldType = Subtype
-                       | otherwise = Different
-

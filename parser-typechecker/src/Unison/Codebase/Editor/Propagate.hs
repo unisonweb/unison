@@ -16,6 +16,7 @@ import qualified Data.Set                      as Set
 import           Unison.Codebase.Branch         ( Branch0(..) )
 import           Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import           Unison.Codebase.Editor.Command
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Patch          ( Patch(..) )
@@ -25,7 +26,7 @@ import qualified Unison.DataDeclaration        as Decl
 import qualified Unison.Name                   as Name
 import           Unison.Names3                  ( Names0 )
 import qualified Unison.Names2                 as Names
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
@@ -43,6 +44,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Codebase.TermEdit       ( TermEdit(..) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit(..) )
 import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF

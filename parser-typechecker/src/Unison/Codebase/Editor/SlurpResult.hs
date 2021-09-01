@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
-import Unison.Parser ( Ann )
+import Unison.Parser.Ann ( Ann )
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -23,6 +23,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
