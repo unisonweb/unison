@@ -977,6 +977,19 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
         $ TCon eitherReference 1 [nat])
   ]
 
+outIoFailInt :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+outIoFailInt stack1 stack2 stack3 fail int result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ TCon eitherReference 0 [fail])
+  , (1, ([UN],)
+        . TAbs stack3
+        . TLetD int BX (TCon Ty.intRef 0 [stack3])
+        $ TCon eitherReference 1 [int])
+  ]
+
 outIoFailBox :: forall v. Var v => v -> v -> v -> v -> ANormal v
 outIoFailBox stack1 stack2 fail result =
   TMatch result . MatchSum  $ mapFromList
@@ -1060,6 +1073,12 @@ unitToEFNat :: ForeignOp
 unitToEFNat = inUnit unit result
             $ outIoFailNat stack1 stack2 stack3 fail nat result
   where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
+
+-- () -> Either Failure Int
+unitToEFInt :: ForeignOp
+unitToEFInt = inUnit unit result
+            $ outIoFailInt stack1 stack2 stack3 fail int result
+  where (unit, stack1, stack2, stack3, fail, int, result) = fresh7
 
 -- () -> Either Failure a
 unitToEFBox :: ForeignOp
@@ -1513,8 +1532,12 @@ declareForeigns = do
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
-    $ mkForeignIOF $ \() -> getPOSIXTime
+    $ mkForeignIOF $ \() -> getPOSIXTime 
+
+  declareForeign "IO.systemTime.impl.v4" unitToEFInt
+    $ mkForeignIOF $ \() -> fmap (1e6 *) getPOSIXTime 
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
