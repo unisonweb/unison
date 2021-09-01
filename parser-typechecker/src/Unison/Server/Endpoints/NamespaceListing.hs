@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Endpoints.ListNamespace where
+module Unison.Server.Endpoints.NamespaceListing where
 
 import Control.Error (runExceptT)
 import Data.Aeson
@@ -29,12 +29,10 @@ import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Hash as Hash
 import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -56,13 +54,14 @@ import Unison.Server.Types
     UnisonHash,
     UnisonName,
     addHeaders,
+    branchToUnisonHash,
   )
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
 import Control.Error.Util ((??))
 
 
-type NamespaceAPI =
+type NamespaceListingAPI =
   "list" :> QueryParam "rootBranch" ShortBranchHash
          :> QueryParam "relativeTo" NamespaceFQN
          :> QueryParam "namespace" NamespaceFQN
@@ -157,7 +156,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowPatchEntry name ->
     PatchObject . NamedPatch $ NameSegment.toText name
 
-serveNamespace
+serve
   :: Var v
   => Handler ()
   -> Codebase IO v Ann
@@ -165,7 +164,7 @@ serveNamespace
   -> Maybe NamespaceFQN
   -> Maybe NamespaceFQN
   -> Handler (APIHeaders NamespaceListing)
-serveNamespace tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
+serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
   let
     -- Various helpers
     errFromEither f = either (throwError . f) pure
@@ -222,7 +221,7 @@ serveNamespace tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
 
       let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
       let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
-      let listingHash = ("#" <>) . Hash.base32Hex . Causal.unRawHash $ Branch.headHash listingBranch
+      let listingHash = branchToUnisonHash listingBranch
       listingEntries <- findShallow listingBranch
 
       makeNamespaceListing shallowPPE listingFQN listingHash listingEntries
