@@ -483,7 +483,7 @@ propagate rootNames patch b = case validatePatch patch of
     -> F m i v (Map v (Reference.Id, Term v _, Type v _))
   unhashTermComponent' h =
     eval (LoadTermComponentWithType h) <&> foldMap \termsWithTypes ->
-      unhash $ Map.fromList (Reference.componentFor' h termsWithTypes)
+      unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
     where
       unhash m =
         -- this grabs the corresponding input map values (with types)
@@ -535,7 +535,7 @@ unhashTypeComponent r = case Reference.toId r of
 unhashTypeComponent' :: Var v => Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
 unhashTypeComponent' h =
   eval (LoadDeclComponent h) <&> foldMap \decls ->
-      unhash $ Map.fromList (Reference.componentFor' h decls)
+      unhash $ Map.fromList (Reference.componentFor h decls)
   where
     unhash =
       Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent

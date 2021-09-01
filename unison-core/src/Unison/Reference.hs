@@ -12,11 +12,9 @@ module Unison.Reference
    Pos,
    CycleSize, Size,
    derivedBase32Hex,
-   Component, members,
    components,
    groupByComponent,
    componentFor,
-   componentFor',
    unsafeFromText,
    idFromText,
    isPrefixOf,
@@ -35,7 +33,6 @@ module Unison.Reference
 import Unison.Prelude
 
 import qualified Data.Map        as Map
-import qualified Data.Set        as Set
 import qualified Data.Text       as Text
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
@@ -117,16 +114,9 @@ type Pos = Word64
 type Size = CycleSize
 type CycleSize = Word64
 
-newtype Component = Component { members :: Set Reference }
-
--- Gives the component (dependency cycle) that the reference is a part of
-componentFor :: Reference -> CycleSize -> Component
-componentFor r n = case r of
-  b@Builtin{} -> Component (Set.singleton b)
-  Derived h _ -> Component . Set.fromList $ Derived h <$> [0 .. n]
-
-componentFor' :: H.Hash -> [a] -> [(Id, a)]
-componentFor' h as = [ (Id h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
+-- enumerate the `a`s and associates them with corresponding `Reference.Id`s
+componentFor :: H.Hash -> [a] -> [(Id, a)]
+componentFor h as = [ (Id h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
 
 derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
