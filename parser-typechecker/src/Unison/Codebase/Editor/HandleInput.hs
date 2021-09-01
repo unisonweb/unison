@@ -453,6 +453,7 @@ loop = do
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
           SwitchBranchI{} -> wat
+          UpI{} -> wat
           PopBranchI{} -> wat
           NamesI{} -> wat
           TodoI{} -> wat
@@ -877,6 +878,10 @@ loop = do
         currentPathStack %= Nel.cons path
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+
+      UpI -> use currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
+        Nothing -> pure ()
+        Just (path,_) -> currentPathStack %= Nel.cons (Path.Absolute path)
 
       PopBranchI -> use (currentPathStack . to Nel.uncons) >>= \case
         (_, Nothing) -> respond StartOfCurrentPathHistory

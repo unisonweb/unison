@@ -61,6 +61,7 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI Path'
+    | UpI
     | PopBranchI
     -- > names foo
     -- > names foo.bar
