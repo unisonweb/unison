@@ -2220,6 +2220,37 @@ expandWanted
   . (traverse.traverse) applyM
 
 
+pruneConcrete
+  :: Var v
+  => Ord loc
+  => (Maybe (Term v loc) -> Type v loc -> M v loc ())
+  -> Wanted v loc
+  -> Wanted v loc
+  -> [Type v loc]
+  -> M v loc (Wanted v loc)
+pruneConcrete _ acc [] _ = pure (reverse acc)
+pruneConcrete missing acc ((loc, w):ws) have
+  | Just v <- find (headMatch w) have = do
+    subtype v w `orElse` missing loc w
+    ws <- expandWanted ws
+    have <- expandAbilities have
+    pruneConcrete missing acc ws have
+  | otherwise = pruneConcrete missing ((loc,w):acc) ws have
+
+pruneVariables
+  :: Var v
+  => Ord loc
+  => Wanted v loc
+  -> Wanted v loc
+  -> M v loc (Wanted v loc)
+pruneVariables acc [] = pure $ reverse acc
+pruneVariables acc ((loc,v):vs) = do
+  discard <- defaultAbility v
+  vs <- expandWanted vs
+  if discard
+    then pruneVariables acc vs
+    else pruneVariables ((loc,v):acc) vs
+
 pruneAbilities
   :: Var v
   => Ord loc
@@ -2228,8 +2259,17 @@ pruneAbilities
   -> M v loc (Wanted v loc)
 pruneAbilities want0 have0
   | debugShow ("pruneAbilities", want0, have0) = undefined
-pruneAbilities want0 have0
-  = go [] (sortBy (comparing (isVar.snd)) want0) have0
+pruneAbilities want0 have0 = do
+  pwant <- pruneConcrete missing [] want0 have0
+  if pwant /= want0
+  then do
+    want <- expandWanted pwant
+    have <- expandAbilities have0
+    pruneAbilities want have
+  else -- fixed point
+    if dflt
+      then expandWanted =<< pruneVariables [] pwant
+      else pure pwant
   where
   isVar (Type.Var' _) = True
   isVar _ = False
@@ -2245,22 +2285,6 @@ pruneAbilities want0 have0
                  ctx
 
   dflt = not $ any isExistential have0
-
-  go acc [] _    = pure acc
-  go acc ((loc, w):want) have
-    | Just v <- find (headMatch w) have = do
-      subtype v w `orElse` missing loc w
-      want <- expandWanted want
-      have <- expandAbilities have
-      go acc want have
-    | dflt = do
-      discard <- defaultAbility w
-      want <- expandWanted want
-      have <- expandAbilities have
-      if discard
-        then go acc want have
-        else go ((loc, w):acc) want have
-    | otherwise = go ((loc, w):acc) want have
 
 subAbilities
   :: Var v
