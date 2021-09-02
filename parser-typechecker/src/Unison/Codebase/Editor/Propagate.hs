@@ -482,7 +482,7 @@ propagate rootNames patch b = case validatePatch patch of
     => Hash
     -> F m i v (Map v (Reference.Id, Term v _, Type v _))
   unhashTermComponent' h =
-    eval (LoadTermComponentWithType h) <&> foldMap \termsWithTypes ->
+    eval (LoadTermComponentWithTypes h) <&> foldMap \termsWithTypes ->
       unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
     where
       unhash m =

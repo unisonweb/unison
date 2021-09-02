@@ -27,6 +27,7 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap, first), second)
+import Data.Bitraversable (bitraverse)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
@@ -312,6 +313,12 @@ sqliteCodebase debugName root = do
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
               pure $ Cv.ttype2to1 type2
+
+          getTermComponentWithTypes :: MonadIO m => Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+          getTermComponentWithTypes h1@(Cv.hash1to2 -> h2) =
+            runDB' conn $ do
+              tms <- Ops.loadTermComponent h2
+              for tms (bitraverse (Cv.term2to1 h1 getDeclType) (pure . Cv.ttype2to1))
 
           getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
           getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
@@ -741,7 +748,7 @@ sqliteCodebase debugName root = do
             putTerm
             putTypeDeclaration
             -- _getTermComponent
-            -- _getTermComponentWithTypes
+            getTermComponentWithTypes
             -- _getTermComponentLength
             -- _getDeclComponent
             -- _getDeclComponentLength

@@ -205,7 +205,7 @@ data Command m i v a where
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
   -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
-  LoadTermComponentWithType :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
+  LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
 
   -- todo: change this to take Reference and return DeclOrBuiltin
   -- todo: change this to LoadDecl
@@ -287,6 +287,7 @@ commandName = \case
   AppendToReflog{}            -> "AppendToReflog"
   LoadReflog                  -> "LoadReflog"
   LoadTerm{}                  -> "LoadTerm"
+  LoadTermComponentWithTypes{} -> "LoadTermComponentWithTypes"
   LoadType{}                  -> "LoadType"
   LoadTypeOfTerm{}            -> "LoadTypeOfTerm"
   PutTerm{}                   -> "PutTerm"

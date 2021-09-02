@@ -143,7 +143,8 @@ type EDB m = (Err m, DB m)
 type ErrString = String
 
 data DecodeError
-  = ErrTermElement Word64
+  = ErrTermComponent
+  | ErrTermElement Word64
   | ErrDeclElement Word64
   | ErrFramedArrayLen
   | ErrTypeOfTerm C.Reference.Id
@@ -198,6 +199,12 @@ primaryHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
 primaryHashToMaybeObjectId h = do
   (Q.loadHashId . H.toBase32Hex) h >>= \case
     Just hashId -> Q.maybeObjectIdForPrimaryHashId hashId
+    Nothing -> pure Nothing
+
+anyHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
+anyHashToMaybeObjectId h = do
+  (Q.loadHashId . H.toBase32Hex) h >>= \case
+    Just hashId -> Q.maybeObjectIdForAnyHashId hashId
     Nothing -> pure Nothing
 
 primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
@@ -381,6 +388,9 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 
 -- * Deserialization helpers
 
+decodeTermComponent :: Err m => ByteString -> m S.Term.TermFormat
+decodeTermComponent = getFromBytesOr ErrTermComponent S.getTermFormat
+
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (Get.skip 1 >> S.lengthFramedArray)
 
@@ -427,6 +437,16 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
+loadTermComponent :: EDB m => H.Hash -> MaybeT m [(C.Term Symbol, C.Term.Type Symbol)]
+loadTermComponent h = do
+  MaybeT (anyHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermComponent
+    >>= \case
+      S.Term.Term (S.Term.LocallyIndexedComponent elements) ->
+        lift . traverse (uncurry3 s2cTermWithType) $
+          Foldable.toList elements
 
 saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
 saveTermComponent h terms = do
