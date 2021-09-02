@@ -146,7 +146,8 @@ bindNames keepFreeTerms ns0 e = do
 -- lookup. Any terms not found in the `Names0` are kept free.
 bindSomeNames
   :: forall v a . Var v
-  => Names0
+  => Set v
+  -> Names0
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 -- bindSomeNames ns e | trace "Term.bindSome" False
@@ -158,7 +159,7 @@ bindSomeNames
 --                   || traceShow (freeVars e) False
 --                   || traceShow e False
 --                   = undefined
-bindSomeNames ns e = bindNames varsToTDNR ns e where
+bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e where
   -- `Term.bindNames` takes a set of variables that are not substituted.
   -- These should be the variables that will be subject to TDNR, which
   -- we compute as the set of variables whose names cannot be found in `ns`.

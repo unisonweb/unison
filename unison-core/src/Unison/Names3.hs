@@ -311,13 +311,13 @@ expandWildcardImport prefix ns =
     pure (suffix, full)
 
 -- Deletes from the `n0 : Names0` any definitions whose names
--- share a suffix with a name in `ns`. Does so using logarithmic
--- time lookups, traversing only `ns`.
+-- are in `ns`. Does so using logarithmic time lookups,
+-- traversing only `ns`.
 --
 -- See usage in `FileParser` for handling precendence of symbol
 -- resolution where local names are preferred to codebase names.
 shadowSuffixedTerms0 :: [Name] -> Names0 -> Names0
 shadowSuffixedTerms0 ns n0 = names0 terms' (types0 n0)
   where
-  shadowedBy name = Name.searchBySuffix name (terms0 n0)
-  terms' = R.subtractRan (foldMap shadowedBy ns) (terms0 n0)
+  terms' = foldl' go (terms0 n0) ns
+  go ts name = R.deleteDom name ts
