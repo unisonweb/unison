@@ -138,9 +138,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     -- LoadTermComponentWithType :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
+    LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
     LoadTermComponentWithTypes h -> lift $ Codebase.getTermComponentWithTypes codebase h
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
-    LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
+    LoadDeclComponent r -> lift $ Codebase.getDeclComponent codebase r
     PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
     PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
     PutWatch kind r e -> lift $ Codebase.putWatch codebase kind r e

@@ -326,6 +326,10 @@ sqliteCodebase debugName root = do
               decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
               pure $ Cv.decl2to1 h1 decl2
 
+          getDeclComponent :: MonadIO m => Hash -> m (Maybe [Decl Symbol Ann])
+          getDeclComponent h1@(Cv.hash1to2 -> h2) =
+            runDB' conn $  map (Cv.decl2to1 h1) <$> Ops.loadDeclComponent h2
+
           --putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
           --putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
 
@@ -750,7 +754,7 @@ sqliteCodebase debugName root = do
             -- _getTermComponent
             getTermComponentWithTypes
             -- _getTermComponentLength
-            -- _getDeclComponent
+            getDeclComponent
             -- _getDeclComponentLength
             (getRootBranch rootBranchCache)
             (putRootBranch rootBranchCache)

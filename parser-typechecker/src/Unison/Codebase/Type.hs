@@ -42,7 +42,7 @@ data Codebase m v a = Codebase
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
     -- getTermComponentLength :: Hash -> m (Reference.CycleSize),
-    -- getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     -- getDeclComponentLength :: Hash -> m (Reference.CycleSize),
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),

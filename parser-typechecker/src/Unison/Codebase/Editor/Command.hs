@@ -290,6 +290,7 @@ commandName = \case
   LoadTermComponentWithTypes{} -> "LoadTermComponentWithTypes"
   LoadType{}                  -> "LoadType"
   LoadTypeOfTerm{}            -> "LoadTypeOfTerm"
+  LoadDeclComponent{} -> "LoadDeclComponent"
   PutTerm{}                   -> "PutTerm"
   PutDecl{}                   -> "PutDecl"
   IsTerm{}                    -> "IsTerm"

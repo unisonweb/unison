@@ -144,6 +144,7 @@ type ErrString = String
 
 data DecodeError
   = ErrTermComponent
+  | ErrDeclComponent
   | ErrTermElement Word64
   | ErrDeclElement Word64
   | ErrFramedArrayLen
@@ -403,6 +404,9 @@ decodeTermElementDiscardingTerm i = getFromBytesOr (ErrTermElement i) (S.lookupT
 decodeTermElementDiscardingType :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term)
 decodeTermElementDiscardingType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElementDiscardingType i)
 
+decodeDeclComponent :: Err m => ByteString -> m S.Decl.DeclFormat
+decodeDeclComponent = getFromBytesOr ErrDeclComponent S.getDeclFormat
+
 decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
 decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
@@ -646,7 +650,7 @@ s2cTypeOfTerm ids tp = do
   (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
   pure $ x2cTType substText substHash tp
 
--- | implementation detail of {s,w}2c*Term*
+-- | implementation detail of {s,w}2c*Term* & s2cDecl
 localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> H.Hash)
 localIdsToLookups loadText loadHash localIds = do
   texts <- traverse loadText $ LocalIds.textLookup localIds
@@ -654,6 +658,11 @@ localIdsToLookups loadText loadHash localIds = do
   let substText (LocalTextId w) = texts Vector.! fromIntegral w
       substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
   pure (substText, substHash)
+
+localIdsToTypeRefLookup :: EDB m => LocalIds -> m (S.Decl.TypeRef -> C.Decl.TypeRef)
+localIdsToTypeRefLookup localIds = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId localIds
+  pure $ bimap substText (fmap substHash)
 
 -- | implementation detail of {s,w}2c*Term*
 x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Term -> C.Term Symbol
@@ -750,6 +759,15 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
+loadDeclComponent :: EDB m => H.Hash -> MaybeT m [C.Decl Symbol]
+loadDeclComponent h = do
+  MaybeT (anyHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectById
+    >>= decodeDeclComponent
+    >>= \case
+      S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) ->
+        lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
+
 saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
@@ -817,26 +835,19 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, decl)
 
+s2cDecl :: EDB m => LocalIds -> S.Decl.Decl Symbol -> m (C.Decl Symbol)
+s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
+  substTypeRef <- localIdsToTypeRefLookup ids
+  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+
 loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadDeclByReference " ++ show r
-  -- retrieve the blob
-  (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    MaybeT (primaryHashToMaybeObjectId h)
-      >>= liftQ . Q.loadObjectWithTypeById
-      >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
-      >>= decodeDeclElement i
-
-  -- look up the text and hashes that are used by the term
-  texts <- traverse loadTextById $ LocalIds.textLookup localIds
-  hashes <- traverse loadHashByObjectId $ LocalIds.defnLookup localIds
-
-  -- substitute the text and hashes back into the term
-  let substText tIdx = texts Vector.! fromIntegral tIdx
-      substHash hIdx = hashes Vector.! fromIntegral hIdx
-      substTypeRef :: S.Decl.TypeRef -> C.Decl.TypeRef
-      substTypeRef = bimap substText (fmap substHash)
-  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here
+  MaybeT (primaryHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectWithTypeById
+    >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
+    >>= decodeDeclElement i
+    >>= uncurry s2cDecl
 
 -- * Branch transformation
 
