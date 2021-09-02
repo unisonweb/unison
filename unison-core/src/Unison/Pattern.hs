@@ -125,6 +125,7 @@ instance H.Hashable (Pattern p) where
 instance Eq (Pattern loc) where
   Unbound _ == Unbound _ = True
   Var _ == Var _ = True
+  Char _ c == Char _ d = c == d
   Boolean _ b == Boolean _ b2 = b == b2
   Int _ n == Int _ m = n == m
   Nat _ n == Nat _ m = n == m
