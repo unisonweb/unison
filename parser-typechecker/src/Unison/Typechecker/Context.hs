@@ -57,7 +57,6 @@ import           Data.Functor.Compose           ( Compose(..) )
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.Map                      as Map
-import           Data.Ord                       ( comparing )
 import qualified Data.Sequence                 as Seq
 import           Data.Sequence.NonEmpty         ( NESeq )
 import qualified Data.Sequence.NonEmpty        as NESeq
@@ -2271,9 +2270,6 @@ pruneAbilities want0 have0 = do
       then expandWanted =<< pruneVariables [] pwant
       else pure pwant
   where
-  isVar (Type.Var' _) = True
-  isVar _ = False
-
   isExistential (Type.Var' TypeVar.Existential{}) = True
   isExistential _ = False
 
