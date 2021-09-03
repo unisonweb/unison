@@ -316,8 +316,8 @@ expandWildcardImport prefix ns =
 --
 -- See usage in `FileParser` for handling precendence of symbol
 -- resolution where local names are preferred to codebase names.
-shadowSuffixedTerms0 :: [Name] -> Names0 -> Names0
-shadowSuffixedTerms0 ns n0 = names0 terms' (types0 n0)
+shadowTerms0 :: [Name] -> Names0 -> Names0
+shadowTerms0 ns n0 = names0 terms' (types0 n0)
   where
   terms' = foldl' go (terms0 n0) ns
   go ts name = R.deleteDom name ts

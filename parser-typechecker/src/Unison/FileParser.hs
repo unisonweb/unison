@@ -76,7 +76,7 @@ file = do
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
-          ( Names.shadowSuffixedTerms0 locals (Names.currentNames names)
+          ( Names.shadowTerms0 locals (Names.currentNames names)
           , resolveLocals )
           where
           -- All locally declared term variables, running example:
