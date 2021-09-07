@@ -71,10 +71,10 @@ The `load` command which does parsing and typechecking of the `edit`'d definitio
 Examples can also be loaded from `.u` files:
 
 ```ucm
-.> load unison-src/transcripts/round-trip/ex2.u
+.> load unison-src/transcripts-round-trip/ex2.u
 
   I found and typechecked these definitions in
-  unison-src/transcripts/round-trip/ex2.u. If you do an `add` or
+  unison-src/transcripts-round-trip/ex2.u. If you do an `add` or
   `update`, here's how your codebase would change:
   
     ⍟ These new definitions are ok to `add`:

@@ -31,7 +31,7 @@ The `load` command which does parsing and typechecking of the `edit`'d definitio
 Examples can also be loaded from `.u` files:
 
 ```ucm
-.> load unison-src/transcripts/round-trip/ex2.u
+.> load unison-src/transcripts-round-trip/ex2.u
 .> add
 ```
 
