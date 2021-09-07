@@ -158,6 +158,10 @@ run dir configFile stanzas codebase = do
           -- end of ucm block
           Just Nothing -> do
             output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
             dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
