@@ -751,7 +751,7 @@ data POp
   | EQLU | CMPU | EROR
   -- Code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
-  | VALU                      -- value
+  | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
   | PRNT | INFO
   -- STM

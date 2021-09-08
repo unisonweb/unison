@@ -330,7 +330,7 @@ data BPrim1
   | FLTB               -- flatten
   -- code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
-  | VALU                      -- value
+  | VALU | TLTT               -- value, Term.Link.toText
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -1057,6 +1057,7 @@ emitPOp ANF.CMPU = emitBP2 CMPU
 emitPOp ANF.MISS = emitBP1 MISS
 emitPOp ANF.CACH = emitBP1 CACH
 emitPOp ANF.LKUP = emitBP1 LKUP
+emitPOp ANF.TLTT = emitBP1 TLTT
 emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
 
