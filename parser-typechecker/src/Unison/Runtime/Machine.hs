@@ -1489,6 +1489,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
       (rs,gs) = unzip $ M.toList new
+  writeTVar (intermed cc) (have <> new)
   rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
@@ -1561,7 +1562,7 @@ reflectValue rty = goV
     = pure (ANF.TmLink l)
     | Just l <- maybeUnwrapForeign Rf.typeLinkRef f
     = pure (ANF.TyLink l)
-    | otherwise = die $ err "foreign value"
+    | otherwise = die $ err $ "foreign value: " <> (show f)
 
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)
