@@ -1,4 +1,4 @@
-name: unison-util
+name: unison-util-hash
 github: unisonweb/unison
 
 library:
@@ -9,11 +9,11 @@ dependencies:
   - bytestring
   - containers
   - cryptonite
-  - lens
+  # - lens
   - memory
-  - safe
-  - sandi
+  # - safe
+  # - sandi
   - text
-  - time
-  - unliftio
-  - unison-util-hashable-v1
+  # - time
+  # - unliftio
+  - unison-util-base32hex

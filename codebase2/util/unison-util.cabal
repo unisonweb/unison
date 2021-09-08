@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a8102baaf0e3fe04c94f0f13427e916237c029cf7554b4ca709684c48ff0b3b0
+-- hash: 90e0832280fc6d235c4f74ae2c7acad9d7fde1ed0bb7ecb8bc40f59303719330
 
 name:           unison-util
 version:        0.0.0
@@ -19,11 +19,8 @@ source-repository head
 library
   exposed-modules:
       U.Util.Alternative
-      U.Util.Base32Hex
       U.Util.Cache
       U.Util.Components
-      U.Util.Hash
-      U.Util.Hashable
       U.Util.Lens
       U.Util.Map
       U.Util.Monoid
@@ -47,5 +44,6 @@ library
     , sandi
     , text
     , time
+    , unison-util-hashable-v1
     , unliftio
   default-language: Haskell2010

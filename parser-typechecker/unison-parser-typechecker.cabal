@@ -269,6 +269,7 @@ library
     , unison-core
     , unison-core1
     , unison-util
+    , unison-util-hash
     , unliftio
     , uri-encode
     , utf8-string

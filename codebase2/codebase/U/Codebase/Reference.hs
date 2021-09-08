@@ -9,10 +9,7 @@ module U.Codebase.Reference where
 
 import Data.Text (Text)
 import Data.Word (Word64)
-import qualified U.Util.Hash as Hash
 import U.Util.Hash (Hash)
-import U.Util.Hashable (Hashable (..))
-import qualified U.Util.Hashable as Hashable
 import Control.Lens (lens, Lens, Bifunctor(..), Traversal)
 import Data.Bitraversable (Bitraversable(..))
 import Data.Bifoldable (Bifoldable(..))
@@ -59,15 +56,3 @@ instance Bifoldable Reference' where
 instance Bitraversable Reference' where
   bitraverse f _ (ReferenceBuiltin t) = ReferenceBuiltin <$> f t
   bitraverse _ g (ReferenceDerived id) = ReferenceDerived <$> traverse g id
-
-instance Hashable Reference where
-  tokens (ReferenceBuiltin txt) =
-    [Hashable.Tag 0, Hashable.Text txt]
-  tokens (ReferenceDerived (Id h i)) =
-    [Hashable.Tag 1, Hashable.Bytes (Hash.toBytes h), Hashable.Nat i]
-
-instance Hashable (Reference' Text (Maybe Hash)) where
-  tokens (ReferenceBuiltin txt) =
-    [Hashable.Tag 0, Hashable.Text txt]
-  tokens (ReferenceDerived (Id h i)) =
-    [Hashable.Tag 1, Hashable.accumulateToken h, Hashable.Nat i]

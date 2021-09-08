@@ -3,10 +3,8 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 3f28697dd32aa812dd24439f090c5b31377f6f5ad7b8df332b9afbe1bc293094
 
-name:           unison-core
+name:           unison-util-hashable-v1
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
@@ -18,16 +16,18 @@ source-repository head
 
 library
   exposed-modules:
-      U.Core.ABT
-      U.Core.ABT.Var
+      U.Util.Hash
+      U.Util.Hashable
   other-modules:
-      Paths_unison_core
+      Paths_unison_util_hashable_v1
   hs-source-dirs:
       ./
   build-depends:
       base
+    , bytestring
     , containers
-    , unison-util
-    , unison-util-hashable-v1
-    , vector
+    , cryptonite
+    , memory
+    , text
+    , unison-util-base32hex
   default-language: Haskell2010

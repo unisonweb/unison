@@ -1,4 +1,4 @@
-name: unison-codebase
+name: unison-util-hashable-v1
 github: unisonweb/unison
 
 library:
@@ -6,10 +6,9 @@ library:
 
 dependencies:
   - base
+  - bytestring
   - containers
-  - lens
-  - mtl
+  - cryptonite
+  - memory
   - text
-  - unison-core
-  - unison-util
-  - unison-util-hash
+  - unison-util-base32hex

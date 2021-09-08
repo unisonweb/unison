@@ -15,6 +15,18 @@ cradle:
     - path: "codebase2/util"
       component: "unison-util:lib"
 
+    - path: "codebase2/util-base32hex"
+      component: "unison-util-base32hex:lib"
+
+    - path: "codebase2/util-hash"
+      component: "unison-util-hash:lib"
+
+    - path: "codebase2/util-hashable-v1"
+      component: "unison-util-hashable-v1:lib"
+
+    - path: "codebase2/util-hashable-v1-impl"
+      component: "unison-util-hashable-v1-impl:lib"
+
     - path: "codebase2/util-serialization"
       component: "unison-util-serialization:lib"
 

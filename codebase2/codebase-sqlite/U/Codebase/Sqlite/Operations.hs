@@ -29,7 +29,7 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
@@ -122,7 +122,7 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
-import qualified U.Util.Type as TypeUtil
+-- import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
@@ -463,14 +463,14 @@ saveTermComponent h terms = do
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   -- populate type indexes
-  for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
-    let self = C.Referent.RefId (C.Reference.Id oId i)
-        typeForIndexing = TypeUtil.removeAllEffectVars tp
-        typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-        saveReferentH = bitraverse Q.saveText Q.saveHashHash
-    typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
-    Q.addToTypeIndex typeReferenceForIndexing self
-    traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
+  -- for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
+  --   let self = C.Referent.RefId (C.Reference.Id oId i)
+  --       typeForIndexing = TypeUtil.removeAllEffectVars tp
+  --       typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+  --       saveReferentH = bitraverse Q.saveText Q.saveHashHash
+  --   typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
+  --   Q.addToTypeIndex typeReferenceForIndexing self
+  --   traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
 
   pure oId
 
@@ -751,19 +751,19 @@ saveDeclComponent h decls = do
          in Set.mapMaybe (fmap (,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
-  -- populate type indexes
-  for_
-    (zip decls [0 ..])
-    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_
-      (zip ctorTypes [0 ..])
-      \(tp, j) -> do
-        let self = C.Referent.ConId (C.Reference.Id oId i) j
-            typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
-            typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
-            typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-            saveReferentH = bitraverse Q.saveText Q.saveHashHash
-        flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
-        traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
+  -- -- populate type indexes
+  -- for_
+  --   (zip decls [0 ..])
+  --   \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_
+  --     (zip ctorTypes [0 ..])
+  --     \(tp, j) -> do
+  --       let self = C.Referent.ConId (C.Reference.Id oId i) j
+  --           typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
+  --           typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
+  --           typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+  --           saveReferentH = bitraverse Q.saveText Q.saveHashHash
+  --       flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
+  --       traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
 
   pure oId
 

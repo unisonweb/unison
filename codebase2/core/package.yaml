@@ -9,3 +9,4 @@ dependencies:
   - containers
   - vector
   - unison-util
+  - unison-util-hashable-v1

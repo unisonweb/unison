@@ -18,6 +18,10 @@ packages:
 - codebase2/codebase-sync
 - codebase2/core
 - codebase2/util
+- codebase2/util-base32hex
+- codebase2/util-hash
+- codebase2/util-hashable-v1
+- codebase2/util-hashable-v1-impl
 - codebase2/util-serialization
 - codebase2/util-term
 

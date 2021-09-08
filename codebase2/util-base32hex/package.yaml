@@ -1,0 +1,19 @@
+name: unison-util-base32hex
+github: unisonweb/unison
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - bytestring
+  # - containers
+  # - cryptonite
+  # - lens
+  # - memory
+  # - safe
+  - sandi
+  - text
+  # - time
+  # - unliftio
+  # - unison-util-hashable-v1

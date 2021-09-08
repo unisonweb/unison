@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3106bd32bedf162883882818669a81a3e1ca7c60af26ec9cd945fadb39f0d5aa
+-- hash: 9261ef864c695a774d9916073ce3801321b35365381a8d7be07d4a867859ff1b
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -64,6 +64,8 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-util
+    , unison-util-base32hex
+    , unison-util-hash
     , unison-util-serialization
     , unison-util-term
     , unliftio

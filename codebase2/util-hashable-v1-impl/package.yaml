@@ -1,4 +1,4 @@
-name: unison-util
+name: unison-util-hashable-v1-impl
 github: unisonweb/unison
 
 library:
@@ -6,6 +6,8 @@ library:
 
 dependencies:
   - base
+  - unison-util-hash
+  - unison-util-hashable-v1
   - bytestring
   - containers
   - cryptonite
@@ -16,4 +18,4 @@ dependencies:
   - text
   - time
   - unliftio
-  - unison-util-hashable-v1
+  - unison-util-base32hex
