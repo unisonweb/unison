@@ -36,6 +36,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import qualified Crypto.Random        as Random
+import System.Random (randomRIO)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
@@ -129,27 +130,29 @@ asciiartUnison =
     <> P.cyan "|___|"
     <> P.purple "_|_|"
 
-welcomeMessage :: FilePath -> String -> P.Pretty P.ColorText
-welcomeMessage dir version =
-  asciiartUnison
-    <> P.newline
-    <> P.newline
-    <> P.linesSpaced
-      [ P.wrap "👋 Welcome to Unison!",
-        P.wrap ("You are running version: " <> P.bold (P.string version)) <> P.newline,
-        P.wrap "Get started:",
-        P.indentN
-          2
-          ( P.column2
-              [ ("📖", "Type " <> P.hiBlue "help" <> " to get help"),
-                ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
-                ("📚", "Read the official docs at " <> P.blue "https://unisonweb.org/docs"),
-                ("🌎", "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
-                ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ fromString dir))
-              ]
-          )
-      ]
+welcomeMessage :: FilePath -> String -> IO (P.Pretty P.ColorText)
+welcomeMessage dir version = do
+  earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
 
+  pure $
+    asciiartUnison
+      <> P.newline
+      <> P.newline
+      <> P.linesSpaced
+        [ P.wrap "👋 Welcome to Unison!",
+          P.wrap ("You are running version: " <> P.bold (P.string version)) <> P.newline,
+          P.wrap "Get started:",
+          P.indentN
+            2
+            ( P.column2
+                [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
+                  ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
+                  ("📚", "Read the official docs at " <> P.blue "https://unisonweb.org/docs"),
+                  (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
+                  ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ fromString dir))
+                ]
+            )
+        ]
 
 hintFreshCodebase :: ReadRemoteNamespace -> P.Pretty P.ColorText
 hintFreshCodebase ns =
@@ -172,10 +175,12 @@ main
 main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  putPrettyLn $ case defaultBaseLib of
+  welcome <- welcomeMessage dir' version
+  putPrettyLn $ 
+    case defaultBaseLib of
       Just ns | Branch.isOne root ->
-        welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
-      _ -> welcomeMessage dir' version
+        welcome <> P.newline <> P.newline <> hintFreshCodebase ns
+      _ -> welcome
   eventQueue <- Q.newIO
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
