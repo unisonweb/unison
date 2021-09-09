@@ -186,7 +186,7 @@ data Command m i v a where
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
-  ImportRemoteBranch :: -- RLM Notes: here for bringing remote into repo 
+  ImportRemoteBranch ::
     ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
