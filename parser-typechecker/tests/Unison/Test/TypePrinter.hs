@@ -134,8 +134,7 @@ test = scope "typeprinter" . tests $
   , tc "'{e} a"
   , tc "'{e} (a -> b)"
   , tc "'{e} (a ->{f} b)"
-  , pending $ tc "Pair a '{e} b"                           -- parser hits unexpected '
-  , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
+  , tc "Pair a ('{e} b)"
   , tc "'(a -> 'a)"
   , tc "'()"
   , tc "'('a)"
