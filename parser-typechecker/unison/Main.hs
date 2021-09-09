@@ -297,7 +297,7 @@ getCodebaseOrExit maybeSpecifiedDir = do
     CreatedCodebase dir cb -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
-      PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> pDir
+      PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
       pure cb
 
     OpenedCodebase _ cb -> 

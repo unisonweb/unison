@@ -89,6 +89,7 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers

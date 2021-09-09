@@ -11,7 +11,6 @@ import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncEx
 import Control.Monad.State (runStateT)
 import Data.Configurator.Types (Config)
 import Data.IORef
-import Data.Tuple.Extra (uncurry3)
 import Prelude hiding (readFile, writeFile)
 import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
@@ -21,7 +20,7 @@ import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, printNamespace)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
@@ -36,16 +35,17 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import qualified Crypto.Random        as Random
-import System.Random (randomRIO)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
+import qualified Unison.CommandLine.Welcome as Welcome
 import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
+
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -105,62 +105,6 @@ getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
           pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
-asciiartUnison :: P.Pretty P.ColorText
-asciiartUnison =
-  P.red " _____"
-    <> P.hiYellow "     _             "
-    <> P.newline
-    <> P.red "|  |  |"
-    <> P.hiRed "___"
-    <> P.hiYellow "|_|"
-    <> P.hiGreen "___ "
-    <> P.cyan "___ "
-    <> P.purple "___ "
-    <> P.newline
-    <> P.red "|  |  |   "
-    <> P.hiYellow "| |"
-    <> P.hiGreen "_ -"
-    <> P.cyan "| . |"
-    <> P.purple "   |"
-    <> P.newline
-    <> P.red "|_____|"
-    <> P.hiRed "_|_"
-    <> P.hiYellow "|_|"
-    <> P.hiGreen "___"
-    <> P.cyan "|___|"
-    <> P.purple "_|_|"
-
-welcomeMessage :: FilePath -> String -> IO (P.Pretty P.ColorText)
-welcomeMessage dir version = do
-  earth <- (["🌎", "🌍", "🌏"] !!) <$> randomRIO (0, 2)
-
-  pure $
-    asciiartUnison
-      <> P.newline
-      <> P.newline
-      <> P.linesSpaced
-        [ P.wrap "👋 Welcome to Unison!",
-          P.wrap ("You are running version: " <> P.bold (P.string version)) <> P.newline,
-          P.wrap "Get started:",
-          P.indentN
-            2
-            ( P.column2
-                [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
-                  ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
-                  ("📚", "Read the official docs at " <> P.blue "https://unisonweb.org/docs"),
-                  (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
-                  ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ fromString dir))
-                ]
-            )
-        ]
-
-hintFreshCodebase :: ReadRemoteNamespace -> P.Pretty P.ColorText
-hintFreshCodebase ns =
-  P.wrap $ "Enter "
-    <> (P.hiBlue . P.group)
-        ("pull " <>  P.text (uncurry3 printNamespace ns) <> " .base")
-    <> "to set up the default base library. 🏗"
-
 main
   :: FilePath
   -> Maybe ReadRemoteNamespace
@@ -175,18 +119,14 @@ main
 main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  welcome <- welcomeMessage dir' version
-  putPrettyLn $ 
-    case defaultBaseLib of
-      Just ns | Branch.isOne root ->
-        welcome <> P.newline <> P.newline <> hintFreshCodebase ns
-      _ -> welcome
+  (welcomeCmds, welcomeMsg) <- Welcome.welcome defaultBaseLib codebase dir' version
+  putPrettyLn welcomeMsg
   eventQueue <- Q.newIO
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef initialInputs
+    initialInputsRef         <- newIORef (welcomeCmds ++ initialInputs)
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir

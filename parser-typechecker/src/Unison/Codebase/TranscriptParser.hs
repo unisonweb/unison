@@ -29,7 +29,8 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison, expandNumber)
+import Unison.CommandLine.Main (expandNumber)
+import Unison.CommandLine.Welcome (asciiartUnison)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
