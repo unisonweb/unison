@@ -104,11 +104,13 @@ prettyRaw n im p tp = go n im p tp
            in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
               `PP.hang` go n im (-1) body
     t@(Arrow' _ _) -> case t of
-      EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
+      EffectfulArrows' (Ref' DD.UnitRef) rest ->
+        PP.parenthesizeIf (p >= 10) $ arrows True True rest
       EffectfulArrows' fst rest ->
         case fst of
-          Var' v | Var.name v == "()"
-            -> fmt S.DelayForceChar "'" <> arrows False True rest
+          Var' v | Var.name v == "()" ->
+            PP.parenthesizeIf (p >= 10) $
+              fmt S.DelayForceChar "'" <> arrows False True rest
           _ -> PP.parenthesizeIf (p >= 0) $
                  go n im 0 fst <> arrows False False rest
       _ -> "error"
