@@ -493,9 +493,9 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
         f i s = (paren (p >= i) (pl <> " " <> (fmt (S.Op op) s) <> " " <> pr), rvs)
     in case op of
-      Pattern.Cons -> f 9 "+:"
-      Pattern.Snoc -> f 9 ":+"
-      Pattern.Concat -> f 9 "++"
+      Pattern.Cons -> f 0 "+:"
+      Pattern.Snoc -> f 0 ":+"
+      Pattern.Concat -> f 0 "++"
  where
   l :: IsString s => String -> s
   l = fromString
