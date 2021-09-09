@@ -2,12 +2,11 @@
 module Unison.CommandLine.Welcome where
 
 import Unison.Prelude
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
 import Prelude hiding (readFile, writeFile)
-import Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Util.Pretty as P
 import System.Random (randomRIO)
-import qualified Data.Map as Map
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Editor.Input (Input (..), Event)
@@ -15,22 +14,25 @@ import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 
-welcome :: Maybe ReadRemoteNamespace -> Branch IO -> FilePath -> String -> IO ([Either Event Input], P.Pretty P.ColorText)
-welcome defaultBaseLib root dir version = do
-  -- TODO: Move this into `Codebase.isBlank codebase` or something like that?
-  -- the challenge there is being able to get the root of the codebase without errors
-  let isBlankCodebase = Map.size (Branch._children (Branch.head root)) == 0
-  welcomeMsg <- welcomeMessage dir version 
+welcome 
+  :: Maybe ReadRemoteNamespace 
+  -> Codebase IO v a
+  -> FilePath 
+  -> String 
+  -> IO ([Either Event Input], P.Pretty P.ColorText)
+welcome defaultBaseLib codebase dir version = do
+  welcomeMsg <- welcomeMessage dir version
+  isBlankCodebase <- Codebase.isBlank codebase
   pure $ case defaultBaseLib of
     Just ns@(_, _, path) | isBlankCodebase ->
       let
-        cmd = 
+        cmd =
           Right (downloadBase ns)
 
-        baseVersion = 
+        baseVersion =
           P.string (show path)
           
-        downloadMsg = 
+        downloadMsg =
           P.lines [ P.newline <> P.newline
                   , P.wrap ("🕐 Downloading"
                               <> P.blue baseVersion

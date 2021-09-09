@@ -119,7 +119,7 @@ main
 main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
   dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  (welcomeCmds, welcomeMsg) <- Welcome.welcome defaultBaseLib root dir' version
+  (welcomeCmds, welcomeMsg) <- Welcome.welcome defaultBaseLib codebase dir' version
   putPrettyLn welcomeMsg
   eventQueue <- Q.newIO
   do
