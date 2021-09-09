@@ -28,6 +28,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Control.Monad.Validate (runValidate)
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
@@ -117,10 +118,10 @@ failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
-  rs1 = case hashDecls (const $ Just 1) $ Map.fromList
+  rs1 = case runValidate . hashDecls (pure $ pure 1) $ Map.fromList
     [ (v "Link"                , link)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  rs = case hashDecls (const $ Just 1) $ Map.fromList
+  rs = case runValidate . hashDecls (pure $ pure 1) $ Map.fromList
     [ (v "Unit"               , unit)
     , (v "Tuple"              , tuple)
     , (v "Optional"           , opt)
@@ -306,7 +307,7 @@ builtinDataDecls = rs1 ++ rs
 
 builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
 builtinEffectDecls =
-  case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
+  case runValidate . hashDecls (pure $ pure 1) $ Map.fromList [ (v "Exception", exception) ] of
     Right a -> over _3 DD.EffectDeclaration <$> a
     Left e -> error $ "builtinEffectDecls: " <> show e
   where
