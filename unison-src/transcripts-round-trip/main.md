@@ -79,3 +79,32 @@ f x = let
 .> load scratch.u
 ```
 
+## Parens around infix patterns
+
+Regression test for https://github.com/unisonweb/unison/issues/2224
+
+```unison:hide
+f : [a] -> a
+f xs = match xs with
+  x +: (x' +: rest) -> x
+
+g : [a] -> a
+g xs = match xs with
+  (rest :+ x') :+ x -> x
+
+h : [[a]] -> a
+h xs = match xs with
+  (rest :+ (rest' :+ x)) -> x
+```
+
+```ucm
+.> add
+.> edit f g
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+

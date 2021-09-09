@@ -157,7 +157,6 @@ unique type Blah = Blah Boolean Boolean
 
 f : Blah -> Boolean
 f x = let
-  0
   (Blah.Blah a b) = x
   a
 ```
@@ -181,11 +180,7 @@ f x = let
       = Blah Boolean Boolean
     
     f : Blah -> Boolean
-    f x =
-      0
-      let
-        (Blah a b) = x
-        a
+    f = cases Blah a b -> a
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -203,7 +198,7 @@ f x = let
                               its history to that of the
                               specified namespace.
   
-  1. #53gruvtk78 : add
+  1. #clsum27pr1 : add
   2. #pqvd5behc2 : reset-root #pqvd5behc2
   3. #dbvse9969b : add
   4. #pqvd5behc2 : reset-root #pqvd5behc2
@@ -227,5 +222,89 @@ f x = let
     
       unique type Blah
       f : Blah -> Boolean
+
+```
+## Parens around infix patterns
+
+Regression test for https://github.com/unisonweb/unison/issues/2224
+
+```unison
+f : [a] -> a
+f xs = match xs with
+  x +: (x' +: rest) -> x
+
+g : [a] -> a
+g xs = match xs with
+  (rest :+ x') :+ x -> x
+
+h : [[a]] -> a
+h xs = match xs with
+  (rest :+ (rest' :+ x)) -> x
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    f : [a] -> a
+    g : [a] -> a
+    h : [[a]] -> a
+
+.> edit f g
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    f : [a] -> a
+    f = cases x +: (x' +: rest) -> x
+    
+    g : [a] -> a
+    g = cases rest :+ x' :+ x -> x
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> reflog
+
+  Here is a log of the root namespace hashes, starting with the
+  most recent, along with the command that got us there. Try:
+  
+    `fork 2 .old`             
+    `fork #pqvd5behc2 .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #pqvd5behc2`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
+  
+  1. #acngtb04a8 : add
+  2. #pqvd5behc2 : reset-root #pqvd5behc2
+  3. #clsum27pr1 : add
+  4. #pqvd5behc2 : reset-root #pqvd5behc2
+  5. #dbvse9969b : add
+  6. #pqvd5behc2 : reset-root #pqvd5behc2
+  7. #8rn1an5gj8 : add
+  8. #pqvd5behc2 : builtins.mergeio
+  9. #sjg2v58vn2 : (initial reflogged namespace)
+
+.> reset-root 2
+
+  Done.
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      f : [a] -> a
+      g : [a] -> a
 
 ```
