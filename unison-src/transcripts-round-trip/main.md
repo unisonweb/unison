@@ -108,3 +108,25 @@ h xs = match xs with
 .> load scratch.u
 ```
 
+## Type application inserts necessary parens
+
+Regression test for https://github.com/unisonweb/unison/issues/2392
+
+```unison:hide
+unique ability Zonk where zonk : Nat
+unique type Foo x y = 
+
+foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+foo n _ = n
+```
+
+```ucm
+.> add
+.> edit foo Zonk Foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```

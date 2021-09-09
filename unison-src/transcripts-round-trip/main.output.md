@@ -308,3 +308,86 @@ h xs = match xs with
       g : [a] -> a
 
 ```
+## Type application inserts necessary parens
+
+Regression test for https://github.com/unisonweb/unison/issues/2392
+
+```unison
+unique ability Zonk where zonk : Nat
+unique type Foo x y = 
+
+foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+foo n _ = n
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type Foo x y
+    unique ability Zonk
+    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+
+.> edit foo Zonk Foo
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    unique type Foo x y
+      = 
+    
+    unique ability Zonk where zonk : {Zonk} Nat
+    
+    foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+    foo n _ = n
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> reflog
+
+  Here is a log of the root namespace hashes, starting with the
+  most recent, along with the command that got us there. Try:
+  
+    `fork 2 .old`             
+    `fork #pqvd5behc2 .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #pqvd5behc2`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
+  
+  1.  #j32i1remee : add
+  2.  #pqvd5behc2 : reset-root #pqvd5behc2
+  3.  #acngtb04a8 : add
+  4.  #pqvd5behc2 : reset-root #pqvd5behc2
+  5.  #clsum27pr1 : add
+  6.  #pqvd5behc2 : reset-root #pqvd5behc2
+  7.  #dbvse9969b : add
+  8.  #pqvd5behc2 : reset-root #pqvd5behc2
+  9.  #8rn1an5gj8 : add
+  10. #pqvd5behc2 : builtins.mergeio
+  11. #sjg2v58vn2 : (initial reflogged namespace)
+
+.> reset-root 2
+
+  Done.
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type Foo x y
+      unique ability Zonk
+      foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+
+```
