@@ -135,14 +135,21 @@ welcomeMessage dir version =
     <> P.newline
     <> P.newline
     <> P.linesSpaced
-         [ P.wrap "Welcome to Unison!"
-         , P.wrap ("You are running version: " <> P.string version)
-         , P.wrap
-           (  "I'm currently watching for changes to .u files under "
-           <> (P.group . P.blue $ fromString dir)
-           )
-         , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
-         ]
+      [ P.wrap "👋 Welcome to Unison!",
+        P.wrap ("You are running version: " <> P.bold (P.string version)) <> P.newline,
+        P.wrap "Get started:",
+        P.indentN
+          2
+          ( P.column2
+              [ ("📖", "Type " <> P.hiBlue "help" <> " to get help"),
+                ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
+                ("📚", "Read the official docs at " <> P.blue "https://unisonweb.org/docs"),
+                ("🌎", "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
+                ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ fromString dir))
+              ]
+          )
+      ]
+
 
 hintFreshCodebase :: ReadRemoteNamespace -> P.Pretty P.ColorText
 hintFreshCodebase ns =

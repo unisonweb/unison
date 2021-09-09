@@ -110,12 +110,16 @@ main = do
        (closeCodebase, theCodebase) <- getCodebaseOrExit mcodepath
        runtime <- RTI.startRuntime
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-         PT.putPrettyLn $ P.lines
-           ["The Unison Codebase UI is running at", P.string $ Server.urlFor Server.UI baseUrl]
          case isHeadless of
              Headless -> do
-                 PT.putPrettyLn $ P.lines
-                    ["I've started the codebase API server at" , P.string $ Server.urlFor Server.Api baseUrl]
+                 PT.putPrettyLn $
+                   P.lines
+                     [ "I've started the Codebase API server at",
+                       P.string $ Server.urlFor Server.Api baseUrl,
+                       "and the Codebase UI at",
+                       P.string $ Server.urlFor Server.UI baseUrl
+                     ]
+
                  PT.putPrettyLn $ P.string "Running the codebase manager headless with "
                      <> P.shown GHC.Conc.numCapabilities
                      <> " "
@@ -124,7 +128,7 @@ main = do
                  mvar <- newEmptyMVar
                  takeMVar mvar
              WithCLI -> do
-                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager..."
+                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
                  launch currentDir config runtime theCodebase [] (Just baseUrl)
                  closeCodebase
 
