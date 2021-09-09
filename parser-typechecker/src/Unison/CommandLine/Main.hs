@@ -117,7 +117,7 @@ main
   -> Maybe Server.BaseUrl
   -> IO ()
 main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
-  dir' <- shortenDirectory dir 
+  dir' <- shortenDirectory dir
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   (welcomeCmds, welcomeMsg) <- Welcome.welcome defaultBaseLib root dir' version
   putPrettyLn welcomeMsg
@@ -126,7 +126,7 @@ main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef (welcomeCmds ++ initialInputs)  
+    initialInputsRef         <- newIORef (welcomeCmds ++ initialInputs)
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
