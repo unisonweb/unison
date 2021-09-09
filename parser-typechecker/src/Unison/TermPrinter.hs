@@ -298,7 +298,7 @@ pretty0
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
           (fmt S.ControlKeyword "let") `PP.hang` x
-      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat))
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
          <> printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') = let (_,g) = ABT.unabs g' in

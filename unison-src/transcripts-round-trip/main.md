@@ -55,6 +55,27 @@ Without the above stanza, the `edit` will send the definition to the most recent
 
 No reason you can't load a bunch of definitions from a single `.u` file in one go, the only thing that's annoying is you'll have to `find` and then `edit 1-11` in the transcript to load all the definitions into the file.
 
-## Example 1
+## Destructuring binds
 
-Add tests here
+Regression test for https://github.com/unisonweb/unison/issues/2337
+
+```unison:hide
+unique type Blah = Blah Boolean Boolean
+
+f : Blah -> Boolean
+f x = let
+  (Blah.Blah a b) = x
+  a
+```
+
+```ucm
+.> add
+.> edit Blah f
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
