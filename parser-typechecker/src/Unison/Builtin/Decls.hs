@@ -4,7 +4,7 @@
 
 module Unison.Builtin.Decls where
 
-import Control.Lens (_3,over)
+import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
@@ -13,13 +13,13 @@ import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration
   ( DataDeclaration (..),
     Modifier (Structural, Unique),
-    hashDecls,
   )
 import qualified Unison.DataDeclaration as DD
+import Unison.Hashing.V1.Convert (hashDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent, ConstructorId)
+import Unison.Referent (ConstructorId, Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)
@@ -117,10 +117,10 @@ failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
-  rs1 = case hashDecls $ Map.fromList
+  rs1 = case hashDecls (const $ Just 1) $ Map.fromList
     [ (v "Link"                , link)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  rs = case hashDecls $ Map.fromList
+  rs = case hashDecls (const $ Just 1) $ Map.fromList
     [ (v "Unit"               , unit)
     , (v "Tuple"              , tuple)
     , (v "Optional"           , opt)

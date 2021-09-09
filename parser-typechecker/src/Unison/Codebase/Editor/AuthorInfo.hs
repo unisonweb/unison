@@ -2,8 +2,8 @@
 
 module Unison.Codebase.Editor.AuthorInfo where
 
-import Unison.Term (Term, hashComponents)
-
+import Unison.Term (Term)
+import Unison.Hashing.V1.Convert (hashTermComponents)
 import qualified Unison.Reference as Reference
 import Unison.Prelude (MonadIO, Word8)
 import Unison.Var (Var)
@@ -49,7 +49,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
         (guidRef, guidTerm, guidType)
         (authorRef, authorTerm, authorType)
         (chRef, chTerm, chType)
-  hashAndWrangle v tm = toList . hashComponents $ Map.fromList [(Var.named v, tm)]
+  hashAndWrangle v tm = toList . hashTermComponents (const $ Just 1) $ Map.fromList [(Var.named v, tm)]
   (chType, chTypeRef) = (Type.ref a chTypeRef, unsafeParse copyrightHolderHash)
   (authorType, authorTypeRef) = (Type.ref a authorTypeRef, unsafeParse authorHash)
   (guidType, guidTypeRef) = (Type.ref a guidTypeRef, unsafeParse guidHash)

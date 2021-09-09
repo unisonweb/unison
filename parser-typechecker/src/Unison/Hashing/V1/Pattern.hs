@@ -7,8 +7,8 @@ import Unison.Prelude
 import Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Set as Set
-import Unison.LabeledDependency (LabeledDependency)
-import qualified Unison.LabeledDependency as LD
+-- import Unison.LabeledDependency (LabeledDependency)
+-- import qualified Unison.LabeledDependency as LD
 import Unison.Hashing.V1.Reference (Reference)
 import qualified Unison.Hashing.V1.Type as Type
 import qualified Unison.Hashable as H
