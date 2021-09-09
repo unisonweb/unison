@@ -36,5 +36,5 @@ printHead repo path =
   printWriteRepo repo
     <> if path == Path.empty then mempty else ":." <> Path.toText path
 
-type ReadRemoteNamespace = (ReadRepo, Maybe ShortBranchHash, Path)
+type ReadRemoteNamespace = (ReadRepo, Maybe ShortBranchHash, Path) 
 type WriteRemotePath = (WriteRepo, Path)

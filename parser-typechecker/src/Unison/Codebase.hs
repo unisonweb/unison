@@ -212,7 +212,7 @@ isType c r = case r of
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
-importRemoteBranch ::
+importRemoteBranch :: -- RLM Note: Maybe here 
   forall m v a.
   MonadIO m =>
   Codebase m v a ->

@@ -20,6 +20,8 @@ import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
+import qualified Unison.Codebase.SyncMode as SyncMode
+import Data.Sequence (singleton)
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, printNamespace)
 import Unison.Codebase (Codebase)
@@ -45,6 +47,8 @@ import qualified Unison.Util.TQueue as Q
 import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
+import Unison.NameSegment (NameSegment(NameSegment))
+
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -151,6 +155,19 @@ hintFreshCodebase ns =
         ("pull " <>  P.text (uncurry3 printNamespace ns) <> " .base")
     <> "to set up the default base library. 🏗"
 
+-- RLM Note: Includes downloading base, and eventually, author/licence setup 
+freshCodebaseSetup :: FilePath -> String -> ReadRemoteNamespace -> IO Input
+freshCodebaseSetup dir' version ns = do 
+  let seg = NameSegment "base"
+  let rootPath = Path.Path { Path.toSeq = singleton seg }
+  let abs = Path.Absolute {Path.unabsolute = rootPath}
+  putPrettyLn $ welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
+  -- RLM Note: frantic debugging
+  putPrettyLn $ fromString dir' 
+  putPrettyLn $ P.string version
+  pure (PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs})  SyncMode.Complete) -- todo add version and such 
+-- RLM Note: These inputs and events can be used Input has a PullRemoteBranchI data constructor 
+
 main
   :: FilePath
   -> Maybe ReadRemoteNamespace
@@ -163,18 +180,20 @@ main
   -> Maybe Server.BaseUrl
   -> IO ()
 main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
-  dir' <- shortenDirectory dir
+  dir' <- shortenDirectory dir 
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  putPrettyLn $ case defaultBaseLib of
-      Just ns | Branch.isOne root ->
-        welcomeMessage dir' version <> P.newline <> P.newline <> hintFreshCodebase ns
-      _ -> welcomeMessage dir' version
+  testCB <- case defaultBaseLib of
+      Just ns@(_, _, path) | Branch.isOne root -> do 
+        putPrettyLn $ P.wrap "Downloading base: " <> P.string (show path)
+        freshCodebaseSetup dir' version ns <&> \cb -> [Right cb] 
+      -- _ -> welcomeMessage dir' version
+      _ -> do pure [] --RLM Note: temp 
   eventQueue <- Q.newIO
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef initialInputs
+    initialInputsRef         <- newIORef (testCB ++ initialInputs)  --  RLM Notes: hacky shortcut would be to append hand-rolled input here? 
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
