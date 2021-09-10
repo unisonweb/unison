@@ -217,7 +217,7 @@ exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
   unknown <- cacheAdd news env
   bstk <- bump bstk
   pokeS bstk
-    (Sq.fromList $ Foreign . Wrap Rf.typeLinkRef . Ref <$> unknown)
+    (Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
   pure (denv, ustk, bstk, k)
 exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
   clink <- peekOff bstk i
@@ -1458,7 +1458,9 @@ decodeCacheArgument
   :: Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
 decodeCacheArgument s = for (toList s) $ \case
   DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _)
-    -> pure (unwrapForeign x, unwrapForeign y)
+    -> case unwrapForeign x of
+      Ref r -> pure (r, unwrapForeign y)
+      _ -> die "decodeCacheArgument: Con reference"
   _ -> die "decodeCacheArgument: unrecognized value"
 
 addRefs
