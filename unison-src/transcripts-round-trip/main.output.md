@@ -391,3 +391,82 @@ foo n _ = n
       foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
 
 ```
+## Long lines with repeated operators
+
+Regression test for https://github.com/unisonweb/unison/issues/1035
+
+```unison
+foo : Text
+foo =
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddd"
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    foo : Text
+
+.> edit foo
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    foo : Text
+    foo =
+      use Text ++
+      "aaaaaaaaaaaaaaaaaaaaaa" ++
+        "bbbbbbbbbbbbbbbbbbbbbb" ++
+        "cccccccccccccccccccccc" ++
+        "dddddddddddddddd"       
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> reflog
+
+  Here is a log of the root namespace hashes, starting with the
+  most recent, along with the command that got us there. Try:
+  
+    `fork 2 .old`             
+    `fork #pqvd5behc2 .old`   to make an old namespace
+                              accessible again,
+                              
+    `reset-root #pqvd5behc2`  to reset the root namespace and
+                              its history to that of the
+                              specified namespace.
+  
+  1.  #2hheevu1j3 : add
+  2.  #pqvd5behc2 : reset-root #pqvd5behc2
+  3.  #j32i1remee : add
+  4.  #pqvd5behc2 : reset-root #pqvd5behc2
+  5.  #acngtb04a8 : add
+  6.  #pqvd5behc2 : reset-root #pqvd5behc2
+  7.  #clsum27pr1 : add
+  8.  #pqvd5behc2 : reset-root #pqvd5behc2
+  9.  #dbvse9969b : add
+  10. #pqvd5behc2 : reset-root #pqvd5behc2
+  11. #8rn1an5gj8 : add
+  12. #pqvd5behc2 : builtins.mergeio
+  13. #sjg2v58vn2 : (initial reflogged namespace)
+
+.> reset-root 2
+
+  Done.
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      foo : Text
+
+```

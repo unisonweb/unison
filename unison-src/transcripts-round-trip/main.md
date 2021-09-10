@@ -130,3 +130,25 @@ foo n _ = n
 ``` ucm
 .> load scratch.u
 ```
+
+## Long lines with repeated operators
+
+Regression test for https://github.com/unisonweb/unison/issues/1035
+
+```unison:hide
+foo : Text
+foo =
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddd"
+```
+
+```ucm
+.> add
+.> edit foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+

@@ -406,21 +406,27 @@ pretty0
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
-             -> Pretty SyntaxText
-             -> Pretty SyntaxText
+    :: Var v
+    => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
+    -> Pretty SyntaxText
+    -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
-   -- todo: use `PP.column2` in the case where we need to break
    where
     unbroken = PP.spaced (ps ++ [last])
-    broken = PP.column2 (psCols $ [""] ++ ps ++ [last])
+    broken   = case take 2 ps of
+      [x, y] -> PP.hang (x <> " " <> y) . PP.column2 . psCols $ (drop 2 ps ++ [last])
+      []     -> last
+      _      -> undefined
     psCols ps = case take 2 ps of
-      [x,y] -> (x,y) : psCols (drop 2 ps)
-      [] -> []
-      _ -> error "??"
-    ps = join $ [r a f | (a, f) <- reverse xs ]
-    r a f = [pretty0 n (ac 3 Normal im doc) a,
-             pretty0 n (AmbientContext 10 Normal Infix im doc False) f]
+      [x, y] -> (x, y) : psCols (drop 2 ps)
+      [x]    -> [(x, "")]
+      []     -> []
+      _      -> undefined
+    ps = join $ [ r a f | (a, f) <- reverse xs ]
+    r a f =
+      [ pretty0 n (ac 3 Normal im doc)                          a
+      , pretty0 n (AmbientContext 10 Normal Infix im doc False) f
+      ]
 
 prettyPattern
   :: forall v loc . Var v
