@@ -1800,6 +1800,8 @@ declareForeigns = do
   declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
     pure $ Closure.DataB1 Ty.anyRef 0 a
 
+  declareForeign "Any.unsafeExtract" boxDirect . mkForeign $ \(Closure.DataB1 _ _ a) -> pure $ a
+
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do

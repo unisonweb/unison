@@ -255,7 +255,8 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
-  [ B "Int.+" $ int --> int --> int
+  [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a)
+  , B "Int.+" $ int --> int --> int
   , B "Int.-" $ int --> int --> int
   , B "Int.*" $ int --> int --> int
   , B "Int./" $ int --> int --> int
