@@ -34,8 +34,9 @@ import qualified Data.Primitive.PrimArray as PA
 import Text.Read (readMaybe)
 
 import Unison.Builtin.Decls (exceptionRef)
-import Unison.Reference (Reference(Builtin))
+import Unison.Reference (Reference(Builtin), toShortHash)
 import Unison.Referent (pattern Ref)
+import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF
@@ -229,6 +230,13 @@ exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
       poke ustk 1
       bstk <- bump bstk
       bstk <$ pokeBi bstk sg
+  pure (denv, ustk, bstk, k)
+exec !_ !denv !ustk !bstk !k (BPrim1 TLTT i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  let sh = SH.toText $ toShortHash link
+  bstk <- bump bstk
+  pokeBi bstk sh
   pure (denv, ustk, bstk, k)
 exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
   v <- peekOffBi bstk i
@@ -1179,6 +1187,7 @@ bprim1 !ustk !bstk FLTB i = do
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
 {-# inline bprim1 #-}
