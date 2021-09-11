@@ -413,10 +413,7 @@ pretty0
   binaryApps xs last = unbroken `PP.orElse` broken
    where
     unbroken = PP.spaced (ps ++ [last])
-    broken   = case take 2 ps of
-      [x, y] -> PP.hang (x <> " " <> y) . PP.column2 . psCols $ (drop 2 ps ++ [last])
-      []     -> last
-      _      -> undefined
+    broken   = PP.hang (head ps) . PP.column2 . psCols $ (tail ps ++ [last])
     psCols ps = case take 2 ps of
       [x, y] -> (x, y) : psCols (drop 2 ps)
       [x]    -> [(x, "")]

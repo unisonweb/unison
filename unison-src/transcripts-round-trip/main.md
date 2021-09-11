@@ -138,7 +138,7 @@ Regression test for https://github.com/unisonweb/unison/issues/1035
 ```unison:hide
 foo : Text
 foo =
-  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddd"
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
 ```
 
 ```ucm

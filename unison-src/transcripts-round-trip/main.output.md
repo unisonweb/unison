@@ -398,7 +398,7 @@ Regression test for https://github.com/unisonweb/unison/issues/1035
 ```unison
 foo : Text
 foo =
-  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddd"
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
 ```
 
 ```ucm
@@ -418,10 +418,10 @@ foo =
     foo : Text
     foo =
       use Text ++
-      "aaaaaaaaaaaaaaaaaaaaaa" ++
-        "bbbbbbbbbbbbbbbbbbbbbb" ++
-        "cccccccccccccccccccccc" ++
-        "dddddddddddddddd"       
+      "aaaaaaaaaaaaaaaaaaaaaa"
+        ++ "bbbbbbbbbbbbbbbbbbbbbb"
+        ++ "cccccccccccccccccccccc"
+        ++ "dddddddddddddddddddddd"
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -439,7 +439,7 @@ foo =
                               its history to that of the
                               specified namespace.
   
-  1.  #2hheevu1j3 : add
+  1.  #o6r7803627 : add
   2.  #pqvd5behc2 : reset-root #pqvd5behc2
   3.  #j32i1remee : add
   4.  #pqvd5behc2 : reset-root #pqvd5behc2
