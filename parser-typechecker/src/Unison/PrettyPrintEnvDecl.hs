@@ -2,7 +2,7 @@
 
 module Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl(..)) where
 
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
@@ -16,3 +16,4 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl {
   unsuffixifiedPPE :: PrettyPrintEnv,
   suffixifiedPPE :: PrettyPrintEnv
   } deriving Show
+
