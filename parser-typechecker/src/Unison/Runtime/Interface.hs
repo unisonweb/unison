@@ -2,12 +2,15 @@
 {-# language PatternGuards #-}
 {-# language NamedFieldPuns #-}
 {-# language PatternSynonyms #-}
+{-# language RecordWildCards #-}
 {-# language ParallelListComp #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
 
 module Unison.Runtime.Interface
   ( startRuntime
+  , standalone
+  , runStandalone
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -24,6 +27,7 @@ import Data.IORef
 import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
+import Data.Map.Strict (Map)
 import Data.Traversable (for)
 import Data.Text (Text, isPrefixOf)
 import Data.Word (Word64)
@@ -61,6 +65,7 @@ import Unison.Runtime.Machine
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy
   )
+import Unison.Runtime.MCode (Combs, combDeps, combTypes)
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
 
@@ -78,15 +83,15 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
   f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
 
+cacheContext :: CCache -> EvalCtx
+cacheContext
+  = ECtx builtinDataSpec
+  . Map.fromList
+  $ Map.keys builtinTermNumbering
+     <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
+
 baseContext :: IO EvalCtx
-baseContext = baseCCache <&> \cc
-    -> ECtx
-     { dspec = builtinDataSpec
-     , decompTm = Map.fromList $
-         Map.keys builtinTermNumbering
-           <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
-     , ccache = cc
-     }
+baseContext = cacheContext <$> baseCCache
 
 resolveTermRef
   :: CodeLookup Symbol IO ()
@@ -356,3 +361,88 @@ startRuntime = do
        , mainType = builtinMain External
        , ioTestType = builtinTest External
        }
+
+runStandalone :: StoredCache -> Word64 -> IO ()
+runStandalone sc init = do
+  ctx <- cacheContext <$> restoreCache sc
+  evalInContext mempty ctx init >>= \case
+    Left err -> print err
+    Right _ -> pure ()
+
+data StoredCache
+  = SCache
+      (EnumMap Word64 Combs)
+      (EnumMap Word64 Reference)
+      (EnumMap Word64 Reference)
+      Word64
+      Word64
+      (Map Reference (SuperGroup Symbol))
+      (Map Reference Word64)
+      (Map Reference Word64)
+
+restoreCache :: StoredCache -> IO CCache
+restoreCache (SCache cs crs trs ftm fty int rtm rty)
+  = CCache builtinForeigns
+      <$> newTVarIO cs
+      <*> newTVarIO crs
+      <*> newTVarIO trs
+      <*> newTVarIO ftm
+      <*> newTVarIO fty
+      <*> newTVarIO int
+      <*> newTVarIO rtm
+      <*> newTVarIO rty
+
+traceNeeded
+  :: Word64
+  -> EnumMap Word64 Combs
+  -> IO (EnumMap Word64 Combs)
+traceNeeded init src = go (restrictKeys src ks) init where
+  ks = keysSet (numberedTermLookup @Symbol)
+  go acc w
+    | hasKey w acc = pure acc
+    | Just co <- EC.lookup w src
+    = foldlM go (mapInsert w co acc) (foldMap combDeps co)
+    | otherwise = die $ "traceNeeded: unknown combinator: " ++ show w
+
+buildSCache
+  :: EnumMap Word64 Combs
+  -> EnumMap Word64 Reference
+  -> EnumMap Word64 Reference
+  -> Word64
+  -> Word64
+  -> Map Reference (SuperGroup Symbol)
+  -> Map Reference Word64
+  -> Map Reference Word64
+  -> StoredCache
+buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc
+  = SCache cs crs trs
+      ftm fty
+      (restrictTmR intsrc)
+      (restrictTmR rtmsrc)
+      (restrictTyR rtysrc)
+  where
+  combKeys = keysSet cs
+  crs = restrictTmW crsrc
+  termRefs = foldMap Set.singleton crs
+
+  typeKeys = setFromList $ (foldMap.foldMap) combTypes cs
+  trs = restrictTyW trsrc
+  typeRefs = foldMap Set.singleton trs
+
+  restrictTmW m = restrictKeys m combKeys
+  restrictTmR m = Map.restrictKeys m termRefs
+
+  restrictTyW m = restrictKeys m typeKeys
+  restrictTyR m = Map.restrictKeys m typeRefs
+
+standalone :: CCache -> Word64 -> IO StoredCache
+standalone cc init =
+  buildSCache
+    <$> (readTVarIO (combs cc) >>= traceNeeded init)
+    <*> readTVarIO (combRefs cc)
+    <*> readTVarIO (tagRefs cc)
+    <*> readTVarIO (freshTm cc)
+    <*> readTVarIO (freshTy cc)
+    <*> readTVarIO (intermed cc)
+    <*> readTVarIO (refTm cc)
+    <*> readTVarIO (refTy cc)
