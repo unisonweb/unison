@@ -46,7 +46,6 @@ import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
 
-
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
 expandNumber numberedArgs s =

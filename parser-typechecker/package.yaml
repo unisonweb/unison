@@ -144,6 +144,7 @@ executables:
       - unison-parser-typechecker
       - unison-codebase-sync
       - uri-encode
+      - unliftio
     when:
       - condition: '!os(windows)'
         dependencies: unix
