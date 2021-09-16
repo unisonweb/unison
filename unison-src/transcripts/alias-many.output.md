@@ -360,103 +360,104 @@ Let's try it!
   270. unique type Link
   271. builtin type Link.Term
   272. Link.Term : Term -> Link
-  273. builtin type Link.Type
-  274. Link.Type : Type -> Link
-  275. builtin type List
-  276. List.++ : [a] -> [a] -> [a]
-  277. List.+: : a -> [a] -> [a]
-  278. List.:+ : [a] -> a -> [a]
-  279. List.at : Nat -> [a] -> Optional a
-  280. List.cons : a -> [a] -> [a]
-  281. List.drop : Nat -> [a] -> [a]
-  282. List.empty : [a]
-  283. List.size : [a] -> Nat
-  284. List.snoc : [a] -> a -> [a]
-  285. List.take : Nat -> [a] -> [a]
-  286. metadata.isPropagated : IsPropagated
-  287. metadata.isTest : IsTest
-  288. builtin type Nat
-  289. Nat.* : Nat -> Nat -> Nat
-  290. Nat.+ : Nat -> Nat -> Nat
-  291. Nat./ : Nat -> Nat -> Nat
-  292. Nat.and : Nat -> Nat -> Nat
-  293. Nat.complement : Nat -> Nat
-  294. Nat.drop : Nat -> Nat -> Nat
-  295. Nat.eq : Nat -> Nat -> Boolean
-  296. Nat.fromText : Text -> Optional Nat
-  297. Nat.gt : Nat -> Nat -> Boolean
-  298. Nat.gteq : Nat -> Nat -> Boolean
-  299. Nat.increment : Nat -> Nat
-  300. Nat.isEven : Nat -> Boolean
-  301. Nat.isOdd : Nat -> Boolean
-  302. Nat.leadingZeros : Nat -> Nat
-  303. Nat.lt : Nat -> Nat -> Boolean
-  304. Nat.lteq : Nat -> Nat -> Boolean
-  305. Nat.mod : Nat -> Nat -> Nat
-  306. Nat.or : Nat -> Nat -> Nat
-  307. Nat.popCount : Nat -> Nat
-  308. Nat.pow : Nat -> Nat -> Nat
-  309. Nat.shiftLeft : Nat -> Nat -> Nat
-  310. Nat.shiftRight : Nat -> Nat -> Nat
-  311. Nat.sub : Nat -> Nat -> Int
-  312. Nat.toFloat : Nat -> Float
-  313. Nat.toInt : Nat -> Int
-  314. Nat.toText : Nat -> Text
-  315. Nat.trailingZeros : Nat -> Nat
-  316. Nat.xor : Nat -> Nat -> Nat
-  317. structural type Optional a
-  318. Optional.None : Optional a
-  319. Optional.Some : a -> Optional a
-  320. builtin type Ref
-  321. Ref.read : Ref g a ->{g} a
-  322. Ref.write : Ref g a -> a ->{g} ()
-  323. builtin type Request
-  324. builtin type Scope
-  325. Scope.ref : a ->{Scope s} Ref {Scope s} a
-  326. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
-  327. structural type SeqView a b
-  328. SeqView.VElem : a -> b -> SeqView a b
-  329. SeqView.VEmpty : SeqView a b
-  330. unique type Test.Result
-  331. Test.Result.Fail : Text -> Result
-  332. Test.Result.Ok : Text -> Result
-  333. builtin type Text
-  334. Text.!= : Text -> Text -> Boolean
-  335. Text.++ : Text -> Text -> Text
-  336. Text.drop : Nat -> Text -> Text
-  337. Text.empty : Text
-  338. Text.eq : Text -> Text -> Boolean
-  339. Text.fromCharList : [Char] -> Text
-  340. Text.fromUtf8.impl : Bytes -> Either Failure Text
-  341. Text.gt : Text -> Text -> Boolean
-  342. Text.gteq : Text -> Text -> Boolean
-  343. Text.lt : Text -> Text -> Boolean
-  344. Text.lteq : Text -> Text -> Boolean
-  345. Text.repeat : Nat -> Text -> Text
-  346. Text.size : Text -> Nat
-  347. Text.take : Nat -> Text -> Text
-  348. Text.toCharList : Text -> [Char]
-  349. Text.toUtf8 : Text -> Bytes
-  350. Text.uncons : Text -> Optional (Char, Text)
-  351. Text.unsnoc : Text -> Optional (Text, Char)
-  352. todo : a -> b
-  353. structural type Tuple a b
-  354. Tuple.Cons : a -> b -> Tuple a b
-  355. structural type Unit
-  356. Unit.Unit : ()
-  357. Universal.< : a -> a -> Boolean
-  358. Universal.<= : a -> a -> Boolean
-  359. Universal.== : a -> a -> Boolean
-  360. Universal.> : a -> a -> Boolean
-  361. Universal.>= : a -> a -> Boolean
-  362. Universal.compare : a -> a -> Int
-  363. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  364. builtin type Value
-  365. Value.dependencies : Value -> [Term]
-  366. Value.deserialize : Bytes -> Either Text Value
-  367. Value.load : Value ->{IO} Either [Term] a
-  368. Value.serialize : Value -> Bytes
-  369. Value.value : a -> Value
+  273. Link.Term.toText : Term -> Text
+  274. builtin type Link.Type
+  275. Link.Type : Type -> Link
+  276. builtin type List
+  277. List.++ : [a] -> [a] -> [a]
+  278. List.+: : a -> [a] -> [a]
+  279. List.:+ : [a] -> a -> [a]
+  280. List.at : Nat -> [a] -> Optional a
+  281. List.cons : a -> [a] -> [a]
+  282. List.drop : Nat -> [a] -> [a]
+  283. List.empty : [a]
+  284. List.size : [a] -> Nat
+  285. List.snoc : [a] -> a -> [a]
+  286. List.take : Nat -> [a] -> [a]
+  287. metadata.isPropagated : IsPropagated
+  288. metadata.isTest : IsTest
+  289. builtin type Nat
+  290. Nat.* : Nat -> Nat -> Nat
+  291. Nat.+ : Nat -> Nat -> Nat
+  292. Nat./ : Nat -> Nat -> Nat
+  293. Nat.and : Nat -> Nat -> Nat
+  294. Nat.complement : Nat -> Nat
+  295. Nat.drop : Nat -> Nat -> Nat
+  296. Nat.eq : Nat -> Nat -> Boolean
+  297. Nat.fromText : Text -> Optional Nat
+  298. Nat.gt : Nat -> Nat -> Boolean
+  299. Nat.gteq : Nat -> Nat -> Boolean
+  300. Nat.increment : Nat -> Nat
+  301. Nat.isEven : Nat -> Boolean
+  302. Nat.isOdd : Nat -> Boolean
+  303. Nat.leadingZeros : Nat -> Nat
+  304. Nat.lt : Nat -> Nat -> Boolean
+  305. Nat.lteq : Nat -> Nat -> Boolean
+  306. Nat.mod : Nat -> Nat -> Nat
+  307. Nat.or : Nat -> Nat -> Nat
+  308. Nat.popCount : Nat -> Nat
+  309. Nat.pow : Nat -> Nat -> Nat
+  310. Nat.shiftLeft : Nat -> Nat -> Nat
+  311. Nat.shiftRight : Nat -> Nat -> Nat
+  312. Nat.sub : Nat -> Nat -> Int
+  313. Nat.toFloat : Nat -> Float
+  314. Nat.toInt : Nat -> Int
+  315. Nat.toText : Nat -> Text
+  316. Nat.trailingZeros : Nat -> Nat
+  317. Nat.xor : Nat -> Nat -> Nat
+  318. structural type Optional a
+  319. Optional.None : Optional a
+  320. Optional.Some : a -> Optional a
+  321. builtin type Ref
+  322. Ref.read : Ref g a ->{g} a
+  323. Ref.write : Ref g a -> a ->{g} ()
+  324. builtin type Request
+  325. builtin type Scope
+  326. Scope.ref : a ->{Scope s} Ref {Scope s} a
+  327. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
+  328. structural type SeqView a b
+  329. SeqView.VElem : a -> b -> SeqView a b
+  330. SeqView.VEmpty : SeqView a b
+  331. unique type Test.Result
+  332. Test.Result.Fail : Text -> Result
+  333. Test.Result.Ok : Text -> Result
+  334. builtin type Text
+  335. Text.!= : Text -> Text -> Boolean
+  336. Text.++ : Text -> Text -> Text
+  337. Text.drop : Nat -> Text -> Text
+  338. Text.empty : Text
+  339. Text.eq : Text -> Text -> Boolean
+  340. Text.fromCharList : [Char] -> Text
+  341. Text.fromUtf8.impl : Bytes -> Either Failure Text
+  342. Text.gt : Text -> Text -> Boolean
+  343. Text.gteq : Text -> Text -> Boolean
+  344. Text.lt : Text -> Text -> Boolean
+  345. Text.lteq : Text -> Text -> Boolean
+  346. Text.repeat : Nat -> Text -> Text
+  347. Text.size : Text -> Nat
+  348. Text.take : Nat -> Text -> Text
+  349. Text.toCharList : Text -> [Char]
+  350. Text.toUtf8 : Text -> Bytes
+  351. Text.uncons : Text -> Optional (Char, Text)
+  352. Text.unsnoc : Text -> Optional (Text, Char)
+  353. todo : a -> b
+  354. structural type Tuple a b
+  355. Tuple.Cons : a -> b -> Tuple a b
+  356. structural type Unit
+  357. Unit.Unit : ()
+  358. Universal.< : a -> a -> Boolean
+  359. Universal.<= : a -> a -> Boolean
+  360. Universal.== : a -> a -> Boolean
+  361. Universal.> : a -> a -> Boolean
+  362. Universal.>= : a -> a -> Boolean
+  363. Universal.compare : a -> a -> Int
+  364. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  365. builtin type Value
+  366. Value.dependencies : Value -> [Term]
+  367. Value.deserialize : Bytes -> Either Text Value
+  368. Value.load : Value ->{IO} Either [Term] a
+  369. Value.serialize : Value -> Bytes
+  370. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib

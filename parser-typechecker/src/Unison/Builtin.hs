@@ -641,6 +641,7 @@ codeBuiltins =
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  , ("Link.Term.toText", termLink --> text)
   ]
 
 stmBuiltins :: forall v. Var v => [(Text, Type v)]

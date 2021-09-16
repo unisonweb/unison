@@ -35,7 +35,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   24. IsTest        (type)
   25. IsTest/       (1 definition)
   26. Link          (type)
-  27. Link/         (4 definitions)
+  27. Link/         (5 definitions)
   28. List          (builtin type)
   29. List/         (10 definitions)
   30. Nat           (builtin type)
