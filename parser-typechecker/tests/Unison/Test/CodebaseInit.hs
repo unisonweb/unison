@@ -8,7 +8,7 @@ import EasyTest
 import qualified Unison.Codebase.Init as CI
 import Unison.Codebase.Init
     ( CodebaseInitOptions(..)
-    , Init(..) 
+    , Init(..)
     , SpecifiedCodebase(..)
     )
 import qualified System.IO.Temp as Temp
@@ -32,7 +32,7 @@ test = scope "Codebase.Init" $ tests
     , scope "a v2 codebase should be created when one does not exist" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Home tmp) )
+        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Home tmp))
         case res of 
           CI.CreatedCodebase _ _ -> expect True
           _ -> expect False
@@ -57,7 +57,7 @@ test = scope "Codebase.Init" $ tests
     [  scope "a v2 codebase should be created when one does not exist at the Specified dir" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)))
+        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp))) 
         case res of 
           CI.CreatedCodebase _ _ -> expect True
           _ -> expect False
@@ -79,9 +79,9 @@ initMockWithCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
     -- DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
-    openCodebase = (\_ _ -> pure ( Right (pure (), codebase))),
+    openCodebase = \_ _ -> pure ( Right (pure (), codebase)),
     -- DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
-    createCodebase' = (\_ _ -> pure (Right (pure (), codebase))),
+    createCodebase' = \_ _ -> pure (Right (pure (), codebase)),
     -- CodebasePath -> CodebasePath
     codebasePath = id
   }
@@ -91,9 +91,9 @@ initMockWithoutCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
     -- DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
-    openCodebase = (\_ _ -> pure (Left "no codebase found")),
+    openCodebase = \_ _ -> pure (Left "no codebase found"),
     -- DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
-    createCodebase' = (\_ _ -> pure (Right (pure (), codebase))),
+    createCodebase' = \_ _ -> pure (Right (pure (), codebase)),
     -- CodebasePath -> CodebasePath
     codebasePath = id
   }

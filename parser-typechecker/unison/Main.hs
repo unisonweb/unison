@@ -32,6 +32,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
 import Unison.CommandLine (plural', watchConfig)
+import qualified Unison.CommandLine.Welcome as Welcome
 import qualified Unison.CommandLine.Main as CommandLine
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -51,6 +52,7 @@ import ArgParse
       IsHeadless(WithCLI, Headless),
       ShouldSaveCodebase(..),
       ShouldForkCodebase(..),
+      ShouldDownloadBase (..),
       CodebasePathOption(..),
       RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
       parseCLIArgs )
@@ -103,7 +105,7 @@ main = do
                 (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
                 rt <- RTI.startRuntime
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase 
                 closeCodebase
      Run (RunFromPipe mainName) -> do
       e <- safeReadUtf8StdIn
@@ -117,10 +119,11 @@ main = do
             currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
             Nothing
+            ShouldNotDownloadBase 
           closeCodebase
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
-     Launch isHeadless codebaseServerOpts -> do
+     Launch isHeadless codebaseServerOpts downloadBase -> do
        (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
        runtime <- RTI.startRuntime
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
@@ -143,7 +146,7 @@ main = do
                  takeMVar mvar
              WithCLI -> do
                  PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                 launch currentDir config runtime theCodebase [] (Just baseUrl)
+                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase
                  closeCodebase
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
@@ -242,18 +245,25 @@ launch
   -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
   -> Maybe Server.BaseUrl
+  -> ShouldDownloadBase 
   -> IO ()
-launch dir config runtime codebase inputs serverBaseUrl =
-  CommandLine.main
-    dir
-    defaultBaseLib
-    initialPath
-    config
-    inputs
-    runtime
-    codebase
-    Version.gitDescribe
-    serverBaseUrl
+launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase =
+  let 
+    downloadBase = case defaultBaseLib of
+                      Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
+                      _ -> Welcome.DontDownloadBase
+
+    welcome = Welcome.Welcome downloadBase dir Version.gitDescribe
+  in
+    CommandLine.main
+      dir
+      welcome
+      initialPath
+      config
+      inputs
+      runtime
+      codebase
+      serverBaseUrl
 
 isMarkdown :: String -> Bool
 isMarkdown md = case FP.takeExtension md of
@@ -278,7 +288,7 @@ defaultBaseLib = rightMay $
 
 getCodebaseOrExit :: Maybe CodebasePathOption -> IO (IO (), Codebase.Codebase IO Symbol Ann)
 getCodebaseOrExit codebasePathOption = do
-  initOptions <- codebasePathOptionToCodebaseInitOptions codebasePathOption
+  initOptions <- argsToCodebaseInitOptions codebasePathOption
   CodebaseInit.openOrCreateCodebase SC.init "main" initOptions >>= \case
     Error dir error ->
       let
@@ -290,7 +300,7 @@ getCodebaseOrExit codebasePathOption = do
             NoCodebaseFoundAtSpecifiedDir -> 
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".", 
-                  "Run `" <> executableName <> " --codebase-create" <> P.string dir <> " to create one, then try again!"
+                  "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
 
             FoundV1Codebase ->
@@ -318,9 +328,9 @@ getCodebaseOrExit codebasePathOption = do
   where
     prettyDir dir = P.string <$> canonicalizePath dir
 
-codebasePathOptionToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
-codebasePathOptionToCodebaseInitOptions option = 
-  case option of 
+argsToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
+argsToCodebaseInitOptions pathOption =
+  case pathOption of 
     Just (CreateCodebaseWhenMissing path)     -> pure $ Specified (CreateWhenMissing path)
     Just (DontCreateCodebaseWhenMissing path) -> pure $ Specified (DontCreateWhenMissing path)
     Nothing                                   -> do Home <$> getHomeDirectory

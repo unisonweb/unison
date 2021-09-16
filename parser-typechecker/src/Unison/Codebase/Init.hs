@@ -96,9 +96,9 @@ openOrCreateCodebase cbInit debugName initOptions = do
               createCodebaseWithResult cbInit debugName homeDir
             )
 
-        Specified specificed ->
-          whenNoV1Codebase (initOptionsToDir initOptions) $ do 
-            case specificed of
+        Specified specified ->
+          whenNoV1Codebase resolvedPath $ do 
+            case specified of
               DontCreateWhenMissing dir ->
                 pure (Error dir NoCodebaseFoundAtSpecifiedDir)
               CreateWhenMissing dir ->

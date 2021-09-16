@@ -14,20 +14,26 @@ import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 
-welcome 
-  :: Maybe ReadRemoteNamespace 
-  -> Codebase IO v a
-  -> FilePath 
-  -> String 
-  -> IO ([Either Event Input], P.Pretty P.ColorText)
-welcome defaultBaseLib codebase dir version = do
+-- Should Welcome include whether or not the codebase was created just now?
+
+data DownloadBase = DownloadBase ReadRemoteNamespace | DontDownloadBase
+
+data Welcome = Welcome 
+  { downloadBase :: DownloadBase
+  , watchDir :: FilePath 
+  , unisonVersion :: String 
+  }
+
+welcome :: Codebase IO v a -> Welcome -> IO ([Either Event Input], P.Pretty P.ColorText)
+welcome codebase welcome' = do
+  let Welcome{downloadBase=downloadBase, watchDir=dir, unisonVersion=version} = welcome' 
   welcomeMsg <- welcomeMessage dir version
   isBlankCodebase <- Codebase.isBlank codebase
-  pure $ case defaultBaseLib of
-    Just ns@(_, _, path) | isBlankCodebase ->
+  pure $ case downloadBase of
+    DownloadBase ns@(_, _, path) | isBlankCodebase ->
       let
         cmd =
-          Right (downloadBase ns)
+          Right (pullBase ns)
 
         baseVersion =
           P.string (show path)
@@ -70,8 +76,8 @@ welcomeMessage dir version = do
             )
         ]
 
-downloadBase :: ReadRemoteNamespace -> Input
-downloadBase ns = do 
+pullBase :: ReadRemoteNamespace -> Input
+pullBase ns = do 
   let 
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
