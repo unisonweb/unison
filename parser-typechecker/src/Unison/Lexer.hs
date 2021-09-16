@@ -911,14 +911,14 @@ lexemes' eof = P.optional space >> do
     blockDelimiter :: [String] -> P String -> P [Token Lexeme]
     blockDelimiter open closeP = do
       (pos1, close, pos2) <- positioned $ closeP
-      env <- S.get
+      env                 <- S.get
       case findClose open (layout env) of
         Nothing -> err pos1 (UnexpectedDelimiter (quote close))
           where quote s = "'" <> s <> "'"
         Just (block, n) -> do
           S.put (env { layout = drop n (layout env), opening = Just block })
-          let opens = [Token (Open block) pos1 pos2]
-          pure $ replicate n (Token Close pos1 pos2) ++ opens
+          let opens = [Token (Reserved close) pos1 pos2]
+          pure $ replicate (n-1) (Token Close pos1 pos2) ++ opens
 
     close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
     close' reopenBlockname open closeP = do
