@@ -20,13 +20,12 @@ import qualified Unison.Server.CodebaseServer as Server
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
 import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered, shortenDirectory)
+import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
 import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
 import qualified Control.Concurrent.Async as Async
@@ -106,19 +105,17 @@ getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
 
 main
   :: FilePath
-  -> Maybe ReadRemoteNamespace
+  -> Welcome.Welcome
   -> Path.Absolute
   -> (Config, IO ())
   -> [Either Event Input]
   -> Runtime.Runtime Symbol
   -> Codebase IO Symbol Ann
-  -> String
   -> Maybe Server.BaseUrl
   -> IO ()
-main dir defaultBaseLib initialPath (config, cancelConfig) initialInputs runtime codebase version serverBaseUrl = do
-  dir' <- shortenDirectory dir
+main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  (welcomeCmds, welcomeMsg) <- Welcome.welcome defaultBaseLib codebase dir' version
+  (welcomeCmds, welcomeMsg) <- Welcome.welcome codebase welcome 
   putPrettyLn welcomeMsg
   eventQueue <- Q.newIO
   do

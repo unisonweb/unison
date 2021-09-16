@@ -69,6 +69,11 @@ data ShouldForkCodebase
     | DontFork
     deriving (Show, Eq)
 
+data ShouldDownloadBase
+    = ShouldDownloadBase
+    | ShouldNotDownloadBase
+    deriving (Show, Eq)
+
 data ShouldSaveCodebase
     = SaveCodebase
     | DontSaveCodebase
@@ -87,7 +92,7 @@ data IsHeadless = Headless | WithCLI
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
 -- E.g. run, run.file, run.pipe
 data Command
-  = Launch IsHeadless CodebaseServerOpts
+  = Launch IsHeadless CodebaseServerOpts ShouldDownloadBase
   | PrintVersion
   -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
   | Init
@@ -263,7 +268,8 @@ codebaseServerOptsParser envOpts = do -- ApplicativeDo
 launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
-  pure (Launch isHeadless codebaseServerOpts)
+  downloadBase <- downloadBaseFlag
+  pure (Launch isHeadless codebaseServerOpts downloadBase)
 
 initParser :: Parser Command
 initParser = pure Init 
@@ -289,6 +295,11 @@ saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
   where
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
+
+downloadBaseFlag :: Parser ShouldDownloadBase
+downloadBaseFlag = flag ShouldDownloadBase ShouldNotDownloadBase (long "no-base" <> help downloadBaseHelp)
+  where
+    downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
 
 fileArgument :: String -> Parser FilePath
 fileArgument varName =
