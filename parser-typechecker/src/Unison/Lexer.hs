@@ -917,8 +917,8 @@ lexemes' eof = P.optional space >> do
           where quote s = "'" <> s <> "'"
         Just (block, n) -> do
           S.put (env { layout = drop (n-1) (layout env) })
-          let opens = [Token (Reserved close) pos1 pos2]
-          pure $ replicate (n-1) (Token Close pos1 pos2) ++ opens
+          let delims = [Token (Reserved close) pos1 pos2]
+          pure $ replicate (n-1) (Token Close pos1 pos2) ++ delims
 
     close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
     close' reopenBlockname open closeP = do
