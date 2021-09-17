@@ -775,6 +775,17 @@ standard'handle instr
   where
   (h0,h) = fresh2
 
+any'construct :: Var v => SuperNormal v
+any'construct
+  = unop0 0 $ \[v]
+ -> TCon Ty.anyRef 0 [v] 
+
+any'extract :: Var v => SuperNormal v
+any'extract
+  = unop0 1
+  $ \[v,v1] -> TMatch v
+  $ MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
+
 seek'handle :: ForeignOp
 seek'handle instr
   = ([BX,BX,BX],)
@@ -1457,6 +1468,8 @@ builtinLookup
   , ("Code.lookup", code'lookup)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
+  , ("Any.Any", any'construct)
+  , ("Any.unsafeExtract", any'extract)
   , ("Link.Term.toText", term'link'to'text)
   , ("STM.atomically", stm'atomic)
   ] ++ foreignWrappers
@@ -1800,9 +1813,6 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
-  declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
-    pure $ Closure.DataB1 Ty.anyRef 0 a
-
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do

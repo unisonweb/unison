@@ -1489,6 +1489,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
       (rs,gs) = unzip $ M.toList new
+  int <- writeTVar (intermed cc) (have <> new)
   rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
@@ -1497,7 +1498,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
       combinate n g = (n, emitCombs rns n g)
   nrs <- updateMap (mapFromList $ zip [ntm..] rs) (combRefs cc)
   ncs <- updateMap (mapFromList $ zipWith combinate [ntm..] gs) (combs cc)
-  pure $ rtm `seq` nrs `seq` ncs `seq` ()
+  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` ()
   where
   toAdd = M.fromList tml
 
