@@ -920,7 +920,7 @@ lexemes' eof = P.optional space >> do
       case findClose open (layout env) of
         Nothing -> err pos1 (UnexpectedDelimiter (quote close))
           where quote s = "'" <> s <> "'"
-        Just (block, n) -> do
+        Just (_, n) -> do
           S.put (env { layout = drop (n-1) (layout env) })
           let delims = [Token (Reserved close) pos1 pos2]
           pure $ replicate (n-1) (Token Close pos1 pos2) ++ delims
