@@ -12,12 +12,12 @@ import qualified Unison.Codebase.Path as Path
 import Data.Void (Void)
 
 -- |"release/M1j.2" -> "releases._M1j"
---  "devel/*" -> "trunk"
+--  "latest-*" -> "trunk"
 defaultBaseLib :: Parsec Void Text ReadRemoteNamespace
-defaultBaseLib = fmap makeNS $ devel <|> release
+defaultBaseLib = fmap makeNS $ latest <|> release
   where
-  devel, release, version :: Parsec Void Text Text
-  devel = "devel/" *> many anyChar *> eof $> "trunk"
+  latest, release, version :: Parsec Void Text Text
+  latest = "latest-" *> many anyChar *> eof $> "trunk"
   release = fmap ("releases._" <>) $ "release/" *> version <* eof
   version = fmap Text.pack $
               try (someTill anyChar "." <* many anyChar) <|> many anyChar

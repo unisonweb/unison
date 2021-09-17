@@ -1,5 +1,6 @@
 {-# Language DeriveTraversable #-}
 {-# Language OverloadedStrings #-}
+{-# Language ViewPatterns #-}
 
 module Unison.FileParser where
 
@@ -8,7 +9,9 @@ import Unison.Prelude
 import qualified Unison.ABT as ABT
 import Control.Lens
 import           Control.Monad.Reader (local, asks)
+import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import           Prelude hiding (readFile)
 import qualified Text.Megaparsec as P
 import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
@@ -73,7 +76,7 @@ file = do
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
-          ( Names.shadowSuffixedTerms0 locals (Names.currentNames names)
+          ( Names.shadowTerms0 locals (Names.currentNames names)
           , resolveLocals )
           where
           -- All locally declared term variables, running example:
@@ -92,8 +95,9 @@ file = do
           -- suffix, but `bob` is. `foo.alice` and `bob.alice` are both unique suffixes but
           -- they map to themselves, so we ignore them. In our example, we'll just be left with
           --   [(bob, Term.var() zonk.bob)]
-          replacements = [ (Name.toVar n, Term.var() v') | (n,[v']) <- Map.toList varsBySuffix
-                                                         , Name.toVar n /= v' ]
+          replacements = [ (Name.toVar n, Term.var() v')
+                         | (n, nubOrd -> [v']) <- Map.toList varsBySuffix
+                         , Name.toVar n /= v' ]
           locals = Map.keys varsBySuffix
           -- This will perform the actual variable replacements for suffixes
           -- that uniquely identify definitions in the file. It will avoid
@@ -101,10 +105,12 @@ file = do
           -- `bob -> bob * 42`, `bob` will correctly refer to the lambda parameter.
           -- and not the `zonk.bob` declared in the file.
           resolveLocals = ABT.substsInheritAnnotation replacements
-    terms <- case List.validate (traverse $ Term.bindSomeNames curNames . resolveLocals) terms of
+    let bindNames = Term.bindSomeNames avoid curNames . resolveLocals
+                    where avoid = Set.fromList (stanzas0 >>= getVars)
+    terms <- case List.validate (traverse bindNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
-    watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames . resolveLocals) watches of
+    watches <- case List.validate (traverse . traverse $ bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
     let toPair (tok, _) = (L.payload tok, ann tok)

@@ -370,7 +370,7 @@ test = scope "termprinter" $ tests
   , pending $ tc "match x with [a] -> a"     -- ditto
   , pending $ tc "match x with [] -> a"      -- ditto
   , tcDiff "match x with Optional.Some (Optional.Some _) -> ()"
-           "let\n  Optional.Some (Optional.Some _) = x\n  ()"
+           "let\n  (Optional.Some (Optional.Some _)) = x\n  ()"
   -- need an actual effect constructor to test the following
   , pending $ tc "match x with { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\

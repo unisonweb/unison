@@ -298,7 +298,7 @@ pretty0
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
           (fmt S.ControlKeyword "let") `PP.hang` x
-      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat))
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
          <> printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') = let (_,g) = ABT.unabs g' in
@@ -406,21 +406,24 @@ pretty0
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
-             -> Pretty SyntaxText
-             -> Pretty SyntaxText
+    :: Var v
+    => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
+    -> Pretty SyntaxText
+    -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
-   -- todo: use `PP.column2` in the case where we need to break
    where
     unbroken = PP.spaced (ps ++ [last])
-    broken = PP.column2 (psCols $ [""] ++ ps ++ [last])
+    broken   = PP.hang (head ps) . PP.column2 . psCols $ (tail ps ++ [last])
     psCols ps = case take 2 ps of
-      [x,y] -> (x,y) : psCols (drop 2 ps)
-      [] -> []
-      _ -> error "??"
-    ps = join $ [r a f | (a, f) <- reverse xs ]
-    r a f = [pretty0 n (ac 3 Normal im doc) a,
-             pretty0 n (AmbientContext 10 Normal Infix im doc False) f]
+      [x, y] -> (x, y) : psCols (drop 2 ps)
+      [x]    -> [(x, "")]
+      []     -> []
+      _      -> undefined
+    ps = join $ [ r a f | (a, f) <- reverse xs ]
+    r a f =
+      [ pretty0 n (ac 3 Normal im doc)                          a
+      , pretty0 n (AmbientContext 10 Normal Infix im doc False) f
+      ]
 
 prettyPattern
   :: forall v loc . Var v
@@ -493,9 +496,9 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
         f i s = (paren (p >= i) (pl <> " " <> (fmt (S.Op op) s) <> " " <> pr), rvs)
     in case op of
-      Pattern.Cons -> f 9 "+:"
-      Pattern.Snoc -> f 9 ":+"
-      Pattern.Concat -> f 9 "++"
+      Pattern.Cons -> f 0 "+:"
+      Pattern.Snoc -> f 0 ":+"
+      Pattern.Concat -> f 0 "++"
  where
   l :: IsString s => String -> s
   l = fromString

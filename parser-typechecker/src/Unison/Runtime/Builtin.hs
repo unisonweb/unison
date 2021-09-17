@@ -738,6 +738,10 @@ code'lookup
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
 
+term'link'to'text :: Var v => SuperNormal v
+term'link'to'text
+  = unop0 0 $ \[link] -> TPrm TLTT [link]
+
 value'load :: Var v => SuperNormal v
 value'load
   = unop0 2 $ \[vlu,t,r]
@@ -1472,7 +1476,7 @@ builtinLookup
   , ("Code.lookup", code'lookup)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
-
+  , ("Link.Term.toText", term'link'to'text)
   , ("STM.atomically", stm'atomic)
   ] ++ foreignWrappers
 
@@ -1819,7 +1823,6 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
-
   declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
     pure $ Closure.DataB1 Ty.anyRef 0 a
 
