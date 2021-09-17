@@ -878,7 +878,7 @@ lexemes' eof = P.optional space >> do
     commaSeparator = do
       env <- S.get
       case topBlockName (layout env) of
-        Just match | not (match `elem` matchWithBlocks) ->
+        Just match | not (match `elem` matchWithBlocks || match == "{") ->
           blockDelimiter ["[", "("] (lit ",")
         _ -> fail "this comma is a pattern separator"
 

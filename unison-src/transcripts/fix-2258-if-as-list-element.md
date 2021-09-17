@@ -31,5 +31,21 @@ Tests that `if` statements can appear as list and tuple elements.
 
 > [1,2,3]
 
+> [
+  1,
+  2,
+  3
+  ]
+
+> [
+  1,
+  2,
+  3,]
+
+> (1,2,3,)
+
+> (1,
+   2,)
+
 ```
 

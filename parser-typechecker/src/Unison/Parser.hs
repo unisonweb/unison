@@ -406,33 +406,22 @@ string = queryToken getString
         getString _             = Nothing
 
 tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
-tupleOrParenthesized p unit pair = do
-    open <- openBlockWith "("
-    es <- sepBy (reserved ",") p
-    close <- optional semi *> closeBlock
-    pure $ go es open close
-  where
-    go [t] _ _ = t
-    go as s e  = foldr pair (unit (ann s <> ann e)) as
+tupleOrParenthesized p unit pair = seq' "(" go p
+ where
+  go _ [t] = t
+  go a xs  = foldr pair (unit a) xs
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
-seq f p = do
-  open <- openBlockWith "["
-  es <- sepBy (reserved ",") p
-  close <- optional semi *> closeBlock
-  pure $ go open es close
- where
-   go open elems close = f (ann open <> ann close) elems
+seq = seq' "["
 
--- seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
--- seq f p = f' <$> leading <*> elements <*> trailing
---   where
---     f' open elems close = f (ann open <> ann close) elems
---     redundant = P.skipMany (P.eitherP (reserved ",") semi)
---     leading = openBlockWith "[" <* redundant
---     trailing = redundant *> reserved "]"
---     sep = P.try $ optional semi *> reserved "," <* redundant
---     elements = sepEndBy sep p
+seq' :: Ord v => String -> (Ann -> [a] -> a) -> P v a -> P v a
+seq' openStr f p = do
+  open  <- openBlockWith openStr <* redundant
+  es    <- sepEndBy (reserved ",") p
+  close <- redundant *> closeBlock
+  pure $ go open es close
+  where go open elems close = f (ann open <> ann close) elems
+        redundant = P.skipMany (P.eitherP (reserved ",") semi)
 
 chainr1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where
