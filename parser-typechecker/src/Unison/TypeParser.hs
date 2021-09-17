@@ -84,9 +84,9 @@ effectList = do
 
 sequenceTyp :: Var v => TypeP v
 sequenceTyp = do
-  open <- reserved "["
+  open <- openBlockWith "["
   t <- valueType
-  close <- reserved "]"
+  close <- closeBlock
   let a = ann open <> ann close
   pure $ Type.app a (Type.list a) t
 

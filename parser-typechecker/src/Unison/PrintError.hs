@@ -1031,6 +1031,10 @@ prettyParseError s = \case
     where
     excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
     go = \case
+      L.UnexpectedDelimiter s ->
+        "I found a " <> style ErrorSite (fromString s) <>
+        " here, but I didn't see a list or tuple that it might be a separator for.\n\n" <>
+        excerpt
       L.CloseWithoutMatchingOpen open close ->
         "I found a closing " <> style ErrorSite (fromString close) <>
         " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
