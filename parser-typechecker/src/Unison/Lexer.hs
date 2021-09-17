@@ -875,10 +875,15 @@ lexemes' eof = P.optional space >> do
     matchWithBlocks = ["match-with", "cases"]
     parens = open "(" <|> close ["("] (lit ")")
     brackets = open "[" <|> close ["["] (lit "]")
+    -- `allowCommaToClose` determines if a comma should close inner blocks.
+    -- Currently there is a set of blocks where `,` is not treated specially
+    -- and it just emits a Reserved ",". There are currently only three:
+    -- `cases`, `match-with`, and `{`
+    allowCommaToClose match = not $ match `elem` ("{" : matchWithBlocks)
     commaSeparator = do
       env <- S.get
       case topBlockName (layout env) of
-        Just match | not (match `elem` matchWithBlocks || match == "{") ->
+        Just match | allowCommaToClose match ->
           blockDelimiter ["[", "("] (lit ",")
         _ -> fail "this comma is a pattern separator"
 
