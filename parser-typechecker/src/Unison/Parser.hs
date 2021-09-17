@@ -417,7 +417,7 @@ seq = seq' "["
 seq' :: Ord v => String -> (Ann -> [a] -> a) -> P v a -> P v a
 seq' openStr f p = do
   open  <- openBlockWith openStr <* redundant
-  es    <- sepEndBy (reserved ",") p
+  es    <- sepEndBy (P.try $ optional semi *> reserved "," <* redundant) p
   close <- redundant *> closeBlock
   pure $ go open es close
   where go open elems close = f (ann open <> ann close) elems
