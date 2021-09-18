@@ -1570,7 +1570,7 @@ declareForeigns = do
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime 
 
-  declareForeign "IO.systemTime.impl.v4" unitToEFInt
+  declareForeign "IO.systemTime2.impl.v1" unitToEFInt
     $ mkForeignIOF $ \() -> fmap (1e6 *) getPOSIXTime 
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
