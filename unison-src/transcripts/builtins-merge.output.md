@@ -10,7 +10,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
 .tmp> ls builtin
 
   1.  Any           (builtin type)
-  2.  Any/          (1 definition)
+  2.  Any/          (2 definitions)
   3.  Boolean       (builtin type)
   4.  Boolean/      (1 definition)
   5.  Bytes         (builtin type)
