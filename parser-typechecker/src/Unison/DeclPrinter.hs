@@ -145,11 +145,11 @@ fieldNames env r name dd = case DD.constructors dd of
     fieldNames = Map.fromList
       [ (r, f) | (r, n) <- names
                , typename <- pure (HQ.toString name)
-               , typename `isPrefixOf` (traceShowId n)
+               , typename `isPrefixOf` n
                , rest <- pure $ drop (length typename + 1) n
                , (f, rest) <- pure $ span (/= '.') rest
                , rest `elem` ["",".set",".modify"] ]
-    in if traceShowId (Map.size fieldNames) == traceShowId (length names) then
+    in if Map.size fieldNames == length names then
          Just [ HQ.unsafeFromString name
               | v <- vars
               , Just (ref, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
