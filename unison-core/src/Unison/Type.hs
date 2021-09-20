@@ -688,6 +688,9 @@ hashComponents
   :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
 hashComponents = ReferenceUtil.hashComponents $ refId ()
 
+builtinAbilities :: Set Reference
+builtinAbilities = Set.fromList [builtinIORef, stmRef]
+
 instance Hashable1 F where
   hash1 hashCycle hash e =
     let

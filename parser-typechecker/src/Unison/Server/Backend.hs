@@ -323,7 +323,7 @@ typeListEntry codebase r n = do
       pure $ case decl of
         Just (Left _) -> Ability
         _             -> Data
-    _ -> pure Data
+    _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
   pure $ TypeEntry r n tag
 
 typeDeclHeader
