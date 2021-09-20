@@ -308,10 +308,6 @@ termListEntry codebase b0 r n = do
       tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
   pure $ TermEntry r n ot tag
 
-
-builtInIoAbility :: Reference
-builtInIoAbility = Reference.unsafeFromText "##IO"
-
 typeListEntry
   :: Monad m
   => Var v
@@ -328,7 +324,7 @@ typeListEntry codebase r n = do
         Just (Left _) -> Ability
         _             -> Data
     -- IO is the only built-in ability
-    _ -> pure (if r == builtInIoAbility then Ability else Data)
+    _ -> pure (if r == Type.builtinIORef then Ability else Data)
   pure $ TypeEntry r n tag
 
 typeDeclHeader
