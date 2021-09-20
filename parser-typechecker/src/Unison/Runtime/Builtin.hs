@@ -738,6 +738,12 @@ code'lookup
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
 
+code'validate :: Var v => SuperNormal v
+code'validate
+  = unop0 0 $ \[item]
+ -> TLets Direct [] [] (TPrm CVLD [item])
+  $ TCon Ty.unitRef 0 []
+
 term'link'to'text :: Var v => SuperNormal v
 term'link'to'text
   = unop0 0 $ \[link] -> TPrm TLTT [link]
@@ -1455,6 +1461,7 @@ builtinLookup
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
   , ("Code.lookup", code'lookup)
+  , ("Code.validate", code'validate)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
   , ("Link.Term.toText", term'link'to'text)

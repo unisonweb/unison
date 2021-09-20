@@ -633,6 +633,7 @@ codeBuiltins =
   , ("Code.serialize", code --> bytes)
   , ("Code.deserialize", bytes --> eithert text code)
   , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.validate", list (tuple [termLink,code]) --> io unit)
   , ("Code.lookup", termLink --> io (optionalt code))
   , ("Value.dependencies", value --> list termLink)
   , ("Value.serialize", value --> bytes)

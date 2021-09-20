@@ -15,7 +15,7 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
-import Data.Foldable (toList)
+import Data.Foldable (toList, for_)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -219,6 +219,12 @@ exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
   pokeS bstk
     (Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
   pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 CVLD i) = do
+  arg <- peekOffS bstk i
+  news <- decodeCacheArgument arg
+  codeValidate news env
+  pure (denv, ustk, bstk, k)
+
 exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
   clink <- peekOff bstk i
   let Ref link = unwrapForeign $ marshalToForeign clink
@@ -1187,6 +1193,7 @@ bprim1 !ustk !bstk FLTB i = do
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk CVLD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
@@ -1480,6 +1487,27 @@ addRefs vfrsh vfrom vto rs = do
   writeTVar vfrom from
   modifyTVar vto (nto <>)
   pure from
+
+codeValidate
+  :: [(Reference, SuperGroup Symbol)]
+  -> CCache
+  -> IO ()
+codeValidate tml cc = do
+  rty0 <- readTVarIO (refTy cc)
+  fty <- readTVarIO (freshTy cc)
+  let f b r | b, M.notMember r rty0 = S.singleton r
+            | otherwise = mempty
+      ntys0 = (foldMap.foldMap) (groupLinks f) tml
+      ntys = M.fromList $ zip (S.toList ntys0) [fty..]
+      rty = ntys <> rty0
+  ftm <- readTVarIO (freshTm cc)
+  rtm0 <- readTVarIO (refTm cc)
+  let (rs, gs) = unzip tml
+      rtm = rtm0 `M.withoutKeys` S.fromList rs
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate n g = emitCombs rns n g
+  for_ (zip [ftm..] gs) $ \(n, g) ->
+    evaluate $ combinate n g
 
 cacheAdd0
   :: S.Set Reference
