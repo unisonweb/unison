@@ -324,7 +324,7 @@ typeListEntry codebase r n = do
         Just (Left _) -> Ability
         _             -> Data
     -- IO is the only built-in ability
-    _ -> pure (if r == Type.builtinIORef then Ability else Data)
+    _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
   pure $ TypeEntry r n tag
 
 typeDeclHeader
