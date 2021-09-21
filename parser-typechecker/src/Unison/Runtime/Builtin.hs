@@ -1800,6 +1800,8 @@ declareForeigns = do
         -> pure . Bytes.fromArray $ serializeGroup sg
   declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
+  declareForeign "Code.display" boxBoxDirect . mkForeign
+    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Text.unpack nm) sg ""
   declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
