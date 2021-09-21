@@ -740,9 +740,17 @@ code'lookup
 
 code'validate :: Var v => SuperNormal v
 code'validate
-  = unop0 0 $ \[item]
- -> TLets Direct [] [] (TPrm CVLD [item])
-  $ TCon Ty.unitRef 0 []
+  = unop0 5 $ \[item, t, ref, msg, extra, fail]
+ -> TLetD t UN (TPrm CVLD [item])
+  . TMatch t . MatchSum
+  $ mapFromList
+  [ (1, ([BX, BX, BX],)
+      . TAbss [ref, msg, extra]
+      . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
+      $ TCon Ty.optionalRef 1 [fail])
+  , (0, ([],)
+      $ TCon Ty.optionalRef 0 [])
+  ]
 
 term'link'to'text :: Var v => SuperNormal v
 term'link'to'text
