@@ -152,3 +152,24 @@ foo =
 .> load scratch.u
 ```
 
+## Parenthesized let-block with operator
+
+Regression test for https://github.com/unisonweb/unison/issues/1778
+
+```unison:hide
+x = '(let
+  abort
+  0) |> Abort.toOptional
+```
+
+```ucm
+.> add
+.> edit x
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+
