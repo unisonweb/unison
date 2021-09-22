@@ -475,7 +475,7 @@ foo =
 Regression test for https://github.com/unisonweb/unison/issues/2408
 
 ```unison
-myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ }}
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
 ```
 
 ```ucm
@@ -494,7 +494,10 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ }}
   
     myDoc : Doc2
     myDoc =
-      {{ __my text__ __my text__ __MY_TEXT__ ___MY__TEXT___ }}
+      {{
+      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
+      ~~MY~TEXT~~ **MY*TEXT**
+      }}
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.

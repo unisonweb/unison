@@ -157,7 +157,7 @@ foo =
 Regression test for https://github.com/unisonweb/unison/issues/2408
 
 ```unison:hide
-myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ }}
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
 ```
 
 ```ucm

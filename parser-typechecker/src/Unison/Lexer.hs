@@ -500,7 +500,7 @@ lexemes' eof = P.optional space >> do
               (CP.satisfy (== '~'))
           name s = if take 1 s == "~"
             then "syntax.docStrikethrough"
-            else if length s > 1 then "syntax.docBold" else "syntax.docItalic"
+            else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
       end <- P.try $ do
         end <- start
         P.lookAhead (CP.satisfy (not . isSpace))
