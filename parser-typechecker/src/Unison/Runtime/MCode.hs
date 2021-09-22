@@ -741,7 +741,7 @@ emitSection rns grpn rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
   , MatchData r cs df <- bs
   =  Ins (Unpack (Just r) i)
- <$> emitDataMatching rns grpn rec ctx cs df
+ <$> emitDataMatching r rns grpn rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
   , MatchRequest hs0 df <- bs
   , hs <- mapFromList $ first (dnum rns) <$> M.toList hs0
@@ -1122,21 +1122,22 @@ emitBP2 p a
 
 emitDataMatching
   :: Var v
-  => RefNums
+  => Reference
+  -> RefNums
   -> Word64
   -> RCtx v
   -> Ctx v
   -> EnumMap CTag ([Mem], ANormal v)
   -> Maybe (ANormal v)
   -> Emit Section
-emitDataMatching rns grpn rec ctx cs df
+emitDataMatching r rns grpn rec ctx cs df
   = MatchW 0 <$> edf <*> traverse (emitCase rns grpn rec ctx) (coerce cs)
   where
   -- Note: this is not really accurate. A default data case needs
   -- stack space corresponding to the actual data that shows up there.
   -- However, we currently don't use default cases for data.
   edf | Just co <- df = emitSection rns grpn rec ctx co
-      | otherwise = countCtx ctx $ Die "missing data case"
+      | otherwise = countCtx ctx $ Die ("missing data case for hash " <> show r)
 
 -- Emits code corresponding to an unboxed sum match.
 -- The match is against a tag on the stack, and cases introduce
