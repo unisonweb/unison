@@ -342,22 +342,24 @@ lexemes' eof = P.optional space >> do
       isPrefixOf "}}" word ||
       all (== '#') word
 
-    wordy ok = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
-      let end = P.lookAhead $ void docClose
-                          <|> void docOpen
-                          <|> void (CP.satisfy isSpace)
-                          <|> void (CP.satisfy (not . ok))
-      word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
-      guard (not $ reserved word)
+    wordy closing = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
+      let end =
+            P.lookAhead
+              $   void docClose
+              <|> void docOpen
+              <|> void (CP.satisfy isSpace)
+              <|> void closing
+      word <- P.manyTill (CP.satisfy (\ch -> not (isSpace ch))) end
+      guard (not $ reserved word || null word)
       pure word
 
-    leafy ok = groupy ok gs
-          where
-          gs = link <|> externalLink <|> exampleInline <|> expr
-           <|> boldOrItalicOrStrikethrough ok <|> verbatim
-           <|> atDoc <|> wordy ok
+    leafy closing = groupy closing gs
+      where
+      gs = link <|> externalLink <|> exampleInline <|> expr
+       <|> boldOrItalicOrStrikethrough closing <|> verbatim
+       <|> atDoc <|> wordy closing
 
-    leaf = leafy (const True)
+    leaf = leafy mzero
 
     atDoc = src <|> evalInline <|> signature <|> signatureInline
       where
@@ -403,9 +405,9 @@ lexemes' eof = P.optional space >> do
     signatureLink = wrap "syntax.docEmbedSignatureLink" $
       tok (symbolyId <|> wordyId) <* CP.space
 
-    groupy ok p = do
+    groupy closing p = do
       (start,p,stop) <- positioned p
-      after <- P.optional . P.try $ leafy ok
+      after <- P.optional . P.try $ leafy closing
       pure $ case after of
         Nothing -> p
         Just after ->
@@ -486,28 +488,30 @@ lexemes' eof = P.optional space >> do
           verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
           pure (name <> verbatim)
 
-    boldOrItalicOrStrikethrough ok = do
-      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some (CP.satisfy (== '~'))
-          name s = if take 1 s == "~" then "syntax.docStrikethrough"
-                   else if length s > 1 then "syntax.docBold"
-                   else "syntax.docItalic"
-      (end,ch) <- P.try $ do
-        end@(ch:_) <- start
+    boldOrItalicOrStrikethrough closing = do
+      let start =
+            some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some
+              (CP.satisfy (== '~'))
+          name s = if take 1 s == "~"
+            then "syntax.docStrikethrough"
+            else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
+      end <- P.try $ do
+        end <- start
         P.lookAhead (CP.satisfy (not . isSpace))
-        pure (end,ch)
-      wrap (name end) . wrap "syntax.docParagraph" $
-        join <$> P.someTill (leafy (\c -> ok c && c /= ch) <* nonNewlineSpaces)
-                            (lit end)
+        pure end
+      wrap (name end) . wrap "syntax.docParagraph" $ join <$> P.someTill
+        (leafy (closing <|> (void $ lit end)) <* nonNewlineSpaces)
+        (lit end)
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
       wrap "syntax.docNamedLink" $ do
         _ <- lit "["
-        p <- leafies (/= ']')
+        p <- leafies (void $ char ']')
         _ <- lit "]"
         _ <- lit "("
         target <- wrap "syntax.docGroup" . wrap "syntax.docJoin" $
-                  link <|> fmap join (P.some (expr <|> wordy (/= ')')))
+                  link <|> fmap join (P.some (expr <|> wordy (char ')')))
         _ <- lit ")"
         pure (p <> target)
 

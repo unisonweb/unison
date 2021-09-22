@@ -152,3 +152,21 @@ foo =
 .> load scratch.u
 ```
 
+## Emphasis in docs inserts the right number of underscores
+
+Regression test for https://github.com/unisonweb/unison/issues/2408
+
+```unison:hide
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+```
+
+```ucm
+.> add
+.> edit myDoc
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
