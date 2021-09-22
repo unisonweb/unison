@@ -13,7 +13,7 @@ test :: Test ()
 test = scope "versionparser" . tests . fmap makeTest $
   [ ("release/M1j", "releases._M1j")
   , ("release/M1j.2", "releases._M1j")
-  , ("devel/M1k", "trunk")
+  , ("latest-abc", "trunk")
   ]
 
 makeTest :: (Text, Text) -> Test ()

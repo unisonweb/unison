@@ -1156,7 +1156,8 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
             vt = existentialp lo v
         appendContext [existential v]
         subtype (Type.effectV lo (lo, Type.effects lo es) (lo, vt)) sty
-      coalesceWanteds =<< traverse (checkCase scrutType outType) cases
+      scrutType' <- ungeneralize scrutType
+      coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 getEffect
   :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
@@ -1220,8 +1221,8 @@ checkPattern
   -> Pattern loc
   -> StateT [v] (M v loc) [(v, v)]
 checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern"::String, tx, ty) False = undefined
-checkPattern scrutineeType0 p =
-  lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
+checkPattern scrutineeType p =
+  case p of
     Pattern.Unbound _    -> pure []
     Pattern.Var     _loc -> do
       v  <- getAdvance p

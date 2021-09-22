@@ -323,7 +323,7 @@ typeListEntry codebase r n = do
       pure $ case decl of
         Just (Left _) -> Ability
         _             -> Data
-    _ -> pure Data
+    _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
   pure $ TypeEntry r n tag
 
 typeDeclHeader
@@ -890,9 +890,6 @@ typesToSyntax suff width ppe0 types =
     (first (PPE.typeName ppeDecl) . dupe)
     types
  where
-  ppeBody r = if suffixified suff
-    then PPE.suffixifiedPPE ppe0
-    else PPE.declarationPPE ppe0 r
   ppeDecl = if suffixified suff
     then PPE.suffixifiedPPE ppe0
     else PPE.unsuffixifiedPPE ppe0
@@ -900,7 +897,7 @@ typesToSyntax suff width ppe0 types =
     BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
     MissingObject sh -> MissingObject sh
     UserObject d -> UserObject . Pretty.render width $
-      DeclPrinter.prettyDecl (ppeBody r) r n d
+      DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
 
 loadSearchResults
   :: (Var v, Applicative m)

@@ -7,6 +7,7 @@ module Unison.Codebase
     GetRootBranchError (..),
     getBranchForHash,
     getCodebaseDir,
+    isBlank,
     SyncToDir,
     addDefsToCodebase,
     installUcmDependencies,
@@ -61,6 +62,7 @@ import Unison.Codebase.Editor.Git (withStatus)
 import qualified Data.Set as Set
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Type as Type
+import Control.Error (rightMay)
 
 -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
 -- If not found, attempt to find it in the Codebase (sqlite)
@@ -206,6 +208,11 @@ isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+
+isBlank :: Applicative m => Codebase m v a -> m Bool
+isBlank codebase = do 
+  root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
+  pure (root == Branch.empty)
 
 -- * Git stuff
 
