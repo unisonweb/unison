@@ -18,7 +18,7 @@ The `builtins.merge` command adds the known builtins to a `builtin` subnamespace
   7.  Char          (builtin type)
   8.  Char/         (3 definitions)
   9.  Code          (builtin type)
-  10. Code/         (6 definitions)
+  10. Code/         (8 definitions)
   11. Debug/        (1 definition)
   12. Doc           (type)
   13. Doc/          (6 definitions)

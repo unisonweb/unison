@@ -101,7 +101,7 @@ import Unison.Typechecker.Components (minimize')
 import Unison.Pattern (SeqOp(..))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
-import Unison.Referent (Referent, pattern Ref, pattern Con)
+import Unison.Referent (Referent)
 
 -- For internal errors 
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -751,6 +751,7 @@ data POp
   | EQLU | CMPU | EROR
   -- Code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
+  | CVLD                      -- validate
   | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
   | PRNT | INFO
@@ -1205,12 +1206,8 @@ contLinks f (Mark ps de k)
 contLinks _ KE = mempty
 
 litLinks :: Monoid a => (Bool -> Reference -> a) -> BLit -> a
-litLinks _ (Text _) = mempty
-litLinks _ (Bytes _) = mempty
 litLinks f (List s) = foldMap (valueLinks f) s
-litLinks f (TmLink (Ref r)) = f False r
-litLinks f (TmLink (Con r _ _)) = f True r
-litLinks f (TyLink r) = f True r
+litLinks _ _ = mempty
 
 groupTermLinks :: SuperGroup v -> [Reference]
 groupTermLinks = Set.toList . groupLinks f
