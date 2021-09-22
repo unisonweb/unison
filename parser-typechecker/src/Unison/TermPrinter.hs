@@ -1342,7 +1342,16 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocItalic ppe -> Just d) ->
         PP.group $ "*" <> rec d <> "*"
       (toDocBold ppe -> Just d) ->
-        PP.group $ "__" <> rec d <> "__"
+        let inner = rec d
+            numUnderscores =
+              case
+                  filter (\s -> take 2 s == "__")
+                    $ group (PP.toPlainUnbroken $ PP.syntaxToColor inner)
+                of
+                  [] -> 2
+                  x  -> 1 + (maximum $ map length x)
+            underscores = replicate numUnderscores '_'
+         in PP.group $ PP.string underscores <> inner <> PP.string underscores
       (toDocStrikethrough ppe -> Just d) ->
         PP.group $ "~~" <> rec d <> "~~"
       (toDocGroup ppe -> Just d) ->
