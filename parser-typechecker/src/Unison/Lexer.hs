@@ -353,12 +353,6 @@ lexemes' eof = P.optional space >> do
       guard (not $ reserved word || null word)
       pure word
 
-    -- escaped :: P Char
-    -- escaped = char '\\' *> P.choice (map char codes)
-    --  where
-    --   codes =
-    --     ['\\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!']
-
     leafy closing = groupy closing gs
       where
       gs = link <|> externalLink <|> exampleInline <|> expr
