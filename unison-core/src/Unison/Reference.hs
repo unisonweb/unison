@@ -19,6 +19,7 @@ module Unison.Reference
    unsafeFromText,
    idFromText,
    isPrefixOf,
+   isBuiltin,
    fromShortHash,
    fromText,
    readSuffix,
@@ -179,6 +180,10 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
     insert m (k, r) =
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
     done m = sortOn snd <$> toList m
+
+isBuiltin :: Reference -> Bool
+isBuiltin (Builtin _) = True
+isBuiltin _ = False
 
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash

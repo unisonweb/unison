@@ -2174,6 +2174,8 @@ handleBackendError :: Backend.BackendError -> Action m i v ()
 handleBackendError = \case
   Backend.NoSuchNamespace path ->
     respond . BranchNotFound $ Path.absoluteToPath' path
+  Backend.BadNamespacePath _ p ->
+    respond . BadName $ p
   Backend.BadRootBranch   e -> respond $ BadRootBranch e
   Backend.NoBranchForHash h -> do
     sbhLength <- eval BranchHashLength

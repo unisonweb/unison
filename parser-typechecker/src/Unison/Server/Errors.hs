@@ -34,6 +34,8 @@ backendError :: Backend.BackendError -> ServerError
 backendError = \case
   Backend.NoSuchNamespace n ->
     noSuchNamespace . Path.toText $ Path.unabsolute n
+  Backend.BadNamespacePath err path ->
+    badNamespace err path
   Backend.BadRootBranch e -> rootBranchError e
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
@@ -57,7 +59,7 @@ rootBranchError rbe = err500
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace = err400
-  { errBody = "Malformed namespace: "
+  { errBody = "Malformed namespace name: "
               <> mungeString namespace
               <> ". "
               <> mungeString err
@@ -66,6 +68,10 @@ badNamespace err namespace = err400
 noSuchNamespace :: HashQualifiedName -> ServerError
 noSuchNamespace namespace =
   err404 { errBody = "The namespace " <> munge namespace <> " does not exist." }
+
+noSuchDefinition :: HashQualifiedName -> ServerError
+noSuchDefinition definition  =
+  err404 { errBody = "The definition " <> munge definition  <> " does not exist." }
 
 couldntLoadBranch :: Branch.Hash -> ServerError
 couldntLoadBranch h =

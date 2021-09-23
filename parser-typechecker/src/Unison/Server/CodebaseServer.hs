@@ -85,6 +85,7 @@ import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
     serveDefinitions,
   )
+import qualified Unison.Server.Endpoints.Definitions.Terms.TermSummary as TermSummary
 import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import Unison.Server.Types (mungeString)
@@ -109,6 +110,7 @@ type UnisonAPI =
   NamespaceListing.NamespaceListingAPI
     :<|> NamespaceDetails.NamespaceDetailsAPI
     :<|> DefinitionsAPI
+    :<|> TermSummary.TermSummaryAPI
     :<|> FuzzyFindAPI
 
 
@@ -300,4 +302,5 @@ server rt codebase uiPath token =
       NamespaceListing.serve (tryAuth t) codebase
         :<|> NamespaceDetails.serve (tryAuth t) rt codebase
         :<|> serveDefinitions (tryAuth t) rt codebase
+        :<|> TermSummary.serve (tryAuth t) codebase
         :<|> serveFuzzyFind (tryAuth t) codebase

@@ -113,6 +113,7 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
+  | BadNamespacePath String String
   | BadRootBranch Codebase.GetRootBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
@@ -188,7 +189,7 @@ data TermEntry v a = TermEntry
   { termEntryReferent :: Referent,
     termEntryName :: HQ'.HQSegment,
     termEntryType :: Maybe (Type v a),
-    termEntryTag :: Maybe TermTag
+    termEntryTag :: TermTag
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -286,44 +287,69 @@ findShallowReadmeInBranchAndRender width runtime codebase branch =
         hqLen <- liftIO $ Codebase.hashLength codebase
         join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
-
-termListEntry
-  :: Monad m
-  => Var v
-  => Codebase m v Ann
-  -> Branch0 m
-  -> Referent
-  -> HQ'.HQSegment
-  -> Backend m (TermEntry v Ann)
-termListEntry codebase b0 r n = do
-  ot <- lift $ loadReferentType codebase r
+-- Indicate what kind of term it is; Doc, Test, or Plain
+getTermTag ::
+  Monad m =>
+  Var v =>
+  Branch0 m ->
+  Referent ->
+  Maybe (Type v Ann) ->
+  Backend m TermTag
+getTermTag b0 r sig = do
   -- A term is a doc if its type conforms to the `Doc` type.
-  let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
-                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+  let isDoc = case sig of
+        Just t ->
+          Typechecker.isSubtype t (Type.ref mempty Decls.docRef)
+            || Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
         Nothing -> False
       -- A term is a test if it has a link of type `IsTest`.
       isTest =
-        Metadata.hasMetadataWithType' r (Decls.isTestRef) $ Branch.deepTermMetadata b0
-      tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+        Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+  if isDoc
+    then pure Doc
+    else
+      if isTest
+        then pure Test
+        else pure Plain
+
+termListEntry ::
+  Monad m =>
+  Var v =>
+  Codebase m v Ann ->
+  Branch0 m ->
+  Referent ->
+  HQ'.HQSegment ->
+  Backend m (TermEntry v Ann)
+termListEntry codebase b0 r n = do
+  ot <- lift $ loadReferentType codebase r
+  tag <- getTermTag b0 r ot
   pure $ TermEntry r n ot tag
 
-typeListEntry
-  :: Monad m
-  => Var v
-  => Codebase m v Ann
-  -> Reference
-  -> HQ'.HQSegment
-  -> Backend m TypeEntry
-typeListEntry codebase r n = do
   -- The tag indicates whether the type is a data declaration or an ability.
-  tag <- case Reference.toId r of
+getTypeTag ::
+  Monad m =>
+  Var v =>
+  Codebase m v Ann ->
+  Reference ->
+  Backend m TypeTag
+getTypeTag codebase r =
+  case Reference.toId r of
     Just r -> do
       decl <- lift $ Codebase.getTypeDeclaration codebase r
       pure $ case decl of
         Just (Left _) -> Ability
-        _             -> Data
+        _ -> Data
     _ -> pure (if Set.member r Type.builtinAbilities then Ability else Data)
+
+typeListEntry ::
+  Monad m =>
+  Var v =>
+  Codebase m v Ann ->
+  Reference ->
+  HQ'.HQSegment ->
+  Backend m TypeEntry
+typeListEntry codebase r n = do
+  tag <- getTypeTag codebase r
   pure $ TypeEntry r n tag
 
 typeDeclHeader
