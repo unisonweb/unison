@@ -40,7 +40,7 @@ import Unison.Util.List (multimap, validate)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Var.RefNamed as Var
-import Unsafe.Coerce ( unsafeCoerce )
+import Unsafe.Coerce (unsafeCoerce)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
