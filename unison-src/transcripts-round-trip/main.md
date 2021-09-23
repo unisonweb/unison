@@ -175,6 +175,29 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
 Regression test for https://github.com/unisonweb/unison/issues/1778
 
 ```unison:hide
+
+structural ability base.Abort where
+  abort : a
+
+(|>) : a -> (a ->{e} b) -> {e} b
+a |> f = f a
+
+handler : a -> Request {Abort} a -> a
+handler default = cases
+  { a }        -> a
+  {abort -> _} -> default
+
+Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+Abort.toOptional thunk = '(toOptional! thunk)
+
+Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
+Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+
+Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+Abort.toDefault! default thunk =
+  h x = Abort.toDefault! (handler default x) thunk
+  handle (thunk ()) with h
+
 x = '(let
   abort
   0) |> Abort.toOptional
@@ -182,7 +205,7 @@ x = '(let
 
 ```ucm
 .> add
-.> edit x
+.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
 .> undo
 ```
 

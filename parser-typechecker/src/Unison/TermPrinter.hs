@@ -368,7 +368,7 @@ pretty0
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
   printLet elideUnit sc bs e im uses =
-    paren ((sc /= Block) && p >= 12)
+    paren ((sc /= Block) && p >= 3)
       $  letIntro
       $  uses [PP.lines (map printBinding bs ++ body e)]
    where
@@ -379,7 +379,7 @@ pretty0
       else prettyBinding0 n (ac (-1) Normal im doc) (HQ.unsafeFromVar v) binding
     letIntro = case sc of
       Block  -> id
-      Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
+      Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
 
   -- This predicate controls which binary functions we render as infix
   -- operators.  At the moment the policy is just to render symbolic
