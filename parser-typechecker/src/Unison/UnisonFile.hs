@@ -42,6 +42,7 @@ import qualified Unison.Builtin.Decls as DD
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Reference (Reference)
@@ -56,7 +57,6 @@ import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), patt
 import qualified Unison.Util.List as List
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
-
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
@@ -89,7 +89,7 @@ dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclarat
 dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
-hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Term v a, Type v a)
+hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
 
 -- todo: this is confusing, right?
@@ -111,9 +111,15 @@ typecheckedUnisonFile datas effects tlcs watches =
     components = topLevelComponents file
     types = Map.fromList [(v,t) | (v,_,t) <- join components ]
     terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
-    hcs = Term.hashComponents terms0
-    in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
-                                       Just t <- [Map.lookup v types] ]
+    watchKinds = Map.fromList $
+      [(v,Nothing) | (v,_e,_t) <- join $ topLevelComponents' file]
+      ++ [(v, Just wk) | (wk, terms) <- watches, (v, _e, _t) <- terms ]
+    hcs = Hashing.hashTermComponents terms0
+    in Map.fromList
+          [ (v, (r, wk, e, t))
+          | (v, (r, e)) <- Map.toList hcs
+          , Just t <- [Map.lookup v types]
+          , Just wk <- [Map.lookup v watchKinds] ]
 
 lookupDecl :: Ord v => v -> TypecheckedUnisonFile v a
            -> Maybe (Reference.Id, DD.Decl v a)
@@ -128,12 +134,13 @@ indexByReference uf = (tms, tys)
     tys = Map.fromList (over _2 Right <$> toList (dataDeclarationsId' uf)) <>
           Map.fromList (over _2 Left <$> toList (effectDeclarationsId' uf))
     tms = Map.fromList [
-      (r, (tm,ty)) | (Reference.DerivedId r, tm, ty) <- toList (hashTerms uf) ]
+      (r, (tm,ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf) ]
 
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
   Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
 
+-- |the top level components (no watches) plus test watches.
 topLevelComponents :: TypecheckedUnisonFile v a
                    -> [[(v, Term v a, Type v a)]]
 topLevelComponents file =
@@ -147,7 +154,7 @@ termSignatureExternalLabeledDependencies
   Set.difference
     (Set.map LD.typeRef
       . foldMap Type.dependencies
-      . fmap (\(_r, _e, t) -> t)
+      . fmap (\(_r, _wk, _e, t) -> t)
       . toList
       $ hashTerms)
     -- exclude any references that are defined in this file

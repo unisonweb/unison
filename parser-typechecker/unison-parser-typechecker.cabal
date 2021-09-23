@@ -101,6 +101,15 @@ library
       Unison.Hashing.V1.Referent
       Unison.Hashing.V1.Term
       Unison.Hashing.V1.Type
+      Unison.Hashing.V2.Convert
+      Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.LabeledDependency
+      Unison.Hashing.V2.Pattern
+      Unison.Hashing.V2.Reference
+      Unison.Hashing.V2.Reference.Util
+      Unison.Hashing.V2.Referent
+      Unison.Hashing.V2.Term
+      Unison.Hashing.V2.Type
       Unison.Lexer
       Unison.Lexer.Pos
       Unison.NamePrinter

@@ -46,6 +46,7 @@ import           Unison.Names3 (Names(Names), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
+import qualified Unison.Hashing.V2.Convert as H
 
 type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
@@ -106,7 +107,7 @@ builtinDependencies =
 -- a relation whose domain is types and whose range is builtin terms with that type
 builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
-  Rel.fromList [ (Type.toReference ty, Referent.Ref r)
+  Rel.fromList [ (H.typeToReference ty, Referent.Ref r)
                | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
@@ -114,7 +115,7 @@ builtinTermsByType =
 builtinTermsByTypeMention :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByTypeMention =
   Rel.fromList [ (m, Referent.Ref r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
-                                     , m <- toList $ Type.toReferenceMentions ty ]
+                                     , m <- toList $ H.typeToReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.

@@ -104,6 +104,7 @@ withEffectDeclM :: Functor f
                 -> f (EffectDeclaration v' a')
 withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 
+-- propose to move this code to some very feature-specific module —AI
 generateRecordAccessors
   :: (Semigroup a, Var v)
   => [(v, a)]

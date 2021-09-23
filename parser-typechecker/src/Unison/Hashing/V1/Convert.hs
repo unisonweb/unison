@@ -1,6 +1,19 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Hashing.V1.Convert (hashDecls, hashTermComponents, hashTypeComponents) where
+module Unison.Hashing.V1.Convert
+  ( HashingInfo(..),
+    ResolutionFailure(..),
+    ResolutionResult,
+    assumeSingletonComponent,
+    hashDecls,
+    hashClosedTerm,
+    hashTermComponents,
+    hashTypeComponents,
+    typeToReference,
+    typeToReferenceMentions,
+    unsafe,
+  )
+where
 
 import Control.Lens (over, _3)
 import qualified Control.Lens as Lens
@@ -25,6 +38,7 @@ import qualified Unison.Referent as Memory.Referent
 import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
 import Unison.Var (Var)
+import qualified Data.Set as Set
 
 data ResolutionFailure v a
   = TermResolutionFailure v a (Set Memory.Referent.Referent)
@@ -33,6 +47,8 @@ data ResolutionFailure v a
   deriving (Eq, Ord, Show)
 
 type ResolutionResult v a r = Validate (Seq (ResolutionFailure v a)) r
+
+newtype HashingInfo = HashingInfo (Hash -> Maybe Hashing.Reference.Size)
 
 convertResolutionResult :: Names.ResolutionResult v a r -> ResolutionResult v a r
 convertResolutionResult = \case
@@ -43,8 +59,24 @@ convertResolutionResult = \case
       Names.TermResolutionFailure v a rs -> TermResolutionFailure v a rs
       Names.TypeResolutionFailure v a rs -> TypeResolutionFailure v a rs
 
+typeToReference ::
+  Var v =>
+  HashingInfo ->
+  Memory.Type.Type v a ->
+  Validate (Seq Hash) Memory.Reference.Reference
+typeToReference f memType =
+  h2mReference . Hashing.Type.toReference <$> m2hType f memType
+
+typeToReferenceMentions ::
+  Var v =>
+  HashingInfo ->
+  Memory.Type.Type v a ->
+  Validate (Seq Hash) (Set Memory.Reference.Reference)
+typeToReferenceMentions f memType =
+  Set.map h2mReference . Hashing.Type.toReferenceMentions <$> m2hType f memType
+
 hashTypeComponents ::
-  Var v => (Hash -> Maybe Hashing.Reference.Size) -> Map v (Memory.Type.Type v a) -> Validate (Seq Hash) (Map v (Memory.Reference.Id, Memory.Type.Type v a))
+  Var v => HashingInfo -> Map v (Memory.Type.Type v a) -> Validate (Seq Hash) (Map v (Memory.Reference.Id, Memory.Type.Type v a))
 hashTypeComponents f memTypes = do
   hashingTypes <- traverse (m2hType f) memTypes
   let hashingResult = Hashing.Type.hashComponents hashingTypes
@@ -53,7 +85,16 @@ hashTypeComponents f memTypes = do
     h2mTypeResult :: Ord v => (Hashing.Reference.Id, Hashing.Type.Type v a) -> (Memory.Reference.Id, Memory.Type.Type v a)
     h2mTypeResult (id, tp) = (h2mReferenceId id, h2mType tp)
 
-hashTermComponents :: Var v => (Hash -> Maybe Hashing.Reference.Size) -> Map v (Memory.Term.Term v a) -> Validate (Seq Hash) (Map v (Memory.Reference.Id, Memory.Term.Term v a))
+assumeSingletonComponent :: HashingInfo
+assumeSingletonComponent = HashingInfo (\_ -> Just 1)
+
+unsafe :: Validate (Seq Hash) a -> a
+unsafe v = case Validate.runValidate v of
+  Right a -> a
+  Left missing ->
+    error $ "unison.hashing.v1.unsafe: missing sizes for the following components: " ++ show missing
+
+hashTermComponents :: Var v => HashingInfo -> Map v (Memory.Term.Term v a) -> Validate (Seq Hash) (Map v (Memory.Reference.Id, Memory.Term.Term v a))
 hashTermComponents f memTerms = do
   hashingTerms <- traverse (m2hTerm f) memTerms
   let hashingResult = Hashing.Term.hashComponents hashingTerms
@@ -62,8 +103,10 @@ hashTermComponents f memTerms = do
     h2mTermResult :: Ord v => (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
     h2mTermResult (id, tm) = (h2mReferenceId id, h2mTerm tm)
 
+hashClosedTerm :: Var v => Memory.Term.Term v a -> Memory.Reference.Id
+hashClosedTerm = h2mReferenceId . Hashing.Term.hashClosedTerm . unsafe . m2hTerm assumeSingletonComponent
 
-m2hTerm :: Ord v => (Hash -> Maybe Hashing.Reference.Size) -> Memory.Term.Term v a -> Validate (Seq Hash) (Hashing.Term.Term v a)
+m2hTerm :: Ord v => HashingInfo -> Memory.Term.Term v a -> Validate (Seq Hash) (Hashing.Term.Term v a)
 m2hTerm f = ABT.transformM \case
   Memory.Term.Int i -> pure $ Hashing.Term.Int i
   Memory.Term.Nat n -> pure $ Hashing.Term.Nat n
@@ -89,10 +132,10 @@ m2hTerm f = ABT.transformM \case
   Memory.Term.TermLink r -> Hashing.Term.TermLink <$> m2hReferent f r
   Memory.Term.TypeLink r -> Hashing.Term.TypeLink <$> m2hReference f r
 
-m2hMatchCase :: (Hash -> Maybe Hashing.Reference.Size) -> Memory.Term.MatchCase a a1 -> Validate (Seq Hash) (Hashing.Term.MatchCase a a1)
+m2hMatchCase :: HashingInfo -> Memory.Term.MatchCase a a1 -> Validate (Seq Hash) (Hashing.Term.MatchCase a a1)
 m2hMatchCase f (Memory.Term.MatchCase pat m_a1 a1) = Hashing.Term.MatchCase <$> m2hPattern f pat <*> pure m_a1 <*> pure a1
 
-m2hPattern :: (Hash -> Maybe Hashing.Reference.Size) -> Memory.Pattern.Pattern a -> Validate (Seq Hash) (Hashing.Pattern.Pattern a)
+m2hPattern :: HashingInfo -> Memory.Pattern.Pattern a -> Validate (Seq Hash) (Hashing.Pattern.Pattern a)
 m2hPattern f = \case
   Memory.Pattern.Unbound loc -> pure $ Hashing.Pattern.Unbound loc
   Memory.Pattern.Var loc -> pure $ Hashing.Pattern.Var loc
@@ -115,7 +158,7 @@ m2hSequenceOp = \case
       Memory.Pattern.Snoc -> Hashing.Pattern.Snoc
       Memory.Pattern.Concat -> Hashing.Pattern.Concat
 
-m2hReferent :: (Hash -> Maybe Hashing.Reference.Size) -> Memory.Referent.Referent -> Validate (Seq Hash) Hashing.Referent.Referent
+m2hReferent :: HashingInfo -> Memory.Referent.Referent -> Validate (Seq Hash) Hashing.Referent.Referent
 m2hReferent f = \case
   Memory.Referent.Ref ref -> Hashing.Referent.Ref <$> m2hReference f ref
   Memory.Referent.Con ref n ct -> Hashing.Referent.Con <$> m2hReference f ref <*> pure n <*> pure ct
@@ -179,7 +222,7 @@ h2mReferent = \case
 
 hashDecls ::
   Var v =>
-  (Hash -> Maybe Hashing.Reference.Size) ->
+  HashingInfo ->
   Map v (Memory.DD.DataDeclaration v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDecls f memDecls = do
@@ -192,21 +235,21 @@ hashDecls f memDecls = do
 
 m2hDecl ::
   Ord v =>
-  (Hash -> Maybe Hashing.Reference.Size) ->
+  HashingInfo ->
   Memory.DD.DataDeclaration v a ->
   Validate (Seq Hash) (Hashing.DD.DataDeclaration v a)
 m2hDecl f (Memory.DD.DataDeclaration mod ann bound ctors) =
   Hashing.DD.DataDeclaration (m2hModifier mod) ann bound
     <$> traverse (Lens.mapMOf _3 (m2hType f)) ctors
 
-lookupHash :: (Hash -> Maybe Hashing.Reference.Size) -> Hash -> Validate (Seq Hash) Hashing.Reference.Size
-lookupHash f h = case f h of
+lookupHash :: HashingInfo -> Hash -> Validate (Seq Hash) Hashing.Reference.Size
+lookupHash (HashingInfo f) h = case f h of
   Just size -> pure size
   Nothing -> Validate.refute $ pure h
 
 m2hType ::
   Ord v =>
-  (Hash -> Maybe Hashing.Reference.Size) ->
+  HashingInfo ->
   Memory.Type.Type v a ->
   Validate (Seq Hash) (Hashing.Type.Type v a)
 m2hType f = ABT.transformM \case
@@ -220,7 +263,7 @@ m2hType f = ABT.transformM \case
   Memory.Type.IntroOuter a1 -> pure $ Hashing.Type.IntroOuter a1
 
 m2hReference ::
-  (Hash -> Maybe Hashing.Reference.Size) ->
+  HashingInfo ->
   Memory.Reference.Reference ->
   Validate (Seq Hash) Hashing.Reference.Reference
 m2hReference f = \case
@@ -228,7 +271,7 @@ m2hReference f = \case
   Memory.Reference.DerivedId d -> Hashing.Reference.DerivedId <$> m2hReferenceId f d
 
 m2hReferenceId ::
-  (Hash -> Maybe Hashing.Reference.Size) ->
+  HashingInfo ->
   Memory.Reference.Id ->
   Validate (Seq Hash) Hashing.Reference.Id
 m2hReferenceId f (Memory.Reference.Id h i _n) = Hashing.Reference.Id h i <$> lookupHash f h

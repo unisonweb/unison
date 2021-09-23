@@ -9,9 +9,10 @@ import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..), hashDecls)
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.Names as DD.Names
+import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Names3 (Names0)
@@ -20,10 +21,10 @@ import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Term as Term
-import Unison.UnisonFile.Env (Env(..))
-import Unison.UnisonFile.Error (Error (UnknownType, DupDataAndAbility))
-import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import qualified Unison.UnisonFile as UF
+import Unison.UnisonFile.Env (Env (..))
+import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
+import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import qualified Unison.Util.Relation as Relation
 import Unison.Var (Var)
 
@@ -37,7 +38,7 @@ typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
 typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
   terms = Relation.fromList
     [ (Name.fromVar v, Referent.Ref r)
-    | (v, (r, _, _)) <- Map.toList $ UF.hashTerms uf ]
+    | (v, (r, _, _, _)) <- Map.toList $ UF.hashTerms uf ]
   types = Relation.fromList
     [ (Name.fromVar v, r)
     | (v, r) <- Map.toList $ fmap fst (UF.dataDeclarations' uf)
@@ -96,8 +97,7 @@ environmentFor names dataDecls0 effectDecls0 = do
     traverse (DD.withEffectDeclM (DD.Names.bindNames locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <-
-      hashDecls allDecls0
+  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
   let
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
