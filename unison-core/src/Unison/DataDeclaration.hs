@@ -25,7 +25,6 @@ module Unison.DataDeclaration
     declFields,
     dependencies,
     generateRecordAccessors,
-    -- hashDecls,
     unhashComponent,
     mkDataDecl',
     mkEffectDecl',
@@ -47,15 +46,11 @@ import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
--- import Unison.Hash (Hash)
--- import Unison.Hashable (Hashable1)
--- import qualified Unison.Hashable as Hashable
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
--- import qualified Unison.Reference.Util as Reference.Util
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent'
 import Unison.Term (Term)
@@ -235,46 +230,6 @@ data F a
   | Modified Modifier a
   deriving (Functor, Foldable, Show, Show1)
 
--- instance Hashable1 F where
---   hash1 hashCycle hash e =
---     let (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
---       -- Note: start each layer with leading `2` byte, to avoid collisions with
---       -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
---     in Hashable.accumulate $ tag 2 : case e of
---       Type t -> [tag 0, hashed $ Hashable.hash1 hashCycle hash t]
---       LetRec bindings body ->
---         let (hashes, hash') = hashCycle bindings
---         in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
---       Constructors cs ->
---         let (hashes, _) = hashCycle cs
---         in tag 2 :  map hashed hashes
---       Modified m t ->
---         [tag 3, Hashable.accumulateToken m, hashed $ hash t]
-
--- instance Hashable.Hashable Modifier where
---   tokens Structural = [Hashable.Tag 0]
---   tokens (Unique txt) = [Hashable.Tag 1, Hashable.Text txt]
-
-{-
-  type UpDown = Up | Down
-
-  type List a = Nil | Cons a (List a)
-
-  type Ping p = Ping (Pong p)
-  type Pong p = Pong (Ping p)
-
-  type Foo a f = Foo Int (Bar a)
-  type Bar a f = Bar Long (Foo a)
--}
-
--- toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
--- toABT dd = ABT.tm $ Modified (modifier dd) dd'
---   where
---   dd' = ABT.absChain (bound dd) $ ABT.cycle
---           (ABT.absChain
---             (fst <$> constructors dd)
---             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
-
 updateDependencies :: Ord v => Map Reference Reference -> Decl v a -> Decl v a
 updateDependencies typeUpdates decl = back $ dataDecl
   { constructors' = over _3 (Type.updateDependencies typeUpdates)
@@ -308,42 +263,6 @@ unhashComponent m
         dd { constructors' = fmap (over _3 unhash1) constructors' }
     in
       second unhash2 <$> m'
-
--- -- Implementation detail of `hashDecls`, works with unannotated data decls
--- hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
--- hashDecls0 decls =
---   let abts = toABT <$> decls
---       ref r = ABT.tm (Type (Type.Ref (Reference.DerivedId r)))
---       cs = Reference.Util.hashComponents ref abts
---   in  [ (v, r) | (v, (r, _)) <- Map.toList cs ]
-
--- -- | compute the hashes of these user defined types and update any free vars
--- --   corresponding to these decls with the resulting hashes
--- --
--- --   data List a = Nil | Cons a (List a)
--- --   becomes something like
--- --   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
--- --
--- -- NOTE: technical limitation, this implementation gives diff results if ctors
--- -- have the same FQN as one of the types. TODO: assert this and bomb if not
--- -- satisfied, or else do local mangling and unmangling to ensure this doesn't
--- -- affect the hash.
--- hashDecls
---   :: (Eq v, Var v)
---   => Map v (DataDeclaration v a)
---   -> Names.ResolutionResult v a [(v, Reference.Id, DataDeclaration v a)]
--- hashDecls decls = do
---   -- todo: make sure all other external references are resolved before calling this
---   let varToRef = hashDecls0 (void <$> decls)
---       varToRef' = second Reference.DerivedId <$> varToRef
---       decls'   = bindTypes <$> decls
---       bindTypes dd = dd { constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd }
---       typeReferences = Map.fromList (first Name.fromVar <$> varToRef')
---       -- normalize the order of the constructors based on a hash of their types
---       sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
---       hash3 (_, _, typ) = ABT.hash typ :: Hash
---   decls' <- fmap sortCtors <$> traverse (bindReferences mempty typeReferences) decls'
---   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)

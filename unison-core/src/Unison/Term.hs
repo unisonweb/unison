@@ -24,9 +24,6 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
--- import qualified Unison.Hash as Hash
--- import           Unison.Hashable (Hashable1, accumulateToken)
--- import qualified Unison.Hashable as Hashable
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
 import qualified Unison.Names.ResolutionResult as Names
@@ -34,7 +31,6 @@ import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
--- import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent, ConstructorId)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
@@ -44,8 +40,7 @@ import Unison.Util.List (multimap, validate)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Var.RefNamed as Var
-import           Unsafe.Coerce
--- import Unison.Symbol (Symbol)
+import Unsafe.Coerce ( unsafeCoerce )
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
@@ -999,32 +994,6 @@ unhashComponent m = let
     go e = e
   in second unhash1 <$> m'
 
-
--- hashComponents
---   :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
--- hashComponents = ReferenceUtil.hashComponents $ refId ()
-
--- hashClosedTerm :: Var v => Term v a -> Reference.Id
--- hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
-
--- -- The hash for a constructor
--- hashConstructor'
---   :: (Reference -> ConstructorId -> Term0 Symbol) -> Reference -> ConstructorId -> Reference
--- hashConstructor' f r cid =
---   let
--- -- this is a bit circuitous, but defining everything in terms of hashComponents
--- -- ensure the hashing is always done in the same way
---       m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
---   in  case toList m of
---         [(r, _)] -> Reference.DerivedId r
---         _        -> error "unpossible"
-
--- hashConstructor :: Reference -> ConstructorId -> Reference
--- hashConstructor = hashConstructor' $ constructor ()
-
--- hashRequest :: Reference -> ConstructorId -> Reference
--- hashRequest = hashConstructor' $ request ()
-
 fromReferent :: Ord v
              => a
              -> Referent
@@ -1034,76 +1003,6 @@ fromReferent a = \case
   Referent.Con r i ct -> case ct of
     CT.Data -> constructor a r i
     CT.Effect -> request a r i
-
--- instance Var v => Hashable1 (F v a p) where
---   hash1 hashCycle hash e
---     = let (tag, hashed, varint) =
---             (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
---       in
---         case e of
---         -- So long as `Reference.Derived` ctors are created using the same
---         -- hashing function as is used here, this case ensures that references
---         -- are 'transparent' wrt hash and hashing is unaffected by whether
---         -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
---         -- the same.
---           Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
---           Ref (Reference.Derived h i n) -> Hashable.accumulate
---             [ tag 1
---             , hashed $ Hashable.fromBytes (Hash.toBytes h)
---             , Hashable.Nat i
---             , Hashable.Nat n
---             ]
---           -- Note: start each layer with leading `1` byte, to avoid collisions
---           -- with types, which start each layer with leading `0`.
---           -- See `Hashable1 Type.F`
---           _ ->
---             Hashable.accumulate
---               $ tag 1
---               : case e of
---                   Nat     i -> [tag 64, accumulateToken i]
---                   Int     i -> [tag 65, accumulateToken i]
---                   Float   n -> [tag 66, Hashable.Double n]
---                   Boolean b -> [tag 67, accumulateToken b]
---                   Text    t -> [tag 68, accumulateToken t]
---                   Char    c -> [tag 69, accumulateToken c]
---                   Blank   b -> tag 1 : case b of
---                     B.Blank -> [tag 0]
---                     B.Recorded (B.Placeholder _ s) ->
---                       [tag 1, Hashable.Text (Text.pack s)]
---                     B.Recorded (B.Resolve _ s) ->
---                       [tag 2, Hashable.Text (Text.pack s)]
---                   Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
---                   Ref Reference.Derived {} ->
---                     error "handled above, but GHC can't figure this out"
---                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
---                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
---                   List as -> tag 5 : varint (Sequence.length as) : map
---                     (hashed . hash)
---                     (toList as)
---                   Lam a         -> [tag 6, hashed (hash a)]
---                   -- note: we use `hashCycle` to ensure result is independent of
---                   -- let binding order
---                   LetRec _ as a -> case hashCycle as of
---                     (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
---                   -- here, order is significant, so don't use hashCycle
---                   Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
---                   If b t f ->
---                     [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
---                   Request     r n -> [tag 10, accumulateToken r, varint n]
---                   Constructor r n -> [tag 12, accumulateToken r, varint n]
---                   Match e branches ->
---                     tag 13 : hashed (hash e) : concatMap h branches
---                    where
---                     h (MatchCase pat guard branch) = concat
---                       [ [accumulateToken pat]
---                       , toList (hashed . hash <$> guard)
---                       , [hashed (hash branch)]
---                       ]
---                   Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
---                   And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
---                   Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
---                   TermLink r -> [tag 18, accumulateToken r]
---                   TypeLink r -> [tag 19, accumulateToken r]
 
 -- mostly boring serialization code below ...
 
