@@ -253,7 +253,7 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase =
                       Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
                       _ -> Welcome.DontDownloadBase
 
-    welcome = Welcome.Welcome downloadBase dir Version.gitDescribe
+    welcome = Welcome.welcome downloadBase Nothing dir Version.gitDescribe -- TODO 
   in
     CommandLine.main
       dir

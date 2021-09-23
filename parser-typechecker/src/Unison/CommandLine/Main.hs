@@ -115,14 +115,13 @@ main
   -> IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  (welcomeCmds, welcomeMsg) <- Welcome.welcome codebase welcome 
-  putPrettyLn welcomeMsg
+  Welcome.run codebase welcome 
   eventQueue <- Q.newIO
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef (welcomeCmds ++ initialInputs)
+    initialInputsRef         <- newIORef initialInputs -- Idea: Extract 
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
@@ -159,9 +158,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
     let
       awaitInput = do
         -- use up buffered input before consulting external events
-        i <- readIORef initialInputsRef
+        i <- readIORef initialInputsRef -- Here was where we used to do the reading for base commands 
         (case i of
-          h:t -> writeIORef initialInputsRef t >> pure h
+          h:t -> writeIORef initialInputsRef t >> pure h -- Here was where we used to write the IO of commands to the event queue. Will need to mimic in an new function
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
@@ -179,10 +178,10 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
         cancelConfig
         cancelFileSystemWatch
         cancelWatchBranchUpdates
-      loop state = do
+      loop state = do -- I think this is the loop we should recreate or pull out. 
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        (o, state') <- HandleCommand.commandLine config awaitInput
+        (o, state') <- HandleCommand.commandLine config awaitInput -- This is the actual call to the interpreter fo the commands- we can recycle it (we don't need to rewrite it)
                                      (writeIORef rootRef)
                                      runtime
                                      notify
