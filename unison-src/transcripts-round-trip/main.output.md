@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #8rn1an5gj8 : add
-  2. #pqvd5behc2 : builtins.mergeio
+  1. #agadr8gg6g : add
+  2. #bt17giel42 : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #dbvse9969b : add
-  2. #pqvd5behc2 : reset-root #pqvd5behc2
-  3. #8rn1an5gj8 : add
-  4. #pqvd5behc2 : builtins.mergeio
+  1. #rhf1s808fb : add
+  2. #bt17giel42 : reset-root #bt17giel42
+  3. #agadr8gg6g : add
+  4. #bt17giel42 : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #clsum27pr1 : add
-  2. #pqvd5behc2 : reset-root #pqvd5behc2
-  3. #dbvse9969b : add
-  4. #pqvd5behc2 : reset-root #pqvd5behc2
-  5. #8rn1an5gj8 : add
-  6. #pqvd5behc2 : builtins.mergeio
+  1. #gj5agagj7s : add
+  2. #bt17giel42 : reset-root #bt17giel42
+  3. #rhf1s808fb : add
+  4. #bt17giel42 : reset-root #bt17giel42
+  5. #agadr8gg6g : add
+  6. #bt17giel42 : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #acngtb04a8 : add
-  2. #pqvd5behc2 : reset-root #pqvd5behc2
-  3. #clsum27pr1 : add
-  4. #pqvd5behc2 : reset-root #pqvd5behc2
-  5. #dbvse9969b : add
-  6. #pqvd5behc2 : reset-root #pqvd5behc2
-  7. #8rn1an5gj8 : add
-  8. #pqvd5behc2 : builtins.mergeio
+  1. #3igmh2it4p : add
+  2. #bt17giel42 : reset-root #bt17giel42
+  3. #gj5agagj7s : add
+  4. #bt17giel42 : reset-root #bt17giel42
+  5. #rhf1s808fb : add
+  6. #bt17giel42 : reset-root #bt17giel42
+  7. #agadr8gg6g : add
+  8. #bt17giel42 : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #j32i1remee : add
-  2.  #pqvd5behc2 : reset-root #pqvd5behc2
-  3.  #acngtb04a8 : add
-  4.  #pqvd5behc2 : reset-root #pqvd5behc2
-  5.  #clsum27pr1 : add
-  6.  #pqvd5behc2 : reset-root #pqvd5behc2
-  7.  #dbvse9969b : add
-  8.  #pqvd5behc2 : reset-root #pqvd5behc2
-  9.  #8rn1an5gj8 : add
-  10. #pqvd5behc2 : builtins.mergeio
+  1.  #jsnoueu9le : add
+  2.  #bt17giel42 : reset-root #bt17giel42
+  3.  #3igmh2it4p : add
+  4.  #bt17giel42 : reset-root #bt17giel42
+  5.  #gj5agagj7s : add
+  6.  #bt17giel42 : reset-root #bt17giel42
+  7.  #rhf1s808fb : add
+  8.  #bt17giel42 : reset-root #bt17giel42
+  9.  #agadr8gg6g : add
+  10. #bt17giel42 : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #pqvd5behc2 .old`   to make an old namespace
+    `fork #bt17giel42 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #pqvd5behc2`  to reset the root namespace and
+    `reset-root #bt17giel42`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #o6r7803627 : add
-  2.  #pqvd5behc2 : reset-root #pqvd5behc2
-  3.  #j32i1remee : add
-  4.  #pqvd5behc2 : reset-root #pqvd5behc2
-  5.  #acngtb04a8 : add
-  6.  #pqvd5behc2 : reset-root #pqvd5behc2
-  7.  #clsum27pr1 : add
-  8.  #pqvd5behc2 : reset-root #pqvd5behc2
-  9.  #dbvse9969b : add
-  10. #pqvd5behc2 : reset-root #pqvd5behc2
-  11. #8rn1an5gj8 : add
-  12. #pqvd5behc2 : builtins.mergeio
+  1.  #vbmanbqtlh : add
+  2.  #bt17giel42 : reset-root #bt17giel42
+  3.  #jsnoueu9le : add
+  4.  #bt17giel42 : reset-root #bt17giel42
+  5.  #3igmh2it4p : add
+  6.  #bt17giel42 : reset-root #bt17giel42
+  7.  #gj5agagj7s : add
+  8.  #bt17giel42 : reset-root #bt17giel42
+  9.  #rhf1s808fb : add
+  10. #bt17giel42 : reset-root #bt17giel42
+  11. #agadr8gg6g : add
+  12. #bt17giel42 : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -468,5 +468,58 @@ foo =
     ⍟ These new definitions are ok to `add`:
     
       foo : Text
+
+```
+## Emphasis in docs inserts the right number of underscores
+
+Regression test for https://github.com/unisonweb/unison/issues/2408
+
+```unison
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    myDoc : Doc2
+
+.> edit myDoc
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    myDoc : Doc2
+    myDoc =
+      {{
+      **my text** __my text__ **MY_TEXT** ___MY__TEXT___
+      ~~MY~TEXT~~ **MY*TEXT**
+      }}
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. myDoc : Doc2
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      myDoc : Doc2
 
 ```

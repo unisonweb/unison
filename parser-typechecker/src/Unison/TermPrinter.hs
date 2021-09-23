@@ -1311,6 +1311,16 @@ prettyDoc2 ppe ac tm = case tm of
           S.DocDelimiter
           "}}"
     bail tm = brace (pretty0 ppe ac tm)
+    -- Finds the longest run of a character and return a run one longer than that
+    oneMore c inner = replicate num c
+     where
+      num =
+        case
+            filter (\s -> take 2 s == "__")
+              $ group (PP.toPlainUnbroken $ PP.syntaxToColor inner)
+          of
+            [] -> 2
+            x  -> 1 + (maximum $ map length x)
     go :: Width -> Term3 v PrintAnnotation -> Pretty SyntaxText
     go hdr = \case
       (toDocTransclude ppe -> Just d) ->
@@ -1336,15 +1346,23 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocWord ppe -> Just t) ->
         PP.text t
       (toDocCode ppe -> Just d) ->
-        PP.group ("''" <> rec d <> "''")
+        let inner = rec d
+            quotes = oneMore '\'' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocJoin ppe -> Just ds) ->
         foldMap rec ds
       (toDocItalic ppe -> Just d) ->
-        PP.group $ "*" <> rec d <> "*"
+        let inner = rec d
+            underscores = oneMore '_' inner
+         in PP.group $ PP.string underscores <> inner <> PP.string underscores
       (toDocBold ppe -> Just d) ->
-        PP.group $ "__" <> rec d <> "__"
+        let inner = rec d
+            stars = oneMore '*' inner
+         in PP.group $ PP.string stars <> inner <> PP.string stars
       (toDocStrikethrough ppe -> Just d) ->
-        PP.group $ "~~" <> rec d <> "~~"
+         let inner = rec d
+             quotes = oneMore '~' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocGroup ppe -> Just d) ->
         PP.group $ rec d
       (toDocColumn ppe -> Just ds) ->

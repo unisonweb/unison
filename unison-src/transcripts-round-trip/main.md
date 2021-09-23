@@ -114,7 +114,7 @@ Regression test for https://github.com/unisonweb/unison/issues/2392
 
 ```unison:hide
 unique ability Zonk where zonk : Nat
-unique type Foo x y = 
+unique type Foo x y =
 
 foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
 foo n _ = n
@@ -152,6 +152,24 @@ foo =
 .> load scratch.u
 ```
 
+## Emphasis in docs inserts the right number of underscores
+
+Regression test for https://github.com/unisonweb/unison/issues/2408
+
+```unison:hide
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+```
+
+```ucm
+.> add
+.> edit myDoc
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
 ## Parenthesized let-block with operator
 
 Regression test for https://github.com/unisonweb/unison/issues/1778
@@ -171,5 +189,3 @@ x = '(let
 ``` ucm
 .> load scratch.u
 ```
-
-
