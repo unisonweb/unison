@@ -669,6 +669,9 @@ cleanup :: Var v => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
+builtinAbilities :: Set Reference
+builtinAbilities = Set.fromList [builtinIORef, stmRef]
+
 instance Show a => Show (F a) where
   showsPrec = go where
     go _ (Ref r) = shows r

@@ -79,3 +79,94 @@ f x = let
 .> load scratch.u
 ```
 
+## Parens around infix patterns
+
+Regression test for https://github.com/unisonweb/unison/issues/2224
+
+```unison:hide
+f : [a] -> a
+f xs = match xs with
+  x +: (x' +: rest) -> x
+
+g : [a] -> a
+g xs = match xs with
+  (rest :+ x') :+ x -> x
+
+h : [[a]] -> a
+h xs = match xs with
+  (rest :+ (rest' :+ x)) -> x
+```
+
+```ucm
+.> add
+.> edit f g
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Type application inserts necessary parens
+
+Regression test for https://github.com/unisonweb/unison/issues/2392
+
+```unison:hide
+unique ability Zonk where zonk : Nat
+unique type Foo x y = 
+
+foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+foo n _ = n
+```
+
+```ucm
+.> add
+.> edit foo Zonk Foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Long lines with repeated operators
+
+Regression test for https://github.com/unisonweb/unison/issues/1035
+
+```unison:hide
+foo : Text
+foo =
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
+```
+
+```ucm
+.> add
+.> edit foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Emphasis in docs inserts the right number of underscores
+
+Regression test for https://github.com/unisonweb/unison/issues/2408
+
+```unison:hide
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+```
+
+```ucm
+.> add
+.> edit myDoc
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+

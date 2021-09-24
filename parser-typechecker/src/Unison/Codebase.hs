@@ -8,6 +8,7 @@ module Unison.Codebase
     GetRootBranchError (..),
     getBranchForHash,
     getCodebaseDir,
+    isBlank,
     SyncToDir,
     addDefsToCodebase,
     installUcmDependencies,
@@ -27,6 +28,7 @@ module Unison.Codebase
   )
 where
 
+import Control.Error (rightMay)
 import Control.Error.Util (hush)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
@@ -207,6 +209,11 @@ isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+
+isBlank :: Applicative m => Codebase m v a -> m Bool
+isBlank codebase = do
+  root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
+  pure (root == Branch.empty)
 
 -- * Git stuff
 

@@ -89,6 +89,7 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
@@ -495,6 +496,7 @@ executable unison
     , unison-codebase-sync
     , unison-core1
     , unison-parser-typechecker
+    , unliftio
     , uri-encode
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

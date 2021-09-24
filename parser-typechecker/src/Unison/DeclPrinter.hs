@@ -20,6 +20,7 @@ import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.NamePrinter             ( styleHashQualified'' )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
+import           Unison.PrettyPrintEnvDecl     ( PrettyPrintEnvDecl(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference(DerivedId) )
@@ -35,13 +36,13 @@ type SyntaxText = S.SyntaxText' Reference
 
 prettyDecl
   :: Var v
-  => PrettyPrintEnv
+  => PrettyPrintEnvDecl
   -> Reference
   -> HashQualified Name
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe r hq d = case d of
-  Left e -> prettyEffectDecl ppe r hq e
+prettyDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE _) r hq d = case d of
+  Left e -> prettyEffectDecl unsuffixifiedPPE r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl
@@ -88,12 +89,12 @@ prettyPattern env ctorType ref namespace cid = styleHashQualified''
 
 prettyDataDecl
   :: Var v
-  => PrettyPrintEnv
+  => PrettyPrintEnvDecl
   -> Reference
   -> HashQualified Name
   -> DataDeclaration v a
   -> Pretty SyntaxText
-prettyDataDecl env r name dd =
+prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $ constructor <$> zip
     [0 ..]
     (DD.constructors' dd)
@@ -101,16 +102,16 @@ prettyDataDecl env r name dd =
   constructor (n, (_, _, (Type.ForallsNamed' _ t))) = constructor' n t
   constructor (n, (_, _, t)                       ) = constructor' n t
   constructor' n t = case Type.unArrows t of
-    Nothing -> prettyPattern env CT.Data r name n
-    Just ts -> case fieldNames env r name dd of
-      Nothing -> P.group . P.hang' (prettyPattern env CT.Data r name n) "      "
-               $ P.spaced (TypePrinter.prettyRaw env Map.empty 10 <$> init ts)
+    Nothing -> prettyPattern suffixifiedPPE CT.Data r name n
+    Just ts -> case fieldNames unsuffixifiedPPE r name dd of
+      Nothing -> P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data r name n) "      "
+               $ P.spaced (TypePrinter.prettyRaw suffixifiedPPE Map.empty 10 <$> init ts)
       Just fs -> P.group $ (fmt S.DelimiterChar "{ ")
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> (fmt S.DelimiterChar " }")
   field (fname, typ) = P.group $ styleHashQualified'' (fmt (S.Reference r)) fname <>
-    (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw env Map.empty (-1) typ
+    (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw suffixifiedPPE Map.empty (-1) typ
   header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 
 -- Comes up with field names for a data declaration which has the form of a
@@ -145,7 +146,6 @@ fieldNames env r name dd = case DD.constructors dd of
       [ (r, f) | (r, n) <- names
                , typename <- pure (HQ.toString name)
                , typename `isPrefixOf` n
-               -- drop the typename and the following '.'
                , rest <- pure $ drop (length typename + 1) n
                , (f, rest) <- pure $ span (/= '.') rest
                , rest `elem` ["",".set",".modify"] ]

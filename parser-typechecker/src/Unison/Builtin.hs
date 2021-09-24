@@ -256,7 +256,8 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
-  [ B "Int.+" $ int --> int --> int
+  [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a)
+  , B "Int.+" $ int --> int --> int
   , B "Int.-" $ int --> int --> int
   , B "Int.*" $ int --> int --> int
   , B "Int./" $ int --> int --> int
@@ -634,13 +635,16 @@ codeBuiltins =
   , ("Code.serialize", code --> bytes)
   , ("Code.deserialize", bytes --> eithert text code)
   , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.validate", list (tuple [termLink,code]) --> io (optionalt failure))
   , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Code.display", text --> code --> text)
   , ("Value.dependencies", value --> list termLink)
   , ("Value.serialize", value --> bytes)
   , ("Value.deserialize", bytes --> eithert text value)
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  , ("Link.Term.toText", termLink --> text)
   ]
 
 stmBuiltins :: forall v. Var v => [(Text, Type v)]
