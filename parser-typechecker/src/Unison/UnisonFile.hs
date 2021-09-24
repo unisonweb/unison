@@ -92,9 +92,6 @@ effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 hashTerms :: TypecheckedUnisonFile v a -> Map v (Reference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
 
--- todo: this is confusing, right?
--- currently: create a degenerate TypecheckedUnisonFile
---            multiple definitions of "top-level components" non-watch vs w/ watch
 typecheckedUnisonFile :: forall v a. Var v
                       => Map v (Reference.Id, DataDeclaration v a)
                       -> Map v (Reference.Id, EffectDeclaration v a)
