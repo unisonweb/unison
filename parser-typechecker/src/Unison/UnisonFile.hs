@@ -95,31 +95,32 @@ hashTerms = fmap (over _1 Reference.DerivedId) . hashTermsId
 -- todo: this is confusing, right?
 -- currently: create a degenerate TypecheckedUnisonFile
 --            multiple definitions of "top-level components" non-watch vs w/ watch
-typecheckedUnisonFile :: Var v
+typecheckedUnisonFile :: forall v a. Var v
                       => Map v (Reference.Id, DataDeclaration v a)
                       -> Map v (Reference.Id, EffectDeclaration v a)
                       -> [[(v, Term v a, Type v a)]]
                       -> [(WatchKind, [(v, Term v a, Type v a)])]
                       -> TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
-  file0 { hashTermsId = hashImpl file0 }
+  TypecheckedUnisonFileId datas effects tlcs watches hashImpl
   where
-  file0 = TypecheckedUnisonFileId datas effects tlcs watches mempty
-  hashImpl file = let
-    -- test watches are added to the codebase also
-    -- todo: maybe other kinds of watches too
-    components = topLevelComponents file
-    types = Map.fromList [(v,t) | (v,_,t) <- join components ]
-    terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
+  hashImpl = let
+    -- |includes watches
+    allTerms :: [(v, Term v a, Type v a)]
+    allTerms = join tlcs ++ join (snd <$> watches)
+    types :: Map v (Type v a)
+    types = Map.fromList [(v,t) | (v,_,t) <- allTerms ]
+    watchKinds :: Map v (Maybe WatchKind)
     watchKinds = Map.fromList $
-      [(v,Nothing) | (v,_e,_t) <- join $ topLevelComponents' file]
-      ++ [(v, Just wk) | (wk, terms) <- watches, (v, _e, _t) <- terms ]
-    hcs = Hashing.hashTermComponents terms0
+      [(v,Nothing) | (v,_e,_t) <- join tlcs]
+      ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _e, _t) <- wkTerms ]
+    -- good spot incorporate type of term into its hash, if not already present as an annotation (#2276)
+    hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, _t) -> (v, e)) <$> allTerms
     in Map.fromList
           [ (v, (r, wk, e, t))
           | (v, (r, e)) <- Map.toList hcs
           , Just t <- [Map.lookup v types]
-          , Just wk <- [Map.lookup v watchKinds] ]
+          , wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]]
 
 lookupDecl :: Ord v => v -> TypecheckedUnisonFile v a
            -> Maybe (Reference.Id, DD.Decl v a)

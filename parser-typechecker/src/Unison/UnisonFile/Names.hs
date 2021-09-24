@@ -27,6 +27,7 @@ import Unison.UnisonFile.Error (Error (DupDataAndAbility, UnknownType))
 import Unison.UnisonFile.Type (TypecheckedUnisonFile (TypecheckedUnisonFileId), UnisonFile (UnisonFileId))
 import qualified Unison.Util.Relation as Relation
 import Unison.Var (Var)
+import qualified Unison.WatchKind as WK
 
 toNames :: Var v => UnisonFile v a -> Names0
 toNames uf = datas <> effects
@@ -38,7 +39,7 @@ typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
 typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
   terms = Relation.fromList
     [ (Name.fromVar v, Referent.Ref r)
-    | (v, (r, _, _, _)) <- Map.toList $ UF.hashTerms uf ]
+    | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf, wk == Nothing || wk == Just WK.TestWatch ]
   types = Relation.fromList
     [ (Name.fromVar v, r)
     | (v, r) <- Map.toList $ fmap fst (UF.dataDeclarations' uf)
