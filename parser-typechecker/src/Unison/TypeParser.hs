@@ -72,7 +72,7 @@ type2 = do
 effect :: Var v => TypeP v
 effect = do
  es <- effectList
- t <- valueTypeLeaf
+ t <- type2
  pure (Type.effect1 (ann es <> ann t) es t)
 
 effectList :: Var v => TypeP v

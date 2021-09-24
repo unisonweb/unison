@@ -114,7 +114,7 @@ Regression test for https://github.com/unisonweb/unison/issues/2392
 
 ```unison:hide
 unique ability Zonk where zonk : Nat
-unique type Foo x y = 
+unique type Foo x y =
 
 foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
 foo n _ = n
@@ -170,3 +170,45 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
 .> load scratch.u
 ```
 
+## Parenthesized let-block with operator
+
+Regression test for https://github.com/unisonweb/unison/issues/1778
+
+```unison:hide
+
+structural ability base.Abort where
+  abort : a
+
+(|>) : a -> (a ->{e} b) -> {e} b
+a |> f = f a
+
+handler : a -> Request {Abort} a -> a
+handler default = cases
+  { a }        -> a
+  {abort -> _} -> default
+
+Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+Abort.toOptional thunk = '(toOptional! thunk)
+
+Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
+Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+
+Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+Abort.toDefault! default thunk =
+  h x = Abort.toDefault! (handler default x) thunk
+  handle (thunk ()) with h
+
+x = '(let
+  abort
+  0) |> Abort.toOptional
+```
+
+```ucm
+.> add
+.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```

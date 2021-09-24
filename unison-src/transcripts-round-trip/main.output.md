@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #agadr8gg6g : add
-  2. #bt17giel42 : builtins.mergeio
+  1. #j1vrihj69n : add
+  2. #m41m2ql36i : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #rhf1s808fb : add
-  2. #bt17giel42 : reset-root #bt17giel42
-  3. #agadr8gg6g : add
-  4. #bt17giel42 : builtins.mergeio
+  1. #sb99mm43ni : add
+  2. #m41m2ql36i : reset-root #m41m2ql36i
+  3. #j1vrihj69n : add
+  4. #m41m2ql36i : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #gj5agagj7s : add
-  2. #bt17giel42 : reset-root #bt17giel42
-  3. #rhf1s808fb : add
-  4. #bt17giel42 : reset-root #bt17giel42
-  5. #agadr8gg6g : add
-  6. #bt17giel42 : builtins.mergeio
+  1. #t22r3l1hsh : add
+  2. #m41m2ql36i : reset-root #m41m2ql36i
+  3. #sb99mm43ni : add
+  4. #m41m2ql36i : reset-root #m41m2ql36i
+  5. #j1vrihj69n : add
+  6. #m41m2ql36i : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #3igmh2it4p : add
-  2. #bt17giel42 : reset-root #bt17giel42
-  3. #gj5agagj7s : add
-  4. #bt17giel42 : reset-root #bt17giel42
-  5. #rhf1s808fb : add
-  6. #bt17giel42 : reset-root #bt17giel42
-  7. #agadr8gg6g : add
-  8. #bt17giel42 : builtins.mergeio
+  1. #ebh8598vf0 : add
+  2. #m41m2ql36i : reset-root #m41m2ql36i
+  3. #t22r3l1hsh : add
+  4. #m41m2ql36i : reset-root #m41m2ql36i
+  5. #sb99mm43ni : add
+  6. #m41m2ql36i : reset-root #m41m2ql36i
+  7. #j1vrihj69n : add
+  8. #m41m2ql36i : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -314,7 +314,7 @@ Regression test for https://github.com/unisonweb/unison/issues/2392
 
 ```unison
 unique ability Zonk where zonk : Nat
-unique type Foo x y = 
+unique type Foo x y =
 
 foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
 foo n _ = n
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #jsnoueu9le : add
-  2.  #bt17giel42 : reset-root #bt17giel42
-  3.  #3igmh2it4p : add
-  4.  #bt17giel42 : reset-root #bt17giel42
-  5.  #gj5agagj7s : add
-  6.  #bt17giel42 : reset-root #bt17giel42
-  7.  #rhf1s808fb : add
-  8.  #bt17giel42 : reset-root #bt17giel42
-  9.  #agadr8gg6g : add
-  10. #bt17giel42 : builtins.mergeio
+  1.  #siglm9vcnk : add
+  2.  #m41m2ql36i : reset-root #m41m2ql36i
+  3.  #ebh8598vf0 : add
+  4.  #m41m2ql36i : reset-root #m41m2ql36i
+  5.  #t22r3l1hsh : add
+  6.  #m41m2ql36i : reset-root #m41m2ql36i
+  7.  #sb99mm43ni : add
+  8.  #m41m2ql36i : reset-root #m41m2ql36i
+  9.  #j1vrihj69n : add
+  10. #m41m2ql36i : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #bt17giel42 .old`   to make an old namespace
+    `fork #m41m2ql36i .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #bt17giel42`  to reset the root namespace and
+    `reset-root #m41m2ql36i`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #vbmanbqtlh : add
-  2.  #bt17giel42 : reset-root #bt17giel42
-  3.  #jsnoueu9le : add
-  4.  #bt17giel42 : reset-root #bt17giel42
-  5.  #3igmh2it4p : add
-  6.  #bt17giel42 : reset-root #bt17giel42
-  7.  #gj5agagj7s : add
-  8.  #bt17giel42 : reset-root #bt17giel42
-  9.  #rhf1s808fb : add
-  10. #bt17giel42 : reset-root #bt17giel42
-  11. #agadr8gg6g : add
-  12. #bt17giel42 : builtins.mergeio
+  1.  #re8lsbbg6o : add
+  2.  #m41m2ql36i : reset-root #m41m2ql36i
+  3.  #siglm9vcnk : add
+  4.  #m41m2ql36i : reset-root #m41m2ql36i
+  5.  #ebh8598vf0 : add
+  6.  #m41m2ql36i : reset-root #m41m2ql36i
+  7.  #t22r3l1hsh : add
+  8.  #m41m2ql36i : reset-root #m41m2ql36i
+  9.  #sb99mm43ni : add
+  10. #m41m2ql36i : reset-root #m41m2ql36i
+  11. #j1vrihj69n : add
+  12. #m41m2ql36i : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -521,5 +521,122 @@ myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*T
     ⍟ These new definitions are ok to `add`:
     
       myDoc : Doc2
+
+```
+## Parenthesized let-block with operator
+
+Regression test for https://github.com/unisonweb/unison/issues/1778
+
+```unison
+structural ability base.Abort where
+  abort : a
+
+(|>) : a -> (a ->{e} b) -> {e} b
+a |> f = f a
+
+handler : a -> Request {Abort} a -> a
+handler default = cases
+  { a }        -> a
+  {abort -> _} -> default
+
+Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+Abort.toOptional thunk = '(toOptional! thunk)
+
+Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
+Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+
+Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+Abort.toDefault! default thunk =
+  h x = Abort.toDefault! (handler default x) thunk
+  handle (thunk ()) with h
+
+x = '(let
+  abort
+  0) |> Abort.toOptional
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural ability base.Abort
+    Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
+    Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
+    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
+    handler           : a -> Request {Abort} a -> a
+    x                 : 'Optional Nat
+    |>                : a -> (a ->{e} b) ->{e} b
+
+.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    structural ability base.Abort where abort : {base.Abort} a
+    
+    Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+    Abort.toDefault! default thunk =
+      h x = Abort.toDefault! (handler default x) thunk
+      handle !thunk with h
+    
+    Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+    Abort.toOptional thunk = '(toOptional! thunk)
+    
+    Abort.toOptional! : '{g, Abort} a ->{g} Optional a
+    Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+    
+    handler : a -> Request {Abort} a -> a
+    handler default = cases
+      { a }        -> a
+      {abort -> _} -> default
+    
+    x : 'Optional Nat
+    x =
+      ('let
+        abort
+        0) |> toOptional
+    
+    (|>) : a -> (a ->{e} b) ->{e} b
+    a |> f = f a
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. structural ability base.Abort
+    2. base.Abort.abort  : {#oup50kgmqv} a
+    3. handler           : a -> Request {#oup50kgmqv} a -> a
+    4. Abort.toDefault!  : a -> '{g, #oup50kgmqv} a ->{g} a
+    5. Abort.toOptional  : '{g, #oup50kgmqv} a
+                         -> '{g} Optional a
+    6. Abort.toOptional! : '{g, #oup50kgmqv} a ->{g} Optional a
+    7. x                 : 'Optional Nat
+    8. |>                : a -> (a ->{e} b) ->{e} b
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural ability base.Abort
+      Abort.toDefault!  : a -> '{g, Abort} a ->{g} a
+      Abort.toOptional  : '{g, Abort} a -> '{g} Optional a
+      Abort.toOptional! : '{g, Abort} a ->{g} Optional a
+      handler           : a -> Request {Abort} a -> a
+      x                 : 'Optional Nat
+      |>                : a -> (a ->{e} b) ->{e} b
 
 ```
