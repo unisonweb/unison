@@ -14,7 +14,6 @@ module Unison.Hashing.V1.DataDeclaration
     asDataDecl,
     constructorType,
     constructorTypes,
-    -- declConstructorReferents,
     declDependencies,
     dependencies,
     bindReferences,
@@ -27,7 +26,6 @@ import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Prelude.Extras (Show1)
-import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
@@ -41,10 +39,8 @@ import qualified Unison.Hashing.V1.Type as Type
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
--- import qualified Unison.Referent as Referent
--- import qualified Unison.Referent' as Referent'
+import Unison.Var (Var)
 import Prelude hiding (cycle)
-
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data DeclOrBuiltin v a
@@ -84,17 +80,6 @@ constructorTypes = (snd <$>) . constructors
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
-
--- -- This function is unsound, since the `rid` and the `decl` have to match.
--- -- It should probably be hashed directly from the Decl, once we have a
--- -- reliable way of doing that. —AI
--- declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
--- declConstructorReferents rid decl =
---   [ Referent'.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
---   where ct = constructorType decl
-
--- constructorIds :: DataDeclaration v a -> [Int]
--- constructorIds dd = [0 .. length (constructors dd) - 1]
 
 dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =

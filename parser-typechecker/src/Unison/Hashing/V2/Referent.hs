@@ -33,9 +33,6 @@ pattern Con r i t = Con' r i t
 -- | Cannot be a builtin.
 type Id = Referent' R.Id
 
--- referentToTerm moved to Term.fromReferent
--- termToReferent moved to Term.toReferent
-
 -- todo: move these to ShortHash module
 toShortHash :: Referent -> ShortHash
 toShortHash = \case

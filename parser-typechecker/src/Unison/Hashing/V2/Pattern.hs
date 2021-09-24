@@ -7,8 +7,6 @@ import Unison.Prelude
 import Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Set as Set
--- import Unison.LabeledDependency (LabeledDependency)
--- import qualified Unison.LabeledDependency as LD
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Type as Type
 import qualified Unison.Hashable as H
@@ -156,10 +154,3 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
       Text    _ _         -> [literalType Type.textRef]
       Char    _ _         -> [literalType Type.charRef]
     )
-
--- labeledDependencies :: Pattern loc -> Set LabeledDependency
--- labeledDependencies = generalizedDependencies LD.typeRef
---                                               LD.dataConstructor
---                                               LD.typeRef
---                                               LD.effectConstructor
---                                               LD.typeRef

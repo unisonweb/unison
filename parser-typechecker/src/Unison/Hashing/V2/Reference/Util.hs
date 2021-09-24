@@ -17,5 +17,3 @@ hashComponents embedRef tms =
   Map.fromList [ (v, (r,e)) | ((v,e), r) <- cs ]
   where cs = Reference.components $ ABT.hashComponents ref tms
         ref h i n = embedRef (Reference.Id h i n)
-
-

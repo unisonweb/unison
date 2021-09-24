@@ -14,7 +14,6 @@ module Unison.Hashing.V2.DataDeclaration
     asDataDecl,
     constructorType,
     constructorTypes,
-    -- declConstructorReferents,
     declDependencies,
     dependencies,
     bindReferences,
@@ -84,17 +83,6 @@ constructorTypes = (snd <$>) . constructors
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
-
--- -- This function is unsound, since the `rid` and the `decl` have to match.
--- -- It should probably be hashed directly from the Decl, once we have a
--- -- reliable way of doing that. —AI
--- declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
--- declConstructorReferents rid decl =
---   [ Referent'.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
---   where ct = constructorType decl
-
--- constructorIds :: DataDeclaration v a -> [Int]
--- constructorIds dd = [0 .. length (constructors dd) - 1]
 
 dependencies :: Ord v => DataDeclaration v a -> Set Reference
 dependencies dd =
