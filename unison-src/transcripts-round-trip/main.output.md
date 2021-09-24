@@ -595,7 +595,7 @@ x = '(let
     
     x : 'Optional Nat
     x =
-      '(let
+      ('let
         abort
         0) |> toOptional
     

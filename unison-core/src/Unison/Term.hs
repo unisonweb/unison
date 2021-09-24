@@ -443,7 +443,6 @@ unDelay tm = case ABT.out tm of
     |  Set.notMember v (ABT.freeVars body)
     -> Just body
   _ -> Nothing
-
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
