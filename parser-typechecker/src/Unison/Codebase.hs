@@ -21,6 +21,7 @@ module Unison.Codebase
     termsOfType,
     termsMentioningType,
     dependents,
+    dependentsOfComponent,
     isTerm,
     isType,
   )
@@ -61,6 +62,7 @@ import Unison.Codebase.Editor.Git (withStatus)
 import qualified Data.Set as Set
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Type as Type
+import Unison.Hash (Hash)
 
 -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
 -- If not found, attempt to find it in the Codebase (sqlite)
@@ -180,6 +182,12 @@ dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
+
+dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
+dependentsOfComponent c h =
+  Set.union (Builtin.builtinTypeDependentsOfComponent h)
+    . Set.map Reference.DerivedId
+    <$> dependentsOfComponentImpl c h
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty =

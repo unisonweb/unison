@@ -594,6 +594,12 @@ sqliteCodebase debugName root = do
               Set.map Cv.referenceid2to1
                 <$> Ops.dependents (Cv.reference1to2 r)
 
+          dependentsOfComponentImpl :: MonadIO m => Hash -> m (Set Reference.Id)
+          dependentsOfComponentImpl h =
+            runDB conn $
+              Set.map Cv.referenceid2to1
+                <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
+
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
@@ -766,6 +772,7 @@ sqliteCodebase debugName root = do
             putPatch
             patchExists
             dependentsImpl
+            dependentsOfComponentImpl
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'

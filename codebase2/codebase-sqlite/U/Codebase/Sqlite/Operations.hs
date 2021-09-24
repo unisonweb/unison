@@ -143,8 +143,8 @@ type EDB m = (Err m, DB m)
 type ErrString = String
 
 data DecodeError
-  = ErrTermComponent
-  | ErrDeclComponent
+  = ErrTermFormat
+  | ErrDeclFormat
   | ErrTermElement Word64
   | ErrDeclElement Word64
   | ErrFramedArrayLen
@@ -390,7 +390,7 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 -- * Deserialization helpers
 
 decodeTermComponent :: Err m => ByteString -> m S.Term.TermFormat
-decodeTermComponent = getFromBytesOr ErrTermComponent S.getTermFormat
+decodeTermComponent = getFromBytesOr ErrTermFormat S.getTermFormat
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (Get.skip 1 >> S.lengthFramedArray)
@@ -405,7 +405,7 @@ decodeTermElementDiscardingType :: Err m => C.Reference.Pos -> ByteString -> m (
 decodeTermElementDiscardingType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElementDiscardingType i)
 
 decodeDeclComponent :: Err m => ByteString -> m S.Decl.DeclFormat
-decodeDeclComponent = getFromBytesOr ErrDeclComponent S.getDeclFormat
+decodeDeclComponent = getFromBytesOr ErrDeclFormat S.getDeclFormat
 
 decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
 decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
@@ -1378,8 +1378,14 @@ dependents :: EDB m => C.Reference -> m (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'
-  -- how will you convert this back to Unison.Reference if you
-  -- don't know the cycle size?
+  cIds <- traverse s2cReferenceId sIds
+  pure $ Set.fromList cIds
+
+-- | returns a list of known definitions referencing `r`
+dependentsOfComponent :: EDB m => H.Hash -> m (Set C.Reference.Id)
+dependentsOfComponent h = do
+  oId <- primaryHashToExistingObjectId h
+  sIds :: [S.Reference.Id] <- Q.getDependentsForDependencyComponent oId
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 

@@ -10,6 +10,7 @@ module Unison.Builtin
   ,builtinEffectDecls
   ,builtinConstructorType
   ,builtinTypeDependents
+  ,builtinTypeDependentsOfComponent
   ,builtinTypes
   ,builtinTermsByType
   ,builtinTermsByTypeMention
@@ -46,6 +47,7 @@ import           Unison.Names3 (Names(Names), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
+import Unison.Hash (Hash)
 
 type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
@@ -120,6 +122,15 @@ builtinTermsByTypeMention =
 -- mention that type.
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r = Rel.lookupRan r builtinDependencies
+
+builtinTypeDependentsOfComponent :: Hash -> Set R.Reference
+builtinTypeDependentsOfComponent h0 = Rel.searchRan ord builtinDependencies
+  where
+    ord :: R.Reference -> Ordering
+    ord = \case
+      R.Derived h _i -> compare h h0
+      r -> compare r r0
+    r0 = R.Derived h0 0
 
 -- WARNING:
 -- As with the terms, we should avoid changing these references, even
