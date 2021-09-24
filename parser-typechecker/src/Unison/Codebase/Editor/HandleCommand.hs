@@ -9,7 +9,7 @@ module Unison.Codebase.Editor.HandleCommand where
 
 import Unison.Prelude
 
-import Unison.Codebase.Editor.Output
+import Unison.Codebase.Editor.InputOutput
 import Unison.Codebase.Editor.Command
 
 import qualified Unison.Builtin                as B
@@ -82,10 +82,10 @@ commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
   => Config
-  -> IO i
+  -> IO i -- RLM: await input 
   -> (Branch IO -> IO ())
-  -> Runtime v
-  -> (Output v -> IO ())
+  -> Runtime v 
+  -> (Output v -> IO ()) -- RLM: notify 
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
@@ -104,9 +104,17 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
+    InputWithOutput input output -> do 
+      -- RLM: not sure how exactly this is gonna work 
+        let 
+          fst = go input 
+          snd = lift $ notifyUser output
+        
+        fst >>= snd 
+        -- lift awaitInput >> \_ -> lift $ notifyUser output
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
-    NotifyNumbered output -> lift $ notifyNumbered output
+    NotifyNumbered output -> lift $ notifyNumbered output 
     ConfigLookup name ->
       lift $ Config.lookup config name
     LoadSource sourcePath -> lift $ loadSource sourcePath

@@ -12,9 +12,9 @@ module Unison.CommandLine.OutputMessages where
 import Unison.Prelude hiding (unlessM)
 
 import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.Output           as E
-import qualified Unison.Codebase.Editor.Output           as Output
+import           Unison.Codebase.Editor.InputOutput
+import qualified Unison.Codebase.Editor.InputOutput           as E
+import qualified Unison.Codebase.Editor.InputOutput           as Output
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
 import qualified Unison.Server.SearchResult' as SR'
@@ -104,7 +104,7 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
-import qualified Unison.Codebase.Editor.Input as Input
+-- import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -118,6 +118,7 @@ import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(UnrecognizedSchemaVersion, GitCouldntParseRootBranchHash))
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
+import qualified Unison.Codebase.Editor.InputOutput as Input
 
 type Pretty = P.Pretty P.ColorText
 
@@ -256,7 +257,12 @@ prettyRemoteNamespace =
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
-  Success         -> pure $ P.bold "Done."
+  -- Success         -> pure $ P.bold "Done."
+  -- Onboarding string -> do 
+    -- pure ( P.bold $ P.string ("HEY THIS IS ONBOARDING TEST responding to step: " ++ string))
+  Simple Success         -> pure $ P.bold "Done."
+  Simple (Onboarding string) -> do 
+    pure ( P.bold $ P.string ("HEY THIS IS ONBOARDING TEST responding to step: " ++ string))
   BadRootBranch e -> case e of
     Codebase.NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"

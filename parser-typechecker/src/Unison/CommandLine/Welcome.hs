@@ -9,17 +9,24 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 import System.Random (randomRIO)
 import Unison.Codebase.Path (Path)
-{-
+
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
-import Unison.Codebase.Editor.Input (Input (..), Event)
+import Unison.Codebase.Editor.InputOutput 
 import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
--}
+
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+-- import qualified Unison.Codebase.Editor.Input as Input
 
 
 -- IDEAS? 
+
+-- Notes: 
+-- Download base should be quieter - the printout is annoyingly large. 
+-- use more primitive IO functions for user input and git download.  
+-- UX issue / design constraint: if we use existing input / output architecture, how will we constrain the user into only entering their authorship info? 
+-- we don't want the user to have too much "freedom" when entering their author info. 
 
 -- 1)
 -- * Refactor existing IO command loop out of main function - see notes in CommandLine.main 
@@ -31,26 +38,27 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 -- * Merge import result into .base
 
 -- WELCOME
-data Welcome = Welcome 
+data Welcome = Welcome
   { onboarding :: Onboarding -- Onboarding States
   , downloadBase :: DownloadBase
   , newCodebasePath :: Maybe FilePath
-  , watchDir :: FilePath 
-  , unisonVersion :: String 
+  , watchDir :: FilePath
+  , unisonVersion :: String
   }
 
 -- ONBOARDING
 data CodebaseInitStatus
   = NewlyCreatedCodebase FilePath -- Can transition to [Base, Author, Finished]
-  | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]. TODO: Show which codebase path was actually opened...
+  | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]. RLM: TODO Show which codebase path was actually opened...
 
-data Onboarding 
+data Onboarding
   = Init CodebaseInitStatus -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]
   | Base BaseSteps -- Can transition to [Author, Finished]
   | Author -- Can traisition to [Finished]
   -- End States
   | Finished
   | PreviouslyOnboarded
+
 
 -- ucm start
 --   create codebase
@@ -71,7 +79,7 @@ data Onboarding
 -- onboarding
 --     this is my 100th time and i've got a codebase, and author and base -> PreviouslyOnboarded
 
-data BaseSteps 
+data BaseSteps
   = DownloadingBase ReadRemoteNamespace
   | DownloadBaseFailed ReadRemoteNamespace Text
   | DownloadBaseSucceeded ReadRemoteNamespace
@@ -80,56 +88,69 @@ data DownloadBase = DownloadBase ReadRemoteNamespace | DontDownloadBase
 
 welcome :: DownloadBase -> Maybe FilePath -> FilePath -> String -> Welcome
 welcome downloadBase newCodebasePath watchDir unisonVersion =
-  case newCodebasePath of 
+  case newCodebasePath of
     Just path -> Welcome (Init (NewlyCreatedCodebase path)) downloadBase newCodebasePath watchDir unisonVersion
     Nothing -> Welcome (Init PreviouslyCreatedCodebase) downloadBase newCodebasePath watchDir unisonVersion
-  
-run :: Codebase IO v a -> Welcome -> IO ()
+
+-- remove IO 
+pullBase :: ReadRemoteNamespace -> IO (Either Event Input)
+pullBase _ns =
+  let
+    seg = NameSegment "base"
+    rootPath = Path.Path { Path.toSeq = singleton seg }
+    abs = Path.Absolute {Path.unabsolute = rootPath}
+    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete 
+    output = Onboarding " THIS IS A TEST OF PULLING BASE!!"
+    in 
+    pure $ Right (RespondToInput pullRemote output)
+
+run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
 run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version } = do
-  go onboarding
+  go onboarding []
   where
-    go :: Onboarding -> IO ()
-    go onboarding = 
-      case onboarding of 
-        Init (NewlyCreatedCodebase path)  -> do
+    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
+    go onboarding acc  =
+      case onboarding of
+        Init (NewlyCreatedCodebase path) -> do
           PT.putPrettyLn (header version)
           PT.putPrettyLn (createdCodebase path)
-
-          determineFirstStep >>= go
+          determineFirstStep >>= \step -> go step acc
         Init PreviouslyCreatedCodebase -> do
           PT.putPrettyLn (header version)
-
-          determineFirstStep >>= go
+          determineFirstStep >>= \step -> go step acc
         Base (DownloadingBase ns@(_, _, path)) -> do
           PT.putPrettyLn $ downloading path
           res <- pullBase ns
           case res of
             Right _ ->
-              go $ Base $ DownloadBaseSucceeded ns
-            Left errorMsg ->
-              go $ Base $ DownloadBaseFailed ns errorMsg
-
-        Base (DownloadBaseSucceeded _) -> do 
+              go baseStep (res : acc)
+              where
+                baseStep = Base (DownloadBaseSucceeded ns)
+            Left _ -> -- event but baseDownload isn't an event so maybe change that type also this is probably a state we can't represent if we use the existing architecture
+              go baseError acc
+              where
+                baseError = Base (DownloadBaseFailed ns "Failed to download base")
+        Base (DownloadBaseSucceeded _) -> do
           PT.putPrettyLn $ P.lines [
               P.wrap "✅ Success! The base library is the Unison standard library that includes",
               P.wrap "core types and functions to write Unison code."
             ]
           -- getStarted dir >>= PT.putPrettyLn
-          
-          go Author 
+
+          go Author acc
         Base (DownloadBaseFailed _ _) -> do
           PT.putPrettyLn "Download Failed"
           getStarted dir >>= PT.putPrettyLn
-
-        Author -> do 
+          pure acc 
+        Author -> do
           PT.putPrettyLn "Enter your author!"
-          go Finished
-
-        Finished ->
+          go Finished acc 
+        Finished -> do 
           getStarted dir >>= PT.putPrettyLn
-
-        PreviouslyOnboarded ->
+          pure acc
+        PreviouslyOnboarded -> do 
           getStarted dir >>= PT.putPrettyLn
+          pure acc
 
     determineFirstStep :: IO Onboarding
     determineFirstStep = do
@@ -139,22 +160,6 @@ run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, wat
           pure $ Base (DownloadingBase ns)
         _ ->
           pure $ PreviouslyOnboarded
-
-
-
--- HELPERS
-
-pullBase :: ReadRemoteNamespace -> IO (Either Text ())
-pullBase _ns =
-  {-
-  let 
-    seg = NameSegment "base"
-    rootPath = Path.Path { Path.toSeq = singleton seg }
-    abs = Path.Absolute {Path.unabsolute = rootPath}
-  in do
-    -}
-    pure $ Right ()
-  -- PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete 
 
 asciiartUnison :: P.Pretty P.ColorText
 asciiartUnison =

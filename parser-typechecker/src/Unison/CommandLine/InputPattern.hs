@@ -8,7 +8,7 @@ module Unison.CommandLine.InputPattern where
 import qualified System.Console.Haskeline       as Line
 import           Unison.Codebase                (Codebase)
 import           Unison.Codebase.Branch         (Branch)
-import           Unison.Codebase.Editor.Input   (Input (..))
+import           Unison.Codebase.Editor.InputOutput   (Input (..))
 import qualified Unison.Util.ColorText          as CT
 import qualified Unison.Util.Pretty             as P
 import           Unison.Codebase.Path           as Path

@@ -115,13 +115,13 @@ main
   -> IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  Welcome.run codebase welcome 
   eventQueue <- Q.newIO
+  welcomeEvents <-Welcome.run codebase welcome 
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef initialInputs -- Idea: Extract 
+    initialInputsRef         <- newIORef $ welcomeEvents ++ initialInputs -- Idea: Extract 
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
@@ -156,9 +156,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
               (putPrettyNonempty o)
               (putPrettyLnUnpaged o))
     let
-      awaitInput = do
+      awaitInput = do -- await input ends up encompassing initial inputs (for welcome) and the user inputs 
         -- use up buffered input before consulting external events
-        i <- readIORef initialInputsRef -- Here was where we used to do the reading for base commands 
+        i <- readIORef initialInputsRef -- Here was where we used to do the reading for base commands welcome.downloadBase initialInputsRef -> initialInputsRef 
         (case i of
           h:t -> writeIORef initialInputsRef t >> pure h -- Here was where we used to write the IO of commands to the event queue. Will need to mimic in an new function
           [] ->
@@ -168,7 +168,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 let e = Left <$> atomically (Q.dequeue eventQueue)
                 writeIORef pageOutput False
                 e
-              x      -> do
+              x      -> do -- x is Input 
                 writeIORef pageOutput True
                 pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
