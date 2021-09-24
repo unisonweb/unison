@@ -22,7 +22,6 @@ import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.GitError (GitProtocolError, GitCodebaseError)
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
-import Unison.Hash (Hash)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -39,8 +38,6 @@ data Codebase m v a = Codebase
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
     putTerm :: Reference.Id -> Term v a -> Type v a -> m (),
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
-    getTermComponentLength :: Hash -> m Reference.Size,
-    getDeclComponentLength :: Hash -> m Reference.Size,
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),

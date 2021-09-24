@@ -134,10 +134,6 @@ evaluateTerm' codeLookup cache ppe rt tm = do
     Just r -> pure (Right r)
     Nothing -> do
       let
-        -- v = Var.nameds "result"
-        -- k = WK.RegularWatch
-        -- term = tm
-        -- tp = mainType rt
         tuf = UF.typecheckedUnisonFile mempty mempty mempty
                  [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
       r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
