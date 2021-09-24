@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnv.Util (declarationPPE) where
+module Unison.PrettyPrintEnv.Util (declarationPPE, declarationPPEDecl) where
 
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (suffixifiedPPE, unsuffixifiedPPE))
@@ -28,3 +28,8 @@ declarationPPE ppe ref = PrettyPrintEnv tm ty
     ty r
       | hash r == rootH = types (unsuffixifiedPPE ppe) r
       | otherwise = types (suffixifiedPPE ppe) r
+
+-- The suffixed names uses the fully-qualified name for `r`
+declarationPPEDecl ::  PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
+declarationPPEDecl ppe r =
+   ppe { suffixifiedPPE = declarationPPE ppe r }

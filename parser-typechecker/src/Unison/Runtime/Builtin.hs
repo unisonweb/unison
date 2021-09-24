@@ -738,6 +738,24 @@ code'lookup
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
 
+code'validate :: Var v => SuperNormal v
+code'validate
+  = unop0 5 $ \[item, t, ref, msg, extra, fail]
+ -> TLetD t UN (TPrm CVLD [item])
+  . TMatch t . MatchSum
+  $ mapFromList
+  [ (1, ([BX, BX, BX],)
+      . TAbss [ref, msg, extra]
+      . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
+      $ TCon Ty.optionalRef 1 [fail])
+  , (0, ([],)
+      $ TCon Ty.optionalRef 0 [])
+  ]
+
+term'link'to'text :: Var v => SuperNormal v
+term'link'to'text
+  = unop0 0 $ \[link] -> TPrm TLTT [link]
+
 value'load :: Var v => SuperNormal v
 value'load
   = unop0 2 $ \[vlu,t,r]
@@ -770,6 +788,17 @@ standard'handle instr
   $ TFOp instr [h]
   where
   (h0,h) = fresh2
+
+any'construct :: Var v => SuperNormal v
+any'construct
+  = unop0 0 $ \[v]
+ -> TCon Ty.anyRef 0 [v] 
+
+any'extract :: Var v => SuperNormal v
+any'extract
+  = unop0 1
+  $ \[v,v1] -> TMatch v
+  $ MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
 
 seek'handle :: ForeignOp
 seek'handle instr
@@ -1090,10 +1119,10 @@ boxBoxTo0 instr
   (arg1, arg2) = fresh2
 
 -- Nat -> ()
-natToUnit :: ForeignOp
-natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
-  where
-    (arg, nat, result) = fresh3
+-- natToUnit :: ForeignOp
+-- natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
+--   where
+--     (arg, nat, result) = fresh3
 
 -- a -> Bool
 boxToBool :: ForeignOp
@@ -1233,11 +1262,28 @@ boxBoxToEFBox = inBxBx arg1 arg2 result
   where
     (arg1, arg2, result, stack1, stack2, fail) = fresh6
 
--- a -> Nat -> Either Failure
+-- a -> Nat -> Either Failure b
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox = inBxNat arg1 arg2 nat result
            $ outIoFail stack1 stack2 fail result
   where (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- Nat -> Either Failure ()
+natToEFUnit :: ForeignOp
+natToEFUnit
+  = inNat arg nat result
+  . TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ TCon eitherReference 0 [fail])
+  , (1, ([],)
+      . TLetD unit BX (TCon Ty.unitRef 0 [])
+      $ TCon eitherReference 1 [unit])
+
+  ]
+  where
+    (arg, nat, result, fail, stack1, stack2, unit) = fresh7
 
 -- a -> Either b c
 boxToEBoxBox :: ForeignOp
@@ -1434,9 +1480,12 @@ builtinLookup
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
   , ("Code.lookup", code'lookup)
+  , ("Code.validate", code'validate)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
-
+  , ("Any.Any", any'construct)
+  , ("Any.unsafeExtract", any'extract)
+  , ("Link.Term.toText", term'link'to'text)
   , ("STM.atomically", stm'atomic)
   ] ++ foreignWrappers
 
@@ -1595,7 +1644,8 @@ declareForeigns = do
 
   declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.impl.v3" natToUnit $ mkForeignIOF threadDelay
+  declareForeign "IO.delay.impl.v3" natToEFUnit
+    $ mkForeignIOF threadDelay
 
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
@@ -1771,6 +1821,8 @@ declareForeigns = do
         -> pure . Bytes.fromArray $ serializeGroup sg
   declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
+  declareForeign "Code.display" boxBoxDirect . mkForeign
+    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Text.unpack nm) sg ""
   declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
@@ -1778,10 +1830,6 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
-
-  declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
-    pure $ Closure.DataB1 Ty.anyRef 0 a
-
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do

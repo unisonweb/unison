@@ -561,6 +561,13 @@ aliasMany = InputPattern "alias.many" ["copy"]
     _ -> Left (I.help aliasMany)
   )
 
+up :: InputPattern
+up = InputPattern "up" [] []
+    (P.wrapColumn2 [ (makeExample up [], "move current path up one level") ])
+    (\case
+      [] -> Right Input.UpI
+      _ -> Left (I.help up)
+    )
 
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
@@ -570,6 +577,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       , (makeExample cd [".cat.dog"],
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
+      [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
         pure . Input.SwitchBranchI $ p
@@ -1396,6 +1404,7 @@ validInputs =
   , createPullRequest
   , loadPullRequest
   , cd
+  , up
   , back
   , deleteBranch
   , renameBranch

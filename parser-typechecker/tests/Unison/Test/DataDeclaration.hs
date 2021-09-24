@@ -2,26 +2,27 @@
 
 module Unison.Test.DataDeclaration where
 
-import qualified Data.Map               as Map
-import           Data.Map                ( Map, (!) )
-import           EasyTest
-import           Text.RawString.QQ
+import Data.Map (Map, (!))
+import qualified Data.Map as Map
+import EasyTest
+import Text.RawString.QQ
+import Unison.DataDeclaration (DataDeclaration (..), Decl)
 import qualified Unison.DataDeclaration as DD
-import           Unison.DataDeclaration  ( DataDeclaration(..), Decl, hashDecls )
-import qualified Unison.Hash            as Hash
+import qualified Unison.Hash as Hash
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
-import           Unison.Parsers          ( unsafeParseFile )
-import qualified Unison.Reference       as R
-import           Unison.Symbol           ( Symbol )
-import qualified Unison.Test.Common     as Common
-import qualified Unison.Type            as Type
-import           Unison.UnisonFile       ( UnisonFile(..) )
-import qualified Unison.Var             as Var
+import Unison.Parsers (unsafeParseFile)
+import qualified Unison.Reference as R
+import Unison.Symbol (Symbol)
+import qualified Unison.Test.Common as Common
+import qualified Unison.Type as Type
+import Unison.UnisonFile (UnisonFile (..))
+import qualified Unison.Var as Var
 import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test = scope "datadeclaration" $
-  let Right hashes = hashDecls . (snd <$>) . dataDeclarationsId $ file
+  let Right hashes = Hashing.hashDecls . (snd <$>) . dataDeclarationsId $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
       hashOf k = Map.lookup (Var.named k) hashMap
   in tests [

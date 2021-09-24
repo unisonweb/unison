@@ -136,6 +136,11 @@ stdout = IO.stdHandle StdOut
 printText : Text -> {io2.IO} Either Failure ()
 printText t = putBytes.impl stdout (toUtf8 t)
 
+printLine : Text -> {io2.IO, Exception} ()
+printLine t = reraise (printText (t ++ "\n"))
+
+delay : Nat ->{IO, Exception} ()
+delay n = reraise (delay.impl n)
 -- Run tests which might fail, might create temporary directores and Stream out
 -- results, returns the Results and the result of the test
 evalTest: '{Stream Result, TempDirs, io2.IO, Exception} a ->{io2.IO, Exception}([Result], a)

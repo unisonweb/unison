@@ -88,9 +88,28 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
+      Unison.Hashing.V1.Convert
+      Unison.Hashing.V1.DataDeclaration
+      Unison.Hashing.V1.LabeledDependency
+      Unison.Hashing.V1.Pattern
+      Unison.Hashing.V1.Reference
+      Unison.Hashing.V1.Reference.Util
+      Unison.Hashing.V1.Referent
+      Unison.Hashing.V1.Term
+      Unison.Hashing.V1.Type
+      Unison.Hashing.V2.Convert
+      Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.LabeledDependency
+      Unison.Hashing.V2.Pattern
+      Unison.Hashing.V2.Reference
+      Unison.Hashing.V2.Reference.Util
+      Unison.Hashing.V2.Referent
+      Unison.Hashing.V2.Term
+      Unison.Hashing.V2.Type
       Unison.Lexer
       Unison.Lexer.Pos
       Unison.NamePrinter
@@ -127,7 +146,8 @@ library
       Unison.Server.Doc
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
-      Unison.Server.Endpoints.ListNamespace
+      Unison.Server.Endpoints.NamespaceDetails
+      Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
@@ -319,6 +339,7 @@ executable tests
       Unison.Test.ClearCache
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
+      Unison.Test.CodebaseInit
       Unison.Test.ColorText
       Unison.Test.Common
       Unison.Test.DataDeclaration
@@ -414,6 +435,8 @@ executable transcripts
       TupleSections
       TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
+  build-tools:
+      unison
   build-depends:
       base
     , directory
@@ -472,6 +495,7 @@ executable unison
     , unison-codebase-sync
     , unison-core1
     , unison-parser-typechecker
+    , unliftio
     , uri-encode
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

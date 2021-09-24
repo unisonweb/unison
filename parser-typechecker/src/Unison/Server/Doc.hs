@@ -244,7 +244,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             Just decl ->
               pure $ DO.UserObject (Src folded full)
               where
-                full = formatPretty (DeclPrinter.prettyDecl ppe r (PPE.typeName ppe r) decl)
+                full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName ppe r) decl)
                 folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName ppe r) decl)
 
         go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])

@@ -1150,7 +1150,7 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
       BuiltinObject _ -> builtin n
       UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe0 r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "

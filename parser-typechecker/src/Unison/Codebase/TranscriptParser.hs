@@ -29,7 +29,8 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison, expandNumber)
+import Unison.CommandLine.Main (expandNumber)
+import Unison.CommandLine.Welcome (asciiartUnison)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -158,6 +159,10 @@ run dir configFile stanzas codebase = do
           -- end of ucm block
           Just Nothing -> do
             output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
             dieUnexpectedSuccess
             awaitInput
           -- ucm command to run

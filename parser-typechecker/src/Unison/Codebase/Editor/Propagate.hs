@@ -52,9 +52,10 @@ import           Unison.UnisonFile              ( UnisonFile(..) )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
 import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Runtime.IOSource       as IOSource
+import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.WatchKind (WatchKind)
 
 type F m i v = Free (Command m i v)
 
@@ -322,7 +323,7 @@ propagate rootNames patch b = case validatePatch patch of
               declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
               -- TODO: kind-check the new components
               hashedDecls = (fmap . fmap) (over _2 DerivedId)
-                          . Decl.hashDecls
+                          . Hashing.hashDecls
                           $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
@@ -391,7 +392,7 @@ propagate rootNames patch b = case validatePatch patch of
               let
                 joinedStuff =
                   toList (Map.intersectionWith f componentMap componentMap'')
-                f (oldRef, _oldTerm, oldType) (newRef, newTerm, newType) =
+                f (oldRef, _oldTerm, oldType) (newRef, _newWatchKind, newTerm, newType) =
                   (oldRef, newRef, newTerm, oldType, newType')
                     -- Don't replace the type if it hasn't changed.
 
@@ -496,7 +497,7 @@ propagate rootNames patch b = case validatePatch patch of
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
-    -> F m i v (Maybe (Map v (Reference, Term v _, Type v _)))
+    -> F m i v (Maybe (Map v (Reference, Maybe WatchKind, Term v _, Type v _)))
   verifyTermComponent componentMap Edits {..} = do
     -- If the term contains references to old patterns, we can't update it.
     -- If the term had a redunant type signature, it's discarded and a new type
@@ -562,7 +563,7 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
 applyPropagate
   :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
 applyPropagate patch Edits {..} = do
-  let termTypes = Map.map (Type.toReference . snd) newTerms
+  let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
   pure $ Branch.stepEverywhere (updateLevel termReplacements typeReplacements termTypes)
  where

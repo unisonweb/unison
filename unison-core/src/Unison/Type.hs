@@ -17,12 +17,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
-import           Unison.Hashable (Hashable1)
-import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
@@ -672,43 +669,8 @@ cleanup :: Var v => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
-toReference :: (ABT.Var v, Show v) => Type v a -> Reference
-toReference (Ref' r) = r
--- a bit of normalization - any unused type parameters aren't part of the hash
-toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
-toReference t = Reference.Derived (ABT.hash t) 0
-
-toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
-toReferenceMentions ty =
-  let (vs, _) = unforall' ty
-      gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
-  in Set.fromList $ toReference . gen <$> ABT.subterms ty
-
-hashComponents
-  :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
-hashComponents = ReferenceUtil.hashComponents $ refId ()
-
-instance Hashable1 F where
-  hash1 hashCycle hash e =
-    let
-      (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
-      -- Note: start each layer with leading `0` byte, to avoid collisions with
-      -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
-    in Hashable.accumulate $ tag 0 : case e of
-      Ref r -> [tag 0, Hashable.accumulateToken r]
-      Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
-      App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
-      Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
-      -- Example:
-      --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
-      --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
-      --   c) {Remote, Abort} (() -> {Abort} ())
-      Effects es -> let
-        (hs, _) = hashCycle es
-        in tag 4 : map hashed hs
-      Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
-      Forall a -> [tag 6, hashed (hash a)]
-      IntroOuter a -> [tag 7, hashed (hash a)]
+builtinAbilities :: Set Reference
+builtinAbilities = Set.fromList [builtinIORef, stmRef]
 
 instance Show a => Show (F a) where
   showsPrec = go where
