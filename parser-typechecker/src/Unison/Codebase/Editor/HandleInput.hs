@@ -149,6 +149,7 @@ import qualified Unison.Util.Relation as Relation
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
+import qualified Unison.Hashing.V2.Convert as Hashing
 
 type F m i v = Free (Command m i v)
 
@@ -602,7 +603,7 @@ loop = do
                     Just ty -> do
                       let steps =
                             bimap (Path.unabsolute . resolveToAbsolute)
-                                  (const . step $ Type.toReference ty)
+                                  (const . step $ Hashing.typeToReference ty)
                               <$> srcs
                       stepManyAtNoSync steps
                  where
@@ -921,7 +922,7 @@ loop = do
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
-      UiI -> eval UI 
+      UiI -> eval UI
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
@@ -1430,7 +1431,7 @@ loop = do
                   where n = Name.fromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
-                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+                hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
               termEdits :: Map Name (Reference, Reference)
               termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr)) where
                 g v = case ( toList (Names.refTermsNamed slurpCheckNames0 n)
@@ -1757,7 +1758,7 @@ loop = do
           datas, effects, terms :: [(Name, Reference.Id)]
           datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
           effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
-          terms = [ (Name.fromVar v, r) | (v, (r, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          terms = [ (Name.fromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
@@ -1926,7 +1927,7 @@ getLinks input src mdTypeStr = ExceptT $ do
     Right Nothing -> go Nothing
     Right (Just mdTypeStr) -> parseType input mdTypeStr >>= \case
       Left e -> pure $ Left e
-      Right typ -> go . Just . Set.singleton $ Type.toReference typ
+      Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
 getLinks' :: (Var v, Monad m)
          => Path.HQSplit'         -- definition to print metadata of

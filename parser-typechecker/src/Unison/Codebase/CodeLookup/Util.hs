@@ -1,26 +1,35 @@
-module Unison.Codebase.CodeLookup.Util where
+{-# LANGUAGE ScopedTypeVariables #-}
 
-import Unison.Prelude
+module Unison.Codebase.CodeLookup.Util where
 
 import qualified Data.Map as Map
 import Unison.Codebase.CodeLookup
+import qualified Unison.DataDeclaration as DataDeclaration
+import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.UnisonFile as UF
-import Unison.UnisonFile.Type (UnisonFile)
+import Unison.UnisonFile.Type (TypecheckedUnisonFile)
 import Unison.Var (Var)
 
-fromUnisonFile :: (Var v, Monad m) => UnisonFile v a -> CodeLookup v m a
-fromUnisonFile uf = CodeLookup tm ty where
-  tm id = pure $ Map.lookup id termMap
-  ty id = pure $ Map.lookup id typeMap1 <|> Map.lookup id typeMap2
-  typeMap1 = Map.fromList [ (id, Right dd) |
-                            (_, (Reference.DerivedId id, dd)) <-
-                            Map.toList (UF.dataDeclarations uf) ]
-  typeMap2 = Map.fromList [ (id, Left ad) |
-                            (_, (Reference.DerivedId id, ad)) <-
-                            Map.toList (UF.effectDeclarations uf) ]
-  tmm = Map.fromList (UF.terms uf)
-  termMap = Map.fromList [ (id, e) |
-                            (_, (id, e)) <-
-                            Map.toList (Term.hashComponents tmm) ]
+fromTypecheckedUnisonFile :: forall m v a. (Var v, Monad m) => TypecheckedUnisonFile v a -> CodeLookup v m a
+fromTypecheckedUnisonFile tuf = CodeLookup tm ty
+  where
+    tm :: Reference.Id -> m (Maybe (Term.Term v a))
+    tm id = pure $ Map.lookup id termMap
+    ty :: Reference.Id -> m (Maybe (DataDeclaration.Decl v a))
+    ty id = pure $ Map.lookup id dataDeclMap <|> Map.lookup id effectDeclMap
+    dataDeclMap =
+      Map.fromList
+        [ (id, Right dd)
+          | (_, (Reference.DerivedId id, dd)) <-
+              Map.toList (UF.dataDeclarations' tuf)
+        ]
+    effectDeclMap =
+      Map.fromList
+        [ (id, Left ad)
+          | (_, (Reference.DerivedId id, ad)) <-
+              Map.toList (UF.effectDeclarations' tuf)
+        ]
+    termMap :: Map Reference.Id (Term.Term v a)
+    termMap = Map.fromList [(id, tm) | (id, _wk, tm, _tp) <- toList $ UF.hashTermsId tuf]

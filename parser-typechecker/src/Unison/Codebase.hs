@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase
@@ -27,42 +28,42 @@ module Unison.Codebase
   )
 where
 
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), SyncToDir, GitError (GitCodebaseError))
-import Unison.CodebasePath (CodebasePath, getCodebaseDir)
-import Unison.Prelude
-import qualified Unison.UnisonFile as UF
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
+import Control.Error (rightMay)
 import Control.Error.Util (hush)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
 import qualified Data.Map as Map
-import Unison.Symbol (Symbol)
-import qualified Unison.Parser.Ann as Parser
-import qualified Unison.Builtin.Terms as Builtin
-import qualified Unison.Builtin as Builtin
-import Unison.DataDeclaration (Decl)
-import qualified Unison.Reference as Reference
-import Unison.Var (Var)
-import Unison.Reference (Reference)
-import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
-import Unison.Type (Type)
-import qualified Unison.Referent as Referent
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.WatchKind as WK
-import Unison.Term (Term)
-import qualified Unison.Typechecker.TypeLookup as TL
-import Unison.Typechecker.TypeLookup (TypeLookup(TypeLookup))
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
-import Unison.Codebase.SyncMode (SyncMode)
-import qualified Unison.Codebase.GitError as GitError
-import U.Util.Timing (time)
-import Unison.Codebase.Editor.Git (withStatus)
 import qualified Data.Set as Set
+import U.Util.Timing (time)
+import qualified Unison.Builtin as Builtin
+import qualified Unison.Builtin.Terms as Builtin
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
+import qualified Unison.Codebase.CodeLookup as CL
+import Unison.Codebase.Editor.Git (withStatus)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.DataDeclaration (Decl)
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Parser.Ann as Parser
+import Unison.Prelude
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
+import Unison.Symbol (Symbol)
+import Unison.Term (Term)
+import Unison.Type (Type)
+import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
+import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
-import qualified Unison.Type as Type
-import Control.Error (rightMay)
+import Unison.Var (Var)
+import qualified Unison.WatchKind as WK
 
 -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
 -- If not found, attempt to find it in the Codebase (sqlite)
@@ -118,7 +119,9 @@ addDefsToCodebase c uf = do
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
-    goTerm (r, tm, tp) = putTerm c r tm tp
+    goTerm (r, Nothing, tm, tp) = putTerm c r tm tp
+    goTerm (r, Just WK.TestWatch, tm, tp) = putTerm c r tm tp
+    goTerm _ = pure ()
     goType :: Show t => (t -> Decl v a) -> (Reference.Id, t) -> m ()
     goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
@@ -188,16 +191,14 @@ termsOfType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
-  where
-  r = Type.toReference ty
+  where r = Hashing.typeToReference ty
 
 termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)
     <$> termsMentioningTypeImpl c r
-  where
-  r = Type.toReference ty
+  where r = Hashing.typeToReference ty
 
 -- todo: could have a way to look this up just by checking for a file rather than loading it
 isTerm :: (Applicative m, Var v, BuiltinAnnotation a)
@@ -210,7 +211,7 @@ isType c r = case r of
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
 isBlank :: Applicative m => Codebase m v a -> m Bool
-isBlank codebase = do 
+isBlank codebase = do
   root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
   pure (root == Branch.empty)
 

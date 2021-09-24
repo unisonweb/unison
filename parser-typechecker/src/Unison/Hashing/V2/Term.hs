@@ -6,9 +6,8 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE BangPatterns #-}
 
-module Unison.Term where
+module Unison.Hashing.V2.Term where
 
 import Unison.Prelude
 
@@ -24,26 +23,29 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Names3 ( Names0 )
-import qualified Unison.Names3 as Names
-import qualified Unison.Names.ResolutionResult as Names
-import           Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
-import           Unison.Reference (Reference, pattern Builtin)
-import qualified Unison.Reference as Reference
-import           Unison.Referent (Referent, ConstructorId)
-import qualified Unison.Referent as Referent
-import           Unison.Type (Type)
-import qualified Unison.Type as Type
+import qualified Unison.Hash as Hash
+import           Unison.Hashable (Hashable1, accumulateToken)
+import qualified Unison.Hashable as Hashable
+import           Unison.Hashing.V2.Pattern (Pattern)
+import qualified Unison.Hashing.V2.Pattern as Pattern
+import           Unison.Hashing.V2.Reference (Reference, pattern Builtin)
+import qualified Unison.Hashing.V2.Reference as Reference
+import qualified Unison.Hashing.V2.Reference.Util as ReferenceUtil
+import           Unison.Hashing.V2.Referent (Referent)
+import qualified Unison.Hashing.V2.Referent as Referent
+import           Unison.Hashing.V2.Type (Type)
+import qualified Unison.Hashing.V2.Type as Type
 import qualified Unison.ConstructorType as CT
-import Unison.Util.List (multimap, validate)
+import Unison.Util.List (multimap)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Var.RefNamed as Var
-import Unsafe.Coerce (unsafeCoerce)
-import qualified Unison.Name as Name
-import qualified Unison.LabeledDependency as LD
-import Unison.LabeledDependency (LabeledDependency)
+import           Unsafe.Coerce
+import Unison.Symbol (Symbol)
+import qualified Unison.Hashing.V2.LabeledDependency as LD
+import Unison.Hashing.V2.LabeledDependency (LabeledDependency)
+
+-- This gets reexported; should maybe live somewhere other than Pattern, though.
+type ConstructorId = Pattern.ConstructorId
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -108,63 +110,6 @@ type Term3 v a = Term2 v () () v a
 type Term0 v = Term v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term0' vt v = Term' vt v ()
-
-bindNames
-  :: forall v a . Var v
-  => Set v
-  -> Names0
-  -> Term v a
-  -> Names.ResolutionResult v a (Term v a)
-bindNames keepFreeTerms ns0 e = do
-  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
-      -- !_ = trace "bindNames.free term vars: " ()
-      -- !_ = traceShow $ fst <$> freeTmVars
-      freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
-                            , a <- as ]
-      ns = Names.Names ns0 mempty
-      -- !_ = trace "bindNames.free type vars: " ()
-      -- !_ = traceShow $ fst <$> freeTyVars
-      okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
-        rs | Set.size rs == 1 ->
-               pure (v, fromReferent a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
-      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
-        rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
-  termSubsts <- validate okTm freeTmVars
-  typeSubsts <- validate okTy freeTyVars
-  pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
-
--- This function replaces free term and type variables with
--- hashes found in the provided `Names0`, using suffix-based
--- lookup. Any terms not found in the `Names0` are kept free.
-bindSomeNames
-  :: forall v a . Var v
-  => Set v
-  -> Names0
-  -> Term v a
-  -> Names.ResolutionResult v a (Term v a)
--- bindSomeNames ns e | trace "Term.bindSome" False
---                   || trace "Names =" False
---                   || traceShow ns False
---                   || trace "Free type vars:" False
---                   || traceShow (freeTypeVars e) False
---                   || trace "Free term vars:" False
---                   || traceShow (freeVars e) False
---                   || traceShow e False
---                   = undefined
-bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e where
-  -- `Term.bindNames` takes a set of variables that are not substituted.
-  -- These should be the variables that will be subject to TDNR, which
-  -- we compute as the set of variables whose names cannot be found in `ns`.
-  --
-  -- This allows TDNR to disambiguate those names (if multiple definitions
-  -- share the same suffix) or to report the type expected for that name
-  -- (if a free variable is being used as a typed hole).
-  varsToTDNR = Set.filter notFound (freeVars e)
-  notFound var =
-    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms0 ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -438,6 +383,7 @@ unDelay tm = case ABT.out tm of
     |  Set.notMember v (ABT.freeVars body)
     -> Just body
   _ -> Nothing
+
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
@@ -922,29 +868,18 @@ labeledDependencies = generalizedDependencies LD.termRef
 
 updateDependencies
   :: Ord v
-  => Map Referent Referent
+  => Map Reference Reference
   -> Map Reference Reference
   -> Term v a
   -> Term v a
 updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
-  referent (Referent.Ref r) = Ref r
-  referent (Referent.Con r cid CT.Data) = Constructor r cid
-  referent (Referent.Con r cid CT.Effect) = Request r cid
-  go (Ref r    ) = case Map.lookup (Referent.Ref r) termUpdates of
-    Nothing -> Ref r
-    Just r -> referent r
-  go ct@(Constructor r cid) = case Map.lookup (Referent.Con r cid CT.Data) termUpdates of
-    Nothing -> ct
-    Just r -> referent r
-  go req@(Request r cid) = case Map.lookup (Referent.Con r cid CT.Effect) termUpdates of
-    Nothing -> req
-    Just r -> referent r
-  go (TermLink r) = TermLink (Map.findWithDefault r r termUpdates)
+  -- todo: this function might need tweaking if we ever allow type replacements
+  -- would need to look inside pattern matching and constructor calls
+  go (Ref r    ) = Ref (Map.findWithDefault r r termUpdates)
+  go (TermLink (Referent.Ref r)) = TermLink (Referent.Ref $ Map.findWithDefault r r termUpdates)
   go (TypeLink r) = TypeLink (Map.findWithDefault r r typeUpdates)
   go (Ann tm tp) = Ann tm $ Type.updateDependencies typeUpdates tp
-  go (Match tm cases) = Match tm (u <$> cases) where
-    u (MatchCase pat g b) = MatchCase (Pattern.updateDependencies termUpdates pat) g b
   go f           = f
 
 -- | If the outermost term is a function application,
@@ -985,13 +920,42 @@ unhashComponent m = let
   usedVars = foldMap (Set.fromList . ABT.allVars) m
   m' :: Map Reference (v, Term v a)
   m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
+    assignVar r t = (,t) <$> ABT.freshenS (refNamed r)
   unhash1 = ABT.rebuildUp' go where
     go e@(Ref' r) = case Map.lookup r m' of
       Nothing -> e
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
   in second unhash1 <$> m'
+  where
+    -- Variable whose name is derived from the given reference.
+    refNamed :: Var v => Reference -> v
+    refNamed ref = Var.named ("ℍ" <> Reference.toText ref)
+
+hashComponents
+  :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
+hashComponents = ReferenceUtil.hashComponents $ refId ()
+
+hashClosedTerm :: Var v => Term v a -> Reference.Id
+hashClosedTerm tm = Reference.Id (ABT.hash tm) 0 1
+
+-- The hash for a constructor
+hashConstructor'
+  :: (Reference -> ConstructorId -> Term0 Symbol) -> Reference -> ConstructorId -> Reference
+hashConstructor' f r cid =
+  let
+-- this is a bit circuitous, but defining everything in terms of hashComponents
+-- ensure the hashing is always done in the same way
+      m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
+  in  case toList m of
+        [(r, _)] -> Reference.DerivedId r
+        _        -> error "unpossible"
+
+hashConstructor :: Reference -> ConstructorId -> Reference
+hashConstructor = hashConstructor' $ constructor ()
+
+hashRequest :: Reference -> ConstructorId -> Reference
+hashRequest = hashConstructor' $ request ()
 
 fromReferent :: Ord v
              => a
@@ -1002,6 +966,76 @@ fromReferent a = \case
   Referent.Con r i ct -> case ct of
     CT.Data -> constructor a r i
     CT.Effect -> request a r i
+
+instance Var v => Hashable1 (F v a p) where
+  hash1 hashCycle hash e
+    = let (tag, hashed, varint) =
+            (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
+      in
+        case e of
+        -- So long as `Reference.Derived` ctors are created using the same
+        -- hashing function as is used here, this case ensures that references
+        -- are 'transparent' wrt hash and hashing is unaffected by whether
+        -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
+        -- the same.
+          Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
+          Ref (Reference.Derived h i n) -> Hashable.accumulate
+            [ tag 1
+            , hashed $ Hashable.fromBytes (Hash.toBytes h)
+            , Hashable.Nat i
+            , Hashable.Nat n
+            ]
+          -- Note: start each layer with leading `1` byte, to avoid collisions
+          -- with types, which start each layer with leading `0`.
+          -- See `Hashable1 Type.F`
+          _ ->
+            Hashable.accumulate
+              $ tag 1
+              : case e of
+                  Nat     i -> [tag 64, accumulateToken i]
+                  Int     i -> [tag 65, accumulateToken i]
+                  Float   n -> [tag 66, Hashable.Double n]
+                  Boolean b -> [tag 67, accumulateToken b]
+                  Text    t -> [tag 68, accumulateToken t]
+                  Char    c -> [tag 69, accumulateToken c]
+                  Blank   b -> tag 1 : case b of
+                    B.Blank -> [tag 0]
+                    B.Recorded (B.Placeholder _ s) ->
+                      [tag 1, Hashable.Text (Text.pack s)]
+                    B.Recorded (B.Resolve _ s) ->
+                      [tag 2, Hashable.Text (Text.pack s)]
+                  Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
+                  Ref Reference.Derived {} ->
+                    error "handled above, but GHC can't figure this out"
+                  App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
+                  Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
+                  List as -> tag 5 : varint (Sequence.length as) : map
+                    (hashed . hash)
+                    (toList as)
+                  Lam a         -> [tag 6, hashed (hash a)]
+                  -- note: we use `hashCycle` to ensure result is independent of
+                  -- let binding order
+                  LetRec _ as a -> case hashCycle as of
+                    (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
+                  -- here, order is significant, so don't use hashCycle
+                  Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+                  If b t f ->
+                    [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
+                  Request     r n -> [tag 10, accumulateToken r, varint n]
+                  Constructor r n -> [tag 12, accumulateToken r, varint n]
+                  Match e branches ->
+                    tag 13 : hashed (hash e) : concatMap h branches
+                   where
+                    h (MatchCase pat guard branch) = concat
+                      [ [accumulateToken pat]
+                      , toList (hashed . hash <$> guard)
+                      , [hashed (hash branch)]
+                      ]
+                  Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
+                  And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
+                  Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+                  TermLink r -> [tag 18, accumulateToken r]
+                  TypeLink r -> [tag 19, accumulateToken r]
 
 -- mostly boring serialization code below ...
 

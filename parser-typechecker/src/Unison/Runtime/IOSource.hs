@@ -56,7 +56,7 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
   $ Map.lookup (Var.nameds s) typecheckedFileTerms
 
 codeLookup :: CodeLookup Symbol Identity Ann
-codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
 typeNamedId :: String -> R.Id
 typeNamedId s =

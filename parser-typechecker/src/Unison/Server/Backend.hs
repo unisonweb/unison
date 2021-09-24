@@ -93,6 +93,7 @@ import qualified Unison.Server.Doc as Doc
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.Hashing.V2.Convert as Hashing
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -751,7 +752,7 @@ renderDoc ppe width rt codebase r = do
           Codebase.putWatch
             codebase
             WK.RegularWatch
-            (Term.hashClosedTerm tm)
+            (Hashing.hashClosedTerm tm)
             (Term.amap (const mempty) tmr)
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)

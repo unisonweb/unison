@@ -128,7 +128,6 @@ resultTest rt uf filepath = do
   if rFileExists
     then scope "result" $ do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
-      let untypedFile = UF.discardTypes uf
       let term        = Parsers.parseTerm values parsingEnv
       let report e = throwIO (userError $ toPlain 10000 e)
       (bindings, watches) <- io $ either report pure =<<
@@ -136,7 +135,7 @@ resultTest rt uf filepath = do
                         mempty
                         (const $ pure Nothing)
                         rt
-                        untypedFile
+                        uf
       case term of
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur

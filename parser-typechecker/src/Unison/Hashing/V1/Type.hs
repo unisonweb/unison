@@ -5,7 +5,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Type where
+module Unison.Hashing.V1.Type where
 
 import Unison.Prelude
 
@@ -17,9 +17,12 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
+import           Unison.Hashable (Hashable1)
+import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
-import           Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
+import           Unison.Hashing.V1.Reference (Reference)
+import qualified Unison.Hashing.V1.Reference as Reference
+import qualified Unison.Hashing.V1.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
@@ -65,6 +68,19 @@ bindReferences
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
 bindReferences keepFree ns t = let
+  fvs = ABT.freeVarOccurrences keepFree t
+  rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
+  ok (v, _a, Just r) = pure (v, r)
+  ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a mempty))
+  in List.validate ok rs <&> \es -> bindExternal es t
+
+bindNames
+  :: Var v
+  => Set v
+  -> Map Name.Name Reference
+  -> Type v a
+  -> Names.ResolutionResult v a (Type v a)
+bindNames keepFree ns t = let
   fvs = ABT.freeVarOccurrences keepFree t
   rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
   ok (v, _a, Just r) = pure (v, r)
@@ -217,10 +233,6 @@ filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
 
-scopeRef, refRef :: Reference
-scopeRef = Reference.Builtin "Scope"
-refRef = Reference.Builtin "Ref"
-
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -291,12 +303,6 @@ threadId a = ref a threadIdRef
 
 builtinIO :: Ord v => a -> Type v a
 builtinIO a = ref a builtinIORef
-
-scopeType :: Ord v => a -> Type v a
-scopeType a = ref a scopeRef
-
-refType :: Ord v => a -> Type v a
-refType a = ref a refRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
@@ -552,29 +558,14 @@ removeAllEffectVars t = let
 removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize vs $ removeEffectVars fvs tu
+  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
   where
     (vs, tu) = unforall' t
-    vss = Set.fromList vs
-    fvs = freeEffectVars tu `Set.difference` keep
-
-    keep = keepVarsT True tu
-
-    keepVarsT pos (Arrow' i o)
-      = keepVarsT (not pos) i <> keepVarsT pos o
-    keepVarsT pos (Effect1' e o)
-      = keepVarsT pos e <> keepVarsT pos o
-    keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
-    keepVarsT pos (ForallNamed' _ t) = keepVarsT pos t
-    keepVarsT pos (IntroOuterNamed' _ t) = keepVarsT pos t
-    keepVarsT _ t = freeVars t
-
-    -- Note, this only allows removal if the variable was quantified,
-    -- so variables that were free in `t` will not be removed.
-    keepVarsE pos (Var' v)
-      | pos, v `Set.member` vss = mempty
-      | otherwise = Set.singleton v
-    keepVarsE pos e = keepVarsT pos e
+    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
+    -- If an effect variable is mentioned only once, it is on
+    -- an arrow `a ->{e} b`. Generalizing this to
+    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
+    isPure v = ABT.occurrences v tu <= 1
 
 editFunctionResult
   :: forall v a
@@ -669,8 +660,43 @@ cleanup :: Var v => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
-builtinAbilities :: Set Reference
-builtinAbilities = Set.fromList [builtinIORef, stmRef]
+toReference :: (ABT.Var v, Show v) => Type v a -> Reference
+toReference (Ref' r) = r
+-- a bit of normalization - any unused type parameters aren't part of the hash
+toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
+toReference t = Reference.Derived (ABT.hash t) 0 1
+
+toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
+toReferenceMentions ty =
+  let (vs, _) = unforall' ty
+      gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
+  in Set.fromList $ toReference . gen <$> ABT.subterms ty
+
+hashComponents
+  :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
+hashComponents = ReferenceUtil.hashComponents $ refId ()
+
+instance Hashable1 F where
+  hash1 hashCycle hash e =
+    let
+      (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
+      -- Note: start each layer with leading `0` byte, to avoid collisions with
+      -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
+    in Hashable.accumulate $ tag 0 : case e of
+      Ref r -> [tag 0, Hashable.accumulateToken r]
+      Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
+      App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
+      Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
+      -- Example:
+      --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
+      --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
+      --   c) {Remote, Abort} (() -> {Abort} ())
+      Effects es -> let
+        (hs, _) = hashCycle es
+        in tag 4 : map hashed hs
+      Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
+      Forall a -> [tag 6, hashed (hash a)]
+      IntroOuter a -> [tag 7, hashed (hash a)]
 
 instance Show a => Show (F a) where
   showsPrec = go where
@@ -693,4 +719,3 @@ instance Show a => Show (F a) where
       _ -> showParen True $ s"outer " <> shows body
     (<>) = (.)
     s = showString
-
