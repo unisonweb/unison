@@ -109,6 +109,8 @@ test config = do
     $ "unison-src" </> "transcripts"
   buildTests config testBuilder
     $ "unison-src" </> "transcripts-using-base"
+  buildTests config testBuilder
+    $ "unison-src" </> "transcripts-round-trip"
   buildTests config testBuilder'
     $ "unison-src" </> "transcripts" </> "errors"
   cleanup
