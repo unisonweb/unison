@@ -561,6 +561,7 @@ ioBuiltins =
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
   , ("IO.getLine.impl.v1", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
+  , ("IO.systemTimeMicroseconds.v1", unit --> iof int)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
   , ("IO.getCurrentDirectory.impl.v3", unit --> iof text)

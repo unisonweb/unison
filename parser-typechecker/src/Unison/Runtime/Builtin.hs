@@ -1090,6 +1090,12 @@ unitToEFNat = inUnit unit result
             $ outIoFailNat stack1 stack2 stack3 fail nat result
   where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
 
+-- () -> Int
+unitToInt :: ForeignOp
+unitToInt = inUnit unit result
+            $ TCon Ty.intRef 0 [result]
+  where (unit, result) = fresh2
+
 -- () -> Either Failure a
 unitToEFBox :: ForeignOp
 unitToEFBox = inUnit unit result
@@ -1562,8 +1568,12 @@ declareForeigns = do
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
-    $ mkForeignIOF $ \() -> getPOSIXTime
+    $ mkForeignIOF $ \() -> getPOSIXTime 
+
+  declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
+    $ mkForeignIOF $ \() -> fmap (1e6 *) getPOSIXTime 
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
