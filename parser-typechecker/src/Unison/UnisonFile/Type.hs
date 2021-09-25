@@ -8,12 +8,12 @@ module Unison.UnisonFile.Type where
 import Unison.Prelude
 
 import Control.Lens
-import           Data.Bifunctor         (first)
-import           Unison.DataDeclaration (DataDeclaration)
-import           Unison.DataDeclaration (EffectDeclaration(..))
-import qualified Unison.Reference       as Reference
-import           Unison.Term            (Term)
-import           Unison.Type            (Type)
+import Data.Bifunctor (first)
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
+import qualified Unison.Reference as Reference
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
 import Unison.WatchKind (WatchKind)
 
 data UnisonFile v a = UnisonFileId {
@@ -38,7 +38,7 @@ data TypecheckedUnisonFile v a =
     effectDeclarationsId' :: Map v (Reference.Id, EffectDeclaration v a),
     topLevelComponents' :: [[(v, Term v a, Type v a)]],
     watchComponents     :: [(WatchKind, [(v, Term v a, Type v a)])],
-    hashTermsId           :: Map v (Reference.Id, Term v a, Type v a)
+    hashTermsId           :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
   } deriving Show
 
 {-# COMPLETE TypecheckedUnisonFile #-}
@@ -48,3 +48,13 @@ pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
                           tlcs
                           wcs
                           (fmap (over _1 Reference.DerivedId) -> hts)
+
+instance Ord v => Functor (TypecheckedUnisonFile v) where
+  fmap f (TypecheckedUnisonFileId ds es tlcs wcs hashTerms) =
+    TypecheckedUnisonFileId ds' es' tlcs' wcs' hashTerms'
+    where
+      ds' = fmap (\(id, dd) -> (id, fmap f dd)) ds
+      es' = fmap (\(id, ed) -> (id, fmap f ed)) es
+      tlcs' = (fmap.fmap) (\(v, tm, tp) -> (v, Term.amap f tm, fmap f tp)) tlcs
+      wcs' = map (\(wk, tms) -> (wk, map (\(v, tm, tp) -> (v, Term.amap f tm, fmap f tp)) tms)) wcs
+      hashTerms' = fmap (\(id, wk, tm, tp) -> (id, wk, Term.amap f tm, fmap f tp)) hashTerms

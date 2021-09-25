@@ -4,7 +4,7 @@
 
 module Unison.Builtin.Decls where
 
-import Control.Lens (_3,over)
+import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
@@ -13,13 +13,13 @@ import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration
   ( DataDeclaration (..),
     Modifier (Structural, Unique),
-    hashDecls,
   )
 import qualified Unison.DataDeclaration as DD
+import Unison.Hashing.V2.Convert (hashDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent, ConstructorId)
+import Unison.Referent (ConstructorId, Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)

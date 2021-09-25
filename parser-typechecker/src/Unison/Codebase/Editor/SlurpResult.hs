@@ -233,7 +233,7 @@ pretty isPast ppe sr =
     okTerm v = case Map.lookup v tms of
       Nothing ->
         [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
-      Just (_, _, ty) ->
+      Just (_, _, _, ty) ->
         ( plus <> P.bold (prettyVar v)
           , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
           )
@@ -280,7 +280,7 @@ pretty isPast ppe sr =
                <$> toList (types (defsWithBlockedDependencies sr))
                )
         termLineFor status v = case Map.lookup v tms of
-          Just (_ref, _tm, ty) ->
+          Just (_ref, _wk, _tm, ty) ->
             ( prettyStatus status
             , P.bold (P.text $ Var.name v)
             , ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)

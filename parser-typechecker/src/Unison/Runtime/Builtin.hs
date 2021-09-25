@@ -738,6 +738,20 @@ code'lookup
   , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
   ]
 
+code'validate :: Var v => SuperNormal v
+code'validate
+  = unop0 5 $ \[item, t, ref, msg, extra, fail]
+ -> TLetD t UN (TPrm CVLD [item])
+  . TMatch t . MatchSum
+  $ mapFromList
+  [ (1, ([BX, BX, BX],)
+      . TAbss [ref, msg, extra]
+      . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
+      $ TCon Ty.optionalRef 1 [fail])
+  , (0, ([],)
+      $ TCon Ty.optionalRef 0 [])
+  ]
+
 term'link'to'text :: Var v => SuperNormal v
 term'link'to'text
   = unop0 0 $ \[link] -> TPrm TLTT [link]
@@ -1485,6 +1499,7 @@ builtinLookup
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
   , ("Code.lookup", code'lookup)
+  , ("Code.validate", code'validate)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
   , ("Any.Any", any'construct)
@@ -1829,6 +1844,8 @@ declareForeigns = do
         -> pure . Bytes.fromArray $ serializeGroup sg
   declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
+  declareForeign "Code.display" boxBoxDirect . mkForeign
+    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Text.unpack nm) sg ""
   declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
