@@ -1573,7 +1573,7 @@ declareForeigns = do
     $ mkForeignIOF $ \() -> getPOSIXTime 
 
   declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
-    $ mkForeignIOF $ \() -> fmap (1e6 *) getPOSIXTime 
+    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime 
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory

@@ -263,7 +263,7 @@ Let's try it!
                                 ->{IO} Either Failure ()
   199. io2.IO.stdHandle : StdHandle -> Handle
   200. io2.IO.systemTime.impl : '{IO} Either Failure Nat
-  201. io2.IO.systemTimeMicroseconds : '{IO} Either Failure Int
+  201. io2.IO.systemTimeMicroseconds : '{IO} Int
   202. unique type io2.IOError
   203. io2.IOError.AlreadyExists : IOError
   204. io2.IOError.EOF : IOError
