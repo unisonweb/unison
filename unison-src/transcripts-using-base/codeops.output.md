@@ -281,3 +281,67 @@ to actual show that the serialization works.
   Tip: Use view badLoad to view the source of a test.
 
 ```
+```unison
+validateTest : Link.Term ->{IO} Result
+validateTest l = match Code.lookup l with
+  None -> Fail "Couldn't look up link"
+  Some co -> match Code.validate [(l, co)] with
+    Some f -> Fail "invalid code pre"
+    None -> match Code.deserialize (Code.serialize co) with
+      Left _ -> Fail "code failed deserialization"
+      Right co -> match Code.validate [(l, co)] with
+        Some f -> Fail "invalid code post"
+        None -> Ok "validated"
+
+vtests : '{IO} [Result]
+vtests _ =
+  List.map validateTest
+    [ termLink fib10
+    , termLink compose
+    , termLink List.all
+    , termLink hex
+    , termLink isDirectory
+    , termLink delay
+    , termLink printLine
+    , termLink isNone
+    ]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      validateTest : Link.Term ->{IO} Result
+      vtests       : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    validateTest : Link.Term ->{IO} Result
+    vtests       : '{IO} [Result]
+
+.> io.test vtests
+
+    New test results:
+  
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  
+  ✅ 8 test(s) passing
+  
+  Tip: Use view vtests to view the source of a test.
+
+```

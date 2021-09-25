@@ -87,20 +87,20 @@ data BlockContext
   -- This ABT node is at the top level of a TermParser.block.
   = Block
   | Normal
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data InfixContext
   -- This ABT node is an infix operator being used in infix position.
   = Infix
   | NonInfix
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data DocLiteralContext
   -- We won't try and render this ABT node or anything under it as a [: @Doc literal :]
   = NoDoc
   -- We'll keep checking as we recurse down
   | MaybeDoc
-  deriving (Eq)
+  deriving (Eq, Show)
 
 {- Explanation of precedence handling
 
@@ -238,9 +238,13 @@ pretty0
         pblock tm = let (im', uses) = calcImports im tm
                     in uses $ [pretty0 n (ac 0 Block im' doc) tm]
     App' x (Constructor' DD.UnitRef 0) ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
-    Delay' x  ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im doc) x
+      paren (p >= 11 || isBlock x && p >= 3)  $
+        fmt S.DelayForceChar (l "!")
+        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
+    Delay' x ->
+      paren (p >= 11 || isBlock x && p >= 3) $
+        fmt S.DelayForceChar (l "'")
+        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
@@ -421,7 +425,7 @@ pretty0
       _      -> undefined
     ps = join $ [ r a f | (a, f) <- reverse xs ]
     r a f =
-      [ pretty0 n (ac 3 Normal im doc)                          a
+      [ pretty0 n (ac (if isBlock a then 12 else 3) Normal im doc) a
       , pretty0 n (AmbientContext 10 Normal Infix im doc False) f
       ]
 
@@ -1176,6 +1180,15 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
       Pattern.Unbound _ -> False
 isDestructuringBind _ _ = False
 
+isBlock :: Ord v => Term2 vt at ap v a -> Bool
+isBlock tm =
+  case tm of
+    If' _ _ _ -> True
+    Handle' _ _ -> True
+    Match' _ _ -> True
+    LetBlock _ _ -> True
+    _ -> False
+
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
 -- Collects nested let/let rec blocks into one minimally nested block.
@@ -1311,6 +1324,16 @@ prettyDoc2 ppe ac tm = case tm of
           S.DocDelimiter
           "}}"
     bail tm = brace (pretty0 ppe ac tm)
+    -- Finds the longest run of a character and return a run one longer than that
+    oneMore c inner = replicate num c
+     where
+      num =
+        case
+            filter (\s -> take 2 s == "__")
+              $ group (PP.toPlainUnbroken $ PP.syntaxToColor inner)
+          of
+            [] -> 2
+            x  -> 1 + (maximum $ map length x)
     go :: Width -> Term3 v PrintAnnotation -> Pretty SyntaxText
     go hdr = \case
       (toDocTransclude ppe -> Just d) ->
@@ -1336,15 +1359,23 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocWord ppe -> Just t) ->
         PP.text t
       (toDocCode ppe -> Just d) ->
-        PP.group ("''" <> rec d <> "''")
+        let inner = rec d
+            quotes = oneMore '\'' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocJoin ppe -> Just ds) ->
         foldMap rec ds
       (toDocItalic ppe -> Just d) ->
-        PP.group $ "*" <> rec d <> "*"
+        let inner = rec d
+            underscores = oneMore '_' inner
+         in PP.group $ PP.string underscores <> inner <> PP.string underscores
       (toDocBold ppe -> Just d) ->
-        PP.group $ "__" <> rec d <> "__"
+        let inner = rec d
+            stars = oneMore '*' inner
+         in PP.group $ PP.string stars <> inner <> PP.string stars
       (toDocStrikethrough ppe -> Just d) ->
-        PP.group $ "~~" <> rec d <> "~~"
+         let inner = rec d
+             quotes = oneMore '~' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocGroup ppe -> Just d) ->
         PP.group $ rec d
       (toDocColumn ppe -> Just ds) ->
