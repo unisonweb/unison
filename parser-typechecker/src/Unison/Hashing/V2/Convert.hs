@@ -200,7 +200,7 @@ m2hReference = \case
   Memory.Reference.DerivedId d -> Hashing.Reference.DerivedId (m2hReferenceId d)
 
 m2hReferenceId :: Memory.Reference.Id -> Hashing.Reference.Id
-m2hReferenceId (Memory.Reference.Id h i _n) = Hashing.Reference.Id h i _n
+m2hReferenceId (Memory.Reference.Id h i) = Hashing.Reference.Id h i
 
 h2mModifier :: Hashing.DD.Modifier -> Memory.DD.Modifier
 h2mModifier = \case
@@ -233,4 +233,4 @@ h2mReference = \case
   Hashing.Reference.DerivedId d -> Memory.Reference.DerivedId (h2mReferenceId d)
 
 h2mReferenceId :: Hashing.Reference.Id -> Memory.Reference.Id
-h2mReferenceId (Hashing.Reference.Id h i n) = Memory.Reference.Id h i n
+h2mReferenceId (Hashing.Reference.Id h i) = Memory.Reference.Id h i

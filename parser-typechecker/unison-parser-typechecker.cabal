@@ -92,18 +92,18 @@ library
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
+      Unison.Hashing.V1.ABT
       Unison.Hashing.V1.Convert
       Unison.Hashing.V1.DataDeclaration
-      Unison.Hashing.V1.LabeledDependency
       Unison.Hashing.V1.Pattern
       Unison.Hashing.V1.Reference
       Unison.Hashing.V1.Reference.Util
       Unison.Hashing.V1.Referent
       Unison.Hashing.V1.Term
       Unison.Hashing.V1.Type
+      Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Convert
       Unison.Hashing.V2.DataDeclaration
-      Unison.Hashing.V2.LabeledDependency
       Unison.Hashing.V2.Pattern
       Unison.Hashing.V2.Reference
       Unison.Hashing.V2.Reference.Util

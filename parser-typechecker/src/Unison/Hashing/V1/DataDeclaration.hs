@@ -8,29 +8,23 @@
 
 module Unison.Hashing.V1.DataDeclaration
   ( DataDeclaration (..),
-    EffectDeclaration (..),
-    Decl,
     Modifier (..),
-    asDataDecl,
-    constructorType,
-    constructorTypes,
-    declDependencies,
-    dependencies,
-    bindReferences,
     hashDecls,
   )
 where
 
+import Unison.Prelude
+import Prelude hiding (cycle)
+
 import Control.Lens (over, _3)
 import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
-import qualified Unison.ConstructorType as CT
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
+import qualified Unison.Hashing.V1.ABT as ABT
 import Unison.Hashing.V1.Reference (Reference)
 import qualified Unison.Hashing.V1.Reference as Reference
 import qualified Unison.Hashing.V1.Reference.Util as Reference.Util
@@ -38,26 +32,7 @@ import Unison.Hashing.V1.Type (Type)
 import qualified Unison.Hashing.V1.Type as Type
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
-import Unison.Prelude
 import Unison.Var (Var)
-import Prelude hiding (cycle)
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
-
-data DeclOrBuiltin v a
-  = Builtin CT.ConstructorType
-  | Decl (Decl v a)
-  deriving (Eq, Show)
-
-asDataDecl :: Decl v a -> DataDeclaration v a
-asDataDecl = either toDataDecl id
-
-declDependencies :: Ord v => Decl v a -> Set Reference
-declDependencies = either (dependencies . toDataDecl) dependencies
-
-constructorType :: Decl v a -> CT.ConstructorType
-constructorType = \case
-  Left {} -> CT.Effect
-  Right {} -> CT.Data
 
 data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
@@ -81,11 +56,7 @@ constructorTypes = (snd <$>) . constructors
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 
-dependencies :: Ord v => DataDeclaration v a -> Set Reference
-dependencies dd =
-  Set.unions (Type.dependencies <$> constructorTypes dd)
-
-toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
+toABT :: ABT.Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
   dd' = ABT.absChain (bound dd) $ ABT.cycle
@@ -94,7 +65,7 @@ toABT dd = ABT.tm $ Modified (modifier dd) dd'
             (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0 :: (Eq v, Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
+hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
 hashDecls0 decls =
   let abts = toABT <$> decls
       ref r = ABT.tm (Type (Type.Ref (Reference.DerivedId r)))

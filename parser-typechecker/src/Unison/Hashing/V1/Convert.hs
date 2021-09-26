@@ -1,8 +1,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Hashing.V1.Convert
-  ( HashingInfo(..),
-    ResolutionFailure(..),
+  ( HashingInfo (..),
+    ResolutionFailure (..),
     ResolutionResult,
     assumeSingletonComponent,
     hashDecls,
@@ -22,6 +22,7 @@ import qualified Control.Monad.Validate as Validate
 import Data.Map (Map)
 import Data.Sequence (Seq)
 import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as Memory.DD
 import Unison.Hash (Hash)
@@ -38,7 +39,6 @@ import qualified Unison.Referent as Memory.Referent
 import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
 import Unison.Var (Var)
-import qualified Data.Set as Set
 
 data ResolutionFailure v a
   = TermResolutionFailure v a (Set Memory.Referent.Referent)
@@ -48,7 +48,7 @@ data ResolutionFailure v a
 
 type ResolutionResult v a r = Validate (Seq (ResolutionFailure v a)) r
 
-newtype HashingInfo = HashingInfo (Hash -> Maybe Hashing.Reference.Size)
+newtype HashingInfo = HashingInfo (Hash -> Maybe Hashing.Reference.CycleSize)
 
 convertResolutionResult :: Names.ResolutionResult v a r -> ResolutionResult v a r
 convertResolutionResult = \case
@@ -154,9 +154,9 @@ m2hPattern f = \case
 
 m2hSequenceOp :: Memory.Pattern.SeqOp -> Hashing.Pattern.SeqOp
 m2hSequenceOp = \case
-      Memory.Pattern.Cons -> Hashing.Pattern.Cons
-      Memory.Pattern.Snoc -> Hashing.Pattern.Snoc
-      Memory.Pattern.Concat -> Hashing.Pattern.Concat
+  Memory.Pattern.Cons -> Hashing.Pattern.Cons
+  Memory.Pattern.Snoc -> Hashing.Pattern.Snoc
+  Memory.Pattern.Concat -> Hashing.Pattern.Concat
 
 m2hReferent :: HashingInfo -> Memory.Referent.Referent -> Validate (Seq Hash) Hashing.Referent.Referent
 m2hReferent f = \case
@@ -242,7 +242,7 @@ m2hDecl f (Memory.DD.DataDeclaration mod ann bound ctors) =
   Hashing.DD.DataDeclaration (m2hModifier mod) ann bound
     <$> traverse (Lens.mapMOf _3 (m2hType f)) ctors
 
-lookupHash :: HashingInfo -> Hash -> Validate (Seq Hash) Hashing.Reference.Size
+lookupHash :: HashingInfo -> Hash -> Validate (Seq Hash) Hashing.Reference.CycleSize
 lookupHash (HashingInfo f) h = case f h of
   Just size -> pure size
   Nothing -> Validate.refute $ pure h
@@ -274,7 +274,7 @@ m2hReferenceId ::
   HashingInfo ->
   Memory.Reference.Id ->
   Validate (Seq Hash) Hashing.Reference.Id
-m2hReferenceId f (Memory.Reference.Id h i _n) = Hashing.Reference.Id h i <$> lookupHash f h
+m2hReferenceId f (Memory.Reference.Id h i) = Hashing.Reference.Id h i <$> lookupHash f h
 
 h2mModifier :: Hashing.DD.Modifier -> Memory.DD.Modifier
 h2mModifier = \case
@@ -307,4 +307,4 @@ h2mReference = \case
   Hashing.Reference.DerivedId d -> Memory.Reference.DerivedId (h2mReferenceId d)
 
 h2mReferenceId :: Hashing.Reference.Id -> Memory.Reference.Id
-h2mReferenceId (Hashing.Reference.Id h i n) = Memory.Reference.Id h i n
+h2mReferenceId (Hashing.Reference.Id h i _n) = Memory.Reference.Id h i

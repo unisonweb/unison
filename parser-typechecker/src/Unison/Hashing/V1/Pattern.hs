@@ -1,15 +1,12 @@
 {-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
-module Unison.Hashing.V1.Pattern where
+module Unison.Hashing.V1.Pattern (Pattern(..), ConstructorId, SeqOp(..)) where
 
 import Unison.Prelude
 
-import Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
-import qualified Data.Set as Set
-import Unison.Hashing.V1.Reference (Reference)
-import qualified Unison.Hashing.V1.Type as Type
 import qualified Unison.Hashable as H
+import Unison.Hashing.V1.Reference (Reference)
 
 type ConstructorId = Int
 
@@ -49,31 +46,12 @@ instance Show (Pattern loc) where
   show (Float   _ x) = "Float " <> show x
   show (Text   _ t) = "Text " <> show t
   show (Char   _ c) = "Char " <> show c
-  show (Constructor _ r i ps) =
-    "Constructor " <> unwords [show r, show i, show ps]
+  show (Constructor _ r i ps) = "Constructor " <> unwords [show r, show i, show ps]
   show (As         _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
-  show (EffectBind _ r i ps k) =
-    "EffectBind " <> unwords [show r, show i, show ps, show k]
+  show (EffectBind _ r i ps k) = "EffectBind " <> unwords [show r, show i, show ps, show k]
   show (SequenceLiteral _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
   show (SequenceOp _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
-
-application :: Pattern loc -> Bool
-application (Constructor _ _ _ (_ : _)) = True
-application _ = False
-
-loc :: Pattern loc -> loc
-loc p = head $ Foldable.toList p
-
-setLoc :: Pattern loc -> loc -> Pattern loc
-setLoc p loc = case p of
-  EffectBind _ a b c d -> EffectBind loc a b c d
-  EffectPure _ a -> EffectPure loc a
-  As _ a -> As loc a
-  Constructor _ a b c -> Constructor loc a b c
-  SequenceLiteral _ ps -> SequenceLiteral loc ps
-  SequenceOp _ ph op pt -> SequenceOp loc ph op pt
-  x -> fmap (const loc) x
 
 instance H.Hashable (Pattern p) where
   tokens (Unbound _) = [H.Tag 0]
@@ -108,49 +86,3 @@ instance Eq (Pattern loc) where
   SequenceLiteral _ ps == SequenceLiteral _ ps2 = ps == ps2
   SequenceOp _ ph op pt == SequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
-
-foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
-foldMap' f p = case p of
-    Unbound _              -> f p
-    Var _                  -> f p
-    Boolean _ _            -> f p
-    Int _ _                -> f p
-    Nat _ _                -> f p
-    Float _ _              -> f p
-    Text _ _               -> f p
-    Char _ _               -> f p
-    Constructor _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
-    As _ p'                -> f p <> foldMap' f p'
-    EffectPure _ p'        -> f p <> foldMap' f p'
-    EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
-    SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
-    SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
-
-generalizedDependencies
-  :: Ord r
-  => (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> Pattern loc
-  -> Set r
-generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
-  = Set.fromList . foldMap'
-    (\case
-      Unbound _             -> mempty
-      Var     _             -> mempty
-      As _ _                -> mempty
-      Constructor _ r cid _ -> [dataType r, dataConstructor r cid]
-      EffectPure _ _        -> [effectType Type.effectRef]
-      EffectBind _ r cid _ _ ->
-        [effectType Type.effectRef, effectType r, effectConstructor r cid]
-      SequenceLiteral _ _ -> [literalType Type.listRef]
-      SequenceOp {}        -> [literalType Type.listRef]
-      Boolean _ _         -> [literalType Type.booleanRef]
-      Int     _ _         -> [literalType Type.intRef]
-      Nat     _ _         -> [literalType Type.natRef]
-      Float   _ _         -> [literalType Type.floatRef]
-      Text    _ _         -> [literalType Type.textRef]
-      Char    _ _         -> [literalType Type.charRef]
-    )
