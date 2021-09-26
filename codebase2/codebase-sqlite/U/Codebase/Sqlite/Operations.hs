@@ -143,8 +143,8 @@ type EDB m = (Err m, DB m)
 type ErrString = String
 
 data DecodeError
-  = ErrTermComponent
-  | ErrDeclComponent
+  = ErrTermFormat
+  | ErrDeclFormat
   | ErrTermElement Word64
   | ErrDeclElement Word64
   | ErrFramedArrayLen
@@ -389,8 +389,8 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 
 -- * Deserialization helpers
 
-decodeTermComponent :: Err m => ByteString -> m S.Term.TermFormat
-decodeTermComponent = getFromBytesOr ErrTermComponent S.getTermFormat
+decodeTermFormat :: Err m => ByteString -> m S.Term.TermFormat
+decodeTermFormat = getFromBytesOr ErrTermFormat S.getTermFormat
 
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (Get.skip 1 >> S.lengthFramedArray)
@@ -404,8 +404,8 @@ decodeTermElementDiscardingTerm i = getFromBytesOr (ErrTermElement i) (S.lookupT
 decodeTermElementDiscardingType :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term)
 decodeTermElementDiscardingType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElementDiscardingType i)
 
-decodeDeclComponent :: Err m => ByteString -> m S.Decl.DeclFormat
-decodeDeclComponent = getFromBytesOr ErrDeclComponent S.getDeclFormat
+decodeDeclFormat :: Err m => ByteString -> m S.Decl.DeclFormat
+decodeDeclFormat = getFromBytesOr ErrDeclFormat S.getDeclFormat
 
 decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
 decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
@@ -446,7 +446,7 @@ loadTermComponent h = do
   MaybeT (anyHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectById
     -- retrieve and deserialize the blob
-    >>= decodeTermComponent
+    >>= decodeTermFormat
     >>= \case
       S.Term.Term (S.Term.LocallyIndexedComponent elements) ->
         lift . traverse (uncurry3 s2cTermWithType) $
@@ -763,7 +763,7 @@ loadDeclComponent :: EDB m => H.Hash -> MaybeT m [C.Decl Symbol]
 loadDeclComponent h = do
   MaybeT (anyHashToMaybeObjectId h)
     >>= liftQ . Q.loadObjectById
-    >>= decodeDeclComponent
+    >>= decodeDeclFormat
     >>= \case
       S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) ->
         lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
