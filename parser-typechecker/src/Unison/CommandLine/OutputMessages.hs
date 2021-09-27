@@ -150,7 +150,6 @@ notifyNumbered o = case o of
       , undoTip
       ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
 
-  -- rlm note: 
   ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed in" <> prettyPath' b' <> ".", mempty)
   ShowDiffAfterModifyBranch b' bAbs ppe diff ->
@@ -164,7 +163,7 @@ notifyNumbered o = case o of
 
   ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed as a result of the merge.", mempty)
-  ShowDiffAfterMerge dest' destAbs ppe diffOutput -> -- rlm note: HERE silence 
+  ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
     first (\p -> P.lines [
       P.wrap $ "Here's what's changed in " <> prettyPath' dest' <> "after the merge:"
       , ""
