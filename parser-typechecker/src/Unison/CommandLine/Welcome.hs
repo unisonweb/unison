@@ -13,6 +13,7 @@ import Unison.Codebase.Editor.Input (Input (..), Event)
 import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 -- Should Welcome include whether or not the codebase was created just now?
 
@@ -82,7 +83,7 @@ pullBase ns = do
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-  PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete 
+  PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent 
 
 asciiartUnison :: P.Pretty P.ColorText
 asciiartUnison =

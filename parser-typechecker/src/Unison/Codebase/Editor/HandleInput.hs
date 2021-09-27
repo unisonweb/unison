@@ -150,6 +150,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Codebase.Verbosity (Verbosity(..))
 
 type F m i v = Free (Command m i v)
 
@@ -429,7 +430,7 @@ loop = do
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
-          PullRemoteBranchI orepo dest _syncMode ->
+          PullRemoteBranchI orepo dest _syncMode _ ->
             (Text.pack . InputPattern.patternName
               $ InputPatterns.patternFromInput input)
               <> " "
@@ -740,7 +741,7 @@ loop = do
         if Branch.isEmpty srcb then branchNotFound src0
         else do
           let err = Just $ MergeAlreadyUpToDate src0 dest0
-          mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest
+          mergeBranchAndPropagateDefaultPatch mergeMode inputDescription err srcb (Just dest0) dest  
 
       PreviewMergeLocalBranchI src0 dest0 -> do
         let [src, dest] = resolveToAbsolute <$> [src0, dest0]
@@ -1685,13 +1686,16 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI mayRepo path syncMode -> unlessError do
+      PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
         ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
         lift $ unlessGitError do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
+          let controlPathPrintout = case verbosity of
+                Default -> Just path 
+                Silent -> Nothing  
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b controlPathPrintout destAbs 
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -2206,20 +2210,19 @@ unlessError' f ma = unlessError $ withExceptT f ma
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) => Branch.MergeMode ->
   InputDescription -> Maybe (Output v) -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v ()
-mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
-  ifM (mergeBranch mode inputDescription srcb dest0 dest)
+mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest = 
+  ifM (mergeBranch mode inputDescription srcb dest0 dest )
       (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
       (for_ unchangedMessage respond)
   where
   mergeBranch :: (Monad m, Var v) =>
-    Branch.MergeMode -> InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool
+    Branch.MergeMode -> InputDescription -> Branch m -> Maybe Path.Path' -> Path.Absolute -> Action' m v Bool 
   mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 ->
-      diffHelper (Branch.head destb) (Branch.head merged) >>=
-        respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
+    for_ dest0 $ \dest0 -> diffHelper (Branch.head destb) (Branch.head merged) >>= 
+          respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest) -- rlm note 
     pure b
 
 loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
