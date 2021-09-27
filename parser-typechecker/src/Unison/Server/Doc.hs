@@ -138,6 +138,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     DD.Doc2Folded isFolded d d2 -> Folded isFolded <$> go d <*> go d2
     DD.Doc2Paragraph ds -> Paragraph <$> traverse go ds
     DD.Doc2BulletedList ds -> BulletedList <$> traverse go ds
+    DD.Doc2NumberedList n ds -> NumberedList n <$> traverse go ds
     DD.Doc2Section title ds -> Section <$> go title <*> traverse go ds
     DD.Doc2NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
     DD.Doc2Image d1 d2 Decls.OptionalNone' -> Image <$> go d1 <*> go d2 <*> pure Nothing
