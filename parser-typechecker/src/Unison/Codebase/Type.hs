@@ -54,6 +54,7 @@ data Codebase m v a = Codebase
     putPatch :: Branch.EditHash -> Patch -> m (),
     patchExists :: Branch.EditHash -> m Bool,
     dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- This copies all the dependencies of `b` from the specified Codebase into this one
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- This copies all the dependencies of `b` from this Codebase

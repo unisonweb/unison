@@ -23,6 +23,7 @@ module Unison.Codebase
     termsOfType,
     termsMentioningType,
     dependents,
+    dependentsOfComponent,
     isTerm,
     isType,
   )
@@ -49,6 +50,7 @@ import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (G
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
@@ -185,6 +187,12 @@ dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
+
+dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
+dependentsOfComponent c h =
+  Set.union (Builtin.builtinTypeDependentsOfComponent h)
+    . Set.map Reference.DerivedId
+    <$> dependentsOfComponentImpl c h
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty =

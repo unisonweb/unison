@@ -1378,8 +1378,14 @@ dependents :: EDB m => C.Reference -> m (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'
-  -- how will you convert this back to Unison.Reference if you
-  -- don't know the cycle size?
+  cIds <- traverse s2cReferenceId sIds
+  pure $ Set.fromList cIds
+
+-- | returns a list of known definitions referencing `r`
+dependentsOfComponent :: EDB m => H.Hash -> m (Set C.Reference.Id)
+dependentsOfComponent h = do
+  oId <- primaryHashToExistingObjectId h
+  sIds :: [S.Reference.Id] <- Q.getDependentsForDependencyComponent oId
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 
