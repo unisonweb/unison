@@ -1578,8 +1578,12 @@ declareForeigns = do
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
-    $ mkForeignIOF $ \() -> getPOSIXTime
+    $ mkForeignIOF $ \() -> getPOSIXTime 
+
+  declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
+    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime 
 
   declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
     $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
