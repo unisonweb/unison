@@ -11,7 +11,8 @@ Create and push the tag to github. This will trigger the build. To determine the
 git fetch
 git checkout series/M2
 git merge origin/trunk
-git tag -a $RELEASE_NAME -m "release"
+git tag -a release/$RELEASE_NAME -m "release"
+git push origin release/$RELEASE_NAME
 ```
 
 __2__
@@ -20,11 +21,11 @@ Wait for the release to show up on [the releases page](https://github.com/unison
 
 __3__
 
-Create a release notes draft issue, following [this template](https://github.com/unisonweb/unison/issues/2342).
+Create a release notes draft issue, following [this template](https://github.com/unisonweb/unison/issues/2342) and updating the output of PRs merged and contributors to the release.
 
 __4__
 
-Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release.
+Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarorma does this usually.
 
 ```
 git log --oneline release/M2h...release/M2i | grep 'Merge pull request #'
@@ -34,7 +35,7 @@ Then just use `alias.term ##Nat.newBuiltin Nat.someName` and/or `alias.type ##So
 
 __5__
 
-Cut a release of base.
+Cut a release of base. @runarorama does this usually.
 
 ```
 .> pull https://unisonweb/base basedev.release
