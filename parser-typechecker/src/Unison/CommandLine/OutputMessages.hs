@@ -160,7 +160,7 @@ notifyNumbered o = case o of
       , p
       , ""
       , undoTip
-      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff) -- rlm note change 
+      ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
 
   ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed as a result of the merge.", mempty)
