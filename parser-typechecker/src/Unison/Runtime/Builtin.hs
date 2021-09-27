@@ -935,9 +935,9 @@ inMaybeBx arg1 arg2 arg3 mb result cont instr =
   . TAbss [arg1, arg2]
   . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
   $ mapFromList
-    [ (0, ([], TLetD mb UN (TLit $ I 0)
+    [ (toEnum Ty.noneId, ([], TLetD mb UN (TLit $ I 0)
                $ TLetD result UN (TFOp instr [mb, arg2]) cont))
-    , (1, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    , (toEnum Ty.someId, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
     ]
 
 -- a -> b -> ...
