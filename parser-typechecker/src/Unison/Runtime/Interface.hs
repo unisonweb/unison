@@ -21,6 +21,8 @@ import Control.Exception (try, catch)
 import Control.Monad
 
 import Data.Bits (shiftL)
+import Data.Compact (compactWithSharing)
+import Data.Compact.Serialize (writeCompact)
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
@@ -146,14 +148,23 @@ recursiveTermDeps seen0 cl tm = do
       Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
         Just d -> recursiveDeclDeps seen cl d
         Nothing -> pure mempty
-      Right (RF.DerivedId i) -> getTerm cl i >>= \case
-        Just tm -> recursiveTermDeps seen cl tm
-        Nothing -> pure mempty
+      Right r -> recursiveRefDeps seen cl r
       _ -> pure mempty
     pure $ foldMap categorize deps <> fold rec
   where
   deps = Tm.labeledDependencies tm
   seen = seen0 <> deps
+
+recursiveRefDeps
+  :: Set RF.LabeledDependency
+  -> CodeLookup Symbol IO ()
+  -> Reference
+  -> IO (Set Reference, Set Reference)
+recursiveRefDeps seen cl (RF.DerivedId i)
+  = getTerm cl i >>= \case
+      Just tm -> recursiveTermDeps seen cl tm
+      Nothing -> pure mempty
+recursiveRefDeps _ _ _ = pure mempty
 
 collectDeps
   :: CodeLookup Symbol IO ()
@@ -168,6 +179,15 @@ collectDeps cl tm = do
       <$> getTypeDeclaration cl i
   getDecl r = pure (r,Right [])
 
+collectRefDeps
+  :: CodeLookup Symbol IO ()
+  -> Reference
+  -> IO ([(Reference, Either [Int] [Int])], [Reference])
+collectRefDeps cl r = do
+  tm <- resolveTermRef cl r
+  (tyrs, tmrs) <- collectDeps cl tm
+  pure (tyrs, r:tmrs)
+
 backrefAdd
   :: Map.Map Reference (Map.Map Word64 (Term Symbol))
   -> EvalCtx -> EvalCtx
@@ -178,10 +198,10 @@ loadDeps
   :: CodeLookup Symbol IO ()
   -> PrettyPrintEnv
   -> EvalCtx
-  -> Term Symbol
+  -> [(Reference, Either [Int] [Int])]
+  -> [Reference]
   -> IO EvalCtx
-loadDeps cl ppe ctx tm = do
-  (tyrs, tmrs) <- collectDeps cl tm
+loadDeps cl ppe ctx tyrs tmrs = do
   p <- refNumsTy (ccache ctx) <&> \m (r,_) -> case r of
     RF.DerivedId{} -> r `Map.notMember` dspec ctx
                    || r `Map.notMember` m
@@ -354,13 +374,29 @@ startRuntime = do
        { terminate = pure ()
        , evaluate = \cl ppe tm -> catchInternalErrors $ do
            ctx <- readIORef ctxVar
-           ctx <- loadDeps cl ppe ctx tm
+           (tyrs, tmrs) <- collectDeps cl tm
+           ctx <- loadDeps cl ppe ctx tyrs tmrs
            (ctx, init) <- prepareEvaluation ppe tm ctx
            writeIORef ctxVar ctx
            evalInContext ppe ctx init
+       , compileTo = \cl ppe rf path -> tryM $ do
+           ctx <- readIORef ctxVar
+           (tyrs, tmrs) <- collectRefDeps cl rf
+           ctx <- loadDeps cl ppe ctx tyrs tmrs
+           let cc = ccache ctx
+           Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
+           sto <- standalone cc w
+           cmp <- compactWithSharing sto
+           writeCompact path cmp
        , mainType = builtinMain External
        , ioTestType = builtinTest External
        }
+
+tryM :: IO () -> IO (Maybe Error)
+tryM = fmap (either (Just . extract) (const Nothing)) . try
+  where
+  extract (PE _ e) = e
+  extract (BU _ _) = "impossible"
 
 runStandalone :: StoredCache -> Word64 -> IO ()
 runStandalone sc init = do
