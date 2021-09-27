@@ -6,10 +6,10 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 .> view builtin.Doc
 
   unique type builtin.Doc
-    = Link Link
+    = Join [builtin.Doc]
+    | Link Link
     | Source Link
     | Blob Text
-    | Join [builtin.Doc]
     | Signature Term
     | Evaluate Term
 
