@@ -77,6 +77,10 @@ type TypecheckingResult v =
   Result (Seq (Note v Ann))
          (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
+-- m is the IO monad that you're interpreting into?? 
+-- i is the type of the input. Input
+-- v is used for unison types and terms - the Var type 
+-- a is the result of the command. So if it's a command that produces an Int, it's an Int. 
 data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
@@ -104,8 +108,10 @@ data Command m i v a where
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 
+  -- THis one waits for the user to input something and returns a value of some type Input 
   Input :: Command m i v i
 
+  -- RLM note: you should be able to combine Commands. 
   InputWithOutput :: Command m i v i -> Output v -> Command m i v i
 
   -- Presents some output to the user

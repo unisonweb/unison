@@ -86,6 +86,7 @@ data Input
     -- pairs onboarding input with desired output response 
     -- | RespondToInput Input (Output String) -- RLM note: cycle happens here, also what is this type param? I chose an arbitrary type here and I know it shouldnt be a string. 
     | RespondToInput Input OutputSimple -- RLM note: cycle happens here, also what is this type param? I chose an arbitrary type here and I know it shouldnt be a string. 
+    -- RLM Note: Arya suggests not doing the above. Because why are we saving this if we can't do what we want cleanly. 
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'

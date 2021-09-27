@@ -1,4 +1,4 @@
-module Unison.Codebase.Editor.Input
+with module Unison.Codebase.Editor.Input
 
 where
 

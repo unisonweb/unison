@@ -12,7 +12,7 @@ import Unison.Codebase.Path (Path)
 
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
-import Unison.Codebase.Editor.InputOutput 
+import Unison.Codebase.Editor.InputOutput
 import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 
@@ -20,17 +20,20 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 -- import qualified Unison.Codebase.Editor.Input as Input
 
 
--- IDEAS? 
+-- IDEAS?
 
--- Notes: 
--- Download base should be quieter - the printout is annoyingly large. 
--- use more primitive IO functions for user input and git download.  
--- UX issue / design constraint: if we use existing input / output architecture, how will we constrain the user into only entering their authorship info? 
--- we don't want the user to have too much "freedom" when entering their author info. 
+-- Notes:
+-- Download base should be quieter - the printout is annoyingly large.
+-- use more primitive IO functions for user input and git download.
+-- UX issue / design constraint: if we use existing input / output architecture, how will we constrain the user into only entering their authorship info?
+-- we don't want the user to have too much "freedom" when entering their author info.
+-- Take a look at the transcript parser as an example of how to issue commands that is not in main
+-- Not sure about the empyt line to advance mechanic - how might we handle that with input/actions 
+-- Another idea:
 
 -- 1)
--- * Refactor existing IO command loop out of main function - see notes in CommandLine.main 
--- * In Welcome.run; use existing interpreter to run commands 
+-- * Refactor existing IO command loop out of main function - see notes in CommandLine.main
+-- * In Welcome.run; use existing interpreter to run commands
 -- * Implement a silencing mechanism
 
 -- 2)
@@ -54,11 +57,12 @@ data CodebaseInitStatus
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]
   | Base BaseSteps -- Can transition to [Author, Finished]
-  | Author -- Can traisition to [Finished]
+  | Author -- Can transition to [Finished]
   -- End States
   | Finished
   | PreviouslyOnboarded
 
+-- AI: Onboarding -> Action m v ()
 
 -- ucm start
 --   create codebase
@@ -92,23 +96,24 @@ welcome downloadBase newCodebasePath watchDir unisonVersion =
     Just path -> Welcome (Init (NewlyCreatedCodebase path)) downloadBase newCodebasePath watchDir unisonVersion
     Nothing -> Welcome (Init PreviouslyCreatedCodebase) downloadBase newCodebasePath watchDir unisonVersion
 
--- remove IO 
+-- remove IO
 pullBase :: ReadRemoteNamespace -> IO (Either Event Input)
 pullBase _ns =
   let
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete 
+    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete
     output = Onboarding " THIS IS A TEST OF PULLING BASE!!"
-    in 
+    in
     pure $ Right (RespondToInput pullRemote output)
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
 run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version } = do
   go onboarding []
   where
-    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
+    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input] -- try
+    -- consider: go :: Onboarding -> Action IO v ()
     go onboarding acc  =
       case onboarding of
         Init (NewlyCreatedCodebase path) -> do
@@ -141,14 +146,14 @@ run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, wat
         Base (DownloadBaseFailed _ _) -> do
           PT.putPrettyLn "Download Failed"
           getStarted dir >>= PT.putPrettyLn
-          pure acc 
+          pure acc
         Author -> do
           PT.putPrettyLn "Enter your author!"
-          go Finished acc 
-        Finished -> do 
+          go Finished acc
+        Finished -> do
           getStarted dir >>= PT.putPrettyLn
           pure acc
-        PreviouslyOnboarded -> do 
+        PreviouslyOnboarded -> do
           getStarted dir >>= PT.putPrettyLn
           pure acc
 

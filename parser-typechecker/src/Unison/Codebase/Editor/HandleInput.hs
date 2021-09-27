@@ -153,6 +153,9 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 type F m i v = Free (Command m i v)
 
 -- type (Action m i v) a
+-- RLM Note: Action allows us to persist state and exit above what F will let you do. 
+-- Persists state between commands. - the state that it persists is the LoopState 
+
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
 data LoopState m v
@@ -201,6 +204,7 @@ defaultPatchNameSegment = "patch"
 prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
+-- This returns an Action. 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf           <- use latestTypecheckedFile
@@ -332,7 +336,7 @@ loop = do
         else loadUnisonFile sourceName text
     Right input ->
       let
-        ifConfirmed = ifM (confirmedCommand input)
+        ifConfirmed = ifM (confirmedCommand input) -- RLM Note - maybe can copy this confirmed command state 
         branchNotFound = respond . BranchNotFound
         branchNotFound' = respond . BranchNotFound . Path.unsplit'
         patchNotFound :: Path.Split' -> Action' m v ()

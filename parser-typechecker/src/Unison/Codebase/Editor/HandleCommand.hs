@@ -82,10 +82,10 @@ commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
   => Config
-  -> IO i -- RLM: await input 
+  -> IO i -- RLM: await input
   -> (Branch IO -> IO ())
-  -> Runtime v 
-  -> (Output v -> IO ()) -- RLM: notify 
+  -> Runtime v
+  -> (Output v -> IO ()) -- RLM: notify
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
@@ -96,6 +96,7 @@ commandLine
 commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen =
  flip State.evalStateT 0 . Free.fold go
  where
+   -- RLM note : think of the return type of this as just the IO x
   go :: forall x . Command IO i v x -> State.StateT Int IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
@@ -104,17 +105,17 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
-    InputWithOutput input output -> do 
-      -- RLM: not sure how exactly this is gonna work 
-        let 
-          fst = go input 
+    InputWithOutput input output -> do
+      -- RLM: not sure how exactly this is gonna work
+        let
+          fst = go input
           snd = lift $ notifyUser output
-        
-        fst >>= snd 
+
+        fst >>= snd
         -- lift awaitInput >> \_ -> lift $ notifyUser output
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
-    NotifyNumbered output -> lift $ notifyNumbered output 
+    NotifyNumbered output -> lift $ notifyNumbered output
     ConfigLookup name ->
       lift $ Config.lookup config name
     LoadSource sourcePath -> lift $ loadSource sourcePath

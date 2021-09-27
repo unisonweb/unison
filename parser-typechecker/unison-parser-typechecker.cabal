@@ -45,6 +45,7 @@ library
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.Input
+      Unison.Codebase.Editor.InputOutput
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
@@ -90,6 +91,7 @@ library
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
       Unison.CommandLine.Welcome
+      Unison.CommandLine.WelcomeInputQueue
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
