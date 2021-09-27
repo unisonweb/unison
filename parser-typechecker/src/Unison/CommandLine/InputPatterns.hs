@@ -711,33 +711,35 @@ resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
      pure $ Input.ResetRootI src
     _ -> Left (I.help resetRoot))
 
-pullSilent :: InputPattern 
-pullSilent =  
+pullSilent :: InputPattern
+pullSilent =
   pullImpl "pull.silent" Verbosity.Silent
 
-pull :: InputPattern 
-pull = pullImpl "pull" Verbosity.Default 
+pull :: InputPattern
+pull = pullImpl "pull" Verbosity.Default
 
 pullImpl :: [Char] -> Verbosity -> InputPattern
-pullImpl name verbosity = self 
-  where 
-    self = InputPattern 
+pullImpl name verbosity = do
+  self
+  where
+    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else "" 
+    self = InputPattern
       name
       []
       [(Optional, gitUrlArg), (Optional, pathArg)]
       (P.lines
         [ P.wrap
-          "The" <> makeExample' self <> "command merges a remote namespace into a local namespace."
+          "The" <> makeExample' self <> "command merges a remote namespace into a local namespace" <> addendum
         , ""
         , P.wrapColumn2
           [ ( makeExample self ["remote", "local"]
             , "merges the remote namespace `remote`"
-            <>"into the local namespace `local" 
+            <>"into the local namespace `local"
             )
           , ( makeExample self ["remote"]
             , "merges the remote namespace `remote`"
             <>"into the current namespace")
-          , ( makeExample' self 
+          , ( makeExample' self
             , "merges the remote namespace configured in `.unisonConfig`"
             <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
             <> "into the current namespace")
@@ -753,15 +755,15 @@ pullImpl name verbosity = self
       )
       (\case
         []    ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity 
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity 
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
           Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
-        _ -> Left (I.help pull)
+        _ -> Left (I.help self)
       )
 
 pullExhaustive :: InputPattern
@@ -779,7 +781,7 @@ pullExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default  
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
     [url] -> do
       ns <- parseUri "url" url
       Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
@@ -1564,9 +1566,6 @@ pathArg :: ArgumentType
 pathArg = ArgumentType "namespace" $
   pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
 
-verbosityArg :: ArgumentType 
-verbosityArg = ArgumentType "verbosity" $ \q _ _ _ -> pure (exactComplete q ["default", "silent"])
-
 newNameArg :: ArgumentType
 newNameArg = ArgumentType "new-name" $
   pathCompletor prefixIncomplete
@@ -1592,9 +1591,10 @@ collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
 
 patternFromInput :: Input -> InputPattern
 patternFromInput = \case
-  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit  -> push
+  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
   Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit _ -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Default -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Silent -> pullSilent
   Input.PullRemoteBranchI _ _ SyncMode.Complete _ -> pushExhaustive
   _ -> error "todo: finish this function"
 

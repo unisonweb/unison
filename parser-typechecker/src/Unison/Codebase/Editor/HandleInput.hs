@@ -150,7 +150,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
-import Unison.Codebase.Verbosity (Verbosity(..))
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 type F m i v = Free (Command m i v)
 
@@ -1692,9 +1692,7 @@ loop = do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          let printDiffPath = case verbosity of
-                Default -> Just path 
-                Silent -> Nothing  
+          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path 
           lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs 
 
       PushRemoteBranchI mayRepo path syncMode -> do
@@ -2222,7 +2220,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
     for_ dest0 $ \dest0 -> 
-      diffHelper (Branch.head destb) (Branch.head merged) >>= 
+      diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
     pure b
 
