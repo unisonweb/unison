@@ -718,7 +718,7 @@ pullSilent =
 pull :: InputPattern
 pull = pullImpl "pull" Verbosity.Default
 
-pullImpl :: [Char] -> Verbosity -> InputPattern
+pullImpl :: String -> Verbosity -> InputPattern
 pullImpl name verbosity = do
   self
   where
