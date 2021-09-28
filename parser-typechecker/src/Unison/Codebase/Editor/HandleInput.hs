@@ -155,7 +155,6 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 type F m i v = Free (Command m i v)
 
 -- type (Action m i v) a
-
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
 data LoopState m v
