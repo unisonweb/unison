@@ -40,10 +40,10 @@ Cut a release of base. @runarorama does this usually.
 ```
 .> pull https://unisonweb/base basedev.release
 .> cd basedev.release
-.basedev> delete.namespace releases._latest
-.basedev> squash trunk releases._<ReleaseName>
-.basedev> fork releases._<ReleaseName> releases._latest
-.basedev> push git@github.com/unisonweb/base
+.basedev.release> delete.namespace releases._latest
+.basedev.release> squash trunk releases._<ReleaseName>
+.basedev.release> fork releases._<ReleaseName> releases._latest
+.basedev.release> push git@github.com/unisonweb/base
 ```
 
 __6__
