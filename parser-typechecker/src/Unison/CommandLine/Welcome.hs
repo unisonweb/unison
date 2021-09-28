@@ -104,9 +104,8 @@ pullBase _ns =
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
     pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete
-    output = Onboarding " THIS IS A TEST OF PULLING BASE!!"
     in
-    pure $ Right (RespondToInput pullRemote output)
+    pure $ Right (pullRemote)
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
 run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version } = do
