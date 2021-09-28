@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Unison.Parser where
 
@@ -53,6 +54,7 @@ import qualified Unison.Hashable as Hashable
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import Unison.Parser.Ann (Ann(..))
+import Text.Megaparsec.Error (ShowErrorComponent)
 
 debug :: Bool
 debug = False
@@ -124,6 +126,9 @@ data Error v
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   | FloatPattern Ann
   deriving (Show, Eq, Ord)
+
+instance (Ord v, Show v) => ShowErrorComponent (Error v) where
+  showErrorComponent e = show e
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)

@@ -7,6 +7,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Unison.Builtin.Decls as Decls
+import qualified Unison.Hashing.V2.Convert as H
 import qualified Unison.Reference as Reference
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -31,6 +32,9 @@ v :: Var v => Text -> v
 v = Var.named
 
 builtinTermsRef :: Var v => a -> Map v Reference.Id
-builtinTermsRef a = fmap fst . Term.hashComponents . Map.fromList
+builtinTermsRef a =
+  fmap fst
+    . H.hashTermComponents
+    . Map.fromList
     . fmap (\(v, tm, _tp) -> (v, tm))
     $ builtinTermsSrc a

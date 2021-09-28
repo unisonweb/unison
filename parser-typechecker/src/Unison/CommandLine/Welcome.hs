@@ -18,7 +18,7 @@ import Unison.NameSegment (NameSegment(NameSegment))
 
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 -- import qualified Unison.Codebase.Editor.Input as Input
-
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 -- IDEAS?
 
@@ -103,7 +103,7 @@ pullBase _ns =
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete
+    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent 
     in
     pure $ Right (pullRemote)
 
@@ -204,7 +204,6 @@ downloading path =
             <> P.group (P.blue ".base" <> ", this may take a minute...")
         )
     ]
-
 
 header :: String -> P.Pretty P.ColorText
 header version =

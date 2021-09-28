@@ -83,9 +83,7 @@ data Input
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
     = ForkLocalBranchI (Either ShortBranchHash Path') Path'
-    -- pairs onboarding input with desired output response 
-    -- | RespondToInput Input (Output String) -- RLM note: cycle happens here, also what is this type param? I chose an arbitrary type here and I know it shouldnt be a string. 
-    | RespondToInput Input OutputSimple -- RLM note: cycle happens here, also what is this type param? I chose an arbitrary type here and I know it shouldnt be a string. 
+    | CreateMessage (P.Pretty P.ColorText)
     -- RLM Note: Arya suggests not doing the above. Because why are we saving this if we can't do what we want cleanly. 
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path' Branch.MergeMode
@@ -220,7 +218,7 @@ data NumberedOutput v
 
 -- RLM: SPIKE - Ok a creative but potentially bad idea that would solve many of my woes is to break out Output v into OutputWithNoType Parameter. 
 data OutputSimple 
-  = Onboarding String 
+  = PrintMessage (P.Pretty P.ColorText) 
   | Success 
   deriving (Eq, Show)
 

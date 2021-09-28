@@ -13,6 +13,7 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.ConstructorType        as CT
+import qualified Unison.Hashing.V2.Convert as Hashing
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
@@ -24,7 +25,6 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference(DerivedId) )
 import qualified Unison.Util.SyntaxText        as S
-import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Util.Pretty             ( Pretty )
@@ -139,7 +139,7 @@ fieldNames env r name dd = case DD.constructors dd of
     vars :: [v]
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-    hashes = Term.hashComponents (Map.fromList accessors)
+    hashes = Hashing.hashTermComponents (Map.fromList accessors)
     names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
             | r <- fst <$> Map.elems hashes ]
     fieldNames = Map.fromList
@@ -158,7 +158,7 @@ fieldNames env r name dd = case DD.constructors dd of
   _ -> Nothing
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
-prettyModifier DD.Structural = fmt S.DataTypeModifier "structural" 
+prettyModifier DD.Structural = fmt S.DataTypeModifier "structural"
 prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 

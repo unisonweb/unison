@@ -166,3 +166,34 @@ to actual show that the serialization works.
 .> io.test tests
 .> io.test badLoad
 ```
+
+```unison
+validateTest : Link.Term ->{IO} Result
+validateTest l = match Code.lookup l with
+  None -> Fail "Couldn't look up link"
+  Some co -> match Code.validate [(l, co)] with
+    Some f -> Fail "invalid code pre"
+    None -> match Code.deserialize (Code.serialize co) with
+      Left _ -> Fail "code failed deserialization"
+      Right co -> match Code.validate [(l, co)] with
+        Some f -> Fail "invalid code post"
+        None -> Ok "validated"
+
+vtests : '{IO} [Result]
+vtests _ =
+  List.map validateTest
+    [ termLink fib10
+    , termLink compose
+    , termLink List.all
+    , termLink hex
+    , termLink isDirectory
+    , termLink delay
+    , termLink printLine
+    , termLink isNone
+    ]
+```
+
+```ucm
+.> add
+.> io.test vtests
+```

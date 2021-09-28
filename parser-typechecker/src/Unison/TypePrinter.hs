@@ -109,37 +109,37 @@ prettyRaw n im p tp = go n im p tp
       EffectfulArrows' fst rest ->
         case fst of
           Var' v | Var.name v == "()" ->
-            PP.parenthesizeIf (p >= 10) $
-              fmt S.DelayForceChar "'" <> arrows False True rest
+            PP.parenthesizeIf (p >= 10) $ arrows True True rest
           _ -> PP.parenthesizeIf (p >= 0) $
                  go n im 0 fst <> arrows False False rest
       _ -> "error"
     _ -> "error"
   effects Nothing   = mempty
-  effects (Just es) = PP.group $ (fmt S.AbilityBraces "{") <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
+  effects (Just es) = PP.group $ fmt S.AbilityBraces "{" <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
+  -- `first`: is this the first argument?
+  -- `mes`: list of effects
   arrow delay first mes =
-    (if first then mempty else PP.softbreak <> (fmt S.TypeOperator "->"))
-      <> (if delay then (if first then (fmt S.DelayForceChar "'") else (fmt S.DelayForceChar " '")) else mempty)
+    (if first then mempty else PP.softbreak <> fmt S.TypeOperator "->")
+      <> (if delay then (if first then fmt S.DelayForceChar "'" else fmt S.DelayForceChar " '") else mempty)
       <> effects mes
-      <> if (isJust mes) || (not delay) && (not first) then " " else mempty
+      <> if isJust mes || not delay && not first then " " else mempty
 
-  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.Unit "()")
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> fmt S.Unit "()"
   arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
-    arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
+    arrow delay first mes <> parenNoGroup delay (arrows True True rest)
   arrows delay first ((mes, arg) : rest) =
-    arrow delay first mes
-      <> (  parenNoGroup (delay && (not $ null rest))
-         $  go n im 0 arg
-         <> arrows False False rest
-         )
+    arrow delay first mes <> parenNoGroup
+      (delay && not (null rest))
+      (go n im 0 arg <> arrows False False rest)
+
   arrows False False [] = mempty
   arrows False True  [] = mempty  -- not reachable
   arrows True  _     [] = mempty  -- not reachable
 
-  paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
+  paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
   paren False s = PP.group s
 
-  parenNoGroup True  s = ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
+  parenNoGroup True  s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
   parenNoGroup False s = s
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
