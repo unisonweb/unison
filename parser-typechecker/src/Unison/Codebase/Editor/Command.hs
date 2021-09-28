@@ -26,8 +26,7 @@ import           Unison.Server.Backend          ( DefinitionResults
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
 
--- import           Unison.Codebase.Editor.Output
-import           Unison.Codebase.Editor.InputOutput
+import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
@@ -65,8 +64,8 @@ import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 
 type AmbientAbilities v = [Type v Ann]
--- type SourceName = Text
--- type Source = Text
+type SourceName = Text
+type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
 
 data LoadSourceResult = InvalidSourceNameError
@@ -108,11 +107,7 @@ data Command m i v a where
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 
-  -- THis one waits for the user to input something and returns a value of some type Input 
   Input :: Command m i v i
-
-  -- RLM note: you should be able to combine Commands. 
-  InputWithOutput :: Command m i v i -> Output v -> Command m i v i
 
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
@@ -262,7 +257,6 @@ commandName = \case
   UI                          -> "UI"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
-  InputWithOutput{}           -> "Input"
   Notify{}                    -> "Notify"
   NotifyNumbered{}            -> "NotifyNumbered"
   AddDefsToCodebase{}         -> "AddDefsToCodebase"

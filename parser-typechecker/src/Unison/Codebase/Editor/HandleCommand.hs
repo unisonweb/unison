@@ -102,14 +102,6 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
-    InputWithOutput input output -> do
-      -- RLM: not sure how exactly this is gonna work
-        let
-          fst = go input
-          snd = lift $ notifyUser output
-
-        fst >>= snd
-        -- lift awaitInput >> \_ -> lift $ notifyUser output
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output

@@ -1,5 +1,14 @@
-with module Unison.Codebase.Editor.Input
-where
+   
+module Unison.Codebase.Editor.Input
+  ( Input(..)
+  , Event(..)
+  , OutputLocation(..)
+  , PatchPath
+  , BranchId, parseBranchId
+  , HashOrHQSplit'
+  ) where
+
+import Unison.Prelude
 
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -13,9 +22,28 @@ import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Codebase.Verbosity 
 import           Unison.Name                    ( Name )
 import           Unison.NameSegment             ( NameSegment )
+import qualified Unison.Util.Pretty as P
+import           Unison.Codebase.Verbosity
+
+import qualified Data.Text as Text
+
+data Event
+  = UnisonFileChanged SourceName Source
+  | IncomingRootBranch (Set Branch.Hash)
+
+type Source = Text -- "id x = x\nconst a b = a"
+type SourceName = Text -- "foo.u" or "buffer 7"
+type PatchPath = Path.Split'
+type BranchId = Either ShortBranchHash Path'
+type HashOrHQSplit' = Either ShortHash Path.HQSplit'
+
+parseBranchId :: String -> Either String BranchId
+parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
+  Nothing -> Left "Invalid hash, expected a base32hex string."
+  Just h -> pure $ Left h
+parseBranchId s = Right <$> Path.parsePath' s
 
 data Input
   -- names stuff:
@@ -34,6 +62,8 @@ data Input
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
+    -- CreateMessage is used in Welcome module to instruct user 
+    | CreateMessage (P.Pretty P.ColorText)  
     -- change directory
     | SwitchBranchI Path'
     | UpI
@@ -118,4 +148,11 @@ data Input
   | QuitI
   | UiI
   deriving (Eq, Show)
-  
+
+-- Some commands, like `view`, can dump output to either console or a file.
+data OutputLocation
+  = ConsoleLocation
+  | LatestFileLocation
+  | FileLocation FilePath
+  -- ClipboardLocation
+  deriving (Eq, Show)

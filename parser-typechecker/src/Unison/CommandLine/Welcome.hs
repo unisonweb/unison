@@ -12,7 +12,7 @@ import Unison.Codebase.Path (Path)
 
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
-import Unison.Codebase.Editor.InputOutput
+import Unison.Codebase.Editor.Input
 import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 
@@ -103,7 +103,7 @@ pullBase _ns =
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent 
+    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent 
     in
     pure $ Right (pullRemote)
 
