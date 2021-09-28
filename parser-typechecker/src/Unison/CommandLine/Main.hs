@@ -121,7 +121,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef $ welcomeEvents ++ initialInputs -- Idea: Extract 
+    initialInputsRef         <- newIORef $ welcomeEvents ++ initialInputs
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
@@ -156,11 +156,11 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
               (putPrettyNonempty o)
               (putPrettyLnUnpaged o))
     let
-      awaitInput = do -- await input ends up encompassing initial inputs (for welcome) and the user inputs 
+      awaitInput = do
         -- use up buffered input before consulting external events
-        i <- readIORef initialInputsRef -- Here was where we used to do the reading for base commands welcome.downloadBase initialInputsRef -> initialInputsRef 
+        i <- readIORef initialInputsRef
         (case i of
-          h:t -> writeIORef initialInputsRef t >> pure h -- Here was where we used to write the IO of commands to the event queue. Will need to mimic in an new function
+          h:t -> writeIORef initialInputsRef t >> pure h
           [] ->
             -- Race the user input and file watch.
             Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
@@ -168,7 +168,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 let e = Left <$> atomically (Q.dequeue eventQueue)
                 writeIORef pageOutput False
                 e
-              x      -> do -- x is Input 
+              x      -> do
                 writeIORef pageOutput True
                 pure x) `catch` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
@@ -178,10 +178,10 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
         cancelConfig
         cancelFileSystemWatch
         cancelWatchBranchUpdates
-      loop state = do -- I think this is the loop we should recreate or pull out. 
+      loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-        (o, state') <- HandleCommand.commandLine config awaitInput -- This is the actual call to the interpreter fo the commands- we can recycle it (we don't need to rewrite it)
+        (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
                                      notify

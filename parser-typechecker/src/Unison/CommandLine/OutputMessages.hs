@@ -104,7 +104,6 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
--- import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo

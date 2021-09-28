@@ -22,15 +22,6 @@ data IsOptional
   | OnePlus -- 1 or more, at the end
   deriving Show
 
--- RLM note: Input pattern only triggers Input. 
--- but how can an input pattern be triggered. 
--- AI note: Haskeline takes keystrokes to [String]
---          InputPattern takes [String] to Input
---          HandleInput takes Input to Action (which is a monad that embeds Commands)
---            - One of the Commands is to `Notify` the user of some `Output`
---          HandleCommand takes individual `Command`s, does IO, and returns a result back to `HandleInput`
---          OutputMessages turns `Output` into `Pretty`
-
 data InputPattern = InputPattern
   { patternName :: String
   , aliases     :: [String]

@@ -62,7 +62,7 @@ data Input
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
-    -- CreateMessage is used in Welcome module to instruct user 
+    -- used in Welcome module to give directions to user 
     | CreateMessage (P.Pretty P.ColorText)  
     -- change directory
     | SwitchBranchI Path'
