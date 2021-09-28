@@ -79,10 +79,10 @@ commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
   => Config
-  -> IO i -- RLM: await input
+  -> IO i
   -> (Branch IO -> IO ())
   -> Runtime v
-  -> (Output v -> IO ()) -- RLM: notify
+  -> (Output v -> IO ())
   -> (NumberedOutput v -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
   -> Codebase IO v Ann
@@ -93,7 +93,6 @@ commandLine
 commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen =
  flip State.evalStateT 0 . Free.fold go
  where
-   -- RLM note : think of the return type of this as just the IO x
   go :: forall x . Command IO i v x -> State.StateT Int IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
