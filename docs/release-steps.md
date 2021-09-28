@@ -57,7 +57,7 @@ git clone git@github.com/unisonweb/homebrew-unison
 Update this file: https://github.com/unisonweb/homebrew-unison/blob/master/unison-language.rb and change the version number and the path to the release. Leave the SHA alone, and then run `brew upgrade`. 
 
 Do `brew upgrade unison-language`. It will tell you the SHA hash doesn't match. Update the file to use the hash it says.
-Do the same for linux and mac - you can temporarily swap the mac / linux stanzas just to get the 
+Do the same for linux and mac - you can temporarily swap the mac / linux stanzas just to get the value for the other platform.
 
 __7__
 
