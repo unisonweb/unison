@@ -81,6 +81,7 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
       Unison.CommandLine
