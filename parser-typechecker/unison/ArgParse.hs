@@ -62,6 +62,7 @@ data RunSource =
     RunFromPipe SymbolName
   | RunFromSymbol SymbolName
   | RunFromFile FilePath SymbolName
+  | RunCompiled FilePath
   deriving (Show, Eq)
 
 data ShouldForkCodebase
@@ -152,6 +153,10 @@ runPipeCommand :: Mod CommandFields Command
 runPipeCommand =
     command "run.pipe" (info runPipeParser (fullDesc <> progDesc "Execute code from stdin"))
 
+runCompiledCommand :: Mod CommandFields Command
+runCompiledCommand =
+    command "run.compiled" (info runCompiledParser (fullDesc <> progDesc "Execute previously compiled output"))
+
 transcriptCommand :: Mod CommandFields Command
 transcriptCommand =
     command "transcript" (info transcriptParser (fullDesc <> progDesc transcriptHelp <> footerDoc transcriptFooter))
@@ -184,6 +189,7 @@ commandParser envOpts =
       fold [ versionCommand
            , initCommand
            , runSymbolCommand
+           , runCompiledCommand
            , runFileCommand
            , runPipeCommand
            , transcriptCommand
@@ -267,6 +273,10 @@ runFileParser = do -- ApplicativeDo
 runPipeParser :: Parser Command
 runPipeParser =
   Run . RunFromPipe <$> strArgument (metavar "SYMBOL")
+
+runCompiledParser :: Parser Command
+runCompiledParser =
+  Run . RunCompiled <$> fileArgument "path/to/file"
 
 saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)

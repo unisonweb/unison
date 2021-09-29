@@ -11,6 +11,7 @@ module Unison.Runtime.Interface
   ( startRuntime
   , standalone
   , runStandalone
+  , StoredCache
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -41,6 +42,7 @@ import qualified Unison.Term as Tm
 
 import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.HashQualified as HQ
+import qualified Unison.Builtin.Decls as RF
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Referent as RF (pattern Ref)
@@ -63,11 +65,12 @@ import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
 import Unison.Runtime.Machine
-  ( apply0
+  ( apply0, eval0
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy
   )
-import Unison.Runtime.MCode (Combs, combDeps, combTypes)
+import Unison.Runtime.MCode
+  (Combs, combDeps, combTypes, Args(..), Section(..), Instr(..))
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
 
@@ -318,6 +321,15 @@ evalInContext ppe ctx w = do
         <=< try $ apply0 (Just hook) (ccache ctx) w
   pure $ decom =<< result
 
+executeMainComb
+  :: Word64
+  -> CCache
+  -> IO ()
+executeMainComb init cc
+  = eval0 cc
+  . Ins (Pack RF.unitRef 0 ZArgs)
+  $ Call True init (BArg1 0)
+
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 
 bugMsg ppe name tm
@@ -386,7 +398,7 @@ startRuntime = do
            let cc = ccache ctx
            Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
            sto <- standalone cc w
-           cmp <- compactWithSharing sto
+           cmp <- compactWithSharing (w, sto)
            writeCompact path cmp
        , mainType = builtinMain External
        , ioTestType = builtinTest External
@@ -399,11 +411,8 @@ tryM = fmap (either (Just . extract) (const Nothing)) . try
   extract (BU _ _) = "impossible"
 
 runStandalone :: StoredCache -> Word64 -> IO ()
-runStandalone sc init = do
-  ctx <- cacheContext <$> restoreCache sc
-  evalInContext mempty ctx init >>= \case
-    Left err -> print err
-    Right _ -> pure ()
+runStandalone sc init
+  = restoreCache sc >>= executeMainComb init
 
 data StoredCache
   = SCache

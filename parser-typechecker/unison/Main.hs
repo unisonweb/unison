@@ -11,6 +11,8 @@ module Main where
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
+import Data.Compact (getCompact)
+import Data.Compact.Serialize (unsafeReadCompact)
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
@@ -50,7 +52,7 @@ import ArgParse
       IsHeadless(WithCLI, Headless),
       ShouldSaveCodebase(..),
       ShouldForkCodebase(..),
-      RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
+      RunSource(..),
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -104,6 +106,13 @@ main = do
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
             Nothing
           closeCodebase
+     Run (RunCompiled file) -> unsafeReadCompact file >>= \case
+       Left err
+         -> PT.putPrettyLn . P.callout "⚠️"
+          $ "I had trouble reading this input.\n"
+         <> fromString err
+
+       Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mcodepath transcriptFiles
      Launch isHeadless codebaseServerOpts -> do

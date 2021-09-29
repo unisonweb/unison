@@ -127,6 +127,7 @@ executables:
     dependencies:
       - base
       - bytestring
+      - compact
       - containers
       - configurator
       - directory
