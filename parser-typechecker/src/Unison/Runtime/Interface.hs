@@ -67,10 +67,11 @@ import Unison.Runtime.Exception
 import Unison.Runtime.Machine
   ( apply0, eval0
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
-  , refNumTm, refNumsTm, refNumsTy
+  , refNumTm, refNumsTm, refNumsTy, refLookup
   )
 import Unison.Runtime.MCode
-  (Combs, combDeps, combTypes, Args(..), Section(..), Instr(..))
+  ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
+  , RefNums(..), emptyRNs, emitComb)
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
 
@@ -428,20 +429,26 @@ data StoredCache
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty)
   = CCache builtinForeigns
-      <$> newTVarIO cs
-      <*> newTVarIO crs
-      <*> newTVarIO trs
+      <$> newTVarIO (cs <> combs)
+      <*> newTVarIO (crs <> builtinTermBackref)
+      <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
       <*> newTVarIO fty
       <*> newTVarIO int
-      <*> newTVarIO rtm
-      <*> newTVarIO rty
+      <*> newTVarIO (rtm <> builtinTermNumbering)
+      <*> newTVarIO (rty <> builtinTypeNumbering)
+  where
+  rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
+  combs
+    = mapWithKey
+        (\k v -> emitComb @Symbol rns k mempty (0,v))
+        numberedTermLookup
 
 traceNeeded
   :: Word64
   -> EnumMap Word64 Combs
   -> IO (EnumMap Word64 Combs)
-traceNeeded init src = go (restrictKeys src ks) init where
+traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init where
   ks = keysSet (numberedTermLookup @Symbol)
   go acc w
     | hasKey w acc = pure acc
