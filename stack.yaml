@@ -36,6 +36,7 @@ extra-deps:
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
 - random-1.2.0
+- compact-0.2.0.0
 # remove these when stackage upgrades containers
 # (these = containers 0.6.4, text-1.2.4, binary-0.8.8, parsec-3.1.14, Cabal-3.2.1.0)
 # see https://github.com/unisonweb/unison/pull/1807#issuecomment-777069869
