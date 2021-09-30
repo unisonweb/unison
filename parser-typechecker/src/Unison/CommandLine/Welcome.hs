@@ -28,6 +28,10 @@ data Welcome = Welcome
 data DownloadBase
   = DownloadBase ReadRemoteNamespace | DontDownloadBase
 
+-- Previously Created is different from Previously Onboarded because a user can 
+-- 1.) create a new codebase 
+-- 2.) decide not to go through the onboarding flow until later and exit
+-- 3.) then reopen their blank codebase 
 data CodebaseInitStatus
   = NewlyCreatedCodebase -- Can transition to [Base, Author, Finished]
   | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]. 

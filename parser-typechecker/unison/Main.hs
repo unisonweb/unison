@@ -326,7 +326,7 @@ getCodebaseOrExit codebasePathOption = do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
       PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
-      pure (cb, c) -- rlm note 
+      pure (cb, c)
 
     o@(OpenedCodebase _ cb) -> 
       pure (cb, o)
