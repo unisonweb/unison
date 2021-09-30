@@ -300,3 +300,4 @@ commandName = \case
   GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
   FindShallow{}               -> "FindShallow"
   ClearWatchCache{}           -> "ClearWatchCache"
+  MakeStandalone{}            -> "MakeStandalone"
