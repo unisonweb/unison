@@ -58,6 +58,7 @@ import ArgParse
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
 
 main :: IO ()
 main = do
@@ -91,7 +92,7 @@ main = do
                   ])
 
      Run (RunFromSymbol mainName) -> do
-      (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
+      ((closeCodebase, theCodebase),_) <- getCodebaseOrExit mCodePathOption
       runtime <- RTI.startRuntime
       execute theCodebase runtime mainName
       closeCodebase
@@ -102,17 +103,17 @@ main = do
             case e of
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
-                (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
+                ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
                 rt <- RTI.startRuntime
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase 
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
                 closeCodebase
      Run (RunFromPipe mainName) -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
+          ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
           rt <- RTI.startRuntime
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
@@ -120,11 +121,12 @@ main = do
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
             Nothing
             ShouldNotDownloadBase 
+            initRes
           closeCodebase
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
-       (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
+       ((closeCodebase, theCodebase),initRes)  <- getCodebaseOrExit mCodePathOption
        runtime <- RTI.startRuntime
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          case isHeadless of
@@ -146,7 +148,7 @@ main = do
                  takeMVar mvar
              WithCLI -> do
                  PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase
+                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
                  closeCodebase
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
@@ -187,7 +189,7 @@ runTranscripts' mcodepath transcriptDir args = do
       Right stanzas -> do
         configFilePath <- getConfigFilePath mcodepath
         -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-        (closeCodebase, theCodebase) <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir))
+        ((closeCodebase, theCodebase),_) <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir))
         mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
         closeCodebase
         let out = currentDir FP.</>
@@ -246,14 +248,18 @@ launch
   -> [Either Input.Event Input.Input]
   -> Maybe Server.BaseUrl
   -> ShouldDownloadBase 
+  -> InitResult IO Symbol Ann 
   -> IO ()
-launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase =
+launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
   let 
     downloadBase = case defaultBaseLib of
                       Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
                       _ -> Welcome.DontDownloadBase
-
-    welcome = Welcome.welcome downloadBase Nothing dir Version.gitDescribe
+    isNewCodebase = case initResult of 
+      CreatedCodebase{} -> NewlyCreatedCodebase
+      _ -> PreviouslyCreatedCodebase 
+      
+    welcome = Welcome.welcome isNewCodebase downloadBase dir Version.gitDescribe
   in
     CommandLine.main
       dir
@@ -285,8 +291,8 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
   runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
-
-getCodebaseOrExit :: Maybe CodebasePathOption -> IO (IO (), Codebase.Codebase IO Symbol Ann)
+-- (Unison.Codebase.Init.FinalizerAndCodebase IO Symbol Ann, InitResult IO Symbol Ann)
+getCodebaseOrExit :: Maybe CodebasePathOption -> IO ((IO (), Codebase.Codebase IO Symbol Ann), InitResult IO Symbol Ann)
 getCodebaseOrExit codebasePathOption = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
   CodebaseInit.openOrCreateCodebase SC.init "main" initOptions >>= \case
@@ -316,14 +322,14 @@ getCodebaseOrExit codebasePathOption = do
         PT.putPrettyLn' msg
         Exit.exitFailure
 
-    CreatedCodebase dir cb -> do
+    c@(CreatedCodebase dir cb) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
       PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
-      pure cb
+      pure (cb, c) -- rlm note 
 
-    OpenedCodebase _ cb -> 
-      pure cb
+    o@(OpenedCodebase _ cb) -> 
+      pure (cb, o)
 
   where
     prettyDir dir = P.string <$> canonicalizePath dir

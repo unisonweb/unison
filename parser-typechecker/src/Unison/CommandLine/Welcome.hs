@@ -21,16 +21,15 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 data Welcome = Welcome
   { onboarding :: Onboarding -- Onboarding States
   , downloadBase :: DownloadBase
-  , newCodebasePath :: Maybe FilePath
   , watchDir :: FilePath
   , unisonVersion :: String
   }
 
-data DownloadBase 
+data DownloadBase
   = DownloadBase ReadRemoteNamespace | DontDownloadBase
 
 data CodebaseInitStatus
-  = NewlyCreatedCodebase FilePath -- Can transition to [Base, Author, Finished]
+  = NewlyCreatedCodebase -- Can transition to [Base, Author, Finished]
   | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]. 
 
 data Onboarding
@@ -41,55 +40,53 @@ data Onboarding
   | Finished
   | PreviouslyOnboarded
 
-welcome :: DownloadBase -> Maybe FilePath -> FilePath -> String -> Welcome
-welcome downloadBase newCodebasePath watchDir unisonVersion =
-  case newCodebasePath of
-    Just path -> Welcome (Init (NewlyCreatedCodebase path)) downloadBase newCodebasePath watchDir unisonVersion
-    Nothing -> Welcome (Init PreviouslyCreatedCodebase) downloadBase newCodebasePath watchDir unisonVersion
+welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> String -> Welcome
+welcome initStatus downloadBase filePath unisonVersion = 
+  Welcome (Init initStatus) downloadBase filePath unisonVersion
 
 pullBase :: ReadRemoteNamespace -> Either Event Input
 pullBase _ns = let
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent 
+    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent
   in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
 run codebase Welcome { onboarding = onboarding, downloadBase = downloadBase, watchDir = dir, unisonVersion = version } = do
   go onboarding []
   where
-    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input] 
+    go :: Onboarding -> [Either Event Input] -> IO [Either Event Input]
     go onboarding acc  =
       case onboarding of
-        Init (NewlyCreatedCodebase _) -> do 
-          determineFirstStep downloadBase codebase >>= \step -> go step (headerMsg : acc) 
-          where 
-            headerMsg =  toInput (header version)
-        Init PreviouslyCreatedCodebase -> do 
+        Init NewlyCreatedCodebase -> do
           determineFirstStep downloadBase codebase >>= \step -> go step (headerMsg : acc)
-          where 
+          where
+            headerMsg =  toInput (header version)
+        Init PreviouslyCreatedCodebase -> do
+          go PreviouslyOnboarded (headerMsg : acc)
+          where
             headerMsg = toInput (header version)
-        DownloadingBase ns@(_, _, path) ->  
-          go Author ([pullBaseInput, downloadMsg] ++ acc) 
-          where 
+        DownloadingBase ns@(_, _, path) ->
+          go Author ([pullBaseInput, downloadMsg] ++ acc)
+          where
             downloadMsg = Right $ CreateMessage (downloading path)
             pullBaseInput = pullBase ns
-        Author -> 
-          go Finished (authorMsg : acc) 
-          where 
-            authorMsg = toInput authorSuggestion 
+        Author ->
+          go Finished (authorMsg : acc)
+          where
+            authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
         Finished -> do
-          startMsg <- getStarted dir 
-          pure $ reverse (toInput startMsg : acc) 
+          startMsg <- getStarted dir
+          pure $ reverse (toInput startMsg : acc)
         PreviouslyOnboarded -> do
-          startMsg <- getStarted dir 
-          pure $ reverse (toInput startMsg : acc) 
+          startMsg <- getStarted dir
+          pure $ reverse (toInput startMsg : acc)
 
-toInput :: P.Pretty P.ColorText -> Either Event Input 
-toInput pretty = 
-  Right $ CreateMessage pretty  
+toInput :: P.Pretty P.ColorText -> Either Event Input
+toInput pretty =
+  Right $ CreateMessage pretty
 
 determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
 determineFirstStep downloadBase codebase = do
@@ -150,12 +147,12 @@ header version =
         P.wrap ("You are running version: " <> P.bold (P.string version))
       ]
 
-authorSuggestion :: P.Pretty P.ColorText 
-authorSuggestion = 
+authorSuggestion :: P.Pretty P.ColorText
+authorSuggestion =
   P.newline <>
-  P.lines [ P.wrap "📜 🪶 You might want to set up your author information next.", 
-            P.wrap "Type" <> P.hiBlue " create.author" <> " to create an author for this codebase", 
-            P.group( P.newline <> P.wrap "Read about how to link your author to your code at"), 
+  P.lines [ P.wrap "📜 🪶 You might want to set up your author information next.",
+            P.wrap "Type" <> P.hiBlue " create.author" <> " to create an author for this codebase",
+            P.group( P.newline <> P.wrap "Read about how to link your author to your code at"),
             P.wrap $ P.blue "https://www.unisonweb.org/docs/configuration/#setting-default-metadata-like-license-and-author"
           ]
 
