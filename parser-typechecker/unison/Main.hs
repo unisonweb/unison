@@ -109,7 +109,7 @@ main = do
      Run (RunCompiled file) -> unsafeReadCompact file >>= \case
        Left err
          -> PT.putPrettyLn . P.callout "⚠️"
-          $ "I had trouble reading this input.\n"
+          $ "I could not load the specified binary output.\n"
          <> fromString err
 
        Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
