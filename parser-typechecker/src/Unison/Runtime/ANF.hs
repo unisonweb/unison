@@ -103,7 +103,7 @@ import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Referent (Referent)
 
--- For internal errors 
+-- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
   deriving (Show)
 instance Exception CompileExn
@@ -1022,8 +1022,8 @@ anfBlock (Match' scrut cas) = do
            , pure . TMatch r
            $ MatchDataCover Ty.seqViewRef
                (EC.mapFromList
-                  [ (0, ([], em))
-                  , (1, ([BX,BX], bd))
+                  [ (toEnum Ty.seqViewEmpty, ([], em))
+                  , (toEnum Ty.seqViewElem, ([BX,BX], bd))
                   ]
                )
            )

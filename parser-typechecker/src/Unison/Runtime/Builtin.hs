@@ -32,7 +32,6 @@ import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
 import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.IOSource (eitherReference)
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -58,7 +57,7 @@ import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
 
 import qualified Data.Map as Map
-import Unison.Prelude
+import Unison.Prelude hiding (some)
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
@@ -181,6 +180,17 @@ fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) where
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
+
+none :: Var v => ANormal v
+none = TCon Ty.optionalRef (toEnum Ty.noneId) []
+some, left, right :: Var v => v -> ANormal v
+some a = TCon Ty.optionalRef (toEnum Ty.someId) [a]
+left x = TCon Ty.eitherRef (toEnum Ty.eitherLeftId) [x]
+right x = TCon Ty.eitherRef (toEnum Ty.eitherRightId) [x]
+seqViewEmpty :: Var v => ANormal v
+seqViewEmpty = TCon Ty.seqViewRef (toEnum Ty.seqViewEmpty) []
+seqViewElem :: Var v => v -> v -> ANormal v
+seqViewElem l r = TCon Ty.seqViewRef (toEnum Ty.seqViewElem) [l,r]
 
 boolift :: Var v => v -> ANormal v
 boolift v
@@ -440,24 +450,24 @@ sizet = unop0 1 $ \[x,r]
 unconst = unop0 7 $ \[x,t,c0,c,y,p,u,yp]
      -> TLetD t UN (TPrm UCNS [x])
       . TMatch t . MatchSum $ mapFromList
-      [ (0, ([], TCon Ty.optionalRef 0 []))
+      [ (0, ([], none))
       , (1, ([UN,BX], TAbss [c0,y]
                     . TLetD u BX (TCon Ty.unitRef 0 [])
                     . TLetD yp BX (TCon Ty.pairRef 0 [y,u])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
                     . TLetD p BX (TCon Ty.pairRef 0 [c,yp])
-                    $ TCon Ty.optionalRef 1 [p]))
+                    $ some p))
       ]
 unsnoct = unop0 7 $ \[x,t,c0,c,y,p,u,cp]
      -> TLetD t UN (TPrm USNC [x])
       . TMatch t . MatchSum $ mapFromList
-      [ (0, ([], TCon Ty.optionalRef 0 []))
+      [ (0, ([], none))
       , (1, ([BX,UN], TAbss [y,c0]
                     . TLetD u BX (TCon Ty.unitRef 0 [])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
                     . TLetD cp BX (TCon Ty.pairRef 0 [c,u])
                     . TLetD p BX (TCon Ty.pairRef 0 [y,cp])
-                    $ TCon Ty.optionalRef 1 [p]))
+                    $ some p))
       ]
 
 appends, conss, snocs :: Var v => SuperNormal v
@@ -484,8 +494,8 @@ ats = binop0 3 $ \[x0,y,x,t,r]
    -> unbox x0 Ty.natRef x
     . TLetD t UN (TPrm IDXS [x,y])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
-    , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+    [ (0, ([], none))
+    , (1, ([BX], TAbs r $ some r))
     ]
 emptys = Lambda [] $ TPrm BLDS []
 
@@ -493,14 +503,14 @@ viewls, viewrs :: Var v => SuperNormal v
 viewls = unop0 3 $ \[s,u,h,t]
       -> TLetD u UN (TPrm VWLS [s])
        . TMatch u . MatchSum $ mapFromList
-       [ (0, ([], TCon Ty.seqViewRef 0 []))
-       , (1, ([BX,BX], TAbss [h,t] $ TCon Ty.seqViewRef 1 [h,t]))
+       [ (0, ([], seqViewEmpty))
+       , (1, ([BX,BX], TAbss [h,t] $ seqViewElem h t))
        ]
 viewrs = unop0 3 $ \[s,u,i,l]
       -> TLetD u UN (TPrm VWRS [s])
        . TMatch u . MatchSum $ mapFromList
-       [ (0, ([], TCon Ty.seqViewRef 0 []))
-       , (1, ([BX,BX], TAbss [i,l] $ TCon Ty.seqViewRef 1 [i,l]))
+       [ (0, ([], seqViewEmpty))
+       , (1, ([BX,BX], TAbss [i,l] $ seqViewElem i l))
        ]
 
 eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
@@ -551,10 +561,10 @@ atb = binop0 4 $ \[n0,b,n,t,r0,r]
    -> unbox n0 Ty.natRef n
     . TLetD t UN (TPrm IDXB [n,b])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs r0
                . TLetD r BX (TCon Ty.natRef 0 [r0])
-               $ TCon Ty.optionalRef 1 [r]))
+               $ some r))
     ]
 
 sizeb = unop0 1 $ \[b,n]
@@ -578,26 +588,26 @@ t2i, t2n, t2f :: Var v => SuperNormal v
 t2i = unop0 3 $ \[x,t,n0,n]
    -> TLetD t UN (TPrm TTOI [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs n0
                . TLetD n BX (TCon Ty.intRef 0 [n0])
-               $ TCon Ty.optionalRef 1 [n]))
+               $ some n))
     ]
 t2n = unop0 3 $ \[x,t,n0,n]
    -> TLetD t UN (TPrm TTON [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs n0
                . TLetD n BX (TCon Ty.natRef 0 [n0])
-               $ TCon Ty.optionalRef 1 [n]))
+               $ some n))
     ]
 t2f = unop0 3 $ \[x,t,f0,f]
    -> TLetD t UN (TPrm TTOF [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs f0
                . TLetD f BX (TCon Ty.floatRef 0 [f0])
-               $ TCon Ty.optionalRef 1 [f]))
+               $ some f))
     ]
 
 equ :: Var v => SuperNormal v
@@ -734,8 +744,8 @@ code'lookup
   = unop0 2 $ \[link,t,r]
  -> TLetD t UN (TPrm LKUP [link])
   . TMatch t . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+  [ (0, ([], none))
+  , (1, ([BX], TAbs r $ some r))
   ]
 
 code'validate :: Var v => SuperNormal v
@@ -747,9 +757,9 @@ code'validate
   [ (1, ([BX, BX, BX],)
       . TAbss [ref, msg, extra]
       . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
-      $ TCon Ty.optionalRef 1 [fail])
+      $ some fail)
   , (0, ([],)
-      $ TCon Ty.optionalRef 0 [])
+      $ none)
   ]
 
 term'link'to'text :: Var v => SuperNormal v
@@ -761,8 +771,8 @@ value'load
   = unop0 2 $ \[vlu,t,r]
  -> TLetD t UN (TPrm LOAD [vlu])
   . TMatch t . MatchSum $ mapFromList
-  [ (0, ([BX], TAbs r $ TCon Ty.eitherRef 0 [r]))
-  , (1, ([BX], TAbs r $ TCon Ty.eitherRef 1 [r]))
+  [ (0, ([BX], TAbs r $ left r))
+  , (1, ([BX], TAbs r $ right r))
   ]
 
 value'create :: Var v => SuperNormal v
@@ -792,7 +802,7 @@ standard'handle instr
 any'construct :: Var v => SuperNormal v
 any'construct
   = unop0 0 $ \[v]
- -> TCon Ty.anyRef 0 [v] 
+ -> TCon Ty.anyRef 0 [v]
 
 any'extract :: Var v => SuperNormal v
 any'extract
@@ -925,9 +935,9 @@ inMaybeBx arg1 arg2 arg3 mb result cont instr =
   . TAbss [arg1, arg2]
   . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
   $ mapFromList
-    [ (0, ([], TLetD mb UN (TLit $ I 0)
+    [ (toEnum Ty.noneId, ([], TLetD mb UN (TLit $ I 0)
                $ TLetD result UN (TFOp instr [mb, arg2]) cont))
-    , (1, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    , (toEnum Ty.someId, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
     ]
 
 -- a -> b -> ...
@@ -967,20 +977,20 @@ inBxIomr arg1 arg2 fm result cont instr
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs maybe $ TCon Ty.optionalRef 1 [maybe]))
+  [ (0, ([], none))
+  , (1, ([BX], TAbs maybe $ some maybe))
   ]
 
 outMaybeTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
 outMaybeTup a b n u bp p result =
   TMatch result . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
+  [ (0, ([], none))
   , (1, ([UN,BX], TAbss [a,b]
                 . TLetD u BX (TCon Ty.unitRef 0 [])
                 . TLetD bp BX (TCon Ty.pairRef 0 [b,u])
                 . TLetD n BX (TCon Ty.natRef 0 [a])
                 . TLetD p BX (TCon Ty.pairRef 0 [n,bp])
-                $ TCon Ty.optionalRef 1 [p]))
+                $ some p))
   ]
 
 outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
@@ -989,8 +999,8 @@ outIoFail stack1 stack2 fail result =
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
-  , (1, ([BX], TAbs stack1 $ TCon eitherReference 1 [stack1]))
+        $ left fail)
+  , (1, ([BX], TAbs stack1 $ right stack1))
   ]
 
 outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -999,11 +1009,11 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        $ left fail)
   , (1, ([UN],)
         . TAbs stack3
         . TLetD nat BX (TCon Ty.natRef 0 [stack3])
-        $ TCon eitherReference 1 [nat])
+        $ right nat)
   ]
 
 outIoFailBox :: forall v. Var v => v -> v -> v -> v -> ANormal v
@@ -1012,10 +1022,10 @@ outIoFailBox stack1 stack2 fail result =
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        $ left fail)
   , (1, ([BX],)
         . TAbs stack1
-        $ TCon eitherReference 1 [stack1])
+        $ right stack1)
   ]
 
 outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -1025,11 +1035,11 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        $ left fail)
   , (1, ([BX],)
         . TAbss [stack3]
         . TLetD unit BX (TCon Ty.unitRef 0 [])
-        $ TCon eitherReference 1 [unit])
+        $ right unit)
   ]
 
 outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -1039,11 +1049,11 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
         . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        $ left fail)
   , (1, ([UN],)
         . TAbs stack3
         . TLet (Indirect 1) bool BX (boolift stack3)
-        $ TCon eitherReference 1 [bool])
+        $ right bool)
   ]
 
 outIoFailG
@@ -1055,9 +1065,9 @@ outIoFailG stack1 stack2 fail result output k
   [ (0, ([BX, BX],)
       . TAbss [stack1, stack2]
       . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-      $ TCon eitherReference 0 [fail])
+      $ left fail)
   , (1, k $ \t -> TLetD output BX t
-                $ TCon eitherReference 1 [output])
+                $ right output)
   ]
 
 -- Input / Output glue
@@ -1196,8 +1206,8 @@ boxToEFMBox
   = inBx arg result
   . outIoFailG stack1 stack2 fail result output $ \k ->
   ([UN], TAbs stack3 . TMatch stack3 . MatchSum $ mapFromList
-         [ (0, ([], k $ TCon Ty.optionalRef 0 []))
-         , (1, ([BX], TAbs stack4 . k $ TCon Ty.optionalRef 1 [stack4]))
+         [ (0, ([], k $ none))
+         , (1, ([BX], TAbs stack4 . k $ some stack4))
          ])
   where
   (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh8
@@ -1282,10 +1292,10 @@ natToEFUnit
   [ (0, ([BX, BX],)
       . TAbss [stack1, stack2]
       . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
-      $ TCon eitherReference 0 [fail])
+      $ left fail)
   , (1, ([],)
       . TLetD unit BX (TCon Ty.unitRef 0 [])
-      $ TCon eitherReference 1 [unit])
+      $ right unit)
 
   ]
   where
@@ -1299,8 +1309,8 @@ boxToEBoxBox instr
   . TLetD e UN (TFOp instr [b])
   . TMatch e . MatchSum
   $ mapFromList
-  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
-  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  [ (0, ([BX], TAbs ev $ left ev))
+  , (1, ([BX], TAbs ev $ right ev))
   ]
   where
   (e,b,ev) = fresh3
@@ -1570,10 +1580,10 @@ declareForeigns = do
   declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
 
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
-    $ mkForeignIOF $ \() -> getPOSIXTime 
+    $ mkForeignIOF $ \() -> getPOSIXTime
 
   declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
-    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime 
+    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
