@@ -48,6 +48,8 @@ module Unison.Util.Pretty (
    hang,
    hangUngrouped',
    hangUngrouped,
+   softHang',
+   softHang,
    indent,
    indentAfterNewline,
    indentN,
@@ -668,6 +670,20 @@ string = fromString
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
 
+softHang :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+softHang from = softHang' from "  "
+
+softHang' :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+softHang' from by p = group $
+  (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+
 hang'
   :: (LL.ListLike s Char, IsString s)
   => Pretty s
@@ -676,7 +692,7 @@ hang'
   -> Pretty s
 hang' from by p = group $ if isMultiLine p
   then from <> "\n" <> group (indent by p)
-  else (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+  else softHang' from by p
 
 hangUngrouped'
   :: (LL.ListLike s Char, IsString s)
