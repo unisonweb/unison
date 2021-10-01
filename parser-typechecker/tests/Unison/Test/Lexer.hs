@@ -64,10 +64,10 @@ test =
       , t "woot;(woot)" [simpleWordyId "woot", Semi False, Open "(", simpleWordyId "woot", Close]
       , t
         "[+1,+1]"
-        [Reserved "[", Numeric "+1", Reserved ",", Numeric "+1", Reserved "]"]
+        [Open "[", Numeric "+1", Reserved ",", Numeric "+1", Close ]
       , t
         "[ +1 , +1 ]"
-        [Reserved "[", Numeric "+1", Reserved ",", Numeric "+1", Reserved "]"]
+        [Open "[", Numeric "+1", Reserved ",", Numeric "+1", Close ]
       , t "-- a comment 1.0" []
       , t "\"woot\" -- a comment 1.0" [Textual "woot"]
       , t "0:Int" [Numeric "0", Reserved ":", simpleWordyId "Int"]

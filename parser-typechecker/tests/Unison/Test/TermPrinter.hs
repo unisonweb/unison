@@ -344,13 +344,13 @@ test = scope "termprinter" $ tests
   , tc "!f a"
   , tcDiff "f () a ()" "!(!f a)"
   , tcDiff "f a b ()" "!(f a b)"
-  , tcDiff "!f ()" "!(!f)"
-  , tc "!(!foo)"
+  , tcDiff "!f ()" "!!f"
+  , tcDiff "!(!foo)" "!!foo"
   , tc "'bar"
   , tc "'(bar a b)"
-  , tc "'('bar)"
-  , tc "!('bar)"
-  , tc "'(!foo)"
+  , tcDiff "'('bar)" "''bar"
+  , tcDiff "!('bar)" "!'bar"
+  , tcDiff "'(!foo)" "'!foo"
   , tc "x -> '(y -> 'z)"
   , tc "'(x -> '(y -> z))"
   , tc "(\"a\", 2)"
@@ -370,7 +370,7 @@ test = scope "termprinter" $ tests
   , pending $ tc "match x with [a] -> a"     -- ditto
   , pending $ tc "match x with [] -> a"      -- ditto
   , tcDiff "match x with Optional.Some (Optional.Some _) -> ()"
-           "let\n  Optional.Some (Optional.Some _) = x\n  ()"
+           "let\n  (Optional.Some (Optional.Some _)) = x\n  ()"
   -- need an actual effect constructor to test the following
   , pending $ tc "match x with { SomeRequest (Optional.Some _) -> k } -> ()"
   , tcBinding 50 "foo" (Just "Int") "3" "foo : Int\n\

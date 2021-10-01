@@ -56,7 +56,7 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
   $ Map.lookup (Var.nameds s) typecheckedFileTerms
 
 codeLookup :: CodeLookup Symbol Identity Ann
-codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
 typeNamedId :: String -> R.Id
 typeNamedId s =
@@ -153,6 +153,7 @@ pattern Doc2Table ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2TableId -
 pattern Doc2Folded isFolded d d2 <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2FoldedId -> True)) [Term.Boolean' isFolded, d, d2]
 pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ParagraphId -> True)) (Term.List' (toList -> ds))
 pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BulletedListId -> True)) (Term.List' (toList -> ds))
+pattern Doc2NumberedList n ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NumberedListId -> True)) [Term.Nat' n, Term.List' (toList -> ds)]
 pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2SectionId -> True)) [title, Term.List' (toList -> ds)]
 pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NamedLinkId -> True)) [name, dest]
 pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2ImageId -> True)) [alt, link, caption]

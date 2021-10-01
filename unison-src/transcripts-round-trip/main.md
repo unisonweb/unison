@@ -55,6 +55,160 @@ Without the above stanza, the `edit` will send the definition to the most recent
 
 No reason you can't load a bunch of definitions from a single `.u` file in one go, the only thing that's annoying is you'll have to `find` and then `edit 1-11` in the transcript to load all the definitions into the file.
 
-## Example 1
+## Destructuring binds
 
-Add tests here
+Regression test for https://github.com/unisonweb/unison/issues/2337
+
+```unison:hide
+unique type Blah = Blah Boolean Boolean
+
+f : Blah -> Boolean
+f x = let
+  (Blah.Blah a b) = x
+  a
+```
+
+```ucm
+.> add
+.> edit Blah f
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Parens around infix patterns
+
+Regression test for https://github.com/unisonweb/unison/issues/2224
+
+```unison:hide
+f : [a] -> a
+f xs = match xs with
+  x +: (x' +: rest) -> x
+
+g : [a] -> a
+g xs = match xs with
+  (rest :+ x') :+ x -> x
+
+h : [[a]] -> a
+h xs = match xs with
+  (rest :+ (rest' :+ x)) -> x
+```
+
+```ucm
+.> add
+.> edit f g
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Type application inserts necessary parens
+
+Regression test for https://github.com/unisonweb/unison/issues/2392
+
+```unison:hide
+unique ability Zonk where zonk : Nat
+unique type Foo x y =
+
+foo : Nat -> Foo ('{Zonk} a) ('{Zonk} b) -> Nat
+foo n _ = n
+```
+
+```ucm
+.> add
+.> edit foo Zonk Foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Long lines with repeated operators
+
+Regression test for https://github.com/unisonweb/unison/issues/1035
+
+```unison:hide
+foo : Text
+foo =
+  "aaaaaaaaaaaaaaaaaaaaaa" ++ "bbbbbbbbbbbbbbbbbbbbbb" ++ "cccccccccccccccccccccc" ++ "dddddddddddddddddddddd"
+```
+
+```ucm
+.> add
+.> edit foo
+.> reflog
+.> reset-root 2
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Emphasis in docs inserts the right number of underscores
+
+Regression test for https://github.com/unisonweb/unison/issues/2408
+
+```unison:hide
+myDoc = {{ **my text** __my text__ **MY_TEXT** ___MY__TEXT___ ~~MY~TEXT~~ **MY*TEXT** }}
+```
+
+```ucm
+.> add
+.> edit myDoc
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Parenthesized let-block with operator
+
+Regression test for https://github.com/unisonweb/unison/issues/1778
+
+```unison:hide
+
+structural ability base.Abort where
+  abort : a
+
+(|>) : a -> (a ->{e} b) -> {e} b
+a |> f = f a
+
+handler : a -> Request {Abort} a -> a
+handler default = cases
+  { a }        -> a
+  {abort -> _} -> default
+
+Abort.toOptional : '{g, Abort} a -> '{g} Optional a
+Abort.toOptional thunk = '(toOptional! thunk)
+
+Abort.toOptional! : '{g, Abort} a ->{g} (Optional a)
+Abort.toOptional! thunk = toDefault! None '(Some !thunk)
+
+Abort.toDefault! : a -> '{g, Abort} a ->{g} a
+Abort.toDefault! default thunk =
+  h x = Abort.toDefault! (handler default x) thunk
+  handle (thunk ()) with h
+
+x = '(let
+  abort
+  0) |> Abort.toOptional
+```
+
+```ucm
+.> add
+.> edit x base.Abort |> handler Abort.toOptional Abort.toOptional! Abort.toDefault!
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```

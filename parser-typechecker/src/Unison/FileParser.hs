@@ -230,7 +230,7 @@ modifier = do
     unique = do
       tok <- openBlockWith "unique"
       uid <- do
-        o <- optional (reserved "[" *> wordyIdString <* reserved "]")
+        o <- optional (openBlockWith "[" *> wordyIdString <* closeBlock)
         case o of
           Nothing -> uniqueName 32
           Just uid -> pure (fromString . L.payload $ uid)

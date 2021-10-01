@@ -81,6 +81,7 @@ library
       Unison.Codebase.TranscriptParser
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
       Unison.CommandLine
@@ -89,9 +90,28 @@ library
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
+      Unison.Hashing.V1.Convert
+      Unison.Hashing.V1.DataDeclaration
+      Unison.Hashing.V1.LabeledDependency
+      Unison.Hashing.V1.Pattern
+      Unison.Hashing.V1.Reference
+      Unison.Hashing.V1.Reference.Util
+      Unison.Hashing.V1.Referent
+      Unison.Hashing.V1.Term
+      Unison.Hashing.V1.Type
+      Unison.Hashing.V2.Convert
+      Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.LabeledDependency
+      Unison.Hashing.V2.Pattern
+      Unison.Hashing.V2.Reference
+      Unison.Hashing.V2.Reference.Util
+      Unison.Hashing.V2.Referent
+      Unison.Hashing.V2.Term
+      Unison.Hashing.V2.Type
       Unison.Lexer
       Unison.Lexer.Pos
       Unison.NamePrinter
@@ -479,6 +499,7 @@ executable unison
     , unison-codebase-sync
     , unison-core1
     , unison-parser-typechecker
+    , unliftio
     , uri-encode
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

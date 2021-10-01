@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Unison.Parser where
 
@@ -53,6 +54,7 @@ import qualified Unison.Hashable as Hashable
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import Unison.Parser.Ann (Ann(..))
+import Text.Megaparsec.Error (ShowErrorComponent)
 
 debug :: Bool
 debug = False
@@ -124,6 +126,9 @@ data Error v
   | PatternArityMismatch Int Int Ann -- PatternArityMismatch expectedArity actualArity location
   | FloatPattern Ann
   deriving (Show, Eq, Ord)
+
+instance (Ord v, Show v) => ShowErrorComponent (Error v) where
+  showErrorComponent e = show e
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)
@@ -406,24 +411,22 @@ string = queryToken getString
         getString _             = Nothing
 
 tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
-tupleOrParenthesized p unit pair = do
-    open <- openBlockWith "("
-    es <- sepBy (reserved "," *> optional semi) p
-    close <- optional semi *> closeBlock
-    pure $ go es open close
-  where
-    go [t] _ _ = t
-    go as s e  = foldr pair (unit (ann s <> ann e)) as
+tupleOrParenthesized p unit pair = seq' "(" go p
+ where
+  go _ [t] = t
+  go a xs  = foldr pair (unit a) xs
 
 seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
-seq f p = f' <$> leading <*> elements <*> trailing
-  where
-    f' open elems close = f (ann open <> ann close) elems
-    redundant = P.skipMany (P.eitherP (reserved ",") semi)
-    leading = reserved "[" <* redundant
-    trailing = redundant *> reserved "]"
-    sep = P.try $ optional semi *> reserved "," <* redundant
-    elements = sepEndBy sep p
+seq = seq' "["
+
+seq' :: Ord v => String -> (Ann -> [a] -> a) -> P v a -> P v a
+seq' openStr f p = do
+  open  <- openBlockWith openStr <* redundant
+  es    <- sepEndBy (P.try $ optional semi *> reserved "," <* redundant) p
+  close <- redundant *> closeBlock
+  pure $ go open es close
+  where go open elems close = f (ann open <> ann close) elems
+        redundant = P.skipMany (P.eitherP (reserved ",") semi)
 
 chainr1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where

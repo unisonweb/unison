@@ -21,6 +21,7 @@ import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import           Unison.Codebase.SyncMode       ( SyncMode )
+import           Unison.Codebase.Verbosity 
 import           Unison.Name                    ( Name )
 import           Unison.NameSegment             ( NameSegment )
 
@@ -52,7 +53,7 @@ data Input
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity 
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'

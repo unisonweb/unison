@@ -15,7 +15,7 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
-import Data.Foldable (toList)
+import Data.Foldable (toList, traverse_)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -33,14 +33,14 @@ import qualified Data.Primitive.PrimArray as PA
 
 import Text.Read (readMaybe)
 
-import Unison.Builtin.Decls (exceptionRef)
+import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
 import Unison.Reference (Reference(Builtin), toShortHash)
 import Unison.Referent (pattern Ref)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF
-  as ANF (Mem(..), SuperGroup, valueLinks, groupLinks)
+  as ANF (Mem(..), CompileExn(..), SuperGroup, valueLinks, groupLinks)
 import qualified Unison.Runtime.ANF as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
@@ -52,6 +52,7 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Rf
 
 import qualified Unison.Util.Bytes as By
+import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.EnumContainers as EC
 
 type Tag = Word64
@@ -219,6 +220,23 @@ exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
   pokeS bstk
     (Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
   pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 CVLD i) = do
+  arg <- peekOffS bstk i
+  news <- decodeCacheArgument arg
+  codeValidate news env >>= \case
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (denv, ustk, bstk, k)
+    Just (Failure ref msg clo) -> do
+      ustk <- bump ustk
+      bstk <- bumpn bstk 3
+      poke ustk 1
+      poke bstk (Foreign $ Wrap Rf.typeLinkRef ref)
+      pokeOffBi bstk 1 msg
+      pokeOff bstk 2 clo
+      pure (denv, ustk, bstk, k)
+
 exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
   clink <- peekOff bstk i
   let Ref link = unwrapForeign $ marshalToForeign clink
@@ -1187,6 +1205,7 @@ bprim1 !ustk !bstk FLTB i = do
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk CVLD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
@@ -1481,6 +1500,30 @@ addRefs vfrsh vfrom vto rs = do
   modifyTVar vto (nto <>)
   pure from
 
+codeValidate
+  :: [(Reference, SuperGroup Symbol)]
+  -> CCache
+  -> IO (Maybe (Failure Closure))
+codeValidate tml cc = do
+  rty0 <- readTVarIO (refTy cc)
+  fty <- readTVarIO (freshTy cc)
+  let f b r | b, M.notMember r rty0 = S.singleton r
+            | otherwise = mempty
+      ntys0 = (foldMap.foldMap) (groupLinks f) tml
+      ntys = M.fromList $ zip (S.toList ntys0) [fty..]
+      rty = ntys <> rty0
+  ftm <- readTVarIO (freshTm cc)
+  rtm0 <- readTVarIO (refTm cc)
+  let (rs, gs) = unzip tml
+      rtm = rtm0 `M.withoutKeys` S.fromList rs
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate (n, g) = evaluate $ emitCombs rns n g
+  (Nothing <$ traverse_ combinate (zip [ftm..] gs))
+    `catch` \(CE cs perr) -> let
+      msg = Tx.pack $ toPlainUnbroken perr
+      extra = Foreign . Wrap Rf.textRef . Tx.pack $ show cs in
+      pure . Just $ Failure ioFailureRef msg extra
+
 cacheAdd0
   :: S.Set Reference
   -> [(Reference, SuperGroup Symbol)]
@@ -1491,7 +1534,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
       (rs,gs) = unzip $ M.toList new
-  writeTVar (intermed cc) (have <> new)
+  int <- writeTVar (intermed cc) (have <> new)
   rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
@@ -1500,7 +1543,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
       combinate n g = (n, emitCombs rns n g)
   nrs <- updateMap (mapFromList $ zip [ntm..] rs) (combRefs cc)
   ncs <- updateMap (mapFromList $ zipWith combinate [ntm..] gs) (combs cc)
-  pure $ rtm `seq` nrs `seq` ncs `seq` ()
+  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` ()
   where
   toAdd = M.fromList tml
 

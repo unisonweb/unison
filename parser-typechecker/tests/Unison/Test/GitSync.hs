@@ -132,7 +132,7 @@ test = scope "gitsync22" . tests $
     |])
     (\repo -> [i|
         ```ucm
-        .> pull ${repo}
+        .> pull.silent ${repo}
         .> find
         ```
         ```unison
@@ -168,7 +168,7 @@ test = scope "gitsync22" . tests $
     |])
     (\repo -> [i|
         ```ucm
-        .> pull ${repo}
+        .> pull.silent ${repo}
         .> view.patch patch
         ```
     |])

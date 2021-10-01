@@ -149,6 +149,8 @@ import qualified Unison.Util.Relation as Relation
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
+import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 type F m i v = Free (Command m i v)
 
@@ -430,7 +432,7 @@ loop = do
           MergeIOBuiltinsI -> "builtins.mergeio"
           MakeStandaloneI out nm ->
             "compile.output " <> Text.pack out <> " " <> HQ.toText nm
-          PullRemoteBranchI orepo dest _syncMode ->
+          PullRemoteBranchI orepo dest _syncMode _ ->
             (Text.pack . InputPattern.patternName
               $ InputPatterns.patternFromInput input)
               <> " "
@@ -604,7 +606,7 @@ loop = do
                     Just ty -> do
                       let steps =
                             bimap (Path.unabsolute . resolveToAbsolute)
-                                  (const . step $ Type.toReference ty)
+                                  (const . step $ Hashing.typeToReference ty)
                               <$> srcs
                       stepManyAtNoSync steps
                  where
@@ -923,7 +925,7 @@ loop = do
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
-      UiI -> eval UI 
+      UiI -> eval UI
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
@@ -1432,7 +1434,7 @@ loop = do
                   where n = Name.fromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
-                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+                hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
               termEdits :: Map Name (Reference, Reference)
               termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr)) where
                 g v = case ( toList (Names.refTermsNamed slurpCheckNames0 n)
@@ -1705,13 +1707,14 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI mayRepo path syncMode -> unlessError do
+      PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
         ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
         lift $ unlessGitError do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
+          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path 
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs 
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -1778,7 +1781,7 @@ loop = do
           datas, effects, terms :: [(Name, Reference.Id)]
           datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
           effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
-          terms = [ (Name.fromVar v, r) | (v, (r, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          terms = [ (Name.fromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
@@ -1947,7 +1950,7 @@ getLinks input src mdTypeStr = ExceptT $ do
     Right Nothing -> go Nothing
     Right (Just mdTypeStr) -> parseType input mdTypeStr >>= \case
       Left e -> pure $ Left e
-      Right typ -> go . Just . Set.singleton $ Type.toReference typ
+      Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
 getLinks' :: (Var v, Monad m)
          => Path.HQSplit'         -- definition to print metadata of
@@ -2237,7 +2240,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 ->
+    for_ dest0 $ \dest0 -> 
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
     pure b

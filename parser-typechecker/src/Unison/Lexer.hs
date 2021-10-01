@@ -90,6 +90,7 @@ data Err
   | InvalidEscapeCharacter Char
   | LayoutError
   | CloseWithoutMatchingOpen String String -- open, close
+  | UnexpectedDelimiter String
   | Opaque String -- Catch-all failure type, generally these will be
                   -- automatically generated errors coming from megaparsec
                   -- Try to avoid this for common errors a user is likely to see.
@@ -214,7 +215,8 @@ token'' tok p = do
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
-    topHasClosePair ((name,_):_) = name `elem` ["{", "(", "handle", "match", "if", "then"]
+    topHasClosePair ((name,_):_) =
+      name `elem` ["{", "(", "[", "handle", "match", "if", "then"]
 
 lexer0' :: String -> String -> [Token Lexeme]
 lexer0' scope rem =
@@ -340,22 +342,24 @@ lexemes' eof = P.optional space >> do
       isPrefixOf "}}" word ||
       all (== '#') word
 
-    wordy ok = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
-      let end = P.lookAhead $ void docClose
-                          <|> void docOpen
-                          <|> void (CP.satisfy isSpace)
-                          <|> void (CP.satisfy (not . ok))
-      word <- P.someTill (CP.satisfy (\ch -> not (isSpace ch) && ok ch)) end
-      guard (not $ reserved word)
+    wordy closing = wrap "syntax.docWord" . tok . fmap Textual . P.try $ do
+      let end =
+            P.lookAhead
+              $   void docClose
+              <|> void docOpen
+              <|> void (CP.satisfy isSpace)
+              <|> void closing
+      word <- P.manyTill (CP.satisfy (\ch -> not (isSpace ch))) end
+      guard (not $ reserved word || null word)
       pure word
 
-    leafy ok = groupy ok gs
-          where
-          gs = link <|> externalLink <|> exampleInline <|> expr
-           <|> boldOrItalicOrStrikethrough ok <|> verbatim
-           <|> atDoc <|> wordy ok
+    leafy closing = groupy closing gs
+      where
+      gs = link <|> externalLink <|> exampleInline <|> expr
+       <|> boldOrItalicOrStrikethrough closing <|> verbatim
+       <|> atDoc <|> wordy closing
 
-    leaf = leafy (const True)
+    leaf = leafy mzero
 
     atDoc = src <|> evalInline <|> signature <|> signatureInline
       where
@@ -401,9 +405,9 @@ lexemes' eof = P.optional space >> do
     signatureLink = wrap "syntax.docEmbedSignatureLink" $
       tok (symbolyId <|> wordyId) <* CP.space
 
-    groupy ok p = do
+    groupy closing p = do
       (start,p,stop) <- positioned p
-      after <- P.optional . P.try $ leafy ok
+      after <- P.optional . P.try $ leafy closing
       pure $ case after of
         Nothing -> p
         Just after ->
@@ -484,28 +488,30 @@ lexemes' eof = P.optional space >> do
           verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
           pure (name <> verbatim)
 
-    boldOrItalicOrStrikethrough ok = do
-      let start = some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some (CP.satisfy (== '~'))
-          name s = if take 1 s == "~" then "syntax.docStrikethrough"
-                   else if length s > 1 then "syntax.docBold"
-                   else "syntax.docItalic"
-      (end,ch) <- P.try $ do
-        end@(ch:_) <- start
+    boldOrItalicOrStrikethrough closing = do
+      let start =
+            some (CP.satisfy (== '*')) <|> some (CP.satisfy (== '_')) <|> some
+              (CP.satisfy (== '~'))
+          name s = if take 1 s == "~"
+            then "syntax.docStrikethrough"
+            else if take 1 s == "*" then "syntax.docBold" else "syntax.docItalic"
+      end <- P.try $ do
+        end <- start
         P.lookAhead (CP.satisfy (not . isSpace))
-        pure (end,ch)
-      wrap (name end) . wrap "syntax.docParagraph" $
-        join <$> P.someTill (leafy (\c -> ok c && c /= ch) <* nonNewlineSpaces)
-                            (lit end)
+        pure end
+      wrap (name end) . wrap "syntax.docParagraph" $ join <$> P.someTill
+        (leafy (closing <|> (void $ lit end)) <* nonNewlineSpaces)
+        (lit end)
 
     externalLink =
       P.label "hyperlink (example: [link name](https://destination.com))" $
       wrap "syntax.docNamedLink" $ do
         _ <- lit "["
-        p <- leafies (/= ']')
+        p <- leafies (void $ char ']')
         _ <- lit "]"
         _ <- lit "("
         target <- wrap "syntax.docGroup" . wrap "syntax.docJoin" $
-                  link <|> fmap join (P.some (expr <|> wordy (/= ')')))
+                  link <|> fmap join (P.some (expr <|> wordy (char ')')))
         _ <- lit ")"
         pure (p <> target)
 
@@ -771,13 +777,29 @@ lexemes' eof = P.optional space >> do
 
   reserved :: P [Token Lexeme]
   reserved =
-    token' (\ts _ _ -> ts) $
-    braces <|> parens <|> delim <|> delayOrForce <|> keywords <|> layoutKeywords
-    where
-    keywords = symbolyKw ":" <|> symbolyKw "@" <|> symbolyKw "||" <|> symbolyKw "|" <|> symbolyKw "&&"
-           <|> wordyKw "true" <|> wordyKw "false"
-           <|> wordyKw "use" <|> wordyKw "forall" <|> wordyKw "∀"
-           <|> wordyKw "termLink" <|> wordyKw "typeLink"
+    token' (\ts _ _ -> ts)
+      $   braces
+      <|> parens
+      <|> brackets
+      <|> commaSeparator
+      <|> delim
+      <|> delayOrForce
+      <|> keywords
+      <|> layoutKeywords
+   where
+    keywords =
+      symbolyKw ":"
+        <|> symbolyKw "@"
+        <|> symbolyKw "||"
+        <|> symbolyKw "|"
+        <|> symbolyKw "&&"
+        <|> wordyKw "true"
+        <|> wordyKw "false"
+        <|> wordyKw "use"
+        <|> wordyKw "forall"
+        <|> wordyKw "∀"
+        <|> wordyKw "termLink"
+        <|> wordyKw "typeLink"
 
     wordyKw s = separated wordySep (kw s)
     symbolyKw s = separated (not . symbolyIdChar) (kw s)
@@ -809,12 +831,12 @@ lexemes' eof = P.optional space >> do
               let opens = [Token (Open "with") pos1 pos2]
               pure $ replicate n (Token Close pos1 pos2) ++ opens
 
-        -- In `structural/unique type` and `structural/unique ability`, 
+        -- In `structural/unique type` and `structural/unique ability`,
         -- only the `structural` or `unique` opens a layout block,
         -- and `ability` and `type` are just keywords.
         openTypeKw1 t = do
           b <- S.gets (topBlockName . layout)
-          case b of 
+          case b of
             Just mod | Set.member mod typeModifiers -> wordyKw t
             _                                       -> openKw1 wordySep t
 
@@ -840,7 +862,7 @@ lexemes' eof = P.optional space >> do
           env <- S.get
           -- -> introduces a layout block if we're inside a `match with` or `cases`
           case topBlockName (layout env) of
-            Just match | match == "match-with" || match == "cases" -> do
+            Just match | match `elem` matchWithBlocks -> do
               S.put (env { opening = Just "->" })
               pure [Token (Open "->") start end]
             _ -> pure [Token (Reserved "->") start end]
@@ -854,7 +876,20 @@ lexemes' eof = P.optional space >> do
         inLayout <- S.gets inLayout
         when (not inLayout) $ void $ P.lookAhead (CP.satisfy (/= '}'))
         pure l
+    matchWithBlocks = ["match-with", "cases"]
     parens = open "(" <|> close ["("] (lit ")")
+    brackets = open "[" <|> close ["["] (lit "]")
+    -- `allowCommaToClose` determines if a comma should close inner blocks.
+    -- Currently there is a set of blocks where `,` is not treated specially
+    -- and it just emits a Reserved ",". There are currently only three:
+    -- `cases`, `match-with`, and `{`
+    allowCommaToClose match = not $ match `elem` ("{" : matchWithBlocks)
+    commaSeparator = do
+      env <- S.get
+      case topBlockName (layout env) of
+        Just match | allowCommaToClose match ->
+          blockDelimiter ["[", "("] (lit ",")
+        _ -> fail "this comma is a pattern separator"
 
     delim = P.try $ do
       ch <- CP.satisfy (\ch -> ch /= ';' && Set.member ch delimiters)
@@ -881,6 +916,18 @@ lexemes' eof = P.optional space >> do
       pure [Token (Open s) pos1 pos2]
 
     close = close' Nothing
+
+    blockDelimiter :: [String] -> P String -> P [Token Lexeme]
+    blockDelimiter open closeP = do
+      (pos1, close, pos2) <- positioned $ closeP
+      env                 <- S.get
+      case findClose open (layout env) of
+        Nothing -> err pos1 (UnexpectedDelimiter (quote close))
+          where quote s = "'" <> s <> "'"
+        Just (_, n) -> do
+          S.put (env { layout = drop (n-1) (layout env) })
+          let delims = [Token (Reserved close) pos1 pos2]
+          pure $ replicate (n-1) (Token Close pos1 pos2) ++ delims
 
     close' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
     close' reopenBlockname open closeP = do
@@ -1086,7 +1133,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "with", 
+  "handle", "with",
   "where", "use",
   "true", "false",
   "alias", "typeLink", "termLink",

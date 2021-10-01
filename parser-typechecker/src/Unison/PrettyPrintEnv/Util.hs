@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.PrettyPrintEnv.Util (declarationPPE) where
+module Unison.PrettyPrintEnv.Util (declarationPPE, declarationPPEDecl) where
 
 import qualified Data.Set as Set
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
@@ -29,3 +29,8 @@ declarationPPE ppe rd = PrettyPrintEnv tm ty
       if Set.member r comp
         then types (unsuffixifiedPPE ppe) r
         else types (suffixifiedPPE ppe) r
+
+-- The suffixed names uses the fully-qualified name for `r`
+declarationPPEDecl ::  PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
+declarationPPEDecl ppe r = 
+   ppe { suffixifiedPPE = declarationPPE ppe r }

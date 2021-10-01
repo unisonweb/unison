@@ -9,45 +9,42 @@ module Unison.Codebase.Editor.HandleCommand where
 
 import Unison.Prelude
 
-import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.Command
-
-import qualified Unison.Builtin                as B
-
-import qualified Unison.Server.Backend         as Backend
-import qualified Crypto.Random                 as Random
-import           Control.Monad.Except           ( runExceptT )
-import qualified Control.Monad.State           as State
-import qualified Data.Configurator             as Config
-import           Data.Configurator.Types        ( Config )
-import qualified Data.Map                      as Map
-import qualified Data.Text                     as Text
-import           Unison.Codebase                ( Codebase )
-import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase.Branch         ( Branch )
-import qualified Unison.Codebase.Branch        as Branch
+import Control.Monad.Except (runExceptT)
+import qualified Control.Monad.State as State
+import qualified Crypto.Random as Random
+import qualified Data.Configurator as Config
+import Data.Configurator.Types (Config)
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Unison.Builtin as B
+import Unison.Codebase (Codebase)
+import qualified Unison.Codebase as Codebase
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
-import Unison.Parser.Ann (Ann)
-import qualified Unison.Parser                 as Parser
-import qualified Unison.Parsers                as Parsers
-import qualified Unison.Reference              as Reference
-import qualified Unison.Codebase.Runtime       as Runtime
-import           Unison.Codebase.Runtime       (Runtime)
-import qualified Unison.Server.CodebaseServer  as Server
-import qualified Unison.Term                   as Term
-import qualified Unison.UnisonFile             as UF
-import           Unison.Util.Free               ( Free )
-import qualified Unison.Util.Free              as Free
-import           Unison.Var                     ( Var )
-import qualified Unison.Result as Result
-import           Unison.FileParsers             ( parseAndSynthesizeFile
-                                                , synthesizeFile'
-                                                )
-import qualified Unison.PrettyPrintEnv         as PPE
-import Unison.Term (Term)
-import Unison.Type (Type)
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
+import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
+import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
+import Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Runtime as Runtime
+import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
+import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser.Ann as Ann
+import qualified Unison.Parsers as Parsers
+import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Reference as Reference
+import qualified Unison.Result as Result
+import qualified Unison.Server.Backend as Backend
+import qualified Unison.Server.CodebaseServer as Server
+import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import qualified Unison.UnisonFile as UF
+import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
+import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 
@@ -204,13 +201,13 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
         cache = if useCache then watchCache else Runtime.noCache
     r <- Runtime.evaluateTerm' codeLookup cache ppe rt tm
     when useCache $ case r of
-      Right tmr -> Codebase.putWatch codebase WK.RegularWatch (Term.hashClosedTerm tm)
+      Right tmr -> Codebase.putWatch codebase WK.RegularWatch (Hashing.hashClosedTerm tm)
                                      (Term.amap (const Ann.External) tmr)
       Left _ -> pure ()
     pure $ r <&> Term.amap (const Ann.External)
 
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
-  evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
+  evalUnisonFile ppe unisonFile = do
     let codeLookup = Codebase.toCodeLookup codebase
     r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
     case r of

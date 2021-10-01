@@ -529,7 +529,7 @@ getCase ctx frsh0 = do
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0..]
-  (,) ccs <$> getNormal (us++ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (us++ctx) frsh
 
 putCTag :: MonadPut m => CTag -> m ()
 putCTag c = serialize (VarInt $ fromEnum c)
