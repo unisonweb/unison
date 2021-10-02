@@ -1,8 +1,11 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
+    tokensBranch0,
     hashDecls,
+    hashPatch,
     hashClosedTerm,
     hashTermComponents,
     hashTypeComponents,
@@ -13,23 +16,42 @@ where
 
 import Control.Lens (over, _3)
 import qualified Control.Lens as Lens
+import Data.Bifunctor (bimap)
+import Data.Foldable (toList)
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.Codebase.Branch.Type as Memory.Branch
+import qualified Unison.Codebase.Causal as Memory.Causal
+import qualified Unison.Codebase.Patch as Memory.Patch
+import qualified Unison.Codebase.TermEdit as Memory.TermEdit
+import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
 import qualified Unison.DataDeclaration as Memory.DD
+import Unison.Hash (Hash)
+import Unison.Hashable (Accumulate, Token)
+import qualified Unison.Hashable as H
+import qualified Unison.Hashing.V2.Branch as Hashing.Branch
+import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
+import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Pattern as Hashing.Pattern
 import qualified Unison.Hashing.V2.Reference as Hashing.Reference
 import qualified Unison.Hashing.V2.Referent as Hashing.Referent
 import qualified Unison.Hashing.V2.Term as Hashing.Term
+import qualified Unison.Hashing.V2.TermEdit as Hashing.TermEdit
 import qualified Unison.Hashing.V2.Type as Hashing.Type
+import qualified Unison.Hashing.V2.TypeEdit as Hashing.TypeEdit
+import Unison.NameSegment (NameSegment)
 import Unison.Names.ResolutionResult (ResolutionResult)
 import qualified Unison.Pattern as Memory.Pattern
 import qualified Unison.Reference as Memory.Reference
 import qualified Unison.Referent as Memory.Referent
 import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Star3 as Memory.Star3
 import Unison.Var (Var)
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
@@ -234,3 +256,89 @@ h2mReference = \case
 
 h2mReferenceId :: Hashing.Reference.Id -> Memory.Reference.Id
 h2mReferenceId (Hashing.Reference.Id h i) = Memory.Reference.Id h i
+
+m2hPatch :: Memory.Patch.Patch -> Hashing.Patch.Patch
+m2hPatch (Memory.Patch.Patch termEdits typeEdits) =
+  Hashing.Patch.Patch termEdits' typeEdits'
+  where
+    typeEdits' =
+      Map.fromList
+        . map (bimap m2hReference (Set.map m2hTypeEdit))
+        . Map.toList
+        $ Relation.toMultimap typeEdits
+    termEdits' =
+      Map.fromList
+        . map (bimap (Hashing.Referent.Ref . m2hReference) (Set.map m2hTermEdit))
+        . Map.toList
+        $ Relation.toMultimap termEdits
+    m2hTermEdit = \case
+      Memory.TermEdit.Replace r _ -> Hashing.TermEdit.Replace (Hashing.Referent.Ref $ m2hReference r)
+      Memory.TermEdit.Deprecate -> Hashing.TermEdit.Deprecate
+    m2hTypeEdit = \case
+      Memory.TypeEdit.Replace r -> Hashing.TypeEdit.Replace (m2hReference r)
+      Memory.TypeEdit.Deprecate -> Hashing.TypeEdit.Deprecate
+
+hashPatch :: Memory.Patch.Patch -> Hash
+hashPatch = H.accumulate' . m2hPatch
+
+hashBranch :: Memory.Branch.Branch m -> Hash
+hashBranch = H.accumulate . tokensBranch
+
+tokensBranch :: Accumulate h => Memory.Branch.Branch m -> [Token h]
+tokensBranch = H.tokens . m2hCausal . Memory.Branch._history
+
+tokensBranch0 :: Accumulate h => Memory.Branch.Branch0 m -> [Token h]
+tokensBranch0 = H.tokens . m2hBranch
+
+m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal Hashing.Branch.Raw
+m2hCausal = \case
+  Memory.Causal.One _h e ->
+    Hashing.Causal.Causal (m2hBranch e) mempty
+  Memory.Causal.Cons _h e (ht, _) ->
+    Hashing.Causal.Causal (m2hBranch e) $ Set.singleton (Memory.Causal.unRawHash ht)
+  Memory.Causal.Merge _h e ts ->
+    Hashing.Causal.Causal (m2hBranch e) $ Set.map Memory.Causal.unRawHash (Map.keysSet ts)
+
+m2hBranch :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
+m2hBranch b =
+  Hashing.Branch.Raw
+    (doTerms (Memory.Branch._terms b))
+    (doTypes (Memory.Branch._types b))
+    (doPatches (Memory.Branch._edits b))
+    (doChildren (Memory.Branch._children b))
+  where
+    -- is there a more readable way to structure these that's also linear?
+    doTerms :: Memory.Branch.Star Memory.Referent.Referent NameSegment -> Map NameSegment (Map Hashing.Referent.Referent Hashing.Branch.MdValues)
+    doTerms s =
+      Map.fromList
+        [ (ns, m2)
+          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+            let m2 =
+                  Map.fromList
+                    [ (m2hReferent r, md)
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
+                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
+                            md = Hashing.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                    ]
+        ]
+
+    doTypes :: Memory.Branch.Star Memory.Reference.Reference NameSegment -> Map NameSegment (Map Hashing.Reference.Reference Hashing.Branch.MdValues)
+    doTypes s =
+      Map.fromList
+        [ (ns, m2)
+          | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
+            let m2 =
+                  Map.fromList
+                    [ (m2hReference r, md)
+                      | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
+                        let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
+                            md :: Hashing.Branch.MdValues
+                            md = Hashing.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s
+                    ]
+        ]
+
+    doPatches :: Map NameSegment (Memory.Branch.EditHash, m Memory.Patch.Patch) -> Map NameSegment Hash
+    doPatches = Map.map fst
+
+    doChildren :: Map NameSegment (Memory.Branch.Branch m) -> Map NameSegment Hash
+    doChildren = Map.map (Memory.Causal.unRawHash . Memory.Branch.headHash)

@@ -443,13 +443,15 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       V1.Causal.Cons (h1to22 -> (hc, hb)) e (ht, mt) -> V2.Causal hc hb (Map.singleton (h1to2 ht) (causal1to2 h1to22 h1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge (h1to22 -> (hc, hb)) e parents -> V2.Causal hc hb (Map.bimap h1to2 (causal1to2 h1to22 h1to2 e1to2 <$>) parents) (e1to2 e)
 
+    -- todo: this could be a pure function
     branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
-    branch1to2 b = do
-      terms <- pure $ doTerms (V1.Branch._terms b)
-      types <- pure $ doTypes (V1.Branch._types b)
-      patches <- pure $ doPatches (V1.Branch._edits b)
-      children <- pure $ doChildren (V1.Branch._children b)
-      pure $ V2.Branch.Branch terms types patches children
+    branch1to2 b =
+      pure $
+        V2.Branch.Branch
+          (doTerms (V1.Branch._terms b))
+          (doTypes (V1.Branch._types b))
+          (doPatches (V1.Branch._edits b))
+          (doChildren (V1.Branch._children b))
       where
         -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
