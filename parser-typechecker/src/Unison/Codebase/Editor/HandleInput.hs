@@ -150,6 +150,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 type F m i v = Free (Command m i v)
 
@@ -429,7 +430,7 @@ loop = do
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
-          PullRemoteBranchI orepo dest _syncMode ->
+          PullRemoteBranchI orepo dest _syncMode _ ->
             (Text.pack . InputPattern.patternName
               $ InputPatterns.patternFromInput input)
               <> " "
@@ -1685,13 +1686,14 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI mayRepo path syncMode -> unlessError do
+      PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
         ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
         lift $ unlessGitError do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
+          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path 
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs 
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -2192,7 +2194,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 ->
+    for_ dest0 $ \dest0 -> 
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
     pure b
