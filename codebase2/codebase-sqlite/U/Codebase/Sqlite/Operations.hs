@@ -1381,7 +1381,7 @@ dependents r = do
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 
--- | returns a list of known definitions referencing `r`
+-- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: EDB m => H.Hash -> m (Set C.Reference.Id)
 dependentsOfComponent h = do
   oId <- primaryHashToExistingObjectId h
