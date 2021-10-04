@@ -7,6 +7,7 @@ import Unison.Prelude
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser
+import Unison.Parser.Ann (Ann(..))
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
@@ -71,7 +72,7 @@ type2 = do
 effect :: Var v => TypeP v
 effect = do
  es <- effectList
- t <- valueTypeLeaf
+ t <- type2
  pure (Type.effect1 (ann es <> ann t) es t)
 
 effectList :: Var v => TypeP v
@@ -83,9 +84,9 @@ effectList = do
 
 sequenceTyp :: Var v => TypeP v
 sequenceTyp = do
-  open <- reserved "["
+  open <- openBlockWith "["
   t <- valueType
-  close <- reserved "]"
+  close <- closeBlock
   let a = ann open <> ann close
   pure $ Type.app a (Type.list a) t
 

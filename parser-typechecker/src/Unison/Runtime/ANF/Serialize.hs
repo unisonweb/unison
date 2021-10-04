@@ -483,7 +483,7 @@ putBranches ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase ctx)) m
     putNormal (v:ctx) df
-    where 
+    where
   MatchData r m df -> do
     putTag MDataT
     putReference r
@@ -528,7 +528,7 @@ getCase ctx frsh0 = do
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0..]
-  (,) ccs <$> getNormal (us++ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (us++ctx) frsh
 
 putCTag :: MonadPut m => CTag -> m ()
 putCTag c = serialize (VarInt $ fromEnum c)

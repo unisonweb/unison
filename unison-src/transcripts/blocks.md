@@ -125,7 +125,7 @@ Just don't try to run it as it's an infinite loop!
 The reason is it's unclear what the order should be of any requests that are made. It can also be viewed of a special case of the restriction that elements of a cycle must all be guarded. Here's an example:
 
 ```unison:error
-ability SpaceAttack where
+structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
 ex n =
@@ -139,7 +139,7 @@ ex n =
 For instance, this works fine:
 
 ```unison
-ability SpaceAttack where
+structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
 ex n =
@@ -153,7 +153,7 @@ ex n =
 For instance, `zap` here isn't considered part of the cycle (it doesn't reference `ping` or `pong`), so this typechecks fine:
 
 ```unison
-ability SpaceAttack where
+structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
 ex n =
@@ -166,7 +166,7 @@ ex n =
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
 
 ```unison
-ability SpaceAttack where
+structural ability SpaceAttack where
   launchMissiles : Text -> Nat
 
 ex n =

@@ -33,7 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
@@ -46,6 +46,7 @@ import           Unison.Names3 (Names(Names), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
+import qualified Unison.Hashing.V2.Convert as H
 
 type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
@@ -106,7 +107,7 @@ builtinDependencies =
 -- a relation whose domain is types and whose range is builtin terms with that type
 builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
-  Rel.fromList [ (Type.toReference ty, Referent.Ref r)
+  Rel.fromList [ (H.typeToReference ty, Referent.Ref r)
                | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
@@ -114,7 +115,7 @@ builtinTermsByType =
 builtinTermsByTypeMention :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByTypeMention =
   Rel.fromList [ (m, Referent.Ref r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
-                                     , m <- toList $ Type.toReferenceMentions ty ]
+                                     , m <- toList $ H.typeToReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
@@ -179,6 +180,8 @@ builtinTypesSrc =
   , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
+  , B' "Ref" CT.Data
+  , B' "Scope" CT.Effect
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -253,7 +256,8 @@ typeOf a f r = maybe a f (Map.lookup r termRefTypes)
 
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
-  [ B "Int.+" $ int --> int --> int
+  [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a)
+  , B "Int.+" $ int --> int --> int
   , B "Int.-" $ int --> int --> int
   , B "Int.*" $ int --> int --> int
   , B "Int./" $ int --> int --> int
@@ -470,6 +474,14 @@ builtinsSrc =
   , B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
+  , B "Scope.run" . forall2 "r" "g" $ \r g ->
+      (forall1 "s" $ \s -> unit --> Type.effect () [scopet s, g] r) --> Type.effect1 () g r
+  , B "Scope.ref" . forall2 "a" "s" $ \a s ->
+      a --> Type.effect1 () (scopet s) (reft (Type.effects () [scopet s]) a)
+  , B "Ref.read" . forall2 "a" "g" $ \a g ->
+      reft g a --> Type.effect1 () g a
+  , B "Ref.write" . forall2 "a" "g" $ \a g ->
+      reft g a --> a --> Type.effect1 () g unit
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -554,6 +566,7 @@ ioBuiltins =
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
   , ("IO.getLine.impl.v1", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
+  , ("IO.systemTimeMicroseconds.v1", unit --> io int)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
   , ("IO.getCurrentDirectory.impl.v3", unit --> iof text)
@@ -581,6 +594,8 @@ ioBuiltins =
 
   , ("IO.delay.impl.v3", nat --> iof unit)
   , ("IO.kill.impl.v3", threadId --> iof unit)
+  , ("IO.ref", forall1 "a" $ \a ->
+        a --> io (reft (Type.effects () [Type.builtinIO ()]) a))
   , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake.impl.v3", tls --> iof unit)
@@ -626,13 +641,16 @@ codeBuiltins =
   , ("Code.serialize", code --> bytes)
   , ("Code.deserialize", bytes --> eithert text code)
   , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.validate", list (tuple [termLink,code]) --> io (optionalt failure))
   , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Code.display", text --> code --> text)
   , ("Value.dependencies", value --> list termLink)
   , ("Value.serialize", value --> bytes)
   , ("Value.deserialize", bytes --> eithert text value)
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  , ("Link.Term.toText", termLink --> text)
   ]
 
 stmBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -652,6 +670,15 @@ forall1 name body =
   let
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
+
+forall2
+  :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+forall2 na nb body = Type.foralls () [a,b] (body ta tb)
+  where
+  a = Var.named na
+  b = Var.named nb
+  ta = Type.var () a
+  tb = Type.var () b
 
 forall4
   :: Var v
@@ -698,6 +725,12 @@ failure = DD.failureType ()
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r
+
+scopet :: Var v => Type v -> Type v
+scopet s = Type.scopeType () `app` s
+
+reft :: Var v => Type v -> Type v -> Type v
+reft s a = Type.refType () `app` s `app` a
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()

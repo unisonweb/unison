@@ -17,6 +17,7 @@ module Unison.Runtime.Foreign
   ) where
 
 import Control.Concurrent (ThreadId, MVar)
+import Data.IORef (IORef)
 import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
@@ -47,6 +48,8 @@ ref2eq r
   -- Note: MVar equality is just reference equality, so it shouldn't
   -- matter what type the MVar holds.
   | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
+  -- Ditto
+  | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)

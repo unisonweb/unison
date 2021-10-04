@@ -1,4 +1,4 @@
-type Optional a = None | Some a
+structural type Optional a = None | Some a
 
 Optional.isEmpty : Optional a -> Boolean
 Optional.isEmpty = cases

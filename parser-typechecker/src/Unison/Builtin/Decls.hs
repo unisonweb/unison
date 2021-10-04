@@ -4,7 +4,7 @@
 
 module Unison.Builtin.Decls where
 
-import Control.Lens (_3,over)
+import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
@@ -13,16 +13,16 @@ import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration
   ( DataDeclaration (..),
     Modifier (Structural, Unique),
-    hashDecls,
   )
 import qualified Unison.DataDeclaration as DD
+import Unison.Hashing.V2.Convert (hashDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent)
+import Unison.Referent (ConstructorId, Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
-import Unison.Term (ConstructorId, Term, Term2)
+import Unison.Term (Term, Term2)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -86,6 +86,7 @@ constructorId ref name = do
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
+seqViewEmpty, seqViewElem :: ConstructorId
 Just noneId = constructorId optionalRef "Optional.None"
 Just someId = constructorId optionalRef "Optional.Some"
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
@@ -102,6 +103,8 @@ Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
 Just eitherRightId = constructorId eitherRef "Either.Right"
 Just eitherLeftId = constructorId eitherRef "Either.Left"
+Just seqViewEmpty = constructorId seqViewRef "SeqView.VEmpty"
+Just seqViewElem = constructorId seqViewRef "SeqView.VElem"
 
 Just bufferModeNoBufferingId = constructorId bufferModeRef "io2.BufferMode.NoBuffering"
 Just bufferModeLineBufferingId = constructorId bufferModeRef "io2.BufferMode.LineBuffering"

@@ -19,7 +19,7 @@ import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con, Referent'(Ref', Con'))
+import Unison.Referent (Referent, pattern Ref, pattern Con, ConstructorId)
 import qualified Data.Set as Set
 
 -- dumb constructor name is private
@@ -28,8 +28,8 @@ newtype LabeledDependency = X (Either Reference Referent) deriving (Eq, Ord, Sho
 derivedType, derivedTerm :: Id -> LabeledDependency
 typeRef, termRef :: Reference -> LabeledDependency
 referent :: Referent -> LabeledDependency
-dataConstructor :: Reference -> Int -> LabeledDependency
-effectConstructor :: Reference -> Int -> LabeledDependency
+dataConstructor :: Reference -> ConstructorId -> LabeledDependency
+effectConstructor :: Reference -> ConstructorId -> LabeledDependency
 
 derivedType = X . Left . DerivedId
 derivedTerm = X . Right . Ref . DerivedId
@@ -52,5 +52,5 @@ partition = partitionEithers . map (\(X e) -> e) . toList
 toReference :: LabeledDependency -> Either Reference Reference
 toReference = \case
   X (Left r)             -> Left r
-  X (Right (Ref' r))     -> Right r
-  X (Right (Con' r _ _)) -> Left r
+  X (Right (Ref r))     -> Right r
+  X (Right (Con r _ _)) -> Left r

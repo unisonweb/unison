@@ -15,12 +15,12 @@ import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
-import Unison.UnisonFile (pattern TestWatch)
+import Unison.WatchKind (pattern TestWatch)
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
@@ -33,7 +33,7 @@ test = scope "gitsync22" . tests $
   fastForwardPush :
   nonFastForwardPush :
   destroyedRemote :
-  flip map [(Ucm.CodebaseFormat1 , "fc"), (Ucm.CodebaseFormat2, "sc")]
+  flip map [(Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
   pushPullTest  "typeAlias" fmt
     (\repo -> [i|
@@ -132,7 +132,7 @@ test = scope "gitsync22" . tests $
     |])
     (\repo -> [i|
         ```ucm
-        .> pull ${repo}
+        .> pull.silent ${repo}
         .> find
         ```
         ```unison
@@ -168,7 +168,7 @@ test = scope "gitsync22" . tests $
     |])
     (\repo -> [i|
         ```ucm
-        .> pull ${repo}
+        .> pull.silent ${repo}
         .> view.patch patch
         ```
     |])
@@ -249,7 +249,7 @@ test = scope "gitsync22" . tests $
 -- simplest-author
     (\repo -> [i|
       ```unison
-      type Foo = Foo
+      structural type Foo = Foo
       ```
       ```ucm
       .myLib> debug.file
@@ -322,8 +322,8 @@ test = scope "gitsync22" . tests $
       .> builtins.merge
       ```
       ```unison
-      type A = A Nat
-      type B = B Int
+      structural type A = A Nat
+      structural type B = B Int
       x = 3
       y = 4
       ```

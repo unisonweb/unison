@@ -113,8 +113,8 @@ and the rendered output using `display`:
       Sections have a title and 0 or more paragraphs or other
       section elements.
       
-      Text can be __bold__, *italicized*, ~~strikethrough~~, or
-      ''monospaced''.
+      Text can be **bold**, __italicized__, ~~strikethrough~~,
+      or ''monospaced''.
       
       You can link to Unison terms, types, and external URLs:
       
@@ -129,7 +129,7 @@ and the rendered output using `display`:
       useful for creating documents programmatically or just
       including other documents.
       
-      *Next up:* {lists}
+      __Next up:__ {lists}
     }}
 
 .> display basicFormatting
@@ -335,7 +335,7 @@ and the rendered output using `display`:
   
     Unison definitions can be included in docs. For instance:
   
-        type Optional a = None | Some a
+        structural type Optional a = None | Some a
         
         sqr x =
           use Nat *
@@ -343,7 +343,7 @@ and the rendered output using `display`:
   
     Some rendering targets also support folded source:
   
-        type Optional a = None | Some a
+        structural type Optional a = None | Some a
         
         sqr x =
           use Nat *
@@ -469,7 +469,7 @@ and the rendered output using `display`:
       "And what is the use of a book," thought Alice, "without
       pictures or conversation?"
       
-      *Lewis Carroll, Alice's Adventures in Wonderland*
+      __Lewis Carroll, Alice's Adventures in Wonderland__
       }} }}
     
     {{ docTooltip {{ Hover over me }} {{ Extra detail }} }}
@@ -637,7 +637,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Unison definitions can be included in docs. For instance:
     
-          type Optional a = None | Some a
+          structural type Optional a = None | Some a
           
           sqr x =
             use Nat *
@@ -645,7 +645,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Some rendering targets also support folded source:
     
-          type Optional a = None | Some a
+          structural type Optional a = None | Some a
           
           sqr x =
             use Nat *

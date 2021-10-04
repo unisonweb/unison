@@ -27,8 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -43,6 +46,8 @@ import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
+import Unison.Codebase.Verbosity (Verbosity)
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -558,6 +563,13 @@ aliasMany = InputPattern "alias.many" ["copy"]
     _ -> Left (I.help aliasMany)
   )
 
+up :: InputPattern
+up = InputPattern "up" [] []
+    (P.wrapColumn2 [ (makeExample up [], "move current path up one level") ])
+    (\case
+      [] -> Right Input.UpI
+      _ -> Left (I.help up)
+    )
 
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
@@ -567,6 +579,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       , (makeExample cd [".cat.dog"],
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
+      [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
         pure . Input.SwitchBranchI $ p
@@ -698,49 +711,60 @@ resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
      pure $ Input.ResetRootI src
     _ -> Left (I.help resetRoot))
 
+pullSilent :: InputPattern
+pullSilent =
+  pullImpl "pull.silent" Verbosity.Silent
+
 pull :: InputPattern
-pull = InputPattern
-  "pull"
-  []
-  [(Optional, gitUrlArg), (Optional, pathArg)]
-  (P.lines
-    [ P.wrap
-      "The `pull` command merges a remote namespace into a local namespace."
-    , ""
-    , P.wrapColumn2
-      [ ( "`pull remote local`"
-        , "merges the remote namespace `remote`"
-        <>"into the local namespace `local`."
-        )
-      , ( "`pull remote`"
-        , "merges the remote namespace `remote`"
-        <>"into the current namespace")
-      , ( "`pull`"
-        , "merges the remote namespace configured in `.unisonConfig`"
-        <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
-        <> "into the current namespace")
-      ]
-    , ""
-    , P.wrap "where `remote` is a git repository, optionally followed by `:`"
-    <> "and an absolute remote path, such as:"
-    , P.indentN 2 . P.lines $
-      [P.backticked "https://github.com/org/repo"
-      ,P.backticked "https://github.com/org/repo:.some.remote.path"
-      ]
-    ]
-  )
-  (\case
-    []    ->
-      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
-    [url] -> do
-      ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit
-    [url, path] -> do
-      ns <- parseUri "url" url
-      p <- first fromString $ Path.parsePath' path
-      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit
-    _ -> Left (I.help pull)
-  )
+pull = pullImpl "pull" Verbosity.Default
+
+pullImpl :: String -> Verbosity -> InputPattern
+pullImpl name verbosity = do
+  self
+  where
+    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else "" 
+    self = InputPattern
+      name
+      []
+      [(Optional, gitUrlArg), (Optional, pathArg)]
+      (P.lines
+        [ P.wrap
+          "The" <> makeExample' self <> "command merges a remote namespace into a local namespace" <> addendum
+        , ""
+        , P.wrapColumn2
+          [ ( makeExample self ["remote", "local"]
+            , "merges the remote namespace `remote`"
+            <>"into the local namespace `local"
+            )
+          , ( makeExample self ["remote"]
+            , "merges the remote namespace `remote`"
+            <>"into the current namespace")
+          , ( makeExample' self
+            , "merges the remote namespace configured in `.unisonConfig`"
+            <> "with the key `GitUrl.ns` where `ns` is the current namespace,"
+            <> "into the current namespace")
+          ]
+        , ""
+        , P.wrap "where `remote` is a git repository, optionally followed by `:`"
+        <> "and an absolute remote path, such as:"
+        , P.indentN 2 . P.lines $
+          [P.backticked "https://github.com/org/repo"
+          ,P.backticked "https://github.com/org/repo:.some.remote.path"
+          ]
+        ]
+      )
+      (\case
+        []    ->
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+        [url] -> do
+          ns <- parseUri "url" url
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+        [url, path] -> do
+          ns <- parseUri "url" url
+          p <- first fromString $ Path.parsePath' path
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+        _ -> Left (I.help self)
+      )
 
 pullExhaustive :: InputPattern
 pullExhaustive = InputPattern
@@ -757,14 +781,14 @@ pullExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
     [url, path] -> do
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
-      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete
+      Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
     _ -> Left (I.help pull)
   )
 
@@ -1291,12 +1315,6 @@ debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."
   (const $ Right Input.DebugNumberedArgsI)
 
-debugBranchHistory :: InputPattern
-debugBranchHistory = InputPattern "debug.history" []
-  [(Optional, noCompletions)]
-  "Dump codebase history, compatible with bit-booster.com/graph.html"
-  (const $ Right Input.DebugBranchHistoryI)
-
 debugFileHashes :: InputPattern
 debugFileHashes = InputPattern "debug.file" [] []
   "View details about the most recent succesfully typechecked file."
@@ -1394,11 +1412,13 @@ validInputs =
   , names
   , push
   , pull
+  , pullSilent
   , pushExhaustive
   , pullExhaustive
   , createPullRequest
   , loadPullRequest
   , cd
+  , up
   , back
   , deleteBranch
   , renameBranch
@@ -1445,7 +1465,6 @@ validInputs =
   , mergeIOBuiltins
   , dependents, dependencies
   , debugNumberedArgs
-  , debugBranchHistory
   , debugFileHashes
   , debugDumpNamespace
   , debugDumpNamespaceSimple
@@ -1574,8 +1593,9 @@ patternFromInput :: Input -> InputPattern
 patternFromInput = \case
   Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
   Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit -> pull
-  Input.PullRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Default -> pull
+  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Silent -> pullSilent
+  Input.PullRemoteBranchI _ _ SyncMode.Complete _ -> pushExhaustive
   _ -> error "todo: finish this function"
 
 inputStringFromInput :: IsString s => Input -> P.Pretty s
@@ -1584,7 +1604,7 @@ inputStringFromInput = \case
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
       <> " " <> P.shown p'
-  i@(Input.PullRemoteBranchI ns p' _) ->
+  i@(Input.PullRemoteBranchI ns p' _ _) ->
     (P.string . I.patternName $ patternFromInput i)
       <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
       <> " " <> P.shown p'

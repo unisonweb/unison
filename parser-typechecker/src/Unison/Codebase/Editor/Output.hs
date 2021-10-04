@@ -21,12 +21,12 @@ import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
-import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
+import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
 import Unison.Names2 ( Names )
-import Unison.Parser ( Ann )
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
@@ -41,6 +41,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
@@ -49,6 +50,7 @@ import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Names3 as Names
 import qualified Data.Set as Set
 import Unison.NameSegment (NameSegment)
@@ -57,6 +59,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.WatchKind as WK
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -90,6 +93,8 @@ data Output v
   = Success
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
+  -- Used in Welcome module to instruct user
+  | PrintMessage (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
@@ -152,7 +157,7 @@ data Output v
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
+              (Map v (Ann, WK.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
@@ -238,6 +243,7 @@ type SourceFileContents = Text
 isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
+  PrintMessage{} -> False
   BadRootBranch{} -> True
   CouldntLoadBranch{} -> True
   NoUnisonFile{} -> True
@@ -341,5 +347,4 @@ isNumberedFailure = \case
   ShowDiffAfterPull{} -> False
   ShowDiffAfterCreatePR{} -> False
   ShowDiffAfterCreateAuthor{} -> False
-
 

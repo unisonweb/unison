@@ -8,7 +8,7 @@ import           Prelude                 hiding ( readFile )
 import qualified Unison.Names3                 as Names
 import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
-import           Unison.Parser                  ( Ann )
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Parser                 as Parser
 import           Unison.PrintError              ( prettyParseError
                                                 , defaultWidth )

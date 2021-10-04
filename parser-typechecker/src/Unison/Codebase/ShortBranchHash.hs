@@ -4,11 +4,10 @@
 module Unison.Codebase.ShortBranchHash where
 
 import Unison.Prelude
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Hash as Hash
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import Data.Coerce (Coercible, coerce)
 
 newtype ShortBranchHash =
   ShortBranchHash { toText :: Text } -- base32hex characters
@@ -17,15 +16,15 @@ newtype ShortBranchHash =
 toString :: ShortBranchHash -> String
 toString = Text.unpack . toText
 
-toHash :: ShortBranchHash -> Maybe Branch.Hash
-toHash = fmap Causal.RawHash . Hash.fromBase32Hex . toText
+toHash :: Coercible Hash.Hash h => ShortBranchHash -> Maybe h
+toHash = fmap coerce . Hash.fromBase32Hex . toText
 
-fromHash :: Int -> Branch.Hash -> ShortBranchHash
+fromHash :: Coercible h Hash.Hash => Int -> h -> ShortBranchHash
 fromHash len =
-  ShortBranchHash . Text.take len . Hash.base32Hex . Causal.unRawHash
+  ShortBranchHash . Text.take len . Hash.base32Hex . coerce
 
-fullFromHash :: Branch.Hash -> ShortBranchHash
-fullFromHash = ShortBranchHash . Hash.base32Hex . Causal.unRawHash
+fullFromHash :: Coercible h Hash.Hash => h -> ShortBranchHash
+fullFromHash = ShortBranchHash . Hash.base32Hex . coerce
 
 -- abc -> SBH abc
 -- #abc -> SBH abc

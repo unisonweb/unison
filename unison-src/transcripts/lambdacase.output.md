@@ -117,7 +117,7 @@ it again shows the definition using the multi-argument `cases` syntax opportunis
 Here's another example:
 
 ```unison
-type B = T | F
+structural type B = T | F
 
 blah = cases
   T, x -> "hi"
@@ -140,7 +140,7 @@ blorf = cases
   
     ⍟ These new definitions are ok to `add`:
     
-      type B
+      structural type B
       blah  : B -> B -> Text
       blorf : B -> B -> B
   

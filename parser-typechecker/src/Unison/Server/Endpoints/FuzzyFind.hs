@@ -34,10 +34,11 @@ import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.HashQualified' as HQ'
 import Unison.NameSegment
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
@@ -52,7 +53,7 @@ import Unison.Server.Types
     NamedTerm,
     NamedType,
     addHeaders,
-    mayDefault,
+    mayDefaultWidth,
   )
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
@@ -161,7 +162,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
               ( a
               , FoundTermResult
                 . FoundTerm
-                    (Backend.bestNameForTerm @v ppe (mayDefault typeWidth) r)
+                    (Backend.bestNameForTerm @v ppe (mayDefaultWidth typeWidth) r)
                 $ Backend.termEntryToNamedTerm ppe typeWidth te
               )
             )
@@ -169,7 +170,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
         Backend.FoundTypeRef r -> do
           te <- Backend.typeListEntry codebase r n
           let namedType = Backend.typeEntryToNamedType te
-          let typeName = Backend.bestNameForType @v ppe (mayDefault typeWidth) r
+          let typeName = Backend.bestNameForType @v ppe (mayDefaultWidth typeWidth) r
           typeHeader <- Backend.typeDeclHeader codebase ppe r
           let ft = FoundType typeName typeHeader namedType
           pure (a, FoundTypeResult ft)

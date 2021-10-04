@@ -1,4 +1,4 @@
-ability Woot where
+structural ability Woot where
   woot : {Woot} Nat
 
 wha : ((a ->{Woot} a) -> a ->{Woot} a) -> Nat

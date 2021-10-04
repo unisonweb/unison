@@ -1,4 +1,4 @@
-type Value = String Text
+structural type Value = String Text
            | Bool Boolean
 
 f : Value -> Nat

@@ -8,8 +8,7 @@ module Unison.Names3 where
 import Unison.Prelude
 
 import Control.Lens (view, _4)
-import Data.List (sort)
-import Data.List.Extra (nubOrd)
+import Data.List.Extra (nubOrd, sort)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -29,14 +28,8 @@ import qualified Unison.ConstructorType as CT
 data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
 type Names0 = Unison.Names2.Names0
+pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n
 pattern Names0 terms types = Unison.Names2.Names terms types
-
-data ResolutionFailure v a
-  = TermResolutionFailure v a (Set Referent)
-  | TypeResolutionFailure v a (Set Reference)
-  deriving (Eq,Ord,Show)
-
-type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
@@ -318,13 +311,13 @@ expandWildcardImport prefix ns =
     pure (suffix, full)
 
 -- Deletes from the `n0 : Names0` any definitions whose names
--- share a suffix with a name in `ns`. Does so using logarithmic
--- time lookups, traversing only `ns`.
+-- are in `ns`. Does so using logarithmic time lookups,
+-- traversing only `ns`.
 --
 -- See usage in `FileParser` for handling precendence of symbol
 -- resolution where local names are preferred to codebase names.
-shadowSuffixedTerms0 :: [Name] -> Names0 -> Names0
-shadowSuffixedTerms0 ns n0 = names0 terms' (types0 n0)
+shadowTerms0 :: [Name] -> Names0 -> Names0
+shadowTerms0 ns n0 = names0 terms' (types0 n0)
   where
-  shadowedBy name = Name.searchBySuffix name (terms0 n0)
-  terms' = R.subtractRan (foldMap shadowedBy ns) (terms0 n0)
+  terms' = foldl' go (terms0 n0) ns
+  go ts name = R.deleteDom name ts

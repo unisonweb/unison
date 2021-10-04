@@ -2,7 +2,7 @@
 use Foo Foo
 use Optional Some None
 
-type Foo a b = Foo a (Optional b)
+structural type Foo a b = Foo a (Optional b)
 
 foo : Foo a b -> (b -> c) -> Foo a c
 foo x f = match x with

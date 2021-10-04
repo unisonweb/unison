@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cef34d9302306093bb4280d9edb3ef4819cb15687e8542dfd977dd83b72ecf13
+-- hash: 3dc00080efb41dcfb41dd8f03bea8ab3e2550a41a92fe1962b9210b52393ce88
 
 name:           unison-core1
 version:        0.0.0
@@ -30,6 +30,8 @@ library
       Unison.Blank
       Unison.ConstructorType
       Unison.DataDeclaration
+      Unison.DataDeclaration.ConstructorId
+      Unison.DataDeclaration.Names
       Unison.Hash
       Unison.Hashable
       Unison.HashQualified
@@ -37,21 +39,23 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
+      Unison.Names.ResolutionResult
       Unison.Names2
       Unison.Names3
       Unison.NameSegment
       Unison.Paths
       Unison.Pattern
-      Unison.PatternCompat
       Unison.Prelude
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
+      Unison.Referent'
       Unison.Settings
       Unison.ShortHash
       Unison.Symbol
       Unison.Term
       Unison.Type
+      Unison.Type.Names
       Unison.Util.Alphabetical
       Unison.Util.Components
       Unison.Util.List
@@ -61,6 +65,8 @@ library
       Unison.Util.Relation4
       Unison.Util.Set
       Unison.Var
+      Unison.Var.RefNamed
+      Unison.WatchKind
   other-modules:
       Paths_unison_core1
   hs-source-dirs:

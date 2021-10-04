@@ -15,13 +15,14 @@ import Unison.Prelude
 import           Unison.Codebase.MainTerm      ( getMainTerm )
 import qualified Unison.Codebase.MainTerm      as MainTerm
 import qualified Unison.Codebase               as Codebase
-import           Unison.Parser                 ( Ann )
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       ( Runtime )
 import           Unison.Var                    ( Var )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Names3                 as Names3
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import           System.Exit (die)
 import           Control.Exception (finally)
 

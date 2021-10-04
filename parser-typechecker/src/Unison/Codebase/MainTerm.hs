@@ -8,8 +8,7 @@ module Unison.Codebase.MainTerm where
 
 import Unison.Prelude
 
-import           Unison.Parser                  ( Ann )
-import qualified Unison.Parser                 as Parser
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Term                   as Term
 import           Unison.Term                    ( Term )
 import           Unison.Var                     ( Var )
@@ -22,6 +21,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Type                   as Type
 import           Unison.Type                    ( Type )
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.Parser.Ann as Parser.Ann
 
 data MainTerm v
   = NotAFunctionName String
@@ -41,7 +41,7 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
       let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
-      let a = Parser.External
+      let a = Parser.Ann.External
       case toList refs of
         [Referent.Ref ref] -> do
           typ <- loadTypeOfTerm ref

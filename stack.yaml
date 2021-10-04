@@ -22,7 +22,7 @@ packages:
 - codebase2/util-term
 
 #compiler-check: match-exact
-resolver: lts-18.7
+resolver: lts-18.9
 
 extra-deps:
 - github: unisonweb/configurator
@@ -35,18 +35,8 @@ extra-deps:
 - prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163
 - sandi-0.5@sha256:b278d072ca717706ea38f9bd646e023f7f2576a778fb43565b434f93638849aa,3010
 - strings-1.1@sha256:0285dec4c8ab262359342b3e5ef1eb567074669461b9b38404f1cb870c881c5c,1617
-- random-1.2.0
-# remove these when stackage upgrades containers
-# (these = containers 0.6.4, text-1.2.4, binary-0.8.8, parsec-3.1.14, Cabal-3.2.1.0)
-# see https://github.com/unisonweb/unison/pull/1807#issuecomment-777069869
-- containers-0.6.4.1
-- text-1.2.4.1
-- binary-0.8.8.0
-- parsec-3.1.14.0
-- Cabal-3.2.1.0
 - fuzzyfind-3.0.0
 - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
-- optparse-applicative-0.16.1.0 # We need some features from the most recent revision
 
 ghc-options:
  # All packages
