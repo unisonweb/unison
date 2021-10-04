@@ -18,6 +18,9 @@ module Unison.Runtime.Builtin
   ) where
 
 import Control.Monad.State.Strict (State, modify, execState)
+import qualified Control.Exception.Safe as Exception
+import Control.Monad.Catch (MonadCatch)
+import Control.DeepSeq (NFData)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -1899,6 +1902,21 @@ declareForeigns = do
             $ L.toChunks s
       in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
 
+
+  let
+    catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Text a)
+    catchAll e = do
+      e <- Exception.tryAnyDeep e
+      pure $ case e of
+        Left se -> Left (Text.pack (show se))
+        Right a -> Right a
+
+  declareForeign "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
+  declareForeign "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
+  declareForeign "Bytes.zlib.decompress" boxToEBoxBox . mkForeign $ \bs ->
+    catchAll (pure (Bytes.zlibDecompress bs))
+  declareForeign "Bytes.gzip.decompress" boxToEBoxBox . mkForeign $ \bs ->
+    catchAll (pure (Bytes.gzipDecompress bs))
 
   declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
   declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
