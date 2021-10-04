@@ -63,13 +63,17 @@ __7__
 
 Merge and promote to production any PRs pending [on the docs site](https://github.com/unisonweb/unisonweb-org/pulls) which are associated with the new release. Confirm with @rlmark.
 
-__8__
+__8__ 
+
+Bug @pchiusano to update [the Slack post](https://unisonlanguage.slack.com/files/TLL09QC85/FMT7TDDDY?origin_team=TLL09QC85) which provides install instructions for people coming from [the quickstart guide](https://www.unisonweb.org/docs/quickstart/).
+
+__9__
 
 Announce on #contrib Slack channel. Template below.
 
 ---
 
-Release announcement template -
+Release announcement template (be sure to update the release urls) -
 
 We've just released a new version of Unison, $RELEASE_NAME, release notes here (link to the issue). Install/upgrade instructions in the thread.
 
