@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Data.List                    (find, intersperse)
+import           Data.List                    (find, intersperse, sort)
 import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
@@ -976,8 +976,8 @@ renderNoteAsANSI
   -> String
 renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
 
-renderParseErrorAsANSI :: Var v => Pr.Width -> String -> Parser.Err v -> String
-renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
+renderParseErrorAsANSI :: Var v => Env -> Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI env w src = Pr.toANSI w . prettyParseError env src
 
 printNoteWithSource
   :: (Var v, Annotated a, Show a, Ord a)
@@ -986,7 +986,7 @@ printNoteWithSource
   -> Note v a
   -> Pretty ColorText
 printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
-printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
+printNoteWithSource env s  (Parsing   e) = prettyParseError env s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
 printNoteWithSource _env s (InvalidPath path term) =
@@ -1023,10 +1023,11 @@ firstLexerError ts =
 prettyParseError
   :: forall v
    . Var v
-  => String
+  => Env 
+  -> String
   -> Parser.Err v
   -> Pretty ColorText
-prettyParseError s = \case
+prettyParseError env s = \case
   P.TrivialError _ (LexerError ts e) _ -> go e
     where
     excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
@@ -1319,7 +1320,7 @@ prettyParseError s = \case
     where
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
-    Pr.border 2 . prettyResolutionFailures s $ failures
+    Pr.border 2 . prettyResolutionFailures env s $ failures
   go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
         "I expected to see `structural` or `unique` at the start of this line:"
@@ -1431,41 +1432,35 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
   _ -> ""
 
 prettyResolutionFailures
-  :: (Annotated a, Var v)
-  => String
+  :: forall v a
+   . (Annotated a, Var v, Ord a)
+  => Env
+  -> String -- ^ src
   -> [Names.ResolutionFailure v a]
   -> Pretty ColorText
-prettyResolutionFailures s failures = Pr.callout "❓" $ Pr.linesNonEmpty
+prettyResolutionFailures env s (sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
   [ Pr.wrap
     ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
   , ""
-  , annotatedsAsErrorSite s
-  $  [ a | Names.TermResolutionFailure _ a _ <- failures ]
-  ++ [ a | Names.TypeResolutionFailure _ a _ <- failures ]
+  , annotatedsAsErrorSite s (Names.getAnnotation <$> failures)
   , let
-      conflicts =
-        nubOrd
-          $  [ v
-             | Names.TermResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-          ++ [ v
-             | Names.TypeResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-      allVars =
-        nubOrd
-          $  [ v | Names.TermResolutionFailure v _ _ <- failures ]
-          ++ [ v | Names.TypeResolutionFailure v _ _ <- failures ]
+      conflicts = nubOrd . filter Names.isAmbiguation $ failures
+      allVars = nubOrd (Names.getVar <$> failures)
     in
       "Using these fully qualified names:"
       `Pr.hang` Pr.spaced (prettyVar <$> allVars)
       <>        "\n"
       <>        if null conflicts
                   then ""
-                  else Pr.spaced (prettyVar <$> conflicts)
-                    <> Pr.bold " are currently conflicted symbols"
+                  else foldMap prettyConflict conflicts
   ]
+  where
+    prettyConflict :: Names.ResolutionFailure v a -> Pretty ColorText
+    prettyConflict = \case
+      Names.TermResolutionFailure v _ s ->
+       Pr.hang (prettyVar v <> " could refer to any of:") . Pr.bulleted $ showTermRef env <$> Set.toList s
+      Names.TypeResolutionFailure v _ s ->
+       Pr.hang (prettyVar v <> " could refer to any of:") . Pr.bulleted $ showTypeRef env <$> Set.toList s
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
