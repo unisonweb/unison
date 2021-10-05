@@ -66,7 +66,7 @@ main = do
   -- hSetBuffering stdout NoBuffering -- cool
 
   void installSignalHandlers
-  (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribe
+  (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
   let GlobalOptions{codebasePathOption=mCodePathOption} = globalOptions
   let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
@@ -77,7 +77,7 @@ main = do
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case command of
      PrintVersion ->
-       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
+       putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
      Init -> do 
       PT.putPrettyLn $ 
         P.callout 
@@ -259,7 +259,8 @@ launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initR
       CreatedCodebase{} -> NewlyCreatedCodebase
       _ -> PreviouslyCreatedCodebase 
       
-    welcome = Welcome.welcome isNewCodebase downloadBase dir Version.gitDescribe
+    (gitRef, _date) = Version.gitDescribe
+    welcome = Welcome.welcome isNewCodebase downloadBase dir gitRef
   in
     CommandLine.main
       dir
@@ -290,7 +291,9 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 
 defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
-  runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
+  runParser VP.defaultBaseLib "version" (Text.pack gitRef)
+  where
+    (gitRef, _date) = Version.gitDescribe
 -- (Unison.Codebase.Init.FinalizerAndCodebase IO Symbol Ann, InitResult IO Symbol Ann)
 getCodebaseOrExit :: Maybe CodebasePathOption -> IO ((IO (), Codebase.Codebase IO Symbol Ann), InitResult IO Symbol Ann)
 getCodebaseOrExit codebasePathOption = do
