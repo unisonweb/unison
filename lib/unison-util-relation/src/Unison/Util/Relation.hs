@@ -112,23 +112,11 @@ outerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
                       -> Map c (Set a, Set b)
 outerJoinRanMultimaps a b = outerJoinDomMultimaps (swap a) (swap b)
 
--- | @innerJoinDomMultimaps xs ys@ returns the "inner join" of the domains of @xs@ and @ys@.
+-- | @innerJoinDomMultimaps xs ys@ returns the "inner join" of the domains of @xs@ and @ys@, which has intersection-like
+-- semantics:
 --
--- You can think of this function as having the following, higher-level type:
---
--- @
--- innertJoinDomMultimaps
---   :: (Ord a, Ord b, Ord c)
---   => Relation a b
---   => Relation a c
---   => Relation a (Either b c)
--- @
---
--- with the invariant on the output relation that no @a@ will be related to /only/ @Left b@s or @Right c@s; rather, each
--- @a@ will be related to at least one @Left b@ and at least one @Right c@.
---
--- However, this function returns a lower-level @Map a (Set b, Set c)@ instead, for performance reasons, because the
--- calling code currently does not have a need for the higher-level relation.
+-- * @a@s that do not exist in both @xs@ and @ys@ are dropped.
+-- * The @a@s that remain are therefore associated with non-empty sets of @b@s and @c@s.
 --
 -- /O(a2 * log(a1/a2 + 1)), a1 <= a2/, where /a1/ and /a2/ are the numbers of elements in each relation's domain.
 innerJoinDomMultimaps ::
@@ -139,9 +127,10 @@ innerJoinDomMultimaps ::
 innerJoinDomMultimaps b c =
   Map.intersectionWith (,) (domain b) (domain c)
 
--- | @innerJoinRanMultimaps xs ys@ returns the "inner join" of the ranges of @xs@ and @ys@.
+-- | @innerJoinRanMultimaps xs ys@ returns the "inner join" of the ranges of @xs@ and @ys@. See 'innerJoinDomMultimaps'
+-- for more info.
 --
--- See 'innerJoinDomMultimaps'; this function has identical performance.
+-- /O(c2 * log(c1/c2 + 1)), c1 <= c2/, where /c1/ and /c2/ are the numbers of elements in each relation's range.
 innerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
                       => Relation a c
                       -> Relation b c
