@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ #r5tr835861 (start of history)
+  □ #ljnpbrl0o0 (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #bc6u6h4gpr
+  ⊙ #ku5ibs1nsr
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #lu6del4qbm
+  ⊙ #p8cl8dadf3
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #r5tr835861 (start of history)
+  □ #ljnpbrl0o0 (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -71,21 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #bc6u6h4gpr
+  ⊙ #ku5ibs1nsr
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #lu6del4qbm
+  ⊙ #p8cl8dadf3
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #r5tr835861 (start of history)
+  □ #ljnpbrl0o0 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -106,7 +106,7 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
   
   
   
-  □ #r5tr835861 (start of history)
+  □ #ljnpbrl0o0 (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -191,47 +191,47 @@ At this point, Alice and Bob both have some history beyond what's in trunk:
   
   
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 .> history alice
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #4suqgqt42i
+  ⊙ #bin0oov6bc
   
     > Moves:
     
       Original name New name
       neatoFun      productionReadyId
   
-  ⊙ #gvn274aiis
+  ⊙ #ccsg56jgoh
   
     > Moves:
     
       Original name New name
       radNumber     superRadNumber
   
-  ⊙ #mg2d7kkbck
+  ⊙ #a7iq2ak3tk
   
     + Adds / updates:
     
       bodaciousNumero neatoFun radNumber
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 .> history bob
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #gvaau8vv11
+  ⊙ #h90udgqpmb
   
     + Adds / updates:
     
       babyDon'tHurtMe no whatIsLove
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 ```
 Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob both made their changes in one single commit.
@@ -257,13 +257,13 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #n6ps07cufq
+  ⊙ #ui8bdim4lp
   
     + Adds / updates:
     
       bodaciousNumero productionReadyId superRadNumber
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 .> merge.squash bob trunk
 
@@ -285,19 +285,19 @@ Alice then squash merges into `trunk`, as does Bob. It's as if Alice and Bob bot
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qksvuct0ji
+  ⊙ #ibjuc8j93d
   
     + Adds / updates:
     
       babyDon'tHurtMe no whatIsLove
   
-  ⊙ #n6ps07cufq
+  ⊙ #ui8bdim4lp
   
     + Adds / updates:
     
       bodaciousNumero productionReadyId superRadNumber
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 ```
 Since squash merges don't produce any merge nodes, we can `undo` a couple times to get back to our starting state:
@@ -336,7 +336,7 @@ Since squash merges don't produce any merge nodes, we can `undo` a couple times 
   
   
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 ```
 This time, we'll first squash Alice and Bob's changes together before squashing their combined changes into `trunk`. The resulting `trunk` will have just a single entry in it, combining both Alice and Bob's changes:
@@ -380,14 +380,14 @@ This time, we'll first squash Alice and Bob's changes together before squashing 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #vlsmrlnl0o
+  ⊙ #q9stiuk3ke
   
     + Adds / updates:
     
       babyDon'tHurtMe bodaciousNumero no productionReadyId
       superRadNumber whatIsLove
   
-  □ #md499voko1 (start of history)
+  □ #hdqr1brb29 (start of history)
 
 ```
 So, there you have it. With squashing, you can control the granularity of your history.
@@ -420,7 +420,7 @@ Another thing we can do is `squash` into an empty namespace. This effectively ma
   
   
   
-  □ #hqtl9h3ldp (start of history)
+  □ #3vvamd3psi (start of history)
 
 ```
 There's nothing really special here, `squash src dest` discards `src` history that comes after the LCA of `src` and `dest`, it's just that in the case of an empty namespace, that LCA is the beginning of time (the empty namespace), so all the history of `src` is discarded.
@@ -485,13 +485,13 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #o2sbu36ahm
+  ⊙ #j5p1fc9jq8
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ #r5tr835861 (start of history)
+  □ #ljnpbrl0o0 (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
