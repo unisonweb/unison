@@ -12,11 +12,13 @@ import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
 import Data.Compact (getCompact)
-import Data.Compact.Serialize (unsafeReadCompact)
+import Data.Compact.Serialize (hUnsafeGetCompact)
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
+import System.IO (IOMode(ReadMode), withFile)
+import System.Info (os, arch)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
@@ -94,7 +96,7 @@ main = do
 
      Run (RunFromSymbol mainName) -> do
       (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
-      runtime <- RTI.startRuntime
+      runtime <- RTI.startRuntime Version.gitDescribe
       execute theCodebase runtime mainName
       closeCodebase
      Run (RunFromFile file mainName)
@@ -105,7 +107,7 @@ main = do
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
                 (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
-                rt <- RTI.startRuntime
+                rt <- RTI.startRuntime Version.gitDescribe
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                 launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase 
                 closeCodebase
@@ -115,7 +117,7 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
-          rt <- RTI.startRuntime
+          rt <- RTI.startRuntime Version.gitDescribe
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config rt theCodebase
@@ -123,18 +125,53 @@ main = do
             Nothing
             ShouldNotDownloadBase 
           closeCodebase
-     Run (RunCompiled file) -> unsafeReadCompact file >>= \case
-       Left err
-         -> PT.putPrettyLn . P.callout "⚠️"
-          $ "I could not load the specified binary output.\n"
-         <> fromString err
+     Run (RunCompiled file) -> withFile file ReadMode $ \h ->
+       RTI.readCompiledHeader h >>= \case
+         Left _ -> putStrLn "Could not read compiled file header."
+         Right (v,o,a,rf)
+           | not vmatch -> mismatchMsg
+           | otherwise -> hUnsafeGetCompact h >>= \case
+             Left err ->
+               PT.putPrettyLn . P.callout "⚠️"
+                $ "I could not load the specified binary output.\n"
+               <> fromString err
+             Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
+           where
+           vmatch = v == Version.gitDescribe
+                 && o == os
+                 && a == arch
+           ws s = P.wrap (P.string s)
+           mismatchMsg = PT.putPrettyLn . P.lines $
+             [ ws "I can't run this compiled program since \
+               \it works with a different version of Unison \
+               \than the one you're running."
+             , ""
+             , "Compiled file version"
+             , P.indentN 4
+               $ P.string v <> " for " <> P.string o <> " " <> P.string a
+             , ""
+             , "Your version"
+             , P.indentN 4
+               $ P.string Version.gitDescribe <> " for "
+               <> P.string os <> " " <> P.string arch
+             , ""
+             , P.wrap "The program was compiled from hash "
+                 <> (P.string $ "`" ++ rf ++ "`")
+                 <> P.wrap ". If you have that hash in your codebase,"
+                 <> P.wrap "you can do:"
+             , ""
+             , P.indentN 4
+               $ ".> compile.output " <> P.string rf <> P.string file
+             , ""
+             , P.wrap "to produce a new compiled program \
+               \that matches your version of Unison."
+             ]
 
-       Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
        (closeCodebase, theCodebase) <- getCodebaseOrExit mCodePathOption
-       runtime <- RTI.startRuntime
+       runtime <- RTI.startRuntime Version.gitDescribe
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          case isHeadless of
              Headless -> do

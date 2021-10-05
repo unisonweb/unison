@@ -11,6 +11,7 @@ module Unison.Runtime.Interface
   ( startRuntime
   , standalone
   , runStandalone
+  , readCompiledHeader
   , StoredCache
   ) where
 
@@ -21,9 +22,13 @@ import Control.Concurrent.STM as STM
 import Control.Exception (try, catch)
 import Control.Monad
 
-import Data.Bits (shiftL)
+import Data.Bits (shiftL, shiftR, (.|.), (.&.))
+import Data.Bytes.Serial
+import Data.Bytes.Get (runGetS)
+import Data.Bytes.Put (runPutS)
+import qualified Data.ByteString as B
 import Data.Compact (compactWithSharing)
-import Data.Compact.Serialize (writeCompact)
+import Data.Compact.Serialize (hPutCompact)
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
@@ -32,10 +37,13 @@ import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Map.Strict (Map)
 import Data.Traversable (for)
-import Data.Text (Text, isPrefixOf)
+import Data.Text (Text, isPrefixOf, unpack)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
+
+import System.IO (IOMode(WriteMode), withFile, Handle)
+import System.Info (os, arch)
 
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
@@ -381,8 +389,32 @@ catchInternalErrors
   -> IO (Either Error a)
 catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
 
-startRuntime :: IO (Runtime Symbol)
-startRuntime = do
+compiledHeader :: String -> Text -> B.ByteString
+compiledHeader version hash
+  = nb <> str
+  where
+  n = B.length str
+  f i = fromIntegral $ (n `shiftR` i) .&. 0xff
+  nb = B.pack . fmap (f . (*8)) $ [0..3]
+  str = runPutS $ do
+    serialize version
+    serialize os
+    serialize arch
+    serialize (unpack hash)
+
+readCompiledHeader
+  :: Handle -> IO (Either String (String, String, String, String))
+readCompiledHeader h = do
+  bl <- B.hGet h 4
+  let l = foldr g 0 (B.unpack bl)
+  bs <- B.hGet h l
+  pure . flip runGetS bs $
+    (,,,) <$> deserialize <*> deserialize <*> deserialize <*> deserialize
+  where
+  g i r = fromIntegral i .|. (r `shiftL` 8)
+
+startRuntime :: String -> IO (Runtime Symbol)
+startRuntime version = do
   ctxVar <- newIORef =<< baseContext
   pure $ Runtime
        { terminate = pure ()
@@ -401,7 +433,9 @@ startRuntime = do
            Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
            sto <- standalone cc w
            cmp <- compactWithSharing (w, sto)
-           writeCompact path cmp
+           withFile path WriteMode $ \h -> do
+             B.hPut h $ compiledHeader version (RF.showShort 8 rf)
+             hPutCompact h cmp
        , mainType = builtinMain External
        , ioTestType = builtinTest External
        }
