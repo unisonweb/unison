@@ -44,7 +44,7 @@ Cut a release of base. @runarorama does this usually.
 .basedev.release> delete.namespace releases._latest
 .basedev.release> squash trunk releases._<ReleaseName>
 .basedev.release> fork releases._<ReleaseName> releases._latest
-.basedev.release> push git@github.com/unisonweb/base
+.basedev.release> push git@github.com:unisonweb/base
 ```
 
 __6__
