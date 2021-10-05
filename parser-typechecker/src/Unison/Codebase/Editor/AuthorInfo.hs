@@ -65,5 +65,5 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
     (guidType, guidTypeRef) = (Type.ref a guidTypeRef, unsafeParse guidHash)
     unsafeParse = either error id . Reference.fromText
     guidHash = "#rc29vdqe019p56kupcgkg07fkib86r3oooatbmsgfbdsgpmjhsh00l307iuts3r973q5etb61vbjkes42b6adb3mkorusvmudiuorno"
-    copyrightHolderHash = "#aohndsu9bl844vspujp142j5aijv86rifmnrbnjvpv3h3f3aekn45rj5s1uf1ucrrtm5urbc5d1ajtm7lqq1tr8lkgv5fathp6arqug"
-    authorHash = "#5hi1vvs5t1gmu6vn1kpqmgksou8ie872j31gc294lgqks71di6gm3d4ugnrr4mq8ov0ap1e20lq099d5g6jjf9c6cbp361m9r9n5g50"
+    copyrightHolderHash = "#jeaknsbobmr6pdj9bga290pj1qckqsemiu1qkg7l9s6p88ot111218jkoe6l19hjpdqctpd0c87capaf3j5qlcim1uh1pq23pu0ebsg"
+    authorHash = "#i8f8ru3p8ijof9r26lskplmjj45rle8jdh31n62cef2r0tbj6fgjkcu2ljh4m44lo16if0fcdp7eb5fqo1iard47l4cllo7g244kmo0"
