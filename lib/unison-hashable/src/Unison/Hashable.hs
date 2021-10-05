@@ -20,16 +20,20 @@ class Accumulate h where
   toBytes :: h -> ByteString
 
 accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
-accumulateToken = Hashed . accumulate'
+accumulateToken = Hashed . hash
 
-accumulate' :: (Accumulate h, Hashable t) => t -> h
-accumulate' = accumulate . tokens
+hash :: (Accumulate h, Hashable t) => t -> h
+hash = accumulate . tokens
 
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]
 
 instance Hashable a => Hashable [a] where
   tokens = map accumulateToken
+
+instance Hashable a => Hashable (Maybe a) where
+  tokens Nothing = [Tag 0]
+  tokens (Just n) = Tag 1 : tokens n
 
 instance (Hashable a, Hashable b) => Hashable (a,b) where
   tokens (a,b) = [accumulateToken a, accumulateToken b]

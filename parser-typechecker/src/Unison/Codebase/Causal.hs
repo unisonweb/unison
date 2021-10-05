@@ -38,7 +38,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified U.Util.Cache as Cache
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable)
+import Unison.Hashable (Hashable, hash)
 import qualified Unison.Hashable as Hashable
 import Prelude hiding (head, read, tail)
 
@@ -258,9 +258,6 @@ threeWayMerge' lca combine c1 c2 = do
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
-
-hash :: Hashable e => e -> Hash
-hash = Hashable.accumulate'
 
 stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 stepDistinct f c = f (head c) `consDistinct` c

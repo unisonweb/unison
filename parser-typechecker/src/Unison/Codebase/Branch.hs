@@ -466,11 +466,11 @@ modifyPatches seg f = mapMOf edits update
     p' <- case Map.lookup seg m of
       Nothing     -> pure $ f Patch.empty
       Just (_, p) -> f <$> p
-    let h = H.accumulate' p'
+    let h = H.hash p'
     pure $ Map.insert seg (h, pure p') m
 
 replacePatch :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
+replacePatch n p = over edits (Map.insert n (H.hash p, pure p))
 
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)

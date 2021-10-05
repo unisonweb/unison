@@ -105,4 +105,4 @@ fromBytes :: ByteString -> Hash
 fromBytes = Hash
 
 showBase32Hex :: H.Hashable t => t -> String
-showBase32Hex = base32Hexs . H.accumulate'
+showBase32Hex = base32Hexs . H.hash
