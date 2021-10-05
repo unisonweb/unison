@@ -213,6 +213,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
+    , NanoID
     , aeson
     , ansi-terminal
     , async
@@ -250,6 +251,7 @@ library
     , monad-validate
     , mtl
     , mutable-containers
+    , mwc-random
     , natural-transformation
     , network
     , network-simple

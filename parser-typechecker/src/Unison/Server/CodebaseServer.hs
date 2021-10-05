@@ -16,7 +16,6 @@ import qualified Network.URI.Encode as URI
 import Control.Lens ((&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
-import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.UTF8 as BLU
@@ -27,6 +26,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
+import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
@@ -75,7 +75,7 @@ import System.Directory (canonicalizePath, doesFileExist)
 import System.Environment (getExecutablePath)
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
-import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
+import System.Random.MWC (createSystemRandom)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Parser.Ann (Ann)
@@ -188,9 +188,9 @@ app rt codebase uiPath expectedToken =
 
 genToken :: IO Strict.ByteString
 genToken = do
-  gen <- getStdGen
-  g   <- newAtomicGenM gen
-  Base64.encode <$> uniformByteStringM 24 g
+  g <- createSystemRandom
+  n <- customNanoID defaultAlphabet 6 g
+  pure $ unNanoID n
 
 data Waiter a
   = Waiter {
