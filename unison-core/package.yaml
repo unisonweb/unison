@@ -22,6 +22,9 @@ library:
     - sandi
     - text
     - transformers
+    - unison-hashable
+    - unison-prelude
+    - unison-util-relation
     - util
     - vector
 

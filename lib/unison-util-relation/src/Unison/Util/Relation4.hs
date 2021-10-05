@@ -12,7 +12,6 @@ import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation3 (Relation3)
 import Data.List.Extra (nubOrd)
-import Util (uncurry4)
 import Data.Semigroup (Sum(Sum, getSum))
 
 data Relation4 a b c d

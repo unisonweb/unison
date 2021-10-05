@@ -4,6 +4,7 @@ module Unison.Prelude
     safeReadUtf8,
     safeReadUtf8StdIn,
     writeUtf8,
+    uncurry4,
     reportBug,
   )
 where
@@ -46,6 +47,10 @@ safeReadUtf8 p = try (readUtf8 p)
 
 safeReadUtf8StdIn :: IO (Either IOException Text)
 safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
+
+uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
+uncurry4 f (a, b, c, d) =
+  f a b c d
 
 writeUtf8 :: FilePath -> Text -> IO ()
 writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt)
