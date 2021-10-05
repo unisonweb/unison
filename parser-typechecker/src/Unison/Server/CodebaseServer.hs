@@ -78,14 +78,15 @@ import qualified System.FilePath as FilePath
 import System.Random.Stateful (getStdGen, newAtomicGenM, uniformByteStringM)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Runtime as Rt
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Server.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
 import Unison.Server.Endpoints.GetDefinitions
   ( DefinitionsAPI,
     serveDefinitions,
   )
-import Unison.Server.Endpoints.ListNamespace (NamespaceAPI, serveNamespace)
+import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
+import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import Unison.Server.Types (mungeString)
 import Unison.Var (Var)
 
@@ -104,7 +105,12 @@ type OpenApiJSON = "openapi.json" :> Get '[JSON] OpenApi
 
 type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 
-type UnisonAPI = NamespaceAPI :<|> DefinitionsAPI :<|> FuzzyFindAPI
+type UnisonAPI =
+  NamespaceListing.NamespaceListingAPI
+    :<|> NamespaceDetails.NamespaceDetailsAPI
+    :<|> DefinitionsAPI
+    :<|> FuzzyFindAPI
+
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -270,30 +276,28 @@ serveIndex path = do
 serveUI :: Handler () -> FilePath -> Server WebUI
 serveUI tryAuth path _ = tryAuth *> serveIndex path
 
-server
-  :: Var v
-  => Rt.Runtime v
-  -> Codebase IO v Ann
-  -> FilePath
-  -> Strict.ByteString
-  -> Server AuthedServerAPI
+server ::
+  Var v =>
+  Rt.Runtime v ->
+  Codebase IO v Ann ->
+  FilePath ->
+  Strict.ByteString ->
+  Server AuthedServerAPI
 server rt codebase uiPath token =
   serveDirectoryWebApp (uiPath </> "static")
-    :<|> ((\t ->
-            serveUI (tryAuth t) uiPath
-              :<|> (    (    (serveNamespace (tryAuth t) codebase)
-                        :<|> (serveDefinitions (tryAuth t) rt codebase)
-                        :<|> (serveFuzzyFind (tryAuth t) codebase)
-                        )
-                   :<|> serveOpenAPI
-                   :<|> Tagged serveDocs
-                   )
-          )
+    :<|> ( \token ->
+             serveUI (tryAuth token) uiPath
+               :<|> unisonApi token
+               :<|> serveOpenAPI
+               :<|> Tagged serveDocs
          )
-
- where
-  serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
-  serveOpenAPI = pure openAPI
-  plain        = ("Content-Type", "text/plain")
-  tryAuth      = handleAuth token
-
+  where
+    serveDocs _ respond = respond $ responseLBS ok200 [plain] docsBS
+    serveOpenAPI = pure openAPI
+    plain = ("Content-Type", "text/plain")
+    tryAuth = handleAuth token
+    unisonApi t =
+      NamespaceListing.serve (tryAuth t) codebase
+        :<|> NamespaceDetails.serve (tryAuth t) rt codebase
+        :<|> serveDefinitions (tryAuth t) rt codebase
+        :<|> serveFuzzyFind (tryAuth t) codebase

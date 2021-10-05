@@ -1,9 +1,9 @@
-type Optional a = Some a | None
+structural type Optional a = Some a | None
 
-ability Abort where
+structural ability Abort where
   Abort : forall a . () -> {Abort} a
 
-ability Abort2 where
+structural ability Abort2 where
   Abort2  : forall a . () -> {Abort2} a
   Abort2' : forall a . () -> {Abort2} a
 

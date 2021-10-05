@@ -5,24 +5,25 @@ module Unison.Codebase.Runtime where
 
 import Unison.Prelude
 
-import qualified Unison.ABT                    as ABT
-import Data.Bifunctor (first)
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import qualified Unison.Codebase.CodeLookup    as CL
-import qualified Unison.Codebase               as Codebase
-import           Unison.UnisonFile              ( UnisonFile )
-import           Unison.Parser                  ( Ann )
-import qualified Unison.Term                   as Term
-import           Unison.Type                    ( Type )
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.UnisonFile             as UF
-import Unison.Builtin.Decls (pattern TupleTerm', tupleTerm)
-import qualified Unison.Util.Pretty as P
+import qualified Data.Map as Map
+import qualified Unison.ABT as ABT
+import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.Codebase.CodeLookup.Util as CL
+import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Parser.Ann (Ann)
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
+import Unison.Type (Type)
+import Unison.UnisonFile (TypecheckedUnisonFile)
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Pretty as P
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+import Unison.WatchKind (WatchKind)
+import qualified Unison.WatchKind as WK
 
 type Error = P.Pretty P.ColorText
 type Term v = Term.Term v ()
@@ -36,7 +37,6 @@ data Runtime v = Runtime
       -> IO (Either Error (Term v))
   , mainType :: Type v Ann
   , ioTestType :: Type v Ann
-  , needsContainment :: Bool
   }
 
 type IsCacheHit = Bool
@@ -48,7 +48,7 @@ type WatchResults v a = (Either Error
          -- Bindings:
        ( [(v, Term v)]
          -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, UF.WatchKind, Reference, Term v, Term v, IsCacheHit)
+       , Map v (a, WatchKind, Reference, Term v, Term v, IsCacheHit)
        ))
 
 -- Evaluates the watch expressions in the file, returning a `Map` of their
@@ -66,17 +66,17 @@ evaluateWatches
   -> PPE.PrettyPrintEnv
   -> (Reference -> IO (Maybe (Term v)))
   -> Runtime v
-  -> UnisonFile v a
+  -> TypecheckedUnisonFile v a
   -> IO (WatchResults v a)
-evaluateWatches code ppe evaluationCache rt uf = do
+evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference, Term.Term v a)
-      m = first Reference.DerivedId <$>
-            Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
-      watches = Set.fromList (fst <$> UF.allWatches uf)
-      watchKinds :: Map v UF.WatchKind
-      watchKinds = Map.fromList [ (v, k) | (k, ws) <- Map.toList (UF.watches uf)
-                                         , (v,_) <- ws ]
+      m = fmap (\(id, _wk, tm, _tp) -> (Reference.DerivedId id, tm)) (UF.hashTermsId tuf)
+      watches :: Set v = Map.keysSet watchKinds
+      watchKinds :: Map v WatchKind
+      watchKinds =
+        Map.fromList
+          [(v, k) | (k, ws) <- UF.watchComponents tuf, (v, _tm, _tp) <- ws]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -91,7 +91,7 @@ evaluateWatches code ppe evaluationCache rt uf = do
       bindings     = [ (v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m' ]
       watchVars    = [ Term.var () v | v <- toList watches ]
       bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
-      cl           = void $ CL.fromUnisonFile uf <> code
+      cl           = void (CL.fromTypecheckedUnisonFile tuf) <> void code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl ppe bigOl'LetRec
@@ -128,18 +128,15 @@ evaluateTerm'
   -> Term.Term v a
   -> IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
-  let ref = Reference.DerivedId (Term.hashClosedTerm tm)
+  let ref = Reference.DerivedId (Hashing.hashClosedTerm tm)
   result <- cache ref
   case result of
     Just r -> pure (Right r)
     Nothing -> do
-      let uf = UF.UnisonFileId mempty mempty mempty
-                 (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-      runnable <-
-        if needsContainment rt
-          then Codebase.makeSelfContained' codeLookup uf
-          else pure uf
-      r <- evaluateWatches codeLookup ppe cache rt runnable
+      let
+        tuf = UF.typecheckedUnisonFile mempty mempty mempty
+                 [(WK.RegularWatch, [(Var.nameds "result", tm, mempty <$> mainType rt)])]
+      r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
       pure $ r <&> \(_,map) ->
         let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
         in value

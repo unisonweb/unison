@@ -19,7 +19,7 @@ import           Unison.Paths                   ( Path )
 import           Unison.Term                    ( Term )
 import qualified Unison.Typechecker.Context    as Context
 import           Control.Error.Util             ( note)
-import qualified Unison.Names3                 as Names
+import qualified Unison.Names.ResolutionResult as Names
 
 type Result notes = ResultT notes Identity
 

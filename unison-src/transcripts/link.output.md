@@ -108,6 +108,13 @@ We can look at the links we have:
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
 
+.> links coolFunction License
+
+  1. coolFunction.license : License
+  
+  Tip: Try using `display 1` to display the first result or
+       `view 1` to view its source.
+
 ```
 We can link the same metadata simultaneously to multiple definitions:
 
@@ -192,5 +199,12 @@ myLibrary.h x = x + 3
     
   
   □ #7rksc58cce (start of history)
+
+.> unlink coolFunction.doc coolFunction
+
+  Updates:
+  
+    1. coolFunction : Nat -> Nat
+       - 2. doc : Doc
 
 ```

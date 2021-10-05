@@ -1,4 +1,4 @@
-type Foo = Foo Boolean Boolean
+structural type Foo = Foo Boolean Boolean
 
 f : Foo -> Boolean
 f = cases

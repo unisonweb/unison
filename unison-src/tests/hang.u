@@ -1,10 +1,10 @@
 
 use Universal == <
 
-type Future a = Future ('{Remote} a)
+structural type Future a = Future ('{Remote} a)
 
 -- A simple distributed computation ability
-ability Remote where
+structural ability Remote where
 
   -- Spawn a new node
   spawn : {Remote} Node
@@ -17,7 +17,7 @@ ability Remote where
   -- await the result of the computation
   fork : '{Remote} a ->{Remote} Future a
 
-type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
+structural type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 force : Future a ->{Remote} a
 force = cases Future.Future r -> !r

@@ -7,7 +7,7 @@ compose3 f g = a -> b -> c -> f (g a b c)
 
 id a = a
 
-ability Exception where
+structural ability Exception where
   raise: io2.Failure -> anything
 
 Exception.reraise : Either Failure a ->{Exception} a
@@ -23,7 +23,7 @@ Exception.toEither.handler = cases
 Exception.toEither : '{ε, Exception} a -> {ε} Either Failure a
 Exception.toEither a = handle !a with Exception.toEither.handler
 
-ability Throw e where
+structural ability Throw e where
   throw : e -> a
 
 List.all : (a ->{ε} Boolean) -> [a] ->{ε} Boolean
@@ -66,7 +66,7 @@ isNone = cases
   None -> true
 
 
-ability Stream a where
+structural ability Stream a where
    emit: a -> ()
 
 Stream.toList.handler : Request {Stream a} r -> [a]
@@ -97,7 +97,7 @@ Stream.collect s =
 
 -- An ability that facilitates creating temoporary directories that can be 
 -- automatically cleaned up
-ability TempDirs where
+structural ability TempDirs where
   newTempDir: Text -> Text
   removeDir: Text -> ()
 
@@ -136,6 +136,11 @@ stdout = IO.stdHandle StdOut
 printText : Text -> {io2.IO} Either Failure ()
 printText t = putBytes.impl stdout (toUtf8 t)
 
+printLine : Text -> {io2.IO, Exception} ()
+printLine t = reraise (printText (t ++ "\n"))
+
+delay : Nat ->{IO, Exception} ()
+delay n = reraise (delay.impl n)
 -- Run tests which might fail, might create temporary directores and Stream out
 -- results, returns the Results and the result of the test
 evalTest: '{Stream Result, TempDirs, io2.IO, Exception} a ->{io2.IO, Exception}([Result], a)

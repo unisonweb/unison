@@ -46,7 +46,7 @@ import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.Codebase.Runtime (Runtime(..), Error)
 import Unison.Codebase.MainTerm (builtinMain, builtinTest)
 
-import Unison.Parser (Ann(External))
+import Unison.Parser.Ann (Ann(External))
 import Unison.PrettyPrintEnv
 import Unison.Util.Pretty as P
 import Unison.Symbol (Symbol)
@@ -63,6 +63,7 @@ import Unison.Runtime.Machine
   )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Stack
+import qualified Unison.Hashing.V2.Convert as Hashing
 
 type Term v = Tm.Term v ()
 
@@ -254,12 +255,12 @@ prepareEvaluation ppe tm ctx = do
   (rmn, rtms)
     | Tm.LetRecNamed' bs mn0 <- tm
     , hcs <- fmap (first RF.DerivedId)
-           . Tm.hashComponents $ Map.fromList bs
+           . Hashing.hashTermComponents $ Map.fromList bs
     , mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
-    , rmn <- RF.DerivedId $ Tm.hashClosedTerm mn
+    , rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn
     = (rmn , (rmn, mn) : Map.elems hcs)
 
-    | rmn <- RF.DerivedId $ Tm.hashClosedTerm tm
+    | rmn <- RF.DerivedId $ Hashing.hashClosedTerm tm
     = (rmn, [(rmn, tm)])
 
   (rgrp, rbkr) = intermediateTerms ppe ctx rtms
@@ -355,5 +356,4 @@ startRuntime = do
            evalInContext ppe ctx init
        , mainType = builtinMain External
        , ioTestType = builtinTest External
-       , needsContainment = False
        }

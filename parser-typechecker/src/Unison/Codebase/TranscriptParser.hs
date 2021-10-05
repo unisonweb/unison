@@ -25,11 +25,12 @@ import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison, expandNumber)
+import Unison.CommandLine.Main (expandNumber)
+import Unison.CommandLine.Welcome (asciiartUnison)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -41,6 +42,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Runtime.Interface as RTI
@@ -157,6 +159,10 @@ run dir configFile stanzas codebase = do
           -- end of ucm block
           Just Nothing -> do
             output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
             dieUnexpectedSuccess
             awaitInput
           -- ucm command to run

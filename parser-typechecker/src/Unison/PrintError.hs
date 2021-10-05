@@ -25,8 +25,9 @@ import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
 import           Unison.Name                  ( Name )
-import           Unison.Parser                (Ann (..), Annotated, ann)
-import qualified Unison.Parser                as Parser
+import Unison.Parser (Annotated, ann)
+import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
@@ -37,7 +38,7 @@ import qualified Unison.Type                  as Type
 import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
 import qualified Unison.Typechecker.TypeVar   as TypeVar
-import qualified Unison.UnisonFile            as UF
+import qualified Unison.UnisonFile.Error as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
 import           Unison.Util.ColorText        (Color)
@@ -50,7 +51,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import Unison.Util.Pretty (Pretty, ColorText)
-import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
@@ -68,6 +69,10 @@ pattern Identifier = Color.Bold
 
 defaultWidth :: Pr.Width
 defaultWidth = 60
+
+-- Various links used in error messages, collected here for a quick overview
+structuralVsUniqueDocsLink :: IsString a => Pretty a
+structuralVsUniqueDocsLink = "https://www.unisonweb.org/docs/language-reference/#unique-types"
 
 fromOverHere'
   :: Ord a
@@ -357,6 +362,30 @@ renderTypeError e env src = case e of
       , annotatedToEnglish expectedLeaf
       , "\n"
       ]
+    , debugSummary note
+    ]
+  AbilityCheckFailure {..}
+    | [tv@(Type.Var' ev)] <- ambient
+    , ev `Set.member` foldMap Type.freeVars requested -> mconcat
+    [ "I tried to infer a cyclic ability."
+    , "\n\n"
+    , "The expression "
+    , describeStyle ErrorSite
+    , " was inferred to require the "
+    , case length requested of
+        1 -> "ability: "
+        _ -> "abilities: "
+    , "\n\n    {"
+    , commas (renderType' env) requested
+    , "}"
+    , "\n\n"
+    , "where `"
+    , renderType' env tv
+    , "` is its overall abilities."
+    , "\n\n"
+    , "I need a type signature to help figure this out."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
     , debugSummary note
     ]
   AbilityCheckFailure {..}
@@ -1002,6 +1031,10 @@ prettyParseError s = \case
     where
     excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
     go = \case
+      L.UnexpectedDelimiter s ->
+        "I found a " <> style ErrorSite (fromString s) <>
+        " here, but I didn't see a list or tuple that it might be a separator for.\n\n" <>
+        excerpt
       L.CloseWithoutMatchingOpen open close ->
         "I found a closing " <> style ErrorSite (fromString close) <>
         " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
@@ -1287,6 +1320,15 @@ prettyParseError s = \case
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
+  go (Parser.MissingTypeModifier keyword name) = Pr.lines
+    [ Pr.wrap $
+        "I expected to see `structural` or `unique` at the start of this line:"
+    , ""
+    , tokensAsErrorSite s [void keyword, void name]
+    , Pr.wrap $ "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
+              <> structuralVsUniqueDocsLink
+    ]
+
   unknownConstructor
     :: String -> L.Token (HashQualified Name) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [

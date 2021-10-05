@@ -9,11 +9,13 @@ module Unison.Codebase.Editor.Input
 
 import Unison.Prelude
 
-import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -21,6 +23,8 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.Name                    ( Name )
 import           Unison.NameSegment             ( NameSegment )
+import qualified Unison.Util.Pretty as P
+import           Unison.Codebase.Verbosity
 
 import qualified Data.Text as Text
 
@@ -50,15 +54,18 @@ data Input
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity 
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
+    -- used in Welcome module to give directions to user 
+    | CreateMessage (P.Pretty P.ColorText)  
     -- change directory
     | SwitchBranchI Path'
+    | UpI
     | PopBranchI
     -- > names foo
     -- > names foo.bar
@@ -133,7 +140,6 @@ data Input
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
   | DebugNumberedArgsI
-  | DebugBranchHistoryI
   | DebugTypecheckedUnisonFileI
   | DebugDumpNamespacesI
   | DebugDumpNamespaceSimpleI

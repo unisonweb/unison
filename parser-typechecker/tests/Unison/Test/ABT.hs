@@ -7,8 +7,6 @@ import EasyTest
 import Unison.ABT as ABT
 import Unison.Symbol (Symbol(..))
 import Unison.Var as Var
-import           Unison.Codebase.Serialization    ( getFromBytes, putBytes )
-import qualified Unison.Codebase.Serialization.V1 as V1
 
 test :: Test ()
 test = scope "abt" $ tests [
@@ -30,14 +28,7 @@ test = scope "abt" $ tests [
     -- make sure the variable wasn't captured
     expectEqual fvs [symbol 0 "a"]
     -- make sure the resulting term is alpha equiv to \a1 -> [a1, a]
-    expectEqual t2 (ABT.abs (symbol 0 "b") (ABT.tm [var 0 "b", var 0 "a"])),
-
-  -- confirmation of fix for https://github.com/unisonweb/unison/issues/1388
-  -- where symbols with nonzero freshIds did not round trip
-  scope "putSymbol" $ let
-    v = Symbol 10 (User "hi")
-    v' = getFromBytes V1.getSymbol (putBytes V1.putSymbol v)
-    in expectEqual (Just v) v'
+    expectEqual t2 (ABT.abs (symbol 0 "b") (ABT.tm [var 0 "b", var 0 "a"]))
   ]
   where
     symbol i n = Symbol i (Var.User n)

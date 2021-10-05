@@ -60,6 +60,8 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
@@ -69,6 +71,7 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Server.SearchResult   ( SearchResult )
 import qualified Unison.Server.SearchResult  as SR
@@ -86,7 +89,7 @@ import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
@@ -96,8 +99,10 @@ import qualified Unison.ShortHash as SH
 import           Unison.Term                    (Term)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Type.Names as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
@@ -111,8 +116,13 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TermEdit.Typing as TermEdit
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
+import qualified Unison.PrettyPrintEnvDecl.Names as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Monoid            as Monoid
@@ -139,6 +149,8 @@ import qualified Unison.Util.Relation as Relation
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
+import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.Codebase.Verbosity as Verbosity
 
 type F m i v = Free (Command m i v)
 
@@ -418,7 +430,7 @@ loop = do
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
-          PullRemoteBranchI orepo dest _syncMode ->
+          PullRemoteBranchI orepo dest _syncMode _ ->
             (Text.pack . InputPattern.patternName
               $ InputPatterns.patternFromInput input)
               <> " "
@@ -427,6 +439,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          CreateMessage{} -> wat 
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
@@ -443,6 +456,7 @@ loop = do
           PreviewMergeLocalBranchI{} -> wat
           DiffNamespaceI{} -> wat
           SwitchBranchI{} -> wat
+          UpI{} -> wat
           PopBranchI{} -> wat
           NamesI{} -> wat
           TodoI{} -> wat
@@ -461,7 +475,6 @@ loop = do
           ShowDefinitionByPrefixI{} -> wat
           ShowReflogI{} -> wat
           DebugNumberedArgsI{} -> wat
-          DebugBranchHistoryI{} -> wat
           DebugTypecheckedUnisonFileI{} -> wat
           DebugDumpNamespacesI{} -> wat
           DebugDumpNamespaceSimpleI{} -> wat
@@ -592,7 +605,7 @@ loop = do
                     Just ty -> do
                       let steps =
                             bimap (Path.unabsolute . resolveToAbsolute)
-                                  (const . step $ Type.toReference ty)
+                                  (const . step $ Hashing.typeToReference ty)
                               <$> srcs
                       stepManyAtNoSync steps
                  where
@@ -663,6 +676,10 @@ loop = do
                     doDisplay outputLoc ns tm
 
       in case input of
+      
+      CreateMessage pretty -> 
+        respond $ PrintMessage pretty
+      
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=
@@ -673,7 +690,7 @@ loop = do
         -- discontinuity in the reflog.
         convertEntries :: Maybe Branch.Hash
                        -> [Output.ReflogEntry]
-                       -> [Reflog.Entry]
+                       -> [Reflog.Entry Branch.Hash]
                        -> [Output.ReflogEntry]
         convertEntries _ acc [] = acc
         convertEntries Nothing acc entries@(Reflog.Entry old _ _ : _) =
@@ -869,6 +886,10 @@ loop = do
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
+      UpI -> use currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
+        Nothing -> pure ()
+        Just (path,_) -> currentPathStack %= Nel.cons (Path.Absolute path)
+
       PopBranchI -> use (currentPathStack . to Nel.uncons) >>= \case
         (_, Nothing) -> respond StartOfCurrentPathHistory
         (_, Just t) -> currentPathStack .= t
@@ -907,7 +928,7 @@ loop = do
             diffHelper (Branch.head prev) (Branch.head root') >>=
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
-      UiI -> eval UI 
+      UiI -> eval UI
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
@@ -1416,7 +1437,7 @@ loop = do
                   where n = Name.fromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
-                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+                hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
               termEdits :: Map Name (Reference, Reference)
               termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr)) where
                 g v = case ( toList (Names.refTermsNamed slurpCheckNames0 n)
@@ -1516,7 +1537,7 @@ loop = do
             | (r, Term.List' ts) <- Map.toList results
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
-        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
+        cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
         let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
         names <- makePrintNamesFromLabeled' $
           LD.referents testTerms <>
@@ -1541,7 +1562,7 @@ loop = do
                       Left e -> respond (EvaluationFailure e) $> []
                       Right tm' -> do
                         -- After evaluation, cache the result of the test
-                        eval $ PutWatch UF.TestWatch rid tm'
+                        eval $ PutWatch WK.TestWatch rid tm'
                         respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
                         pure [(r, tm')]
               r -> error $ "unpossible, tests can't be builtins: " <> show r
@@ -1670,13 +1691,14 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI mayRepo path syncMode -> unlessError do
+      PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
         ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
         lift $ unlessGitError do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b (Just path) destAbs
+          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path 
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs 
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -1737,16 +1759,13 @@ loop = do
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
-      DebugBranchHistoryI ->
-        eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
-          (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> let
           datas, effects, terms :: [(Name, Reference.Id)]
           datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
           effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
-          terms = [ (Name.fromVar v, r) | (v, (r, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          terms = [ (Name.fromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
@@ -1915,7 +1934,7 @@ getLinks input src mdTypeStr = ExceptT $ do
     Right Nothing -> go Nothing
     Right (Just mdTypeStr) -> parseType input mdTypeStr >>= \case
       Left e -> pure $ Left e
-      Right typ -> go . Just . Set.singleton $ Type.toReference typ
+      Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
 getLinks' :: (Var v, Monad m)
          => Path.HQSplit'         -- definition to print metadata of
@@ -2205,7 +2224,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 ->
+    for_ dest0 $ \dest0 -> 
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
     pure b
@@ -2577,7 +2596,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   termActions = map doTerm . toList $
     SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
-  tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
+  tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
   md v =
     if Set.member v tests then Metadata.singleton isTestType isTestValue
@@ -2829,7 +2848,7 @@ addWatch watchName (Just uf) = do
            (UF.dataDeclarationsId' uf)
            (UF.effectDeclarationsId' uf)
            (UF.topLevelComponents' uf)
-           (UF.watchComponents uf <> [(UF.RegularWatch, [(v2, Term.var a v, ty)])]))
+           (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, Term.var a v, ty)])]))
     _ -> addWatch watchName Nothing
 
 -- Given a typechecked file with a main function called `mainName`

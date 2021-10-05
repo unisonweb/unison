@@ -3,12 +3,12 @@ I can use `debug.file` to see the hashes of the last typechecked file.
 
 Given this .u file:
 ```unison
-type outside.A = A Nat outside.B
-type outside.B = B Int
+structural type outside.A = A Nat outside.B
+structural type outside.B = B Int
 outside.c = 3
 outside.d = c < (p + 1)
 
-type inside.M = M outside.A
+structural type inside.M = M outside.A
 inside.p = c
 inside.q x = x + p * p
 inside.r = d
@@ -36,9 +36,9 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
   ⍟ I've added these definitions:
   
-    type inside.M
-    type outside.A
-    type outside.B
+    structural type inside.M
+    structural type outside.A
+    structural type outside.B
     inside.p  : Nat
     inside.q  : Nat -> Nat
     inside.r  : Boolean
@@ -90,4 +90,4 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
     1. #im2kiu2hmn inside.r
 
 ```
-We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the type that provided the constructor.
+We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

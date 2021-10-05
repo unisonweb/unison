@@ -14,12 +14,13 @@ import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser (Ann(..))
+import Unison.Parser.Ann (Ann(..))
 import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
-import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.Codebase.CodeLookup.Util as CL
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.DataDeclaration.ConstructorId as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
@@ -55,7 +56,7 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
   $ Map.lookup (Var.nameds s) typecheckedFileTerms
 
 codeLookup :: CodeLookup Symbol Identity Ann
-codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
 typeNamedId :: String -> R.Id
 typeNamedId s =
@@ -152,6 +153,7 @@ pattern Doc2Table ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2TableId -
 pattern Doc2Folded isFolded d d2 <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2FoldedId -> True)) [Term.Boolean' isFolded, d, d2]
 pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2ParagraphId -> True)) (Term.List' (toList -> ds))
 pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' Doc2Ref ((==) doc2BulletedListId -> True)) (Term.List' (toList -> ds))
+pattern Doc2NumberedList n ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NumberedListId -> True)) [Term.Nat' n, Term.List' (toList -> ds)]
 pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2SectionId -> True)) [title, Term.List' (toList -> ds)]
 pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2NamedLinkId -> True)) [name, dest]
 pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' Doc2Ref ((==) doc2ImageId -> True)) [alt, link, caption]
@@ -295,9 +297,9 @@ constructorName ref cid =
 source :: Text
 source = fromString [r|
 
-type Either a b = Left a | Right b
+structural type Either a b = Left a | Right b
 
-type Optional a = None | Some a
+structural type Optional a = None | Some a
 
 unique[b28d929d0a73d2c18eac86341a3bb9399f8550c11b5f35eabb2751e6803ccc20] type
   IsPropagated = IsPropagated
@@ -462,7 +464,7 @@ unique[d7b2ced8c08b2c6e54050d1f5acedef3395f293d] type Pretty.Annotated w txt
   | Indent w (Pretty.Annotated w txt) (Pretty.Annotated w txt) (Pretty.Annotated w txt)
   | Append w [Pretty.Annotated w txt]
 
-type Pretty txt = Pretty (Pretty.Annotated () txt)
+structural type Pretty txt = Pretty (Pretty.Annotated () txt)
 
 Pretty.get = cases Pretty p -> p
 

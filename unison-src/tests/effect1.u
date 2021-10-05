@@ -4,5 +4,5 @@ eff f z = cases
   { Abort.Abort _ -> k } -> z
   { a } -> f a
 
-ability Abort where
+structural ability Abort where
   Abort : forall a . () -> {Abort} a

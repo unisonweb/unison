@@ -64,10 +64,10 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import Unison.UnisonFile (WatchKind)
 import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Star3 (Star3 (Star3))
+import Unison.WatchKind (WatchKind)
 
 debug :: Bool
 debug = False

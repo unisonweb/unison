@@ -6,7 +6,6 @@ import Unison.Prelude
 
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
-
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- Represents the parts of a name between the `.`s

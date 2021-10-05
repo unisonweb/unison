@@ -24,7 +24,6 @@ import Options.Applicative
        , command
        , customExecParser
        , flag
-       , flag'
        , footerDoc
        , fullDesc
        , headerDoc
@@ -70,10 +69,20 @@ data ShouldForkCodebase
     | DontFork
     deriving (Show, Eq)
 
+data ShouldDownloadBase
+    = ShouldDownloadBase
+    | ShouldNotDownloadBase
+    deriving (Show, Eq)
+
 data ShouldSaveCodebase
     = SaveCodebase
     | DontSaveCodebase
     deriving (Show, Eq)
+
+data CodebasePathOption 
+  = CreateCodebaseWhenMissing FilePath 
+  | DontCreateCodebaseWhenMissing FilePath
+  deriving (Show, Eq)
 
 data IsHeadless = Headless | WithCLI
   deriving (Show, Eq)
@@ -83,23 +92,17 @@ data IsHeadless = Headless | WithCLI
 -- Note that this is not one-to-one with command-parsers since some are simple variants.
 -- E.g. run, run.file, run.pipe
 data Command
-  = Launch IsHeadless CodebaseServerOpts
+  = Launch IsHeadless CodebaseServerOpts ShouldDownloadBase
   | PrintVersion
+  -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
   | Init
   | Run RunSource
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
-  | UpgradeCodebase
   deriving (Show, Eq)
-
-data CodebaseFormat
-    = V1
-    | V2
-    deriving (Show, Eq)
 
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
-  { codebasePath :: Maybe FilePath
-  , codebaseFormat :: CodebaseFormat
+  { codebasePathOption :: Maybe CodebasePathOption
   } deriving (Show, Eq)
 
 -- | The root-level 'ParserInfo'.
@@ -146,7 +149,8 @@ versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Pr
 initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))
   where
-    initHelp = "Initialise a unison codebase"
+    initHelp = 
+        "This command is has been removed. Use --codebase-create instead to create a codebase in the specified directory when starting the UCM."
 
 runSymbolCommand :: Mod CommandFields Command
 runSymbolCommand =
@@ -184,10 +188,6 @@ transcriptForkCommand =
         , "Multiple transcript files may be provided; they are processed in sequence" <+> "starting from the same codebase."
         ]
 
-upgradeCodebaseCommand :: Mod CommandFields Command
-upgradeCodebaseCommand =
-    command "upgrade-codebase" (info (pure UpgradeCodebase) (fullDesc <> progDesc "Upgrades a v1 codebase to a v2 codebase"))
-
 commandParser :: CodebaseServerOpts -> Parser Command
 commandParser envOpts =
   hsubparser commands <|> launchParser envOpts WithCLI
@@ -200,28 +200,30 @@ commandParser envOpts =
            , runPipeCommand
            , transcriptCommand
            , transcriptForkCommand
-           , upgradeCodebaseCommand
            , launchHeadlessCommand envOpts
            ]
-
+           
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do -- ApplicativeDo
-    codebasePath <- codebasePathParser
-    codebaseFormat <- codebaseFormatParser
-    pure GlobalOptions{..}
+    codebasePathOption <- codebasePathParser <|> codebaseCreateParser
 
-codebasePathParser :: Parser (Maybe FilePath)
-codebasePathParser =
-    optional . strOption $
+    pure GlobalOptions{codebasePathOption = codebasePathOption}
+
+codebasePathParser :: Parser (Maybe CodebasePathOption)
+codebasePathParser = do 
+    optString <- optional . strOption $
          long "codebase"
-      <> metavar "path/to/codebase"
-      <> help "The path to the codebase, defaults to the home directory"
-
-codebaseFormatParser :: Parser CodebaseFormat
-codebaseFormatParser =
-        flag' V1 (long "old-codebase" <> help "Use a v1 codebase on startup.")
-    <|> flag' V2 (long "new-codebase" <> help "Use a v2 codebase on startup.")
-    <|> pure V2
+      <> metavar "codebase/path"
+      <> help "The path to an existing codebase"
+    pure (fmap DontCreateCodebaseWhenMissing optString)
+       
+codebaseCreateParser :: Parser (Maybe CodebasePathOption)
+codebaseCreateParser = do
+    path <- optional . strOption $
+         long "codebase-create"
+      <> metavar "codebase/path"
+      <> help "The path to a new or existing codebase (one will be created if there isn't one)"
+    pure (fmap CreateCodebaseWhenMissing path)
 
 launchHeadlessCommand :: CodebaseServerOpts -> Mod CommandFields Command
 launchHeadlessCommand envOpts =
@@ -266,10 +268,11 @@ codebaseServerOptsParser envOpts = do -- ApplicativeDo
 launchParser :: CodebaseServerOpts -> IsHeadless -> Parser Command
 launchParser envOpts isHeadless = do -- ApplicativeDo
   codebaseServerOpts <- codebaseServerOptsParser envOpts
-  pure (Launch isHeadless codebaseServerOpts)
+  downloadBase <- downloadBaseFlag
+  pure (Launch isHeadless codebaseServerOpts downloadBase)
 
 initParser :: Parser Command
-initParser = pure Init
+initParser = pure Init 
 
 versionParser :: Parser Command
 versionParser = pure PrintVersion
@@ -292,6 +295,11 @@ saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
   where
     saveHelp = "if set the resulting codebase will be saved to a new directory, otherwise it will be deleted"
+
+downloadBaseFlag :: Parser ShouldDownloadBase
+downloadBaseFlag = flag ShouldDownloadBase ShouldNotDownloadBase (long "no-base" <> help downloadBaseHelp)
+  where
+    downloadBaseHelp = "if set, a new codebase will be created without downloading the base library, otherwise the new codebase will download base"
 
 fileArgument :: String -> Parser FilePath
 fileArgument varName =

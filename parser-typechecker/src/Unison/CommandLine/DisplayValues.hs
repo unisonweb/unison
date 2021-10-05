@@ -19,6 +19,8 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import qualified Unison.ShortHash as SH
@@ -310,7 +312,7 @@ displayDoc pped terms typeOf evaluated types = go
     Referent.Con r _ _ -> prettyType r
   prettyType r = let ppe = PPE.declarationPPE pped r in types r >>= \case
     Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
-    Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl ppe r (PPE.typeName ppe r) ty
+    Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped r (PPE.typeName ppe r) ty
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r = P.syntaxToColor $

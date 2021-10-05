@@ -2,7 +2,7 @@
 -- A corner case in the runtime is when a function is being overapplied and
 -- the exactly applied function requests an ability (and returns a new function)
 
-ability Zing where
+structural ability Zing where
   zing : Nat -> {Zing} (Nat -> Nat)
   zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
 

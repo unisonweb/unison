@@ -36,7 +36,7 @@ identical err x y =
   then ()
   else throw ("mismatch" ++ err)
 
-type Three a b c = zero a | one b | two c
+structural type Three a b c = zero a | one b | two c
 
 showThree : Three Nat Nat Nat -> Text
 showThree = cases
@@ -89,7 +89,7 @@ identicality t x
 ```
 
 ```unison
-ability Zap where
+structural ability Zap where
   zap : Three Nat Nat Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat
@@ -165,4 +165,35 @@ to actual show that the serialization works.
 .> display fDeps
 .> io.test tests
 .> io.test badLoad
+```
+
+```unison
+validateTest : Link.Term ->{IO} Result
+validateTest l = match Code.lookup l with
+  None -> Fail "Couldn't look up link"
+  Some co -> match Code.validate [(l, co)] with
+    Some f -> Fail "invalid code pre"
+    None -> match Code.deserialize (Code.serialize co) with
+      Left _ -> Fail "code failed deserialization"
+      Right co -> match Code.validate [(l, co)] with
+        Some f -> Fail "invalid code post"
+        None -> Ok "validated"
+
+vtests : '{IO} [Result]
+vtests _ =
+  List.map validateTest
+    [ termLink fib10
+    , termLink compose
+    , termLink List.all
+    , termLink hex
+    , termLink isDirectory
+    , termLink delay
+    , termLink printLine
+    , termLink isNone
+    ]
+```
+
+```ucm
+.> add
+.> io.test vtests
 ```

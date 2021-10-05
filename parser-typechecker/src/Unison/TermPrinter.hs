@@ -6,47 +6,49 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
-import           Control.Monad.State            (evalState)
-import qualified Control.Monad.State           as State
-import           Data.List
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import           Data.Text                      ( unpack )
-import qualified Data.Text                     as Text
-import qualified Text.Show.Unicode             as U
-import           Data.Vector                    ( )
-import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
-import qualified Unison.ABT                    as ABT
-import qualified Unison.Blank                  as Blank
-import qualified Unison.HashQualified          as HQ
-import           Unison.Lexer                   ( symbolyId, showEscapeChar )
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.NamePrinter             ( styleHashQualified'' )
-import qualified Unison.Pattern                as Pattern
-import           Unison.Pattern                 ( Pattern )
-import           Unison.Reference               ( Reference )
-import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import           Unison.Referent                ( Referent )
-import qualified Unison.Util.SyntaxText        as S
-import           Unison.Util.SyntaxText         ( SyntaxText )
-import           Unison.Term
-import           Unison.Type                    ( Type )
-import qualified Unison.Type                   as Type
-import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.Util.Bytes             as Bytes
-import           Unison.Util.Monoid             ( intercalateMap )
-import qualified Unison.Util.Pretty             as PP
-import           Unison.Util.Pretty             ( Pretty, ColorText, Width )
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
-import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
-import qualified Unison.Builtin.Decls          as DD
+import Control.Monad.State (evalState)
+import qualified Control.Monad.State as State
+import Data.List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.Text (unpack)
+import qualified Data.Text as Text
+import Data.Vector ()
+import qualified Text.Show.Unicode as U
+import Unison.ABT (annotation, reannotateUp, pattern AbsN')
+import qualified Unison.ABT as ABT
+import qualified Unison.Blank as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.Builtin.Decls as DD
 import qualified Unison.ConstructorType as CT
+import qualified Unison.HashQualified as HQ
+import Unison.Lexer (showEscapeChar, symbolyId)
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NamePrinter (styleHashQualified'')
+import qualified Unison.NameSegment as NameSegment
+import Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import Unison.PrettyPrintEnv.FQN (Imports, Prefix, Suffix, elideFQN)
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import Unison.Term
+import Unison.Type (Type)
+import qualified Unison.Type as Type
+import qualified Unison.TypePrinter as TypePrinter
+import qualified Unison.Util.Bytes as Bytes
+import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Pretty (ColorText, Pretty, Width)
+import qualified Unison.Util.Pretty as PP
+import qualified Unison.Util.SyntaxText as S
+import Unison.Var (Var)
+import qualified Unison.Var as Var
+
+type SyntaxText = S.SyntaxText' Reference
 
 pretty :: Var v => PrettyPrintEnv -> Term v a -> Pretty ColorText
 pretty env = PP.syntaxToColor . pretty0 env emptyAc . printAnnotate env
@@ -85,20 +87,20 @@ data BlockContext
   -- This ABT node is at the top level of a TermParser.block.
   = Block
   | Normal
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data InfixContext
   -- This ABT node is an infix operator being used in infix position.
   = Infix
   | NonInfix
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data DocLiteralContext
   -- We won't try and render this ABT node or anything under it as a [: @Doc literal :]
   = NoDoc
   -- We'll keep checking as we recurse down
   | MaybeDoc
-  deriving (Eq)
+  deriving (Eq, Show)
 
 {- Explanation of precedence handling
 
@@ -210,14 +212,14 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' ref cid -> 
+    Constructor' ref cid ->
       styleHashQualified'' (fmt $ S.Referent conRef) name
-      where 
+      where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref cid CT.Data
-    Request' ref cid -> 
+    Request' ref cid ->
       styleHashQualified'' (fmt $ S.Referent conRef) name
-      where 
+      where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref cid CT.Effect
     Handle' h body -> paren (p >= 2) $
@@ -236,9 +238,13 @@ pretty0
         pblock tm = let (im', uses) = calcImports im tm
                     in uses $ [pretty0 n (ac 0 Block im' doc) tm]
     App' x (Constructor' DD.UnitRef 0) ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im doc) x
-    Delay' x  ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im doc) x
+      paren (p >= 11 || isBlock x && p >= 3)  $
+        fmt S.DelayForceChar (l "!")
+        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
+    Delay' x ->
+      paren (p >= 11 || isBlock x && p >= 3) $
+        fmt S.DelayForceChar (l "'")
+        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
@@ -296,7 +302,7 @@ pretty0
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
           (fmt S.ControlKeyword "let") `PP.hang` x
-      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) (-1) vs pat))
+      lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
          <> printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') = let (_,g) = ABT.unabs g' in
@@ -322,7 +328,7 @@ pretty0
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
-    (TupleTerm' [x], _) -> 
+    (TupleTerm' [x], _) ->
       let
           conRef = DD.pairCtorRef
           name = elideFQN im $ PrettyPrintEnv.termName n conRef
@@ -331,10 +337,10 @@ pretty0
       paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im doc) x, fmt (S.Referent DD.unitCtorRef) "()" ]
 
-    (TupleTerm' xs, _) -> 
+    (TupleTerm' xs, _) ->
       let tupleLink p = fmt (S.Reference DD.unitRef) p
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
-      
+
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -404,21 +410,24 @@ pretty0
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
-             -> Pretty SyntaxText
-             -> Pretty SyntaxText
+    :: Var v
+    => [(Term3 v PrintAnnotation, Term3 v PrintAnnotation)]
+    -> Pretty SyntaxText
+    -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
-   -- todo: use `PP.column2` in the case where we need to break
    where
     unbroken = PP.spaced (ps ++ [last])
-    broken = PP.column2 (psCols $ [""] ++ ps ++ [last])
+    broken   = PP.hang (head ps) . PP.column2 . psCols $ (tail ps ++ [last])
     psCols ps = case take 2 ps of
-      [x,y] -> (x,y) : psCols (drop 2 ps)
-      [] -> []
-      _ -> error "??"
-    ps = join $ [r a f | (a, f) <- reverse xs ]
-    r a f = [pretty0 n (ac 3 Normal im doc) a,
-             pretty0 n (AmbientContext 10 Normal Infix im doc False) f]
+      [x, y] -> (x, y) : psCols (drop 2 ps)
+      [x]    -> [(x, "")]
+      []     -> []
+      _      -> undefined
+    ps = join $ [ r a f | (a, f) <- reverse xs ]
+    r a f =
+      [ pretty0 n (ac (if isBlock a then 12 else 3) Normal im doc) a
+      , pretty0 n (AmbientContext 10 Normal Infix im doc False) f
+      ]
 
 prettyPattern
   :: forall v loc . Var v
@@ -447,7 +456,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref cid [] ->
     (styleHashQualified'' (fmt $ S.Referent conRef) name, vs)
-    where 
+    where
       name = elideFQN im $ PrettyPrintEnv.termName n conRef
       conRef = Referent.Con ref cid CT.Data
   Pattern.Constructor _ ref cid pats ->
@@ -472,7 +481,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         conRef = Referent.Con ref cid CT.Effect
     in  ( PP.group (
             fmt S.DelimiterChar "{"  <>
-            (PP.sep " " . PP.nonEmpty $ 
+            (PP.sep " " . PP.nonEmpty $
               [ styleHashQualified'' (fmt (S.Referent conRef)) $ name
               , pats_printed
               , fmt S.ControlKeyword "->"
@@ -491,9 +500,9 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
         f i s = (paren (p >= i) (pl <> " " <> (fmt (S.Op op) s) <> " " <> pr), rvs)
     in case op of
-      Pattern.Cons -> f 9 "+:"
-      Pattern.Snoc -> f 9 ":+"
-      Pattern.Concat -> f 9 "++"
+      Pattern.Cons -> f 0 "+:"
+      Pattern.Snoc -> f 0 ":+"
+      Pattern.Concat -> f 0 "++"
  where
   l :: IsString s => String -> s
   l = fromString
@@ -1171,6 +1180,15 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
       Pattern.Unbound _ -> False
 isDestructuringBind _ _ = False
 
+isBlock :: Ord v => Term2 vt at ap v a -> Bool
+isBlock tm =
+  case tm of
+    If' _ _ _ -> True
+    Handle' _ _ -> True
+    Match' _ _ -> True
+    LetBlock _ _ -> True
+    _ -> False
+
 pattern LetBlock bindings body <- (unLetBlock -> Just (bindings, body))
 
 -- Collects nested let/let rec blocks into one minimally nested block.
@@ -1306,6 +1324,16 @@ prettyDoc2 ppe ac tm = case tm of
           S.DocDelimiter
           "}}"
     bail tm = brace (pretty0 ppe ac tm)
+    -- Finds the longest run of a character and return a run one longer than that
+    oneMore c inner = replicate num c
+     where
+      num =
+        case
+            filter (\s -> take 2 s == "__")
+              $ group (PP.toPlainUnbroken $ PP.syntaxToColor inner)
+          of
+            [] -> 2
+            x  -> 1 + (maximum $ map length x)
     go :: Width -> Term3 v PrintAnnotation -> Pretty SyntaxText
     go hdr = \case
       (toDocTransclude ppe -> Just d) ->
@@ -1331,15 +1359,23 @@ prettyDoc2 ppe ac tm = case tm of
       (toDocWord ppe -> Just t) ->
         PP.text t
       (toDocCode ppe -> Just d) ->
-        PP.group ("''" <> rec d <> "''")
+        let inner = rec d
+            quotes = oneMore '\'' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocJoin ppe -> Just ds) ->
         foldMap rec ds
       (toDocItalic ppe -> Just d) ->
-        PP.group $ "*" <> rec d <> "*"
+        let inner = rec d
+            underscores = oneMore '_' inner
+         in PP.group $ PP.string underscores <> inner <> PP.string underscores
       (toDocBold ppe -> Just d) ->
-        PP.group $ "__" <> rec d <> "__"
+        let inner = rec d
+            stars = oneMore '*' inner
+         in PP.group $ PP.string stars <> inner <> PP.string stars
       (toDocStrikethrough ppe -> Just d) ->
-        PP.group $ "~~" <> rec d <> "~~"
+         let inner = rec d
+             quotes = oneMore '~' inner
+         in PP.group $ PP.string quotes <> inner <> PP.string quotes
       (toDocGroup ppe -> Just d) ->
         PP.group $ rec d
       (toDocColumn ppe -> Just ds) ->

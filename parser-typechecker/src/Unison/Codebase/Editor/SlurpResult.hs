@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
-import Unison.Parser ( Ann )
+import Unison.Parser.Ann ( Ann )
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -23,6 +23,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -232,7 +233,7 @@ pretty isPast ppe sr =
     okTerm v = case Map.lookup v tms of
       Nothing ->
         [(P.bold (prettyVar v), Just $ P.red "(Unison bug, unknown term)")]
-      Just (_, _, ty) ->
+      Just (_, _, _, ty) ->
         ( plus <> P.bold (prettyVar v)
           , Just $ ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)
           )
@@ -279,7 +280,7 @@ pretty isPast ppe sr =
                <$> toList (types (defsWithBlockedDependencies sr))
                )
         termLineFor status v = case Map.lookup v tms of
-          Just (_ref, _tm, ty) ->
+          Just (_ref, _wk, _tm, ty) ->
             ( prettyStatus status
             , P.bold (P.text $ Var.name v)
             , ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty)

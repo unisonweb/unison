@@ -1,6 +1,6 @@
 module Unison.Util.Range where
 
-import Unison.Lexer (Pos(..))
+import Unison.Lexer.Pos (Pos(..))
 
 -- | True if `_x` contains `_y`
 contains :: Range -> Range -> Bool

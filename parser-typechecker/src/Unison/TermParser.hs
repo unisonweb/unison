@@ -11,6 +11,7 @@ module Unison.TermParser where
 import Unison.Prelude
 
 import           Control.Monad.Reader (asks, local)
+import           Data.Foldable (foldrM)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -39,6 +40,7 @@ import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
+import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -1038,21 +1040,23 @@ block'' isTop implicitUnitAtEnd s openBlock closeBlock = do
             Right tm -> pure tm
           toTm bs = do
             (bs, body) <- body bs
-            finish $ foldr step body bs
+            finish =<< foldrM step body bs
             where
-            step :: BlockElement v -> Term v Ann -> Term v Ann
             step elem body = case elem of
-              Binding ((a,v), tm) -> Term.consLetRec
-                isTop
-                (ann a <> ann body)
-                (a,v,tm)
-                body
-              Action tm -> Term.consLetRec
-                isTop
-                (ann tm <> ann body)
-                (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
-                body
-              DestructuringBind (_, f) -> f body
+              Binding ((a,v), tm) -> pure $
+                Term.consLetRec
+                  isTop
+                  (ann a <> ann body)
+                  (a,v,tm)
+                  body
+              Action tm -> pure $
+                Term.consLetRec
+                  isTop
+                  (ann tm <> ann body)
+                  (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
+                  body
+              DestructuringBind (_, f) ->
+                f <$> finish body
           body bs = case reverse bs of
             Binding ((a, _v), _) : _ -> pure $
               if implicitUnitAtEnd then (bs, DD.unitTerm a)

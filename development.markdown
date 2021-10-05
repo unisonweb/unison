@@ -21,6 +21,7 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 * `stack exec tests` runs the tests
 * `stack exec transcripts` runs all the integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
 * `stack exec tests -- prefix-of-test` and `stack exec transcripts -- prefix-of-test` only run tests with a matching prefix.
+* `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
 
 ### What if you want a profiled build?
 

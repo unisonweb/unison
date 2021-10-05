@@ -34,6 +34,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Runtime.IOSource as DD
@@ -47,6 +48,8 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
 
 type Nat = Word64
+
+type SSyntaxText = S.SyntaxText' Reference
 
 data Doc
   = Word Text
@@ -135,6 +138,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     DD.Doc2Folded isFolded d d2 -> Folded isFolded <$> go d <*> go d2
     DD.Doc2Paragraph ds -> Paragraph <$> traverse go ds
     DD.Doc2BulletedList ds -> BulletedList <$> traverse go ds
+    DD.Doc2NumberedList n ds -> NumberedList n <$> traverse go ds
     DD.Doc2Section title ds -> Section <$> go title <*> traverse go ds
     DD.Doc2NamedLink d1 d2 -> NamedLink <$> go d1 <*> go d2
     DD.Doc2Image d1 d2 Decls.OptionalNone' -> Image <$> go d1 <*> go d2 <*> pure Nothing
@@ -153,7 +157,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   source :: Term v () -> m SyntaxText
   source tm = (pure . formatPretty . TermPrinter.prettyBlock' True (PPE.suffixifiedPPE pped)) tm
 
-  goSignatures :: [Referent] -> m [P.Pretty S.SyntaxText]
+  goSignatures :: [Referent] -> m [P.Pretty SSyntaxText]
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
@@ -184,9 +188,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     -- Link (Either Link.Type Doc2.Term)
     DD.Doc2SpecialFormLink e -> let
       ppe = PPE.suffixifiedPPE pped
-      tm :: Referent -> P.Pretty S.SyntaxText
+      tm :: Referent -> P.Pretty SSyntaxText
       tm r = (NP.styleHashQualified'' (NP.fmt (S.Referent r)) . PPE.termName ppe) r
-      ty :: Reference -> P.Pretty S.SyntaxText
+      ty :: Reference -> P.Pretty SSyntaxText
       ty r = (NP.styleHashQualified'' (NP.fmt (S.Reference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
@@ -241,7 +245,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             Just decl ->
               pure $ DO.UserObject (Src folded full)
               where
-                full = formatPretty (DeclPrinter.prettyDecl ppe r (PPE.typeName ppe r) decl)
+                full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName ppe r) decl)
                 folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName ppe r) decl)
 
         go :: (Set.Set Reference, [Ref (UnisonHash, DisplayObject SyntaxText Src)])

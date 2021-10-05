@@ -21,10 +21,10 @@ rainbow x =
   d = (Ask.ask : Int)
   +42
 
-ability Ask a where
+structural ability Ask a where
   ask : {Ask a} a
 
-type Either a b = Left a | Right b
+structural type Either a b = Left a | Right b
 
 unique ability Zang where
   zang : {Zang} Nat

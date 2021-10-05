@@ -1,5 +1,5 @@
 
-ability SpaceAttack where
+structural ability SpaceAttack where
   launchMissiles : Text -> ()
 
 -- should typecheck fine, as the `launchMissiles "saturn"`
