@@ -186,10 +186,12 @@ app
 app rt codebase uiPath expectedToken =
   serve serverAPI $ server rt codebase uiPath expectedToken
 
+-- The Token is used to help prevent multiple users on a machine gain access to
+-- each others codebases.
 genToken :: IO Strict.ByteString
 genToken = do
   g <- createSystemRandom
-  n <- customNanoID defaultAlphabet 6 g
+  n <- customNanoID defaultAlphabet 16 g
   pure $ unNanoID n
 
 data Waiter a
