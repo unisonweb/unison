@@ -65,7 +65,7 @@ curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/uc
 
 __7__
 
-Merge and promote to production any PRs pending [on the docs site](https://github.com/unisonweb/unisonweb-org/pulls) which are associated with the new release. Confirm with @rlmark.
+[In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
 
 __8__ 
 
