@@ -13,6 +13,7 @@ git checkout series/M2
 git merge origin/trunk
 git tag -a release/$RELEASE_NAME -m "release"
 git push origin release/$RELEASE_NAME
+git push origin series/M2
 ```
 
 __2__
