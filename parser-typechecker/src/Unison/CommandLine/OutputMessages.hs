@@ -584,21 +584,21 @@ notifyUser dir o = case o of
 
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
-  TypeParseError src e ->
+  TypeParseError src ppe e ->
     pure . P.fatalCallout $ P.lines [
       P.wrap "I couldn't parse the type you supplied:",
       "",
-      prettyParseError src e
+      prettyParseError ppe src e
     ]
-  ParseResolutionFailures src es -> pure $
-    prettyResolutionFailures src es
+  ParseResolutionFailures src ppe es -> pure $
+    prettyResolutionFailures ppe src es
   TypeHasFreeVars typ ->
     pure . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",
       P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
     ]
-  ParseErrors src es ->
-    pure . P.sep "\n\n" $ prettyParseError (Text.unpack src) <$> es
+  ParseErrors src ppe es ->
+    pure . P.sep "\n\n" $ prettyParseError ppe (Text.unpack src) <$> es
   TypeErrors src ppenv notes -> do
     let showNote =
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))

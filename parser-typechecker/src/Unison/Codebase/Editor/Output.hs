@@ -109,8 +109,8 @@ data Output v
   | PatchAlreadyExists Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Path.Split' (Set Reference)
-  | TypeParseError String (Parser.Err v)
-  | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
+  | TypeParseError String PPE.PrettyPrintEnv (Parser.Err v)
+  | ParseResolutionFailures String PPE.PrettyPrintEnv [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
   | TermAlreadyExists Path.Split' (Set Referent)
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
@@ -149,7 +149,7 @@ data Output v
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   -- Original source, followed by the errors:
-  | ParseErrors Text [Parser.Err v]
+  | ParseErrors Text PPE.PrettyPrintEnv [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)

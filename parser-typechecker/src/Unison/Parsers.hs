@@ -20,10 +20,16 @@ import qualified Unison.TypeParser             as TypeParser
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Util.Pretty            as Pr
 import           Unison.Var                     ( Var )
+import qualified Unison.PrettyPrintEnv as PPE
 
-unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
-unsafeGetRightFrom src =
-  either (error . Pr.toANSI defaultWidth . prettyParseError src) id
+unsafeGetRightFrom
+  :: (Var v, Show v)
+  => PPE.PrettyPrintEnv
+  -> String
+  -> Either (Parser.Err v) a
+  -> a
+unsafeGetRightFrom ppe src =
+  either (error . Pr.toANSI defaultWidth . prettyParseError ppe src) id
 
 parse
   :: Var v
@@ -65,24 +71,36 @@ readAndParseFile penv fileName = do
   let src = Text.unpack txt
   pure $ parseFile fileName src penv
 
-unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> Term v Ann
-unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
+unsafeParseTerm
+    :: Var v
+    => PPE.PrettyPrintEnv
+    -> String
+    -> Parser.ParsingEnv
+    -> Term v Ann
+unsafeParseTerm ppe s = fmap (unsafeGetRightFrom ppe s) . parseTerm $ s
 
 unsafeReadAndParseFile
-  :: Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
-unsafeReadAndParseFile penv fileName = do
+  :: PPE.PrettyPrintEnv
+  -> Parser.ParsingEnv
+  -> FilePath
+  -> IO (UnisonFile Symbol Ann)
+unsafeReadAndParseFile ppe penv fileName = do
   txt <- readFile fileName
   let str = Text.unpack txt
-  pure . unsafeGetRightFrom str $ parseFile fileName str penv
+  pure . unsafeGetRightFrom ppe str $ parseFile fileName str penv
 
 unsafeParseFileBuiltinsOnly
-  :: FilePath -> IO (UnisonFile Symbol Ann)
-unsafeParseFileBuiltinsOnly =
-  unsafeReadAndParseFile $ Parser.ParsingEnv
-    mempty
-    (Names.Names Builtin.names0 mempty)
+  :: PPE.PrettyPrintEnv
+  -> FilePath
+  -> IO (UnisonFile Symbol Ann)
+unsafeParseFileBuiltinsOnly ppe fp =
+  let parseEnv = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
+   in unsafeReadAndParseFile ppe parseEnv fp
 
 unsafeParseFile
-  :: String -> Parser.ParsingEnv -> UnisonFile Symbol Ann
-unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
+  :: String
+  -> PPE.PrettyPrintEnv
+  -> Parser.ParsingEnv
+  -> UnisonFile Symbol Ann
+unsafeParseFile s ppe pEnv = unsafeGetRightFrom ppe s $ parseFile "" s pEnv
 

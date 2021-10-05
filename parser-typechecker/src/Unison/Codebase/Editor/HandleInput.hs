@@ -293,7 +293,7 @@ loop = do
         case r of
           -- Parsing failed
           Nothing -> respond $
-            ParseErrors text [ err | Result.Parsing err <- toList notes ]
+            ParseErrors text ppe [ err | Result.Parsing err <- toList notes ]
           Just (Left errNames) -> do
             ns <- makeShadowedPrintNamesFromHQ hqs errNames
             ppe <- suffixifiedPPE ns
@@ -2720,9 +2720,13 @@ parseSearchType :: (Monad m, Var v)
   => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
 
-parseType :: (Monad m, Var v)
-  => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
-parseType input src = do
+parseType 
+  :: (Monad m, Var v) 
+  => PPE.PrettyPrintEnv 
+  -> Input 
+  -> String 
+  -> Action' m v (Either (Output v) (Type v Ann))
+parseType ppe input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
   parseNames <- basicParseNames0
@@ -2730,10 +2734,10 @@ parseType input src = do
                           (Names3.Names parseNames (Names3.oldNames names0))
   e <- eval $ ParseType names lexed
   pure $ case e of
-    Left err -> Left $ TypeParseError src err
+    Left err -> Left $ TypeParseError src ppe err
     Right typ -> case Type.bindNames mempty (Names3.currentNames names)
                     $ Type.generalizeLowercase mempty typ of
-      Left es -> Left $ ParseResolutionFailures src (toList es)
+      Left es -> Left $ ParseResolutionFailures src ppe (toList es)
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled
