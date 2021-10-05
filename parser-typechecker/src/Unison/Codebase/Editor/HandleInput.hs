@@ -439,6 +439,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          CreateMessage{} -> wat 
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
@@ -675,6 +676,10 @@ loop = do
                     doDisplay outputLoc ns tm
 
       in case input of
+      
+      CreateMessage pretty -> 
+        respond $ PrintMessage pretty
+      
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=

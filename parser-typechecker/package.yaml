@@ -44,6 +44,7 @@ library:
     - configurator
     - cryptonite
     - data-default
+    - deepseq
     - directory
     - either
     - fuzzyfind
@@ -109,6 +110,7 @@ library:
     - x509
     - x509-store
     - x509-system
+    - zlib
     - unison-codebase
     - unison-codebase-sqlite
     - unison-codebase-sync
