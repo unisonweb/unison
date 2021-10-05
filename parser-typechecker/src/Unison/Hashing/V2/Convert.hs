@@ -281,17 +281,21 @@ m2hPatch (Memory.Patch.Patch termEdits typeEdits) =
 hashPatch :: Memory.Patch.Patch -> Hash
 hashPatch = H.accumulate' . m2hPatch
 
-hashBranch :: Memory.Branch.Branch m -> Hash
-hashBranch = H.accumulate . tokensBranch
-
-tokensBranch :: Accumulate h => Memory.Branch.Branch m -> [Token h]
-tokensBranch = H.tokens . m2hCausal . Memory.Branch._history
-
 tokensBranch0 :: Accumulate h => Memory.Branch.Branch0 m -> [Token h]
 tokensBranch0 = H.tokens . m2hBranch
 
-m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal Hashing.Branch.Raw
-m2hCausal = \case
+-- hashing of branches isn't currently delegated here, because it's enmeshed
+-- with every `cons` or `step` function.  I think it would be good to do while
+-- we're updating the hash function, but I'm also not looking forward to doing it
+-- and it's not clearly a problem yet.
+_hashBranch :: Memory.Branch.Branch m -> Hash
+_hashBranch = H.accumulate . _tokensBranch
+
+_tokensBranch :: Accumulate h => Memory.Branch.Branch m -> [Token h]
+_tokensBranch = H.tokens . _m2hCausal . Memory.Branch._history
+
+_m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal Hashing.Branch.Raw
+_m2hCausal = \case
   Memory.Causal.One _h e ->
     Hashing.Causal.Causal (m2hBranch e) mempty
   Memory.Causal.Cons _h e (ht, _) ->
