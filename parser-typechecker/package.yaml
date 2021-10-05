@@ -85,6 +85,8 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - mwc-random
+    - NanoID
     - servant
     - servant-docs
     - servant-openapi3
