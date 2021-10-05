@@ -26,7 +26,7 @@ Create a release notes draft issue, following [this template](https://github.com
 
 __4__
 
-Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarama does this usually.
+Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarorama does this usually.
 
 ```
 git log --oneline release/M2h...release/M2i | grep 'Merge pull request #'
