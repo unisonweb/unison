@@ -141,6 +141,8 @@ main = do
                  && o == os
                  && a == arch
            ws s = P.wrap (P.string s)
+           ifile | 'c':'u':'.':rest <- reverse file = reverse rest
+                 | otherwise = file
            mismatchMsg = PT.putPrettyLn . P.lines $
              [ ws "I can't run this compiled program since \
                \it works with a different version of Unison \
@@ -155,13 +157,14 @@ main = do
                $ P.string Version.gitDescribe <> " for "
                <> P.string os <> " " <> P.string arch
              , ""
-             , P.wrap "The program was compiled from hash "
-                 <> (P.string $ "`" ++ rf ++ "`")
-                 <> P.wrap ". If you have that hash in your codebase,"
-                 <> P.wrap "you can do:"
+             , P.wrap $ "The program was compiled from hash "
+                 <> (P.string $ "`" ++ rf ++ "`.")
+                 <> "If you have that hash in your codebase,"
+                 <> "you can do:"
              , ""
              , P.indentN 4
-               $ ".> compile.output " <> P.string rf <> P.string file
+               $ ".> compile.output "
+                 <> P.string rf <> " " <> P.string ifile
              , ""
              , P.wrap "to produce a new compiled program \
                \that matches your version of Unison."
