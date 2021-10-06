@@ -30,6 +30,7 @@ import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent, pattern Ref)
+import           Unison.Reference             (Reference)
 import           Unison.Result                (Note (..))
 import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
@@ -56,6 +57,9 @@ import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
+import Data.Set.NonEmpty (NESet)
+import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.Names3 as Names3
 
 type Env = PPE.PrettyPrintEnv
 
@@ -976,8 +980,8 @@ renderNoteAsANSI
   -> String
 renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
 
-renderParseErrorAsANSI :: Var v => Env -> Pr.Width -> String -> Parser.Err v -> String
-renderParseErrorAsANSI env w src = Pr.toANSI w . prettyParseError env src
+renderParseErrorAsANSI :: Var v => Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource
   :: (Var v, Annotated a, Show a, Ord a)
@@ -986,7 +990,7 @@ printNoteWithSource
   -> Note v a
   -> Pretty ColorText
 printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
-printNoteWithSource env s  (Parsing   e) = prettyParseError env s e
+printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
 printNoteWithSource _env s (InvalidPath path term) =
@@ -1023,11 +1027,10 @@ firstLexerError ts =
 prettyParseError
   :: forall v
    . Var v
-  => Env 
-  -> String
+  => String
   -> Parser.Err v
   -> Pretty ColorText
-prettyParseError env s = \case
+prettyParseError s = \case
   P.TrivialError _ (LexerError ts e) _ -> go e
     where
     excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
@@ -1320,7 +1323,7 @@ prettyParseError env s = \case
     where
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
-    Pr.border 2 . prettyResolutionFailures env s $ failures
+    Pr.border 2 . prettyResolutionFailures s $ failures
   go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
         "I expected to see `structural` or `unique` at the start of this line:"
@@ -1434,33 +1437,45 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
 prettyResolutionFailures
   :: forall v a
    . (Annotated a, Var v, Ord a)
-  => Env
-  -> String -- ^ src
+  => String -- ^ src
   -> [Names.ResolutionFailure v a]
   -> Pretty ColorText
-prettyResolutionFailures env s (sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
+prettyResolutionFailures s (sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
   [ Pr.wrap
     ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
   , ""
   , annotatedsAsErrorSite s (Names.getAnnotation <$> failures)
   , let
-      conflicts = nubOrd . filter Names.isAmbiguation $ failures
+      ambiguities :: [Pretty ColorText]
+      ambiguities = do
+        nubOrd failures >>= \case
+          (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+            let ppe = ppeFromNames0 names
+            pure (prettyTermConflict ppe v refs)
+          (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do 
+            let ppe = ppeFromNames0 names
+            pure (prettyTypeConflict ppe v refs)
+          _ -> empty
       allVars = nubOrd (Names.getVar <$> failures)
     in
       "Using these fully qualified names:"
       `Pr.hang` Pr.spaced (prettyVar <$> allVars)
       <>        "\n"
-      <>        if null conflicts
+      <>        if null ambiguities
                   then ""
-                  else foldMap prettyConflict conflicts
+                  else Pr.lines ambiguities
   ]
   where
-    prettyConflict :: Names.ResolutionFailure v a -> Pretty ColorText
-    prettyConflict = \case
-      Names.TermResolutionFailure v _ s ->
-       Pr.hang (prettyVar v <> " could refer to any of:") . Pr.bulleted $ showTermRef env <$> Set.toList s
-      Names.TypeResolutionFailure v _ s ->
-       Pr.hang (prettyVar v <> " could refer to any of:") . Pr.bulleted $ showTypeRef env <$> Set.toList s
+    ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
+    ppeFromNames0 names0 = PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
+
+    prettyTypeConflict :: PPE.PrettyPrintEnv -> v -> NESet Reference -> Pretty ColorText
+    prettyTypeConflict ppe v refs =
+       Pr.hang ("The " <> Pr.yellow "type" <> " " <> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.bulleted $ showTypeRef ppe <$> toList refs
+
+    prettyTermConflict :: PPE.PrettyPrintEnv -> v -> NESet Referent -> Pretty ColorText
+    prettyTermConflict ppe v refs =
+       Pr.hang ("The " <> Pr.green "term" <> " " <> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.bulleted $ showTermRef ppe <$> toList refs
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
