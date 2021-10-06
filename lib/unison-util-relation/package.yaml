@@ -27,3 +27,4 @@ default-extensions:
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns

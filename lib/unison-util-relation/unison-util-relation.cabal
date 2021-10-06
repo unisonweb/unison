@@ -37,6 +37,7 @@ library
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
