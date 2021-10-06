@@ -3,13 +3,12 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: f6c1a38888f9aa17badba1054ded8edc3891e4c10b30f7ba4efe9cb8b31b3367
 
-name:           unison-util
+name:           unison-prelude
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
+copyright:      Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 build-type:     Simple
 
 source-repository head
@@ -18,34 +17,33 @@ source-repository head
 
 library
   exposed-modules:
-      U.Util.Alternative
-      U.Util.Base32Hex
-      U.Util.Cache
-      U.Util.Components
-      U.Util.Hash
-      U.Util.Hashable
-      U.Util.Lens
-      U.Util.Map
-      U.Util.Monoid
-      U.Util.Set
-      U.Util.String
-      U.Util.Text
-      U.Util.Timing
+      Unison.Prelude
   other-modules:
-      Paths_unison_util
+      Paths_unison_prelude
   hs-source-dirs:
-      ./
+      src
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+  ghc-options: -Wall
   build-depends:
       base
     , bytestring
     , containers
-    , cryptonite
-    , lens
-    , memory
+    , either
+    , extra
+    , mtl
     , safe
-    , sandi
     , text
-    , time
-    , unison-util-relation
-    , unliftio
+    , transformers
   default-language: Haskell2010

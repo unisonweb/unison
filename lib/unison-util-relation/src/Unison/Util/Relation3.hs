@@ -6,7 +6,6 @@ import Unison.Prelude hiding (empty, toList)
 
 import Unison.Util.Relation (Relation)
 import qualified Data.Map as Map
-import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 import Data.Semigroup (Sum(Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
@@ -114,7 +113,3 @@ instance (Ord a, Ord b, Ord c) => Monoid (Relation3 a b c) where
     d1' = Map.unionWith (<>) (d1 s1) (d1 s2)
     d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
     d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
-
-instance (H.Hashable d1, H.Hashable d2, H.Hashable d3)
-       => H.Hashable (Relation3 d1 d2 d3) where
-  tokens s = [ H.accumulateToken $ toNestedList s ]

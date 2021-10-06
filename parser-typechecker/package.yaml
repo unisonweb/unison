@@ -119,7 +119,9 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-prelude
     - unison-util
+    - unison-util-relation
     - open-browser
     - uri-encode
 
@@ -149,6 +151,7 @@ executables:
       - unison-core1
       - unison-parser-typechecker
       - unison-codebase-sync
+      - unison-prelude
       - uri-encode
       - unliftio
     when:
@@ -194,7 +197,9 @@ executables:
       - unliftio
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
       - unison-util
+      - unison-util-relation
 
 
   transcripts:
@@ -211,6 +216,7 @@ executables:
       - text
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
     build-tools:
       - unison-parser-typechecker:unison
 
