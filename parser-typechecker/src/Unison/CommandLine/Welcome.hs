@@ -49,11 +49,11 @@ welcome initStatus downloadBase filePath unisonVersion =
   Welcome (Init initStatus) downloadBase filePath unisonVersion
 
 pullBase :: ReadRemoteNamespace -> Either Event Input
-pullBase _ns = let
+pullBase ns = let
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just _ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent
+    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent
   in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
