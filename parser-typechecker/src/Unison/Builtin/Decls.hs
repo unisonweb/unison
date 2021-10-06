@@ -86,6 +86,7 @@ constructorId ref name = do
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
+seqViewEmpty, seqViewElem :: ConstructorId
 Just noneId = constructorId optionalRef "Optional.None"
 Just someId = constructorId optionalRef "Optional.Some"
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
@@ -102,6 +103,8 @@ Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
 Just eitherRightId = constructorId eitherRef "Either.Right"
 Just eitherLeftId = constructorId eitherRef "Either.Left"
+Just seqViewEmpty = constructorId seqViewRef "SeqView.VEmpty"
+Just seqViewElem = constructorId seqViewRef "SeqView.VElem"
 
 Just bufferModeNoBufferingId = constructorId bufferModeRef "io2.BufferMode.NoBuffering"
 Just bufferModeLineBufferingId = constructorId bufferModeRef "io2.BufferMode.LineBuffering"

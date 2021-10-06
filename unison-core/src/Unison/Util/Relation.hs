@@ -112,15 +112,25 @@ outerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
                       -> Map c (Set a, Set b)
 outerJoinRanMultimaps a b = outerJoinDomMultimaps (swap a) (swap b)
 
-innerJoinDomMultimaps :: (Ord a, Ord b, Ord c)
-                      => Relation a b
-                      -> Relation a c
-                      -> Map a (Set b, Set c)
+-- | @innerJoinDomMultimaps xs ys@ returns the "inner join" of the domains of @xs@ and @ys@, which has intersection-like
+-- semantics:
+--
+-- * @a@s that do not exist in both @xs@ and @ys@ are dropped.
+-- * The @a@s that remain are therefore associated with non-empty sets of @b@s and @c@s.
+--
+-- /O(a2 * log(a1/a2 + 1)), a1 <= a2/, where /a1/ and /a2/ are the numbers of elements in each relation's domain.
+innerJoinDomMultimaps ::
+  (Ord a, Ord b, Ord c) =>
+  Relation a b ->
+  Relation a c ->
+  Map a (Set b, Set c)
 innerJoinDomMultimaps b c =
-  Map.fromList
-    [ (a, (lookupDom a b, lookupDom a c))
-    | a <- S.toList $ dom b `S.intersection` dom c ]
+  Map.intersectionWith (,) (domain b) (domain c)
 
+-- | @innerJoinRanMultimaps xs ys@ returns the "inner join" of the ranges of @xs@ and @ys@. See 'innerJoinDomMultimaps'
+-- for more info.
+--
+-- /O(c2 * log(c1/c2 + 1)), c1 <= c2/, where /c1/ and /c2/ are the numbers of elements in each relation's range.
 innerJoinRanMultimaps :: (Ord a, Ord b, Ord c)
                       => Relation a c
                       -> Relation b c

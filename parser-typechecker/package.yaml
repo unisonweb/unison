@@ -45,6 +45,7 @@ library:
     - configurator
     - cryptonite
     - data-default
+    - deepseq
     - directory
     - either
     - fuzzyfind
@@ -85,6 +86,8 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - mwc-random
+    - NanoID
     - servant
     - servant-docs
     - servant-openapi3
@@ -110,6 +113,7 @@ library:
     - x509
     - x509-store
     - x509-system
+    - zlib
     - unison-codebase
     - unison-codebase-sqlite
     - unison-codebase-sync

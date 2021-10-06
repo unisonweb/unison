@@ -227,6 +227,27 @@ test> Bytes.tests.at =
           Bytes.at 0 bs == Some 77,
           Bytes.at 99 bs == None
         ]
+
+test> Bytes.tests.compression =
+        roundTrip b =
+          (Bytes.zlib.decompress (Bytes.zlib.compress b) == Right b)
+            && (Bytes.gzip.decompress (Bytes.gzip.compress b) == Right b)
+
+        isLeft = cases
+          Left _ -> true
+          Right _ -> false
+
+        checks [
+          roundTrip 0xs2093487509823745709827345789023457892345,
+          roundTrip 0xs00000000000000000000000000000000000000000000,
+          roundTrip 0xs,
+          roundTrip 0xs11111111111111111111111111,
+          roundTrip 0xsffffffffffffffffffffffffffffff,
+          roundTrip 0xs222222222fffffffffffffffffffffffffffffff,
+          -- these fail due to bad checksums and/or headers
+          isLeft (zlib.decompress 0xs2093487509823745709827345789023457892345),
+          isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
+        ]
 ```
 
 ```ucm:hide
