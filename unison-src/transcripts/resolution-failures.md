@@ -16,10 +16,11 @@ Now let's add a term named `a.foo`:
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
 
-one.ambiguousTerm : .base.Nat
-one.ambiguousTerm = 1
-two.ambiguousTerm : .base.Nat
-two.ambiguousTerm = 2
+unique type T = A | B
+one.ambiguousTerm : T
+one.ambiguousTerm = A
+two.ambiguousTerm : T
+two.ambiguousTerm = B
 ```
 
 ```ucm
@@ -31,10 +32,12 @@ two.ambiguousTerm = 2
 Now we introduce code which isn't sufficiently qualified. 
 It is ambiguous which type from which namespace we mean.
 
-```unison
+```unison:error
 useAmbiguousType : Ambiguous -> ()
 useAmbiguousType _ = ()
+```
 
-useAmbiguousTerm : Nat
+```unison:error
+useAmbiguousTerm : T
 useAmbiguousTerm = ambiguousTerm
 ```
