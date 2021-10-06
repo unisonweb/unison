@@ -1236,11 +1236,14 @@ loop = do
               ExceptT (parseSearchType input (unwords ws)) >>= \typ ->
                 ExceptT $ do
                   let named = Branch.deepReferents root0
-                  matches <- fmap toList . eval $ GetTermsOfType typ
-                  matches <- filter (`Set.member` named) <$>
+                  matches <-
+                    fmap (filter (`Set.member` named) . toList) $
+                      eval $ GetTermsOfType typ
+                  matches <-
                     if null matches then do
                       respond NoExactTypeMatches
-                      fmap toList . eval $ GetTermsMentioningType typ
+                      fmap (filter (`Set.member` named) . toList) $
+                        eval $ GetTermsMentioningType typ
                     else pure matches
                   let results =
                       -- in verbose mode, aliases are shown, so we collapse all
