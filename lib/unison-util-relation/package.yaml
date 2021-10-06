@@ -10,7 +10,6 @@ dependencies:
   - containers
   - extra
   - unison-prelude
-  - unison-hashable
 
 ghc-options:
   -Wall

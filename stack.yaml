@@ -20,7 +20,6 @@ packages:
 - codebase2/util
 - codebase2/util-serialization
 - codebase2/util-term
-- lib/unison-hashable
 - lib/unison-prelude
 - lib/unison-util-relation
 

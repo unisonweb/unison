@@ -10,7 +10,6 @@ import qualified Data.Map                      as M
 import qualified Data.Set                      as S
 import qualified Data.Map                      as Map
 import qualified Data.Map.Internal as Map
-import qualified Unison.Hashable               as H
 import qualified Control.Monad as Monad
 
 -- |
@@ -545,9 +544,6 @@ instance (Ord a, Ord b) => Monoid (Relation a b) where
 
 instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union
-
-instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
-  tokens = H.tokens . toList
 
 toUnzippedMultimap ::
   Ord a => Ord b => Ord c => Relation a (b,c) -> Map a (Set b, Set c)

@@ -114,7 +114,6 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
-    - unison-hashable
     - unison-prelude
     - unison-util
     - unison-util-relation
@@ -191,7 +190,6 @@ executables:
       - transformers
       - unliftio
       - unison-core1
-      - unison-hashable
       - unison-parser-typechecker
       - unison-prelude
       - unison-util

@@ -4,6 +4,12 @@ import Unison.Prelude
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation4 (Relation4)
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Relation3 as Relation3
+import qualified Unison.Util.Relation4 as Relation4
 
 data Token h
   = Tag !Word8
@@ -39,6 +45,15 @@ instance (Hashable a) => Hashable (Set.Set a) where
 
 instance (Hashable k, Hashable v) => Hashable (Map.Map k v) where
   tokens = tokens . Map.toList
+
+instance (Hashable a, Hashable b) => Hashable (Relation a b) where
+  tokens = tokens . Relation.toList
+
+instance (Hashable d1, Hashable d2, Hashable d3) => Hashable (Relation3 d1 d2 d3) where
+  tokens s = [ accumulateToken $ Relation3.toNestedList s ]
+
+instance (Hashable d1, Hashable d2, Hashable d3, Hashable d4) => Hashable (Relation4 d1 d2 d3 d4) where
+  tokens s = [ accumulateToken $ Relation4.toNestedList s ]
 
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
