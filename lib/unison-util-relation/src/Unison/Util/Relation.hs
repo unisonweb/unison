@@ -1,4 +1,104 @@
-module Unison.Util.Relation where
+module Unison.Util.Relation
+  ( Relation,
+
+    -- * Initialization
+    empty,
+    singleton,
+    fromList,
+    fromManyDom,
+    fromManyRan,
+    fromMap,
+    fromMultimap,
+    fromSet,
+
+    -- * Queries
+    null,
+    size,
+    member,
+    notMember,
+    memberDom,
+    memberRan,
+    lookupDom,
+    lookupRan,
+    manyDom,
+    manyRan,
+    (<$|),
+    (|$>),
+
+    -- ** Searches
+    searchDom,
+    searchRan,
+
+    -- ** Filters
+    filter,
+    Unison.Util.Relation.filterM,
+    filterDom,
+    filterDomM,
+    filterManyDom,
+    filterRan,
+    filterRanM,
+    subtractDom,
+    (<||),
+    subtractRan,
+    (||>),
+    restrictDom,
+    (<|),
+    restrictRan,
+    (|>),
+    collectRan,
+
+    -- ** Folds
+    foldlStrict,
+
+    -- * General traversals
+    map,
+    mapDom,
+    mapRan,
+    bimap,
+    bitraverse,
+
+    -- * Manipulations
+    swap,
+    insert,
+    insertManyDom,
+    insertManyRan,
+    delete,
+    deleteDom,
+    deleteRan,
+    deleteDomWhere,
+    deleteRanWhere,
+    replaceDom,
+    replaceRan,
+    updateDom,
+    updateRan,
+
+    -- ** Combinations
+    difference,
+    intersection,
+    joinDom,
+    joinRan,
+    innerJoinDomMultimaps,
+    innerJoinRanMultimaps,
+    outerJoinDomMultimaps,
+    outerJoinRanMultimaps,
+    unions,
+
+    -- * Converting to other data structures
+    toList,
+    domain,
+    range,
+    toMap,
+
+    -- ** Multimap
+    toMultimap,
+    toUnzippedMultimap,
+
+    -- ** Set
+    dom,
+    ran,
+    toSet,
+  )
+where
 
 import qualified Control.Monad as Monad
 import Data.Bifunctor (first, second)
@@ -378,14 +478,14 @@ r |> t =
     filtrar x = M.filterWithKey (\k _ -> k == x) rr
     rr = range r -- just to memoize the value
 
--- Restrict the range to not include these `b`s
+-- | Restrict the range to not include these `b`s
 (||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 r ||> t = fromList [(a, b) | (a, b) <- toList r, not (b `S.member` t)]
 
 subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
 subtractRan = flip (||>)
 
--- Restrict the domain to not include these `a`
+-- | Restrict the domain to not include these `a`
 (<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 s <|| r = fromList [(a, b) | (a, b) <- toList r, not (a `S.member` s)]
 subtractDom = (<||)
