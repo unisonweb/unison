@@ -10,7 +10,7 @@ import Unison.Prelude
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Data.List                    (find, intersperse, sort)
-import           Data.List.Extra              (nubOrd)
+import           Data.List.Extra              (nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
 import           Data.Sequence                (Seq (..))
@@ -1440,42 +1440,43 @@ prettyResolutionFailures
   => String -- ^ src
   -> [Names.ResolutionFailure v a]
   -> Pretty ColorText
-prettyResolutionFailures s (sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
+prettyResolutionFailures s (nubOrdOn Names.getVar -> sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
   [ Pr.wrap
     ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
   , ""
   , annotatedsAsErrorSite s (Names.getAnnotation <$> failures)
-  , let
-      ambiguities :: [Pretty ColorText]
-      ambiguities = do
-        nubOrd failures >>= \case
-          (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-            let ppe = ppeFromNames0 names
-            pure (prettyTermConflict ppe v refs)
-          (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do 
-            let ppe = ppeFromNames0 names
-            pure (prettyTypeConflict ppe v refs)
-          _ -> empty
-      allVars = nubOrd (Names.getVar <$> failures)
-    in
-      "Using these fully qualified names:"
-      `Pr.hang` Pr.spaced (prettyVar <$> allVars)
-      <>        "\n"
-      <>        if null ambiguities
-                  then ""
-                  else Pr.lines ambiguities
+  , let (ambiguities, missingVars) = partitionEithers (splitNotFoundFromAmbiguities <$> failures)
+    in Pr.linesSpaced . Pr.nonEmpty $ (prettyMissingVars missingVars : ambiguities)
   ]
   where
+    splitNotFoundFromAmbiguities :: (Names.ResolutionFailure v annotation -> Either (Pretty ColorText) v)
+    splitNotFoundFromAmbiguities = \case
+          (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+            let ppe = ppeFromNames0 names
+             in Left $ prettyTermAmbiguity ppe v refs
+          (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+            let ppe = ppeFromNames0 names
+             in Left $ prettyTypeAmbiguity ppe v refs
+          (Names.TermResolutionFailure v _ Names.NotFound) -> Right v
+          (Names.TypeResolutionFailure v _ Names.NotFound) -> Right v
+
+    prettyMissingVars :: [v] -> Pretty ColorText
+    prettyMissingVars = \case
+      [] -> ""
+      [v] -> "🔍 The following name could not be found: " <> Pr.bold (prettyVar v)
+      vs ->
+        "🔍 The following names could not be found:"
+          `Pr.hang` Pr.dashed (prettyVar <$> vs)
     ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
     ppeFromNames0 names0 = PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
-    prettyTypeConflict :: PPE.PrettyPrintEnv -> v -> NESet Reference -> Pretty ColorText
-    prettyTypeConflict ppe v refs =
-       Pr.hang ("The " <> Pr.yellow "type" <> " " <> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.bulleted $ showTypeRef ppe <$> toList refs
+    prettyTypeAmbiguity :: PPE.PrettyPrintEnv -> v -> NESet Reference -> Pretty ColorText
+    prettyTypeAmbiguity ppe v refs =
+       Pr.hang ("🤔 "<> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.dashed $ showTypeRef ppe <$> toList refs
 
-    prettyTermConflict :: PPE.PrettyPrintEnv -> v -> NESet Referent -> Pretty ColorText
-    prettyTermConflict ppe v refs =
-       Pr.hang ("The " <> Pr.green "term" <> " " <> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.bulleted $ showTermRef ppe <$> toList refs
+    prettyTermAmbiguity :: PPE.PrettyPrintEnv -> v -> NESet Referent -> Pretty ColorText
+    prettyTermAmbiguity ppe v refs =
+       Pr.hang ("🤔 "<> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.dashed $ showTermRef ppe <$> toList refs
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
