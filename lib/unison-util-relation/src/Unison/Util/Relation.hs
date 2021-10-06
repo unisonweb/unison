@@ -10,6 +10,7 @@ module Unison.Util.Relation
     fromMap,
     fromMultimap,
     fromSet,
+    unsafeFromMultimaps,
 
     -- * Queries
     null,
@@ -135,6 +136,16 @@ data Relation a b = Relation
 
 instance (Show a, Show b) => Show (Relation a b) where
   show = show . toList
+
+-- | Construct a relation from a mapping from the domain and range mappings.
+--
+-- /Precondition/: the multimaps together form a valid relation; i.e. if @x@ is related to @y@ in one map then @y@ is
+-- related to @x@ in the other.
+--
+-- /O(1)/.
+unsafeFromMultimaps :: Map a (Set b) -> Map b (Set a) -> Relation a b
+unsafeFromMultimaps domain range =
+  Relation {domain, range}
 
 -- * Functions about relations
 
@@ -385,10 +396,14 @@ manyRan :: Ord b => b -> Relation a b -> Bool
 manyRan b = (> 1) . S.size . lookupRan b
 
 -- | Returns the domain in the relation, as a Set, in its entirety.
+--
+-- /O(a)/.
 dom :: Relation a b -> Set a
 dom r = M.keysSet (domain r)
 
 -- | Returns the range of the relation, as a Set, in its entirety.
+-- 
+-- /O(b)/.
 ran :: Relation a b -> Set b
 ran r = M.keysSet (range r)
 

@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation (Relation)
-import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation3 (Relation3(Relation3))
 import Data.List.Extra (nubOrd)
 import Data.Semigroup (Sum(Sum, getSum))
 
@@ -66,6 +66,15 @@ d12 = R.fromMultimap . fmap (Map.keysSet . R3.d1) . d1
 
 d34 :: (Ord c, Ord d) => Relation4 a b c d -> Relation c d
 d34 = R.fromMultimap . fmap (Map.keysSet . R3.d3) . d3
+
+-- | Project out a relation that only includes the 1st, 2nd, and 4th dimensions.
+d124 :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d -> Relation3 a b d
+d124 Relation4 {d1, d2, d4} =
+  Relation3
+    { d1 = Map.map R3.d13 d1,
+      d2 = Map.map R3.d13 d2,
+      d3 = Map.map R3.d12 d4
+    }
 
 -- todo: make me faster
 d12s :: (Ord a, Ord b) => Relation4 a b c d -> [(a,b)]

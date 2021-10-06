@@ -34,6 +34,7 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
