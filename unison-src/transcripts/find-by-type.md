@@ -2,7 +2,7 @@
 .> alias.type ##Text builtin.Text
 ```
 
-```unison
+```unison:hide
 unique type A = A Text
 
 foo : A

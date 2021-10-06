@@ -13,20 +13,6 @@ baz = cases
 ```
 
 ```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      unique type A
-      bar : Text -> A
-      baz : A -> Text
-      foo : A
-
-```
-```ucm
   ☝️  The namespace .example is empty.
 
 .example> add
