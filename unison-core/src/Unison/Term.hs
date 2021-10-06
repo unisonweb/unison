@@ -130,13 +130,13 @@ bindNames keepFreeTerms ns0 e = do
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
            | otherwise -> case nonEmptySet rs of
-               Nothing -> Left (pure (Names.ResolutionFailure v a Names.TermNotFound))
-               Just refs -> Left (pure (Names.ResolutionFailure v a (Names.TermAmbiguous ns0 refs)))
+               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
+               Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
       okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
            | otherwise -> case nonEmptySet rs of
-               Nothing -> Left (pure (Names.ResolutionFailure v a Names.TypeNotFound))
-               Just refs -> Left (pure (Names.ResolutionFailure v a (Names.TypeAmbiguous ns0 refs)))
+               Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+               Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e

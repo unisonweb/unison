@@ -25,6 +25,10 @@ import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 
+-- | currentNames represent references which are named int the current version of the namespace.
+-- oldNames represent things which no longer have names in the current version of the
+-- codebase, but which may have previously had names. This may allow us to show more helpful
+-- context to users rather than just a hash.
 data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
 type Names0 = Unison.Names2.Names0

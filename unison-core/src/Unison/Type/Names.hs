@@ -34,6 +34,6 @@ bindNames keepFree ns0 t = let
        then pure (v, Set.findMin rs)
        else 
          case nonEmptySet rs of
-           Nothing -> Left (pure (Names.ResolutionFailure v a Names.TypeNotFound))
-           Just rs' -> Left (pure (Names.ResolutionFailure v a (Names.TypeAmbiguous ns0 rs')))
+           Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+           Just rs' -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 rs')))
   in List.validate ok rs <&> \es -> bindExternal es t

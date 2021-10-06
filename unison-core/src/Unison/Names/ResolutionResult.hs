@@ -10,21 +10,26 @@ import Unison.Referent as Referent ( Referent )
 import Unison.Names3 (Names0)
 import Data.Set.NonEmpty
 
-data ErrorDetails
-  = TypeNotFound
+data ResolutionError ref
+  = NotFound
   | -- Contains the names which were in scope and which References were possible options
-    TypeAmbiguous Names0 (NESet Reference)
-  | TermNotFound
-  | -- Contains the names which were in scope and which Referents were possible options
-    TermAmbiguous Names0 (NESet Referent)
+    Ambiguous Names0 (NESet ref)
   deriving (Eq, Ord, Show)
 
 -- | ResolutionFailure represents the failure to resolve a given variable.
-data ResolutionFailure var annotation = ResolutionFailure
-  { resolutionVar :: var,
-    resolutionAnnotation :: annotation,
-    resolutionErrorDetails :: ErrorDetails
-  }
+data ResolutionFailure var annotation
+  = TypeResolutionFailure var annotation (ResolutionError Reference)
+  | TermResolutionFailure var annotation (ResolutionError Referent)
   deriving (Eq, Ord, Show)
+
+getAnnotation :: ResolutionFailure v a -> a
+getAnnotation = \case
+  TypeResolutionFailure _ a _ -> a
+  TermResolutionFailure _ a _ -> a
+
+getVar :: ResolutionFailure v a -> v
+getVar = \case
+  TypeResolutionFailure v _ _ -> v
+  TermResolutionFailure v _ _ -> v
 
 type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
