@@ -3,6 +3,7 @@
 
 module Unison.Util.Bytes where
 
+import Control.DeepSeq (NFData(..))
 import Data.Bits (shiftR, shiftL, (.|.))
 import Data.Char
 import Data.Memory.PtrMethods (memCompare, memEqual)
@@ -17,6 +18,8 @@ import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as BE
 import qualified Data.FingerTree as T
 import qualified Data.Text as Text
+import qualified Codec.Compression.Zlib as Zlib
+import qualified Codec.Compression.GZip as GZip
 
 -- Block is just `newtype Block a = Block ByteArray#`
 type ByteString = Block Word8
@@ -35,11 +38,26 @@ empty = Bytes mempty
 fromArray :: B.ByteArrayAccess ba => ba -> Bytes
 fromArray = snoc empty
 
+zlibCompress :: Bytes -> Bytes
+zlibCompress = fromLazyByteString . Zlib.compress . toLazyByteString
+
+gzipCompress :: Bytes -> Bytes
+gzipCompress = fromLazyByteString . GZip.compress . toLazyByteString
+
+gzipDecompress :: Bytes -> Bytes
+gzipDecompress = fromLazyByteString . GZip.decompress . toLazyByteString
+
+zlibDecompress :: Bytes -> Bytes
+zlibDecompress = fromLazyByteString . Zlib.decompress . toLazyByteString
+
 toArray :: forall bo . B.ByteArray bo => Bytes -> bo
 toArray b = B.concat (map B.convert (chunks b) :: [bo])
 
 toLazyByteString :: Bytes -> LB.ByteString
 toLazyByteString b = LB.fromChunks $ map B.convert $ chunks b
+
+fromLazyByteString :: LB.ByteString -> Bytes
+fromLazyByteString b = fromChunks (map (view . B.convert) $ LB.toChunks b)
 
 size :: Bytes -> Int
 size (Bytes bs) = getSum (T.measure bs)
@@ -212,7 +230,7 @@ fillBE :: Word64 -> Int -> Ptr Word8 -> IO ()
 fillBE n 0 p = poke p (fromIntegral n) >> return ()
 fillBE n i p = poke p (fromIntegral (shiftR n (i * 8)))
                    >> fillBE n (i - 1) (p `plusPtr` 1)
-  
+
 encodeNat64be :: Word64 -> Bytes
 encodeNat64be n = Bytes (T.singleton (view (B.unsafeCreate 8 (fillBE n 7))))
 
@@ -361,3 +379,9 @@ instance B.ByteArrayAccess bytes => B.ByteArrayAccess (View bytes) where
   length = viewSize
   withByteArray v f = B.withByteArray (unView v) $
     \ptr -> f (ptr `plusPtr` (viewOffset v))
+
+instance NFData (View bs) where
+  rnf bs = seq bs ()
+
+instance NFData Bytes where
+  rnf bs = rnf (chunks bs)

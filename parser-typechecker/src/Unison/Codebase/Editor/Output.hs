@@ -93,6 +93,8 @@ data Output v
   = Success
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
+  -- Used in Welcome module to instruct user
+  | PrintMessage (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   -- No main function, the [Type v Ann] are the allowed types
@@ -241,6 +243,7 @@ type SourceFileContents = Text
 isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
+  PrintMessage{} -> False
   BadRootBranch{} -> True
   CouldntLoadBranch{} -> True
   NoUnisonFile{} -> True
@@ -344,5 +347,4 @@ isNumberedFailure = \case
   ShowDiffAfterPull{} -> False
   ShowDiffAfterCreatePR{} -> False
   ShowDiffAfterCreateAuthor{} -> False
-
 

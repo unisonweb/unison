@@ -213,6 +213,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
+    , NanoID
     , aeson
     , ansi-terminal
     , async
@@ -228,6 +229,7 @@ library
     , cryptonite
     , data-default
     , data-memocombinators
+    , deepseq
     , directory
     , either
     , errors
@@ -250,6 +252,7 @@ library
     , monad-validate
     , mtl
     , mutable-containers
+    , mwc-random
     , natural-transformation
     , network
     , network-simple
@@ -298,6 +301,7 @@ library
     , x509
     , x509-store
     , x509-system
+    , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
