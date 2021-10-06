@@ -26,7 +26,7 @@ import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
-import Data.Bifunctor (Bifunctor (bimap, first), second)
+import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
@@ -49,9 +49,10 @@ import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
+import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
+import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
@@ -62,6 +63,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
+import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
 import qualified U.Util.Set as Set
 import U.Util.Timing (time)
@@ -419,14 +421,33 @@ sqliteCodebase debugName root = do
                   -- it's never even been added, so there's nothing to do.
                   pure ()
 
+          addTermComponentTypeIndex :: EDB m => ObjectId -> [Type Symbol Ann] -> m ()
+          addTermComponentTypeIndex oId types = for_ (types `zip` [0..]) \(tp, i) -> do
+            let self = C.Referent.RefId (C.Reference.Id oId i)
+                typeForIndexing = Hashing.typeToReference tp
+                typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
+            Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
+            Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
+
+          addDeclComponentTypeIndex :: EDB m => ObjectId -> [[Type Symbol Ann]] -> m ()
+          addDeclComponentTypeIndex oId ctorss =
+            for_ (ctorss `zip` [0..]) \(ctors, i) ->
+              for_ (ctors `zip` [0..]) \(tp, j) -> do
+                let self = C.Referent.ConId (C.Reference.Id oId i) j
+                    typeForIndexing = Hashing.typeToReference tp
+                    typeMentionsForIndexing = Hashing.typeToReferenceMentions tp
+                Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
+                Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
+
           tryFlushTermBuffer :: EDB m => Hash -> m ()
           tryFlushTermBuffer h | debug && trace ("tryFlushTermBuffer " ++ show h) False = undefined
           tryFlushTermBuffer h =
             tryFlushBuffer
               termBuffer
-              ( \h2 ->
-                  void . Ops.saveTermComponent h2
-                    . fmap (first (Cv.term1to2 h) . second Cv.ttype1to2)
+              ( \h2 component -> do
+                  oId <- Ops.saveTermComponent h2
+                    $ fmap (bimap (Cv.term1to2 h) Cv.ttype1to2) component
+                  addTermComponentTypeIndex oId (fmap snd component)
               )
               tryFlushTermBuffer
               h
@@ -436,7 +457,11 @@ sqliteCodebase debugName root = do
           tryFlushDeclBuffer h =
             tryFlushBuffer
               declBuffer
-              (\h2 -> void . Ops.saveDeclComponent h2 . fmap (Cv.decl1to2 h))
+              (\h2 component -> do
+                oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
+                addDeclComponentTypeIndex
+                  oId (fmap (map snd . Decl.constructors . Decl.asDataDecl) component)
+              )
               (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
               h
 

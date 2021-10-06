@@ -33,10 +33,10 @@ import qualified Unison.Type as Memory.Type
 import Unison.Var (Var)
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
-typeToReference = h2mReference . Hashing.Type.toReference . m2hType
+typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Type.removeAllEffectVars
 
 typeToReferenceMentions :: Var v => Memory.Type.Type v a -> Set Memory.Reference.Reference
-typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMentions . m2hType
+typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMentions . m2hType . Memory.Type.removeAllEffectVars
 
 hashTypeComponents :: Var v => Map v (Memory.Type.Type v a) -> Map v (Memory.Reference.Id, Memory.Type.Type v a)
 hashTypeComponents = fmap h2mTypeResult . Hashing.Type.hashComponents . fmap m2hType
