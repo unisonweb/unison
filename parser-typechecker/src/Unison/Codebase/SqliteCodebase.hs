@@ -459,8 +459,8 @@ sqliteCodebase debugName root = do
               declBuffer
               (\h2 component -> do
                 oId <- Ops.saveDeclComponent h2 $ fmap (Cv.decl1to2 h) component
-                addDeclComponentTypeIndex
-                  oId (fmap (map snd . Decl.constructors . Decl.asDataDecl) component)
+                addDeclComponentTypeIndex oId $
+                  fmap (map snd . Decl.constructors . Decl.asDataDecl) component
               )
               (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
               h

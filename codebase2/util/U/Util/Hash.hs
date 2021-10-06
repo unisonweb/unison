@@ -26,28 +26,6 @@ fromBase32Hex = Hash . B.Short.toShort . Base32Hex.toByteString
 toBytes :: Hash -> ByteString
 toBytes = fromShort . toShort
 
--- instance H.Hashable Hash where
---   tokens h = [H.Bytes (toBytes h)]
-
--- instance H.Accumulate Hash where
---   accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit
---     where
---       go :: CH.Context CH.SHA3_512 -> [H.Token Hash] -> CH.Context CH.SHA3_512
---       go acc tokens = CH.hashUpdates acc (tokens >>= toBS)
---       toBS (H.Tag b) = [B.singleton b]
---       toBS (H.Bytes bs) = [encodeLength $ B.length bs, bs]
---       toBS (H.Int i) = BL.toChunks . toLazyByteString . int64BE $ i
---       toBS (H.Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
---       toBS (H.Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
---       toBS (H.Text txt) =
---         let tbytes = encodeUtf8 txt
---          in [encodeLength (B.length tbytes), tbytes]
---       toBS (H.Hashed h) = [toBytes h]
---       encodeLength :: Integral n => n -> B.ByteString
---       encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
---   fromBytes = U.Util.Hash.fromBytes
---   toBytes = U.Util.Hash.toBytes
-
 fromBytes :: ByteString -> Hash
 fromBytes = Hash . B.Short.toShort
 

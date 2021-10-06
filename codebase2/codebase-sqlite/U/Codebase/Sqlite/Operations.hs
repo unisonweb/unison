@@ -725,7 +725,7 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol {-, [(TypeReferenceForIndexing, Set TypeMentionReferenceForIndexing)]-})] -> m Db.ObjectId
+saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol)] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
