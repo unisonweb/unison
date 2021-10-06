@@ -4,14 +4,12 @@
 
 module U.Util.Type where
 
-import U.Codebase.Type (TypeT, F'(..), TypeR)
+import U.Codebase.Type (F'(..), TypeR)
 import qualified U.Core.ABT.Var as ABT
 import qualified U.Core.ABT as ABT
 import qualified Data.Set as Set
 import U.Core.ABT (pattern Var')
 import Data.Set (Set)
-import U.Codebase.Reference (Reference)
-import qualified U.Codebase.Reference as Reference
 
 -- * Constructors
 effect :: Ord v => [TypeR r v] -> TypeR r v -> TypeR r v
@@ -62,20 +60,6 @@ flattenEffects es = [es]
 generalize :: Ord v => [v] -> TypeR r v -> TypeR r v
 generalize vs t = foldr f t vs where
   f v t = if Set.member v (ABT.freeVars t) then forall v t else t
-
-
--- * Utility
-toReference :: (Ord v, Show v) => TypeT v -> Reference
-toReference (Ref' r) = r
--- a bit of normalization - any unused type parameters aren't part of the hash
-toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
-toReference t = Reference.Derived (ABT.hash t) 0
-
-toReferenceMentions :: (ABT.Var v, Show v) => TypeT v -> Set Reference
-toReferenceMentions ty =
-  let (vs, _) = unforall' ty
-      gen ty = generalize (Set.toList (ABT.freeVars ty)) $ generalize vs ty
-  in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
 -- * Patterns
 pattern ForallsNamed' :: [v] -> TypeR r v -> TypeR r v

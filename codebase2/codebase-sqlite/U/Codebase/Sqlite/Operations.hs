@@ -122,7 +122,6 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
-import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
@@ -427,8 +426,10 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
+newtype TypeReferenceForIndexing = TypeReferenceForIndexing C.Reference
+newtype TypeMentionReferenceForIndexing = TypeMentionReferenceForIndexing C.Reference
 
-saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
+saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol {-, TypeReferenceForIndexing, Set TypeMentionReferenceForIndexing -})] -> m Db.ObjectId
 saveTermComponent h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
   sTermElements <- traverse (uncurry c2sTerm) terms
@@ -465,10 +466,10 @@ saveTermComponent h terms = do
   -- populate type indexes
   for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
     let self = C.Referent.RefId (C.Reference.Id oId i)
-        typeForIndexing = TypeUtil.removeAllEffectVars tp
-        typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+        -- typeForIndexing = TypeUtil.removeAllEffectVars tp
+        typeMentionsForIndexing = error @_ @(Set C.Reference) "TypeUtil.toReferenceMentions typeForIndexing"
         saveReferentH = bitraverse Q.saveText Q.saveHashHash
-    typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
+    typeReferenceForIndexing <- saveReferentH $ error @_ @C.Reference "TypeUtil.toReference typeForIndexing"
     Q.addToTypeIndex typeReferenceForIndexing self
     traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
 
@@ -730,7 +731,7 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
+saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol {-, [(TypeReferenceForIndexing, Set TypeMentionReferenceForIndexing)]-})] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
@@ -758,9 +759,9 @@ saveDeclComponent h decls = do
       (zip ctorTypes [0 ..])
       \(tp, j) -> do
         let self = C.Referent.ConId (C.Reference.Id oId i) j
-            typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
-            typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
-            typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
+            -- typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
+            typeReferenceForIndexing = error @_ @C.Reference "TypeUtil.toReference typeForIndexing"
+            typeMentionsForIndexing = error @_ @(Set C.Reference) "TypeUtil.toReferenceMentions typeForIndexing"
             saveReferentH = bitraverse Q.saveText Q.saveHashHash
         flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
         traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing

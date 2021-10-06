@@ -7,7 +7,6 @@ import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import qualified Data.Set                      as S
 import qualified Data.Map                      as Map
-import qualified U.Util.Hashable               as H
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe, isJust)
@@ -497,9 +496,6 @@ instance (Ord a, Ord b) => Monoid (Relation a b) where
 
 instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union
-
-instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
-  tokens = H.tokens . toList
 
 toUnzippedMultimap ::
   Ord a => Ord b => Ord c => Relation a (b,c) -> Map a (Set b, Set c)
