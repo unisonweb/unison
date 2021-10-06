@@ -464,6 +464,12 @@ lexemes' eof = P.optional space >> do
       P.label "block eval (syntax: a fenced code block)" $
       evalUnison <|> exampleBlock <|> other
       where
+        closing fence = do
+          p <- pos
+          lit fence
+          q <- pos
+          pure $ [Token Close p q]
+
         evalUnison = wrap "syntax.docEval" $ do
           -- commit after seeing that ``` is on its own line
           fence <- P.try $ do
@@ -472,20 +478,20 @@ lexemes' eof = P.optional space >> do
             fence <$ guard b
           CP.space *>
             local (\env -> env { inLayout = True, opening = Just "docEval" })
-                  (lexemes' ([] <$ lit fence))
+                  (lexemes' (closing fence))
 
         exampleBlock = wrap "syntax.docExampleBlock" $ do
           void $ lit "@typecheck" <* CP.space
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
           local (\env -> env { inLayout = True, opening = Just "docExampleBlock" })
-                (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
+                (restoreStack "docExampleBlock" $ lexemes' (closing fence))
 
         other = wrap "syntax.docCodeBlock" $ do
           fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
           name <- P.many (CP.satisfy nonNewlineSpace)
                *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
           _ <- CP.space
-          verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
+          verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar (closing fence)
           pure (name <> verbatim)
 
     boldOrItalicOrStrikethrough closing = do
