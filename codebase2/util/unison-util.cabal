@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 91bb29e0d031e156a63b29b0c035ac02d92d2a77a446e720464839aca383d683
+-- hash: f6c1a38888f9aa17badba1054ded8edc3891e4c10b30f7ba4efe9cb8b31b3367
 
 name:           unison-util
 version:        0.0.0
@@ -27,7 +27,6 @@ library
       U.Util.Lens
       U.Util.Map
       U.Util.Monoid
-      U.Util.Relation
       U.Util.Set
       U.Util.String
       U.Util.Text
