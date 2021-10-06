@@ -241,18 +241,6 @@ loop = do
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
-      getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
-      getHQTerms hq = case hq of
-        HQ.NameOnly n -> let
-          -- absolute-ify the name, then lookup in deepTerms of root
-          path :: Path.Path'
-          path = Path.fromName' n
-          Path.Absolute absPath = resolveToAbsolute path
-          in pure $ R.lookupRan (Path.toName absPath) (Branch.deepTerms root0)
-        HQ.HashOnly sh -> hashOnly sh
-        HQ.HashQualified _ sh -> hashOnly sh
-        where
-        hashOnly sh = eval $ TermReferentsByShortHash sh
 
       basicPrettyPrintNames0 =
         Backend.basicPrettyPrintNames0 root' (Path.unabsolute currentPath')
@@ -439,6 +427,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
+          CreateMessage{} -> wat 
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
@@ -560,61 +549,57 @@ loop = do
         -- `mdValues` is (names of the) metadata to pass to `op`
         -- `op` is the operation to add/remove/alter metadata mappings.
         --   e.g. `Metadata.insert` is passed to add metadata links.
-        manageLinks :: Bool
-                    -> [(Path', HQ'.HQSegment)]
-                    -> [HQ.HashQualified Name]
-                    -> (forall r. Ord r
-                        => (r, Metadata.Type, Metadata.Value)
-                        ->  Branch.Star r NameSegment
-                        ->  Branch.Star r NameSegment)
-                    -> Action m (Either Event Input) v ()
+        manageLinks ::
+          Bool ->
+          [(Path', HQ'.HQSegment)] ->
+          [HQ.HashQualified Name] ->
+          ( forall r.
+            Ord r =>
+            (r, Metadata.Type, Metadata.Value) ->
+            Branch.Star r NameSegment ->
+            Branch.Star r NameSegment
+          ) ->
+          Action m (Either Event Input) v ()
         manageLinks silent srcs mdValues op = do
-          mdValuels <- fmap (first toList) <$>
-            traverse (\x -> fmap (,x) (getHQTerms x)) mdValues
-          before <- Branch.head <$> use root
-          traverse_ go mdValuels
-          after  <- Branch.head <$> use root
-          (ppe, outputDiff) <- diffHelper before after
-          if not silent then
-            if OBranchDiff.isEmpty outputDiff
-            then respond NoOp
-            else respondNumbered $ ShowDiffNamespace Path.absoluteEmpty
-                                                     Path.absoluteEmpty
-                                                     ppe
-                                                     outputDiff
-          else unless (OBranchDiff.isEmpty outputDiff) $
-                 respond DefaultMetadataNotification
+          runExceptT (for mdValues \val -> ExceptT (getMetadataFromName val)) >>= \case
+            Left output -> respond output
+            Right metadata -> do
+              before <- Branch.head <$> use root
+              traverse_ go metadata
+              if silent
+                then respond DefaultMetadataNotification
+                else do
+                  after <- Branch.head <$> use root
+                  (ppe, outputDiff) <- diffHelper before after
+                  if OBranchDiff.isEmpty outputDiff
+                    then respond NoOp
+                    else
+                      respondNumbered $
+                        ShowDiffNamespace
+                          Path.absoluteEmpty
+                          Path.absoluteEmpty
+                          ppe
+                          outputDiff
           where
-            go (mdl, hqn) = do
+            go :: (Metadata.Type, Metadata.Value) -> Action m (Either Event Input) v ()
+            go (mdType, mdValue) = do
               newRoot <- use root
               let r0 = Branch.head newRoot
                   getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
                   getTypes p = BranchUtil.getType (resolveSplit' p) r0
                   !srcle = toList . getTerms =<< srcs
                   !srclt = toList . getTypes =<< srcs
-                  ppe = Backend.basicSuffixifiedNames
-                          sbhLength
-                          newRoot
-                          (Path.unabsolute currentPath')
-              case mdl of
-                [r@(Referent.Ref mdValue)] -> do
-                  mdType <- eval $ LoadTypeOfTerm mdValue
-                  case mdType of
-                    Nothing -> respond $ MetadataMissingType ppe r
-                    Just ty -> do
-                      let steps =
-                            bimap (Path.unabsolute . resolveToAbsolute)
-                                  (const . step $ Hashing.typeToReference ty)
-                              <$> srcs
-                      stepManyAtNoSync steps
-                 where
-                  step mdType b0 =
+              let step b0 =
                     let tmUpdates terms = foldl' go terms srcle
-                            where go terms src = op (src, mdType, mdValue) terms
+                          where
+                            go terms src = op (src, mdType, mdValue) terms
                         tyUpdates types = foldl' go types srclt
-                            where go types src = op (src, mdType, mdValue) types
-                    in  over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-                mdValues -> respond $ MetadataAmbiguous hqn ppe mdValues
+                          where
+                            go types src = op (src, mdType, mdValue) types
+                     in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+                  steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
+              stepManyAtNoSync steps
+
         delete
           :: (Path.HQSplit' -> Set Referent) -- compute matching terms
           -> (Path.HQSplit' -> Set Reference) -- compute matching types
@@ -675,6 +660,10 @@ loop = do
                     doDisplay outputLoc ns tm
 
       in case input of
+      
+      CreateMessage pretty -> 
+        respond $ PrintMessage pretty
+      
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=
@@ -1692,8 +1681,8 @@ loop = do
           b <- importRemoteBranch ns syncMode
           let msg = Just $ PullAlreadyUpToDate ns path
           let destAbs = resolveToAbsolute path
-          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path 
-          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs 
+          let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
+          lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
 
       PushRemoteBranchI mayRepo path syncMode -> do
         let srcAbs = resolveToAbsolute path
@@ -2219,7 +2208,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
     b <- updateAtM inputDescription dest (const $ pure merged)
-    for_ dest0 $ \dest0 -> 
+    for_ dest0 $ \dest0 ->
       diffHelper (Branch.head destb) (Branch.head merged) >>=
         respondNumbered . uncurry (ShowDiffAfterMerge dest0 dest)
     pure b
@@ -2235,6 +2224,56 @@ loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagat
       let patchPath = snoc dest0 defaultPatchNameSegment
       diffHelper (Branch.head original) (Branch.head patched) >>=
         respondNumbered . uncurry (ShowDiffAfterMergePropagate dest0 dest patchPath)
+
+-- | Get metadata type/value from a name.
+--
+-- May fail with either:
+--
+--   * 'MetadataMissingType', if the given name is associated with a single reference, but that reference doesn't have a
+--     type.
+--   * 'MetadataAmbiguous', if the given name is associated with more than one reference.
+getMetadataFromName ::
+  Var v =>
+  HQ.HashQualified Name ->
+  Action m (Either Event Input) v (Either (Output v) (Metadata.Type, Metadata.Value))
+getMetadataFromName name = do
+  (Set.toList <$> getHQTerms name) >>= \case
+    [ref@(Referent.Ref val)] ->
+      eval (LoadTypeOfTerm val) >>= \case
+        Nothing -> do
+          ppe <- getPPE
+          pure (Left (MetadataMissingType ppe ref))
+        Just ty -> pure (Right (Hashing.typeToReference ty, val))
+    -- FIXME: we want a different error message if the given name is associated with a data constructor (`Con`).
+    refs -> do
+      ppe <- getPPE
+      pure (Left (MetadataAmbiguous name ppe refs))
+  where
+    getPPE :: Action m (Either Event Input) v PPE.PrettyPrintEnv
+    getPPE = do
+      currentPath' <- use currentPath
+      sbhLength <- eval BranchHashLength
+      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Path.unabsolute currentPath')
+
+-- | Get the set of terms related to a hash-qualified name.
+getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
+getHQTerms = \case
+  HQ.NameOnly n -> do
+    root0 <- Branch.head <$> use root
+    currentPath' <- use currentPath
+    -- absolute-ify the name, then lookup in deepTerms of root
+    let path =
+          n
+            & Path.fromName'
+            & Path.resolve currentPath'
+            & Path.unabsolute
+            & Path.toName
+    pure $ R.lookupRan path (Branch.deepTerms root0)
+  HQ.HashOnly sh -> hashOnly sh
+  HQ.HashQualified _ sh -> hashOnly sh
+  where
+    hashOnly sh = eval $ TermReferentsByShortHash sh
+
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =

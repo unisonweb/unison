@@ -115,14 +115,13 @@ main
   -> IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
-  (welcomeCmds, welcomeMsg) <- Welcome.welcome codebase welcome 
-  putPrettyLn welcomeMsg
   eventQueue <- Q.newIO
+  welcomeEvents <-Welcome.run codebase welcome 
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
-    initialInputsRef         <- newIORef (welcomeCmds ++ initialInputs)
+    initialInputsRef         <- newIORef $ welcomeEvents ++ initialInputs
     numberedArgsRef          <- newIORef []
     pageOutput               <- newIORef True
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
