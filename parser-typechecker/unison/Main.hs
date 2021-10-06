@@ -11,10 +11,14 @@ module Main where
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
+import Data.Compact (getCompact)
+import Data.Compact.Serialize (hUnsafeGetCompact)
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
+import System.IO (IOMode(ReadMode), withFile)
+import System.Info (os, arch)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
@@ -52,9 +56,9 @@ import ArgParse
       IsHeadless(WithCLI, Headless),
       ShouldSaveCodebase(..),
       ShouldForkCodebase(..),
+      RunSource(..),
       ShouldDownloadBase (..),
       CodebasePathOption(..),
-      RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -78,12 +82,12 @@ main = do
   case command of
      PrintVersion ->
        putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
-     Init -> do 
-      PT.putPrettyLn $ 
-        P.callout 
+     Init -> do
+      PT.putPrettyLn $
+        P.callout
           "⚠️"
           (P.lines ["The Init command has been removed"
-                  , P.newline 
+                  , P.newline
                   , P.wrap "Use --codebase-create to create a codebase at a specified location and open it:"
                   , P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase")
                   , "Running UCM without the --codebase-create flag: "
@@ -93,7 +97,7 @@ main = do
 
      Run (RunFromSymbol mainName) -> do
       ((closeCodebase, theCodebase),_) <- getCodebaseOrExit mCodePathOption
-      runtime <- RTI.startRuntime
+      runtime <- RTI.startRuntime Version.gitDescribeWithDate
       execute theCodebase runtime mainName
       closeCodebase
      Run (RunFromFile file mainName)
@@ -104,7 +108,7 @@ main = do
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
                 ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-                rt <- RTI.startRuntime
+                rt <- RTI.startRuntime Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                 launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
                 closeCodebase
@@ -114,20 +118,65 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-          rt <- RTI.startRuntime
+          rt <- RTI.startRuntime Version.gitDescribeWithDate
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
             Nothing
-            ShouldNotDownloadBase 
+            ShouldNotDownloadBase
             initRes
           closeCodebase
+     Run (RunCompiled file) -> withFile file ReadMode $ \h ->
+       RTI.readCompiledHeader h >>= \case
+         Left _ -> putStrLn "Could not read compiled file header."
+         Right (v,o,a,rf)
+           | not vmatch -> mismatchMsg
+           | otherwise -> hUnsafeGetCompact h >>= \case
+             Left err ->
+               PT.putPrettyLn . P.callout "⚠️"
+                $ "I could not load the specified binary output.\n"
+               <> fromString err
+             Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
+           where
+           vmatch = v == Version.gitDescribeWithDate
+                 && o == os
+                 && a == arch
+           ws s = P.wrap (P.string s)
+           ifile | 'c':'u':'.':rest <- reverse file = reverse rest
+                 | otherwise = file
+           mismatchMsg = PT.putPrettyLn . P.lines $
+             [ ws "I can't run this compiled program since \
+               \it works with a different version of Unison \
+               \than the one you're running."
+             , ""
+             , "Compiled file version"
+             , P.indentN 4
+               $ P.string v <> " for " <> P.string o <> " " <> P.string a
+             , ""
+             , "Your version"
+             , P.indentN 4
+               $ P.string Version.gitDescribeWithDate <> " for "
+               <> P.string os <> " " <> P.string arch
+             , ""
+             , P.wrap $ "The program was compiled from hash "
+                 <> (P.string $ "`" ++ rf ++ "`.")
+                 <> "If you have that hash in your codebase,"
+                 <> "you can do:"
+             , ""
+             , P.indentN 4
+               $ ".> compile.output "
+                 <> P.string rf <> " " <> P.string ifile
+             , ""
+             , P.wrap "to produce a new compiled program \
+               \that matches your version of Unison."
+             ]
+
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
        ((closeCodebase, theCodebase),initRes)  <- getCodebaseOrExit mCodePathOption
-       runtime <- RTI.startRuntime
+       runtime <- RTI.startRuntime Version.gitDescribeWithDate
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          case isHeadless of
              Headless -> do
@@ -160,7 +209,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       -- A forked codebase does not need to Create a codebase, because it already exists
       getCodebaseOrExit mCodePathOption
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-      PT.putPrettyLn $ P.lines [ 
+      PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
         P.indentN 2 (P.string path)
         ]
@@ -247,18 +296,18 @@ launch
   -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
   -> Maybe Server.BaseUrl
-  -> ShouldDownloadBase 
-  -> InitResult IO Symbol Ann 
+  -> ShouldDownloadBase
+  -> InitResult IO Symbol Ann
   -> IO ()
 launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
-  let 
+  let
     downloadBase = case defaultBaseLib of
                       Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
                       _ -> Welcome.DontDownloadBase
-    isNewCodebase = case initResult of 
+    isNewCodebase = case initResult of
       CreatedCodebase{} -> NewlyCreatedCodebase
-      _ -> PreviouslyCreatedCodebase 
-      
+      _ -> PreviouslyCreatedCodebase
+
     (gitRef, _date) = Version.gitDescribe
     welcome = Welcome.welcome isNewCodebase downloadBase dir gitRef
   in
@@ -306,15 +355,15 @@ getCodebaseOrExit codebasePathOption = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case error of
-            NoCodebaseFoundAtSpecifiedDir -> 
+            NoCodebaseFoundAtSpecifiedDir ->
               pure (P.lines
-                [ "No codebase exists in " <> pDir <> ".", 
+                [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
 
             FoundV1Codebase ->
               pure (P.lines
-                [ "Found a v1 codebase at " <> pDir <> ".", 
+                [ "Found a v1 codebase at " <> pDir <> ".",
                   "v1 codebases are no longer supported in this version of the UCM.",
                   "Please download version M2g of the UCM to upgrade."
                 ])
@@ -331,7 +380,7 @@ getCodebaseOrExit codebasePathOption = do
       PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
       pure (cb, c)
 
-    o@(OpenedCodebase _ cb) -> 
+    o@(OpenedCodebase _ cb) ->
       pure (cb, o)
 
   where
@@ -339,13 +388,13 @@ getCodebaseOrExit codebasePathOption = do
 
 argsToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
 argsToCodebaseInitOptions pathOption =
-  case pathOption of 
+  case pathOption of
     Just (CreateCodebaseWhenMissing path)     -> pure $ Specified (CreateWhenMissing path)
     Just (DontCreateCodebaseWhenMissing path) -> pure $ Specified (DontCreateWhenMissing path)
     Nothing                                   -> do Home <$> getHomeDirectory
 
 codebasePathOptionToPath :: CodebasePathOption -> FilePath
-codebasePathOptionToPath codebasePathOption = 
+codebasePathOptionToPath codebasePathOption =
   case codebasePathOption of
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p

@@ -35,6 +35,12 @@ data Runtime v = Runtime
       -> PPE.PrettyPrintEnv
       -> Term v
       -> IO (Either Error (Term v))
+  , compileTo
+      :: CL.CodeLookup v IO ()
+      -> PPE.PrettyPrintEnv
+      -> Reference
+      -> FilePath
+      -> IO (Maybe Error)
   , mainType :: Type v Ann
   , ioTestType :: Type v Ann
   }

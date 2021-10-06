@@ -20,6 +20,7 @@ import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Short as SBS
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup, toList)
@@ -710,7 +711,7 @@ putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
 
 putHash :: MonadPut m => Hash -> m ()
 putHash h = do
-  let bs = Hash.toBytes h
+  let bs = SBS.fromShort $ Hash.toBytes h
   putLength (B.length bs)
   putByteString bs
 
