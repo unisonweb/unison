@@ -1,33 +1,39 @@
 cradle:
   stack:
-    - path: "codebase2/codebase"
+    - path: "codebase2/codebase/./"
       component: "unison-codebase:lib"
 
-    - path: "codebase2/codebase-sqlite"
+    - path: "codebase2/codebase-sqlite/./"
       component: "unison-codebase-sqlite:lib"
 
-    - path: "codebase2/codebase-sync"
+    - path: "codebase2/codebase-sync/./"
       component: "unison-codebase-sync:lib"
 
-    - path: "codebase2/core"
+    - path: "codebase2/core/./"
       component: "unison-core:lib"
 
-    - path: "codebase2/util"
+    - path: "codebase2/util/./"
       component: "unison-util:lib"
 
-    - path: "codebase2/util-serialization"
+    - path: "codebase2/util-serialization/./"
       component: "unison-util-serialization:lib"
 
-    - path: "codebase2/util-term"
+    - path: "codebase2/util-term/./"
       component: "unison-util-term:lib"
+
+    - path: "lib/unison-prelude/src"
+      component: "unison-prelude:lib"
+
+    - path: "lib/unison-util-relation/src"
+      component: "unison-util-relation:lib"
+
+    - path: "lib/unison-util-relation/test"
+      component: "unison-util-relation:test:tests"
 
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
-    - path: "parser-typechecker/prettyprintdemo/Main.hs"
-      component: "unison-parser-typechecker:exe:prettyprintdemo"
-
-    - path: "parser-typechecker/prettyprintdemo/Paths_unison_parser_typechecker.hs"
+    - path: "parser-typechecker/prettyprintdemo"
       component: "unison-parser-typechecker:exe:prettyprintdemo"
 
     - path: "parser-typechecker/tests"

@@ -5,6 +5,15 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 library:
   source-dirs: src
 
+tests:
+  tests:
+    dependencies:
+      - easytest
+      - random
+      - unison-util-relation
+    main: Main.hs
+    source-dirs: test
+
 dependencies:
   - base
   - containers
