@@ -9,6 +9,7 @@ library:
     - base
     - bytestring
     - containers >= 0.6.3
+    - nonempty-containers
     - cryptonite
     - either
     - extra

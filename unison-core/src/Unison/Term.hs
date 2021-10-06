@@ -44,6 +44,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import Data.Set.NonEmpty (nonEmptySet)
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -124,14 +125,18 @@ bindNames keepFreeTerms ns0 e = do
       ns = Names.Names ns0 mempty
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
-      okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
+      okTm :: (v,a) -> Either (Seq (Names.ResolutionFailure v a)) (v, Term v a)
       okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
+           | otherwise -> case nonEmptySet rs of
+               Nothing -> Left (pure (Names.ResolutionFailure v a Names.TermNotFound))
+               Just refs -> Left (pure (Names.ResolutionFailure v a (Names.TermAmbiguous ns0 refs)))
       okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
+           | otherwise -> case nonEmptySet rs of
+               Nothing -> Left (pure (Names.ResolutionFailure v a Names.TypeNotFound))
+               Just refs -> Left (pure (Names.ResolutionFailure v a (Names.TypeAmbiguous ns0 refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
