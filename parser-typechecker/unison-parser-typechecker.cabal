@@ -224,6 +224,7 @@ library
     , bytes
     , bytestring
     , cereal
+    , compact
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -484,6 +485,7 @@ executable unison
   build-depends:
       base
     , bytestring
+    , compact
     , configurator
     , containers
     , directory

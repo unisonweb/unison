@@ -1,7 +1,19 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Hash (Hash(Hash), toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex, validBase32HexChars) where
+module Unison.Hash
+  ( Hash(Hash)
+  , toBytes
+  , base32Hex
+  , base32Hexs
+  , fromBase32Hex
+  , fromBytes
+  , fromByteString
+  , toByteString
+  , unsafeFromBase32Hex
+  , showBase32Hex
+  , validBase32HexChars
+  ) where
 
 import Unison.Prelude
 
@@ -11,6 +23,7 @@ import qualified Data.ByteArray as BA
 import qualified Crypto.Hash as CH
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Short as SBS
 
 import qualified Unison.Hashable as H
 import qualified Codec.Binary.Base32Hex as Base32Hex
@@ -18,19 +31,19 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash { toBytes :: ByteString } deriving (Eq,Ord,Generic)
+newtype Hash = Hash { toBytes :: SBS.ShortByteString } deriving (Eq,Ord,Generic)
 
 instance Show Hash where
   show h = take 999 $ Text.unpack (base32Hex h)
 
 instance H.Hashable Hash where
-  tokens h = [H.Bytes (toBytes h)]
+  tokens h = [H.Bytes (toByteString h)]
 
-fromBytesImpl :: ByteString -> Hash
-fromBytesImpl = fromBytes
+fromByteString :: ByteString -> Hash
+fromByteString = fromBytes
 
-toBytesImpl :: Hash -> ByteString
-toBytesImpl = toBytes
+toByteString :: Hash -> ByteString
+toByteString = SBS.fromShort . toBytes
 
 instance H.Accumulate Hash where
   accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit where
@@ -44,20 +57,23 @@ instance H.Accumulate Hash where
     toBS (H.Text txt) =
       let tbytes = encodeUtf8 txt
       in [encodeLength (B.length tbytes), tbytes]
-    toBS (H.Hashed h) = [toBytes h]
+    toBS (H.Hashed h) = [toByteString h]
     encodeLength :: Integral n => n -> B.ByteString
     encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
-  fromBytes = fromBytesImpl
-  toBytes = toBytesImpl
+  fromBytes = fromByteString
+  toBytes = toByteString
 
 -- | Return the lowercase unpadded base32Hex encoding of this 'Hash'.
 -- Multibase prefix would be 'v', see https://github.com/multiformats/multibase
 base32Hex :: Hash -> Text
-base32Hex (Hash h) =
+base32Hex (Hash h)
   -- we're using an uppercase encoder that adds padding, so we drop the
   -- padding and convert it to lowercase
-  Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
-  Base32Hex.encode h
+  = Text.toLower
+  . Text.dropWhileEnd (== '=')
+  . decodeUtf8
+  . Base32Hex.encode
+  $ SBS.fromShort h
 
 validBase32HexChars :: Set Char
 validBase32HexChars = Set.fromList $ ['0' .. '9'] ++ ['a' .. 'v']
@@ -66,7 +82,7 @@ validBase32HexChars = Set.fromList $ ['0' .. '9'] ++ ['a' .. 'v']
 fromBase32Hex :: Text -> Maybe Hash
 fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> paddingChars) of
   Left (_, _rem) -> Nothing
-  Right h -> pure $ Hash h
+  Right h -> pure $ Hash (SBS.toShort h)
   where
   -- The decoder we're using is a base32 uppercase decoder that expects padding,
   -- so we provide it with the appropriate number of padding characters for the
@@ -102,7 +118,7 @@ unsafeFromBase32Hex txt =
   fromMaybe (error $ "invalid base32Hex value: " ++ Text.unpack txt) $ fromBase32Hex txt
 
 fromBytes :: ByteString -> Hash
-fromBytes = Hash
+fromBytes = Hash . SBS.toShort
 
 showBase32Hex :: H.Hashable t => t -> String
 showBase32Hex = base32Hexs . H.accumulate'

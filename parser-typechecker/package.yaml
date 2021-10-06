@@ -40,6 +40,7 @@ library:
     - bytes
     - bytestring
     - cereal
+    - compact
     - containers >= 0.6.3
     - configurator
     - cryptonite
@@ -130,6 +131,7 @@ executables:
     dependencies:
       - base
       - bytestring
+      - compact
       - containers
       - configurator
       - directory
