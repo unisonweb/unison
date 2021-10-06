@@ -89,7 +89,7 @@ uniqueBase32Namegen rng =
     posBytes = runPutS $ do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
-    h = Hashable.hash $ bytes <> posBytes
+    h = Hashable.accumulate' $ bytes <> posBytes
     b58 = Hash.base32Hex h
     in if Char.isDigit (Text.head b58) then go pos lenInBase32Hex rng
        else Just . Text.take lenInBase32Hex $ b58

@@ -443,7 +443,7 @@ repairPatch (Patch termEdits typeEdits) = do
   termEdits' <- Relation.filterM (uncurry filterTermEdit) termEdits
   typeEdits' <- Relation.filterM (uncurry filterTypeEdit) typeEdits
   let patch = Patch termEdits' typeEdits'
-  pure (H.hash patch, patch)
+  pure (H.accumulate' patch, patch)
   where
     -- filtering `old` is part of a workaround for ucm currently
     -- requiring the actual component in order to construct a
