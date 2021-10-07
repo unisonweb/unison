@@ -30,7 +30,6 @@ import qualified Unison.Parser as Parser
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent, pattern Ref)
-import           Unison.Reference             (Reference)
 import           Unison.Result                (Note (..))
 import qualified Unison.Result                as Result
 import qualified Unison.Settings              as Settings
@@ -57,7 +56,6 @@ import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
-import Data.Set.NonEmpty (NESet)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Names3 as Names3
 
@@ -1440,43 +1438,37 @@ prettyResolutionFailures
   => String -- ^ src
   -> [Names.ResolutionFailure v a]
   -> Pretty ColorText
-prettyResolutionFailures s (nubOrdOn Names.getVar -> sort -> failures) = Pr.callout "❓" $ Pr.linesNonEmpty
+prettyResolutionFailures s unsortedFailures = Pr.callout "❓" $ Pr.linesNonEmpty
   [ Pr.wrap
     ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
   , ""
   , annotatedsAsErrorSite s (Names.getAnnotation <$> failures)
-  , let (ambiguities, missingVars) = partitionEithers (splitNotFoundFromAmbiguities <$> failures)
-    in Pr.linesSpaced . Pr.nonEmpty $ (prettyMissingVars missingVars : ambiguities)
+  , ""
+  , let headers = ["Symbol", "Suggestions"]
+     in Pr.table $ headers : (foldMap resolutionFailureTable failures)
   ]
   where
-    splitNotFoundFromAmbiguities :: (Names.ResolutionFailure v annotation -> Either (Pretty ColorText) v)
-    splitNotFoundFromAmbiguities = \case
+    failures :: [Names.ResolutionFailure v a]
+    failures = sort . nubOrdOn Names.getVar $ unsortedFailures
+    resolutionFailureTable :: Names.ResolutionFailure v annotation -> [[Pretty ColorText]]
+    resolutionFailureTable = \case
           (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
             let ppe = ppeFromNames0 names
-             in Left $ prettyTermAmbiguity ppe v refs
+             in prettyAmbiguity v (showTermRef ppe <$> toList refs)
           (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
             let ppe = ppeFromNames0 names
-             in Left $ prettyTypeAmbiguity ppe v refs
-          (Names.TermResolutionFailure v _ Names.NotFound) -> Right v
-          (Names.TypeResolutionFailure v _ Names.NotFound) -> Right v
+             in prettyAmbiguity v (showTypeRef ppe <$> toList refs)
+          (Names.TermResolutionFailure v _ Names.NotFound) -> prettyAmbiguity v []
+          (Names.TypeResolutionFailure v _ Names.NotFound) -> prettyAmbiguity v []
 
-    prettyMissingVars :: [v] -> Pretty ColorText
-    prettyMissingVars = \case
-      [] -> ""
-      [v] -> "🔍 The following name could not be found: " <> Pr.bold (prettyVar v)
-      vs ->
-        "🔍 The following names could not be found:"
-          `Pr.hang` Pr.dashed (prettyVar <$> vs)
     ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
     ppeFromNames0 names0 = PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
-    prettyTypeAmbiguity :: PPE.PrettyPrintEnv -> v -> NESet Reference -> Pretty ColorText
-    prettyTypeAmbiguity ppe v refs =
-       Pr.hang ("🤔 "<> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.dashed $ showTypeRef ppe <$> toList refs
-
-    prettyTermAmbiguity :: PPE.PrettyPrintEnv -> v -> NESet Referent -> Pretty ColorText
-    prettyTermAmbiguity ppe v refs =
-       Pr.hang ("🤔 "<> Pr.bold (prettyVar v) <> " could refer to any of:") . Pr.dashed $ showTermRef ppe <$> toList refs
+    prettyAmbiguity :: v -> [Pretty ColorText] -> [[Pretty ColorText]]
+    prettyAmbiguity v suggestions
+      | null suggestions = [[prettyVar v, "?"]]
+      | otherwise =
+          zipWith (\a b -> [a, b]) ([prettyVar v] ++ repeat "") suggestions
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
