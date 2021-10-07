@@ -116,6 +116,8 @@ data Input
   | ExecuteI String
   -- execute an IO [Result]
   | IOTestI (HQ.HashQualified Name)
+  -- make a standalone binary file
+  | MakeStandaloneI String (HQ.HashQualified Name)
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)

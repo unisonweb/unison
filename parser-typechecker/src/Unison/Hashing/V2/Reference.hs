@@ -185,7 +185,7 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
-  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toByteString h), Hashable.Nat i, Hashable.Nat n]
 
 -- | Two references mustn't differ in cycle length only.
 instance Eq Id where x == y = compare x y == EQ

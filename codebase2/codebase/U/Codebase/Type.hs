@@ -19,8 +19,6 @@ import U.Codebase.Kind (Kind)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Core.ABT as ABT
 import U.Util.Hash (Hash)
-import U.Util.Hashable (Hashable, Hashable1)
-import qualified U.Util.Hashable as Hashable
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Functor (($>))
 import Data.Bifunctor (Bifunctor(bimap))
@@ -67,25 +65,3 @@ dependencies = Writer.execWriter . ABT.visit' f
     f :: Ord r => F' r a -> Writer.Writer (Set r) (F' r a)
     f t@(Ref r) = Writer.tell (Set.singleton r) $> t
     f t = pure t
-
-instance Hashable r => Hashable1 (F' r) where
-  hash1 hashCycle hash e =
-    let (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
-     in -- Note: start each layer with leading `0` byte, to avoid collisions with
-        -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
-        Hashable.accumulate $
-          tag 0 : case e of
-            Ref r -> [tag 0, Hashable.accumulateToken r]
-            Arrow a b -> [tag 1, hashed (hash a), hashed (hash b)]
-            App a b -> [tag 2, hashed (hash a), hashed (hash b)]
-            Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k]
-            -- Example:
-            --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
-            --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
-            --   c) {Remote, Abort} (() -> {Abort} ())
-            Effects es ->
-              let (hs, _) = hashCycle es
-               in tag 4 : map hashed hs
-            Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
-            Forall a -> [tag 6, hashed (hash a)]
-            IntroOuter a -> [tag 7, hashed (hash a)]

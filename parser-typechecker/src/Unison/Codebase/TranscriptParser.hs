@@ -132,7 +132,7 @@ run dir configFile stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- RTI.startRuntime
+    runtime                  <- RTI.startRuntime ""
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList

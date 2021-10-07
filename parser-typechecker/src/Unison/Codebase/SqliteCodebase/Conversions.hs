@@ -5,7 +5,6 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
 import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
@@ -290,7 +289,7 @@ rreferenceid1to2 h (V1.Reference.Id h' i _n) = V2.Reference.Id oh i
     oh = if h == h' then Nothing else Just (hash1to2 h')
 
 hash1to2 :: Hash -> V2.Hash
-hash1to2 (V1.Hash bs) = V2.Hash.Hash (SBS.toShort bs)
+hash1to2 (V1.Hash bs) = V2.Hash.Hash bs
 
 branchHash1to2 :: V1.Branch.Hash -> V2.CausalHash
 branchHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
@@ -349,7 +348,7 @@ referentid2to1 lookupSize lookupCT = \case
       <*> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
-hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)
+hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
 
 causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
 causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
