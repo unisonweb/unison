@@ -92,6 +92,7 @@ library
     , lens
     , memory
     , mtl
+    , nonempty-containers
     , prelude-extras
     , rfc5051
     , safe
