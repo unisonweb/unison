@@ -33,6 +33,7 @@ module Unison.Util.Pretty (
    column2M,
    column2UnzippedM,
    column3,
+   column3Header,
    column3M,
    column3UnzippedM,
    column3sep,
@@ -575,6 +576,16 @@ column3
   => [(Pretty s, Pretty s, Pretty s)]
   -> Pretty s
 column3 = column3sep ""
+
+-- | Construct a 3 column table with the provided headers.
+column3Header ::
+  Pretty ColorText ->
+  Pretty ColorText ->
+  Pretty ColorText ->
+  [(Pretty ColorText, Pretty ColorText, Pretty ColorText)] ->
+  Pretty ColorText
+column3Header left middle right = 
+  column3sep "  " . ((hiBlack left, hiBlack middle, hiBlack right):)
 
 column3M
   :: (LL.ListLike s Char, IsString s, Monad m)

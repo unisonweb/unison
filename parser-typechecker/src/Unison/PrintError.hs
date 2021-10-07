@@ -10,7 +10,7 @@ import Unison.Prelude
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Data.List                    (find, intersperse)
-import           Data.List.Extra              (nubOrd)
+import           Data.List.Extra              (nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
 import           Data.Sequence                (Seq (..))
@@ -60,6 +60,7 @@ import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Names3 as Names3
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
+import qualified Control.Arrow as Arr
 
 type Env = PPE.PrettyPrintEnv
 
@@ -463,32 +464,34 @@ renderTypeError e env src = case e of
             C.Exact -> (_1 %~ ((name, typ) :)) . r
             C.WrongType -> (_2 %~ ((name, typ) :)) . r
             C.WrongName -> (_3 %~ ((name, typ) :)) . r
-    in  mconcat
-          [ "I'm not sure what "
-          , style ErrorSite (Var.nameStr unknownTermV)
-          , " means at "
-          , annotatedToEnglish termSite
-          , "\n\n"
-          , annotatedAsErrorSite src termSite
-          , case expectedType of
-            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
-            _ ->
-              "\nWhatever it is, it has a type that conforms to "
-                <> style Type1 (renderType' env expectedType)
-                <> ".\n"
-                 -- ++ showTypeWithProvenance env src Type1 expectedType
-          , case correct of
-            [] -> case wrongTypes of
-              [] -> case wrongNames of
-                []     -> mempty
-                wrongs -> formatWrongs wrongNameText wrongs
-              wrongs -> formatWrongs wrongTypeText wrongs
-            suggs -> mconcat
-              [ "I found some terms in scope that have matching names and types. "
-              , "Maybe you meant one of these:\n\n"
-              , intercalateMap "\n" formatSuggestion suggs
-              ]
-          ]
+     in _
+
+    -- mconcat
+    --       [ "I'm not sure what "
+    --       , style ErrorSite (Var.nameStr unknownTermV)
+    --       , " means at "
+    --       , annotatedToEnglish termSite
+    --       , "\n\n"
+    --       , annotatedAsErrorSite src termSite
+    --       , case expectedType of
+    --         Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
+    --         _ ->
+    --           "\nWhatever it is, it has a type that conforms to "
+    --             <> style Type1 (renderType' env expectedType)
+    --             <> ".\n"
+    --              -- ++ showTypeWithProvenance env src Type1 expectedType
+    --       , case (correct, wrongTypes, wrongNames) of
+    --         (correct, wrongTypes, wrongNames)
+    --           | not . null $ correct ->
+    --               mconcat
+    --               [ "I found some terms in scope that have matching names and types. "
+    --               , "Maybe you meant one of these:\n\n"
+    --               , intercalateMap "\n" formatSuggestion correct
+    --               ]
+    --           | not . null $ wrongTypes -> formatWrongs wrongTypeText wrongTypes
+    --           | not . null $ wrongNames -> formatWrongs wrongNameText wrongNames
+    --           | otherwise -> mempty
+    --       ]
   DuplicateDefinitions {..} ->
     mconcat
       [ Pr.wrap $ mconcat
@@ -1323,7 +1326,7 @@ prettyParseError s = \case
     where
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
-    Pr.border 2 . prettyResolutionFailures s $ failures
+    Pr.border 2 . prettyResolutionFailures s $ _ failures
   go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
         "I expected to see `structural` or `unique` at the start of this line:"
@@ -1434,6 +1437,20 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
       <> "."
   _ -> ""
 
+
+data Suggestion =
+  Suggestion
+    { name :: String
+    , typ :: String
+    } deriving (Eq, Ord)
+
+data ResolutionFailureInfo v a =
+  ResolutionFailureInfo
+    { var :: v
+    , annotation :: a
+    , suggestionSet :: Set Suggestion
+    }
+
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
 -- suggestions.
 prettyResolutionFailures ::
@@ -1441,7 +1458,7 @@ prettyResolutionFailures ::
   (Annotated a, Var v, Ord a) =>
   -- | src
   String ->
-  [Names.ResolutionFailure v a] ->
+  [ResolutionFailureInfo v a] ->
   Pretty ColorText
 prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
@@ -1449,39 +1466,41 @@ prettyResolutionFailures s allFailures =
       [ Pr.wrap
           ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
         "",
-        annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
+        annotatedsAsErrorSite s (annotation <$> allFailures),
         "",
         ambiguitiesToTable allFailures
       ]
   where
     -- Collapses identical failures which may have multiple annotations into a single failure.
     -- uniqueFailures
-    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable :: [ResolutionFailureInfo v a] -> Pretty ColorText
     ambiguitiesToTable failures =
-      let pairs :: ([(v, Maybe (NESet String))])
-          pairs = nubOrd . fmap toAmbiguityPair $ failures
-          spacerRow = ("", "")
-       in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
-
-    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
-    toAmbiguityPair = \case
-      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromNames0 names
-         in (v, Just $ NES.map (showTermRef ppe) refs)
-      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromNames0 names
-         in (v, Just $ NES.map (showTypeRef ppe) refs)
-      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
-      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+      let deduped = nubOrdOn (var Arr.&&& suggestionSet) $ failures
+          spacerRow = mempty
+       in Pr.column3Header "Symbol" "Suggestions" "Type" $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
 
     ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
     ppeFromNames0 names0 =
       PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
-    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
-    prettyRow (v, mSet) = case mSet of
-      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
-      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
+    prettyRow :: ResolutionFailureInfo v a -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
+    prettyRow  = \case
+      (ResolutionFailureInfo v ann suggs)
+        | null suggs -> [(prettyVar v, Pr.hiBlack "No matches", mempty)]
+        | otherwise ->
+            zipWith (\a (Suggestion s t) -> (a, Pr.string s, Pr.string t))
+                    ([prettyVar v] ++ repeat "") (toList suggs)
+
+-- intoResolutionFailure :: ResolutionFailureInfo v annotation -> (v, Maybe (NESet String))
+-- intoResolutionFailure = \case
+--   (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+--     let ppe = ppeFromNames0 names
+--       in (v, Just $ NES.map (showTermRef ppe) refs)
+--   (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+--     let ppe = ppeFromNames0 names
+--       in (v, Just $ NES.map (showTypeRef ppe) refs)
+--   (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+--   (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
