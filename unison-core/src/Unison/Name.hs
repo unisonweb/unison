@@ -57,7 +57,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 
 newtype Name = Name {toText :: Text}
-  deriving stock (Eq, Generic)
+  deriving stock (Eq)
   deriving newtype (Monoid, Semigroup)
 
 sortNames :: [Name] -> [Name]

@@ -16,6 +16,7 @@ import Data.OpenApi
   ( ToParamSchema (..),
     ToSchema (..),
   )
+import Data.Proxy (Proxy(..))
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant.API
@@ -39,6 +40,7 @@ import Unison.Codebase.ShortBranchHash
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
+import qualified Unison.Name as Name
 import Unison.Prelude
 import Unison.Server.Doc (Doc)
 import qualified Unison.Server.Doc as Doc
@@ -65,9 +67,18 @@ type UnisonName = Text
 
 type UnisonHash = Text
 
+-- [21/10/07] Hello, this is Mitchell. Name refactor in progress. Changing internal representation from a flat text to a
+-- list of segments (in reverse order) plus an "is absolute?" bit.
+--
+-- To preserve backwards compatibility (for now, anyway -- is this even important long term?), the ToJSON and ToSchema
+-- instances below treat Name as before.
+
 instance ToJSON Name where
-    toEncoding = genericToEncoding defaultOptions
-deriving anyclass instance ToSchema Name
+    toEncoding = toEncoding . Name.toText
+    toJSON = toJSON . Name.toText
+
+instance ToSchema Name where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 deriving via Bool instance FromHttpApiData Suffixify
 deriving anyclass instance ToParamSchema Suffixify
