@@ -1432,6 +1432,8 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
       <> "."
   _ -> ""
 
+-- | Pretty prints resolution failure annotations, including a table of disambiguation
+-- suggestions.
 prettyResolutionFailures ::
   forall v a.
   (Annotated a, Var v, Ord a) =>
@@ -1439,18 +1441,21 @@ prettyResolutionFailures ::
   String ->
   [Names.ResolutionFailure v a] ->
   Pretty ColorText
-prettyResolutionFailures s (nubOrdOn Names.getVar -> failures) =
+prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
     Pr.linesNonEmpty
       [ Pr.wrap
           ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
         "",
-        annotatedsAsErrorSite s (Names.getAnnotation <$> failures),
+        annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
         "",
         let spacerRow = ("", "")
          in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] resolutionFailureTable failures)
       ]
   where
+    -- Collapses identical failures which may have multiple annotations into a single failure.
+    -- uniqueFailures
+    -- ambiguitiesToTable :: [v, Either (Set) ()]
     resolutionFailureTable :: Names.ResolutionFailure v annotation -> [(Pretty ColorText, Pretty ColorText)]
     resolutionFailureTable = \case
       (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
