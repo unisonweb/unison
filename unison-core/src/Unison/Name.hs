@@ -1,68 +1,68 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings   #-}
 
 module Unison.Name
-  ( Name(Name)
-  , Convert(..)
-  , Parse(..)
-  , endsWithSegments
-  , fromString
-  , isPrefixOf
-  , joinDot
-  , makeAbsolute
-  , isAbsolute
-  , parent
-  , module Unison.Util.Alphabetical
-  , sortNames
-  , sortNamed
-  , sortNameds
-  , sortByText
-  , sortNamed'
-  , stripNamePrefix
-  , stripPrefixes
-  , segments
-  , reverseSegments
-  , countSegments
-  , compareSuffix
-  , segments'
-  , suffixes
-  , searchBySuffix
-  , suffixFrom
-  , shortestUniqueSuffix
-  , toString
-  , toText
-  , toVar
-  , unqualified
-  , unqualified'
-  , unsafeFromText
-  , unsafeFromString
-  , fromSegment
-  , fromVar
+  ( Name (Name),
+    Convert (..),
+    Parse (..),
+    endsWithSegments,
+    fromString,
+    isPrefixOf,
+    joinDot,
+    makeAbsolute,
+    isAbsolute,
+    parent,
+    module Unison.Util.Alphabetical,
+    sortNames,
+    sortNamed,
+    sortNameds,
+    sortByText,
+    sortNamed',
+    stripNamePrefix,
+    stripPrefixes,
+    segments,
+    reverseSegments,
+    countSegments,
+    compareSuffix,
+    segments',
+    suffixes,
+    searchBySuffix,
+    suffixFrom,
+    shortestUniqueSuffix,
+    toString,
+    toText,
+    toVar,
+    unqualified,
+    unqualified',
+    unsafeFromText,
+    unsafeFromString,
+    fromSegment,
+    fromVar,
   )
 where
 
-import           Unison.Prelude
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.NameSegment             ( NameSegment(NameSegment)
-                                                , segments'
-                                                )
+import Control.Lens (unsnoc)
+import qualified Control.Lens as Lens
+import Data.List (find, inits, sortBy, tails)
+import qualified Data.RFC5051 as RFC5051
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.Hashable as H
+import Unison.NameSegment
+  ( NameSegment (NameSegment),
+    segments',
+  )
+import qualified Unison.NameSegment as NameSegment
+import Unison.Prelude
+import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import qualified Unison.Util.Relation as R
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
-import           Control.Lens                   ( unsnoc )
-import qualified Control.Lens                  as Lens
-import qualified Data.Text                     as Text
-import qualified Data.Set                      as Set
-import qualified Unison.Hashable               as H
-import           Unison.Util.Alphabetical      (Alphabetical,compareAlphabetical)
-import qualified Unison.Util.Relation          as R
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy, tails, inits, find )
-
-newtype Name = Name { toText :: Text }
+newtype Name = Name {toText :: Text}
   deriving (Eq, Monoid, Semigroup, Generic)
 
 sortNames :: [Name] -> [Name]
@@ -75,18 +75,18 @@ sortNameds :: (a -> [Name]) -> [a] -> [a]
 sortNameds by = sortByText (Text.intercalate "." . map toText . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
-sortByText by as = let
-  as' = [ (a, by a) | a <- as ]
-  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
-  in fst <$> sortBy comp as'
+sortByText by as =
+  let as' = [(a, by a) | a <- as]
+      comp (_, s) (_, s2) = RFC5051.compareUnicode s s2
+   in fst <$> sortBy comp as'
 
 -- | Like sortNamed, but takes an additional backup comparison function if two
 -- names are equal.
 sortNamed' :: (a -> Name) -> (a -> a -> Ordering) -> [a] -> [a]
-sortNamed' by by2 as = let
-  as' = [ (a, toText (by a)) | a <- as ]
-  comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
-  in fst <$> sortBy comp as'
+sortNamed' by by2 as =
+  let as' = [(a, toText (by a)) | a <- as]
+      comp (a, s) (a2, s2) = RFC5051.compareUnicode s s2 <> by2 a a2
+   in fst <$> sortBy comp as'
 
 unsafeFromText :: Text -> Name
 unsafeFromText t =
@@ -132,7 +132,7 @@ stripNamePrefix :: Name -> Name -> Maybe Name
 stripNamePrefix prefix name =
   Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
   where
-  mid = if toText prefix == "." then "" else "."
+    mid = if toText prefix == "." then "" else "."
 
 -- suffixFrom Int builtin.Int.+ ==> Int.+
 -- suffixFrom Int Int.negate    ==> Int.negate
@@ -143,8 +143,8 @@ stripNamePrefix prefix name =
 -- for details.
 suffixFrom :: Name -> Name -> Maybe Name
 suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
-  []         -> Nothing
-  (_, rem):_ -> Just (Name rem)
+  [] -> Nothing
+  (_, rem) : _ -> Just (Name rem)
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
@@ -152,8 +152,9 @@ stripPrefixes = maybe "" fromSegment . lastMay . segments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
-  if toText prefix == "." then Name (toText prefix <> toText suffix)
-  else Name (toText prefix <> "." <> toText suffix)
+  if toText prefix == "."
+    then Name (toText prefix <> toText suffix)
+    else Name (toText prefix <> "." <> toText suffix)
 
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
@@ -165,8 +166,8 @@ unqualified = unsafeFromText . unqualified' . toText
 -- parent foo.bar.+ -> foo.bar
 parent :: Name -> Maybe Name
 parent n = case unsnoc (NameSegment.toText <$> segments n) of
-  Nothing        -> Nothing
-  Just ([]  , _) -> Nothing
+  Nothing -> Nothing
+  Just ([], _) -> Nothing
   Just (init, _) -> Just $ Name (Text.intercalate "." init)
 
 -- suffixes "" -> []
@@ -176,16 +177,18 @@ parent n = case unsnoc (NameSegment.toText <$> segments n) of
 -- suffixes ".base.." -> [base.., .]
 suffixes :: Name -> [Name]
 suffixes (Name "") = []
-suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
-  where up ns = Name (Text.intercalate "." ns)
+suffixes (Name n) = fmap up . filter (not . null) . tails $ segments' n
+  where
+    up ns = Name (Text.intercalate "." ns)
 
 unqualified' :: Text -> Text
 unqualified' = fromMaybe "" . lastMay . segments'
 
 makeAbsolute :: Name -> Name
-makeAbsolute n | toText n == "."                = Name ".."
-               | Text.isPrefixOf "." (toText n) = n
-               | otherwise                      = Name ("." <> toText n)
+makeAbsolute n
+  | toText n == "." = Name ".."
+  | Text.isPrefixOf "." (toText n) = n
+  | otherwise = Name ("." <> toText n)
 
 instance Show Name where
   show = toString
@@ -218,8 +221,8 @@ countSegments n = length (segments n)
 -- Unicode and capitalization aware sorting (based on RFC5051).
 instance Ord Name where
   compare n1 n2 =
-       (reverseSegments n1 `compare` reverseSegments n2)
-    <> (isAbsolute n1 `compare` isAbsolute n2)
+    (reverseSegments n1 `compare` reverseSegments n2)
+      <> (isAbsolute n1 `compare` isAbsolute n2)
 
 instance Alphabetical Name where
   compareAlphabetical (Name n1) (Name n2) = compareAlphabetical n1 n2
@@ -247,11 +250,9 @@ searchBySuffix suffix rel =
 -- has `foo.bar` as a suffix.
 compareSuffix :: Name -> Name -> Ordering
 compareSuffix suffix =
-  let
-    suffixSegs = reverseSegments suffix
-    len = length suffixSegs
-  in
-    \n -> take len (reverseSegments n) `compare` suffixSegs
+  let suffixSegs = reverseSegments suffix
+      len = length suffixSegs
+   in \n -> take len (reverseSegments n) `compare` suffixSegs
 
 -- Tries to shorten `fqn` to the smallest suffix that still refers
 -- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
@@ -264,12 +265,13 @@ shortestUniqueSuffix :: Ord r => Name -> r -> R.Relation Name r -> Name
 shortestUniqueSuffix fqn r rel =
   maybe fqn (convert . reverse) (find isOk suffixes)
   where
-  allowed = R.lookupDom fqn rel
-  suffixes = drop 1 (inits (reverseSegments fqn))
-  isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
-    where rs = R.searchDom compareEnd rel
-          compareEnd n = compare (take len (reverseSegments n)) suffix
-          len = length suffix
+    allowed = R.lookupDom fqn rel
+    suffixes = drop 1 (inits (reverseSegments fqn))
+    isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      where
+        rs = R.searchDom compareEnd rel
+        compareEnd n = compare (take len (reverseSegments n)) suffix
+        len = length suffix
 
 class Convert a b where
   convert :: a -> b
@@ -278,8 +280,11 @@ class Parse a b where
   parse :: a -> Maybe b
 
 instance Convert Name Text where convert = toText
+
 instance Convert Name [NameSegment] where convert = segments
+
 instance Convert NameSegment Name where convert = fromSegment
+
 instance Convert [NameSegment] Name where
   convert sgs = unsafeFromText (Text.intercalate "." (map NameSegment.toText sgs))
 
@@ -288,17 +293,17 @@ instance Parse Text NameSegment where
     [n] -> Just (NameSegment.NameSegment n)
     _ -> Nothing
 
-instance (Parse a a2, Parse b b2) => Parse (a,b) (a2,b2) where
-  parse (a,b) = (,) <$> parse a <*> parse b
+instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
+  parse (a, b) = (,) <$> parse a <*> parse b
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
   _Snoc = Lens.prism snoc unsnoc
-   where
-    snoc :: (Name, NameSegment) -> Name
-    snoc (n, s) = joinDot n (fromSegment s)
-    unsnoc :: Name -> Either Name (Name, NameSegment)
-    unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
-      Nothing      -> Left n
-      Just ([], _) -> Left n
-      Just (init, last) ->
-        Right (Name (Text.intercalate "." init), NameSegment last)
+    where
+      snoc :: (Name, NameSegment) -> Name
+      snoc (n, s) = joinDot n (fromSegment s)
+      unsnoc :: Name -> Either Name (Name, NameSegment)
+      unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
+        Nothing -> Left n
+        Just ([], _) -> Left n
+        Just (init, last) ->
+          Right (Name (Text.intercalate "." init), NameSegment last)
