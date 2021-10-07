@@ -10,7 +10,7 @@ import Unison.Prelude
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Data.List                    (find, intersperse)
-import           Data.List.Extra              (nubOrd, nubOrdOn)
+import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
 import           Data.Sequence                (Seq (..))
@@ -58,6 +58,8 @@ import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Names3 as Names3
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NES
 
 type Env = PPE.PrettyPrintEnv
 
@@ -1449,33 +1451,37 @@ prettyResolutionFailures s allFailures =
         "",
         annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
         "",
-        let spacerRow = ("", "")
-         in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] resolutionFailureTable failures)
+        ambiguitiesToTable allFailures
       ]
   where
     -- Collapses identical failures which may have multiple annotations into a single failure.
     -- uniqueFailures
-    -- ambiguitiesToTable :: [v, Either (Set) ()]
-    resolutionFailureTable :: Names.ResolutionFailure v annotation -> [(Pretty ColorText, Pretty ColorText)]
-    resolutionFailureTable = \case
+    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable failures =
+      let pairs :: ([(v, Maybe (NESet String))])
+          pairs = nubOrd . fmap toAmbiguityPair $ failures
+          spacerRow = ("", "")
+       in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
+
+    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
+    toAmbiguityPair = \case
       (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
         let ppe = ppeFromNames0 names
-         in prettyAmbiguity v (showTermRef ppe <$> toList refs)
+         in (v, Just $ NES.map (showTermRef ppe) refs)
       (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
         let ppe = ppeFromNames0 names
-         in prettyAmbiguity v (showTypeRef ppe <$> toList refs)
-      (Names.TermResolutionFailure v _ Names.NotFound) -> prettyAmbiguity v []
-      (Names.TypeResolutionFailure v _ Names.NotFound) -> prettyAmbiguity v []
+         in (v, Just $ NES.map (showTypeRef ppe) refs)
+      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
     ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
     ppeFromNames0 names0 =
       PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
-    prettyAmbiguity :: v -> [Pretty ColorText] -> [(Pretty ColorText, Pretty ColorText)]
-    prettyAmbiguity v suggestions
-      | null suggestions = [(prettyVar v, Pr.hiBlack "No matches")]
-      | otherwise =
-        zip ([prettyVar v] ++ repeat "") suggestions
+    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
+    prettyRow (v, mSet) = case mSet of
+      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
+      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
