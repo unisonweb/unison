@@ -201,10 +201,12 @@ library
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -319,10 +321,12 @@ executable prettyprintdemo
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -383,10 +387,12 @@ executable tests
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -436,10 +442,12 @@ executable transcripts
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -477,10 +485,12 @@ executable unison
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
@@ -529,10 +539,12 @@ benchmark runtime
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables

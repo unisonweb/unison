@@ -42,7 +42,7 @@ deriving instance ToSchema SeqOp
 
 instance ToJSON SyntaxText
 
-deriving instance ToSchema SyntaxText
+deriving anyclass instance ToSchema SyntaxText
 
 instance ToSchema r => ToSchema (Seq r) where
   declareNamedSchema _ = declareNamedSchema (Proxy @[r])

@@ -67,18 +67,18 @@ type UnisonHash = Text
 
 instance ToJSON Name where
     toEncoding = genericToEncoding defaultOptions
-deriving instance ToSchema Name
+deriving anyclass instance ToSchema Name
 
 deriving via Bool instance FromHttpApiData Suffixify
-deriving instance ToParamSchema Suffixify
+deriving anyclass instance ToParamSchema Suffixify
 
 instance FromHttpApiData ShortBranchHash where
   parseUrlPiece = maybe (Left "Invalid ShortBranchHash") Right . SBH.fromText
 
-deriving instance ToParamSchema ShortBranchHash
+deriving anyclass instance ToParamSchema ShortBranchHash
 
 deriving via Int instance FromHttpApiData Width
-deriving instance ToParamSchema Width
+deriving anyclass instance ToParamSchema Width
 
 instance (ToJSON b, ToJSON a) => ToJSON (DisplayObject b a) where
    toEncoding = genericToEncoding defaultOptions

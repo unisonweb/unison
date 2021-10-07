@@ -1,9 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Name
   ( Name (Name),
     Convert (..),
@@ -63,7 +57,8 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 
 newtype Name = Name {toText :: Text}
-  deriving (Eq, Monoid, Semigroup, Generic)
+  deriving stock (Eq, Generic)
+  deriving newtype (Monoid, Semigroup)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id

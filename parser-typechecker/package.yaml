@@ -6,10 +6,12 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
   - ScopedTypeVariables

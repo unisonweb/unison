@@ -31,15 +31,19 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
+  - OverloadedStrings
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 flags:
   optimized:

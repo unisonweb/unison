@@ -93,7 +93,7 @@ instance ToJSON FZF.ResultSegment where
    toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema FZF.Alignment
-deriving instance ToSchema FZF.Result
+deriving anyclass instance ToSchema FZF.Result
 deriving instance ToSchema FZF.ResultSegment
 
 data FoundTerm = FoundTerm
