@@ -472,7 +472,7 @@ lexemes' eof = P.optional space >> do
             fence <$ guard b
           CP.space *>
             local (\env -> env { inLayout = True, opening = Just "docEval" })
-                  (lexemes' ([] <$ lit fence))
+                  (restoreStack "docEval" $ lexemes' ([] <$ lit fence))
 
         exampleBlock = wrap "syntax.docExampleBlock" $ do
           void $ lit "@typecheck" <* CP.space
