@@ -86,4 +86,4 @@ jobs:
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: other test suites
-        run: stack --no-terminal test union-util-relation
+        run: stack --no-terminal test unison-util-relation

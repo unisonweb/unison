@@ -645,17 +645,25 @@ prettyBinding0 env a@AmbientContext { imports = im, docContext = doc } v term = 
       ]
     (printAnnotate env -> LamsNamedMatch' vs branches) ->
       PP.group
-            $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =" <> " " <> fmt S.ControlKeyword "cases")
-            `PP.hang` printCase env im doc branches
+        $         PP.group
+                    (defnLhs v vs <> fmt S.BindingEquals " =" <> " " <> fmt
+                      S.ControlKeyword
+                      "cases"
+                    )
+        `PP.hang` printCase env im doc branches
     LamsNamedOrDelay' vs body ->
       let (im', uses) = calcImports im body'
           -- In the case where we're being called from inside `pretty0`, this
           -- call to printAnnotate is unfortunately repeating work we've already
           -- done.
-          body'       = printAnnotate env body
+          body' = printAnnotate env body
+          -- Special case for 'let being on the same line
+          hang = case body' of
+                   Delay' (Lets' _ _) -> PP.softHang
+                   _ -> PP.hang
       in  PP.group
-            $         PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
-            `PP.hang` uses [pretty0 env (ac (-1) Block im' doc) body']
+            $ PP.group (defnLhs v vs <> fmt S.BindingEquals " =")
+              `hang` uses [pretty0 env (ac (-1) Block im' doc) body']
     t -> l "error: " <> l (show t)
    where
     defnLhs v vs

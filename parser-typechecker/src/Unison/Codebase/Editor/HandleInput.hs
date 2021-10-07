@@ -418,6 +418,8 @@ loop = do
           UpdateBuiltinsI -> "builtins.update"
           MergeBuiltinsI -> "builtins.merge"
           MergeIOBuiltinsI -> "builtins.mergeio"
+          MakeStandaloneI out nm ->
+            "compile.output " <> Text.pack out <> " " <> HQ.toText nm
           PullRemoteBranchI orepo dest _syncMode _ ->
             (Text.pack . InputPattern.patternName
               $ InputPatterns.patternFromInput input)
@@ -1225,11 +1227,14 @@ loop = do
               ExceptT (parseSearchType input (unwords ws)) >>= \typ ->
                 ExceptT $ do
                   let named = Branch.deepReferents root0
-                  matches <- fmap toList . eval $ GetTermsOfType typ
-                  matches <- filter (`Set.member` named) <$>
+                  matches <-
+                    fmap (filter (`Set.member` named) . toList) $
+                      eval $ GetTermsOfType typ
+                  matches <-
                     if null matches then do
                       respond NoExactTypeMatches
-                      fmap toList . eval $ GetTermsMentioningType typ
+                      fmap (filter (`Set.member` named) . toList) $
+                        eval $ GetTermsMentioningType typ
                     else pure matches
                   let results =
                       -- in verbose mode, aliases are shown, so we collapse all
@@ -1589,6 +1594,25 @@ loop = do
           case e of
             Left e -> respond $ EvaluationFailure e
             Right _ -> pure () -- TODO
+
+      MakeStandaloneI output main -> do
+        mainType <- eval RuntimeMain
+        parseNames <-
+          flip Names3.Names mempty <$> basicPrettyPrintNames0A
+        ppe <- suffixifiedPPE parseNames
+        let resolved = toList $ Names3.lookupHQTerm main parseNames
+            smain = HQ.toString main
+        filtered <- catMaybes <$>
+          traverse (\r -> fmap (r,) <$> loadTypeOfTerm r) resolved
+        case filtered of
+          [(Referent.Ref ref, ty)]
+            | Typechecker.isSubtype ty mainType ->
+              eval (MakeStandalone ppe ref output) >>= \case
+                Just err -> respond $ EvaluationFailure err
+                Nothing -> pure ()
+            | otherwise ->
+              respond $ BadMainFunction smain ty ppe [mainType]
+          _ -> respond $ NoMainFunction smain ppe [mainType]
 
       IOTestI main -> do
         -- todo - allow this to run tests from scratch file, using addRunMain
