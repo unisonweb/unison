@@ -78,9 +78,7 @@ deepr4ToSlice :: Ord r
               -> Metadata.R4 r Name
               -> NamespaceSlice r
 deepr4ToSlice deepNames deepMetadata =
-  NamespaceSlice deepNames (unpackMetadata deepMetadata)
-  where
-   unpackMetadata = R3.fromList . fmap (\(r,n,_t,v) -> (r,n,v)) . R4.toList
+  NamespaceSlice deepNames (R4.d124 deepMetadata)
 
 computeSlices :: NamespaceSlice Referent
               -> NamespaceSlice Referent

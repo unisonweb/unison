@@ -29,6 +29,16 @@ d2s = Map.keysSet . d2
 d3s :: Relation3 a b c -> Set c
 d3s = Map.keysSet . d3
 
+-- | Project out a relation that only includes the 1st and 2nd dimensions.
+d12 :: Relation3 a b c -> Relation a b
+d12 Relation3 {d1, d2} =
+  R.unsafeFromMultimaps (Map.map R.dom d1) (Map.map R.dom d2)
+
+-- | Project out a relation that only includes the 1st and 3rd dimensions.
+d13 :: Relation3 a b c -> Relation a c
+d13 Relation3 {d1, d3} =
+  R.unsafeFromMultimaps (Map.map R.ran d1) (Map.map R.dom d3)
+
 filter :: (Ord a, Ord b, Ord c)
        => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
 filter f = fromList . Prelude.filter f . toList

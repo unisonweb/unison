@@ -34,6 +34,7 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -44,4 +45,37 @@ library
     , containers
     , extra
     , unison-prelude
+  default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_unison_util_relation
+  hs-source-dirs:
+      test
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      base
+    , containers
+    , easytest
+    , extra
+    , random
+    , unison-prelude
+    , unison-util-relation
   default-language: Haskell2010
