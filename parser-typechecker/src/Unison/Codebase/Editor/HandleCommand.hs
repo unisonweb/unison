@@ -184,6 +184,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     GetDefinitionsBySuffixes mayPath branch query ->
       lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
+    MakeStandalone ppe ref out -> lift $ do
+      let cl = Codebase.toCodeLookup codebase
+      Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
 
   watchCache (Reference.DerivedId h) = do

@@ -13,6 +13,7 @@ git checkout series/M2
 git merge origin/trunk
 git tag -a release/$RELEASE_NAME -m "release"
 git push origin release/$RELEASE_NAME
+git push origin series/M2
 ```
 
 __2__
@@ -25,7 +26,7 @@ Create a release notes draft issue, following [this template](https://github.com
 
 __4__
 
-Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarorma does this usually.
+Update trunk of `base` to include any new builtins added since last release. Suggestion for how to do this: look through the release notes draft to find the PRs merged since last release. @runarorama does this usually.
 
 ```
 git log --oneline release/M2h...release/M2i | grep 'Merge pull request #'
@@ -38,12 +39,12 @@ __5__
 Cut a release of base. @runarorama does this usually.
 
 ```
-.> pull https://unisonweb/base basedev.release
-.> cd basedev.release
+.> pull git@github.com:unisonweb/base basedev.release
+.> cd .basedev.release
 .basedev.release> delete.namespace releases._latest
 .basedev.release> squash trunk releases._<ReleaseName>
 .basedev.release> fork releases._<ReleaseName> releases._latest
-.basedev.release> push git@github.com/unisonweb/base
+.basedev.release> push git@github.com:unisonweb/base
 ```
 
 __6__
@@ -54,14 +55,17 @@ Update homebrew.
 git clone git@github.com/unisonweb/homebrew-unison
 ```
 
-Update this file: https://github.com/unisonweb/homebrew-unison/blob/master/unison-language.rb and change the version number and the path to the release. Leave the SHA alone, and then run `brew upgrade`. 
+Update this file: https://github.com/unisonweb/homebrew-unison/blob/master/unison-language.rb and change the version number and the path to the release tar files.
 
-Do `brew upgrade unison-language`. It will tell you the SHA hash doesn't match. Update the file to use the hash it says.
-Do the same for linux and mac - you can temporarily swap the mac / linux stanzas just to get the value for the other platform.
+To get the updated sha256 values, use the following command, replacing the download link with the linux and mac downloads respectively.
+
+```sh
+curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-linux.tar.gz | shasum -a 256 | cut -f1 -d" "
+```
 
 __7__
 
-Merge and promote to production any PRs pending [on the docs site](https://github.com/unisonweb/unisonweb-org/pulls) which are associated with the new release. Confirm with @rlmark.
+[In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
 
 __8__ 
 

@@ -15,4 +15,5 @@ dependencies:
   - sandi
   - text
   - time
+  - unison-util-relation
   - unliftio

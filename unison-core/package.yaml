@@ -23,6 +23,8 @@ library:
     - sandi
     - text
     - transformers
+    - unison-prelude
+    - unison-util-relation
     - util
     - vector
 

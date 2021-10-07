@@ -40,6 +40,7 @@ library:
     - bytes
     - bytestring
     - cereal
+    - compact
     - containers >= 0.6.3
     - configurator
     - cryptonite
@@ -85,6 +86,8 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - mwc-random
+    - NanoID
     - servant
     - servant-docs
     - servant-openapi3
@@ -116,7 +119,9 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-prelude
     - unison-util
+    - unison-util-relation
     - open-browser
     - uri-encode
 
@@ -128,6 +133,7 @@ executables:
     dependencies:
       - base
       - bytestring
+      - compact
       - containers
       - configurator
       - directory
@@ -145,6 +151,7 @@ executables:
       - unison-core1
       - unison-parser-typechecker
       - unison-codebase-sync
+      - unison-prelude
       - uri-encode
       - unliftio
     when:
@@ -190,7 +197,9 @@ executables:
       - unliftio
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
       - unison-util
+      - unison-util-relation
 
 
   transcripts:
@@ -207,6 +216,7 @@ executables:
       - text
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
     build-tools:
       - unison-parser-typechecker:unison
 

@@ -12,7 +12,9 @@ module Unison.Util.EnumContainers
   , setSingleton
   , mapInsert
   , unionWith
+  , hasKey
   , keys
+  , keysSet
   , restrictKeys
   , withoutKeys
   , member
@@ -92,6 +94,9 @@ unionWith f (EM l) (EM r) = EM $ IM.unionWith f l r
 keys :: EnumKey k => EnumMap k a -> [k]
 keys (EM m) = fmap intToKey . IM.keys $ m
 
+keysSet :: EnumKey k => EnumMap k a -> EnumSet k
+keysSet (EM m) = ES (IM.keysSet m)
+
 restrictKeys :: EnumKey k => EnumMap k a -> EnumSet k -> EnumMap k a
 restrictKeys (EM m) (ES s) = EM $ IM.restrictKeys m s
 
@@ -100,6 +105,9 @@ withoutKeys (EM m) (ES s) = EM $ IM.withoutKeys m s
 
 member :: EnumKey k => k -> EnumSet k -> Bool
 member e (ES s) = IS.member (keyToInt e) s
+
+hasKey :: EnumKey k => k -> EnumMap k a -> Bool
+hasKey k (EM m) = IM.member (keyToInt k) m
 
 lookup :: EnumKey k => k -> EnumMap k a -> Maybe a
 lookup e (EM m) = IM.lookup (keyToInt e) m
