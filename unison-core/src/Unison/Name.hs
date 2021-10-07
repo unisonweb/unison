@@ -36,36 +36,33 @@ module Unison.Name
     fromSegment,
     fromVar,
 
-    -- * Old name API (temporary)
+    -- * Old name API (temporary), exported only for testing
     OldName,
+    oldCompareSuffix,
+    oldCountSegments,
     oldEndsWithSegments,
+    oldFromSegment,
     oldFromString,
+    oldIsAbsolute,
     oldIsPrefixOf,
     oldJoinDot,
     oldMakeAbsolute,
-    oldIsAbsolute,
     oldParent,
-    oldSortNames,
-    oldSortNamed,
-    oldSortNameds,
+    oldReverseSegments,
+    oldSearchBySuffix,
+    oldSegments,
+    oldShortestUniqueSuffix,
     oldSortNamed',
+    oldSortNames,
     oldStripNamePrefix,
     oldStripPrefixes,
-    oldSegments,
-    oldReverseSegments,
-    oldCountSegments,
-    oldCompareSuffix,
-    oldSuffixes,
-    oldSearchBySuffix,
     oldSuffixFrom,
-    oldShortestUniqueSuffix,
+    oldSuffixes,
     oldToString,
     oldToVar,
     oldUnqualified,
-    oldUnsafeFromText,
     oldUnsafeFromString,
-    oldFromSegment,
-    oldFromVar,
+    oldUnsafeFromText,
   )
 where
 
@@ -112,9 +109,6 @@ oldSortNamed = sortByText
 sortNameds :: (a -> [Name]) -> [a] -> [a]
 sortNameds by = sortByText (Text.intercalate "." . map toText . by)
 
-oldSortNameds :: (a -> [OldName]) -> [a] -> [a]
-oldSortNameds by = sortByText (Text.intercalate "." . by)
-
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
   let as' = [(a, by a) | a <- as]
@@ -157,9 +151,6 @@ oldToVar = Var.named
 
 fromVar :: Var v => v -> Name
 fromVar = unsafeFromText . Var.name
-
-oldFromVar :: Var v => v -> OldName
-oldFromVar = oldUnsafeFromText . Var.name
 
 toString :: Name -> String
 toString = Text.unpack . toText
