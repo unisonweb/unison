@@ -35,6 +35,37 @@ module Unison.Name
     unsafeFromString,
     fromSegment,
     fromVar,
+
+    -- * Old name API (temporary)
+    OldName,
+    oldEndsWithSegments,
+    oldFromString,
+    oldIsPrefixOf,
+    oldJoinDot,
+    oldMakeAbsolute,
+    oldIsAbsolute,
+    oldParent,
+    oldSortNames,
+    oldSortNamed,
+    oldSortNameds,
+    oldSortNamed',
+    oldStripNamePrefix,
+    oldStripPrefixes,
+    oldSegments,
+    oldReverseSegments,
+    oldCountSegments,
+    oldCompareSuffix,
+    oldSuffixes,
+    oldSearchBySuffix,
+    oldSuffixFrom,
+    oldShortestUniqueSuffix,
+    oldToString,
+    oldToVar,
+    oldUnqualified,
+    oldUnsafeFromText,
+    oldUnsafeFromString,
+    oldFromSegment,
+    oldFromVar,
   )
 where
 
@@ -60,14 +91,29 @@ newtype Name = Name {toText :: Text}
   deriving stock (Eq)
   deriving newtype (Monoid, Semigroup)
 
+type OldName = Text
+
+oldFromString :: String -> OldName
+oldFromString =
+  oldUnsafeFromText . Text.pack
+
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
+
+oldSortNames :: [OldName] -> [OldName]
+oldSortNames = oldSortNamed id
 
 sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by = sortByText (toText . by)
 
+oldSortNamed :: (a -> OldName) -> [a] -> [a]
+oldSortNamed = sortByText
+
 sortNameds :: (a -> [Name]) -> [a] -> [a]
 sortNameds by = sortByText (Text.intercalate "." . map toText . by)
+
+oldSortNameds :: (a -> [OldName]) -> [a] -> [a]
+oldSortNameds by = sortByText (Text.intercalate "." . by)
 
 sortByText :: (a -> Text) -> [a] -> [a]
 sortByText by as =
@@ -83,24 +129,49 @@ sortNamed' by by2 as =
       comp (a, s) (a2, s2) = RFC5051.compareUnicode s s2 <> by2 a a2
    in fst <$> sortBy comp as'
 
+oldSortNamed' :: (a -> OldName) -> (a -> a -> Ordering) -> [a] -> [a]
+oldSortNamed' by by2 as =
+  let as' = [(a, by a) | a <- as]
+      comp (a, s) (a2, s2) = RFC5051.compareUnicode s s2 <> by2 a a2
+   in fst <$> sortBy comp as'
+
 unsafeFromText :: Text -> Name
 unsafeFromText t =
   if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
 
+oldUnsafeFromText :: Text -> OldName
+oldUnsafeFromText t =
+  if Text.any (== '#') t then error $ "not a name: " <> show t else t
+
 unsafeFromString :: String -> Name
 unsafeFromString = unsafeFromText . Text.pack
+
+oldUnsafeFromString :: String -> OldName
+oldUnsafeFromString = oldUnsafeFromText . Text.pack
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
 
+oldToVar :: Var v => OldName -> v
+oldToVar = Var.named
+
 fromVar :: Var v => v -> Name
 fromVar = unsafeFromText . Var.name
+
+oldFromVar :: Var v => v -> OldName
+oldFromVar = oldUnsafeFromText . Var.name
 
 toString :: Name -> String
 toString = Text.unpack . toText
 
+oldToString :: OldName -> String
+oldToString = Text.unpack
+
 isPrefixOf :: Name -> Name -> Bool
 a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
+
+oldIsPrefixOf :: OldName -> OldName -> Bool
+oldIsPrefixOf = Text.isPrefixOf
 
 -- foo.bar.baz `endsWithSegments` bar.baz == True
 -- foo.bar.baz `endsWithSegments` baz == True
@@ -110,6 +181,9 @@ a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
 endsWithSegments :: Name -> Name -> Bool
 endsWithSegments n ending = any (== ending) (suffixes n)
 
+oldEndsWithSegments :: OldName -> OldName -> Bool
+oldEndsWithSegments n ending = any (== ending) (oldSuffixes n)
+
 -- stripTextPrefix a.b. a.b.c = Just c
 -- stripTextPrefix a.b  a.b.c = Just .c;  you probably don't want to do this
 -- stripTextPrefix x.y. a.b.c = Nothing
@@ -117,6 +191,10 @@ endsWithSegments n ending = any (== ending) (suffixes n)
 _stripTextPrefix :: Text -> Name -> Maybe Name
 _stripTextPrefix prefix name =
   Name <$> Text.stripPrefix prefix (toText name)
+
+_oldStripTextPrefix :: Text -> OldName -> Maybe OldName
+_oldStripTextPrefix =
+  Text.stripPrefix
 
 -- stripNamePrefix a.b  a.b.c = Just c
 -- stripNamePrefix a.b. a.b.c = undefined, "a.b." isn't a valid name IMO
@@ -128,6 +206,12 @@ stripNamePrefix prefix name =
   Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
   where
     mid = if toText prefix == "." then "" else "."
+
+oldStripNamePrefix :: OldName -> OldName -> Maybe OldName
+oldStripNamePrefix prefix name =
+  Text.stripPrefix (prefix <> mid) name
+  where
+    mid = if prefix == "." then "" else "."
 
 -- suffixFrom Int builtin.Int.+ ==> Int.+
 -- suffixFrom Int Int.negate    ==> Int.negate
@@ -141,9 +225,17 @@ suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
   [] -> Nothing
   (_, rem) : _ -> Just (Name rem)
 
+oldSuffixFrom :: OldName -> OldName -> Maybe OldName
+oldSuffixFrom mid overall = case Text.breakOnAll mid overall of
+  [] -> Nothing
+  (_, rem) : _ -> Just rem
+
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
 stripPrefixes = maybe "" fromSegment . lastMay . segments
+
+oldStripPrefixes :: OldName -> OldName
+oldStripPrefixes = maybe "" oldFromSegment . lastMay . oldSegments
 
 joinDot :: Name -> Name -> Name
 joinDot prefix suffix =
@@ -151,8 +243,17 @@ joinDot prefix suffix =
     then Name (toText prefix <> toText suffix)
     else Name (toText prefix <> "." <> toText suffix)
 
+oldJoinDot :: OldName -> OldName -> OldName
+oldJoinDot prefix suffix =
+  if prefix == "."
+    then prefix <> suffix
+    else prefix <> "." <> suffix
+
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
+
+oldUnqualified :: OldName -> OldName
+oldUnqualified = oldUnsafeFromText . unqualified'
 
 -- parent . -> Nothing
 -- parent + -> Nothing
@@ -165,6 +266,12 @@ parent n = case unsnoc (NameSegment.toText <$> segments n) of
   Just ([], _) -> Nothing
   Just (init, _) -> Just $ Name (Text.intercalate "." init)
 
+oldParent :: OldName -> Maybe OldName
+oldParent n = case unsnoc (NameSegment.toText <$> oldSegments n) of
+  Nothing -> Nothing
+  Just ([], _) -> Nothing
+  Just (init, _) -> Just $ Text.intercalate "." init
+
 -- suffixes "" -> []
 -- suffixes bar -> [bar]
 -- suffixes foo.bar -> [foo.bar, bar]
@@ -176,6 +283,12 @@ suffixes (Name n) = fmap up . filter (not . null) . tails $ segments' n
   where
     up ns = Name (Text.intercalate "." ns)
 
+oldSuffixes :: OldName -> [OldName]
+oldSuffixes "" = []
+oldSuffixes n = fmap up . filter (not . null) . tails $ segments' n
+  where
+    up = Text.intercalate "."
+
 unqualified' :: Text -> Text
 unqualified' = fromMaybe "" . lastMay . segments'
 
@@ -184,6 +297,12 @@ makeAbsolute n
   | toText n == "." = Name ".."
   | Text.isPrefixOf "." (toText n) = n
   | otherwise = Name ("." <> toText n)
+
+oldMakeAbsolute :: OldName -> OldName
+oldMakeAbsolute n
+  | n == "." = ".."
+  | Text.isPrefixOf "." n = n
+  | otherwise = "." <> n
 
 instance Show Name where
   show = toString
@@ -197,16 +316,28 @@ instance H.Hashable Name where
 fromSegment :: NameSegment -> Name
 fromSegment = unsafeFromText . NameSegment.toText
 
+oldFromSegment :: NameSegment -> OldName
+oldFromSegment = oldUnsafeFromText . NameSegment.toText
+
 -- Smarter segmentation than `text.splitOn "."`
 -- e.g. split `base..` into `[base,.]`
 segments :: Name -> [NameSegment]
 segments (Name n) = NameSegment <$> segments' n
 
+oldSegments :: OldName -> [NameSegment]
+oldSegments n = NameSegment <$> segments' n
+
 reverseSegments :: Name -> [NameSegment]
 reverseSegments (Name n) = NameSegment <$> NameSegment.reverseSegments' n
 
+oldReverseSegments :: OldName -> [NameSegment]
+oldReverseSegments n = NameSegment <$> NameSegment.reverseSegments' n
+
 countSegments :: Name -> Int
 countSegments n = length (segments n)
+
+oldCountSegments :: OldName -> Int
+oldCountSegments n = length (oldSegments n)
 
 -- The `Ord` instance for `Name` considers the segments of the name
 -- starting from the last, enabling efficient search by name suffix.
@@ -225,6 +356,9 @@ instance Alphabetical Name where
 isAbsolute :: Name -> Bool
 isAbsolute (Name n) = Text.isPrefixOf "." n
 
+oldIsAbsolute :: OldName -> Bool
+oldIsAbsolute = Text.isPrefixOf "."
+
 -- If there's no exact matches for `suffix` in `rel`, find all
 -- `r` in `rel` whose corresponding name `suffix` as a suffix.
 -- For example, `searchBySuffix List.map {(base.List.map, r1)}`
@@ -234,6 +368,12 @@ isAbsolute (Name n) = Text.isPrefixOf "." n
 searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
 searchBySuffix suffix rel =
   R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  where
+    orElse s1 s2 = if Set.null s1 then s2 else s1
+
+oldSearchBySuffix :: (Ord r) => OldName -> R.Relation OldName r -> Set r
+oldSearchBySuffix suffix rel =
+  R.lookupDom suffix rel `orElse` R.searchDom (oldCompareSuffix suffix) rel
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 
@@ -248,6 +388,12 @@ compareSuffix suffix =
   let suffixSegs = reverseSegments suffix
       len = length suffixSegs
    in \n -> take len (reverseSegments n) `compare` suffixSegs
+
+oldCompareSuffix :: OldName -> OldName -> Ordering
+oldCompareSuffix suffix =
+  let suffixSegs = oldReverseSegments suffix
+      len = length suffixSegs
+   in \n -> take len (oldReverseSegments n) `compare` suffixSegs
 
 -- Tries to shorten `fqn` to the smallest suffix that still refers
 -- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
@@ -266,6 +412,18 @@ shortestUniqueSuffix fqn r rel =
       where
         rs = R.searchDom compareEnd rel
         compareEnd n = compare (take len (reverseSegments n)) suffix
+        len = length suffix
+
+oldShortestUniqueSuffix :: Ord r => OldName -> r -> R.Relation OldName r -> OldName
+oldShortestUniqueSuffix fqn r rel =
+  maybe fqn (oldUnsafeFromText . Text.intercalate "." . map NameSegment.toText . reverse) (find isOk suffixes)
+  where
+    allowed = R.lookupDom fqn rel
+    suffixes = drop 1 (inits (oldReverseSegments fqn))
+    isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      where
+        rs = R.searchDom compareEnd rel
+        compareEnd n = compare (take len (oldReverseSegments n)) suffix
         len = length suffix
 
 class Convert a b where
