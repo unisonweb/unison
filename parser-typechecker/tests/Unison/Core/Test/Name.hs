@@ -25,7 +25,7 @@ test = scope "name" $ tests
   , scope "segments" $ do
     n    <- int' 0 10
     segs <- listOf n $ pick [".", "foo"]
-    expectEqual' (segments $ Name . pack $ intercalate "." segs)
+    expectEqual' (segments $ Name.unsafeFromText . pack $ intercalate "." segs)
                  (NameSegment . pack <$> segs)
     ok
   , scope "suffixSearch" $ do

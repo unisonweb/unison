@@ -1,5 +1,5 @@
 module Unison.Name
-  ( Name (Name),
+  ( Name,
     Convert (..),
     Parse (..),
     endsWithSegments,
