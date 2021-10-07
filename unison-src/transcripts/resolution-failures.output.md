@@ -15,8 +15,8 @@ First we define differing types with the same name in different namespaces:
 Now let's add a term named `a.foo`:
 
 ```unison
-unique type one.AmbiguousType = one.AmbiguousConstructor
-unique type two.AmbiguousType = two.AmbiguousConstructor
+unique type one.AmbiguousType = one.AmbiguousType
+unique type two.AmbiguousType = two.AmbiguousType
 ```
 
 ```ucm
@@ -73,7 +73,7 @@ useUnknownType _ = ()
     AmbiguousType   one.AmbiguousType
                     two.AmbiguousType
                     
-    UnknownType     ?
+    UnknownType     No matches
   
 
 ```

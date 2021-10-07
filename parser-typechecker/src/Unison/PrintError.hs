@@ -1468,7 +1468,7 @@ prettyResolutionFailures s (nubOrdOn Names.getVar -> failures) =
 
     prettyAmbiguity :: v -> [Pretty ColorText] -> [(Pretty ColorText, Pretty ColorText)]
     prettyAmbiguity v suggestions
-      | null suggestions = [(prettyVar v, "?")]
+      | null suggestions = [(prettyVar v, Pr.hiBlack "No matches")]
       | otherwise =
         zip ([prettyVar v] ++ repeat "") suggestions
 
