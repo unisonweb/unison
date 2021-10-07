@@ -9,7 +9,7 @@ import Unison.Prelude
 
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Data.List                    (find, intersperse, sort)
+import           Data.List                    (find, intersperse)
 import           Data.List.Extra              (nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
