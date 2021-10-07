@@ -213,6 +213,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
+    , NanoID
     , aeson
     , ansi-terminal
     , async
@@ -223,11 +224,13 @@ library
     , bytes
     , bytestring
     , cereal
+    , compact
     , configurator
     , containers >=0.6.3
     , cryptonite
     , data-default
     , data-memocombinators
+    , deepseq
     , directory
     , either
     , errors
@@ -250,6 +253,7 @@ library
     , monad-validate
     , mtl
     , mutable-containers
+    , mwc-random
     , natural-transformation
     , network
     , network-simple
@@ -288,7 +292,9 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
     , uri-encode
     , utf8-string
@@ -298,6 +304,7 @@ library
     , x509
     , x509-store
     , x509-system
+    , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
@@ -411,7 +418,9 @@ executable tests
     , transformers
     , unison-core1
     , unison-parser-typechecker
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -449,6 +458,7 @@ executable transcripts
     , text
     , unison-core1
     , unison-parser-typechecker
+    , unison-prelude
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
@@ -480,6 +490,7 @@ executable unison
   build-depends:
       base
     , bytestring
+    , compact
     , configurator
     , containers
     , directory
@@ -497,6 +508,7 @@ executable unison
     , unison-codebase-sync
     , unison-core1
     , unison-parser-typechecker
+    , unison-prelude
     , unliftio
     , uri-encode
   if flag(optimized)

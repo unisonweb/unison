@@ -104,7 +104,6 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
-import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
@@ -118,6 +117,7 @@ import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(UnrecognizedSchemaVersion, GitCouldntParseRootBranchHash))
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
+import qualified Unison.Codebase.Editor.Input as Input
 
 type Pretty = P.Pretty P.ColorText
 
@@ -257,6 +257,8 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success         -> pure $ P.bold "Done."
+  PrintMessage pretty -> do 
+    pure pretty 
   BadRootBranch e -> case e of
     Codebase.NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"

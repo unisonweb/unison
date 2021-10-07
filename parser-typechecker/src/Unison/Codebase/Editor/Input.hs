@@ -21,9 +21,10 @@ import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Codebase.Verbosity 
 import           Unison.Name                    ( Name )
 import           Unison.NameSegment             ( NameSegment )
+import qualified Unison.Util.Pretty as P
+import           Unison.Codebase.Verbosity
 
 import qualified Data.Text as Text
 
@@ -60,6 +61,8 @@ data Input
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
+    -- used in Welcome module to give directions to user 
+    | CreateMessage (P.Pretty P.ColorText)  
     -- change directory
     | SwitchBranchI Path'
     | UpI
@@ -113,6 +116,8 @@ data Input
   | ExecuteI String
   -- execute an IO [Result]
   | IOTestI (HQ.HashQualified Name)
+  -- make a standalone binary file
+  | MakeStandaloneI String (HQ.HashQualified Name)
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)

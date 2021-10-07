@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3dc00080efb41dcfb41dd8f03bea8ab3e2550a41a92fe1962b9210b52393ce88
+-- hash: 8fff4d6586e59fb0d0aa911caff0a2557bcb58e457a2e485b26d6a908d14ac0d
 
 name:           unison-core1
 version:        0.0.0
@@ -45,7 +45,6 @@ library
       Unison.NameSegment
       Unison.Paths
       Unison.Pattern
-      Unison.Prelude
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
@@ -60,9 +59,6 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
-      Unison.Util.Relation
-      Unison.Util.Relation3
-      Unison.Util.Relation4
       Unison.Util.Set
       Unison.Var
       Unison.Var.RefNamed
@@ -102,6 +98,8 @@ library
     , sandi
     , text
     , transformers
+    , unison-prelude
+    , unison-util-relation
     , util
     , vector
   if flag(optimized)
