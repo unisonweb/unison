@@ -15,12 +15,6 @@ Now let's add a term named `a.foo`:
 ```unison
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
-
-unique type T = A | B
-one.ambiguousTerm : T
-one.ambiguousTerm = A
-two.ambiguousTerm : T
-two.ambiguousTerm = B
 ```
 
 ```ucm
@@ -33,11 +27,9 @@ Now we introduce code which isn't sufficiently qualified.
 It is ambiguous which type from which namespace we mean.
 
 ```unison:error
-useAmbiguousType : Ambiguous -> ()
+useAmbiguousType : AmbiguousType -> ()
 useAmbiguousType _ = ()
-```
 
-```unison:error
-useAmbiguousTerm : T
-useAmbiguousTerm = ambiguousTerm
+useUnknownType : UnknownType -> ()
+useUnknownType _ = ()
 ```

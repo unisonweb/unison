@@ -15,14 +15,8 @@ First we define differing types with the same name in different namespaces:
 Now let's add a term named `a.foo`:
 
 ```unison
-unique type one.AmbiguousType = one.AmbiguousType
-unique type two.AmbiguousType = two.AmbiguousType
-
-unique type T = A | B
-one.ambiguousTerm : T
-one.ambiguousTerm = A
-two.ambiguousTerm : T
-two.ambiguousTerm = B
+unique type one.AmbiguousType = one.AmbiguousConstructor
+unique type two.AmbiguousType = two.AmbiguousConstructor
 ```
 
 ```ucm
@@ -33,11 +27,8 @@ two.ambiguousTerm = B
   
     ⍟ These new definitions are ok to `add`:
     
-      unique type T
       unique type one.AmbiguousType
       unique type two.AmbiguousType
-      one.ambiguousTerm : T
-      two.ambiguousTerm : T
 
 ```
 ```ucm
@@ -47,11 +38,8 @@ two.ambiguousTerm = B
 
   ⍟ I've added these definitions:
   
-    unique type T
     unique type one.AmbiguousType
     unique type two.AmbiguousType
-    one.ambiguousTerm : T
-    two.ambiguousTerm : T
 
 ```
 ## Tests
@@ -60,8 +48,11 @@ Now we introduce code which isn't sufficiently qualified.
 It is ambiguous which type from which namespace we mean.
 
 ```unison
-useAmbiguousType : Ambiguous -> ()
+useAmbiguousType : AmbiguousType -> ()
 useAmbiguousType _ = ()
+
+useUnknownType : UnknownType -> ()
+useUnknownType _ = ()
 ```
 
 ```ucm
@@ -71,27 +62,18 @@ useAmbiguousType _ = ()
     
     I couldn't resolve any of these symbols:
     
-        1 | useAmbiguousType : Ambiguous -> ()
+        1 | useAmbiguousType : AmbiguousType -> ()
+        2 | useAmbiguousType _ = ()
+        3 | 
+        4 | useUnknownType : UnknownType -> ()
     
-    🔍 The following name could not be found: Ambiguous
+    
+    Symbol          Suggestions
+                    
+    AmbiguousType   one.AmbiguousType
+                    two.AmbiguousType
+                    
+    UnknownType     ?
   
-
-```
-```unison
-useAmbiguousTerm : T
-useAmbiguousTerm = ambiguousTerm
-```
-
-```ucm
-
-  I'm not sure what ambiguousTerm means at line 2, columns 20-33
-  
-      2 | useAmbiguousTerm = ambiguousTerm
-  
-  Whatever it is, it has a type that conforms to T.
-  I found some terms in scope that have matching names and types. Maybe you meant one of these:
-  
-    - one.ambiguousTerm : T
-    - two.ambiguousTerm : T
 
 ```

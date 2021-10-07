@@ -1444,13 +1444,14 @@ prettyResolutionFailures s unsortedFailures = Pr.callout "❓" $ Pr.linesNonEmpt
   , ""
   , annotatedsAsErrorSite s (Names.getAnnotation <$> failures)
   , ""
-  , let headers = ["Symbol", "Suggestions"]
-     in Pr.table $ headers : (foldMap resolutionFailureTable failures)
+  , let spacerRow = ("", "")
+     -- Insert spacer rows in between errors for readability
+     in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] resolutionFailureTable failures)
   ]
   where
     failures :: [Names.ResolutionFailure v a]
     failures = sort . nubOrdOn Names.getVar $ unsortedFailures
-    resolutionFailureTable :: Names.ResolutionFailure v annotation -> [[Pretty ColorText]]
+    resolutionFailureTable :: Names.ResolutionFailure v annotation -> [(Pretty ColorText, Pretty ColorText)]
     resolutionFailureTable = \case
           (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
             let ppe = ppeFromNames0 names
@@ -1464,11 +1465,11 @@ prettyResolutionFailures s unsortedFailures = Pr.callout "❓" $ Pr.linesNonEmpt
     ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
     ppeFromNames0 names0 = PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
-    prettyAmbiguity :: v -> [Pretty ColorText] -> [[Pretty ColorText]]
+    prettyAmbiguity :: v -> [Pretty ColorText] -> [(Pretty ColorText, Pretty ColorText)]
     prettyAmbiguity v suggestions
-      | null suggestions = [[prettyVar v, "?"]]
+      | null suggestions = [(prettyVar v, "?")]
       | otherwise =
-          zipWith (\a b -> [a, b]) ([prettyVar v] ++ repeat "") suggestions
+          zip ([prettyVar v] ++ repeat "") suggestions
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
