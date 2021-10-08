@@ -77,6 +77,7 @@ module Unison.Util.Relation
     -- ** Combinations
     difference,
     difference1,
+    differences,
     intersection,
     joinDom,
     joinRan,
@@ -112,6 +113,7 @@ import qualified Data.Map.Internal as Map
 import qualified Data.Set as S
 import Unison.Prelude hiding (empty, toList)
 import Prelude hiding (filter, map, null)
+import qualified Data.Set as Set
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -171,6 +173,62 @@ difference1 xs ys =
   if null zs then Nothing else Just zs
   where
     zs = difference xs ys
+
+-- Compute both (l - r) and (r - l) in a single pass.
+-- More efficient than calling difference twice.
+-- differences l r = (relations only in left, relations only in right)
+differences :: (Ord a, Ord b) => Relation a b -> Relation a b -> (Relation a b, Relation a b)
+differences (Relation d1 r1) (Relation d2 r2) = (Relation newD1 newR1, Relation newD2 newR2)
+  where
+    Diff newD1 newD2 _ = mapDifferences d1 d2
+    Diff newR1 newR2 _ = mapDifferences r1 r2
+
+setDifferences :: (Ord a) => Set a -> Set a -> Diff Set a
+setDifferences l r = hoistDiff Set.fromAscList $ ascListDifferences (Set.toAscList l) (Set.toAscList r)
+
+mapDifferences :: (Ord k, Ord a) => Map k (Set a) -> Map k (Set a) -> Diff (Map k) (Set a)
+mapDifferences a b = hoistDiff Map.fromAscList $ mapDifferences' (Map.toAscList a) (Map.toAscList b)
+
+mapDifferences' :: (Ord k, Ord a) => [(k, Set a)] -> [(k, Set a)] -> Diff [] (k, Set a)
+mapDifferences' a b =
+  case (a, b) of
+    ([], []) -> mempty
+    (l, []) -> Diff l [] []
+    ([], r) -> Diff [] r []
+    (l@(lk, las):ls, r@(rk, ras):rs) ->
+      case compare lk rk of
+        EQ -> let d = setDifferences las ras
+               in Diff [(lk, leftOnly d)] [(rk, rightOnly d)] [] <> mapDifferences' ls rs
+        LT -> Diff [l] [] [] <> mapDifferences' ls (r:rs)
+        GT -> Diff [] [r] [] <> mapDifferences' (l:ls) rs
+
+data Diff f a = Diff
+  { leftOnly  :: f a
+  , rightOnly :: f a
+  , both      :: f a
+  }
+
+hoistDiff :: (f a -> g b) -> Diff f a -> Diff g b
+hoistDiff transform (Diff l r b) = Diff (transform l) (transform r) (transform b)
+
+instance (Semigroup (f a)) => Semigroup (Diff f a) where
+  Diff l r b <> Diff l' r' b' = Diff (l <> l') (r <> r') (b <> b')
+
+instance (Monoid (f a)) => Monoid (Diff f a) where
+  mempty = Diff mempty mempty mempty
+
+-- | Compute differences from an ordered list.
+ascListDifferences :: Ord a => [a] -> [a] -> Diff [] a
+ascListDifferences a b =
+  case (a, b) of
+    ([], []) -> mempty
+    (l, []) -> Diff l [] []
+    ([], r) -> Diff [] r []
+    (l:ls, r:rs) ->
+      case compare l r of
+        EQ -> Diff [] [] [l] <> ascListDifferences ls rs
+        LT -> Diff [l] [] [] <> ascListDifferences ls (r:rs)
+        GT -> Diff [] [r] [] <> ascListDifferences (l:ls) rs
 
 -- The size is calculated using the domain.
 
