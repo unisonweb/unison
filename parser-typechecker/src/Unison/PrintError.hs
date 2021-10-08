@@ -8,8 +8,6 @@ module Unison.PrintError where
 
 import Unison.Prelude
 
-import           Control.Lens                 ((%~))
-import           Control.Lens.Tuple           (_1, _2, _3)
 import           Data.List                    (find, intersperse)
 import           Data.List.Extra              (nubOrd, nubOrdOn)
 import qualified Data.List.NonEmpty           as Nel
@@ -445,9 +443,17 @@ renderTypeError e env src = case e of
     , "\n"
     , showSourceMaybes src [ (,ErrorSite) <$> rangeForAnnotated loc | loc <- locs ]]
 
-  UnknownType {..} -> 
-    let src = "" -- TODO: determine src
-     in prettyResolutionErr src [ResolutionFailureInfo unknownTypeV typeSite mempty]
+  UnknownType {..} -> mconcat [
+    if ann typeSite == Intrinsic then
+      "I don't know about the builtin type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
+    else if ann typeSite == External then
+      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
+    else
+      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ":\n"
+      <> annotatedAsErrorSite src typeSite
+    , "Make sure it's imported and spelled correctly."
+    , prettyDisambiguationTable [DisambiguationInfo unknownTypeV mempty]
+    ]
   UnknownTerm {..} ->
     -- TODO: convert to use the pretty ambiguation thing.
     let (correct, wrongTypes, wrongNames) = foldMap sep suggestions
@@ -470,10 +476,16 @@ renderTypeError e env src = case e of
                 <> style Type1 (renderType' env expectedType)
                 <> ".\n"
                  -- ++ showTypeWithProvenance env src Type1 expectedType
-          , if | not . null $ correct -> formatWrongs env unknownTermV termSite correct
-               | not . null $ wrongTypes -> formatWrongs env unknownTermV termSite wrongTypes
-               | not . null $ wrongNames -> formatWrongs env unknownTermV termSite wrongNames
-               | otherwise -> mempty
+          , let disambiguations :: Env -> v -> [(Text, C.Type v loc)] -> [DisambiguationInfo v]
+                disambiguations env v wrongs =
+                  let intoSuggestion (name, typ) = Suggestion (Text.unpack name) (Just $ renderType' env typ)
+                   in [DisambiguationInfo v (Set.fromList . fmap intoSuggestion $ wrongs)]
+                suggestions
+                  | not . null $ correct = disambiguations env unknownTermV correct
+                  | not . null $ wrongTypes = disambiguations env unknownTermV wrongTypes
+                  | not . null $ wrongNames = disambiguations env unknownTermV wrongNames
+                  | otherwise = mempty
+             in prettyDisambiguationTable suggestions
           ]
   DuplicateDefinitions {..} ->
     mconcat
@@ -514,11 +526,7 @@ renderTypeError e env src = case e of
     , "Here is a summary of the Note:\n"
     , summary note
     ]
-  formatWrongs :: Env -> v -> a -> [(Text, C.Type v loc)] -> Pretty ColorText
-  formatWrongs env v a wrongs =
-    let src = "" -- TODO: What's the src here?
-        intoSuggestion (name, typ) = Suggestion (Text.unpack name) (Just $ renderType' env typ)
-     in prettyResolutionErr src [ResolutionFailureInfo v a (Set.fromList . fmap intoSuggestion $ wrongs)]
+ where
   ordinal :: (IsString s) => Int -> s
   ordinal n = fromString $ show n ++ case last (show n) of
     '1' -> "st"
@@ -1248,22 +1256,36 @@ prettyParseError s = \case
       else "Try hash-qualifying the term you meant to reference."
     ]
     where missing = Set.null referents && Set.null references
-  go (Parser.UnknownTerm names tok referents) =
-    let var = HQ.toVar . L.payload $ tok
-        -- TODO: should we include this with the UnknownType error?
-        src = ""
-        ppe = ppeFromNames names
-        intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
-     in prettyResolutionFailures src [ResolutionFailureInfo var tok (Set.map intoSuggestion referents)]
-  go (Parser.UnknownType names tok referents) = 
-    let var = HQ.toVar . L.payload $ tok
-        -- TODO: should we include this with the UnknownType error?
-        src = ""
-        ppe = ppeFromNames names
-        intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
-     in prettyResolutionFailures src [ResolutionFailureInfo var tok (Set.map intoSuggestion referents)]
+  go (Parser.UnknownTerm names tok referents) = Pr.lines
+    [ if Set.null referents then
+        "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , prettyDisambiguationTable [disambiguation]
+    ]
+    where
+      ppe = ppeFromNames names
+      intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
+      disambiguation :: Var v => (DisambiguationInfo v)
+      disambiguation = DisambiguationInfo (HQ.toVar $ L.payload tok) (Set.map intoSuggestion referents)
+  go (Parser.UnknownType names tok references) = Pr.lines
+    [ if Set.null references then
+        "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
+      else
+        "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
+    , ""
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , prettyDisambiguationTable [disambiguation]
+    ]
+    where
+      ppe = ppeFromNames names
+      intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
+      disambiguation :: Var v => (DisambiguationInfo v)
+      disambiguation = DisambiguationInfo (HQ.toVar $ L.payload tok) (Set.map intoSuggestion references)
   go (Parser.ResolutionFailures        failures) =
-    Pr.border 2 . prettyResolutionFailures s . fmap normalizeResolutionFailure $ failures
+    Pr.border 2 . prettyResolutionFailures s $ failures
   go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
         "I expected to see `structural` or `unique` at the start of this line:"
@@ -1381,68 +1403,57 @@ data Suggestion =
     , typeName :: Maybe String
     } deriving (Eq, Ord)
 
-data ResolutionFailureInfo v a =
-  ResolutionFailureInfo
+data DisambiguationInfo v =
+  DisambiguationInfo
     { var :: v
-    , annotation :: a
     , suggestionSet :: Set Suggestion
     }
 
--- | Pretty prints resolution failure annotations, including a table of disambiguation
--- suggestions.
-prettyResolutionErr ::
+
+prettyResolutionFailures ::
   forall v a.
   (Annotated a, Var v, Ord a) =>
   -- | src
   String ->
-  [ResolutionFailureInfo v a] ->
+  [Names.ResolutionFailure v a] ->
   Pretty ColorText
-prettyResolutionErr s allFailures =
+prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
     Pr.linesNonEmpty
       [ Pr.wrap
           ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
         "",
-        annotatedsAsErrorSite s (annotation <$> allFailures),
+        annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
         "",
-        ambiguitiesToTable allFailures
+        prettyDisambiguationTable (resFailureToDisambiguation <$> allFailures)
       ]
+
+-- | Pretty prints resolution failure annotations, including a table of disambiguation
+-- suggestions.
+prettyDisambiguationTable :: forall v. (Var v) => [DisambiguationInfo v] -> Pretty ColorText
+prettyDisambiguationTable failures =
+    let deduped = nubOrdOn (var Arr.&&& suggestionSet) $ failures
+        spacerRow = mempty
+      in Pr.column3Header "Symbol" "Suggestions" "Type" $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
   where
-    -- Collapses identical failures which may have multiple annotations into a single failure.
-    -- uniqueFailures
-    ambiguitiesToTable :: [ResolutionFailureInfo v a] -> Pretty ColorText
-    ambiguitiesToTable failures =
-      let deduped = nubOrdOn (var Arr.&&& suggestionSet) $ failures
-          spacerRow = mempty
-       in Pr.column3Header "Symbol" "Suggestions" "Type" $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
-
-
-    prettyRow :: ResolutionFailureInfo v a -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
+    prettyRow :: DisambiguationInfo v -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
     prettyRow  = \case
-      (ResolutionFailureInfo v ann suggs)
+      (DisambiguationInfo v suggs)
         | null suggs -> [(prettyVar v, Pr.hiBlack "No matches", mempty)]
         | otherwise ->
-            zipWith (\a (Suggestion s t) -> (a, Pr.string s, Pr.string t))
+            zipWith (\a (Suggestion s t) -> (a, Pr.string s, maybe "" Pr.string t))
                     ([prettyVar v] ++ repeat "") (toList suggs)
 
-prettyResolutionFailures ::
-  forall v a.
-  String ->
-  [Names.ResolutionFailure v a] ->
-  Pretty ColorText
-prettyResolutionFailures src failures =
-  prettyResolutionErr src (normalizeResolutionFailure <$> failures)
-  where
-    normalizeResolutionFailure :: Names.ResolutionFailure v a -> ResolutionFailureInfo v a
-    normalizeResolutionFailure = \case
-      (Names.TermResolutionFailure v a refs names) -> do
-        let ppe = ppeFromNames names
-            intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
-         in ResolutionFailureInfo v a (Set.map intoSuggestion $ refs)
-      (Names.TypeResolutionFailure v a refs names) -> do
-        let ppe = ppeFromNames names
-            intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
-         in ResolutionFailureInfo v a (Set.map intoSuggestion $ refs)
+resFailureToDisambiguation :: Names.ResolutionFailure v a -> DisambiguationInfo v
+resFailureToDisambiguation = \case
+  (Names.TermResolutionFailure v _ann refs names) -> do
+    let ppe = ppeFromNames names
+        intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
+     in DisambiguationInfo v (Set.map intoSuggestion $ refs)
+  (Names.TypeResolutionFailure v _ann refs names) -> do
+    let ppe = ppeFromNames names
+        intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
+     in DisambiguationInfo v (Set.map intoSuggestion $ refs)
 
 ppeFromNames :: Names3.Names -> PPE.PrettyPrintEnv
 ppeFromNames names =
