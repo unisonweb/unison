@@ -63,7 +63,7 @@ import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails, inits, find )
 
 newtype Name = Name { toText :: Text }
-  deriving (Eq, Semigroup, Generic)
+  deriving (Eq, Generic)
 
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
