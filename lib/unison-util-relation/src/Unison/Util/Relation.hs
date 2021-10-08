@@ -77,7 +77,6 @@ module Unison.Util.Relation
     -- ** Combinations
     difference,
     difference1,
-    relationDiff,
     intersection,
     joinDom,
     joinRan,
@@ -114,7 +113,6 @@ import qualified Data.Map.Internal as Map
 import qualified Data.Set as S
 import Unison.Prelude hiding (empty, toList)
 import Prelude hiding (filter, map, null)
-import qualified Unison.Util.Relation.Diff as RD
 import Control.DeepSeq
 
 -- |
@@ -178,17 +176,6 @@ difference1 xs ys =
   if null zs then Nothing else Just zs
   where
     zs = difference xs ys
-
-relationDiff :: (Ord a, Ord b) => Relation a b -> Relation a b -> RD.Diff (Relation a b)
-relationDiff (Relation d1 r1) (Relation d2 r2) =
-  RD.Diff
-    (Relation onlyD1 onlyR1)
-    (Relation onlyD2 onlyR2)
-    (Relation intersectionedD intersectionedR)
-    (Relation unionedD unionedR)
-  where
-    RD.Diff onlyD1 onlyD2 intersectionedD unionedD = RD.relationMapDiff d1 d2
-    RD.Diff onlyR1 onlyR2 intersectionedR unionedR = RD.relationMapDiff r1 r2
 
 -- The size is calculated using the domain.
 

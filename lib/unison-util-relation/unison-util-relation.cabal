@@ -18,7 +18,6 @@ source-repository head
 library
   exposed-modules:
       Unison.Util.Relation
-      Unison.Util.Relation.Diff
       Unison.Util.Relation3
       Unison.Util.Relation4
   other-modules:

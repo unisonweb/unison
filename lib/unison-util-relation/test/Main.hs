@@ -6,10 +6,6 @@ import Unison.Util.Relation3 (Relation3)
 import qualified Unison.Util.Relation3 as Relation3
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as Relation4
-import qualified Unison.Util.Relation.Diff as Diff
-import Data.Time.Clock.POSIX
-import Control.Monad
-import Control.DeepSeq
 
 main :: IO ()
 main =
@@ -31,18 +27,18 @@ main =
         let d124 = Relation3.fromList . map (\(a, b, _, d) -> (a, b, d)) . Relation4.toList
         expectEqual (Relation4.d124 r4) (d124 r4)
 
-    scope "relationDiff" do
+    scope "relation operations" do
       r1 <- randomR1 @Char @Char 1000
       r2 <- randomR1 @Char @Char 500
-      let diff = Relation.relationDiff r1 r2
-      scope "intersection" do
-        expectEqual (Relation.intersection r1 r2) (Diff.intersection diff)
-      scope "difference" do
-        expectEqual' (Relation.difference r1 r2) (Diff.leftOnly diff)
-        expectEqual' (Relation.difference r2 r1) (Diff.rightOnly diff)
-        ok
-      scope "union" do
-        expectEqual (Relation.union r1 r2) (Diff.union diff)
+      scope "a `union` (a `intersection` b) == a" do
+        expectEqual
+          (r1 `Relation.union` (r1 `Relation.intersection` r2))
+          r1
+      scope "union a a == a" do
+        expectEqual (Relation.union r1 r1) r1
+
+      scope "intersection a a == a" do
+        expectEqual (Relation.union r1 r1) r1
 
 randomR1 ::  (Ord a, Ord b, Random a, Random b) =>  Int -> Test (Relation.Relation a b)
 randomR1 n = Relation.fromList <$> listOf n tuple2
