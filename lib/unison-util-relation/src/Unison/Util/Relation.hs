@@ -9,6 +9,7 @@ module Unison.Util.Relation
     fromManyRan,
     fromMap,
     fromMultimap,
+
     fromSet,
     unsafeFromMultimaps,
 
@@ -75,6 +76,7 @@ module Unison.Util.Relation
 
     -- ** Combinations
     difference,
+    difference1,
     intersection,
     joinDom,
     joinRan,
@@ -149,12 +151,26 @@ unsafeFromMultimaps domain range =
 
 -- * Functions about relations
 
+-- | Compute the difference of two relations.
 difference :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
-difference a b = fromList . S.toList $ diffSet
+difference (Relation d1 r1) (Relation d2 r2) =
+  Relation
+    (Map.differenceWith setDifference1 d1 d2)
+    (Map.differenceWith setDifference1 r1 r2)
   where
-    diffSet = S.difference seta setb
-    seta = S.fromList . toList $ a
-    setb = S.fromList . toList $ b
+    -- Set difference, but return Nothing if the difference is empty.
+    setDifference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
+    setDifference1 xs ys =
+      if S.null zs then Nothing else Just zs
+      where
+        zs = S.difference xs ys
+
+-- | Like 'difference', but returns @Nothing@ if the difference is empty.
+difference1 :: (Ord a, Ord b) => Relation a b -> Relation a b -> Maybe (Relation a b)
+difference1 xs ys =
+  if null zs then Nothing else Just zs
+  where
+    zs = difference xs ys
 
 -- The size is calculated using the domain.
 
@@ -373,6 +389,8 @@ filterManyDom r = filterDom (`manyDom` r) r
 
 -- |
 -- True if the relation @r@ is the 'empty' relation.
+--
+-- /O(1)/.
 null :: Relation a b -> Bool
 null r = M.null $ domain r
 
@@ -402,7 +420,7 @@ dom :: Relation a b -> Set a
 dom r = M.keysSet (domain r)
 
 -- | Returns the range of the relation, as a Set, in its entirety.
--- 
+--
 -- /O(b)/.
 ran :: Relation a b -> Set b
 ran r = M.keysSet (range r)
