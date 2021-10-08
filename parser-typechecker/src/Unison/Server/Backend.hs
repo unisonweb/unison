@@ -468,47 +468,45 @@ fixupNamesRelative root = Names3.map0 fixName where
 
 -- | The output list (of lists) corresponds to the query list.
 searchBranchExact
-  :: Int -> Names -> [HQ.HashQualified Name] -> [[SR.SearchResult]]
+  :: Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
 searchBranchExact len names queries =
   let
     searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTypes query =
       -- a bunch of references will match a HQ ref.
       let refs = toList $ Names3.lookupRelativeHQType query names
-          mayName r Nothing  = HQ'.fromNamedReference "" r
-          mayName _ (Just n) = n
       in  refs <&> \r ->
-            let hqNames = Names3.typeName len r names
+            let prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
+                prioritize =
+                  unsafeUnconsSet . sortOn (\n -> HQ.matchesNamedReference (HQ'.toName n) r query) . Set.toList
+                (primaryName, aliases) =
+                  prioritize (Names3.typeName len r names)
             in
-              let primaryName =
-                    mayName r
-                      . lastMay
-                      . sortOn
-                          (\n -> HQ.matchesNamedReference (HQ'.toName n) r query
-                          )
-                      $ toList hqNames
-              in  let aliases = Set.delete primaryName hqNames
-                  in  SR.typeResult primaryName r aliases
+              SR.typeResult (HQ'.toHQ primaryName) r (Set.map HQ'.toHQ aliases)
     searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
     searchTerms query =
       -- a bunch of references will match a HQ ref.
       let refs = toList $ Names3.lookupRelativeHQTerm query names
-          mayName r Nothing  = HQ'.fromNamedReferent "" r
-          mayName _ (Just n) = n
       in  refs <&> \r ->
-            let hqNames = Names3.termName len r names
-            in  let primaryName =
-                        mayName r
-                          . lastMay
-                          . sortOn
-                              (\n ->
-                                HQ.matchesNamedReferent (HQ'.toName n) r query
-                              )
-                          $ toList hqNames
-                in  let aliases = Set.delete primaryName hqNames
-                    in  SR.termResult primaryName r aliases
+            let prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
+                prioritize =
+                  unsafeUnconsSet . sortOn (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query) . Set.toList
+                (primaryName, aliases) =
+                  prioritize (Names3.termName len r names)
+            in
+              SR.termResult (HQ'.toHQ primaryName) r (Set.map HQ'.toHQ aliases)
   in
-    [ searchTypes q <> searchTerms q | q <- queries ]
+    -- Mitchell says: the `toHQ` here is a bit odd, and indicates to me the types here are not quite right.
+    -- `searchBranchExact` takes queries that definitely have names (`HashQualified'`), but calls out to a search
+    -- function that is capable of finding refs without names (`Names3.lookupRelativeHQType`). Doesn't it therefore seem
+    -- better to instead accept possibly-nameless `HashQualified` as the input to `searchBranchExact` instead?
+    [ searchTypes q <> searchTerms q | (HQ'.toHQ -> q) <- queries ]
+  where
+    -- Uncons a non-empty list, and return the tail as a set. Calls 'error' if the given list is empty.
+    unsafeUnconsSet :: Ord a => [a] -> (a, Set a)
+    unsafeUnconsSet = \case
+      [] -> error "unconsSet: empty list"
+      x : xs -> (x, Set.fromList xs)
 
 hqNameQuery
   :: Monad m
@@ -519,34 +517,34 @@ hqNameQuery
   -> m QueryResult
 hqNameQuery relativeTo root codebase hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
-  let (hqnames, hashes) = List.partition (isJust . HQ.toName) hqs
+  let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
   termRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
     (termReferentsByShortHash codebase)
-    (catMaybes (HQ.toHash <$> hashes))
+    hashes
   -- Find types with those hashes.
   typeRefs <- filter (not . Set.null . snd) . zip hashes <$> traverse
     (typeReferencesByShortHash codebase)
-    (catMaybes (HQ.toHash <$> hashes))
+    hashes
   -- Now do the name queries.
   -- The hq-name search needs a hash-qualifier length
   hqLength <- Codebase.hashLength codebase
   -- We need to construct the names that we want to use / search by.
   let currentPath = fromMaybe Path.empty relativeTo
       parseNames0 = getCurrentParseNames currentPath root
-      mkTermResult n r = SR.termResult (HQ'.fromHQ' n) r Set.empty
-      mkTypeResult n r = SR.typeResult (HQ'.fromHQ' n) r Set.empty
+      mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
+      mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
       -- Transform the hash results a bit
       termResults =
-        (\(n, tms) -> (n, toList $ mkTermResult n <$> toList tms)) <$> termRefs
+        (\(sh, tms) -> (HQ.HashOnly sh, toList $ mkTermResult sh <$> toList tms)) <$> termRefs
       typeResults =
-        (\(n, tps) -> (n, toList $ mkTypeResult n <$> toList tps)) <$> typeRefs
+        (\(sh, tps) -> (HQ.HashOnly sh, toList $ mkTypeResult sh <$> toList tps)) <$> typeRefs
       parseNames = parseNames0
       -- Now do the actual name query
       resultss   = searchBranchExact hqLength parseNames hqnames
       -- Handle query misses correctly
       missingRefs =
-        [ x
+        [ HQ.HashOnly x
         | x <- hashes
         , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
         ]

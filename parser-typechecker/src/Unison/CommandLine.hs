@@ -31,7 +31,8 @@ import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Server.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
-import qualified Unison.HashQualified'           as HQ
+import qualified Unison.HashQualified            as HQ
+import qualified Unison.HashQualified'           as HQ'
 import           Unison.Names2 (Names0)
 import qualified Unison.Util.ColorText           as CT
 import qualified Unison.Util.Find                as Find
@@ -156,7 +157,7 @@ prettyCompletion'' :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
 prettyCompletion'' spaceAtEnd (s, p) = Line.Completion s (P.toAnsiUnbroken p) spaceAtEnd
 
 fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
-fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
+fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
   Nothing -> []
   Just query ->
     fixupCompletion q0 $
