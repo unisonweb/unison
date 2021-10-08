@@ -1,5 +1,4 @@
 module Main where
-
 import EasyTest
 import System.Random (Random)
 import qualified Unison.Util.Relation as Relation
@@ -7,6 +6,7 @@ import Unison.Util.Relation3 (Relation3)
 import qualified Unison.Util.Relation3 as Relation3
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as Relation4
+import qualified Unison.Util.Relation.Diff as Diff
 
 main :: IO ()
 main =
@@ -27,6 +27,22 @@ main =
         r4 <- randomR4 @Char @Char @Char @Char 1000
         let d124 = Relation3.fromList . map (\(a, b, _, d) -> (a, b, d)) . Relation4.toList
         expectEqual (Relation4.d124 r4) (d124 r4)
+
+    scope "relationDiff" do
+      r1 <- randomR1 @Char @Char 1000
+      r2 <- randomR1 @Char @Char 500
+      let diff = Relation.relationDiff r1 r2
+      scope "intersection" do
+        expectEqual (Relation.intersection r1 r2) (Diff.intersection diff)
+      scope "difference" do
+        expectEqual' (Relation.difference r1 r2) (Diff.leftOnly diff)
+        expectEqual' (Relation.difference r2 r1) (Diff.rightOnly diff)
+        ok
+      scope "union" do
+        expectEqual (Relation.union r1 r2) (Diff.union diff)
+
+randomR1 ::  (Ord a, Ord b, Random a, Random b) =>  Int -> Test (Relation.Relation a b)
+randomR1 n = Relation.fromList <$> listOf n tuple2
 
 randomR3 :: (Ord a, Random a, Ord b, Random b, Ord c, Random c) => Int -> Test (Relation3 a b c)
 randomR3 n =

@@ -85,6 +85,7 @@ module Unison.Util.Relation
     innerJoinRanMultimaps,
     outerJoinDomMultimaps,
     outerJoinRanMultimaps,
+    union,
     unions,
 
     -- * Converting to other data structures
@@ -175,7 +176,12 @@ difference1 xs ys =
     zs = difference xs ys
 
 relationDiff :: (Ord a, Ord b) => Relation a b -> Relation a b -> RD.Diff (Relation a b)
-relationDiff (Relation d1 r1) (Relation d2 r2) = RD.Diff (Relation onlyD1 onlyR1) (Relation onlyD2 onlyR2) (Relation intersectionedD intersectionedR) (Relation unionedD unionedR)
+relationDiff (Relation d1 r1) (Relation d2 r2) =
+  RD.Diff
+    (Relation onlyD1 onlyR1)
+    (Relation onlyD2 onlyR2)
+    (Relation intersectionedD intersectionedR)
+    (Relation unionedD unionedR)
   where
     RD.Diff onlyD1 onlyD2 intersectionedD unionedD = RD.relationMapDiff d1 d2
     RD.Diff onlyR1 onlyR2 intersectionedR unionedR = RD.relationMapDiff r1 r2

@@ -70,5 +70,5 @@ mapDifferences' a b =
 -- O(n + m)
 -- where n and m represent the total number of contained 'a's inside x and y respectively.
 relationMapDiff :: (Ord k, Ord a) => Map k (Set a) -> Map k (Set a) -> Diff (Map k (Set a))
-relationMapDiff a b = Map.fromAscList <$> mapDifferences' (Map.toAscList a) (Map.toAscList b)
+relationMapDiff a b = Map.fromAscList . filter (not . null . snd) <$> mapDifferences' (Map.toAscList a) (Map.toAscList b)
 
