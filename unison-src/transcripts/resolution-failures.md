@@ -16,8 +16,15 @@ Now let's add a term named `a.foo`:
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
 
-one.ambiguousTerm = "term one"
-two.ambiguousTerm = "term two"
+one.ambiguousTextTerm = "term one"
+two.ambiguousTextTerm = "term two"
+
+unique type A = One | Two
+unique type B = B
+
+one.ambiguousTermWithDifferingTypes = One
+two.ambiguousTermWithDifferingTypes = Two
+three.ambiguousTermWithDifferingTypes = B
 ```
 
 ```ucm
@@ -52,5 +59,15 @@ Currently, ambiguous terms are caught and handled by type directed name resoluti
 but expect it to eventually be handled by the above machinery.
 
 ```unison:error
-useAmbiguousTerm = ambiguousTerm
+useAmbiguousTextTermNoTypeHint = ambiguousTextTerm
+```
+
+```unison:error
+useAmbiguousTermWithDifferingTypes = ambiguousTermWithDifferingTypes
+```
+
+```unison:error
+useAmbiguousTermWithDifferingTypesWithTypeHint : A
+useAmbiguousTermWithDifferingTypesWithTypeHint 
+  = ambiguousTermWithDifferingTypes
 ```

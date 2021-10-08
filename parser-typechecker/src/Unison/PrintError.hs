@@ -2,7 +2,6 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Unison.PrintError where
 
@@ -58,6 +57,7 @@ import Unison.NamePrinter (prettyHashQualified0)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Names3 as Names3
 import qualified Control.Arrow as Arr
+import qualified Control.Lens as L
 
 type Env = PPE.PrettyPrintEnv
 
@@ -452,30 +452,29 @@ renderTypeError e env src = case e of
       "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ":\n"
       <> annotatedAsErrorSite src typeSite
     , "Make sure it's imported and spelled correctly."
-    , prettyDisambiguationTable [DisambiguationInfo unknownTypeV mempty]
     ]
   UnknownTerm {..} ->
-    -- TODO: convert to use the pretty ambiguation thing.
     let (correct, wrongTypes, wrongNames) = foldMap sep suggestions
         sep (C.Suggestion name typ _ match) =
           case match of
             C.Exact -> ([(name, typ)], [], [])
             C.WrongType -> ([], [(name, typ)],  [])
             C.WrongName -> ([], [], [(name, typ)])
-     in mconcat
+     in Pr.lines
           [ "I'm not sure what "
-          , style ErrorSite (Var.nameStr unknownTermV)
-          , " means at "
-          , annotatedToEnglish termSite
-          , "\n\n"
+            <> style ErrorSite (Var.nameStr unknownTermV)
+            <> " means at "
+            <> annotatedToEnglish termSite
+          , ""
           , annotatedAsErrorSite src termSite
           , case expectedType of
-            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
+            Type.Var' (TypeVar.Existential{}) -> "There are no constraints on its type."
             _ ->
-              "\nWhatever it is, it has a type that conforms to "
+              "Whatever it is, it has a type that conforms to "
                 <> style Type1 (renderType' env expectedType)
-                <> ".\n"
+                <> "."
                  -- ++ showTypeWithProvenance env src Type1 expectedType
+          , ""
           , let disambiguations :: Env -> v -> [(Text, C.Type v loc)] -> [DisambiguationInfo v]
                 disambiguations env v wrongs =
                   let intoSuggestion (name, typ) = Suggestion (Text.unpack name) (Just $ renderType' env typ)
@@ -1434,7 +1433,13 @@ prettyDisambiguationTable :: forall v. (Var v) => [DisambiguationInfo v] -> Pret
 prettyDisambiguationTable failures =
     let deduped = nubOrdOn (var Arr.&&& suggestionSet) $ failures
         spacerRow = mempty
-      in Pr.column3Header "Symbol" "Suggestions" "Type" $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
+        -- Are there any types within the suggestion pool?
+        typeHeader =
+          if L.has (L.folded . L.to suggestionSet . L.folded . L.to typeName . L._Just) $ failures
+             then "Type"
+             else ""
+      in Pr.column3Header "Symbol" "Suggestions" typeHeader 
+           $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
   where
     prettyRow :: DisambiguationInfo v -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
     prettyRow  = \case

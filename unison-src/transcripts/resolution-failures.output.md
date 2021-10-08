@@ -18,8 +18,15 @@ Now let's add a term named `a.foo`:
 unique type one.AmbiguousType = one.AmbiguousType
 unique type two.AmbiguousType = two.AmbiguousType
 
-one.ambiguousTerm = "term one"
-two.ambiguousTerm = "term two"
+one.ambiguousTextTerm = "term one"
+two.ambiguousTextTerm = "term two"
+
+unique type A = One | Two
+unique type B = B
+
+one.ambiguousTermWithDifferingTypes = One
+two.ambiguousTermWithDifferingTypes = Two
+three.ambiguousTermWithDifferingTypes = B
 ```
 
 ```ucm
@@ -30,10 +37,15 @@ two.ambiguousTerm = "term two"
   
     ⍟ These new definitions are ok to `add`:
     
+      unique type A
+      unique type B
       unique type one.AmbiguousType
       unique type two.AmbiguousType
-      one.ambiguousTerm : ##Text
-      two.ambiguousTerm : ##Text
+      one.ambiguousTermWithDifferingTypes   : A
+      one.ambiguousTextTerm                 : ##Text
+      three.ambiguousTermWithDifferingTypes : B
+      two.ambiguousTermWithDifferingTypes   : A
+      two.ambiguousTextTerm                 : ##Text
 
 ```
 ```ucm
@@ -41,10 +53,15 @@ two.ambiguousTerm = "term two"
 
   ⍟ I've added these definitions:
   
+    unique type A
+    unique type B
     unique type one.AmbiguousType
     unique type two.AmbiguousType
-    one.ambiguousTerm : ##Text
-    two.ambiguousTerm : ##Text
+    one.ambiguousTermWithDifferingTypes   : A
+    one.ambiguousTextTerm                 : ##Text
+    three.ambiguousTermWithDifferingTypes : B
+    two.ambiguousTermWithDifferingTypes   : A
+    two.ambiguousTextTerm                 : ##Text
 
 ```
 ## Tests
@@ -88,12 +105,12 @@ separateAmbiguousTypeUsage _ = ()
        10 | separateAmbiguousTypeUsage : AmbiguousType -> ()
     
     
-    Symbol          Suggestions
-                    
-    AmbiguousType   one.AmbiguousType
-                    two.AmbiguousType
-                    
-    UnknownType     No matches
+    Symbol          Suggestions         
+                                        
+    AmbiguousType   one.AmbiguousType   
+                    two.AmbiguousType   
+                                        
+    UnknownType     No matches          
   
 
 ```
@@ -101,18 +118,59 @@ Currently, ambiguous terms are caught and handled by type directed name resoluti
 but expect it to eventually be handled by the above machinery.
 
 ```unison
-useAmbiguousTerm = ambiguousTerm
+useAmbiguousTextTermNoTypeHint = ambiguousTextTerm
 ```
 
 ```ucm
 
-  I'm not sure what ambiguousTerm means at line 1, columns 20-33
+  I'm not sure what ambiguousTextTerm means at line 1, columns 34-51
   
-      1 | useAmbiguousTerm = ambiguousTerm
+      1 | useAmbiguousTextTermNoTypeHint = ambiguousTextTerm
   
-  There are no constraints on its type.I found some terms in scope that have matching names and types. Maybe you meant one of these:
+  There are no constraints on its type.
   
-    - one.ambiguousTerm : ##Text
-    - two.ambiguousTerm : ##Text
+  Symbol              Suggestions             Type
+                                              
+  ambiguousTextTerm   one.ambiguousTextTerm   ##Text
+                      two.ambiguousTextTerm   ##Text
+
+```
+```unison
+useAmbiguousTermWithDifferingTypes = ambiguousTermWithDifferingTypes
+```
+
+```ucm
+
+  I'm not sure what ambiguousTermWithDifferingTypes means at line 1, columns 38-69
+  
+      1 | useAmbiguousTermWithDifferingTypes = ambiguousTermWithDifferingTypes
+  
+  There are no constraints on its type.
+  
+  Symbol                            Suggestions                             Type
+                                                                            
+  ambiguousTermWithDifferingTypes   one.ambiguousTermWithDifferingTypes     A
+                                    three.ambiguousTermWithDifferingTypes   B
+                                    two.ambiguousTermWithDifferingTypes     A
+
+```
+```unison
+useAmbiguousTermWithDifferingTypesWithTypeHint : A
+useAmbiguousTermWithDifferingTypesWithTypeHint 
+  = ambiguousTermWithDifferingTypes
+```
+
+```ucm
+
+  I'm not sure what ambiguousTermWithDifferingTypes means at line 3, columns 5-36
+  
+      3 |   = ambiguousTermWithDifferingTypes
+  
+  Whatever it is, it has a type that conforms to A.
+  
+  Symbol                            Suggestions                           Type
+                                                                          
+  ambiguousTermWithDifferingTypes   one.ambiguousTermWithDifferingTypes   A
+                                    two.ambiguousTermWithDifferingTypes   A
 
 ```

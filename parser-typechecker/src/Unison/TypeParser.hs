@@ -45,7 +45,7 @@ typeAtom = hqPrefixId >>= \tok -> case L.payload tok of
     names <- asks names
     let matches = Names.lookupHQType hq names
     if Set.size matches /= 1
-    then P.customFailure (UnknownType tok matches)
+    then P.customFailure (UnknownType names tok matches)
     else pure $ Type.ref (ann tok) (Set.findMin matches)
 
 type1 :: Var v => TypeP v
