@@ -115,6 +115,7 @@ import qualified Data.Set as S
 import Unison.Prelude hiding (empty, toList)
 import Prelude hiding (filter, map, null)
 import qualified Unison.Util.Relation.Diff as RD
+import Control.DeepSeq
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -138,6 +139,9 @@ data Relation a b = Relation
     range :: Map b (Set a)
   }
   deriving (Eq, Ord)
+
+instance (NFData a, NFData b) => NFData (Relation a b) where
+  rnf (Relation d r) = rnf d `seq` rnf r
 
 instance (Show a, Show b) => Show (Relation a b) where
   show = show . toList

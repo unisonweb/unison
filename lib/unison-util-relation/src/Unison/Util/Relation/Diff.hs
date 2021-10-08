@@ -46,7 +46,7 @@ ascListDifferences a b =
 -- | Computes the total 'Diff' of two Sets
 -- O(n + m)
 setDifferences :: (Ord a) => Set a -> Set a -> Diff (Set a)
-setDifferences l r = Set.fromAscList <$> ascListDifferences (Set.toAscList l) (Set.toAscList r)
+setDifferences l r = Set.fromDistinctAscList <$> ascListDifferences (Set.toAscList l) (Set.toAscList r)
 
 -- | A helper for 'relationMapDiff'.
 -- Computes the diff of two ordered key-value maps in ascending order.
@@ -65,10 +65,22 @@ mapDifferences' a b =
         LT -> Diff [l] [] [] [l] <> mapDifferences' ls (r:rs)
         GT -> Diff [] [r] [] [r] <> mapDifferences' (l:ls) rs
 
+-- diffThings :: (Ord k, Ord a, Ord b) => (a -> b) -> [a] -> [a] -> Diff [a]
+-- diffThings compareOn a b =
+--   case (a, b) of
+--     ([], []) -> mempty
+--     (l, []) -> Diff l [] [] l
+--     ([], r) -> Diff [] r [] r
+--     (l@(lk, las):ls, r@(rk, ras):rs) ->
+--       case compare lk rk of
+--         EQ -> let d = setDifferences las ras
+--                in Diff [(lk, leftOnly d)] [(rk, rightOnly d)] [(lk, intersection d)] [(lk, union d)] <> mapDifferences' ls rs
+--         LT -> Diff [l] [] [] [l] <> mapDifferences' ls (r:rs)
+--         GT -> Diff [] [r] [] [r] <> mapDifferences' (l:ls) rs
+
 -- | Computes the total 'Diff' of two relation maps.
 -- Time of (relationMapDiff x y) is:
 -- O(n + m)
 -- where n and m represent the total number of contained 'a's inside x and y respectively.
 relationMapDiff :: (Ord k, Ord a) => Map k (Set a) -> Map k (Set a) -> Diff (Map k (Set a))
-relationMapDiff a b = Map.fromAscList . filter (not . null . snd) <$> mapDifferences' (Map.toAscList a) (Map.toAscList b)
-
+relationMapDiff a b = Map.fromDistinctAscList . filter (not . null . snd) <$> mapDifferences' (Map.toAscList a) (Map.toAscList b)

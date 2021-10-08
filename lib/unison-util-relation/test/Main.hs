@@ -7,6 +7,9 @@ import qualified Unison.Util.Relation3 as Relation3
 import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as Relation4
 import qualified Unison.Util.Relation.Diff as Diff
+import Data.Time.Clock.POSIX
+import Control.Monad
+import Control.DeepSeq
 
 main :: IO ()
 main =
