@@ -33,7 +33,13 @@ data Names = Names
     -- context to users rather than just a hash.
     oldNames :: Names0
   }
-  deriving (Show)
+  deriving (Show, Eq, Ord)
+
+instance Semigroup Names where
+  Names a1 b1 <> Names a2 b2  = Names (a1 <> a2) (b1 <> b2)
+
+instance Monoid Names where
+  mempty = Names mempty mempty
 
 type Names0 = Unison.Names2.Names0
 pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n

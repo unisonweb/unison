@@ -108,8 +108,8 @@ data Error v
   | EmptyBlock (L.Token String)
   | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
   | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
-  | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
-  | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
+  | UnknownTerm Names (L.Token (HQ.HashQualified Name)) (Set Referent)
+  | UnknownType Names (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyMatch

@@ -87,7 +87,7 @@ typeLink' = do
   ns <- asks names
   case Names.lookupHQType (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
-      | otherwise       -> customFailure $ UnknownType id s
+      | otherwise       -> customFailure $ UnknownType ns id s
 
 termLink' :: Var v => P v (L.Token Referent)
 termLink' = do
@@ -95,7 +95,7 @@ termLink' = do
   ns <- asks names
   case Names.lookupHQTerm (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
-      | otherwise       -> customFailure $ UnknownTerm id s
+      | otherwise       -> customFailure $ UnknownTerm ns id s
 
 link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
 link' = do
@@ -360,8 +360,8 @@ resolveHashQualified tok = do
   case L.payload tok of
     HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
     _ -> case Names.lookupHQTerm (L.payload tok) names of
-      s | Set.null s     -> failCommitted $ UnknownTerm tok s
-        | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
+      s | Set.null s     -> failCommitted $ UnknownTerm names tok s
+        | Set.size s > 1 -> failCommitted $ UnknownTerm names tok s
         | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall v . Var v => TermP v

@@ -58,8 +58,6 @@ import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
 import qualified Unison.PrettyPrintEnv.Names as PPE
 import qualified Unison.Names3 as Names3
-import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NES
 import qualified Control.Arrow as Arr
 
 type Env = PPE.PrettyPrintEnv
@@ -446,52 +444,42 @@ renderTypeError e env src = case e of
     , "\n"
     , showSourceMaybes src [ (,ErrorSite) <$> rangeForAnnotated loc | loc <- locs ]]
 
-  UnknownType {..} -> mconcat [
-    if ann typeSite == Intrinsic then
-      "I don't know about the builtin type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
-    else if ann typeSite == External then
-      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
-    else
-      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ":\n"
-      <> annotatedAsErrorSite src typeSite
-    , "Make sure it's imported and spelled correctly."
-    ]
+  UnknownType {..} -> 
+    let src = "" -- TODO: determine src
+     in prettyResolutionErr src [ResolutionFailureInfo unknownTypeV typeSite mempty]
   UnknownTerm {..} ->
-    let (correct, wrongTypes, wrongNames) =
-          foldr sep id suggestions ([], [], [])
-        sep (C.Suggestion name typ _ match) r =
+    let (correct, wrongTypes, wrongNames) = foldMap sep suggestions
+        sep (C.Suggestion name typ _ match) =
           case match of
-            C.Exact -> (_1 %~ ((name, typ) :)) . r
-            C.WrongType -> (_2 %~ ((name, typ) :)) . r
-            C.WrongName -> (_3 %~ ((name, typ) :)) . r
-     in _
-
-    -- mconcat
-    --       [ "I'm not sure what "
-    --       , style ErrorSite (Var.nameStr unknownTermV)
-    --       , " means at "
-    --       , annotatedToEnglish termSite
-    --       , "\n\n"
-    --       , annotatedAsErrorSite src termSite
-    --       , case expectedType of
-    --         Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
-    --         _ ->
-    --           "\nWhatever it is, it has a type that conforms to "
-    --             <> style Type1 (renderType' env expectedType)
-    --             <> ".\n"
-    --              -- ++ showTypeWithProvenance env src Type1 expectedType
-    --       , case (correct, wrongTypes, wrongNames) of
-    --         (correct, wrongTypes, wrongNames)
-    --           | not . null $ correct ->
-    --               mconcat
-    --               [ "I found some terms in scope that have matching names and types. "
-    --               , "Maybe you meant one of these:\n\n"
-    --               , intercalateMap "\n" formatSuggestion correct
-    --               ]
-    --           | not . null $ wrongTypes -> formatWrongs wrongTypeText wrongTypes
-    --           | not . null $ wrongNames -> formatWrongs wrongNameText wrongNames
-    --           | otherwise -> mempty
-    --       ]
+            C.Exact -> ([(name, typ)], [], [])
+            C.WrongType -> ([], [(name, typ)],  [])
+            C.WrongName -> ([], [], [(name, typ)])
+     in mconcat
+          [ "I'm not sure what "
+          , style ErrorSite (Var.nameStr unknownTermV)
+          , " means at "
+          , annotatedToEnglish termSite
+          , "\n\n"
+          , annotatedAsErrorSite src termSite
+          , case expectedType of
+            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
+            _ ->
+              "\nWhatever it is, it has a type that conforms to "
+                <> style Type1 (renderType' env expectedType)
+                <> ".\n"
+                 -- ++ showTypeWithProvenance env src Type1 expectedType
+          , case (correct, wrongTypes, wrongNames) of
+            (correct, wrongTypes, wrongNames)
+              | not . null $ correct ->
+                  mconcat
+                  [ "I found some terms in scope that have matching names and types. "
+                  , "Maybe you meant one of these:\n\n"
+                  , intercalateMap "\n" formatSuggestion correct
+                  ]
+              | not . null $ wrongTypes -> formatWrongs wrongTypeText wrongTypes
+              | not . null $ wrongNames -> formatWrongs wrongNameText wrongNames
+              | otherwise -> mempty
+          ]
   DuplicateDefinitions {..} ->
     mconcat
       [ Pr.wrap $ mconcat
@@ -1301,32 +1289,22 @@ prettyParseError s = \case
       else "Try hash-qualifying the term you meant to reference."
     ]
     where missing = Set.null referents && Set.null references
-  go (Parser.UnknownTerm               tok referents) = Pr.lines
-    [ if Set.null referents then
-        "I couldn't find a term for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-      else
-        "The term reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
-    , ""
-    , tokenAsErrorSite s $ HQ.toString <$> tok
-    , if missing then "Make sure it's spelled correctly."
-      else "Try hash-qualifying the term you meant to reference."
-    ]
-    where
-    missing = Set.null referents
-  go (Parser.UnknownType               tok referents) = Pr.lines
-    [ if Set.null referents then
-        "I couldn't find a type for " <> style ErrorSite (HQ.toString (L.payload tok)) <> "."
-      else
-        "The type reference " <> style ErrorSite (HQ.toString (L.payload tok)) <> " was ambiguous."
-    , ""
-    , tokenAsErrorSite s $ HQ.toString <$> tok
-    , if missing then "Make sure it's spelled correctly."
-      else "Try hash-qualifying the type you meant to reference."
-    ]
-    where
-    missing = Set.null referents
+  go (Parser.UnknownTerm names tok referents) =
+    let var = HQ.toVar . L.payload $ tok
+        -- TODO: should we include this with the UnknownType error?
+        src = ""
+        ppe = ppeFromNames names
+        intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
+     in prettyResolutionFailures src [ResolutionFailureInfo var tok (Set.map intoSuggestion referents)]
+  go (Parser.UnknownType names tok referents) = 
+    let var = HQ.toVar . L.payload $ tok
+        -- TODO: should we include this with the UnknownType error?
+        src = ""
+        ppe = ppeFromNames names
+        intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
+     in prettyResolutionFailures src [ResolutionFailureInfo var tok (Set.map intoSuggestion referents)]
   go (Parser.ResolutionFailures        failures) =
-    Pr.border 2 . prettyResolutionFailures s $ _ failures
+    Pr.border 2 . prettyResolutionFailures s . fmap normalizeResolutionFailure $ failures
   go (Parser.MissingTypeModifier keyword name) = Pr.lines
     [ Pr.wrap $
         "I expected to see `structural` or `unique` at the start of this line:"
@@ -1441,7 +1419,7 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
 data Suggestion =
   Suggestion
     { name :: String
-    , typ :: String
+    , typeName :: Maybe String
     } deriving (Eq, Ord)
 
 data ResolutionFailureInfo v a =
@@ -1453,14 +1431,14 @@ data ResolutionFailureInfo v a =
 
 -- | Pretty prints resolution failure annotations, including a table of disambiguation
 -- suggestions.
-prettyResolutionFailures ::
+prettyResolutionErr ::
   forall v a.
   (Annotated a, Var v, Ord a) =>
   -- | src
   String ->
   [ResolutionFailureInfo v a] ->
   Pretty ColorText
-prettyResolutionFailures s allFailures =
+prettyResolutionErr s allFailures =
   Pr.callout "❓" $
     Pr.linesNonEmpty
       [ Pr.wrap
@@ -1479,9 +1457,6 @@ prettyResolutionFailures s allFailures =
           spacerRow = mempty
        in Pr.column3Header "Symbol" "Suggestions" "Type" $ spacerRow : (intercalateMap [spacerRow] prettyRow deduped)
 
-    ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
-    ppeFromNames0 names0 =
-      PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
 
     prettyRow :: ResolutionFailureInfo v a -> [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
     prettyRow  = \case
@@ -1491,16 +1466,28 @@ prettyResolutionFailures s allFailures =
             zipWith (\a (Suggestion s t) -> (a, Pr.string s, Pr.string t))
                     ([prettyVar v] ++ repeat "") (toList suggs)
 
--- intoResolutionFailure :: ResolutionFailureInfo v annotation -> (v, Maybe (NESet String))
--- intoResolutionFailure = \case
---   (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
---     let ppe = ppeFromNames0 names
---       in (v, Just $ NES.map (showTermRef ppe) refs)
---   (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
---     let ppe = ppeFromNames0 names
---       in (v, Just $ NES.map (showTypeRef ppe) refs)
---   (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
---   (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+prettyResolutionFailures ::
+  forall v a.
+  String ->
+  [Names.ResolutionFailure v a] ->
+  Pretty ColorText
+prettyResolutionFailures src failures =
+  prettyResolutionErr src (normalizeResolutionFailure <$> failures)
+  where
+    normalizeResolutionFailure :: Names.ResolutionFailure v a -> ResolutionFailureInfo v a
+    normalizeResolutionFailure = \case
+      (Names.TermResolutionFailure v a refs names) -> do
+        let ppe = ppeFromNames names
+            intoSuggestion ref = Suggestion (showTermRef ppe ref) Nothing
+         in ResolutionFailureInfo v a (Set.map intoSuggestion $ refs)
+      (Names.TypeResolutionFailure v a refs names) -> do
+        let ppe = ppeFromNames names
+            intoSuggestion ref = Suggestion (showTypeRef ppe ref) Nothing
+         in ResolutionFailureInfo v a (Set.map intoSuggestion $ refs)
+
+ppeFromNames :: Names3.Names -> PPE.PrettyPrintEnv
+ppeFromNames names =
+  PPE.fromNames PPE.todoHashLength names
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [
