@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Unison.PrintError where
 
@@ -448,6 +449,7 @@ renderTypeError e env src = case e of
     let src = "" -- TODO: determine src
      in prettyResolutionErr src [ResolutionFailureInfo unknownTypeV typeSite mempty]
   UnknownTerm {..} ->
+    -- TODO: convert to use the pretty ambiguation thing.
     let (correct, wrongTypes, wrongNames) = foldMap sep suggestions
         sep (C.Suggestion name typ _ match) =
           case match of
@@ -468,17 +470,10 @@ renderTypeError e env src = case e of
                 <> style Type1 (renderType' env expectedType)
                 <> ".\n"
                  -- ++ showTypeWithProvenance env src Type1 expectedType
-          , case (correct, wrongTypes, wrongNames) of
-            (correct, wrongTypes, wrongNames)
-              | not . null $ correct ->
-                  mconcat
-                  [ "I found some terms in scope that have matching names and types. "
-                  , "Maybe you meant one of these:\n\n"
-                  , intercalateMap "\n" formatSuggestion correct
-                  ]
-              | not . null $ wrongTypes -> formatWrongs wrongTypeText wrongTypes
-              | not . null $ wrongNames -> formatWrongs wrongNameText wrongNames
-              | otherwise -> mempty
+          , if | not . null $ correct -> formatWrongs env unknownTermV termSite correct
+               | not . null $ wrongTypes -> formatWrongs env unknownTermV termSite wrongTypes
+               | not . null $ wrongNames -> formatWrongs env unknownTermV termSite wrongNames
+               | otherwise -> mempty
           ]
   DuplicateDefinitions {..} ->
     mconcat
@@ -519,47 +514,11 @@ renderTypeError e env src = case e of
     , "Here is a summary of the Note:\n"
     , summary note
     ]
- where
-  wrongTypeText pl = mconcat
-    [ "I found "
-    , pl "a term" "some terms"
-    , " in scope with "
-    , pl "a " ""
-    , "matching name"
-    , pl "" "s"
-    , " but "
-    , pl "a " ""
-    , "different type"
-    , pl "" "s"
-    , ". "
-    , "If "
-    , pl "this" "one of these"
-    , " is what you meant, try using the fully qualified name and I might "
-    , "be able to give you a more illuminating error message: \n\n"
-    ]
-  wrongNameText pl = mconcat
-    [ "I found "
-    , pl "a term" "some terms"
-    , " in scope with "
-    , pl "a " ""
-    , "matching type"
-    , pl "" "s"
-    , " but "
-    , pl "a " ""
-    , "different name"
-    , pl "" "s"
-    , ". "
-    , "Maybe you meant "
-    , pl "this" "one of these"
-    , ":\n\n"
-    ]
-  formatSuggestion :: (Text, C.Type v loc) -> Pretty ColorText
-  formatSuggestion (name, typ) =
-    "  - " <> fromString (Text.unpack name) <> " : " <> renderType' env typ
-  formatWrongs txt wrongs =
-    let sz = length wrongs
-        pl a b = if sz == 1 then a else b
-    in  mconcat [txt pl, intercalateMap "\n" formatSuggestion wrongs]
+  formatWrongs :: Env -> v -> a -> [(Text, C.Type v loc)] -> Pretty ColorText
+  formatWrongs env v a wrongs =
+    let src = "" -- TODO: What's the src here?
+        intoSuggestion (name, typ) = Suggestion (Text.unpack name) (Just $ renderType' env typ)
+     in prettyResolutionErr src [ResolutionFailureInfo v a (Set.fromList . fmap intoSuggestion $ wrongs)]
   ordinal :: (IsString s) => Int -> s
   ordinal n = fromString $ show n ++ case last (show n) of
     '1' -> "st"
