@@ -12,6 +12,31 @@ library:
     - containers
     - unison-prelude
     - unison-parser-typechecker
+    - aeson
+    - openapi3
+    - text
+    - transformers
+    - mtl
+    - servant
+    - bytestring
+    - fuzzyfind
+    - extra
+    - lens
+    - errors
+    - servant-server
+    - servant-openapi3
+    - servant-docs
+    - mwc-random
+    - filepath
+    - directory
+    - wai
+    - NanoID
+    - utf8-string
+    - uri-encode
+    - async
+    - warp
+    - http-types
+    - http-media
 
 default-extensions:
   - ApplicativeDo
