@@ -97,12 +97,11 @@ import           Unison.Codebase.Causal         ( Causal
 import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.NameSegment            as NameSegment
 import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name(..) )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
@@ -212,35 +211,34 @@ branch0 terms types children edits =
           deepTermMetadata' deepTypeMetadata'
           deepPaths' deepEdits'
   where
-  nameSegToName = Name.unsafeFromText . NameSegment.toText
-  deepTerms' = (R.mapRan nameSegToName . Star3.d1) terms
+  deepTerms' = (R.mapRan Name.relativeFromSegment . Star3.d1) terms
     <> foldMap go (Map.toList children)
    where
-    go (nameSegToName -> n, b) =
+    go (Name.relativeFromSegment -> n, b) =
       R.mapRan (Name.joinDot n) (deepTerms $ head b) -- could use mapKeysMonotonic
-  deepTypes' = (R.mapRan nameSegToName . Star3.d1) types
+  deepTypes' = (R.mapRan Name.relativeFromSegment . Star3.d1) types
     <> foldMap go (Map.toList children)
    where
-    go (nameSegToName -> n, b) =
+    go (Name.relativeFromSegment -> n, b) =
       R.mapRan (Name.joinDot n) (deepTypes $ head b) -- could use mapKeysMonotonic
-  deepTermMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
+  deepTermMetadata' = R4.mapD2 Name.relativeFromSegment (Metadata.starToR4 terms)
     <> foldMap go (Map.toList children)
    where
-    go (nameSegToName -> n, b) =
+    go (Name.relativeFromSegment -> n, b) =
       R4.mapD2 (Name.joinDot n) (deepTermMetadata $ head b)
-  deepTypeMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
+  deepTypeMetadata' = R4.mapD2 Name.relativeFromSegment (Metadata.starToR4 types)
     <> foldMap go (Map.toList children)
    where
-    go (nameSegToName -> n, b) =
+    go (Name.relativeFromSegment -> n, b) =
       R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
   deepPaths' = Set.map Path.singleton (Map.keysSet children)
     <> foldMap go (Map.toList children)
     where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
-  deepEdits' = Map.mapKeys nameSegToName (Map.map fst edits)
+  deepEdits' = Map.mapKeys Name.relativeFromSegment (Map.map fst edits)
     <> foldMap go (Map.toList children)
    where
     go (nameSeg, b) =
-      Map.mapKeys (nameSegToName nameSeg `Name.joinDot`) . deepEdits $ head b
+      Map.mapKeysMonotonic (Name.cons nameSeg) . deepEdits $ head b
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -250,15 +248,15 @@ headHash (Branch c) = Causal.currentHash c
 
 -- | a version of `deepEdits` that returns the `m Patch` as well.
 deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
-deepEdits' b = go id b where
+deepEdits' = go id where
   -- can change this to an actual prefix once Name is a [NameSegment]
   go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
-  go addPrefix Branch0{..} =
-    Map.mapKeysMonotonic (addPrefix . Name.fromSegment) _edits
+  go addPrefix Branch0{_children, _edits} =
+    Map.mapKeysMonotonic (addPrefix . Name.relativeFromSegment) _edits
       <> foldMap f (Map.toList _children)
     where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
-    f (c, b) =  go (addPrefix . Name.joinDot (Name.fromSegment c)) (head b)
+    f (c, b) =  go (addPrefix . Name.cons c) (head b)
 
 -- Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m

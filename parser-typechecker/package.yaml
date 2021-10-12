@@ -14,9 +14,11 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 

@@ -20,7 +20,7 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import Unison.Name (Name (..))
+import Unison.Name (Name)
 import Unison.Names2 (Names' (Names), Names0)
 import qualified Unison.Names2 as Names
 import qualified Unison.Names3 as Names

@@ -4,31 +4,28 @@ module Unison.Core.Test.Name where
 
 import           EasyTest
 import           Unison.Name                   as Name
-import           Unison.NameSegment            as NameSegment
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Util.Relation          as R
-import           Data.List                      ( intercalate )
-import           Data.Text                      ( Text, pack )
+import           Data.List.NonEmpty             ( NonEmpty(..) )
+import qualified Data.List.NonEmpty            as List.NonEmpty
+import           Data.Text                      ( Text )
 
 import qualified Data.Set                      as Set
 
 test :: Test ()
 test = scope "name" $ tests
   [ scope "suffixes" $ tests
-    [ scope "empty" $ expectEqual (suffixes "") []
-    , scope "one namespace" $ expectEqual (suffixes "bar") ["bar"]
+    [ scope "one namespace" $ expectEqual (suffixes "bar") ["bar"]
     , scope "two namespaces"
       $ expectEqual (suffixes "foo.bar") ["foo.bar", "bar"]
     , scope "multiple namespaces"
       $ expectEqual (suffixes "foo.bar.baz") ["foo.bar.baz", "bar.baz", "baz"]
     , scope "terms named `.`" $ expectEqual (suffixes "base..") ["base..", "."]
     ]
-  , scope "segments" $ do
-    n    <- int' 0 10
-    segs <- listOf n $ pick [".", "foo"]
-    expectEqual' (segments $ Name.unsafeFromText . pack $ intercalate "." segs)
-                 (NameSegment . pack <$> segs)
-    ok
+  , scope "segments" do
+      n    <- int' 1 10
+      segs <- List.NonEmpty.fromList <$> listOf n (pick [".", "foo"])
+      expectEqual (segments (relativeFromSegments segs)) segs
   , scope "suffixSearch" $ do
     let rel = R.fromList [
                 (n "base.List.map", 1),
@@ -39,8 +36,8 @@ test = scope "name" $ tests
                 (n "..", 6)
                 ]
         n = Name.unsafeFromText
-    expectEqual' ([n "."]) (Name.convert <$> Name.segments (n ".."))
-    expectEqual' ([n "."]) (Name.convert <$> Name.reverseSegments (n ".."))
+    expectEqual' ("." :| []) (Name.segments (n ".."))
+    expectEqual' ("." :| []) (Name.reverseSegments (n ".."))
 
     expectEqual' (Set.fromList [1,2])
                  (Name.searchBySuffix (n "map") rel)
@@ -62,6 +59,12 @@ test = scope "name" $ tests
             expectEqual' (Set.fromList [6]) (Name.searchBySuffix (n ".") rel) ]
     ok
 
+  , scope "splitName" do
+      scope "x" $ expectEqual' (splits "x") [([], "x")]
+      scope "A.x" $ expectEqual' (splits "A.x") [([],"A.x"),(["A"],"x")]
+      scope "A.B.x" $ expectEqual' (splits "A.B.x") [([],"A.B.x"),(["A"],"B.x"),(["A","B"],"x")]
+      ok
+
   , scope "OldName" do
       let old :: Name -> OldName
           old =
@@ -81,15 +84,6 @@ test = scope "name" $ tests
                 Name.unsafeFromText "|>.foo",
                 Name.unsafeFromText ".|>.foo",
                 Name.unsafeFromText ".."
-              ]
-
-      let rsegment :: Test NameSegment
-          rsegment =
-            pick
-              [ NameSegment "foo"
-              , NameSegment "bar"
-              , NameSegment "|>"
-              , NameSegment "."
               ]
 
       let rstring :: Test String
@@ -113,10 +107,6 @@ test = scope "name" $ tests
         n1 <- rname
         n2 <- rname
         Name.endsWithSegments n1 n2 `expectEqual` Name.oldEndsWithSegments (old n1) (old n2)
-
-      scope "fromSegment" do
-        s1 <- rsegment
-        old (Name.fromSegment s1) `expectEqual` Name.oldFromSegment s1
 
       scope "fromString" do
         s1 <- rstring
@@ -142,14 +132,14 @@ test = scope "name" $ tests
 
       scope "reverseSegments" do
         n1 <- rname
-        Name.reverseSegments n1 `expectEqual` Name.oldReverseSegments (old n1)
+        List.NonEmpty.toList (Name.reverseSegments n1) `expectEqual` Name.oldReverseSegments (old n1)
 
       scope "searchBySuffix" do
         ok
 
       scope "segments" do
         n1 <- rname
-        Name.segments n1 `expectEqual` Name.oldSegments (old n1)
+        List.NonEmpty.toList (Name.segments n1) `expectEqual` Name.oldSegments (old n1)
 
       scope "shortestUniqueSuffix" do
         ok
@@ -158,18 +148,10 @@ test = scope "name" $ tests
         ns1 <- listOf 5 rname
         fmap old (Name.sortNames ns1) `expectEqual` Name.oldSortNames (map old ns1)
 
-      scope "sortNamed'" do
-        ns1 <- listOf 5 rname
-        map old (Name.sortNamed' id compare ns1) `expectEqual` Name.oldSortNamed' id compare (map old ns1)
-
       scope "stripNamePrefix" do
         n1 <- rname
         n2 <- rname
         fmap old (Name.stripNamePrefix n1 n2) `expectEqual` Name.oldStripNamePrefix (old n1) (old n2)
-
-      scope "stripPrefixes" do
-        n1 <- rname
-        old (Name.stripPrefixes n1) `expectEqual` Name.oldStripPrefixes (old n1)
 
       scope "suffixes" do
         n1 <- rname

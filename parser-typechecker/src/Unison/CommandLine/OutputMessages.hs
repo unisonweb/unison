@@ -239,7 +239,7 @@ notifyNumbered o = case o of
       [ p
       , ""
       , tip $ "Add" <> prettyName "License" <> "values for"
-           <> prettyName (Name.fromSegment authorNS)
+           <> prettyName (Name.relativeFromSegment authorNS)
            <> "under" <> P.group (prettyPath' authorPath' <> ".")
       ]) (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
   where
@@ -560,18 +560,18 @@ notifyUser dir o = case o of
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
       ShallowTermEntry (TermEntry _r hq ot _) ->
-        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.relativeFromSegment $ hq
         , P.lit "(" <> maybe "type missing" (TypePrinter.pretty ppe) ot <> P.lit ")" )
       ShallowTypeEntry (TypeEntry r hq _) ->
-        (P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq
+        (P.syntaxToColor . prettyHashQualified' . fmap Name.relativeFromSegment $ hq
         ,isBuiltin r)
       ShallowBranchEntry ns _ count ->
-        ((P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/"
+        ((P.syntaxToColor . prettyName . Name.relativeFromSegment) ns <> "/"
         ,case count of
           1 -> P.lit "(1 definition)"
           _n -> P.lit "(" <> P.shown count <> P.lit " definitions)")
       ShallowPatchEntry ns ->
-        ((P.syntaxToColor . prettyName . Name.fromSegment) ns
+        ((P.syntaxToColor . prettyName . Name.relativeFromSegment) ns
         ,P.lit "(patch)")
     isBuiltin = \case
       Reference.Builtin{} -> P.lit "(builtin type)"

@@ -209,9 +209,11 @@ library
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
@@ -329,9 +331,11 @@ executable prettyprintdemo
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
@@ -395,9 +399,11 @@ executable tests
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       async
@@ -450,9 +456,11 @@ executable transcripts
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   build-tools:
       unison
@@ -493,9 +501,11 @@ executable unison
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       base
@@ -547,9 +557,11 @@ benchmark runtime
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
