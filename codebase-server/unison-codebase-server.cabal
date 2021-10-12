@@ -29,7 +29,6 @@ library
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
-      Unison.Server.Types
   other-modules:
       Paths_unison_codebase_server
   hs-source-dirs:

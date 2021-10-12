@@ -10,9 +10,7 @@ module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
-import Data.ByteString.Char8 (unpack)
 import Control.Exception (ErrorCall (..), throwIO)
-import qualified Network.URI.Encode as URI
 import Control.Lens ((&), (.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
@@ -29,10 +27,9 @@ import Network.HTTP.Media ((//), (/:))
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
-import Unison.Server.Assorted (CodebaseServerOpts(..))
+import Unison.Server.Assorted (CodebaseServerOpts(..), BaseUrl(..), ucmUIVar)
 import Network.Wai.Handler.Warp
-  ( Port,
-    defaultSettings,
+  ( defaultSettings,
     runSettings,
     setBeforeMainLoop,
     setHost,
