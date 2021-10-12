@@ -1,6 +1,5 @@
 name: CI
 
-
 on:
   # Build on every pull request (and new PR commit)
   pull_request:
@@ -46,7 +45,6 @@ jobs:
           path: |
             .stack-work
             parser-typechecker/.stack-work
-            cli/.stack-work
             unison-core/.stack-work
             yaks/easytest/.stack-work
             # Main cache key: commit hash. This should always result in a cache miss...
