@@ -45,8 +45,8 @@ cradle:
     - path: "parser-typechecker/transcripts"
       component: "unison-parser-typechecker:exe:transcripts"
 
-    - path: "parser-typechecker/unison"
-      component: "unison-parser-typechecker:exe:unison"
+    - path: "cli/app"
+      component: "cli:exe:unison"
 
     - path: "parser-typechecker/benchmarks/runtime"
       component: "unison-parser-typechecker:bench:runtime"

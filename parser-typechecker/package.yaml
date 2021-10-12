@@ -126,38 +126,6 @@ library:
     - uri-encode
 
 executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - compact
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - optparse-applicative >= 0.16.1.0
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - unison-prelude
-      - uri-encode
-      - unliftio
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
   prettyprintdemo:
     source-dirs: prettyprintdemo
     main: Main.hs
@@ -217,8 +185,9 @@ executables:
       - unison-core1
       - unison-parser-typechecker
       - unison-prelude
-    build-tools:
-      - unison-parser-typechecker:unison
+    # TODO: move transcripts to cli package, or preferably avoid shelling-out and run transcripts by calling the implementation directly?
+    # build-tools:
+    #   - unison-cli:unison
 
 benchmarks:
   runtime:

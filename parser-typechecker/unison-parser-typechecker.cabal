@@ -446,8 +446,6 @@ executable transcripts
       TupleSections
       TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
   build-depends:
       base
     , directory
@@ -461,61 +459,6 @@ executable transcripts
     , unison-prelude
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-executable unison
-  main-is: Main.hs
-  other-modules:
-      ArgParse
-      Compat
-      System.Path
-      Version
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      unison
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-  build-depends:
-      base
-    , bytestring
-    , compact
-    , configurator
-    , containers
-    , directory
-    , errors
-    , filepath
-    , lens
-    , megaparsec
-    , mtl
-    , optparse-applicative >=0.16.1.0
-    , safe
-    , shellmet
-    , template-haskell
-    , temporary
-    , text
-    , unison-codebase-sync
-    , unison-core1
-    , unison-parser-typechecker
-    , unison-prelude
-    , unliftio
-    , uri-encode
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 benchmark runtime
