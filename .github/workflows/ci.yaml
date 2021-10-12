@@ -10,6 +10,8 @@ on:
   push:
     branches:
       - trunk
+    tags:
+      - release/*
 
 jobs:
   build:
