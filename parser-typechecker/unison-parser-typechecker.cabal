@@ -143,7 +143,6 @@ library
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
-      Unison.Server.Assorted
       Unison.Server.Backend
       Unison.Server.Doc
       Unison.Server.QueryResult

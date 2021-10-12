@@ -27,7 +27,7 @@ import Network.HTTP.Media ((//), (/:))
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
-import Unison.Server.Assorted (CodebaseServerOpts(..), BaseUrl(..), ucmUIVar)
+import Unison.Server.Assorted (BaseUrl(..))
 import Network.Wai.Handler.Warp
   ( defaultSettings,
     runSettings,
@@ -87,6 +87,25 @@ import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import Unison.Server.Types (mungeString)
 import Unison.Var (Var)
+
+data CodebaseServerOpts = CodebaseServerOpts
+  { token :: Maybe String
+  , host :: Maybe String
+  , port :: Maybe Int
+  , codebaseUIPath :: Maybe FilePath
+  } deriving (Show, Eq)
+
+ucmUIVar :: String
+ucmUIVar = "UCM_WEB_UI"
+
+ucmPortVar :: String
+ucmPortVar = "UCM_PORT"
+
+ucmHostVar :: String
+ucmHostVar = "UCM_HOST"
+
+ucmTokenVar :: String
+ucmTokenVar = "UCM_TOKEN"
 
 -- HTML content type
 data HTML = HTML

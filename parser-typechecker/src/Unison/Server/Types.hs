@@ -45,6 +45,12 @@ import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Pretty ( Width (..) )
+import qualified Data.ByteString as Strict
+import qualified Data.ByteString.Char8 as C8
+import qualified Network.URI.Encode as URI
+
+import Network.Wai.Handler.Warp (Port)
+
 
 type APIHeaders x =
   Headers
@@ -209,6 +215,25 @@ instance ToSchema Doc where
 instance ToSchema Doc.SpecialForm where
 instance ToSchema Doc.Src where
 instance ToSchema a => ToSchema (Doc.Ref a) where
+
+
+-- BaseUrl and helpers
+
+data BaseUrl = BaseUrl
+  { urlHost :: String,
+    urlToken :: Strict.ByteString,
+    urlPort :: Port
+  }
+instance Show BaseUrl where
+  show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . C8.unpack . urlToken $ url)
+
+data BaseUrlPath = UI | Api
+
+urlFor :: BaseUrlPath -> BaseUrl -> String
+urlFor path baseUrl =
+  case path of
+    UI -> show baseUrl <> "/ui"
+    Api -> show baseUrl <> "/api"
 
 -- Helpers
 

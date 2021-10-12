@@ -46,7 +46,7 @@ import Options.Applicative
 import Options.Applicative.Help ( (<+>), bold )
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
-import Unison.Server.Assorted (CodebaseServerOpts(..))
+import Unison.Server.CodebaseServer (CodebaseServerOpts(..))
 import Unison.Util.Pretty (Width(..))
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NE

@@ -41,6 +41,7 @@ executables:
       - template-haskell
       - temporary
       - text
+      - unison-codebase-server
       - unison-core1
       - unison-parser-typechecker
       - unison-prelude
