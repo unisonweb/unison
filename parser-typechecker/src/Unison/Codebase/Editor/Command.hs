@@ -19,10 +19,7 @@ import Unison.Prelude
 
 import Control.Lens (_5,view)
 -- TODO: Don't import backend, but move dependencies to own modules
-import           Unison.Server.Backend          ( DefinitionResults
-                                                , ShallowListEntry
-                                                , BackendError
-                                                )
+import           Unison.Server.Backend (ShallowListEntry(..), BackendError(..), DefinitionResults(..))
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
 

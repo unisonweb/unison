@@ -29,6 +29,7 @@ import Network.HTTP.Media ((//), (/:))
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
+import Unison.Server.Assorted (CodebaseServerOpts(..))
 import Network.Wai.Handler.Warp
   ( Port,
     defaultSettings,
@@ -121,25 +122,6 @@ type AuthedServerAPI = ("static" :> Raw) :<|> (Capture "token" Text :> ServerAPI
 instance ToSample Char where
   toSamples _ = singleSample 'x'
 
--- BaseUrl and helpers
-
-data BaseUrl = BaseUrl
-  { urlHost :: String,
-    urlToken :: Strict.ByteString,
-    urlPort :: Port
-  }
-
-data BaseUrlPath = UI | Api
-
-instance Show BaseUrl where
-  show url = urlHost url <> ":" <> show (urlPort url) <> "/" <> (URI.encode . unpack . urlToken $ url)
-
-urlFor :: BaseUrlPath -> BaseUrl -> String
-urlFor path baseUrl =
-  case path of
-    UI -> show baseUrl <> "/ui"
-    Api -> show baseUrl <> "/api"
-
 
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
@@ -207,25 +189,6 @@ mkWaiter = do
     notify = putMVar mvar,
     waitFor = readMVar mvar
   }
-
-ucmUIVar :: String
-ucmUIVar = "UCM_WEB_UI"
-
-ucmPortVar :: String
-ucmPortVar = "UCM_PORT"
-
-ucmHostVar :: String
-ucmHostVar = "UCM_HOST"
-
-ucmTokenVar :: String
-ucmTokenVar = "UCM_TOKEN"
-
-data CodebaseServerOpts = CodebaseServerOpts
-  { token :: Maybe String
-  , host :: Maybe String
-  , port :: Maybe Int
-  , codebaseUIPath :: Maybe FilePath
-  } deriving (Show, Eq)
 
 -- The auth token required for accessing the server is passed to the function k
 startServer

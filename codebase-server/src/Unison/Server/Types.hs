@@ -140,12 +140,6 @@ data DefinitionDisplayResults =
     , missingDefinitions :: [HashQualifiedName]
     } deriving (Eq, Show, Generic)
 
-data TermTag = Doc | Test
-  deriving (Eq, Ord, Show, Generic)
-
-data TypeTag = Ability | Data
-  deriving (Eq, Ord, Show, Generic)
-
 data UnisonRef
   = TypeRef UnisonHash
   | TermRef UnisonHash

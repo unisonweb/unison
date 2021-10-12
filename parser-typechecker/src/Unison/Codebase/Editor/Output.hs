@@ -17,7 +17,6 @@ module Unison.Codebase.Editor.Output
 
 import Unison.Prelude
 
-import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
@@ -48,6 +47,7 @@ import qualified Unison.Util.Pretty as P
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Server.SearchResult' (SearchResult')
+import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names.ResolutionResult as Names

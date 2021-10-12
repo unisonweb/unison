@@ -37,7 +37,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Result as Result
 import qualified Unison.Server.Backend as Backend
-import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Server.Assorted as Server
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)

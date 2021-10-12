@@ -23,16 +23,12 @@ flag optimized
 
 library
   exposed-modules:
-      Unison.Server.Backend
       Unison.Server.CodebaseServer
-      Unison.Server.Doc
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
-      Unison.Server.QueryResult
-      Unison.Server.Syntax
       Unison.Server.Types
   other-modules:
       Paths_unison_codebase_server
