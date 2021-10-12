@@ -21,6 +21,43 @@ flag optimized
   manual: True
   default: False
 
+executable transcripts
+  main-is: Transcripts.hs
+  other-modules:
+      Paths_unison_cli
+  hs-source-dirs:
+      transcripts
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+  build-tools:
+      unison
+  build-depends:
+      base
+    , directory
+    , easytest
+    , filepath
+    , process
+    , shellmet
+    , text
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
+  default-language: Haskell2010
+
 executable unison
   main-is: Main.hs
   other-modules:

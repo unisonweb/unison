@@ -426,41 +426,6 @@ executable tests
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
 
-executable transcripts
-  main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      transcripts
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  build-depends:
-      base
-    , directory
-    , easytest
-    , filepath
-    , process
-    , shellmet
-    , text
-    , unison-core1
-    , unison-parser-typechecker
-    , unison-prelude
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
 benchmark runtime
   type: exitcode-stdio-1.0
   main-is: Main.hs

@@ -49,6 +49,24 @@ executables:
       - condition: '!os(windows)'
         dependencies: unix
 
+  transcripts:
+    source-dirs: transcripts
+    main: Transcripts.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    dependencies:
+      - base
+      - directory
+      - easytest
+      - filepath
+      - shellmet
+      - process
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-prelude
+    build-tools:
+      - unison-cli:unison
+
 
 when:
   - condition: flag(optimized)

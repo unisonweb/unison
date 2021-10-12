@@ -169,26 +169,6 @@ executables:
       - unison-util
       - unison-util-relation
 
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
-    # TODO: move transcripts to cli package, or preferably avoid shelling-out and run transcripts by calling the implementation directly?
-    # build-tools:
-    #   - unison-cli:unison
-
 benchmarks:
   runtime:
     source-dirs: benchmarks/runtime
