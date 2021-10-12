@@ -51,6 +51,9 @@ cradle:
     - path: "parser-typechecker/benchmarks/runtime"
       component: "unison-parser-typechecker:bench:runtime"
 
+    - path: "codebase-server/src"
+      component: "unison-codebase-server:lib"
+
     - path: "unison-core/src"
       component: "unison-core1:lib"
 
