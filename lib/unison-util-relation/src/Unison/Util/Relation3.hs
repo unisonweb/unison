@@ -96,10 +96,6 @@ insertAll, deleteAll :: Foldable f => Ord a => Ord b => Ord c
 insertAll f r = foldl' (\r x -> uncurry3 insert x r) r f
 deleteAll f r = foldl' (\r x -> uncurry3 delete x r) r f
 
--- relationDiff :: (Ord a, Ord b, Ord c) => Relation3 a b c -> Relation3 a b c -> Relation3 a b c
--- relationDiff (Relation3 a1 b1 c1) (Relation3 a2 b2 c2) = 
---   Relation.relationDiff a b
-
 -- | Compute the difference of two relations.
 difference :: (Ord a, Ord b, Ord c) => Relation3 a b c -> Relation3 a b c -> Relation3 a b c
 difference (Relation3 a1 b1 c1) (Relation3 a2 b2 c2) =
