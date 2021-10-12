@@ -466,47 +466,75 @@ fixupNamesRelative root = Names3.map0 fixName where
     then n
     else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
--- | The output list (of lists) corresponds to the query list.
-searchBranchExact
-  :: Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
-searchBranchExact len names queries =
-  let
-    searchTypes :: HQ.HashQualified Name -> [SR.SearchResult]
-    searchTypes query =
-      -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupRelativeHQType query names
-      in  refs <&> \r ->
-            let prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
-                prioritize =
-                  unsafeUnconsSet . sortOn (\n -> HQ.matchesNamedReference (HQ'.toName n) r query) . Set.toList
-                (primaryName, aliases) =
-                  prioritize (Names3.typeName len r names)
-            in
-              SR.typeResult (HQ'.toHQ primaryName) r (Set.map HQ'.toHQ aliases)
-    searchTerms :: HQ.HashQualified Name -> [SR.SearchResult]
-    searchTerms query =
-      -- a bunch of references will match a HQ ref.
-      let refs = toList $ Names3.lookupRelativeHQTerm query names
-      in  refs <&> \r ->
-            let prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
-                prioritize =
-                  unsafeUnconsSet . sortOn (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query) . Set.toList
-                (primaryName, aliases) =
-                  prioritize (Names3.termName len r names)
-            in
-              SR.termResult (HQ'.toHQ primaryName) r (Set.map HQ'.toHQ aliases)
-  in
-    -- Mitchell says: the `toHQ` here is a bit odd, and indicates to me the types here are not quite right.
-    -- `searchBranchExact` takes queries that definitely have names (`HashQualified'`), but calls out to a search
-    -- function that is capable of finding refs without names (`Names3.lookupRelativeHQType`). Doesn't it therefore seem
-    -- better to instead accept possibly-nameless `HashQualified` as the input to `searchBranchExact` instead?
-    [ searchTypes q <> searchTerms q | (HQ'.toHQ -> q) <- queries ]
+-- | A @Search r@ is a small bag of functions that is used to power a search for @r@s.
+--
+-- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
+data Search r = Search
+  { lookupNames :: r -> Set (HQ'.HashQualified Name),
+    lookupRelativeHQRefs :: HQ.HashQualified Name -> Set r,
+    makeResult :: HQ.HashQualified Name -> r -> Set (HQ.HashQualified Name) -> SR.SearchResult,
+    matchesNamedRef :: Name -> r -> HQ.HashQualified Name -> Bool
+  }
+
+-- | Make a type search, given a short hash length and names to search in.
+makeTypeSearch :: Int -> Names -> Search Reference
+makeTypeSearch len names =
+  Search
+    { lookupNames = \ref -> Names3.typeName len ref names,
+      lookupRelativeHQRefs = \name -> Names3.lookupRelativeHQType name names,
+      matchesNamedRef = HQ.matchesNamedReference,
+      makeResult = SR.typeResult
+    }
+
+-- | Make a term search, given a short hash length and names to search in.
+makeTermSearch :: Int -> Names -> Search Referent
+makeTermSearch len names =
+  Search
+    { lookupNames = \ref -> Names3.termName len ref names,
+      lookupRelativeHQRefs = \name -> Names3.lookupRelativeHQTerm name names,
+      matchesNamedRef = HQ.matchesNamedReferent,
+      makeResult = SR.termResult
+    }
+
+-- | Interpret a 'Search' as a function from name to search results.
+applySearch :: Search r -> HQ.HashQualified Name -> [SR.SearchResult]
+applySearch Search {lookupNames, lookupRelativeHQRefs, makeResult, matchesNamedRef} query =
+  -- a bunch of references will match a HQ ref.
+  toList (lookupRelativeHQRefs query) <&> \ref ->
+    let -- Precondition: the input set is non-empty
+        prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
+        prioritize =
+          unsafeUnconsSet . sortOn (\n -> matchesNamedRef (HQ'.toName n) ref query) . Set.toList
+        (primaryName, aliases) =
+          -- The precondition of `prioritize` should hold here because we are passing in the set of names that are
+          -- related to this ref, which is itself one of the refs that the query name was related to! (Hence it should
+          -- be non-empty).
+          prioritize (lookupNames ref)
+     in makeResult (HQ'.toHQ primaryName) ref (Set.map HQ'.toHQ aliases)
   where
     -- Uncons a non-empty list, and return the tail as a set. Calls 'error' if the given list is empty.
     unsafeUnconsSet :: Ord a => [a] -> (a, Set a)
     unsafeUnconsSet = \case
       [] -> error "unconsSet: empty list"
       x : xs -> (x, Set.fromList xs)
+
+-- | The output list (of lists) corresponds to the query list.
+searchBranchExact ::
+  Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
+searchBranchExact len names queries =
+  -- Mitchell says: the `toHQ` here is a bit odd, and indicates to me the types here are not quite right.
+  -- `searchBranchExact` takes queries that definitely have names (`HashQualified'`), but calls out to a search
+  -- function that is capable of finding refs without names (`Names3.lookupRelativeHQType`). Doesn't it therefore seem
+  -- better to instead accept possibly-nameless `HashQualified` as the input to `searchBranchExact` instead?
+  [applySearch typeSearch q <> applySearch termSearch q | (HQ'.toHQ -> q) <- queries]
+  where
+    typeSearch :: Search Reference
+    typeSearch =
+      makeTypeSearch len names
+
+    termSearch :: Search Referent
+    termSearch =
+      makeTermSearch len names
 
 hqNameQuery
   :: Monad m

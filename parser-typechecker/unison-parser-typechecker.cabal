@@ -207,6 +207,7 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -325,6 +326,7 @@ executable prettyprintdemo
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -389,6 +391,7 @@ executable tests
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -442,6 +445,7 @@ executable transcripts
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -483,6 +487,7 @@ executable unison
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -535,6 +540,7 @@ benchmark runtime
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       ScopedTypeVariables
       TupleSections
       TypeApplications
