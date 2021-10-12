@@ -41,8 +41,8 @@ import Unison.Var (Var)
 import qualified Data.Set as Set
 
 data ResolutionFailure v a
-  = TermResolutionFailure v a (Set Memory.Referent.Referent)
-  | TypeResolutionFailure v a (Set Memory.Reference.Reference)
+  = TermResolutionFailure v a (Names.ResolutionError Memory.Referent.Referent)
+  | TypeResolutionFailure v a (Names.ResolutionError Memory.Reference.Reference)
   | CycleResolutionFailure Hash
   deriving (Eq, Ord, Show)
 
@@ -56,8 +56,8 @@ convertResolutionResult = \case
   Right a -> pure a
   where
     f = \case
-      Names.TermResolutionFailure v a rs -> TermResolutionFailure v a rs
-      Names.TypeResolutionFailure v a rs -> TypeResolutionFailure v a rs
+      Names.TermResolutionFailure v a err -> TermResolutionFailure v a err
+      Names.TypeResolutionFailure v a err -> TypeResolutionFailure v a err
 
 typeToReference ::
   Var v =>

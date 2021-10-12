@@ -72,6 +72,8 @@ import Data.List (find, inits, sortBy, tails)
 import qualified Data.RFC5051 as RFC5051
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+-- import qualified Data.Text.Lazy as Text.Lazy
+-- import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Unison.Hashable as H
 import Unison.NameSegment
   ( NameSegment (NameSegment),
@@ -86,7 +88,18 @@ import qualified Unison.Var as Var
 
 newtype Name = Name {toText :: Text}
   deriving stock (Eq)
-  deriving newtype (Monoid, Semigroup)
+
+-- data Position
+--   = Absolute
+--   | Relative
+
+-- posToTextBuilder :: Position -> Text.Builder.Builder
+-- posToTextBuilder = \case
+--   Absolute -> "."
+--   Relative -> ""
+
+-- data NewName
+--   = NewName Position [NameSegment]
 
 type OldName = Text
 
@@ -94,17 +107,29 @@ oldFromString :: String -> OldName
 oldFromString =
   oldUnsafeFromText . Text.pack
 
+-- newToText :: NewName -> Text
+-- newToText (NewName pos xs) =
+--   Text.Lazy.toStrict (Text.Builder.toLazyText (mconcat (posToTextBuilder pos : map NameSegment.toTextBuilder xs)))
+
 sortNames :: [Name] -> [Name]
 sortNames = sortNamed id
 
 oldSortNames :: [OldName] -> [OldName]
 oldSortNames = oldSortNamed id
 
+-- newSortNames :: [NewName] -> [NewName]
+-- newSortNames =
+--   newSortNamed id
+
 sortNamed :: (a -> Name) -> [a] -> [a]
 sortNamed by = sortByText (toText . by)
 
 oldSortNamed :: (a -> OldName) -> [a] -> [a]
 oldSortNamed = sortByText
+
+-- newSortNamed :: (a -> NewName) -> [a] -> [a]
+-- newSortNamed f =
+--   sortByText (newToText . f)
 
 sortNameds :: (a -> [Name]) -> [a] -> [a]
 sortNameds by = sortByText (Text.intercalate "." . map toText . by)
