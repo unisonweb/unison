@@ -1,9 +1,15 @@
 name: CI
 
-# Build on every push and every pull request (which tests the merge commit).
+
 on:
+  # Build on every pull request (and new PR commit)
   pull_request:
+  # Build on new pushes to trunk (E.g. Merge commits)
+  # Without the branch filter, each commit on a branch with a PR is triggered twice.
+  # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
   push:
+    branches:
+      - trunk
 
 jobs:
   build:
@@ -38,6 +44,7 @@ jobs:
           path: |
             .stack-work
             parser-typechecker/.stack-work
+            cli/.stack-work
             unison-core/.stack-work
             yaks/easytest/.stack-work
             # Main cache key: commit hash. This should always result in a cache miss...
