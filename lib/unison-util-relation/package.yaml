@@ -14,11 +14,23 @@ tests:
     main: Main.hs
     source-dirs: test
 
+benchmarks:
+  relation:
+    source-dirs: benchmarks/relation
+    main: Main.hs
+    dependencies:
+      - base
+      - criterion
+      - containers
+      - unison-util-relation
+      - random
+
 dependencies:
   - base
   - containers
   - extra
   - unison-prelude
+  - deepseq
 
 ghc-options:
   -Wall

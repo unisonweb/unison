@@ -30,6 +30,9 @@ cradle:
     - path: "lib/unison-util-relation/test"
       component: "unison-util-relation:test:tests"
 
+    - path: "lib/unison-util-relation/benchmarks/relation"
+      component: "unison-util-relation:bench:relation"
+
     - path: "parser-typechecker/src"
       component: "unison-parser-typechecker:lib"
 
