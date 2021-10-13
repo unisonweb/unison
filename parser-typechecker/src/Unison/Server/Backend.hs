@@ -518,10 +518,9 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
       [] -> error "unconsSet: empty list"
       x : xs -> (x, Set.fromList xs)
 
--- | The output list (of lists) corresponds to the query list.
-searchBranchExact :: Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
-searchBranchExact len names queries = do
-  [applySearch typeSearch query <> applySearch termSearch query | query <- queries ]
+searchBranchExact :: Int -> Names -> HQ'.HashQualified Name -> [SR.SearchResult]
+searchBranchExact len names query = do
+  applySearch typeSearch query <> applySearch termSearch query
   where
     typeSearch :: Search Reference
     typeSearch =
@@ -554,32 +553,36 @@ hqNameQuery relativeTo root codebase hqs = do
   hqLength <- Codebase.hashLength codebase
   -- We need to construct the names that we want to use / search by.
   let currentPath = fromMaybe Path.empty relativeTo
-      parseNames0 = getCurrentParseNames currentPath root
+      parseNames = getCurrentParseNames currentPath root
       mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
       -- Transform the hash results a bit
       termResults =
-        (\(sh, tms) -> (HQ.HashOnly sh, toList $ mkTermResult sh <$> toList tms)) <$> termRefs
+        (\(sh, tms) -> mkTermResult sh <$> toList tms) <$> termRefs
       typeResults =
-        (\(sh, tps) -> (HQ.HashOnly sh, toList $ mkTypeResult sh <$> toList tps)) <$> typeRefs
-      parseNames = parseNames0
+        (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
       -- Now do the actual name query
-      resultss   = searchBranchExact hqLength parseNames hqnames
+      resultss = map (searchBranchExact hqLength parseNames) hqnames
+      (misses, hits) =
+        zip hqnames resultss
+          & map (\(hqname, results) -> if null results then Left hqname else Right results)
+          & partitionEithers
       -- Handle query misses correctly
       missingRefs =
         [ HQ.HashOnly x
         | x <- hashes
         , isNothing (lookup x termRefs) && isNothing (lookup x typeRefs)
         ]
-      (misses, hits) =
-        List.partition (\(_, results) -> null results) (zip hqs resultss)
       -- Gather the results
       results =
         List.sort
           .   uniqueBy SR.toReferent
+          .   concat
           $   (hits ++ termResults ++ typeResults)
-          >>= snd
-  pure $ QueryResult (missingRefs ++ (fst <$> misses)) results
+  pure QueryResult
+    { misses = missingRefs ++ map HQ'.toHQ misses
+    , hits = results
+    }
 
 -- TODO: Move this to its own module
 data DefinitionResults v =
