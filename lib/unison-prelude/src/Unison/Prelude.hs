@@ -10,6 +10,7 @@ module Unison.Prelude
 where
 
 import Control.Applicative as X
+import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException, try)
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)

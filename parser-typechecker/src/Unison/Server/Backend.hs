@@ -497,26 +497,24 @@ makeTermSearch len names =
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch :: Show r => Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
 applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query =
   -- a bunch of references will match a HQ ref.
   toList (lookupRelativeHQRefs' query) <&> \ref ->
     let -- Precondition: the input set is non-empty
         prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
         prioritize =
-          unsafeUnconsSet . sortOn (\n -> matchesNamedRef (HQ'.toName n) ref query) . Set.toList
+          Set.toList
+            >>> sortOn (\n -> matchesNamedRef (HQ'.toName n) ref query)
+            >>> List.uncons
+            >>> fromMaybe (error (reportBug "E839404" ("query = " ++ show query ++ ", ref = " ++ show ref)))
+            >>> over _2 Set.fromList
         (primaryName, aliases) =
           -- The precondition of `prioritize` should hold here because we are passing in the set of names that are
           -- related to this ref, which is itself one of the refs that the query name was related to! (Hence it should
           -- be non-empty).
           prioritize (lookupNames ref)
      in makeResult (HQ'.toHQ primaryName) ref aliases
-  where
-    -- Uncons a non-empty list, and return the tail as a set. Calls 'error' if the given list is empty.
-    unsafeUnconsSet :: Ord a => [a] -> (a, Set a)
-    unsafeUnconsSet = \case
-      [] -> error "unconsSet: empty list"
-      x : xs -> (x, Set.fromList xs)
 
 searchBranchExact :: Int -> Names -> HQ'.HashQualified Name -> [SR.SearchResult]
 searchBranchExact len names query = do
