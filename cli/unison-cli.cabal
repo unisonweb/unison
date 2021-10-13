@@ -84,6 +84,7 @@ executable unison
   ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       base
+    , bytestring
     , compact
     , configurator
     , directory

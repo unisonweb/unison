@@ -28,6 +28,7 @@ executables:
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
     dependencies:
       - base
+      - bytestring
       - compact
       - configurator
       - directory
