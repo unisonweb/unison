@@ -126,38 +126,6 @@ library:
     - uri-encode
 
 executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - compact
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - optparse-applicative >= 0.16.1.0
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - unison-prelude
-      - uri-encode
-      - unliftio
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
   prettyprintdemo:
     source-dirs: prettyprintdemo
     main: Main.hs
@@ -200,25 +168,6 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
-
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
-    build-tools:
-      - unison-parser-typechecker:unison
 
 benchmarks:
   runtime:

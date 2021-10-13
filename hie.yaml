@@ -42,11 +42,11 @@ cradle:
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:exe:tests"
 
-    - path: "parser-typechecker/transcripts"
-      component: "unison-parser-typechecker:exe:transcripts"
+    - path: "cli/transcripts"
+      component: "unison-cli:exe:transcripts"
 
-    - path: "parser-typechecker/unison"
-      component: "unison-parser-typechecker:exe:unison"
+    - path: "cli/unison"
+      component: "cli:exe:unison"
 
     - path: "parser-typechecker/benchmarks/runtime"
       component: "unison-parser-typechecker:bench:runtime"
