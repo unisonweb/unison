@@ -861,7 +861,7 @@ typedecl =
 verifyRelativeVarName :: Var v => P v (L.Token v) -> P v (L.Token v)
 verifyRelativeVarName p = do
   v <- p
-  verifyRelativeName' (Name.fromVar <$> v)
+  verifyRelativeName' (Name.unsafeFromVar <$> v)
   pure v
 
 verifyRelativeName :: Ord v => P v (L.Token Name) -> P v (L.Token Name)
@@ -929,11 +929,11 @@ binding = label "binding" $ do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
-      verifyRelativeName' (fmap Name.fromVar name)
+      verifyRelativeName' (fmap Name.unsafeFromVar name)
       pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
-      verifyRelativeName' (fmap Name.fromVar name)
+      verifyRelativeName' (fmap Name.unsafeFromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
@@ -1009,7 +1009,7 @@ substImports ns imports =
     | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound
                                    -- not in Names, but in a later term binding
   Term.substTypeVars [ (suffix, Type.var () full)
-    | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
+    | (suffix, full) <- imports, Names.hasTypeNamed (Name.unsafeFromVar full) ns ]
 
 block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
 block' isTop = block'' isTop False

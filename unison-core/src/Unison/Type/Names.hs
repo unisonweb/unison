@@ -28,7 +28,7 @@ bindNames
 bindNames keepFree ns0 t = let
   ns = Names.Names ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
+  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.unsafeFromVar v) ns) | (v,a) <- fvs ]
   ok (v, a, rs) = 
     if Set.size rs == 1 
        then pure (v, Set.findMin rs)

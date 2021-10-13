@@ -125,7 +125,7 @@ hashDecls decls = do
       varToRef' = second Reference.DerivedId <$> varToRef
       decls' = bindTypes <$> decls
       bindTypes dd = dd {constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd}
-      typeReferences = Map.fromList (first Name.fromVar <$> varToRef')
+      typeReferences = Map.fromList (first Name.unsafeFromVar <$> varToRef')
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd {constructors' = sortOn hash3 $ constructors' dd}
       hash3 (_, _, typ) = ABT.hash typ :: Hash

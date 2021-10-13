@@ -4,6 +4,7 @@ module Unison.Core.Test.Name where
 
 import           EasyTest
 import           Unison.Name                   as Name
+import           Unison.OldName                as Name
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Util.Relation          as R
 import           Data.List.NonEmpty             ( NonEmpty(..) )
@@ -107,10 +108,6 @@ test = scope "name" $ tests
         n1 <- rname
         n2 <- rname
         Name.endsWithSegments n1 n2 `expectEqual` Name.oldEndsWithSegments (old n1) (old n2)
-
-      scope "fromString" do
-        s1 <- rstring
-        Name.fromString s1 `expectEqual` Name.oldFromString s1
 
       scope "isPrefixOf" do
         n1 <- rname
