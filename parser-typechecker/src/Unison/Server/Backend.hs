@@ -471,9 +471,9 @@ fixupNamesRelative root = Names3.map0 fixName where
 -- Construct a 'Search' with 'makeTypeSearch' or 'makeTermSearch', and eliminate it with 'applySearch'.
 data Search r = Search
   { lookupNames :: r -> Set (HQ'.HashQualified Name),
-    lookupRelativeHQRefs :: HQ.HashQualified Name -> Set r,
+    lookupRelativeHQRefs' :: HQ'.HashQualified Name -> Set r,
     makeResult :: HQ.HashQualified Name -> r -> Set (HQ.HashQualified Name) -> SR.SearchResult,
-    matchesNamedRef :: Name -> r -> HQ.HashQualified Name -> Bool
+    matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
 -- | Make a type search, given a short hash length and names to search in.
@@ -481,8 +481,8 @@ makeTypeSearch :: Int -> Names -> Search Reference
 makeTypeSearch len names =
   Search
     { lookupNames = \ref -> Names3.typeName len ref names,
-      lookupRelativeHQRefs = \name -> Names3.lookupRelativeHQType name names,
-      matchesNamedRef = HQ.matchesNamedReference,
+      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQType' name names,
+      matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
 
@@ -491,16 +491,16 @@ makeTermSearch :: Int -> Names -> Search Referent
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> Names3.termName len ref names,
-      lookupRelativeHQRefs = \name -> Names3.lookupRelativeHQTerm name names,
-      matchesNamedRef = HQ.matchesNamedReferent,
+      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQTerm' name names,
+      matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
 
 -- | Interpret a 'Search' as a function from name to search results.
-applySearch :: Search r -> HQ.HashQualified Name -> [SR.SearchResult]
-applySearch Search {lookupNames, lookupRelativeHQRefs, makeResult, matchesNamedRef} query =
+applySearch :: Search r -> HQ'.HashQualified Name -> [SR.SearchResult]
+applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamedRef} query =
   -- a bunch of references will match a HQ ref.
-  toList (lookupRelativeHQRefs query) <&> \ref ->
+  toList (lookupRelativeHQRefs' query) <&> \ref ->
     let -- Precondition: the input set is non-empty
         prioritize :: Set (HQ'.HashQualified Name) -> (HQ'.HashQualified Name, Set (HQ'.HashQualified Name))
         prioritize =
@@ -519,14 +519,9 @@ applySearch Search {lookupNames, lookupRelativeHQRefs, makeResult, matchesNamedR
       x : xs -> (x, Set.fromList xs)
 
 -- | The output list (of lists) corresponds to the query list.
-searchBranchExact ::
-  Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
-searchBranchExact len names queries =
-  -- Mitchell says: the `toHQ` here is a bit odd, and indicates to me the types here are not quite right.
-  -- `searchBranchExact` takes queries that definitely have names (`HashQualified'`), but calls out to a search
-  -- function that is capable of finding refs without names (`Names3.lookupRelativeHQType`). Doesn't it therefore seem
-  -- better to instead accept possibly-nameless `HashQualified` as the input to `searchBranchExact` instead?
-  [applySearch typeSearch q <> applySearch termSearch q | (HQ'.toHQ -> q) <- queries]
+searchBranchExact :: Int -> Names -> [HQ'.HashQualified Name] -> [[SR.SearchResult]]
+searchBranchExact len names queries = do
+  [applySearch typeSearch query <> applySearch termSearch query | query <- queries ]
   where
     typeSearch :: Search Reference
     typeSearch =
