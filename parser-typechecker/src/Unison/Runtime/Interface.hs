@@ -11,8 +11,8 @@ module Unison.Runtime.Interface
   ( startRuntime
   , standalone
   , runStandalone
-  , readCompiledHeader
   , StoredCache
+  , decodeStandalone
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -22,13 +22,11 @@ import Control.Concurrent.STM as STM
 import Control.Exception (try, catch)
 import Control.Monad
 
-import Data.Bits (shiftL, shiftR, (.|.), (.&.))
+import Data.Bits (shiftL)
 import Data.Bytes.Serial
-import Data.Bytes.Get (runGetS)
-import Data.Bytes.Put (runPutS)
-import qualified Data.ByteString as B
-import Data.Compact (compactWithSharing)
-import Data.Compact.Serialize (hPutCompact)
+import Data.Bytes.Get (MonadGet, runGetL)
+import Data.Bytes.Put (MonadPut, runPutL)
+import qualified Data.ByteString.Lazy as BL
 import Data.Bifunctor (first,second)
 import Data.Functor ((<&>))
 import Data.IORef
@@ -37,12 +35,11 @@ import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
 import Data.Map.Strict (Map)
 import Data.Traversable (for)
-import Data.Text (Text, isPrefixOf, unpack)
+import Data.Text (Text, isPrefixOf, pack)
 import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
 
-import System.IO (IOMode(WriteMode), withFile, Handle)
 import System.Info (os, arch)
 
 import qualified Unison.ABT as Tm (substs)
@@ -69,6 +66,7 @@ import Unison.Symbol (Symbol)
 import Unison.TermPrinter
 
 import Unison.Runtime.ANF
+import Unison.Runtime.ANF.Serialize (getGroup, putGroup)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
@@ -80,7 +78,9 @@ import Unison.Runtime.Machine
 import Unison.Runtime.MCode
   ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
   , RefNums(..), emptyRNs, emitComb)
+import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Pattern
+import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import qualified Unison.Hashing.V2.Convert as Hashing
 
@@ -389,29 +389,17 @@ catchInternalErrors
   -> IO (Either Error a)
 catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
 
-compiledHeader :: String -> Text -> B.ByteString
-compiledHeader version hash
-  = nb <> str
-  where
-  n = B.length str
-  f i = fromIntegral $ (n `shiftR` i) .&. 0xff
-  nb = B.pack . fmap (f . (*8)) $ [0..3]
-  str = runPutS $ do
-    serialize version
-    serialize os
-    serialize arch
-    serialize (unpack hash)
-
-readCompiledHeader
-  :: Handle -> IO (Either String (String, String, String, String))
-readCompiledHeader h = do
-  bl <- B.hGet h 4
-  let l = foldr g 0 (B.unpack bl)
-  bs <- B.hGet h l
-  pure . flip runGetS bs $
-    (,,,) <$> deserialize <*> deserialize <*> deserialize <*> deserialize
-  where
-  g i r = fromIntegral i .|. (r `shiftL` 8)
+decodeStandalone
+  :: BL.ByteString
+  -> (Text, Text, Text, Text, Word64, StoredCache)
+decodeStandalone = runGetL $
+  (,,,,,)
+    <$> deserialize
+    <*> deserialize
+    <*> deserialize
+    <*> deserialize
+    <*> getNat
+    <*> getStoredCache
 
 startRuntime :: String -> IO (Runtime Symbol)
 startRuntime version = do
@@ -432,10 +420,13 @@ startRuntime version = do
            let cc = ccache ctx
            Just w <- Map.lookup rf <$> readTVarIO (refTm cc)
            sto <- standalone cc w
-           cmp <- compactWithSharing (w, sto)
-           withFile path WriteMode $ \h -> do
-             B.hPut h $ compiledHeader version (RF.showShort 8 rf)
-             hPutCompact h cmp
+           BL.writeFile path . runPutL $ do
+             serialize $ pack version
+             serialize $ pack os
+             serialize $ pack arch
+             serialize $ RF.showShort 8 rf
+             putNat w
+             putStoredCache sto
        , mainType = builtinMain External
        , ioTestType = builtinTest External
        }
@@ -460,6 +451,29 @@ data StoredCache
       (Map Reference (SuperGroup Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+  deriving (Show)
+
+putStoredCache :: MonadPut m => StoredCache -> m ()
+putStoredCache (SCache cs crs trs ftm fty int rtm rty) = do
+  putEnumMap putNat (putEnumMap putNat putComb) cs
+  putEnumMap putNat putReference crs
+  putEnumMap putNat putReference trs
+  putNat ftm
+  putNat fty
+  putMap putReference putGroup int
+  putMap putReference putNat rtm
+  putMap putReference putNat rty
+
+getStoredCache :: MonadGet m => m StoredCache
+getStoredCache = SCache
+  <$> getEnumMap getNat (getEnumMap getNat getComb)
+  <*> getEnumMap getNat getReference
+  <*> getEnumMap getNat getReference
+  <*> getNat
+  <*> getNat
+  <*> getMap getReference getGroup
+  <*> getMap getReference getNat
+  <*> getMap getReference getNat
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty)

@@ -11,13 +11,11 @@ module Main where
 import Control.Concurrent (newEmptyMVar, takeMVar)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
-import Data.Compact (getCompact)
-import Data.Compact.Serialize (hUnsafeGetCompact)
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
-import System.IO (IOMode(ReadMode), withFile)
 import System.Info (os, arch)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
@@ -127,22 +125,16 @@ main = do
             ShouldNotDownloadBase
             initRes
           closeCodebase
-     Run (RunCompiled file) -> withFile file ReadMode $ \h ->
-       RTI.readCompiledHeader h >>= \case
-         Left _ -> putStrLn "Could not read compiled file header."
-         Right (v,o,a,rf)
+     Run (RunCompiled file) -> BL.readFile file >>= \bs ->
+       case RTI.decodeStandalone bs of
+         (v,o,a,rf, w, sto)
            | not vmatch -> mismatchMsg
-           | otherwise -> hUnsafeGetCompact h >>= \case
-             Left err ->
-               PT.putPrettyLn . P.callout "⚠️"
-                $ "I could not load the specified binary output.\n"
-               <> fromString err
-             Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
+           | otherwise -> RTI.runStandalone sto w
            where
-           vmatch = v == Version.gitDescribeWithDate
-                 && o == os
-                 && a == arch
-           ws s = P.wrap (P.string s)
+           vmatch = v == Text.pack Version.gitDescribeWithDate
+                 && o == Text.pack os
+                 && a == Text.pack arch
+           ws s = P.wrap (P.text s)
            ifile | 'c':'u':'.':rest <- reverse file = reverse rest
                  | otherwise = file
            mismatchMsg = PT.putPrettyLn . P.lines $
@@ -152,7 +144,7 @@ main = do
              , ""
              , "Compiled file version"
              , P.indentN 4
-               $ P.string v <> " for " <> P.string o <> " " <> P.string a
+               $ P.text v <> " for " <> P.text o <> " " <> P.text a
              , ""
              , "Your version"
              , P.indentN 4
@@ -160,13 +152,13 @@ main = do
                <> P.string os <> " " <> P.string arch
              , ""
              , P.wrap $ "The program was compiled from hash "
-                 <> (P.string $ "`" ++ rf ++ "`.")
+                 <> (P.text $ "`" <> rf <> "`.")
                  <> "If you have that hash in your codebase,"
                  <> "you can do:"
              , ""
              , P.indentN 4
                $ ".> compile.output "
-                 <> P.string rf <> " " <> P.string ifile
+                 <> P.text rf <> " " <> P.string ifile
              , ""
              , P.wrap "to produce a new compiled program \
                \that matches your version of Unison."
