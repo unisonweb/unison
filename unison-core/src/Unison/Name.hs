@@ -231,18 +231,17 @@ stripNamePrefix (Name p0 ss0) (Name p1 ss1) = do
 
 -- suffixes foo.bar.baz  -> [foo.bar.baz, bar.baz, baz]
 -- suffixes .foo.bar.baz -> [foo.bar.baz, bar.baz, baz]
--- FIXME check if this is used
 suffixes :: Name -> [Name]
-suffixes (Name _ ss0) = do
-  ss <- List.NonEmpty.tail (List.NonEmpty.inits ss0)
-  -- fromList is safe here because all elements of `tail . inits` are non-empty
-  pure (Name Relative (List.NonEmpty.fromList ss))
+suffixes =
+  reverse . suffixes'
 
 -- suffixes' foo.bar.baz  -> [baz, bar.baz, foo.bar.baz]
 -- suffixes' .foo.bar.baz -> [baz, bar.baz, foo.bar.baz]
 suffixes' :: Name -> [Name]
-suffixes' =
-  reverse . suffixes'
+suffixes' (Name _ ss0) = do
+  ss <- List.NonEmpty.tail (List.NonEmpty.inits ss0)
+  -- fromList is safe here because all elements of `tail . inits` are non-empty
+  pure (Name Relative (List.NonEmpty.fromList ss))
 
 -- suffixFrom Int builtin.Int.+ ==> Int.+
 -- suffixFrom Int Int.negate    ==> Int.negate
