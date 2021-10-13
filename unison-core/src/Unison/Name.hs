@@ -138,7 +138,11 @@ joinDot :: HasCallStack => Name -> Name -> Name
 joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
   case p1 of
     Relative -> Name p0 (ss1 <> ss0)
-    Absolute -> error ("joinDot " ++ show n1 ++ " " ++ show n2)
+    Absolute ->
+      error $
+        reportBug
+          "E261635"
+          ("joinDot: second name cannot be absolute. (name 1 = " ++ show n1 ++ ", name 2 = " ++ show n2 ++ ")")
 
 makeAbsolute :: Name -> Name
 makeAbsolute (Name _ ss) =
@@ -375,10 +379,9 @@ unsafeFromText = \case
     go name =
       if ".." `Text.isSuffixOf` name
         then "." :| split (Text.dropEnd 2 name)
-        else
-          case split name of
-            [] -> error "empty name"
-            s : ss -> s :| ss
+        else case split name of
+          [] -> error "empty name"
+          s : ss -> s :| ss
 
     split :: Text -> [NameSegment]
     split =

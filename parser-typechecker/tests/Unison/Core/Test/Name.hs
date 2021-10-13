@@ -17,28 +17,28 @@ test =
   scope "name" $
     tests
       [ scope "unsafeFromString" $
-          tests [
-            scope "." do
-              expectEqual' (isAbsolute ".") False
-              expectEqual' (segments ".") ("." :| [])
-              ok,
-            scope ".." do
-              expectEqual' (isAbsolute "..") True
-              expectEqual' (segments "..") ("." :| [])
-              ok,
-            scope "foo.bar" do
-              expectEqual' (isAbsolute "foo.bar") False
-              expectEqual' (segments "foo.bar") ("foo" :| ["bar"])
-              ok,
-            scope ".foo.bar" do
-              expectEqual' (isAbsolute ".foo.bar") True
-              expectEqual' (segments ".foo.bar") ("foo" :| ["bar"])
-              ok,
-            scope "foo.." do
-              expectEqual' (isAbsolute "foo..") False
-              expectEqual' (segments "foo..") ("foo" :| ["."])
-              ok
-          ],
+          tests
+            [ scope "." do
+                expectEqual' (isAbsolute ".") False
+                expectEqual' (segments ".") ("." :| [])
+                ok,
+              scope ".." do
+                expectEqual' (isAbsolute "..") True
+                expectEqual' (segments "..") ("." :| [])
+                ok,
+              scope "foo.bar" do
+                expectEqual' (isAbsolute "foo.bar") False
+                expectEqual' (segments "foo.bar") ("foo" :| ["bar"])
+                ok,
+              scope ".foo.bar" do
+                expectEqual' (isAbsolute ".foo.bar") True
+                expectEqual' (segments ".foo.bar") ("foo" :| ["bar"])
+                ok,
+              scope "foo.." do
+                expectEqual' (isAbsolute "foo..") False
+                expectEqual' (segments "foo..") ("foo" :| ["."])
+                ok
+            ],
         scope "suffixes" $
           tests
             [ scope "one namespace" $ expectEqual (suffixes "bar") ["bar"],
@@ -149,7 +149,9 @@ test =
           scope "joinDot" do
             n1 <- rname
             n2 <- rname
-            old (Name.joinDot n1 n2) `expectEqual` Name.oldJoinDot (old n1) (old n2)
+            if Name.isAbsolute n2
+              then skip
+              else old (Name.joinDot n1 n2) `expectEqual` Name.oldJoinDot (old n1) (old n2)
 
           scope "makeAbsolute" do
             n1 <- rname
