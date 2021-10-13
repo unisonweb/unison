@@ -1,7 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Names3 where
 
@@ -15,6 +12,7 @@ import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import Unison.Reference as Reference
 import Unison.Referent as Referent
+import Unison.ShortHash (ShortHash)
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -25,7 +23,15 @@ import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 
-data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
+data Names = Names
+  { -- | currentNames represent references which are named in the current version of the namespace.
+    currentNames :: Names0,
+    -- | oldNames represent things which no longer have names in the current version of the
+    -- codebase, but which may have previously had names. This may allow us to show more helpful
+    -- context to users rather than just a hash.
+    oldNames :: Names0
+  }
+  deriving (Show)
 
 type Names0 = Unison.Names2.Names0
 pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n
@@ -119,35 +125,34 @@ shadowing :: Names0 -> Names -> Names
 shadowing prio (Names current old) =
   Names (prio `unionLeftName0` current) (current <> old)
 
-makeAbsolute0:: Names0 -> Names0
+makeAbsolute0 :: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
 -- returning types with absolute names.
 lookupRelativeHQType :: HashQualified Name -> Names -> Set Reference
-lookupRelativeHQType hq ns@Names{..} = let
-  rs = lookupHQType hq ns
-  keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types currentNames))
-  in case Set.filter keep rs of
-       rs' | Set.null rs' -> rs
-           | otherwise    -> rs'
+lookupRelativeHQType hq ns@Names {..} =
+  let rs = lookupHQType hq ns
+      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.types currentNames))
+   in case Set.filter keep rs of
+        rs'
+          | Set.null rs' -> rs
+          | otherwise -> rs'
 
--- Find all types whose name has a suffix matching the provided `HashQualified`.
+lookupRelativeHQType' :: HQ'.HashQualified Name -> Names -> Set Reference
+lookupRelativeHQType' =
+  lookupRelativeHQType . HQ'.toHQ
+
+-- | Find all types whose name has a suffix matching the provided 'HashQualified'.
 lookupHQType :: HashQualified Name -> Names -> Set Reference
-lookupHQType hq Names{..} = case hq of
-  HQ.NameOnly n -> Name.searchBySuffix n (Names.types currentNames)
-  HQ.HashQualified n sh -> case matches sh (Names.types currentNames) of
-    s | (not . null) s -> s
-      | otherwise -> matches sh (Names.types oldNames)
-    where
-    matches sh ns =
-      Set.filter (Reference.isPrefixOf sh) (Name.searchBySuffix n ns)
-  HQ.HashOnly sh -> case matches sh currentNames of
-    s | (not . null) s -> s
-      | otherwise -> matches sh oldNames
-    where
-    matches sh ns = Set.filter (Reference.isPrefixOf sh) (R.ran $ Names.types ns)
+lookupHQType =
+  lookupHQRef Names.types Reference.isPrefixOf
+
+-- | Find all types whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQType'.
+lookupHQType' :: HQ'.HashQualified Name -> Names -> Set Reference
+lookupHQType' =
+  lookupHQType . HQ'.toHQ
 
 hasTermNamed :: Name -> Names -> Bool
 hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
@@ -159,28 +164,66 @@ hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
 -- returning terms with relative names if they exist, and otherwise
 -- returning terms with absolute names.
 lookupRelativeHQTerm :: HashQualified Name -> Names -> Set Referent
-lookupRelativeHQTerm hq ns@Names{..} = let
-  rs = lookupHQTerm hq ns
-  keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms currentNames))
-  in case Set.filter keep rs of
-       rs' | Set.null rs' -> rs
-           | otherwise    -> rs'
+lookupRelativeHQTerm hq ns@Names {..} =
+  let rs = lookupHQTerm hq ns
+      keep r = any (not . Name.isAbsolute) (R.lookupRan r (Names.terms currentNames))
+   in case Set.filter keep rs of
+        rs'
+          | Set.null rs' -> rs
+          | otherwise -> rs'
 
--- Find all terms whose name has a suffix matching the provided `HashQualified`.
+lookupRelativeHQTerm' :: HQ'.HashQualified Name -> Names -> Set Referent
+lookupRelativeHQTerm' =
+  lookupRelativeHQTerm . HQ'.toHQ
+
+-- | Find all terms whose name has a suffix matching the provided 'HashQualified'.
+--
+-- If the hash-qualified name does not include a hash, then only current names are searched. Otherwise, old names are
+-- searched, too, if searching current names produces no hits.
 lookupHQTerm :: HashQualified Name -> Names -> Set Referent
-lookupHQTerm hq Names{..} = case hq of
-  HQ.NameOnly n -> Name.searchBySuffix n (Names.terms currentNames)
-  HQ.HashQualified n sh -> case matches sh (Names.terms currentNames) of
-    s | (not . null) s -> s
-      | otherwise -> matches sh (Names.terms oldNames)
-    where
-    matches sh ns =
-      Set.filter (Referent.isPrefixOf sh) (Name.searchBySuffix n ns)
-  HQ.HashOnly sh -> case matches sh currentNames of
-    s | (not . null) s -> s
-      | otherwise -> matches sh oldNames
-    where
-    matches sh ns = Set.filter (Referent.isPrefixOf sh) (R.ran $ Names.terms ns)
+lookupHQTerm =
+  lookupHQRef Names.terms Referent.isPrefixOf
+
+-- | Find all terms whose name has a suffix matching the provided 'HashQualified''. See 'lookupHQTerm'.
+lookupHQTerm' :: HQ'.HashQualified Name -> Names -> Set Referent
+lookupHQTerm' =
+  lookupHQTerm . HQ'.toHQ
+
+-- Helper that unifies looking up a set of references/referents by a hash-qualified suffix.
+--
+-- See 'lookupHQTerm', 'lookupHQType' for monomorphic versions.
+lookupHQRef ::
+  forall r.
+  Ord r =>
+  -- | A projection of types or terms from a Names0.
+  (Names0 -> Relation Name r) ->
+  -- | isPrefixOf, for references or referents
+  (ShortHash -> r -> Bool) ->
+  -- | The name to look up
+  HashQualified Name ->
+  Names ->
+  Set r
+lookupHQRef which isPrefixOf hq Names {currentNames, oldNames} =
+  case hq of
+    HQ.NameOnly n -> Name.searchBySuffix n currentRefs
+    HQ.HashQualified n sh -> matches currentRefs `orIfEmpty` matches oldRefs
+      where
+        matches :: Relation Name r -> Set r
+        matches ns =
+          Set.filter (isPrefixOf sh) (Name.searchBySuffix n ns)
+    HQ.HashOnly sh -> matches currentRefs `orIfEmpty` matches oldRefs
+      where
+        matches :: Relation Name r -> Set r
+        matches ns =
+          Set.filter (isPrefixOf sh) (R.ran ns)
+  where
+    currentRefs = which currentNames
+    oldRefs = which oldNames
+
+    -- (xs `orIfEmpty` ys) returns xs if it's non-empty, otherwise ys
+    orIfEmpty :: Set a -> Set a -> Set a
+    orIfEmpty xs ys =
+      if Set.null xs then ys else xs
 
 -- If `r` is in "current" names, look up each of its names, and hash-qualify
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up

@@ -12,16 +12,17 @@ import qualified Data.Text                    as Text
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
+import GHC.Stack (HasCallStack)
 import qualified Text.Regex.TDFA              as RE
 import           Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
-import           Unison.HashQualified'        (HashQualified)
-import qualified Unison.HashQualified'        as HQ
+import qualified Unison.HashQualified         as HQ
+import qualified Unison.HashQualified'        as HQ'
 import qualified Unison.Name                  as Name
 import           Unison.Name                  ( Name )
 import qualified Unison.Names2                as Names
 import           Unison.Names2                ( Names0 )
-import           Unison.NamePrinter           (prettyHashQualified')
+import           Unison.NamePrinter           (prettyHashQualified)
 import qualified Unison.Reference             as Reference
 import qualified Unison.Referent              as Referent
 import qualified Unison.ShortHash             as SH
@@ -113,30 +114,37 @@ fuzzyFindMatchArray query items render =
   -- Ord MatchArray already provides a. and b.  todo: c.
 
 prefixFindInBranch ::
-  Names0 -> HashQualified Name -> [(SearchResult, P.Pretty P.ColorText)]
+  Names0 -> HQ'.HashQualified Name -> [(SearchResult, P.Pretty P.ColorText)]
 prefixFindInBranch b hq = fmap getName $
-  case HQ.toName hq of
-    -- query string includes a name component, so do a prefix find on that
-    (Name.toString -> n) ->
-      filter (filterName n) (candidates b hq)
+  -- query string includes a name component, so do a prefix find on that
+  filter (filterName (HQ'.toName hq)) (candidates b hq)
   where
-  filterName n sr =
-    fromString n `Name.isPrefixOf` (HQ.toName . SR.name) sr
+  filterName :: Name -> SearchResult -> Bool
+  filterName n1 sr =
+    fromMaybe False do
+      n2 <- HQ.toName (SR.name sr)
+      pure (n1 `Name.isPrefixOf` n2)
 
 -- only search before the # before the # and after the # after the #
-fuzzyFindInBranch :: Names0
-                  -> HashQualified Name
+fuzzyFindInBranch :: HasCallStack
+                  => Names0
+                  -> HQ'.HashQualified Name
                   -> [(SearchResult, P.Pretty P.ColorText)]
 fuzzyFindInBranch b hq =
-  case HQ.toName hq of
-    (Name.toString -> n) ->
-      simpleFuzzyFinder n (candidates b hq)
-        (Name.toString . HQ.toName . SR.name)
+  simpleFuzzyFinder 
+    (Name.toString (HQ'.toName hq)) 
+    (candidates b hq)
+    (\sr ->
+      case HQ.toName (SR.name sr) of
+        -- see invariant on `candidates` below.
+        Nothing -> error "search result without name"
+        Just name -> Name.toString name)
 
 getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)
-getName sr = (sr, P.syntaxToColor $ prettyHashQualified' (SR.name sr))
+getName sr = (sr, P.syntaxToColor $ prettyHashQualified (SR.name sr))
 
-candidates :: Names.Names' Name.Name -> HashQualified Name -> [SearchResult]
+-- Invariant: all `SearchResult` in the output will have names, even though the type allows them to have only hashes
+candidates :: Names.Names' Name.Name -> HQ'.HashQualified Name -> [SearchResult]
 candidates b hq = typeCandidates <> termCandidates
   where
   -- filter branch by hash
@@ -144,16 +152,14 @@ candidates b hq = typeCandidates <> termCandidates
     fmap typeResult . filterTypes . R.toList . Names.types $ b
   termCandidates =
     fmap termResult . filterTerms . R.toList . Names.terms $ b
-  filterTerms = case HQ.toHash hq of
+  filterTerms = case HQ'.toHash hq of
     Just sh -> List.filter $ SH.isPrefixOf sh . Referent.toShortHash . snd
     Nothing -> id
-  filterTypes = case HQ.toHash hq of
+  filterTypes = case HQ'.toHash hq of
     Just sh -> List.filter $ SH.isPrefixOf sh . Reference.toShortHash. snd
     Nothing -> id
-  typeResult (n, r) = SR.typeResult (Names._hqTypeName b n r) r
-                                    (Names._hqTypeAliases b n r)
-  termResult (n, r) = SR.termResult (Names._hqTermName b n r) r
-                                    (Names._hqTermAliases b n r)
+  typeResult (n, r) = SR.typeSearchResult b n r
+  termResult (n, r) = SR.termSearchResult b n r
 
 type Pos = Int
 type Len = Int

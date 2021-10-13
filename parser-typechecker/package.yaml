@@ -12,6 +12,8 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
@@ -119,42 +121,13 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-prelude
     - unison-util
+    - unison-util-relation
     - open-browser
     - uri-encode
 
 executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - compact
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - optparse-applicative >= 0.16.1.0
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - uri-encode
-      - unliftio
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
   prettyprintdemo:
     source-dirs: prettyprintdemo
     main: Main.hs
@@ -194,25 +167,9 @@ executables:
       - unliftio
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
       - unison-util
-
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-    build-tools:
-      - unison-parser-typechecker:unison
+      - unison-util-relation
 
 benchmarks:
   runtime:

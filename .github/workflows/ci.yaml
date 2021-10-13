@@ -1,9 +1,16 @@
 name: CI
 
-# Build on every push and every pull request (which tests the merge commit).
 on:
+  # Build on every pull request (and new PR commit)
   pull_request:
+  # Build on new pushes to trunk (E.g. Merge commits)
+  # Without the branch filter, each commit on a branch with a PR is triggered twice.
+  # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
   push:
+    branches:
+      - trunk
+    tags:
+      - release/*
 
 jobs:
   build:
@@ -85,3 +92,5 @@ jobs:
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      - name: other test suites
+        run: stack --no-terminal test unison-util-relation

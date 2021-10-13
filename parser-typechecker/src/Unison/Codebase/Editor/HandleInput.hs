@@ -352,8 +352,8 @@ loop = do
           let tpRefs = Set.fromList $ typeReferences hits
               tmRefs = Set.fromList $ termReferences hits
               misses = Set.difference (Set.fromList misses') if isTerm
-                then Set.fromList $ HQ'.toHQ . SR.termName <$> termResults hits
-                else Set.fromList $ HQ'.toHQ . SR.typeName <$> typeResults hits
+                then Set.fromList $ SR.termName <$> termResults hits
+                else Set.fromList $ SR.typeName <$> typeResults hits
               go :: Reference -> Action m (Either Event Input) v ()
               go fr = do
                 let termPatch =
@@ -1227,11 +1227,14 @@ loop = do
               ExceptT (parseSearchType input (unwords ws)) >>= \typ ->
                 ExceptT $ do
                   let named = Branch.deepReferents root0
-                  matches <- fmap toList . eval $ GetTermsOfType typ
-                  matches <- filter (`Set.member` named) <$>
+                  matches <-
+                    fmap (filter (`Set.member` named) . toList) $
+                      eval $ GetTermsOfType typ
+                  matches <-
                     if null matches then do
                       respond NoExactTypeMatches
-                      fmap toList . eval $ GetTermsMentioningType typ
+                      fmap (filter (`Set.member` named) . toList) $
+                        eval $ GetTermsMentioningType typ
                     else pure matches
                   let results =
                       -- in verbose mode, aliases are shown, so we collapse all
@@ -1290,14 +1293,14 @@ loop = do
             --- [X] [Term]
             -- Type hits are term misses
             termFromMisses = fromMisses'
-                       <> (HQ'.toHQ . SR.typeName <$> typeResults fromHits)
+                       <> (SR.typeName <$> typeResults fromHits)
             termToMisses = toMisses'
-                       <> (HQ'.toHQ . SR.typeName <$> typeResults toHits)
+                       <> (SR.typeName <$> typeResults toHits)
             -- Term hits are type misses
             typeFromMisses = fromMisses'
-                       <> (HQ'.toHQ . SR.termName <$> termResults fromHits)
+                       <> (SR.termName <$> termResults fromHits)
             typeToMisses = toMisses'
-                       <> (HQ'.toHQ . SR.termName <$> termResults toHits)
+                       <> (SR.termName <$> termResults toHits)
 
             termMisses = termFromMisses <> termToMisses
             typeMisses = typeFromMisses <> typeToMisses
@@ -2102,9 +2105,9 @@ listBranch (Branch.toNames0 -> b) =
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
 searchResultToHQString = \case
-  SR.Tm' n r _ -> HQ'.toString $ HQ'.requalify n r
-  SR.Tp' n r _ -> HQ'.toString $ HQ'.requalify n (Referent.Ref r)
-  _ -> error "unpossible match failure"
+  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
+  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  _ -> error "impossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 fuzzyNameDistance :: Name -> Name -> Maybe Int

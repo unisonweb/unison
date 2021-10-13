@@ -29,7 +29,7 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
@@ -122,7 +122,6 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
-import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
@@ -262,6 +261,9 @@ s2cReferent = bitraverse s2cReference s2cReference
 
 s2cReferentId :: EDB m => S.Referent.Id -> m C.Referent.Id
 s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
+
+c2sReferentId :: EDB m => C.Referent.Id -> m S.Referent.Id
+c2sReferentId = bitraverse primaryHashToExistingObjectId primaryHashToExistingObjectId
 
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
@@ -427,7 +429,6 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
-
 saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
 saveTermComponent h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
@@ -462,17 +463,11 @@ saveTermComponent h terms = do
          in Set.map (,self) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
-  -- populate type indexes
-  for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
-    let self = C.Referent.RefId (C.Reference.Id oId i)
-        typeForIndexing = TypeUtil.removeAllEffectVars tp
-        typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-        saveReferentH = bitraverse Q.saveText Q.saveHashHash
-    typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
-    Q.addToTypeIndex typeReferenceForIndexing self
-    traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
-
   pure oId
+
+-- | Save the text and hash parts of a Reference to the database and substitute their ids.
+saveReferenceH :: DB m => C.Reference' Text H.Hash -> m (C.Reference' Db.TextId Db.HashId)
+saveReferenceH = bitraverse Q.saveText Q.saveHashHash
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
@@ -730,7 +725,7 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
+saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol)] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
@@ -750,20 +745,6 @@ saveDeclComponent h decls = do
             getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
          in Set.mapMaybe (fmap (,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
-
-  -- populate type indexes
-  for_
-    (zip decls [0 ..])
-    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_
-      (zip ctorTypes [0 ..])
-      \(tp, j) -> do
-        let self = C.Referent.ConId (C.Reference.Id oId i) j
-            typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
-            typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
-            typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-            saveReferentH = bitraverse Q.saveText Q.saveHashHash
-        flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
-        traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
 
   pure oId
 
@@ -1277,6 +1258,15 @@ termsMentioningType cTypeRef = do
   pure case maySet of
     Nothing -> mempty
     Just set -> Set.fromList set
+
+addTypeToIndexForTerm :: EDB m => S.Referent.Id -> C.Reference -> m ()
+addTypeToIndexForTerm sTermId cTypeRef = do
+  sTypeRef <- saveReferenceH cTypeRef
+  Q.addToTypeIndex sTypeRef sTermId
+
+addTypeMentionsToIndexForTerm :: EDB m => S.Referent.Id -> Set C.Reference -> m ()
+addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
+  traverse_ (flip Q.addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
 
 -- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
 -- second, it would be nice if we could leave these as S.References a little longer

@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 3dc00080efb41dcfb41dd8f03bea8ab3e2550a41a92fe1962b9210b52393ce88
 
 name:           unison-core1
 version:        0.0.0
@@ -45,7 +43,6 @@ library
       Unison.NameSegment
       Unison.Paths
       Unison.Pattern
-      Unison.Prelude
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
@@ -60,9 +57,6 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
-      Unison.Util.Relation
-      Unison.Util.Relation3
-      Unison.Util.Relation4
       Unison.Util.Set
       Unison.Var
       Unison.Var.RefNamed
@@ -81,9 +75,12 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   build-depends:
       base
@@ -96,12 +93,15 @@ library
     , lens
     , memory
     , mtl
+    , nonempty-containers
     , prelude-extras
     , rfc5051
     , safe
     , sandi
     , text
     , transformers
+    , unison-prelude
+    , unison-util-relation
     , util
     , vector
   if flag(optimized)

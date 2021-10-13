@@ -13,6 +13,7 @@ packages:
 - yaks/easytest
 - parser-typechecker
 - unison-core
+- cli
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sync
@@ -20,9 +21,11 @@ packages:
 - codebase2/util
 - codebase2/util-serialization
 - codebase2/util-term
+- lib/unison-prelude
+- lib/unison-util-relation
 
 #compiler-check: match-exact
-resolver: lts-18.9
+resolver: lts-18.13
 
 extra-deps:
 - github: unisonweb/configurator

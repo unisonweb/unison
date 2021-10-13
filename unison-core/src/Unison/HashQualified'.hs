@@ -35,12 +35,13 @@ fromHQ = \case
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
--- Like fromHQ, but turns hashes into hash-qualified empty names
-fromHQ' :: Monoid n => HQ.HashQualified n -> HashQualified n
-fromHQ' = \case
-  HQ.NameOnly n -> NameOnly n
-  HQ.HashQualified n sh -> HashQualified n sh
-  HQ.HashOnly h -> HashQualified mempty h
+-- | Like 'fromHQ', but if the 'HQ.HashQualified' is just a 'ShortHash', return it on the 'Left', rather than as a
+-- 'Nothing'.
+fromHQ2 :: HQ.HashQualified n -> Either ShortHash (HashQualified n)
+fromHQ2 = \case
+  HQ.NameOnly n -> Right $ NameOnly n
+  HQ.HashQualified n sh -> Right $ HashQualified n sh
+  HQ.HashOnly sh -> Left sh
 
 toName :: HashQualified n -> n
 toName = \case
