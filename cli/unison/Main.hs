@@ -17,7 +17,6 @@ import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
-import System.Info (os, arch)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
@@ -150,13 +149,11 @@ main = do
            PT.putPrettyLn . P.wrap . P.text $
                "I was unable to parse this file as a compiled\
                \ program. The parser generated an unrecognized error."
-         Right (Right (v,o,a,rf, w, sto))
+         Right (Right (v, rf, w, sto))
            | not vmatch -> mismatchMsg
            | otherwise -> RTI.runStandalone sto w
            where
            vmatch = v == Text.pack Version.gitDescribeWithDate
-                 && o == Text.pack os
-                 && a == Text.pack arch
            ws s = P.wrap (P.text s)
            ifile | 'c':'u':'.':rest <- reverse file = reverse rest
                  | otherwise = file
@@ -166,13 +163,10 @@ main = do
                \than the one you're running."
              , ""
              , "Compiled file version"
-             , P.indentN 4
-               $ P.text v <> " for " <> P.text o <> " " <> P.text a
+             , P.indentN 4 $ P.text v
              , ""
              , "Your version"
-             , P.indentN 4
-               $ P.string Version.gitDescribeWithDate <> " for "
-               <> P.string os <> " " <> P.string arch
+             , P.indentN 4 $ P.string Version.gitDescribeWithDate
              , ""
              , P.wrap $ "The program was compiled from hash "
                  <> (P.text $ "`" <> rf <> "`.")

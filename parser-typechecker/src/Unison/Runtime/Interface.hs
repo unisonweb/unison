@@ -41,8 +41,6 @@ import Data.Word (Word64)
 
 import qualified Data.Map.Strict as Map
 
-import System.Info (os, arch)
-
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 
@@ -392,14 +390,12 @@ catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
 
 decodeStandalone
   :: BL.ByteString
-  -> Either String (Text, Text, Text, Text, Word64, StoredCache)
+  -> Either String (Text, Text, Word64, StoredCache)
 decodeStandalone b = bimap thd thd $ runGetOrFail g b
   where
   thd (_, _, x) = x
-  g = (,,,,,)
+  g = (,,,)
     <$> deserialize
-    <*> deserialize
-    <*> deserialize
     <*> deserialize
     <*> getNat
     <*> getStoredCache
@@ -425,8 +421,6 @@ startRuntime version = do
            sto <- standalone cc w
            BL.writeFile path . runPutL $ do
              serialize $ pack version
-             serialize $ pack os
-             serialize $ pack arch
              serialize $ RF.showShort 8 rf
              putNat w
              putStoredCache sto
