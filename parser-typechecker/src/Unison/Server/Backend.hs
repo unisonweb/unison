@@ -516,18 +516,6 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
           prioritize (lookupNames ref)
      in makeResult (HQ'.toHQ primaryName) ref aliases
 
-searchBranchExact :: Int -> Names -> HQ'.HashQualified Name -> [SR.SearchResult]
-searchBranchExact len names query = do
-  applySearch typeSearch query <> applySearch termSearch query
-  where
-    typeSearch :: Search Reference
-    typeSearch =
-      makeTypeSearch len names
-
-    termSearch :: Search Referent
-    termSearch =
-      makeTermSearch len names
-
 hqNameQuery
   :: Monad m
   => Maybe Path
@@ -560,7 +548,12 @@ hqNameQuery relativeTo root codebase hqs = do
       typeResults =
         (\(sh, tps) -> mkTypeResult sh <$> toList tps) <$> typeRefs
       -- Now do the actual name query
-      resultss = map (searchBranchExact hqLength parseNames) hqnames
+      resultss =
+        let typeSearch :: Search Reference
+            typeSearch = makeTypeSearch hqLength parseNames
+            termSearch :: Search Referent
+            termSearch = makeTermSearch hqLength parseNames
+        in map (\name -> applySearch typeSearch name <> applySearch termSearch name) hqnames
       (misses, hits) =
         zip hqnames resultss
           & map (\(hqname, results) -> if null results then Left hqname else Right results)
