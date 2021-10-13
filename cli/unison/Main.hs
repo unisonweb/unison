@@ -44,6 +44,7 @@ import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Server.CodebaseServer as Server
+import qualified Unison.Server.Types as ServerTypes
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
@@ -183,9 +184,9 @@ main = do
                  PT.putPrettyLn $
                    P.lines
                      [ "I've started the Codebase API server at",
-                       P.string $ Server.urlFor Server.Api baseUrl,
+                       P.string $ ServerTypes.urlFor ServerTypes.Api baseUrl,
                        "and the Codebase UI at",
-                       P.string $ Server.urlFor Server.UI baseUrl
+                       P.string $ ServerTypes.urlFor ServerTypes.UI baseUrl
                      ]
 
                  PT.putPrettyLn $ P.string "Running the codebase manager headless with "
@@ -295,7 +296,7 @@ launch
   -> Rt.Runtime Symbol
   -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
-  -> Maybe Server.BaseUrl
+  -> Maybe ServerTypes.BaseUrl
   -> ShouldDownloadBase
   -> InitResult IO Symbol Ann
   -> IO ()

@@ -27,7 +27,7 @@ import Network.HTTP.Media ((//), (/:))
 import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
-import Unison.Server.Assorted (BaseUrl(..))
+import Unison.Server.Types (BaseUrl(..))
 import Network.Wai.Handler.Warp
   ( defaultSettings,
     runSettings,

@@ -47,12 +47,12 @@ import Options.Applicative.Help ( (<+>), bold )
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 import Unison.Server.CodebaseServer (CodebaseServerOpts(..))
+import qualified Unison.Server.CodebaseServer as Server
 import Unison.Util.Pretty (Width(..))
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NE
 import qualified Options.Applicative.Help.Pretty as P
 import qualified Unison.PrettyTerminal as PT
-import qualified Unison.Server.Assorted as Server
 
 -- The name of a symbol to execute.
 type SymbolName = String
