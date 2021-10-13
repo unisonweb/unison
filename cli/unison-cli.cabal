@@ -85,7 +85,6 @@ executable unison
   build-depends:
       base
     , bytestring
-    , compact
     , configurator
     , directory
     , errors

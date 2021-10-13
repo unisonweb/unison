@@ -29,7 +29,6 @@ executables:
     dependencies:
       - base
       - bytestring
-      - compact
       - configurator
       - directory
       - directory

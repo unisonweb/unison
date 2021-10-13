@@ -229,7 +229,6 @@ library
     , bytes
     , bytestring
     , cereal
-    , compact
     , configurator
     , containers >=0.6.3
     , cryptonite
