@@ -159,8 +159,8 @@ relativeFromSegment s =
   Name Relative (s :| [])
 
 relativeFromSegments :: NonEmpty NameSegment -> Name
-relativeFromSegments =
-  Name Relative
+relativeFromSegments ss =
+  Name Relative (List.NonEmpty.reverse ss)
 
 reverseSegments :: Name -> NonEmpty NameSegment
 reverseSegments (Name _ ss) =
