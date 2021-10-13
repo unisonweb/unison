@@ -358,16 +358,31 @@ unsafeFromString :: String -> Name
 unsafeFromString =
   unsafeFromText . Text.pack
 
-unsafeFromText :: Text -> Name
+-- | Unsafely parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+unsafeFromText :: HasCallStack => Text -> Name
 unsafeFromText = \case
   "." -> Name Relative ("." :| [])
   ".." -> Name Absolute ("." :| [])
-  t | Text.any (== '#') t -> error ("not a name: " <> show t)
-  t ->
-    case Text.split (== '.') t of
-      [] -> error "empty name"
-      "" : s : ss -> Name Absolute (List.NonEmpty.reverse (fmap NameSegment (s :| ss)))
-      s : ss -> Name Relative (List.NonEmpty.reverse (fmap NameSegment (s :| ss)))
+  name
+    | Text.any (== '#') name -> error ("not a name: " <> show name)
+    | Text.head name == '.' -> Name Absolute (go (Text.tail name))
+    | otherwise -> Name Relative (go name)
+  where
+    go :: Text -> List.NonEmpty NameSegment
+    go name =
+      if ".." `Text.isSuffixOf` name
+        then "." :| split (Text.dropEnd 2 name)
+        else
+          case split name of
+            [] -> error "empty name"
+            s : ss -> s :| ss
+
+    split :: Text -> [NameSegment]
+    split =
+      reverse . map NameSegment . Text.split (== '.')
 
 unsafeFromVar :: Var v => v -> Name
 unsafeFromVar =

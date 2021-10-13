@@ -16,7 +16,30 @@ test :: Test ()
 test =
   scope "name" $
     tests
-      [ scope "suffixes" $
+      [ scope "unsafeFromString" $
+          tests [
+            scope "." do
+              expectEqual' (isAbsolute ".") False
+              expectEqual' (segments ".") ("." :| [])
+              ok,
+            scope ".." do
+              expectEqual' (isAbsolute "..") True
+              expectEqual' (segments "..") ("." :| [])
+              ok,
+            scope "foo.bar" do
+              expectEqual' (isAbsolute "foo.bar") False
+              expectEqual' (segments "foo.bar") ("foo" :| ["bar"])
+              ok,
+            scope ".foo.bar" do
+              expectEqual' (isAbsolute ".foo.bar") True
+              expectEqual' (segments ".foo.bar") ("foo" :| ["bar"])
+              ok,
+            scope "foo.." do
+              expectEqual' (isAbsolute "foo..") False
+              expectEqual' (segments "foo..") ("foo" :| ["."])
+              ok
+          ],
+        scope "suffixes" $
           tests
             [ scope "one namespace" $ expectEqual (suffixes "bar") ["bar"],
               scope "two namespaces" $
