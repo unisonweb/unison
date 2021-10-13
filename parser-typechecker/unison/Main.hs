@@ -9,6 +9,7 @@
 module Main where
 
 import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Exception (evaluate)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
 import qualified Data.ByteString.Lazy as BL
@@ -41,6 +42,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
+import Unison.Runtime.Exception (RuntimeExn(..))
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
@@ -125,9 +127,22 @@ main = do
             ShouldNotDownloadBase
             initRes
           closeCodebase
-     Run (RunCompiled file) -> BL.readFile file >>= \bs ->
-       case RTI.decodeStandalone bs of
-         (v,o,a,rf, w, sto)
+     Run (RunCompiled file) ->
+       BL.readFile file >>= \bs ->
+       try (evaluate $ RTI.decodeStandalone bs) >>= \case
+         Left (PE _cs err) -> do
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , err
+             ]
+         Left _ -> do
+           PT.putPrettyLn . P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated an unrecognized error."
+         Right (v,o,a,rf, w, sto)
            | not vmatch -> mismatchMsg
            | otherwise -> RTI.runStandalone sto w
            where
