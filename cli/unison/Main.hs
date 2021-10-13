@@ -136,13 +136,21 @@ main = do
                "I was unable to parse this file as a compiled\
                \ program. The parser generated the following error:"
              , ""
-             , err
+             , P.indentN 2 $ err
+             ]
+         Right (Left err) ->
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , P.indentN 2 . P.wrap $ P.string err
              ]
          Left _ -> do
            PT.putPrettyLn . P.wrap . P.text $
                "I was unable to parse this file as a compiled\
                \ program. The parser generated an unrecognized error."
-         Right (v,o,a,rf, w, sto)
+         Right (Right (v,o,a,rf, w, sto))
            | not vmatch -> mismatchMsg
            | otherwise -> RTI.runStandalone sto w
            where

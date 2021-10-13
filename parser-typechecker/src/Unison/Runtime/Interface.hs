@@ -23,11 +23,12 @@ import Control.Exception (try, catch)
 import Control.Monad
 
 import Data.Bits (shiftL)
+import Data.Binary.Get (runGetOrFail)
 import Data.Bytes.Serial
-import Data.Bytes.Get (MonadGet, runGetL)
+import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Put (MonadPut, runPutL)
 import qualified Data.ByteString.Lazy as BL
-import Data.Bifunctor (first,second)
+import Data.Bifunctor (first,second, bimap)
 import Data.Functor ((<&>))
 import Data.IORef
 import Data.Foldable
@@ -391,9 +392,11 @@ catchInternalErrors sub = sub `catch` \(CE _ e) -> pure $ Left e
 
 decodeStandalone
   :: BL.ByteString
-  -> (Text, Text, Text, Text, Word64, StoredCache)
-decodeStandalone = runGetL $
-  (,,,,,)
+  -> Either String (Text, Text, Text, Text, Word64, StoredCache)
+decodeStandalone b = bimap thd thd $ runGetOrFail g b
+  where
+  thd (_, _, x) = x
+  g = (,,,,,)
     <$> deserialize
     <*> deserialize
     <*> deserialize
