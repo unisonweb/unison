@@ -361,7 +361,7 @@ unsafeFromString =
 
 unsafeFromText :: Text -> Name
 unsafeFromText = \case
-  "." -> error "empty absolute name"
+  "." -> Name Relative ("." :| [])
   ".." -> Name Absolute ("." :| [])
   t | Text.any (== '#') t -> error ("not a name: " <> show t)
   t ->
