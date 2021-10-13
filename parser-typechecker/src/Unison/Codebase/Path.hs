@@ -256,7 +256,7 @@ toText (Path nss) = intercalateMap "." NameSegment.toText nss
 fromText :: Text -> Path
 fromText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> Name.segments' t
+  t -> fromList $ NameSegment <$> NameSegment.segments' t
 
 toText' :: Path' -> Text
 toText' = \case

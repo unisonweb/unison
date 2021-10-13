@@ -6,42 +6,47 @@ module Unison.Name
     -- * Basic construction
     cons,
     joinDot,
+    relativeFromSegment,
+    relativeFromSegments,
 
     -- ** Unsafe construction
     unsafeFromString,
     unsafeFromText,
     unsafeFromVar,
 
-    -- * To organize later
-    endsWithSegments,
-    isPrefixOf,
-    makeAbsolute,
+    -- * Basic queries
+    countSegments,
     isAbsolute,
+    isPrefixOf,
+    endsWithSegments,
+    reverseSegments,
+    segments,
+    suffixes,
+
+    -- * Basic manipulation
+    makeAbsolute,
+    makeRelative,
     parent,
+    stripNamePrefix,
+    unqualified,
+
+    -- * To organize later
     sortNames,
     sortNamed,
     sortByText,
-    stripNamePrefix,
-    segments,
-    reverseSegments,
-    countSegments,
-    compareSuffix,
-    segments',
-    suffixes,
     searchBySuffix,
     suffixFrom,
     shortestUniqueSuffix,
     toString,
     toText,
     toVar,
-    unqualified,
-    unqualified',
-    relativeFromSegment,
-    relativeFromSegments,
     splits,
 
     -- * Re-exports
     module Unison.Util.Alphabetical,
+
+    -- * Exported for testing
+    compareSuffix,
   )
 where
 
@@ -58,7 +63,7 @@ import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text (Builder)
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Unison.Hashable as H
-import Unison.NameSegment (NameSegment (NameSegment), segments')
+import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
@@ -95,6 +100,41 @@ data Position
   | Relative
   deriving stock (Eq, Ord, Show)
 
+-- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
+-- segment order).
+--
+-- >>> compareSuffix "b.c" "a.b.c"
+-- EQ -- because [c,b] == [c,b]
+--
+-- >>> compareSuffix "b.c" "a.b.b"
+-- LT -- because [b,b] < [c,b]
+--
+-- >>> compareSuffix "a.b.c" "b.c"
+-- LT -- because [c,b] < [c,b,a]
+--
+-- >>> compareSuffix "b.b" "a.b.c"
+-- GT -- because [c,b] > [b,b]
+--
+-- Used for suffix-based lookup of a name. For instance, given a @r : Relation Name x@,
+-- @Relation.searchDom (compareSuffix "foo.bar") r@ will find all @r@ whose name has @foo.bar@ as a suffix.
+--
+-- This is only exported for testing; use 'searchBySuffix' or 'shortestUniqueSuffix' instead.
+--
+-- /O(n)/, where /n/ is the number of name segments.
+compareSuffix :: Name -> Name -> Ordering
+compareSuffix (Name _ ss0) (Name _ ss1) =
+  go (toList ss0) (toList ss1)
+  where
+    go :: Ord a => [a] -> [a] -> Ordering
+    go [] _ = EQ -- only compare up to entire suffix (first arg)
+    go _ [] = LT
+    go (x : xs) (y : ys) = compare y x <> go xs ys
+
+    -- go' :: Ord a => [a] -> [a] -> (Ordering -> r) -> r
+    -- go' [] _ k = k EQ -- only compare up to entire suffix (first arg)
+    -- go' _ [] k = k LT
+    -- go' (x : xs) (y : ys) k = go' xs ys (\o -> k (compare y x <> o))
+
 -- | Cons a name segment onto the head of a relative name. Monotonic with respect to ordering: it is safe to use
 -- @cons s@ as the first argument to @Map.mapKeysMonotonic@.
 --
@@ -102,19 +142,23 @@ data Position
 --
 -- /O(n)/, where /n/ is the number of segments.
 cons :: HasCallStack => NameSegment -> Name -> Name
-cons x = \case
-  Name Absolute _ -> error "cannot cons onto an absolute name"
-  Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
+cons x name =
+  case name of
+    Name Absolute _ -> error (reportBug "E495986" ("cannot cons " ++ show x ++ " onto absolute name" ++ show name))
+    Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
 
+-- | Return the number of name segments in a name.
+--
+-- /O(n)/, where /n/ is the number of name segments.
 countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
 
--- foo.bar.baz `endsWithSegments` bar.baz == True
--- foo.bar.baz `endsWithSegments` baz == True
--- foo.bar.baz `endsWithSegments` az == False (not a full segment)
--- foo.bar.baz `endsWithSegments` zonk == False (doesn't match any segment)
--- foo.bar.baz `endsWithSegments` foo == False (matches a segment, but not at the end)
+-- | @endsWithSegments x y@ returns whether @x@ ends with the segments of @y@, regardless of whether @ys@ is relative or
+-- absolute.
+--
+-- >>> endsWithSegments "a.b.c" "b.c"
+-- True
 endsWithSegments :: Name -> Name -> Bool
 endsWithSegments (Name _ ss0) (Name _ ss1) =
   List.NonEmpty.isPrefixOf (toList ss1) ss0
@@ -127,7 +171,17 @@ isAbsolute = \case
   Name Absolute _ -> True
   Name Relative _ -> False
 
--- | @isPrefixOf n1 n2@ returns whether @n1@ is a prefix of @n2@.
+-- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
+-- and the other is absolute.
+--
+-- >>> isPrefixOf "a.b" "a.b.c"
+-- True
+--
+-- >>> isPrefixOf "a.b.c" "a.b.c"
+-- True
+--
+-- >>> isPrefixOf ".a.b" "a.b.c"
+-- False
 --
 -- /O(n)/, where /n/ is the number of name segments.
 isPrefixOf :: Name -> Name -> Bool
@@ -144,32 +198,79 @@ joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
           "E261635"
           ("joinDot: second name cannot be absolute. (name 1 = " ++ show n1 ++ ", name 2 = " ++ show n2 ++ ")")
 
+-- | Make a name absolute. No-op if the name is already absolute.
+--
+-- /O(1)/.
 makeAbsolute :: Name -> Name
 makeAbsolute (Name _ ss) =
   Name Absolute ss
 
--- parent . -> Nothing
--- parent + -> Nothing
--- parent foo -> Nothing
--- parent foo.bar -> foo
--- parent foo.bar.+ -> foo.bar
-parent :: Name -> Maybe Name
-parent = \case
-  Name _ (_ :| []) -> Nothing
-  Name _ (_ :| (s : ss)) -> Just (Name Relative (s :| ss))
+-- | Make a name relative. No-op if the name is already relative.
+--
+-- /O(1)/.
+makeRelative :: Name -> Name
+makeRelative (Name _ ss) =
+  Name Relative ss
 
+-- | Compute the "parent" of a name, unless the name is only a single segment, in which case it has no parent.
+--
+-- >>> parent "a.b.c"
+-- Just "b.c"
+--
+-- >>> parent ".a.b.c"
+-- Just ".a.b"
+--
+-- >>> parent "a"
+-- Nothing
+parent :: Name -> Maybe Name
+parent (Name p ss0) =
+  Name p <$> List.NonEmpty.nonEmpty (List.NonEmpty.tail ss0)
+
+-- | Construct a relative name from a name segment.
+--
+-- /O(1)/.
 relativeFromSegment :: NameSegment -> Name
 relativeFromSegment s =
   Name Relative (s :| [])
 
+-- | Construct a relative name from a list of name segments.
+--
+-- >>> relativeFromSegments ("a" :| ["b", "c"])
+-- "a.b.c"
+--
+-- /O(n)/, where /n/ is the number of name segments.
 relativeFromSegments :: NonEmpty NameSegment -> Name
 relativeFromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
 
+-- | Return the name segments of a name, in reverse order.
+--
+-- >>> reverseSegments "a.b.c"
+-- "c" :| ["b", "a"]
+--
+-- /O(1)/.
 reverseSegments :: Name -> NonEmpty NameSegment
 reverseSegments (Name _ ss) =
   ss
 
+-- If there's no exact matches for `suffix` in `rel`, find all
+-- `r` in `rel` whose corresponding name `suffix` as a suffix.
+-- For example, `searchBySuffix List.map {(base.List.map, r1)}`
+-- will return `{r1}`.
+--
+-- NB: Implementation uses logarithmic time lookups, not a linear scan.
+searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
+searchBySuffix suffix rel =
+  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  where
+    orElse s1 s2 = if Set.null s1 then s2 else s1
+
+-- | Return the name segments of a name.
+--
+-- >>> segments "a.b.c"
+-- "a" :| ["b", "c"]
+--
+-- /O(n)/, where /n/ is the number of name segments.
 segments :: Name -> NonEmpty NameSegment
 segments (Name _ ss) =
   List.NonEmpty.reverse ss
@@ -223,24 +324,36 @@ splits (Name p ss0) =
       [x] -> [([], x :| [])]
       x : xs -> ([], x :| xs) : over (mapped . _1) (x :) (splits0 xs)
 
--- stripNamePrefix a.b  a.b.c = Just c
--- stripNamePrefix x.y  a.b.c = Nothing, x.y isn't a prefix of a.b.c
--- stripNamePrefix .a.b .a    = Just b
--- stripNamePrefix a.b  a.b   = Nothing, "" isn't a name
+-- | @stripNamePrefix x y@ strips prefix @x@ from name @y@, and returns the resulting name. Returns @Nothing@ @x@ is not
+-- a proper (meaning shorter-than) prefix of @y@.
+--
+-- >>> stripNamePrefix "a.b" "a.b.c"
+-- Just "c"
+--
+-- >>> stripNamePrefix ".a.b" "a.b.c"
+-- Nothing
+--
+-- >>> stripNamePrefix "a.b.c" "a.b.c"
+-- Nothing
 stripNamePrefix :: Name -> Name -> Maybe Name
 stripNamePrefix (Name p0 ss0) (Name p1 ss1) = do
   guard (p0 == p1)
   s : ss <- List.stripPrefix (reverse (toList ss0)) (reverse (toList ss1))
   pure (Name Relative (List.NonEmpty.reverse (s :| ss)))
 
--- suffixes foo.bar.baz  -> [foo.bar.baz, bar.baz, baz]
--- suffixes .foo.bar.baz -> [foo.bar.baz, bar.baz, baz]
+-- | Return all relative suffixes of a name, in descending-length order. The returned list will always be non-empty.
+--
+-- >>> suffixes "a.b.c"
+-- ["a.b.c", "a.b", "c"]
+--
+-- >>> suffixes ".a.b.c"
+-- ["a.b.c", "a.b", "c"]
 suffixes :: Name -> [Name]
 suffixes =
   reverse . suffixes'
 
--- suffixes' foo.bar.baz  -> [baz, bar.baz, foo.bar.baz]
--- suffixes' .foo.bar.baz -> [baz, bar.baz, foo.bar.baz]
+-- Like `suffixes`, but returns names in ascending-length order. Currently unexported, as it's only used in the
+-- implementation of `shortestUniqueSuffix`.
 suffixes' :: Name -> [Name]
 suffixes' (Name _ ss0) = do
   ss <- List.NonEmpty.tail (List.NonEmpty.inits ss0)
@@ -278,10 +391,12 @@ suffixFrom (Name p0 ss0) (Name _ ss1) = do
               then Just (prepend xs)
               else go (prepend . (y :)) ys
 
+-- | Convert a name to a string representation.
 toString :: Name -> String
 toString =
   Text.unpack . toText
 
+-- | Convert a name to a string representation.
 toText :: Name -> Text
 toText (Name pos (x0 :| xs)) =
   build (buildPos pos <> foldr step mempty xs <> NameSegment.toTextBuilder x0)
@@ -299,42 +414,21 @@ toText (Name pos (x0 :| xs)) =
       Absolute -> "."
       Relative -> ""
 
+-- | Convert a name to a string representation, then parse that as a var.
 toVar :: Var v => Name -> v
 toVar =
   Var.named . toText
 
+-- | Drop all leading segments from a name, retaining only the last segment as a relative name.
+--
+-- >>> unqualified "a.b.c"
+-- "c"
+--
+-- >>> unqualified ".a.b.c"
+-- "c"
 unqualified :: Name -> Name
 unqualified (Name _ (s :| _)) =
   Name Relative (s :| [])
-
-unqualified' :: Text -> Text
-unqualified' = fromMaybe "" . lastMay . segments'
-
--- If there's no exact matches for `suffix` in `rel`, find all
--- `r` in `rel` whose corresponding name `suffix` as a suffix.
--- For example, `searchBySuffix List.map {(base.List.map, r1)}`
--- will return `{r1}`.
---
--- NB: Implementation uses logarithmic time lookups, not a linear scan.
-searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
-searchBySuffix suffix rel =
-  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
-  where
-    orElse s1 s2 = if Set.null s1 then s2 else s1
-
--- `compareSuffix suffix n` is equal to `compare n' suffix`, where
--- n' is `n` with only the last `countSegments suffix` segments.
---
--- Used for suffix-based lookup of a name. For instance, given a `r : Relation Name x`,
--- `Relation.searchDom (compareSuffix "foo.bar") r` will find all `r` whose name
--- has `foo.bar` as a suffix.
-compareSuffix :: Name -> Name -> Ordering
-compareSuffix (Name _ ss0) (Name _ ss1) =
-  go (toList ss0) (toList ss1)
-  where
-    go [] _ = EQ -- only compare up to entire suffix (first arg)
-    go _ [] = LT
-    go (x : xs) (y : ys) = compare y x <> go xs ys
 
 -- Tries to shorten `fqn` to the smallest suffix that still refers
 -- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
@@ -358,6 +452,9 @@ shortestUniqueSuffix fqn r rel =
         rs =
           R.searchDom (compareSuffix suffix) rel
 
+-- | Unsafely parse a name from a string literal.
+--
+-- See 'unsafeFromText'.
 unsafeFromString :: String -> Name
 unsafeFromString =
   unsafeFromText . Text.pack
@@ -387,6 +484,9 @@ unsafeFromText = \case
     split =
       reverse . map NameSegment . Text.split (== '.')
 
+-- | Unsafely parse a name from a var, by first rendering the var as a string.
+--
+-- See 'unsafeFromText'.
 unsafeFromVar :: Var v => v -> Name
 unsafeFromVar =
   unsafeFromText . Var.name
