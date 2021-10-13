@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 8fff4d6586e59fb0d0aa911caff0a2557bcb58e457a2e485b26d6a908d14ac0d
 
 name:           unison-core1
 version:        0.0.0
@@ -77,9 +75,12 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   build-depends:
       base

@@ -1255,7 +1255,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
+  SR'.TermResult' name (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
@@ -1265,11 +1265,11 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSigFull' ppe = \case
-  SR'.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
+  SR'.TermResult' hq (Just typ) r aliases ->
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
-      P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+      P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
       <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ)
     , mempty
     ]
@@ -1277,7 +1277,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   where greyHash = styleHashQualified' id P.hiBlack
 
 prettyTypeResultHeader' :: Var v => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
+prettyTypeResultHeader' (SR'.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 -- produces:
@@ -1285,13 +1285,13 @@ prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
 -- type Optional
 -- type Maybe
 prettyTypeResultHeaderFull' :: Var v => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
+prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
   stuff =
     (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
       fmap (\name -> prettyDeclTriple (name, r, dt))
-           (name : toList aliases)
+           (name : map HQ'.toHQ (toList aliases))
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
@@ -1872,18 +1872,18 @@ listOfDefinitions' ppe detailed results = if null results
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (HQ'.toHQ name, Reference.idToShortHash r)
+    [ (name, Reference.idToShortHash r)
     | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
     ]
   missingTypes =
     nubOrdOn snd
-      $  [ (HQ'.toHQ name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
-      <> [ (HQ'.toHQ name, Reference.toShortHash r)
+      $  [ (name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
+      <> [ (name, Reference.toShortHash r)
          | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
          ]
   missingBuiltins = results >>= \case
     SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ ->
-      [(HQ'.toHQ name, r)]
+      [(name, r)]
     _ -> []
 
 watchPrinter

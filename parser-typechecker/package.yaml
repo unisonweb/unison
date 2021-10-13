@@ -12,6 +12,8 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
