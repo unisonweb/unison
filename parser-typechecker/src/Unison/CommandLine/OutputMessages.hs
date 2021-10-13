@@ -1269,7 +1269,7 @@ unsafePrettyTermResultSigFull' ppe = \case
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
-      P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+      P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
       <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ)
     , mempty
     ]
@@ -1291,7 +1291,7 @@ prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   stuff =
     (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
       fmap (\name -> prettyDeclTriple (name, r, dt))
-           (name : toList aliases)
+           (name : map HQ'.toHQ (toList aliases))
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>

@@ -13,6 +13,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

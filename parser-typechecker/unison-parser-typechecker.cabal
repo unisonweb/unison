@@ -208,6 +208,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -327,6 +328,7 @@ executable prettyprintdemo
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -392,6 +394,7 @@ executable tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -446,6 +449,7 @@ executable transcripts
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -488,6 +492,7 @@ executable unison
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -541,6 +546,7 @@ benchmark runtime
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications

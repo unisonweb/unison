@@ -7,6 +7,7 @@ import Unison.Prelude
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Codebase.Editor.DisplayObject as DT
 import qualified Unison.Type as Type
@@ -27,14 +28,14 @@ data TermResult' v a =
   TermResult' (HQ.HashQualified Name)
               (Maybe (Type v a))
               Referent
-              (Set (HQ.HashQualified Name))
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 
 data TypeResult' v a =
   TypeResult' (HQ.HashQualified Name)
               (DisplayObject () (Decl v a))
               Reference
-              (Set (HQ.HashQualified Name))
+              (Set (HQ'.HashQualified Name))
   deriving (Eq, Show)
 
 pattern Tm n t r as = Tm' (TermResult' n t r as)

@@ -472,7 +472,7 @@ fixupNamesRelative root = Names3.map0 fixName where
 data Search r = Search
   { lookupNames :: r -> Set (HQ'.HashQualified Name),
     lookupRelativeHQRefs' :: HQ'.HashQualified Name -> Set r,
-    makeResult :: HQ.HashQualified Name -> r -> Set (HQ.HashQualified Name) -> SR.SearchResult,
+    makeResult :: HQ.HashQualified Name -> r -> Set (HQ'.HashQualified Name) -> SR.SearchResult,
     matchesNamedRef :: Name -> r -> HQ'.HashQualified Name -> Bool
   }
 
@@ -510,7 +510,7 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
           -- related to this ref, which is itself one of the refs that the query name was related to! (Hence it should
           -- be non-empty).
           prioritize (lookupNames ref)
-     in makeResult (HQ'.toHQ primaryName) ref (Set.map HQ'.toHQ aliases)
+     in makeResult (HQ'.toHQ primaryName) ref aliases
   where
     -- Uncons a non-empty list, and return the tail as a set. Calls 'error' if the given list is empty.
     unsafeUnconsSet :: Ord a => [a] -> (a, Set a)
