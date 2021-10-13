@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 63bba896326895e908b0b17a4fd6f147cf2fe0892774fe1471f4d51b741aeeed
 
 name:           unison-core1
 version:        0.0.0
@@ -43,6 +41,7 @@ library
       Unison.Names2
       Unison.Names3
       Unison.NameSegment
+      Unison.OldName
       Unison.Paths
       Unison.Pattern
       Unison.Reference
@@ -79,7 +78,9 @@ library
       GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       OverloadedStrings
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
