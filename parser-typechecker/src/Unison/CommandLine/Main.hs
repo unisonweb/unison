@@ -45,6 +45,7 @@ import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
+import System.IO (hPutStrLn, stderr)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -178,7 +179,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 writeIORef pageOutput True
                 pure x) `catchSyncOrAsync` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-      interruptHandler e = putStrLn ("Exception: " <> show e) *> throwIO e
+      interruptHandler e = hPutStrLn stderr ("Exception: " <> show e) *> throwIO e
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -206,5 +207,5 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
     -- Run the main program loop, always run cleanup, 
     -- If an exception occurred, print it before exiting.
     (loop (HandleInput.loopState0 root initialPath)
-      `withException` \e -> putStrLn ("Exception: " <> show (e :: SomeException)))
+      `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))
       `finally` cleanup
