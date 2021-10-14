@@ -466,6 +466,7 @@ unsafeFromString =
 -- no attempt at rejecting bogus names like "foo...bar...baz".
 unsafeFromText :: HasCallStack => Text -> Name
 unsafeFromText = \case
+  "" -> error "empty name"
   "." -> Name Relative ("." :| [])
   ".." -> Name Absolute ("." :| [])
   name
