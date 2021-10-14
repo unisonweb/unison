@@ -68,7 +68,8 @@ expandNumber numberedArgs s =
           _ -> Nothing
 
 getUserInput
-  :: (MonadIO m, Line.MonadException m)
+  :: forall m v a
+   . (MonadIO m, Line.MonadException m)
   => Map String InputPattern
   -> Codebase m v a
   -> Branch m
@@ -79,11 +80,14 @@ getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
   settings
   (haskelineCtrlCHandling go)
  where
-  -- catch ctrl-c and simply re-render the prompt.
-  haskelineCtrlCHandling act =
-    Line.handleInterrupt
-      (Line.outputStrLn "Interrupt." *> haskelineCtrlCHandling act)
-      (Line.withInterrupt act)
+  -- Catch ctrl-c and simply re-render the prompt.
+  haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+  haskelineCtrlCHandling act = do
+    -- We return a Maybe result to ensure we don't nest an action within the masked exception
+    -- handler.
+    Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
+      Nothing -> haskelineCtrlCHandling act
+      Just a -> pure a
   go = do
     line <- Line.getInputLine
       $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
