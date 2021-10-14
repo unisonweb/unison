@@ -130,11 +130,6 @@ compareSuffix (Name _ ss0) (Name _ ss1) =
     go _ [] = LT
     go (x : xs) (y : ys) = compare y x <> go xs ys
 
-    -- go' :: Ord a => [a] -> [a] -> (Ordering -> r) -> r
-    -- go' [] _ k = k EQ -- only compare up to entire suffix (first arg)
-    -- go' _ [] k = k LT
-    -- go' (x : xs) (y : ys) k = go' xs ys (\o -> k (compare y x <> o))
-
 -- | Cons a name segment onto the head of a relative name. Monotonic with respect to ordering: it is safe to use
 -- @cons s@ as the first argument to @Map.mapKeysMonotonic@.
 --
@@ -154,14 +149,20 @@ countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
 
--- | @endsWithSegments x y@ returns whether @x@ ends with the segments of @y@, regardless of whether @ys@ is relative or
--- absolute.
+-- | @endsWithSegments x y@ returns whether @x@ ends with the segments of relative name @y@. If @y@ is absolute, returns
+-- @False@.
 --
 -- >>> endsWithSegments "a.b.c" "b.c"
 -- True
+--
+-- >>> endsWithSegments "a.b.c" ".b.c"
+-- False
+--
+-- /O(n)/, where /n/ is the number of name segments.
 endsWithSegments :: Name -> Name -> Bool
-endsWithSegments (Name _ ss0) (Name _ ss1) =
-  List.NonEmpty.isPrefixOf (toList ss1) ss0
+endsWithSegments (Name _ ss0) = \case
+  Name Absolute _ -> False
+  Name Relative ss1 -> List.NonEmpty.isPrefixOf (toList ss1) ss0
 
 -- | Is this name absolute?
 --

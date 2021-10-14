@@ -104,9 +104,9 @@ test =
               scope "suffixFrom" do
                 n1 <- rname
                 n2 <- rname
-                note' n1
-                note' n2
-                fmap old (Name.suffixFrom n1 n2) `expectEqual` Name.oldSuffixFrom (old n1) (old n2),
+                if Name.isAbsolute n1
+                  then skip
+                  else fmap old (Name.suffixFrom n1 n2) `expectEqual` Name.oldSuffixFrom (old n1) (old n2),
               scope "toString" do
                 n1 <- rname
                 Name.toString n1 `expectEqual` Name.oldToString (old n1),
