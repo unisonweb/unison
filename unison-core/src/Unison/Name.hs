@@ -122,13 +122,13 @@ data Position
 --
 -- /O(n)/, where /n/ is the number of name segments.
 compareSuffix :: Name -> Name -> Ordering
-compareSuffix (Name _ ss0) (Name _ ss1) =
-  go (toList ss0) (toList ss1)
+compareSuffix (Name _ ss0) =
+  foldr f (const EQ) ss0 . List.NonEmpty.toList . reverseSegments
   where
-    go :: Ord a => [a] -> [a] -> Ordering
-    go [] _ = EQ -- only compare up to entire suffix (first arg)
-    go _ [] = LT
-    go (x : xs) (y : ys) = compare y x <> go xs ys
+    f :: NameSegment -> ([NameSegment] -> Ordering) -> ([NameSegment] -> Ordering)
+    f x acc = \case
+      [] -> LT
+      y : ys -> compare y x <> acc ys
 
 -- | Cons a name segment onto the head of a relative name. Monotonic with respect to ordering: it is safe to use
 -- @cons s@ as the first argument to @Map.mapKeysMonotonic@.
