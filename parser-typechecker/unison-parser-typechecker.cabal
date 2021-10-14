@@ -139,7 +139,9 @@ library
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
@@ -223,10 +225,10 @@ library
     , base16 >=0.2.1.0
     , base64-bytestring
     , basement
+    , binary
     , bytes
     , bytestring
     , cereal
-    , compact
     , configurator
     , containers >=0.6.3
     , cryptonite

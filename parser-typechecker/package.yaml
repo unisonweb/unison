@@ -39,10 +39,10 @@ library:
     - base16 >= 0.2.1.0
     - base64-bytestring
     - basement
+    - binary
     - bytes
     - bytestring
     - cereal
-    - compact
     - containers >= 0.6.3
     - configurator
     - cryptonite
