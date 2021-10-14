@@ -44,7 +44,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
-import UnliftIO (catchSyncOrAsync, throwIO)
+import UnliftIO (catchSyncOrAsync, throwIO, withException)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -203,5 +203,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
             loop state'
-    (`finally` cleanup)
-      $ loop (HandleInput.loopState0 root initialPath)
+    -- Run the main program loop, always run cleanup, 
+    -- If an exception occurred, print it before exiting.
+    (loop (HandleInput.loopState0 root initialPath)
+      `withException` \e -> putStrLn ("Exception: " <> show (e :: SomeException)))
+      `finally` cleanup
