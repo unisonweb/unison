@@ -10,6 +10,7 @@ module Unison.Prelude
 where
 
 import Control.Applicative as X
+import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException, try)
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
@@ -21,6 +22,7 @@ import qualified Data.ByteString as BS
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
+import Data.Function as X ((&))
 import Data.Functor as X
 import Data.Int as X
 import Data.List as X (foldl1', sortOn)

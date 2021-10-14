@@ -1,0 +1,73 @@
+name: unison-cli
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+
+flags:
+  optimized:
+    manual: true
+    default: false
+
+executables:
+  unison:
+    source-dirs: unison
+    main: Main.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+    dependencies:
+      - base
+      - bytestring
+      - configurator
+      - directory
+      - directory
+      - errors
+      - filepath
+      - megaparsec
+      - mtl
+      - optparse-applicative >= 0.16.1.0
+      - shellmet
+      - template-haskell
+      - temporary
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-prelude
+      - unliftio
+    when:
+      - condition: '!os(windows)'
+        dependencies: unix
+
+  transcripts:
+    source-dirs: transcripts
+    main: Transcripts.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+    dependencies:
+      - base
+      - directory
+      - easytest
+      - filepath
+      - shellmet
+      - process
+      - text
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-prelude
+    build-tools:
+      - unison-cli:unison
+
+
+when:
+  - condition: flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields

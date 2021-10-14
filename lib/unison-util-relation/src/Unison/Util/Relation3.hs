@@ -96,12 +96,13 @@ insertAll, deleteAll :: Foldable f => Ord a => Ord b => Ord c
 insertAll f r = foldl' (\r x -> uncurry3 insert x r) r f
 deleteAll f r = foldl' (\r x -> uncurry3 delete x r) r f
 
-
-difference :: (Ord a, Ord b, Ord c)
-           => Relation3 a b c
-           -> Relation3 a b c
-           -> Relation3 a b c
-difference a b = deleteAll (Unison.Util.Relation3.toList b) a
+-- | Compute the difference of two relations.
+difference :: (Ord a, Ord b, Ord c) => Relation3 a b c -> Relation3 a b c -> Relation3 a b c
+difference (Relation3 a1 b1 c1) (Relation3 a2 b2 c2) =
+  Relation3
+    (Map.differenceWith R.difference1 a1 a2)
+    (Map.differenceWith R.difference1 b1 b2)
+    (Map.differenceWith R.difference1 c1 c2)
 
 delete a b c Relation3{..} =
   Relation3

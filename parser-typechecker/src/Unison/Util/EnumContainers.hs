@@ -25,6 +25,8 @@ module Unison.Util.EnumContainers
   , mapToList
   , (!)
   , findMin
+  , traverseSet_
+  , setSize
   ) where
 
 import Prelude hiding (lookup)
@@ -129,3 +131,11 @@ EM m ! e = m IM.! keyToInt e
 
 findMin :: EnumKey k => EnumSet k -> k
 findMin (ES s) = intToKey $ IS.findMin s
+
+traverseSet_
+  :: Applicative f => EnumKey k => (k -> f ()) -> EnumSet k -> f ()
+traverseSet_ f (ES s)
+  = IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
+
+setSize :: EnumSet k -> Int
+setSize (ES s) = IS.size s
