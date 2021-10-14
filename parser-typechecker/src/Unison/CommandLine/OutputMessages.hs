@@ -733,6 +733,10 @@ notifyUser dir o = case o of
         $ "I just finished importing the branch" <> P.red (P.shown h)
         <> "from" <> P.red (prettyRemoteNamespace ns)
         <> "but now I can't find it."
+      CouldntFindRemoteBranch repo path -> P.wrap
+        $ "I couldn't find the remote branch at"
+        <> P.shown path
+        <> "in the repository at" <> prettyReadRepo repo
       NoRemoteNamespaceWithHash repo sbh -> P.wrap
         $ "The repository at" <> prettyReadRepo repo
         <> "doesn't contain a namespace with the hash prefix"
