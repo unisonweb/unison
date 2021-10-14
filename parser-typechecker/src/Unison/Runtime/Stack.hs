@@ -193,6 +193,21 @@ universalEq frn = eqc False
     | otherwise = frn fl fr
   eqc _ c d = closureNum c == closureNum d
 
+compareAsFloat :: Int -> Int -> Ordering
+compareAsFloat i j = compare fi fj
+  where
+  ba = byteArrayFromList [i,j]
+  fi, fj :: Double
+  fi = indexByteArray ba 0
+  fj = indexByteArray ba 1
+
+compareAsNat :: Int -> Int -> Ordering
+compareAsNat i j = compare ni nj
+  where
+  ba = byteArrayFromList [i,j]
+  ni, nj :: Word
+  ni = indexByteArray ba 0
+  nj = indexByteArray ba 1
 
 universalCompare
   :: (Foreign -> Foreign -> Ordering)
@@ -203,6 +218,9 @@ universalCompare frn = cmpc False
   where
   cmpl cm l r
     = compare (length l) (length r) <> fold (zipWith cm l r)
+  cmpc _ (DataC rf1 0 [i] []) (DataC rf2 0 [j] [])
+    | rf1 == Ty.floatRef && rf2 == Ty.floatRef = compareAsFloat i j
+    | rf1 == Ty.natRef && rf2 == Ty.natRef = compareAsNat i j
   cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
     = (if tyEq then compare rf1 rf2 else EQ)
    <> compare ct1 ct2
