@@ -139,7 +139,7 @@ testSegments =
   [ do
       n <- int' 1 10
       segs <- List.NonEmpty.fromList <$> listOf n (pick [".", "foo"])
-      expectEqual (segments (relativeFromSegments segs)) segs
+      expectEqual (segments (fromSegments segs)) segs
   ]
 
 testSplitName :: [Test ()]

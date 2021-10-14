@@ -6,8 +6,8 @@ module Unison.Name
     -- * Basic construction
     cons,
     joinDot,
-    relativeFromSegment,
-    relativeFromSegments,
+    fromSegment,
+    fromSegments,
 
     -- ** Unsafe construction
     unsafeFromString,
@@ -230,18 +230,18 @@ parent (Name p ss0) =
 -- | Construct a relative name from a name segment.
 --
 -- /O(1)/.
-relativeFromSegment :: NameSegment -> Name
-relativeFromSegment s =
+fromSegment :: NameSegment -> Name
+fromSegment s =
   Name Relative (s :| [])
 
 -- | Construct a relative name from a list of name segments.
 --
--- >>> relativeFromSegments ("a" :| ["b", "c"])
+-- >>> fromSegments ("a" :| ["b", "c"])
 -- "a.b.c"
 --
 -- /O(n)/, where /n/ is the number of name segments.
-relativeFromSegments :: NonEmpty NameSegment -> Name
-relativeFromSegments ss =
+fromSegments :: NonEmpty NameSegment -> Name
+fromSegments ss =
   Name Relative (List.NonEmpty.reverse ss)
 
 -- | Return the name segments of a name, in reverse order.
