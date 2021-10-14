@@ -44,6 +44,7 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
+import UnliftIO (catchSyncOrAsync, throwIO)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -75,8 +76,13 @@ getUserInput
   -> m Input
 getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
   settings
-  go
+  (haskelineCtrlCHandling go)
  where
+  -- catch ctrl-c and simply re-render the prompt.
+  haskelineCtrlCHandling act =
+    Line.handleInterrupt
+      (Line.outputStrLn "Interrupt." *> haskelineCtrlCHandling act)
+      (Line.withInterrupt act)
   go = do
     line <- Line.getInputLine
       $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
@@ -170,9 +176,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 e
               x      -> do
                 writeIORef pageOutput True
-                pure x) `catch` interruptHandler
+                pure x) `catchSyncOrAsync` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-      interruptHandler e = error (show e)
+      interruptHandler e = putStrLn ("Exception: " <> show e) *> throwIO e
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
