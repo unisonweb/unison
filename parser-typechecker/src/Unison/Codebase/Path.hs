@@ -346,6 +346,7 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert NameSegment Path where convert = fromList . pure @[]
 instance Convert [NameSegment] Path where convert = fromList
 instance Convert Path [NameSegment] where convert = toList
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ

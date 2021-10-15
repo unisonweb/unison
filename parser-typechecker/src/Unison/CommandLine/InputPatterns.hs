@@ -36,7 +36,7 @@ import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
-import           Unison.Name ( Name )
+import           Unison.Name ( Name, Convert (convert) )
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
@@ -1592,7 +1592,9 @@ pathCompletor filterQuery getNames query _code b p = let
 
 namespaceArg :: ArgumentType
 namespaceArg = ArgumentType "namespace" $
-    pathCompletor exactComplete namespacesAtQuery
+    pathCompletor
+      exactComplete 
+      (\query branch -> Set.map Path.toText $ namespacesAtQuery query branch)
 
 -- | Returns a set of paths to all namespaces which exist in the Branch and are partial
 -- matches of, or direct namespace children of, the given query.
@@ -1609,32 +1611,32 @@ namespaceArg = ArgumentType "namespace" $
 -- * base.List.map
 --
 -- Then completing with `base` would return the set {base, base2, base.List}
-namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Text
-namespacesAtQuery (Text.splitOn  "." -> nameSegments) b = Set.fromList $ go nameSegments b
+namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Path.Path
+namespacesAtQuery (NameSegment.segments' -> nameSegments) b = Set.fromList $ go nameSegments b
   where
-    go :: [Text] -> Branch.Branch0 m -> [Text]
+    go :: [Text] -> Branch.Branch0 m -> [Path.Path]
     -- No more path segments, complete with all direct children on this branch
-    go [] b = NameSegment.toText <$> Map.keys (Branch._children $ b)
+    go [] b = convert @NameSegment @Path.Path <$> Map.keys (Branch._children $ b)
     -- one path segment, complete with the child branch's matches as well as any namespaces
     -- which match the segment as a prefix.
     go [segment] (Branch._children -> children) =
-      let partialMatches = (filter (segment `Text.isPrefixOf`) . fmap NameSegment.toText . Map.keys $ children)
+      let partialMatches = fmap Path.fromText . filter (segment `Text.isPrefixOf`) . fmap NameSegment.toText . Map.keys $ children
           childMatches =
             Map.lookup (NameSegment segment) children & \case
               Nothing -> []
-              Just childBranch -> segment : ((\path -> segment <> "." <> path) <$> go [] (Branch.head childBranch))
+              Just childBranch -> Path.fromText segment : ((Path.fromText segment <>) <$> go [] (Branch.head childBranch))
        in (partialMatches <> childMatches)
     -- Descend into the branch indicated by segment.
     go (segment:rest) b =
       case Map.lookup (NameSegment segment) (Branch._children b) of
         Nothing -> []
         Just (Branch.head -> nextBranch) ->
-          (\path -> segment <> "." <> path) <$> go rest nextBranch
+          (Path.fromText segment <>) <$> go rest nextBranch
 
 newNameArg :: ArgumentType
 newNameArg = ArgumentType "new-name" $
   pathCompletor prefixIncomplete
-    (\_query b -> Set.map ((<> ".") . Path.toText) . Branch.deepPaths $ b)
+    (\query b -> Set.map ((<> ".") . Path.toText) . namespacesAtQuery query $ b)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
