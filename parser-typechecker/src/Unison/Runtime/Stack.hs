@@ -204,10 +204,9 @@ compareAsFloat i j = compare fi fj
 compareAsNat :: Int -> Int -> Ordering
 compareAsNat i j = compare ni nj
   where
-  ba = byteArrayFromList [i,j]
   ni, nj :: Word
-  ni = indexByteArray ba 0
-  nj = indexByteArray ba 1
+  ni = fromIntegral i
+  nj = fromIntegral j
 
 universalCompare
   :: (Foreign -> Foreign -> Ordering)
