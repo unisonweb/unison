@@ -171,8 +171,9 @@ fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
     prettyCompletion False (HQ.toString . SR.name $ sr, p)
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
-fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion False <$> Find.simpleFuzzyFinder q ss id)
+fuzzyComplete absQuery@('.':_) ss = completeWithinQueryNamespace absQuery ss
+fuzzyComplete fuzzyQuery ss =
+  fixupCompletion fuzzyQuery (prettyCompletion False <$> Find.simpleFuzzyFinder fuzzyQuery ss id)
 
 -- | Constructs a list of 'Completion's from a query and completion options by
 -- filtering them for prefix matches. A completion will be selected if it's an exact match for
@@ -182,8 +183,13 @@ exactComplete q ss = go <$> filter (isPrefixOf q) ss where
   go s = prettyCompletionWithQueryPrefix (s == q) q s
 
 
--- | Completes a list of options, limiting options to the same namespace as the query, or the
--- namespaces children if the query is itself a namespace.
+-- | Completes a list of options, limiting options to the same namespace as the query, 
+-- or the namespace's children if the query is itself a namespace.
+--
+-- E.g.
+-- query: "base"
+-- would match: ["base", "base.List", "base2"]
+-- wouldn't match: ["base.List.map", "contrib", "base2.List"]
 completeWithinQueryNamespace :: String -> [String] -> [Line.Completion]
 completeWithinQueryNamespace q ss = (go <$> (limitToQueryNamespace q $ ss))
   where
