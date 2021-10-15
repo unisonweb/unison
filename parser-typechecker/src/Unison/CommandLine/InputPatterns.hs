@@ -1508,7 +1508,7 @@ exactDefinitionOrPathArg =
       (bothCompletors
         (termCompletor exactComplete)
         (typeCompletor exactComplete))
-      (pathCompletor exactComplete (\_query branch -> Set.map Path.toText . Branch.deepPaths $ branch))
+      (pathCompletor exactComplete namespacesAtQuery)
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
@@ -1593,8 +1593,8 @@ pathCompletor filterQuery getNames query _code b p = let
 namespaceArg :: ArgumentType
 namespaceArg = ArgumentType "namespace" $
     pathCompletor
-      exactComplete 
-      (\query branch -> Set.map Path.toText $ namespacesAtQuery query branch)
+      exactComplete
+      namespacesAtQuery
 
 -- | Returns a set of paths to all namespaces which exist in the Branch and are partial
 -- matches of, or direct namespace children of, the given query.
@@ -1611,8 +1611,8 @@ namespaceArg = ArgumentType "namespace" $
 -- * base.List.map
 --
 -- Then completing with `base` would return the set {base, base2, base.List}
-namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Path.Path
-namespacesAtQuery (NameSegment.segments' -> nameSegments) b = Set.fromList $ go nameSegments b
+namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Text
+namespacesAtQuery (NameSegment.segments' -> nameSegments) b = Set.fromList . fmap Path.toText $ go nameSegments b
   where
     go :: [Text] -> Branch.Branch0 m -> [Path.Path]
     -- No more path segments, complete with all direct children on this branch
@@ -1635,8 +1635,7 @@ namespacesAtQuery (NameSegment.segments' -> nameSegments) b = Set.fromList $ go 
 
 newNameArg :: ArgumentType
 newNameArg = ArgumentType "new-name" $
-  pathCompletor prefixIncomplete
-    (\query b -> Set.map ((<> ".") . Path.toText) . namespacesAtQuery query $ b)
+  pathCompletor prefixIncomplete namespacesAtQuery
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
