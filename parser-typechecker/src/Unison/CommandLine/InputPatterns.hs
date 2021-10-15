@@ -1594,8 +1594,21 @@ namespaceArg :: ArgumentType
 namespaceArg = ArgumentType "namespace" $
     pathCompletor exactComplete namespacesAtQuery
 
--- | Recursively collects all names of namespaces which are children of the provided relative query.
+-- | Returns a set of paths to all namespaces which exist in the Branch and are partial
+-- matches of, or direct namespace children of, the given query.
 -- Meant for use with 'pathCompletor'
+--
+-- E.g. the query 'base' would match:
+--
+-- * base
+-- * base2
+-- * base.List
+--
+-- But not:
+-- * contrib
+-- * base.List.map
+--
+-- Then completing with `base` would return the set {base, base2, base.List}
 namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Text
 namespacesAtQuery (Text.splitOn  "." -> nameSegments) b = Set.fromList $ go nameSegments b
   where
