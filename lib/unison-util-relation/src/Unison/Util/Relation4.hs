@@ -6,13 +6,11 @@ import Unison.Prelude hiding (toList, empty)
 import Prelude
 import qualified Data.Map as Map
 --import qualified Data.Set as Set
-import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation (Relation)
-import Unison.Util.Relation3 (Relation3)
+import Unison.Util.Relation3 (Relation3(Relation3))
 import Data.List.Extra (nubOrd)
-import Util (uncurry4)
 import Data.Semigroup (Sum(Sum, getSum))
 
 data Relation4 a b c d
@@ -69,6 +67,15 @@ d12 = R.fromMultimap . fmap (Map.keysSet . R3.d1) . d1
 d34 :: (Ord c, Ord d) => Relation4 a b c d -> Relation c d
 d34 = R.fromMultimap . fmap (Map.keysSet . R3.d3) . d3
 
+-- | Project out a relation that only includes the 1st, 2nd, and 4th dimensions.
+d124 :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d -> Relation3 a b d
+d124 Relation4 {d1, d2, d4} =
+  Relation3
+    { d1 = Map.map R3.d13 d1,
+      d2 = Map.map R3.d13 d2,
+      d3 = Map.map R3.d12 d4
+    }
+
 -- todo: make me faster
 d12s :: (Ord a, Ord b) => Relation4 a b c d -> [(a,b)]
 d12s = nubOrd . fmap (\(a, (b, _)) -> (a,b)) . toNestedList
@@ -116,7 +123,3 @@ instance (Ord a, Ord b, Ord c, Ord d) => Monoid (Relation4 a b c d) where
     d2' = Map.unionWith (<>) (d2 s1) (d2 s2)
     d3' = Map.unionWith (<>) (d3 s1) (d3 s2)
     d4' = Map.unionWith (<>) (d4 s1) (d4 s2)
-
-instance (H.Hashable d1, H.Hashable d2, H.Hashable d3, H.Hashable d4)
-       => H.Hashable (Relation4 d1 d2 d3 d4) where
-  tokens s = [ H.accumulateToken $ toNestedList s ]

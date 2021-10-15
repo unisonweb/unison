@@ -120,10 +120,10 @@ instance Var v => Hashable1 (F v a p) where
         -- are 'transparent' wrt hash and hashing is unaffected by whether
         -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
         -- the same.
-          Ref (Reference.Derived h 0) -> Hashable.fromBytes (Hash.toBytes h)
+          Ref (Reference.Derived h 0) -> Hashable.fromBytes (Hash.toByteString h)
           Ref (Reference.Derived h i) -> Hashable.accumulate
             [ tag 1
-            , hashed $ Hashable.fromBytes (Hash.toBytes h)
+            , hashed $ Hashable.fromBytes (Hash.toByteString h)
             , Hashable.Nat i
             ]
           -- Note: start each layer with leading `1` byte, to avoid collisions

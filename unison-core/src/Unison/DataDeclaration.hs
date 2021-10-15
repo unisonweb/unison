@@ -240,16 +240,24 @@ updateDependencies typeUpdates decl = back $ dataDecl
   back     = either (const $ Left . EffectDeclaration) (const Right) decl
 
 
--- This converts `Reference`s it finds that are in the input `Map`
--- back to free variables
+-- | This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables.
+--
+-- In the result map, any of the references inside the Decls which are keys of the input map;
+-- have been replaced with the corresponding output `v`s in the output `Decl`s,
+-- which are fresh with respect to all input Decls.
 unhashComponent
   :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m
   = let
+      usedVars :: Set v
       usedVars = foldMap allVars' m
+      -- We assign fresh names to each reference/decl pair.
+      -- We haven't modified the decls yet, but we will, further below.
       m' :: Map Reference.Id (v, Decl v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars where
         assignVar r d = (,d) <$> ABT.freshenS (Var.refIdNamed r)
+      unhash1 :: ABT.Term Type.F v a -> ABT.Term Type.F v a
       unhash1  = ABT.rebuildUp' go
        where
         go e@(Type.Ref' (Reference.DerivedId r)) = case Map.lookup r m' of

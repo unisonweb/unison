@@ -212,3 +212,24 @@ x = '(let
 ``` ucm
 .> load scratch.u
 ```
+
+## Line breaks before 'let
+
+Regression test for https://github.com/unisonweb/unison/issues/1536
+
+```unison:hide
+r = 'let
+ y = 0
+ y
+```
+
+```ucm
+.> add
+.> edit r
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+

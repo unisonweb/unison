@@ -96,15 +96,6 @@ library
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
-      Unison.Hashing.V1.ABT
-      Unison.Hashing.V1.Convert
-      Unison.Hashing.V1.DataDeclaration
-      Unison.Hashing.V1.Pattern
-      Unison.Hashing.V1.Reference
-      Unison.Hashing.V1.Reference.Util
-      Unison.Hashing.V1.Referent
-      Unison.Hashing.V1.Term
-      Unison.Hashing.V1.Type
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
       Unison.Hashing.V2.Causal
@@ -146,7 +137,9 @@ library
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
@@ -214,12 +207,15 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
+    , NanoID
     , aeson
     , ansi-terminal
     , async
@@ -227,6 +223,7 @@ library
     , base16 >=0.2.1.0
     , base64-bytestring
     , basement
+    , binary
     , bytes
     , bytestring
     , cereal
@@ -258,6 +255,7 @@ library
     , monad-validate
     , mtl
     , mutable-containers
+    , mwc-random
     , natural-transformation
     , network
     , network-simple
@@ -296,7 +294,9 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
     , uri-encode
     , utf8-string
@@ -327,6 +327,8 @@ executable prettyprintdemo
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -391,6 +393,8 @@ executable tests
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -420,99 +424,12 @@ executable tests
     , transformers
     , unison-core1
     , unison-parser-typechecker
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-executable transcripts
-  main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      transcripts
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
-  build-depends:
-      base
-    , directory
-    , easytest
-    , filepath
-    , process
-    , shellmet
-    , text
-    , unison-core1
-    , unison-parser-typechecker
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-executable unison
-  main-is: Main.hs
-  other-modules:
-      ArgParse
-      Compat
-      System.Path
-      Version
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      unison
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-  build-depends:
-      base
-    , bytestring
-    , configurator
-    , containers
-    , directory
-    , errors
-    , filepath
-    , lens
-    , megaparsec
-    , mtl
-    , optparse-applicative >=0.16.1.0
-    , safe
-    , shellmet
-    , template-haskell
-    , temporary
-    , text
-    , unison-codebase-sync
-    , unison-core1
-    , unison-parser-typechecker
-    , unliftio
-    , uri-encode
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 benchmark runtime
@@ -532,6 +449,8 @@ benchmark runtime
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications

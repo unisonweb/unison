@@ -1,6 +1,15 @@
 {-# Language OverloadedStrings #-}
 
-module Unison.PrettyPrintEnv (PrettyPrintEnv(..), patterns, patternName, termName, typeName) where
+module Unison.PrettyPrintEnv
+  ( PrettyPrintEnv (..),
+    patterns,
+    patternName,
+    termName,
+    typeName,
+    -- | Exported only for cases where the codebase's configured hash length is unavailable.
+    todoHashLength,
+  )
+where
 
 import Unison.Prelude
 

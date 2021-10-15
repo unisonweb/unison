@@ -7,5 +7,5 @@ import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 import Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames)
 
 fromNamesDecl :: Int -> Names -> PrettyPrintEnvDecl
-fromNamesDecl len names =
-  PrettyPrintEnvDecl (fromNames len names) (fromSuffixNames len names)
+fromNamesDecl hashLength names =
+  PrettyPrintEnvDecl (fromNames hashLength names) (fromSuffixNames hashLength names)

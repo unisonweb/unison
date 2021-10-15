@@ -17,10 +17,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Foldable as Foldable
 import Prelude hiding (abs,cycle)
-import U.Util.Hashable (Accumulate, Hashable1)
-import qualified U.Util.Hashable as Hashable
-import qualified Data.List as List
-import qualified Data.Vector as Vector
 import Control.Monad (join)
 import Data.Functor.Identity (Identity(runIdentity))
 import Data.Maybe (fromMaybe)
@@ -79,45 +75,6 @@ cycle a t = Term (freeVars t) a (Cycle t)
 
 tm :: (Foldable f, Ord v) => a -> f (Term f v a) -> Term f v a
 tm a t = Term (Set.unions (fmap freeVars (Foldable.toList t))) a (Tm t)
-
--- | We ignore annotations in the `Term`, as these should never affect the
--- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
-    => Term f v a -> h
-hash = hash' [] where
-  hash' :: [Either [v] v] -> Term f v a -> h
-  hash' env (Term _ _ t) = case t of
-    Var v -> maybe die hashInt ind
-      where lookup (Left cycle) = v `elem` cycle
-            lookup (Right v') = v == v'
-            ind = List.findIndex lookup env
-            hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show v
-                        ++ " environment = " ++ show env
-    Cycle (unabs -> (vs, t)) -> hash' (Left vs : env) t
-    Abs v t -> hash' (Right v : env) t
-    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
-  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
-  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
-    let
-      permute p xs = case Vector.fromList xs of xs -> map (xs Vector.!) p
-      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
-      pt = fst <$> List.sortOn snd hashed
-      (p,ts') = unzip pt
-    in case map Right (permute p cycle) ++ envTl of
-      env -> (map (hash' env) ts', hash' env)
-  hashCycle env ts = (map (hash' env) ts, hash' env)
-
--- Implementation detail of hashComponent
-data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
-instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
-  hash1 hashCycle hash c = case c of
-    Component as a -> let
-      (hs, hash) = hashCycle as
-      toks = Hashable.Hashed <$> hs
-      in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
-    Embed fa -> Hashable.hash1 hashCycle hash fa
 
 -- * Traversals
 -- | `visit f t` applies an effectful function to each subtree of

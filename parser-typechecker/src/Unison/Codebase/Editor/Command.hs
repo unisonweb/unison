@@ -244,6 +244,8 @@ data Command m i v a where
 
   ClearWatchCache :: Command m i v ()
 
+  MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
+
 type UseCache = Bool
 
 type EvalResult v =
@@ -308,3 +310,4 @@ commandName = \case
   GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
   FindShallow{}               -> "FindShallow"
   ClearWatchCache{}           -> "ClearWatchCache"
+  MakeStandalone{}            -> "MakeStandalone"

@@ -296,6 +296,21 @@ listsOf sizes gen = sizes `forM` \n -> listOf n gen
 pair :: Test a -> Test b -> Test (a,b)
 pair = liftA2 (,)
 
+-- | Alias for 'pair'.
+tuple2 :: (Random a, Random b) => Test (a, b)
+tuple2 =
+  (,) <$> random <*> random
+
+-- | Generate a random 3-tuple.
+tuple3 :: (Random a, Random b, Random c) => Test (a, b, c)
+tuple3 =
+  (,,) <$> random <*> random <*> random
+
+-- | Generate a random 4-tuple.
+tuple4 :: (Random a, Random b, Random c, Random d) => Test (a, b, c, d)
+tuple4 =
+  (,,,) <$> random <*> random <*> random <*> random
+
 -- | Generate a `Data.Map k v` of the given size.
 mapOf :: Ord k => Int -> Test k -> Test v -> Test (Map k v)
 mapOf n k v = Map.fromList <$> listOf n (pair k v)

@@ -8,8 +8,6 @@ import Data.Text (Text)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
-import U.Util.Hashable (Hashable (..))
-import qualified U.Util.Hashable as Hashable
 import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.Bitraversable (Bitraversable(..))
@@ -28,10 +26,6 @@ data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId
   deriving (Eq, Ord, Show)
-
-instance (Hashable rTm, Hashable rTp) => Hashable (Referent' rTm rTp) where
-  tokens (Ref r) = Hashable.Tag 0 : Hashable.tokens r
-  tokens (Con r i) = [Hashable.Tag 1] ++ Hashable.tokens r ++ [Hashable.Nat (fromIntegral i)]
 
 instance Bifunctor Referent' where
   bimap f g = \case

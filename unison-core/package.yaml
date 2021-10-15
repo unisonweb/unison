@@ -9,6 +9,7 @@ library:
     - base
     - bytestring
     - containers >= 0.6.3
+    - nonempty-containers
     - cryptonite
     - either
     - extra
@@ -22,6 +23,8 @@ library:
     - sandi
     - text
     - transformers
+    - unison-prelude
+    - unison-util-relation
     - util
     - vector
 
@@ -35,9 +38,12 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 flags:
   optimized:

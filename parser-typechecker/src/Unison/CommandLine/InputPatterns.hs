@@ -1376,6 +1376,25 @@ ioTest = InputPattern
     [thing] -> fmap Input.IOTestI $ parseHashQualifiedName thing
     _   -> Left $ showPatternHelp ioTest
   )
+
+makeStandalone :: InputPattern
+makeStandalone = InputPattern
+  "compile.output"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`compile.output main file`"
+      , "Outputs a stand alone file that can be directly loaded and"
+      <> "executed by unison. Said execution will have the effect of"
+      <> "running `!main`."
+      ) ]
+  )
+  (\case
+    [main, file] ->
+      Input.MakeStandaloneI file <$> parseHashQualifiedName main
+    _ -> Left $ showPatternHelp makeStandalone
+  )
+
 createAuthor :: InputPattern
 createAuthor = InputPattern "create.author" []
   [(Required, noCompletions), (Required, noCompletions)]
@@ -1461,6 +1480,7 @@ validInputs =
   , resetRoot
   , quit
   , updateBuiltins
+  , makeStandalone
   , mergeBuiltins
   , mergeIOBuiltins
   , dependents, dependencies

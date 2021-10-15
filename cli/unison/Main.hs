@@ -9,8 +9,10 @@
 module Main where
 
 import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Exception (evaluate)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
@@ -39,6 +41,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
+import Unison.Runtime.Exception (RuntimeExn(..))
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
@@ -52,9 +55,9 @@ import ArgParse
       IsHeadless(WithCLI, Headless),
       ShouldSaveCodebase(..),
       ShouldForkCodebase(..),
+      RunSource(..),
       ShouldDownloadBase (..),
       CodebasePathOption(..),
-      RunSource(RunFromPipe, RunFromSymbol, RunFromFile),
       parseCLIArgs )
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -66,7 +69,7 @@ main = do
   -- hSetBuffering stdout NoBuffering -- cool
 
   void installSignalHandlers
-  (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribe
+  (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
   let GlobalOptions{codebasePathOption=mCodePathOption} = globalOptions
   let mcodepath = fmap codebasePathOptionToPath mCodePathOption
 
@@ -77,13 +80,13 @@ main = do
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case command of
      PrintVersion ->
-       putStrLn $ progName ++ " version: " ++ Version.gitDescribe
-     Init -> do 
-      PT.putPrettyLn $ 
-        P.callout 
+       putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
+     Init -> do
+      PT.putPrettyLn $
+        P.callout
           "⚠️"
           (P.lines ["The Init command has been removed"
-                  , P.newline 
+                  , P.newline
                   , P.wrap "Use --codebase-create to create a codebase at a specified location and open it:"
                   , P.indentN 2 (P.hiBlue "$ ucm --codebase-create myNewCodebase")
                   , "Running UCM without the --codebase-create flag: "
@@ -93,7 +96,7 @@ main = do
 
      Run (RunFromSymbol mainName) -> do
       ((closeCodebase, theCodebase),_) <- getCodebaseOrExit mCodePathOption
-      runtime <- RTI.startRuntime
+      runtime <- RTI.startRuntime Version.gitDescribeWithDate
       execute theCodebase runtime mainName
       closeCodebase
      Run (RunFromFile file mainName)
@@ -104,7 +107,7 @@ main = do
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
                 ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-                rt <- RTI.startRuntime
+                rt <- RTI.startRuntime Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                 launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
                 closeCodebase
@@ -114,20 +117,75 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-          rt <- RTI.startRuntime
+          rt <- RTI.startRuntime Version.gitDescribeWithDate
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config rt theCodebase
             [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
             Nothing
-            ShouldNotDownloadBase 
+            ShouldNotDownloadBase
             initRes
           closeCodebase
+     Run (RunCompiled file) ->
+       BL.readFile file >>= \bs ->
+       try (evaluate $ RTI.decodeStandalone bs) >>= \case
+         Left (PE _cs err) -> do
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , P.indentN 2 $ err
+             ]
+         Right (Left err) ->
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , P.indentN 2 . P.wrap $ P.string err
+             ]
+         Left _ -> do
+           PT.putPrettyLn . P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated an unrecognized error."
+         Right (Right (v, rf, w, sto))
+           | not vmatch -> mismatchMsg
+           | otherwise -> RTI.runStandalone sto w
+           where
+           vmatch = v == Text.pack Version.gitDescribeWithDate
+           ws s = P.wrap (P.text s)
+           ifile | 'c':'u':'.':rest <- reverse file = reverse rest
+                 | otherwise = file
+           mismatchMsg = PT.putPrettyLn . P.lines $
+             [ ws "I can't run this compiled program since \
+               \it works with a different version of Unison \
+               \than the one you're running."
+             , ""
+             , "Compiled file version"
+             , P.indentN 4 $ P.text v
+             , ""
+             , "Your version"
+             , P.indentN 4 $ P.string Version.gitDescribeWithDate
+             , ""
+             , P.wrap $ "The program was compiled from hash "
+                 <> (P.text $ "`" <> rf <> "`.")
+                 <> "If you have that hash in your codebase,"
+                 <> "you can do:"
+             , ""
+             , P.indentN 4
+               $ ".> compile.output "
+                 <> P.text rf <> " " <> P.string ifile
+             , ""
+             , P.wrap "to produce a new compiled program \
+               \that matches your version of Unison."
+             ]
+
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
        ((closeCodebase, theCodebase),initRes)  <- getCodebaseOrExit mCodePathOption
-       runtime <- RTI.startRuntime
+       runtime <- RTI.startRuntime Version.gitDescribeWithDate
        Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
          case isHeadless of
              Headless -> do
@@ -160,7 +218,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       -- A forked codebase does not need to Create a codebase, because it already exists
       getCodebaseOrExit mCodePathOption
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-      PT.putPrettyLn $ P.lines [ 
+      PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
         P.indentN 2 (P.string path)
         ]
@@ -247,19 +305,20 @@ launch
   -> Codebase.Codebase IO Symbol Ann
   -> [Either Input.Event Input.Input]
   -> Maybe Server.BaseUrl
-  -> ShouldDownloadBase 
-  -> InitResult IO Symbol Ann 
+  -> ShouldDownloadBase
+  -> InitResult IO Symbol Ann
   -> IO ()
 launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
-  let 
+  let
     downloadBase = case defaultBaseLib of
                       Just remoteNS | shouldDownloadBase == ShouldDownloadBase -> Welcome.DownloadBase remoteNS
                       _ -> Welcome.DontDownloadBase
-    isNewCodebase = case initResult of 
+    isNewCodebase = case initResult of
       CreatedCodebase{} -> NewlyCreatedCodebase
-      _ -> PreviouslyCreatedCodebase 
-      
-    welcome = Welcome.welcome isNewCodebase downloadBase dir Version.gitDescribe
+      _ -> PreviouslyCreatedCodebase
+
+    (gitRef, _date) = Version.gitDescribe
+    welcome = Welcome.welcome isNewCodebase downloadBase dir gitRef
   in
     CommandLine.main
       dir
@@ -290,7 +349,9 @@ getConfigFilePath mcodepath = (FP.</> ".unisonConfig") <$> Codebase.getCodebaseD
 
 defaultBaseLib :: Maybe ReadRemoteNamespace
 defaultBaseLib = rightMay $
-  runParser VP.defaultBaseLib "version" (Text.pack Version.gitDescribe)
+  runParser VP.defaultBaseLib "version" (Text.pack gitRef)
+  where
+    (gitRef, _date) = Version.gitDescribe
 -- (Unison.Codebase.Init.FinalizerAndCodebase IO Symbol Ann, InitResult IO Symbol Ann)
 getCodebaseOrExit :: Maybe CodebasePathOption -> IO ((IO (), Codebase.Codebase IO Symbol Ann), InitResult IO Symbol Ann)
 getCodebaseOrExit codebasePathOption = do
@@ -303,15 +364,15 @@ getCodebaseOrExit codebasePathOption = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case error of
-            NoCodebaseFoundAtSpecifiedDir -> 
+            NoCodebaseFoundAtSpecifiedDir ->
               pure (P.lines
-                [ "No codebase exists in " <> pDir <> ".", 
+                [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
 
             FoundV1Codebase ->
               pure (P.lines
-                [ "Found a v1 codebase at " <> pDir <> ".", 
+                [ "Found a v1 codebase at " <> pDir <> ".",
                   "v1 codebases are no longer supported in this version of the UCM.",
                   "Please download version M2g of the UCM to upgrade."
                 ])
@@ -328,7 +389,7 @@ getCodebaseOrExit codebasePathOption = do
       PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
       pure (cb, c)
 
-    o@(OpenedCodebase _ cb) -> 
+    o@(OpenedCodebase _ cb) ->
       pure (cb, o)
 
   where
@@ -336,13 +397,13 @@ getCodebaseOrExit codebasePathOption = do
 
 argsToCodebaseInitOptions :: Maybe CodebasePathOption -> IO CodebaseInit.CodebaseInitOptions
 argsToCodebaseInitOptions pathOption =
-  case pathOption of 
+  case pathOption of
     Just (CreateCodebaseWhenMissing path)     -> pure $ Specified (CreateWhenMissing path)
     Just (DontCreateCodebaseWhenMissing path) -> pure $ Specified (DontCreateWhenMissing path)
     Nothing                                   -> do Home <$> getHomeDirectory
 
 codebasePathOptionToPath :: CodebasePathOption -> FilePath
-codebasePathOptionToPath codebasePathOption = 
+codebasePathOptionToPath codebasePathOption =
   case codebasePathOption of
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p

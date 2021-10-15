@@ -45,7 +45,6 @@ library
       Unison.NameSegment
       Unison.Paths
       Unison.Pattern
-      Unison.Prelude
       Unison.Reference
       Unison.Referent
       Unison.Referent'
@@ -59,9 +58,6 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
-      Unison.Util.Relation
-      Unison.Util.Relation3
-      Unison.Util.Relation4
       Unison.Util.Set
       Unison.Var
       Unison.Var.RefNamed
@@ -80,9 +76,12 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      ViewPatterns
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   build-depends:
       base
@@ -95,12 +94,15 @@ library
     , lens
     , memory
     , mtl
+    , nonempty-containers
     , prelude-extras
     , rfc5051
     , safe
     , sandi
     , text
     , transformers
+    , unison-prelude
+    , unison-util-relation
     , util
     , vector
   if flag(optimized)

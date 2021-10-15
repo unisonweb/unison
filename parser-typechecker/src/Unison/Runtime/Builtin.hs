@@ -1588,9 +1588,6 @@ declareForeigns = do
   declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
     $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
-  declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
-    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
-
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
 
