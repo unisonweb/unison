@@ -153,6 +153,7 @@ executables:
       - extra
       - filepath
       - filemanip
+      - haskeline
       - here
       - lens
       - megaparsec
