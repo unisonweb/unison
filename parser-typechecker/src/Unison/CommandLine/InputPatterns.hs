@@ -49,6 +49,8 @@ import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import Unison.NameSegment (NameSegment(NameSegment))
+import qualified Data.List as List
+import qualified Unison.NameSegment as NameSegment
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -1506,7 +1508,7 @@ exactDefinitionOrPathArg =
       (bothCompletors
         (termCompletor exactComplete)
         (typeCompletor exactComplete))
-      (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
+      (pathCompletor exactComplete (\_query branch -> Set.map Path.toText . Branch.deepPaths $ branch))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
@@ -1534,7 +1536,7 @@ typeCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+  go _query = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
 
 termCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1544,12 +1546,12 @@ termCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+  go _query = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchArg :: ArgumentType
 patchArg = ArgumentType "patch" $ pathCompletor
   exactComplete
-  (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+  (\_query branch -> Set.map Name.toText . Map.keysSet . Branch.deepEdits $ branch)
 
 bothCompletors
   :: (Monad m)
@@ -1568,8 +1570,8 @@ pathCompletor
   :: Applicative f
   => (String -> [String] -> [Completion])
      -- ^ Turns a query and list of possible completions into a 'Completion'.
-  -> (Branch.Branch0 m -> Set Text)
-     -- ^ Construct completions given ucm's current branch context, or the root namespace if
+  -> (Text -> Branch.Branch0 m -> Set Text)
+     -- ^ Construct completions given the query's relative branch context, or the root namespace if
      -- the query is absolute.
   -> String
      -- ^ The portion of this arg that the user has already typed.
@@ -1580,29 +1582,46 @@ pathCompletor
 pathCompletor filterQuery getNames query _code b p = let
   b0root = Branch.head b
   b0local = Branch.getAt0 (Path.unabsolute p) b0root
-  -- todo: if these sets are huge, maybe trim results
+  relativeQuery = Text.pack . List.dropWhile (== '.') $ query
   in pure . filterQuery query . map Text.unpack $
-       toList (getNames b0local) ++
+       toList (getNames relativeQuery b0local) ++
        if "." `isPrefixOf` query then
-         map ("." <>) (toList (getNames b0root))
+         map ("." <>) (toList (getNames relativeQuery b0root))
        else
          []
 
 namespaceArg :: ArgumentType
 namespaceArg = ArgumentType "namespace" $
-    pathCompletor completeWithinQueryNamespace  (Set.fromList . allSubNamespaces)
+    pathCompletor exactComplete namespacesAtQuery
 
--- | Recursively collects all names of namespaces which are children of the branch.
-allSubNamespaces :: Branch.Branch0 m -> [Text]
-allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
-    \(NameSegment k) (Branch.head -> b') ->
-      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
+-- | Recursively collects all names of namespaces which are children of the provided relative query.
+-- Meant for use with 'pathCompletor'
+namespacesAtQuery :: Text -> Branch.Branch0 m -> Set Text
+namespacesAtQuery (Text.splitOn  "." -> nameSegments) b = Set.fromList $ go nameSegments b
+  where
+    go :: [Text] -> Branch.Branch0 m -> [Text]
+    -- No more path segments, complete with all direct children on this branch
+    go [] b = NameSegment.toText <$> Map.keys (Branch._children $ b)
+    -- one path segment, complete with the child branch's matches as well as any namespaces
+    -- which match the segment as a prefix.
+    go [segment] (Branch._children -> children) =
+      let partialMatches = (filter (segment `Text.isPrefixOf`) . fmap NameSegment.toText . Map.keys $ children)
+          childMatches =
+            Map.lookup (NameSegment segment) children & \case
+              Nothing -> []
+              Just childBranch -> segment : ((\path -> segment <> "." <> path) <$> go [] (Branch.head childBranch))
+       in (partialMatches <> childMatches)
+    -- Descend into the branch indicated by segment.
+    go (segment:rest) b =
+      case Map.lookup (NameSegment segment) (Branch._children b) of
+        Nothing -> []
+        Just (Branch.head -> nextBranch) ->
+          (\path -> segment <> "." <> path) <$> go rest nextBranch
 
 newNameArg :: ArgumentType
 newNameArg = ArgumentType "new-name" $
   pathCompletor prefixIncomplete
-    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
+    (\_query b -> Set.map ((<> ".") . Path.toText) . Branch.deepPaths $ b)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
