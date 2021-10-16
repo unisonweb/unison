@@ -73,13 +73,13 @@ import Data.Sequence (Seq ((:<|)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
-import Unison.Name (Name, Parse)
+import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Convert as Convert
-import Unison.Util.Convert (Convert(..))
+import Unison.Util.Convert (Convert(..), Parse)
 
 type UnknownPath = Either (Path 'Absolute) (Path 'Relative)
 
@@ -256,8 +256,8 @@ toText (AbsolutePath p) = "." <> intercalateMap "." NameSegment.toText p
 
 -- | TODO: Note, this is unsafe, since you might end up with the wrong type
 -- Remove, or use something like 'fromName'
-fromText :: PathSelector t -> Text -> Maybe (Path t)
-fromText constr t = constr (fmap NameSegment . Seq.fromList . Name.segments' $ t)
+-- fromText :: PathSelector t -> Text -> Maybe (Path t)
+-- fromText constr t = constr (fmap NameSegment . Seq.fromList . Name.segments' $ t)
 
 unknownPathFromText :: Text -> UnknownPath
 unknownPathFromText n = case (Text.unpack n) of
@@ -371,12 +371,13 @@ instance Convert (Path t) UnknownPath where
   convert p@AbsolutePath{} = Left p
   convert p@RelativePath{} = Right p
 
-instance Parse Text (Path 'Relative) where parse = Convert.parse . Right
-instance Parse Text (Path 'Absolute) where parse = Convert.parse . Left
+instance Convert Text UnknownPath where convert = unknownPathFromText
 instance Parse UnknownPath (Path 'Absolute) where
   parse = either Just (const Nothing)
 instance Parse UnknownPath (Path 'Relative) where
   parse = either (const Nothing) Just
+instance Parse Text (Path 'Relative) where parse txt = Convert.parseFrom @UnknownPath (unknownPathFromText txt)
+instance Parse Text (Path 'Absolute) where parse txt = Convert.parseFrom @UnknownPath (unknownPathFromText txt)
 
 -- instance Convert (Path t) [NameSegment] where convert = toList
 -- instance Convert (HQSplit t) (HQ'.HashQualified (Path t)) where convert = unsplitHQ'

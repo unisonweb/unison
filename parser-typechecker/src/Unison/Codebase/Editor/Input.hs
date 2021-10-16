@@ -13,7 +13,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path' )
+import           Unison.Codebase.Path           ( UnknownPath )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
@@ -34,37 +34,37 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type PatchPath = Path.Split'
-type BranchId = Either ShortBranchHash Path'
-type HashOrHQSplit' = Either ShortHash Path.HQSplit'
+type PatchPath = Path.UnknownSplit
+type BranchId = Either ShortBranchHash UnknownPath
+type HashOrHQSplit' = Either ShortHash Path.UnknownHQSplit
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h
-parseBranchId s = Right <$> Path.parsePath' s
+parseBranchId s = Right <$> Path.parseUnknownPath s
 
 data Input
   -- names stuff:
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI (Either ShortBranchHash Path') Path'
+    = ForkLocalBranchI (Either ShortBranchHash UnknownPath) UnknownPath
     -- merge first causal into destination
-    | MergeLocalBranchI Path' Path' Branch.MergeMode
-    | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity 
-    | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
+    | MergeLocalBranchI UnknownPath UnknownPath Branch.MergeMode
+    | PreviewMergeLocalBranchI UnknownPath UnknownPath
+    | DiffNamespaceI UnknownPath UnknownPath -- old new
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) UnknownPath SyncMode Verbosity 
+    | PushRemoteBranchI (Maybe WriteRemotePath) UnknownPath SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
-    | ResetRootI (Either ShortBranchHash Path')
+    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace UnknownPath
+    | ResetRootI (Either ShortBranchHash UnknownPath)
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user 
     | CreateMessage (P.Pretty P.ColorText)  
     -- change directory
-    | SwitchBranchI Path'
+    | SwitchBranchI UnknownPath
     | UpI
     | PopBranchI
     -- > names foo
@@ -73,38 +73,38 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     | NamesI (HQ.HashQualified Name)
-    | AliasTermI HashOrHQSplit' Path.Split'
-    | AliasTypeI HashOrHQSplit' Path.Split'
-    | AliasManyI [Path.HQSplit] Path'
-    -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
-    | MoveTermI Path.HQSplit' Path.Split'
-    | MoveTypeI Path.HQSplit' Path.Split'
-    | MoveBranchI (Maybe Path.Split') Path.Split'
-    | MovePatchI Path.Split' Path.Split'
-    | CopyPatchI Path.Split' Path.Split'
+    | AliasTermI HashOrHQSplit' Path.UnknownSplit
+    | AliasTypeI HashOrHQSplit' Path.UnknownSplit
+    | AliasManyI [Path.UnknownHQSplit] UnknownPath
+    -- Move = Rename; It's an UnknownHQSplit not an UnknownHQSplit, meaning the arg has to have a name.
+    | MoveTermI Path.UnknownHQSplit Path.UnknownSplit
+    | MoveTypeI Path.UnknownHQSplit Path.UnknownSplit
+    | MoveBranchI (Maybe Path.UnknownSplit) Path.UnknownSplit
+    | MovePatchI Path.UnknownSplit Path.UnknownSplit
+    | CopyPatchI Path.UnknownSplit Path.UnknownSplit
     -- delete = unname
-    | DeleteI Path.HQSplit'
-    | DeleteTermI Path.HQSplit'
-    | DeleteTypeI Path.HQSplit'
-    | DeleteBranchI (Maybe Path.Split')
-    | DeletePatchI Path.Split'
+    | DeleteI Path.UnknownHQSplit
+    | DeleteTermI Path.UnknownHQSplit
+    | DeleteTypeI Path.UnknownHQSplit
+    | DeleteBranchI (Maybe Path.UnknownSplit)
+    | DeletePatchI Path.UnknownSplit
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
-    | ResolveTermNameI Path.HQSplit'
-    | ResolveTypeNameI Path.HQSplit'
+    | ResolveTermNameI Path.UnknownHQSplit
+    | ResolveTypeNameI Path.UnknownHQSplit
   -- edits stuff:
     | LoadI (Maybe FilePath)
     | AddI [HQ'.HashQualified Name]
     | PreviewAddI [HQ'.HashQualified Name]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
     | PreviewUpdateI [HQ'.HashQualified Name]
-    | TodoI (Maybe PatchPath) Path'
-    | PropagatePatchI PatchPath Path'
+    | TodoI (Maybe PatchPath) UnknownPath
+    | PropagatePatchI PatchPath UnknownPath
     | ListEditsI (Maybe PatchPath)
     -- -- create and remove update directives
-    | DeprecateTermI PatchPath Path.HQSplit'
-    | DeprecateTypeI PatchPath Path.HQSplit'
+    | DeprecateTermI PatchPath Path.UnknownHQSplit
+    | DeprecateTypeI PatchPath Path.UnknownHQSplit
     | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
@@ -121,17 +121,17 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | LinkI (HQ.HashQualified Name) [Path.UnknownHQSplit]
   -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-  | UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | UnlinkI (HQ.HashQualified Name) [Path.UnknownHQSplit]
   -- links from <type>
-  | LinksI Path.HQSplit' (Maybe String)
+  | LinksI Path.UnknownHQSplit (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | DisplayI OutputLocation (HQ.HashQualified Name)
-  | DocsI Path.HQSplit'
+  | DocsI Path.UnknownHQSplit
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
-  | FindShallowI Path'
+  | FindShallowI UnknownPath
   | FindPatchI
   | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]

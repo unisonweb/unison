@@ -6,8 +6,6 @@
 
 module Unison.Name
   ( Name(Name)
-  , Convert(..)
-  , Parse(..)
   , endsWithSegments
   , fromString
   , isPrefixOf
@@ -61,6 +59,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails, inits, find )
+import Unison.Util.Convert (Parse, Convert)
 
 newtype Name = Name { toText :: Text }
   deriving (Eq, Generic)
@@ -271,12 +270,6 @@ shortestUniqueSuffix fqn r rel =
     where rs = R.searchDom compareEnd rel
           compareEnd n = compare (take len (reverseSegments n)) suffix
           len = length suffix
-
-class Convert a b where
-  convert :: a -> b
-
-class Parse a b where
-  parse :: a -> Maybe b
 
 instance Convert Name Text where convert = toText
 instance Convert Name [NameSegment] where convert = segments
