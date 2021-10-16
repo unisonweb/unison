@@ -32,11 +32,11 @@ module Unison.Codebase.Path
     -- * things that could be replaced with `Convert` instances
     -- absoluteToPath',
     -- fromAbsoluteSplit,
-    -- fromList,
-    -- fromName,
+    fromList,
+    fromName,
     -- fromText,
     -- toAbsoluteSplit,
-    -- toList,
+    toList,
     -- toName,
     -- toName',
     -- toText,
@@ -185,9 +185,6 @@ fromList constr = constr . Seq.fromList
 --                     (Maybe (HQ'.HashQualified (Path 'Absolute, a)))
 --                     (Maybe (HQ'.HashQualified (Path 'Relative, a))))
 -- hqSplitFromName = (over (both . _Just) HQ'.fromName) . over both Lens.unsnoc . fromName
-
--- splitFromName :: Name -> Maybe Split
--- splitFromName = unsnoc . fromName
 
 -- -- | what is this? —AI
 -- unprefixName :: Absolute -> Name -> Name

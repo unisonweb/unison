@@ -95,7 +95,7 @@ import           Unison.Codebase.Causal         ( Causal
                                                 , pattern RawCons
                                                 , pattern RawMerge
                                                 )
-import           Unison.Codebase.Path           ( Path(..), PathType(Relative, Absolute) )
+import           Unison.Codebase.Path           ( Path(..), PathType(Relative) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.NameSegment             ( NameSegment )
 import qualified Unison.NameSegment            as NameSegment
@@ -148,7 +148,7 @@ data Branch0 m = Branch0
   , deepTypes :: Relation Reference Name
   , deepTermMetadata :: Metadata.R4 Referent Name
   , deepTypeMetadata :: Metadata.R4 Reference Name
-  , deepPaths :: Set (Path Path.Relative)
+  , deepPaths :: Set (Path 'Relative)
   , deepEdits :: Map Name EditHash
   }
 
@@ -236,7 +236,7 @@ branch0 terms types children edits =
    where
     go (nameSegToName -> n, b) =
       R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
-  deepPaths' = Set.map (Convert.into @(Path 'Path.Relative)) (Map.keysSet children)
+  deepPaths' = Set.map (Convert.into @(Path 'Relative) . pure @[]) (Map.keysSet children)
     <> foldMap go (Map.toList children)
     where go (nameSeg, b) = Set.map (Lens.cons nameSeg) (deepPaths $ head b)
   deepEdits' = Map.mapKeys nameSegToName (Map.map fst edits)
