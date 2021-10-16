@@ -7,11 +7,13 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Path
   ( Path (..),
     PathType(..),
     UnknownPath,
+    matchUnknown,
     -- Resolve (..),
     pattern Lens.Empty,
     isEmpty,
@@ -25,6 +27,8 @@ module Unison.Codebase.Path
     -- unprefixName,
     HQSplit,
     Split,
+    UnknownHQSplit,
+    UnknownSplit,
     -- ancestors,
 
     -- * tests
@@ -64,7 +68,7 @@ import Control.Lens hiding (Empty, cons, snoc, unsnoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
-import Data.Sequence (Seq ((:<|), (:|>)))
+import Data.Sequence (Seq ((:<|)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
@@ -75,9 +79,13 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Convert as Convert
 import Unison.Util.Convert (Convert(..))
-import Control.Error
 
 type UnknownPath = Either (Path 'Absolute) (Path 'Relative)
+
+-- | Unwraps the Either of an UnknownPath to allow direct pattern matching.
+matchUnknown :: UnknownPath -> (forall t. Path t -> r) -> r
+matchUnknown (Left p) f = f p
+matchUnknown (Right p) f = f p
 
 data PathType = Absolute | Relative
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -132,6 +140,9 @@ unsplitHQ (p, a) = fmap (Lens.snoc p) a
 
 type Split pathType = (Path pathType, NameSegment)
 type HQSplit pathType = (Path pathType, HQ'.HQSegment)
+
+type UnknownSplit = (UnknownPath, NameSegment)
+type UnknownHQSplit = (UnknownPath, HQ'.HQSegment)
 
 -- | TODO: Limit second arg to just Relative
 --   examples:
@@ -287,6 +298,27 @@ instance Snoc (Path t) (Path t) NameSegment NameSegment where
       snoc' :: Path t -> NameSegment -> Path t
       snoc' p ns = over segments (`Lens.snoc` ns) p
 
+instance Cons UnknownPath UnknownPath NameSegment NameSegment where
+  _Cons = prism (uncurry cons) uncons where
+    cons :: NameSegment -> UnknownPath -> UnknownPath
+    cons ns = over (beside segments segments) (Lens.cons ns)
+    uncons :: UnknownPath -> Either (UnknownPath) (NameSegment, (UnknownPath))
+    uncons p = matchUnknown p $ \case
+      AbsolutePath (hd :<| tl) -> Right (hd, convert $ AbsolutePath tl)
+      RelativePath (hd :<| tl) -> Right (hd, convert $ RelativePath tl)
+      _ -> Left p
+
+instance Snoc UnknownPath UnknownPath NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc') unsnoc
+    where
+      unsnoc :: (UnknownPath -> Either UnknownPath (UnknownPath, NameSegment))
+      unsnoc p = matchUnknown p \case
+        AbsolutePath (Lens.unsnoc -> Just (s,a)) -> Right (Convert.into @UnknownPath $ AbsolutePath s, a)
+        RelativePath (Lens.unsnoc -> Just (s,a)) -> Right (Convert.into @UnknownPath $ RelativePath s, a)
+        e -> Left (Convert.into @UnknownPath e)
+      snoc' :: UnknownPath -> NameSegment -> UnknownPath
+      snoc' p ns = matchUnknown p (\p -> Convert.into @UnknownPath $ over segments (`Lens.snoc` ns) p)
+
 -- instance Snoc Split' Split' NameSegment NameSegment where
 --   _Snoc = prism (uncurry snoc') $ \case -- unsnoc
 --     (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
@@ -329,6 +361,15 @@ instance Convert [NameSegment] (Path 'Absolute) where convert = fromList Absolut
 instance Convert [NameSegment] (Path 'Relative) where convert = fromList RelativePath
 instance Convert (Path 'Absolute) [NameSegment] where convert = toList
 instance Convert (Path 'Relative) [NameSegment] where convert = toList
+instance Convert (Path t) UnknownPath where
+  convert p@AbsolutePath{} = Left p
+  convert p@RelativePath{} = Right p
+
+instance Parse UnknownPath (Path 'Absolute) where
+  parse = either Just (const Nothing)
+instance Parse UnknownPath (Path 'Relative) where
+  parse = either (const Nothing) Just
+
 -- instance Convert (Path t) [NameSegment] where convert = toList
 -- instance Convert (HQSplit t) (HQ'.HashQualified (Path t)) where convert = unsplitHQ'
 -- instance Convert (Path t) Name where convert = toName
