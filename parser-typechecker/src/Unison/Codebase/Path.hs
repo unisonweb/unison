@@ -13,6 +13,7 @@ module Unison.Codebase.Path
     PathType(..),
     -- Resolve (..),
     pattern Lens.Empty,
+    isEmpty,
     singleton,
     emptyRelative,
     emptyAbsolute,
@@ -39,7 +40,7 @@ module Unison.Codebase.Path
     toList,
     -- toName,
     -- toName',
-    -- toText,
+    toText,
     -- unsplit,
     -- unsplitHQ,
 
@@ -84,6 +85,9 @@ data Path (t :: PathType) where
 deriving instance Eq (Path fixation)
 deriving instance Ord (Path fixation)
 
+-- | Any time a function requires a PathSelector, provide either 'AbsolutePath' or 'RelativePath'
+type PathSelector t = (Seq NameSegment -> Path t)
+
 -- | This could be an iso, but then we would need to carry around the Convert instances
 -- everywhere, and we probably want people to explicitly state which Path type they want
 -- anyways.
@@ -111,10 +115,6 @@ currentPath = mempty
 
 isRoot :: Path 'Absolute -> Bool
 isRoot p = p == AbsolutePath mempty
-
-instance Show (Path a) where
-  show (AbsolutePath pth) = "." ++ intercalateMap "." show pth
-  show (RelativePath pth) = intercalateMap "." show pth
 
 -- Use Cons for this instead.
 -- unsplit' :: Split' -> Path'
@@ -153,12 +153,6 @@ prefix (AbsolutePath prefix) = \case
 -- fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
 -- fromAbsoluteSplit (Absolute p, a) = (p, a)
 
--- absoluteEmpty :: Absolute
--- absoluteEmpty = Absolute empty
-
--- relativeEmpty' :: Path'
--- relativeEmpty' = Path' (Right (Relative empty))
-
 -- toPath' :: Path -> Path'
 -- toPath' = \case
 --   Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
@@ -175,7 +169,7 @@ toList (AbsolutePath p) = Foldable.toList p
 toList (RelativePath p) = Foldable.toList p
 
 -- | Prefer @@into @(Path Absolute)@@ or @@into @(Path Relative)@@ where possible.
-fromList :: (Seq NameSegment -> Path t) -> [NameSegment] -> Path t
+fromList :: PathSelector t -> [NameSegment] -> Path t
 fromList constr = constr . Seq.fromList
 
 -- ancestors :: Absolute -> Seq Absolute
@@ -235,16 +229,20 @@ emptyRelative = RelativePath mempty
 emptyAbsolute :: Path 'Absolute
 emptyAbsolute = AbsolutePath mempty
 
--- instance Show Path where
---   show = Text.unpack . toText
+isEmpty :: Path t -> Bool
+isEmpty p = null $ view segments p
 
--- toText :: Path -> Text
--- toText (Path nss) = intercalateMap "." NameSegment.toText nss
+instance Show (Path t) where
+  show = Text.unpack . toText
 
--- fromText :: Text -> Path
--- fromText = \case
---   "" -> empty
---   t -> fromList $ NameSegment <$> Name.segments' t
+toText :: Path t -> Text
+toText (RelativePath p) = intercalateMap "." NameSegment.toText p
+toText (AbsolutePath p) = "." <> intercalateMap "." NameSegment.toText p
+
+-- | TODO: Note, this is unsafe, since you might end up with the wrong type
+-- Remove, or use something like 'fromName'
+fromText :: PathSelector t -> Text -> Path t
+fromText constr t = constr (fmap NameSegment . Seq.fromList . Name.segments' $ t)
 
 -- toText' :: Path' -> Text
 -- toText' = \case
@@ -252,11 +250,19 @@ emptyAbsolute = AbsolutePath mempty
 --   Path' (Right (Relative path)) -> toText path
 
 instance Lens.AsEmpty (Path 'Relative) where
-  _Empty = prism (\() -> mempty) matchEmpty
+  _Empty = prism (\() -> RelativePath mempty) matchEmpty
     where
       matchEmpty :: Path 'Relative -> Either (Path 'Relative) ()
       matchEmpty = \case
         RelativePath Lens.Empty -> Right ()
+        r -> Left r
+
+instance Lens.AsEmpty (Path 'Absolute) where
+  _Empty = prism (\() -> AbsolutePath mempty) matchEmpty
+    where
+      matchEmpty :: Path 'Absolute -> Either (Path 'Absolute) ()
+      matchEmpty = \case
+        AbsolutePath Lens.Empty -> Right ()
         r -> Left r
 
 instance Cons (Path t) (Path t) NameSegment NameSegment where

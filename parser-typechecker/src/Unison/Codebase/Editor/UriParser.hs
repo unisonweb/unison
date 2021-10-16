@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
 
@@ -7,7 +8,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Text as Text
 
-import Unison.Codebase.Path (Path(..))
+import Unison.Codebase.Path (Path(..), PathType (Absolute))
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadGitRepo), WriteRemotePath, WriteRepo (WriteGitRepo))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
@@ -42,7 +43,7 @@ repoPath = P.label "generic git repo" $ do
       let repo = ReadGitRepo (printProtocol protocol)
       nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
       case nshashPath of
-        Nothing -> pure (repo, Nothing, Path.empty)
+        Nothing -> pure (repo, Nothing, Path.emptyAbsolute)
         Just (sbh, p) -> pure (repo, sbh, p)
 
 writeRepo :: P WriteRepo
@@ -53,7 +54,7 @@ writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
   repo <- writeRepo
   path <- P.optional (C.char ':' *> absolutePath)
-  pure (repo, fromMaybe Path.empty path)
+  pure (repo, fromMaybe Path.emptyAbsolute path)
 
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text
@@ -151,16 +152,16 @@ parseProtocol = P.label "parseProtocol" $
     decOctet = P.count' 1 3 C.digitChar
 
 -- #nshashabc.path.foo.bar or .path.foo.bar
-namespaceHashPath :: P (Maybe ShortBranchHash, Path)
+namespaceHashPath :: P (Maybe ShortBranchHash, Path 'Absolute)
 namespaceHashPath = do
   sbh <- P.optional shortBranchHash
   p <- P.optional absolutePath
-  pure (sbh, fromMaybe Path.empty p)
+  pure (sbh, fromMaybe Path.emptyAbsolute p)
 
-absolutePath :: P Path
+absolutePath :: P (Path 'Absolute)
 absolutePath = do
   void $ C.char '.'
-  Path . Seq.fromList . fmap (NameSegment . Text.pack) <$>
+  AbsolutePath . Seq.fromList . fmap (NameSegment . Text.pack) <$>
     P.sepBy1
       ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))
