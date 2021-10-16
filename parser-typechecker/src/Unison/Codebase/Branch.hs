@@ -3,6 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Branch
   ( -- * Branch types
@@ -38,7 +39,7 @@ module Unison.Codebase.Branch
   , headHash
   , children
   , deepEdits'
-  , toList0
+  , branchAndDeepChildren
   -- * step
   , stepManyAt
   , stepManyAtM
@@ -94,7 +95,7 @@ import           Unison.Codebase.Causal         ( Causal
                                                 , pattern RawCons
                                                 , pattern RawMerge
                                                 )
-import           Unison.Codebase.Path           ( Path(..) )
+import           Unison.Codebase.Path           ( Path(..), PathType(Relative, Absolute) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.NameSegment             ( NameSegment )
 import qualified Unison.NameSegment            as NameSegment
@@ -113,6 +114,8 @@ import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
+import qualified Unison.Util.Convert as Convert
+import qualified Control.Lens as Lens
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -145,7 +148,7 @@ data Branch0 m = Branch0
   , deepTypes :: Relation Reference Name
   , deepTermMetadata :: Metadata.R4 Referent Name
   , deepTypeMetadata :: Metadata.R4 Reference Name
-  , deepPaths :: Set Path
+  , deepPaths :: Set (Path Path.Relative)
   , deepEdits :: Map Name EditHash
   }
 
@@ -233,9 +236,9 @@ branch0 terms types children edits =
    where
     go (nameSegToName -> n, b) =
       R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
-  deepPaths' = Set.map Path.singleton (Map.keysSet children)
+  deepPaths' = Set.map (Convert.into @(Path 'Path.Relative)) (Map.keysSet children)
     <> foldMap go (Map.toList children)
-    where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
+    where go (nameSeg, b) = Set.map (Lens.cons nameSeg) (deepPaths $ head b)
   deepEdits' = Map.mapKeys nameSegToName (Map.map fst edits)
     <> foldMap go (Map.toList children)
    where
@@ -271,11 +274,14 @@ before (Branch b1) (Branch b2) = Causal.before b1 b2
 
 pattern Hash h = Causal.RawHash h
 
--- | what does this do? —AI
-toList0 :: Branch0 m -> [(Path, Branch0 m)]
-toList0 = go Path.empty where
+-- | Returns a list of all child branches rooted at the provided 'Branch0'.
+-- Their paths are relative to the provided branch.
+-- Includes the root branch itself with an empty path.
+branchAndDeepChildren :: Branch0 m -> [(Path 'Path.Relative, Branch0 m)]
+branchAndDeepChildren = go mempty where
+  go :: Path 'Path.Relative -> Branch0 m -> [(Path 'Path.Relative, Branch0 m)]
   go p b = (p, b) : (Map.toList (_children b) >>= (\(seg, cb) ->
-    go (Path.snoc p seg) (head cb) ))
+    go (Lens.snoc p seg) (head cb) ))
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
@@ -368,7 +374,7 @@ toCausalRaw = \case
   Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
-getAt :: Path
+getAt :: Path 'Relative
       -> Branch m
       -> Maybe (Branch m)
 getAt path root = case Path.uncons path of
@@ -377,10 +383,10 @@ getAt path root = case Path.uncons path of
     Just b -> getAt path b
     Nothing -> Nothing
 
-getAt' :: Path -> Branch m -> Branch m
+getAt' :: Path 'Relative -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
-getAt0 :: Path -> Branch0 m -> Branch0 m
+getAt0 :: Path 'Relative -> Branch0 m -> Branch0 m
 getAt0 p b = case Path.uncons p of
   Nothing -> b
   Just (seg, path) -> case Map.lookup seg (_children b) of
@@ -425,11 +431,11 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 stepManyAt :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+           => f (Path 'Relative, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
 
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+            => f (Path 'Relative, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
@@ -487,7 +493,7 @@ updateChildren seg updatedChild =
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAt :: Applicative m
-  => Path -> (Branch m -> Branch m) -> Branch m -> Branch m
+  => Path 'Relative -> (Branch m -> Branch m) -> Branch m -> Branch m
 modifyAt path f = runIdentity . modifyAtM path (pure . f)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
@@ -496,7 +502,7 @@ modifyAtM
   :: forall n m
    . Functor n
   => Applicative m -- because `Causal.cons` uses `pure`
-  => Path
+  => Path 'Relative
   -> (Branch m -> n (Branch m))
   -> Branch m
   -> n (Branch m)
@@ -510,24 +516,24 @@ modifyAtM path f b = case Path.uncons path of
 
 -- stepManyAt0 consolidates several changes into a single step
 stepManyAt0 :: forall f m . (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m)
+           => f (Path 'Relative, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
 stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
-             => f (Path, Branch0 m -> n (Branch0 m))
+             => f (Path 'Relative, Branch0 m -> n (Branch0 m))
              -> Branch0 m -> n (Branch0 m)
 stepManyAt0M actions b = go (toList actions) b where
-  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+  go :: [(Path 'Relative, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
   go actions b = let
     -- combines the functions that apply to this level of the tree
     currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
     -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
+    childActions :: Map NameSegment [(Path 'Relative, Branch0 m -> n (Branch0 m))]
     childActions =
-      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+      List.multimap [ (seg, (rest,f)) | (seg Lens.:< rest, f) <- actions ]
 
     -- alters the children of `b` based on the `childActions` map
     stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))

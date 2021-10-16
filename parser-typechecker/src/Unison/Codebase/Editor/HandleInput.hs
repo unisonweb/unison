@@ -1182,7 +1182,7 @@ loop = do
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
-              | (p, b) <- Branch.toList0 currentBranch0
+              | (p, b) <- Branch.branchAndDeepChildren currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
         respond $ ListOfPatches $ Set.fromList patches
         numberedArgs .= fmap Name.toString patches
