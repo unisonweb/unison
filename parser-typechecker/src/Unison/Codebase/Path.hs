@@ -40,6 +40,7 @@ module Unison.Codebase.Path
     -- fromAbsoluteSplit,
     fromList,
     fromName,
+    unknownPathFromText,
     -- fromText,
     -- toAbsoluteSplit,
     toList,
@@ -255,8 +256,13 @@ toText (AbsolutePath p) = "." <> intercalateMap "." NameSegment.toText p
 
 -- | TODO: Note, this is unsafe, since you might end up with the wrong type
 -- Remove, or use something like 'fromName'
-fromText :: PathSelector t -> Text -> Path t
+fromText :: PathSelector t -> Text -> Maybe (Path t)
 fromText constr t = constr (fmap NameSegment . Seq.fromList . Name.segments' $ t)
+
+unknownPathFromText :: Text -> UnknownPath
+unknownPathFromText n = case (Text.unpack n) of
+  ('.': path) -> Left $ AbsolutePath (Seq.fromList . Name.segments . Name.fromString $ path)
+  _ -> Right $ RelativePath (Seq.fromList . fmap NameSegment . Name.segments' $ n)
 
 -- toText' :: Path' -> Text
 -- toText' = \case
@@ -365,6 +371,8 @@ instance Convert (Path t) UnknownPath where
   convert p@AbsolutePath{} = Left p
   convert p@RelativePath{} = Right p
 
+instance Parse Text (Path 'Relative) where parse = Convert.parse . Right
+instance Parse Text (Path 'Absolute) where parse = Convert.parse . Left
 instance Parse UnknownPath (Path 'Absolute) where
   parse = either Just (const Nothing)
 instance Parse UnknownPath (Path 'Relative) where

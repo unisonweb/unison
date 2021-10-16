@@ -190,6 +190,7 @@ makeAbsolute n | toText n == "."                = Name ".."
 instance Show Name where
   show = toString
 
+-- | TODO: Remove this, it's unsafe and easy to miss.
 instance IsString Name where
   fromString = unsafeFromText . Text.pack
 
