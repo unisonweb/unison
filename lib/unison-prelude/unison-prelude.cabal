@@ -17,6 +17,7 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Convert
       Unison.Prelude
   other-modules:
       Paths_unison_prelude

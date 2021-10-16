@@ -1,5 +1,4 @@
 module Unison.Util.Convert where
-import qualified Control.Lens as Lens
 
 -- | Meant to be used with Type Applications.
 --
@@ -22,8 +21,26 @@ from = convert
 into :: forall b a. Convert a b => a -> b
 into = convert
 
-between :: (Convert b a, Convert a b) => Lens.Iso' a b
-between = Lens.iso from into
+-- | Meant to be used with Type Applications.
+--
+-- E.g.
+--
+-- @@
+-- myName :: Name
+-- myName = parseFrom @String "testing"
+-- @@
+parseFrom :: forall a b. Parse a b => a -> Maybe b
+parseFrom = parse
+
+-- | Meant to be used with Type Applications.
+--
+-- E.g.
+--
+-- @@
+-- myName = parseInto @Name myString
+-- @@
+parseInto :: forall b a. Parse a b => a -> Maybe b
+parseInto = parse
 
 class Convert a b where
   convert :: a -> b
