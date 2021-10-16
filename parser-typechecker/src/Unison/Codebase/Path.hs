@@ -11,6 +11,7 @@
 module Unison.Codebase.Path
   ( Path (..),
     PathType(..),
+    UnknownPath,
     -- Resolve (..),
     pattern Lens.Empty,
     isEmpty,
@@ -75,6 +76,8 @@ import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Convert as Convert
 import Unison.Util.Convert (Convert(..))
 import Control.Error
+
+type UnknownPath = Either (Path 'Absolute) (Path 'Relative)
 
 data PathType = Absolute | Relative
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -211,7 +214,7 @@ uncons = Lens.uncons
 -- --                      and "Int" / "" / "foo" is not a valid path (internal "")
 -- -- todo: fromName needs to be a little more complicated if we want to allow
 -- --       identifiers called Function.(.)
-fromName :: Name -> Either (Path 'Absolute) (Path 'Relative)
+fromName :: Name -> UnknownPath
 fromName n = case Name.toString n of
   ('.': path) -> Left $ AbsolutePath (Seq.fromList . Name.segments . Name.fromString $ path)
   _ -> Right $ RelativePath (Seq.fromList . Name.segments $ n)

@@ -3,6 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 
 module Unison.Codebase.Path.Parse
   ( parsePath',
@@ -22,7 +24,7 @@ import Unison.Codebase.Path
 
 import Control.Lens (_1, over)
 import qualified Control.Lens as Lens
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, bimap)
 import Data.List.Extra (stripPrefix)
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
@@ -34,7 +36,7 @@ import qualified Unison.ShortHash as SH
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
-parsePath' :: String -> Either String Path'
+parsePath' :: String -> Either String UnknownPath
 parsePath' p = case parsePathImpl' p of
   Left  e        -> Left e
   Right (p, "" ) -> Right p
@@ -50,13 +52,13 @@ parsePath' p = case parsePathImpl' p of
 -- baz            becomes `Right (, "baz")
 -- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
 -- TODO: Get rid of this thing.
-parsePathImpl' :: String -> Either String (Path', String)
+parsePathImpl' :: String -> Either String (UnknownPath, String)
 parsePathImpl' p = case p of
   "."     -> Right (Path' . Left $ absoluteEmpty, "")
   '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
   p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
  where
-  go f p = case f p of
+  go p = case parseSegment p of
     Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
       Nothing           -> Left "empty path"
       Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
@@ -66,7 +68,6 @@ parsePathImpl' p = case p of
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem
     Left e -> Left e
-  segs p = go parseSegment p
 
 parseSegment :: String -> Either String (String, String)
 parseSegment s =
@@ -109,13 +110,13 @@ definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
 -- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
 parseSplit' :: (String -> Either String NameSegment)
             -> String
-            -> Either String Split'
+            -> Either String (Split t)
 parseSplit' lastSegment p = do
   (p', rem) <- parsePathImpl' p
   seg <- lastSegment rem
   pure (p', seg)
 
-parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash (HQSplit t))
 parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
@@ -136,32 +137,34 @@ parseShortHashOrHQSplit' s =
   where
   shError s = "couldn't parse shorthash from " <> s
 
-parseHQSplit :: String -> Either String HQSplit
-parseHQSplit s = case parseHQSplit' s of
-  Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
-  Right (Path' Left{}, _) ->
-    Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
-  Left e -> Left e
+parseHQSplit :: String -> Either String (HQSplit 'Relative)
+parseHQSplit s = do
+  parseHQSplit' s >>= \case
+    Left (AbsolutePath{}, _) ->
+      Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
+    Right (relPath, hqseg) -> Right (relPath, hqseg)
 
-parseHQSplit' :: String -> Either String HQSplit'
+parseHQSplit' :: String -> Either String (Either (HQSplit 'Absolute) (HQSplit 'Relative))
 parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
   ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
   (n , "") -> do
     (p, rem) <- parsePath n
     seg      <- definitionNameSegment rem
-    pure (p, HQ'.NameOnly seg)
-  (n, sh) -> do
+    let makeSplit :: Path t -> HQSplit t
+        makeSplit p = (p, HQ'.NameOnly seg)
+    pure (bimap makeSplit makeSplit p)
+  (n, shText) -> do
     (p, rem) <- parsePath n
     seg      <- definitionNameSegment rem
-    maybeToRight (shError s)
-      . fmap (\sh -> (p, HQ'.HashQualified seg sh))
-      . SH.fromText
-      $ sh
+    case SH.fromText shText of
+      Nothing -> Left $ "couldn't parse shorthash from " <> s
+      Just sh' -> do
+        let makeSplit :: Path t -> HQSplit t
+            makeSplit p = (p, HQ'.HashQualified seg sh')
+        pure (bimap makeSplit makeSplit p)
  where
-  shError s = "couldn't parse shorthash from " <> s
   parsePath n = do
-    x <- parsePathImpl' $ Text.unpack n
-    pure $ case x of
-      (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
-      x -> x
+    parsePathImpl' (Text.unpack n) >>= \case
+      (Left (AbsolutePath Empty), "") -> pure (Right emptyRelative, ".")
+      x -> pure x
