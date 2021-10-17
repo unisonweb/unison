@@ -7,8 +7,6 @@
 module Unison.Names
   ( UnqualifiedNames
   , Names'(Names)
-  , HQNames
-  , pattern HQNames
   , pattern UnqualifiedNames
   , addTerm
   , addType
@@ -30,7 +28,6 @@ module Unison.Names
   , _hqTypeName
   , _hqTermAliases
   , _hqTypeAliases
-  , names0ToNames
   , prefix0
   , restrictReferences
   , refTermsNamed
@@ -78,13 +75,6 @@ data Names' n = Names
   , types :: Relation n Reference
   } deriving (Eq,Ord)
 
-type HQNames = Names' (HashQualified Name)
-
-pattern HQNames :: Relation (HashQualified Name) Referent
-                -> Relation (HashQualified Name) Reference
-                -> HQNames
-pattern HQNames terms types = Names terms types
-
 type UnqualifiedNames = Names' Name
 
 pattern UnqualifiedNames :: Relation Name Referent
@@ -131,20 +121,6 @@ fuzzyFind query names =
                          (Just mempty)
                          query
           )
-
-names0ToNames :: UnqualifiedNames -> HQNames
-names0ToNames names0 = HQNames terms' types' where
-  terms' = R.map doTerm (terms names0)
-  types' = R.map doType (types names0)
-  length = numHashChars names0
-  doTerm (n, r) =
-    if Set.size (R.lookupDom n (terms names0)) > 1
-    then (HQ.take length $ HQ.fromNamedReferent n r, r)
-    else (HQ.NameOnly n, r)
-  doType (n, r) =
-    if Set.size (R.lookupDom n (types names0)) > 1
-    then (HQ.take length $ HQ.fromNamedReference n r, r)
-    else (HQ.NameOnly n, r)
 
 termReferences, typeReferences, allReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
