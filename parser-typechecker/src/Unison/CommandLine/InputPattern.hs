@@ -35,8 +35,8 @@ data ArgumentType = ArgumentType
   , suggestions :: forall m v a . Monad m
                 => String
                 -> Codebase m v a
-                -> Branch m
-                -> Path.Absolute
+                -> Branch m -- Root Branch
+                -> Path.Absolute -- Current path
                 -> m [Line.Completion]
   }
 instance Show ArgumentType where

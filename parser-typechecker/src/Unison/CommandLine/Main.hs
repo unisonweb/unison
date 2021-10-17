@@ -76,7 +76,7 @@ getUserInput
   -> Path.Absolute
   -> [String]
   -> m Input
-getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
+getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInputT
   settings
   (haskelineCtrlCHandling go)
  where
@@ -111,7 +111,7 @@ getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
         h : t -> fromMaybe (pure []) $ do
           p       <- Map.lookup h patterns
           argType <- IP.argType p (length t)
-          pure $ suggestions argType word codebase branch currentPath
+          pure $ suggestions argType word codebase rootBranch currentPath
         _ -> pure []
 
 main

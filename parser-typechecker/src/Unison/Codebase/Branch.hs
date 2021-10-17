@@ -34,6 +34,7 @@ module Unison.Codebase.Branch
   -- * diff
   , diff0
   -- * properties
+  , history
   , head
   , headHash
   , children
@@ -61,6 +62,7 @@ module Unison.Codebase.Branch
   , getAt0
   , modifyAt
   , modifyAtM
+  , currentChildren
   -- * Branch terms/types/edits
   -- ** Term/type/edits lenses
   , terms
@@ -606,3 +608,7 @@ transform f b = case _history b of
                -> Causal m Raw (Branch0 m)
                -> Causal m Raw (Branch0 n)
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
+
+
+currentChildren :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
+currentChildren = children .> itraversed <. (history . Causal.head_)
