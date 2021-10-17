@@ -28,7 +28,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 
 debug :: Bool
 debug = False

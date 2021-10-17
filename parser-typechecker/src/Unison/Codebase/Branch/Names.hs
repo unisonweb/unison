@@ -23,7 +23,7 @@ import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name (..))
 import Unison.Names2 (Names' (Names), Names0)
 import qualified Unison.Names2 as Names
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude hiding (empty)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)

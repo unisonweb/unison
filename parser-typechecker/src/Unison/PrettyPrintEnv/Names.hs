@@ -7,8 +7,8 @@ import Unison.Prelude
 import qualified Data.Set as Set
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
-import Unison.Names3 (NamesWithHistory)
-import qualified Unison.Names3 as Names
+import Unison.NamesWithHistory (NamesWithHistory)
+import qualified Unison.NamesWithHistory as Names
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
 import Unison.Util.List (safeHead)
 

@@ -34,7 +34,7 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Names3                  ( NamesWithHistory, Names0 )
+import           Unison.NamesWithHistory                  ( NamesWithHistory, Names0 )
 import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )

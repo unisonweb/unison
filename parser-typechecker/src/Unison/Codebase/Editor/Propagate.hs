@@ -24,7 +24,7 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
 import qualified Unison.Name                   as Name
-import           Unison.Names3                  ( Names0 )
+import           Unison.NamesWithHistory                  ( Names0 )
 import qualified Unison.Names2                 as Names
 import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )

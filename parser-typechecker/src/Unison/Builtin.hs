@@ -42,8 +42,8 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names3 (NamesWithHistory(..), Names0)
-import qualified Unison.Names3 as Names3
+import           Unison.NamesWithHistory (NamesWithHistory(..), Names0)
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Hashing.V2.Convert as H
@@ -56,7 +56,7 @@ names :: NamesWithHistory
 names = NamesWithHistory names0 mempty
 
 names0 :: Names0
-names0 = Names3.names0 terms types where
+names0 = NamesWithHistory.names0 terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.fromVar vc, Referent.Con (R.DerivedId r) cid ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>

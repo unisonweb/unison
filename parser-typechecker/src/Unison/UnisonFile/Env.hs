@@ -12,7 +12,7 @@ import           Unison.DataDeclaration (DataDeclaration)
 import           Unison.DataDeclaration (EffectDeclaration(..))
 import           Unison.Reference       (Reference)
 import qualified Unison.Reference       as Reference
-import Unison.Names3 (Names0)
+import Unison.NamesWithHistory (Names0)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form

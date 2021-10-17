@@ -32,14 +32,14 @@ import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
 import           Unison.Util.Pretty     (toPlain)
 import qualified Unison.Test.Common as Common
-import qualified Unison.Names3
+import qualified Unison.NamesWithHistory
 
 type Note = Result.Note Symbol Ann
 
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result (Seq Note)
-         (Either Unison.Names3.Names0 TFile)
+         (Either Unison.NamesWithHistory.Names0 TFile)
 
 type EitherResult = Either String TFile
 
@@ -101,7 +101,7 @@ decodeResult source (Result notes (Just (Left errNames))) =
   Left $ showNotes
           source
           (PPE.fromNames Common.hqLength
-            (Unison.Names3.shadowing errNames Builtin.names))
+            (Unison.NamesWithHistory.shadowing errNames Builtin.names))
           notes
 decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf

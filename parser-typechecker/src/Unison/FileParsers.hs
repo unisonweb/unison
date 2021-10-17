@@ -20,7 +20,7 @@ import           Data.Text                  (unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import qualified Unison.Name                as Name
-import qualified Unison.Names3              as Names
+import qualified Unison.NamesWithHistory              as Names
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.Referent            as Referent
@@ -38,7 +38,7 @@ import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import Unison.Names3 (Names0)
+import Unison.NamesWithHistory (Names0)
 
 type Term v = Term.Term v Ann
 type Type v = Type.Type v Ann

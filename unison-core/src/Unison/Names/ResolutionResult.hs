@@ -7,7 +7,7 @@ module Unison.Names.ResolutionResult where
 import Unison.Prelude
 import Unison.Reference as Reference ( Reference )
 import Unison.Referent as Referent ( Referent )
-import Unison.Names3 (Names0)
+import Unison.NamesWithHistory (Names0)
 import Data.Set.NonEmpty
 
 data ResolutionError ref

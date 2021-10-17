@@ -51,7 +51,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Data.Set as Set
 import Unison.NameSegment (NameSegment)
 import Unison.ShortHash (ShortHash)

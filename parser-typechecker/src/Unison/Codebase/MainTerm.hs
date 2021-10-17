@@ -16,7 +16,7 @@ import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import           Unison.Name                    ( Name )
-import qualified Unison.Names3                 as Names3
+import qualified Unison.NamesWithHistory                 as NamesWithHistory
 import           Unison.Reference               ( Reference )
 import qualified Unison.Type                   as Type
 import           Unison.Type                    ( Type )
@@ -32,7 +32,7 @@ data MainTerm v
 getMainTerm
   :: (Monad m, Var v)
   => (Reference -> m (Maybe (Type v Ann)))
-  -> Names3.Names0
+  -> NamesWithHistory.Names0
   -> String
   -> Type.Type v Ann
   -> m (MainTerm v)
@@ -40,7 +40,7 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = Names3.lookupHQTerm hq (Names3.NamesWithHistory parseNames0 mempty)
+      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames0 mempty)
       let a = Parser.Ann.External
       case toList refs of
         [Referent.Ref ref] -> do

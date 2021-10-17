@@ -55,11 +55,11 @@ import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
-import Unison.Names3
+import Unison.NamesWithHistory
   ( NamesWithHistory (..),
     Names0,
   )
-import qualified Unison.Names3 as Names3
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -129,14 +129,14 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
   where
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
+    absoluteRootNames0 = NamesWithHistory.makeAbsolute0 (Branch.toNames0 root0)
     currentBranch0 = Branch.head currentBranch
     currentPathNames0 = Branch.toNames0 currentBranch0
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
     currentAndExternalNames0 =
       currentPathNames0
-        `Names3.unionLeft0` absDot externalNames
+        `NamesWithHistory.unionLeft0` absDot externalNames
       where
         absDot = Names.prefix0 (Name.unsafeFromText "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
@@ -460,7 +460,7 @@ getCurrentParseNames path root = NamesWithHistory (basicParseNames0 root path) m
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative root = Names3.map0 fixName where
+fixupNamesRelative root = NamesWithHistory.map0 fixName where
   prefix = Path.toName $ Path.unabsolute root
   fixName n = if root == Path.absoluteEmpty
     then n
@@ -480,8 +480,8 @@ data Search r = Search
 makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
 makeTypeSearch len names =
   Search
-    { lookupNames = \ref -> Names3.typeName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQType' name names,
+    { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQType' name names,
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
@@ -490,8 +490,8 @@ makeTypeSearch len names =
 makeTermSearch :: Int -> NamesWithHistory -> Search Referent
 makeTermSearch len names =
   Search
-    { lookupNames = \ref -> Names3.termName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQTerm' name names,
+    { lookupNames = \ref -> NamesWithHistory.termName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQTerm' name names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
@@ -687,7 +687,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
-        let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
@@ -701,7 +701,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [r] $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
         mk docs ts bn tag
        where
         mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -719,7 +719,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [] $ docNames (Names3.typeName hqLength r printNames)
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag

@@ -14,7 +14,7 @@ import           Control.Monad.Reader (asks, local)
 import           Data.Foldable (foldrM)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
-import           Unison.Names3 (NamesWithHistory)
+import           Unison.NamesWithHistory (NamesWithHistory)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
@@ -38,7 +38,7 @@ import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern

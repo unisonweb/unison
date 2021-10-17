@@ -20,7 +20,7 @@ import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       ( Runtime )
 import           Unison.Var                    ( Var )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.Names3                 as Names3
+import qualified Unison.NamesWithHistory                 as NamesWithHistory
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import           System.Exit (die)
@@ -42,7 +42,7 @@ execute codebase runtime mainName =
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->
         die ("Couldn't parse root branch head " ++ show h)
-    let parseNames0 = Names3.makeAbsolute0 (Branch.toNames0 (Branch.head root))
+    let parseNames0 = NamesWithHistory.makeAbsolute0 (Branch.toNames0 (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime
     mt <- getMainTerm loadTypeOfTerm parseNames0 mainName mainType

@@ -32,7 +32,7 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as UF
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 

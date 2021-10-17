@@ -21,8 +21,8 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Type.Names as Type.Names
 import           Unison.Var                     ( Var )
-import           Unison.Names3                 (Names0)
-import qualified Unison.Names3                 as Names
+import           Unison.NamesWithHistory                 (Names0)
+import qualified Unison.NamesWithHistory                 as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.ConstructorType as CT
 

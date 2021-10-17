@@ -27,7 +27,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
 import qualified Unison.Util.Pretty            as Pr
 import qualified Text.Megaparsec.Error         as MPE
-import qualified Unison.Names3
+import qualified Unison.NamesWithHistory
 
 
 type Term v = Term.Term v Ann
@@ -63,7 +63,7 @@ parseAndSynthesizeAsFile
   -> String
   -> Result
        (Seq (Note v Ann))
-       (Either Unison.Names3.Names0 (TypecheckedUnisonFile v Ann))
+       (Either Unison.NamesWithHistory.Names0 (TypecheckedUnisonFile v Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)

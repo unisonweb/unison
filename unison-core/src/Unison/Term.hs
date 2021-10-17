@@ -24,8 +24,8 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Names3 ( Names0 )
-import qualified Unison.Names3 as Names
+import           Unison.NamesWithHistory ( Names0 )
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern

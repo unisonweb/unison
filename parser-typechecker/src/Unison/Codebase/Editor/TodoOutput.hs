@@ -3,14 +3,14 @@ module Unison.Codebase.Editor.TodoOutput where
 
 import Unison.Prelude
 
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Patch as Patch
 import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
 import Unison.Reference (Reference)
-import Unison.Names3 (Names0)
+import Unison.NamesWithHistory (Names0)
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(UserObject))
 import Unison.Type (Type)

@@ -2,7 +2,7 @@
 
 module Unison.PrettyPrintEnvDecl.Names where
 
-import Unison.Names3 (NamesWithHistory)
+import Unison.NamesWithHistory (NamesWithHistory)
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 import Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames)
 

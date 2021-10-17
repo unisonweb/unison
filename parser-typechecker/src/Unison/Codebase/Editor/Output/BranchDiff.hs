@@ -26,7 +26,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
 import qualified Unison.Names2 as Names2
-import Unison.Names3 (Names0)
+import Unison.NamesWithHistory (Names0)
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.Runtime.IOSource (isPropagatedValue)
 

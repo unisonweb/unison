@@ -73,7 +73,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 styleHashQualified', prettyHashQualified')
 import           Unison.Names2                 (Names'(..), Names0)
 import qualified Unison.Names2                 as Names
-import qualified Unison.Names3                 as Names
+import qualified Unison.NamesWithHistory                 as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
