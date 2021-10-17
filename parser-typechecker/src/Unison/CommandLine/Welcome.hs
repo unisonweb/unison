@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 module Unison.CommandLine.Welcome where
 
 import Unison.Prelude
@@ -7,7 +8,7 @@ import qualified Unison.Codebase as Codebase
 import Prelude hiding (readFile, writeFile)
 import qualified Unison.Util.Pretty as P
 import System.Random (randomRIO)
-import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path (Path, PathType (Absolute))
 
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
@@ -51,9 +52,8 @@ welcome initStatus downloadBase filePath unisonVersion =
 pullBase :: ReadRemoteNamespace -> Either Event Input
 pullBase ns = let
     seg = NameSegment "base"
-    rootPath = Path.Path { Path.toSeq = singleton seg }
-    abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent
+    rootPath = Path.AbsolutePath (singleton seg)
+    pullRemote = PullRemoteBranchI (Just ns) rootPath SyncMode.Complete Verbosity.Silent
   in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
@@ -127,7 +127,7 @@ asciiartUnison =
     <> P.purple "_|_|"
 
 
-downloading :: Path -> P.Pretty P.ColorText
+downloading :: (Path 'Absolute) -> P.Pretty P.ColorText
 downloading path =
   P.lines
     [ P.group (P.wrap "🐣 Since this is a fresh codebase, let me download the base library for you." <> P.newline ), 

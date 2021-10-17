@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Unison.Codebase.Editor.Input
   ( Input(..)
   , Event(..)
@@ -13,7 +14,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( UnknownPath )
+import           Unison.Codebase.Path           ( UnknownPath, Path, PathType (Absolute) )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo

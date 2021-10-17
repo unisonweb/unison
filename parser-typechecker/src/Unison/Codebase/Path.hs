@@ -20,9 +20,11 @@ module Unison.Codebase.Path
     singleton,
     emptyRelative,
     emptyAbsolute,
+    rootNamespace,
     currentPath,
     prefix,
     unprefix,
+    asUnknown,
     -- prefixName,
     -- unprefixName,
     HQSplit,
@@ -100,6 +102,10 @@ deriving instance Ord (Path fixation)
 -- | Any time a function requires a PathSelector, provide either 'AbsolutePath' or 'RelativePath'
 type PathSelector t = (Seq NameSegment -> Path t)
 
+asUnknown :: Path t -> UnknownPath
+asUnknown p@(AbsolutePath{}) = Left p
+asUnknown p@(RelativePath{}) = Right p
+
 -- | This could be an iso, but then we would need to carry around the Convert instances
 -- everywhere, and we probably want people to explicitly state which Path type they want
 -- anyways.
@@ -128,6 +134,9 @@ currentPath = mempty
 isRoot :: Path 'Absolute -> Bool
 isRoot p = p == AbsolutePath mempty
 
+rootNamespace :: Path 'Absolute
+rootNamespace = AbsolutePath mempty
+
 -- Use Cons for this instead.
 -- unsplit' :: Split' -> Path'
 -- unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
@@ -136,8 +145,8 @@ isRoot p = p == AbsolutePath mempty
 -- unsplit :: Split -> Path
 -- unsplit (Path p, a) = Path (p :|> a)
 
-unsplitHQ :: HQSplit t -> HQ'.HashQualified (Path t)
-unsplitHQ (p, a) = fmap (Lens.snoc p) a
+-- unsplitHQ :: HQSplit t -> HQ'.HashQualified (Path t)
+-- unsplitHQ (p, a) = fmap (Lens.snoc p) a
 
 type Split pathType = (Path pathType, NameSegment)
 type HQSplit pathType = (Path pathType, HQ'.HQSegment)

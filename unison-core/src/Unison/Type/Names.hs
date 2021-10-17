@@ -18,6 +18,7 @@ import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
 import qualified Data.Set.NonEmpty as NES
+import Unison.Util.Convert (from)
 
 bindNames
   :: Var v
@@ -28,7 +29,7 @@ bindNames
 bindNames keepFree ns0 t = let
   ns = Names.Names ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
+  rs = [(v, a, Names.lookupHQType (from @Name.Name  $ Name.fromVar v) ns) | (v,a) <- fvs ]
   ok (v, a, rs) = 
     if Set.size rs == 1 
        then pure (v, Set.findMin rs)

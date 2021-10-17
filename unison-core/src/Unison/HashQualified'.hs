@@ -8,7 +8,7 @@ import Unison.Prelude
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name, Convert, Parse )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.NameSegment             ( NameSegment )
 import           Unison.Reference               ( Reference )
@@ -18,6 +18,7 @@ import qualified Unison.Referent               as Referent
 import           Unison.ShortHash               ( ShortHash )
 import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
+import Unison.Util.Convert (Convert(..), Parse(..), into)
 
 data HashQualified n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Functor, Generic, Foldable)
@@ -131,7 +132,7 @@ instance Show n => Show (HashQualified n) where
 
 instance Convert n n2 => Parse (HashQualified n) n2 where
   parse = \case
-    NameOnly n -> Just (Name.convert n)
+    NameOnly n -> Just (into @n2 n)
     _ -> Nothing
 
 instance Convert (HashQualified n) (HQ.HashQualified n) where

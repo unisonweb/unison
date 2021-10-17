@@ -9,7 +9,7 @@ import Unison.Prelude hiding (fromString)
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name, Convert, Parse )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -19,6 +19,7 @@ import           Unison.ShortHash               ( ShortHash )
 import qualified Unison.ShortHash              as SH
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import Unison.Util.Convert (Convert(..), Parse(..))
 
 data HashQualified n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
@@ -174,7 +175,7 @@ instance (Eq n, Name.Alphabetical n) => Ord (HashQualified n) where
       (Just sh, Just sh2) -> compare sh sh2
 
 instance Convert n n2 => Convert (HashQualified n) (HashQualified n2) where
-  convert = fmap Name.convert
+  convert = fmap convert
 
 instance Convert n (HashQualified n) where
   convert = NameOnly

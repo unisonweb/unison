@@ -167,7 +167,6 @@ library
       Unison.Util.AnnotatedText
       Unison.Util.Bytes
       Unison.Util.ColorText
-      Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd

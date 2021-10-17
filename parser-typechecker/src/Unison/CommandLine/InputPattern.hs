@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 
 module Unison.CommandLine.InputPattern where
@@ -36,7 +37,7 @@ data ArgumentType = ArgumentType
                 => String
                 -> Codebase m v a
                 -> Branch m
-                -> Path.Absolute
+                -> Path 'Absolute
                 -> m [Line.Completion]
   }
 instance Show ArgumentType where
@@ -86,7 +87,7 @@ noSuggestions
   => String
   -> Codebase m v a
   -> Branch m
-  -> Path.Absolute
+  -> Path 'Absolute
   -> m [Line.Completion]
 noSuggestions _ _ _ _ = pure []
 

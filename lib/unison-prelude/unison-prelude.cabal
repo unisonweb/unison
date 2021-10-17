@@ -17,8 +17,8 @@ source-repository head
 
 library
   exposed-modules:
-      Unison.Convert
       Unison.Prelude
+      Unison.Util.Convert
   other-modules:
       Paths_unison_prelude
   hs-source-dirs:

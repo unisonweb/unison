@@ -8,11 +8,12 @@
 
 module Unison.Codebase.Path.Parse
   ( parseUnknownPath,
+    parseRelativePath,
+    parseAbsolutePath,
     parsePathImpl,
     parseSplit,
     definitionNameSegment,
-    parseRelativeHQSplit,
-    parseUnknownHQSplit,
+    parseHQSplit,
     parseShortHashOrHQSplit',
     wordyNameSegment,
   )
@@ -45,6 +46,20 @@ parseUnknownPath p = case parsePathImpl p of
     Right (_, rem) ->
       Left ("extra characters after " <> show p <> ": " <> show rem)
     Left e -> Left e
+
+parseRelativePath :: String -> Either String (Path 'Relative)
+parseRelativePath s = do
+  p <- parseUnknownPath s
+  matchUnknown p \case
+    AbsolutePath{} -> Left $ "expected relative path, but " <> s <> " was absolute"
+    p@RelativePath{} -> Right p
+
+parseAbsolutePath :: String -> Either String (Path 'Absolute)
+parseAbsolutePath s = do
+  p <- parseUnknownPath s
+  matchUnknown p \case
+    RelativePath{} -> Left $ "expected absolute path, but " <> s <> " was relative"
+    p@AbsolutePath{} -> Right p
 
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
@@ -138,16 +153,8 @@ parseShortHashOrHQSplit' s =
   where
   shError s = "couldn't parse shorthash from " <> s
 
-parseRelativeHQSplit :: String -> Either String (HQSplit 'Relative)
-parseRelativeHQSplit s = do
-  (split, seg) <- parseUnknownHQSplit s
-  matchUnknown split $ \case
-    AbsolutePath{} ->
-      Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
-    relPath@RelativePath{} -> Right (relPath, seg)
-
-parseUnknownHQSplit :: String -> Either String UnknownHQSplit
-parseUnknownHQSplit s = case Text.breakOn "#" $ Text.pack s of
+parseHQSplit :: String -> Either String UnknownHQSplit
+parseHQSplit s = case Text.breakOn "#" $ Text.pack s of
   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
   ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
   (n , "") -> do

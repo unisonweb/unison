@@ -59,7 +59,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
 import           Data.List                      ( sortBy, tails, inits, find )
-import Unison.Util.Convert (Parse, Convert)
+import Unison.Util.Convert (Convert(..))
 
 newtype Name = Name { toText :: Text }
   deriving (Eq, Generic)
@@ -276,14 +276,6 @@ instance Convert Name [NameSegment] where convert = segments
 instance Convert NameSegment Name where convert = fromSegment
 instance Convert [NameSegment] Name where
   convert sgs = unsafeFromText (Text.intercalate "." (map NameSegment.toText sgs))
-
-instance Parse Text NameSegment where
-  parse txt = case NameSegment.segments' txt of
-    [n] -> Just (NameSegment.NameSegment n)
-    _ -> Nothing
-
-instance (Parse a a2, Parse b b2) => Parse (a,b) (a2,b2) where
-  parse (a,b) = (,) <$> parse a <*> parse b
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
   _Snoc = Lens.prism snoc unsnoc

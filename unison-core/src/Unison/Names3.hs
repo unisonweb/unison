@@ -22,6 +22,7 @@ import qualified Unison.Names2 as Names
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
+import Unison.Util.Convert (Convert(..), into, from)
 
 data Names = Names
   { -- | currentNames represent references which are named in the current version of the namespace.
@@ -249,7 +250,7 @@ longestTermName :: Int -> Referent -> Names -> HQ.HashQualified Name
 longestTermName length r ns =
   case reverse (termNamesByLength length r ns) of
     [] -> HQ.take length (HQ.fromReferent r)
-    (h : _) -> Name.convert h
+    (h : _) -> from @(HQ'.HashQualified Name) h
 
 termName :: Int -> Referent -> Names -> Set (HQ'.HashQualified Name)
 termName length r Names{..} =
@@ -269,7 +270,7 @@ suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
   suffixedName fallback getRel hq' length r ns@(getRel -> rel) =
     if R.memberRan r rel
     then go $ toList (R.lookupRan r rel)
-    else sort $ map Name.convert $ Set.toList (fallback length r ns)
+    else sort $ map (into @(HashQualified Name)) $ Set.toList (fallback length r ns)
     where
       -- Orders names, using these criteria, in this order:
       -- 1. NameOnly comes before HashQualified,
@@ -281,7 +282,7 @@ suffixedTermName :: Int -> Referent -> Names -> [HQ.HashQualified Name]
           n' = Name.shortestUniqueSuffix fqn r rel
           isHQ'd = R.manyDom fqn rel -- it is conflicted
           hq n = HQ'.take length (hq' n r)
-          hqn = Name.convert $ if isHQ'd then hq n' else HQ'.fromName n'
+          hqn = convert $ if isHQ'd then hq n' else HQ'.fromName n'
           in (isHQ'd, Name.countSegments fqn, Name.isAbsolute n', hqn)
 
 -- Set HashQualified -> Branch m -> Action' m v Names

@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.CommandLine.InputPatterns where
 
@@ -48,6 +49,9 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Path (PathType(Absolute))
+import Unison.Util.Convert (into)
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -119,13 +123,13 @@ todo = InputPattern
   )
   (\case
     patchStr : ws -> mapLeft (warn . fromString) $ do
-      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
-      branch <- case ws of
-        []        -> pure Path.relativeEmpty'
-        [pathStr] -> Path.parsePath' pathStr
+      patch  <- Path.parseSplit Path.definitionNameSegment patchStr
+      branchPath <- case ws of
+        []        -> pure $ mempty
+        [pathStr] -> Path.parseUnknownPath pathStr
         _         -> Left "`todo` just takes a patch and one optional namespace"
-      Right $ Input.TodoI (Just patch) branch
-    [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
+      Right $ Input.TodoI (Just patch) branchPath
+    [] -> Right $ Input.TodoI Nothing mempty
   )
 
 load :: InputPattern
@@ -214,7 +218,7 @@ update = InputPattern "update"
   )
   (\case
     patchStr : ws -> do
-      patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
+      patch <- first fromString $ Path.parseSplit Path.definitionNameSegment patchStr
       case traverse HQ'.fromString ws of
         Just ws -> Right $ Input.UpdateI (Just patch) ws
         Nothing ->
@@ -257,10 +261,10 @@ patch = InputPattern
   )
   (\case
     patchStr : ws -> first fromString $ do
-      patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patch  <- Path.parseSplit Path.definitionNameSegment patchStr
       branch <- case ws of
-        [pathStr] -> Path.parsePath' pathStr
-        _         -> pure Path.relativeEmpty'
+        [pathStr] -> Path.parseUnknownPath pathStr
+        _         -> pure (Right Path.emptyRelative)
       pure $ Input.PropagatePatchI patch branch
     [] ->
       Left
@@ -310,7 +314,7 @@ docs :: InputPattern
 docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
       "`docs foo` shows documentation for the definition `foo`."
       (\case
-        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
+        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit s
         _ -> Left (I.help docs))
 
 ui :: InputPattern
@@ -364,9 +368,9 @@ findShallow = InputPattern
     ]
   )
   (\case
-    [] -> pure $ Input.FindShallowI Path.relativeEmpty'
+    [] -> pure $ Input.FindShallowI (Path.asUnknown Path.currentPath)
     [path] -> first fromString $ do
-      p <- Path.parsePath' path
+      p <- Path.parseUnknownPath path
       pure $ Input.FindShallowI p
     _ -> Left (I.help findShallow)
   )
@@ -398,8 +402,8 @@ renameTerm = InputPattern "move.term" ["rename.term"]
     "`move.term foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
-        src <- Path.parseHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        src <- Path.parseHQSplit oldName
+        target <- Path.parseSplit Path.definitionNameSegment newName
         pure $ Input.MoveTermI src target
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.term` takes two arguments, like `rename.term oldname newname`.")
@@ -411,8 +415,8 @@ renameType = InputPattern "move.type" ["rename.type"]
     "`move.type foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
-        src <- Path.parseHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        src <- Path.parseHQSplit oldName
+        target <- Path.parseSplit Path.definitionNameSegment newName
         pure $ Input.MoveTypeI src target
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.type` takes two arguments, like `rename.type oldname newname`.")
@@ -423,7 +427,7 @@ delete = InputPattern "delete" []
     "`delete foo` removes the term or type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
+        p <- Path.parseHQSplit query
         pure $ Input.DeleteI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete` takes an argument, like `delete name`."
@@ -435,7 +439,7 @@ deleteTerm = InputPattern "delete.term" []
     "`delete.term foo` removes the term name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
+        p <- Path.parseHQSplit query
         pure $ Input.DeleteTermI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete.term` takes an argument, like `delete.term name`."
@@ -447,7 +451,7 @@ deleteType = InputPattern "delete.type" []
     "`delete.type foo` removes the type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
-        p <- Path.parseHQSplit' query
+        p <- Path.parseHQSplit query
         pure $ Input.DeleteTypeI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete.type` takes an argument, like `delete.type name`."
@@ -478,7 +482,7 @@ deleteReplacement isTerm = InputPattern
     query : patch -> do
       patch <-
         first fromString
-        . traverse (Path.parseSplit' Path.definitionNameSegment)
+        . traverse (Path.parseSplit Path.definitionNameSegment)
         $ listToMaybe patch
       q <- parseHashQualifiedName query
       pure $ input q patch
@@ -527,7 +531,7 @@ aliasTerm = InputPattern "alias.term" []
     (\case
       [oldName, newName] -> first fromString $ do
         source <- Path.parseShortHashOrHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit Path.definitionNameSegment newName
         pure $ Input.AliasTermI source target
       _ -> Left . warn $ P.wrap
         "`alias.term` takes two arguments, like `alias.term oldname newname`."
@@ -540,7 +544,7 @@ aliasType = InputPattern "alias.type" []
     (\case
       [oldName, newName] -> first fromString $ do
         source <- Path.parseShortHashOrHQSplit' oldName
-        target <- Path.parseSplit' Path.definitionNameSegment newName
+        target <- Path.parseSplit Path.definitionNameSegment newName
         pure $ Input.AliasTypeI source target
       _ -> Left . warn $ P.wrap
         "`alias.type` takes two arguments, like `alias.type oldname newname`."
@@ -558,7 +562,7 @@ aliasMany = InputPattern "alias.many" ["copy"]
   (\case
     srcs@(_:_) Cons.:> dest -> first fromString $ do
       sourceDefinitions <- traverse Path.parseHQSplit srcs
-      destNamespace <- Path.parsePath' dest
+      destNamespace <- Path.parseUnknownPath dest
       pure $ Input.AliasManyI sourceDefinitions destNamespace
     _ -> Left (I.help aliasMany)
   )
@@ -581,7 +585,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (\case
       [".."] -> Right Input.UpI
       [p] -> first fromString $ do
-        p <- Path.parsePath' p
+        p <- Path.parseUnknownPath p
         pure . Input.SwitchBranchI $ p
       _ -> Left (I.help cd)
     )
@@ -604,7 +608,7 @@ deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
         ["."] -> first fromString .
           pure $ Input.DeleteBranchI Nothing
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
+          p <- Path.parseSplit Path.definitionNameSegment p
           pure . Input.DeleteBranchI $ Just p
         _ -> Left (I.help deleteBranch)
       )
@@ -614,21 +618,21 @@ deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
   "`delete.patch <foo>` deletes the patch `foo`"
    (\case
         [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
+          p <- Path.parseSplit Path.definitionNameSegment p
           pure . Input.DeletePatchI $ p
         _ -> Left (I.help deletePatch)
       )
 
 movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
 movePatch src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+  src <- Path.parseSplit Path.definitionNameSegment src
+  dest <- Path.parseSplit Path.definitionNameSegment dest
   pure $ Input.MovePatchI src dest
 
 copyPatch' :: String -> String -> Either (P.Pretty CT.ColorText) Input
 copyPatch' src dest = first fromString $ do
-  src <- Path.parseSplit' Path.definitionNameSegment src
-  dest <- Path.parseSplit' Path.definitionNameSegment dest
+  src <- Path.parseSplit Path.definitionNameSegment src
+  dest <- Path.parseSplit Path.definitionNameSegment dest
   pure $ Input.CopyPatchI src dest
 
 copyPatch :: InputPattern
@@ -658,11 +662,11 @@ renameBranch = InputPattern "move.namespace"
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
-        dest <- Path.parseSplit' Path.definitionNameSegment dest
+        dest <- Path.parseSplit Path.definitionNameSegment dest
         pure $ Input.MoveBranchI Nothing dest
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.definitionNameSegment src
-        dest <- Path.parseSplit' Path.definitionNameSegment dest
+        src <- Path.parseSplit Path.definitionNameSegment src
+        dest <- Path.parseSplit Path.definitionNameSegment dest
         pure $ Input.MoveBranchI (Just src) dest
       _ -> Left (I.help renameBranch)
     )
@@ -681,7 +685,7 @@ history = InputPattern "history" []
       [src] -> first fromString $ do
         p <- Input.parseBranchId src
         pure $ Input.HistoryI (Just 10) (Just 10) p
-      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right (Right Path.currentPath))
       _ -> Left (I.help history)
     )
 
@@ -692,7 +696,7 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
     (\case
       [src, dest] -> first fromString $ do
         src <- Input.parseBranchId src
-        dest <- Path.parsePath' dest
+        dest <- Path.parseUnknownPath dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
     )
@@ -755,13 +759,13 @@ pullImpl name verbosity = do
       )
       (\case
         []    ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+          Right $ Input.PullRemoteBranchI Nothing Path.rootNamespace SyncMode.ShortCircuit verbosity
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+          Right $ Input.PullRemoteBranchI (Just ns) Path.rootNamespace SyncMode.ShortCircuit verbosity
         [url, path] -> do
           ns <- parseUri "url" url
-          p <- first fromString $ Path.parsePath' path
+          p <- first fromString $ Path.parseAbsolutePath path
           Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
         _ -> Left (I.help self)
       )
@@ -781,13 +785,13 @@ pullExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+      Right $ Input.PullRemoteBranchI Nothing Path.rootNamespace SyncMode.Complete Verbosity.Default
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+      Right $ Input.PullRemoteBranchI (Just ns) Path.rootNamespace SyncMode.Complete Verbosity.Default
     [url, path] -> do
       ns <- parseUri "url" url
-      p <- first fromString $ Path.parsePath' path
+      p <- first fromString $ Path.parseAbsolutePath path
       Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
     _ -> Left (I.help pull)
   )
@@ -824,12 +828,12 @@ push = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+      Right $ Input.PushRemoteBranchI Nothing Path.rootNamespace SyncMode.ShortCircuit
     url : rest -> do
       (repo, path) <- parsePushPath "url" url
       p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
+        [] -> Right Path.emptyRelative
+        [path] -> first fromString $ Path.parseUnknownPath path
         _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
   )
@@ -849,12 +853,12 @@ pushExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PushRemoteBranchI Nothing Path.emptyRelative SyncMode.Complete
     url : rest -> do
       (repo, path) <- parsePushPath "url" url
       p <- case rest of
-        [] -> Right Path.relativeEmpty'
-        [path] -> first fromString $ Path.parsePath' path
+        [] -> Right Path.emptyRelative
+        [path] -> first fromString $ Path.parseUnknownPath path
         _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
   )
@@ -895,11 +899,11 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
     [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+      pure $ Input.LoadPullRequestI baseRepo headRepo Path.emptyRelative
     [baseUrl, headUrl, dest] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      destPath <- first fromString $ Path.parsePath' dest
+      destPath <- first fromString $ Path.parseUnknownPath dest
       pure $ Input.LoadPullRequestI baseRepo headRepo destPath
     _ -> Left (I.help loadPullRequest)
   )
@@ -928,8 +932,8 @@ squashMerge =
          <> "additional history entry.")
   (\case
      [src, dest] -> first fromString $ do
-       src <- Path.parsePath' src
-       dest <- Path.parsePath' dest
+       src <- Path.parseUnknownPath src
+       dest <- Path.parseUnknownPath dest
        pure $ Input.MergeLocalBranchI src dest Branch.SquashMerge
      _ -> Left (I.help squashMerge)
   )
@@ -942,11 +946,11 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
    ("`merge src dest`", "merges `src` namespace into the `dest` namespace")])
  (\case
       [src] -> first fromString $ do
-        src <- Path.parsePath' src
-        pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
+        src <- Path.parseUnknownPath src
+        pure $ Input.MergeLocalBranchI src Path.emptyRelative Branch.RegularMerge
       [src, dest] -> first fromString $ do
-        src <- Path.parsePath' src
-        dest <- Path.parsePath' dest
+        src <- Path.parseUnknownPath src
+        dest <- Path.parseUnknownPath dest
         pure $ Input.MergeLocalBranchI src dest Branch.RegularMerge
       _ -> Left (I.help mergeLocal)
  )
@@ -969,11 +973,11 @@ diffNamespace = InputPattern
   )
   (\case
     [before, after] -> first fromString $ do
-      before <- Path.parsePath' before
-      after <- Path.parsePath' after
+      before <- Path.parseUnknownPath before
+      after <- Path.parseUnknownPath after
       pure $ Input.DiffNamespaceI before after
     [before] -> first fromString $ do
-      before <- Path.parsePath' before
+      before <- Path.parseUnknownPath before
       pure $ Input.DiffNamespaceI before Path.currentPath
     _ -> Left $ I.help diffNamespace
   )
@@ -994,11 +998,11 @@ previewMergeLocal = InputPattern
   )
   (\case
     [src] -> first fromString $ do
-      src <- Path.parsePath' src
-      pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
+      src <- Path.parseUnknownPath src
+      pure $ Input.PreviewMergeLocalBranchI src Path.emptyRelative
     [src, dest] -> first fromString $ do
-      src  <- Path.parsePath' src
-      dest <- Path.parsePath' dest
+      src  <- Path.parseUnknownPath src
+      dest <- Path.parseUnknownPath dest
       pure $ Input.PreviewMergeLocalBranchI src dest
     _ -> Left (I.help previewMergeLocal)
   )
@@ -1032,7 +1036,7 @@ replaceEdit f = self
       source : target : patch -> do
         patch <-
           first fromString
-          <$> traverse (Path.parseSplit' Path.definitionNameSegment)
+          <$> traverse (Path.parseSplit Path.definitionNameSegment)
           $   listToMaybe patch
         sourcehq <- parseHashQualifiedName source
         targethq <- parseHashQualifiedName target
@@ -1219,7 +1223,7 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
   (\case
     []         -> Right $ Input.ListEditsI Nothing
     [patchStr] -> mapLeft fromString $ do
-      patch <- Path.parseSplit' Path.definitionNameSegment patchStr
+      patch <- Path.parseSplit Path.definitionNameSegment patchStr
       Right $ Input.ListEditsI (Just patch)
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
    )
@@ -1242,7 +1246,7 @@ link = InputPattern
       md <- case HQ.fromString md of
         Nothing -> Left "Invalid hash qualified identifier for metadata."
         Just hq -> pure hq
-      defs <- traverse Path.parseHQSplit' defs
+      defs <- traverse Path.parseHQSplit defs
       Right $ Input.LinkI md defs
     _ -> Left (I.help link)
   )
@@ -1257,7 +1261,7 @@ links = InputPattern
     (makeExample links ["defn", "<type>"], "shows all links of the given type.") ])
   (\case
     src : rest -> first fromString $ do
-      src <- Path.parseHQSplit' src
+      src <- Path.parseHQSplit src
       let ty = case rest of
             [] -> Nothing
             _  -> Just $ unwords rest
@@ -1281,7 +1285,7 @@ unlink = InputPattern
       md <- case HQ.fromString md of
         Nothing -> Left "Invalid hash qualified identifier for metadata."
         Just hq -> pure hq
-      defs <- traverse Path.parseHQSplit' defs
+      defs <- traverse Path.parseHQSplit defs
       Right $ Input.UnlinkI md defs
     _ -> Left (I.help unlink)
   )
@@ -1530,7 +1534,7 @@ typeCompletor :: Applicative m
               -> String
               -> Codebase m v a
               -> Branch.Branch m
-              -> Path.Absolute
+              -> Path 'Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
@@ -1540,7 +1544,7 @@ termCompletor :: Applicative m
               -> String
               -> Codebase m v a
               -> Branch.Branch m
-              -> Path.Absolute
+              -> Path 'Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
@@ -1569,11 +1573,11 @@ pathCompletor
   -> String
   -> codebase
   -> Branch.Branch m
-  -> Path.Absolute
+  -> Path 'Absolute
   -> f [Completion]
 pathCompletor filterQuery getNames query _code b p = let
   b0root = Branch.head b
-  b0local = Branch.getAt0 (Path.unabsolute p) b0root
+  b0local = Branch.getAt0 p b0root
   -- todo: if these sets are huge, maybe trim results
   in pure . filterQuery query . map Text.unpack $
        toList (getNames b0local) ++

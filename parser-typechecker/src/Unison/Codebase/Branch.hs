@@ -374,7 +374,7 @@ toCausalRaw = \case
   Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
-getAt :: Path 'Relative
+getAt :: Path t
       -> Branch m
       -> Maybe (Branch m)
 getAt path root = case Path.uncons path of
@@ -383,10 +383,10 @@ getAt path root = case Path.uncons path of
     Just b -> getAt path b
     Nothing -> Nothing
 
-getAt' :: Path 'Relative -> Branch m -> Branch m
+getAt' :: Path t -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
-getAt0 :: Path 'Relative -> Branch0 m -> Branch0 m
+getAt0 :: Path t -> Branch0 m -> Branch0 m
 getAt0 p b = case Path.uncons p of
   Nothing -> b
   Just (seg, path) -> case Map.lookup seg (_children b) of
