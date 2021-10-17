@@ -25,7 +25,7 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names )
+import Unison.Names ( Names )
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )

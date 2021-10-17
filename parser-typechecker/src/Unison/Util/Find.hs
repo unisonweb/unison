@@ -20,8 +20,8 @@ import qualified Unison.HashQualified         as HQ
 import qualified Unison.HashQualified'        as HQ'
 import qualified Unison.Name                  as Name
 import           Unison.Name                  ( Name )
-import qualified Unison.Names2                as Names
-import           Unison.Names2                ( Names0 )
+import qualified Unison.Names                as Names
+import           Unison.Names                ( Names0 )
 import           Unison.NamePrinter           (prettyHashQualified)
 import qualified Unison.Reference             as Reference
 import qualified Unison.Referent              as Referent

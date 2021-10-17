@@ -25,7 +25,7 @@ import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
 import qualified Unison.Name                   as Name
 import           Unison.NamesWithHistory                  ( Names0 )
-import qualified Unison.Names2                 as Names
+import qualified Unison.Names                 as Names
 import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference

@@ -33,10 +33,10 @@ data NamesWithHistory = NamesWithHistory
   deriving (Show)
 
 pattern Names0 :: Relation n Referent -> Relation n Reference -> Names.Names' n
-pattern Names0 terms types = Names2.HQNames terms types
+pattern Names0 terms types = Names.HQNames terms types
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
-filterTypes = Unison.Names2.filterTypes
+filterTypes = Unison.Names.filterTypes
 
 -- Simple 2 way diff, has the property that:
 --  addedNames (diff0 n1 n2) == removedNames (diff0 n2 n1)
@@ -97,10 +97,10 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) wher
     uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
 
 unionLeft0 :: Names0 -> Names0 -> Names0
-unionLeft0 = Unison.Names2.unionLeft
+unionLeft0 = Unison.Names.unionLeft
 
 unionLeftName0 :: Names0 -> Names0 -> Names0
-unionLeftName0 = Unison.Names2.unionLeftName
+unionLeftName0 = Unison.Names.unionLeftName
 
 map0 :: (Name -> Name) -> Names0 -> Names0
 map0 f (Names.Names terms types) = Names.Names terms' types' where
@@ -108,7 +108,7 @@ map0 f (Names.Names terms types) = Names.Names terms' types' where
   types' = R.mapDom f types
 
 names0 :: Relation Name Referent -> Relation Name Reference -> Names0
-names0 = Unison.Names2.Names
+names0 = Unison.Names.Names
 
 types0 :: Names0 -> Relation Name Reference
 types0 = Names.types

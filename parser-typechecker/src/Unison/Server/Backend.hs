@@ -54,7 +54,7 @@ import qualified Unison.Name as Name
 import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Names2 as Names
+import qualified Unison.Names as Names
 import Unison.NamesWithHistory
   ( NamesWithHistory (..),
     Names0,

@@ -87,7 +87,7 @@ import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.NamesWithHistory                  ( NamesWithHistory(..), Names0
                                                 , pattern Names0 )
-import qualified Unison.Names2                 as Names
+import qualified Unison.Names                 as Names
 import qualified Unison.NamesWithHistory                 as NamesWithHistory
 import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )

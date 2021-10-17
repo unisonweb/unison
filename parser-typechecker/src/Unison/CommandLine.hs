@@ -33,7 +33,7 @@ import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.HashQualified'           as HQ'
-import           Unison.Names2 (Names0)
+import           Unison.Names (Names0)
 import qualified Unison.Util.ColorText           as CT
 import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P

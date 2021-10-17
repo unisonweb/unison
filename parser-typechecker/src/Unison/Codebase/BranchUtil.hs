@@ -8,8 +8,8 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Branch (Branch, Branch0)
-import qualified Unison.Names2 as Names
-import Unison.Names2 (Names0)
+import qualified Unison.Names as Names
+import Unison.Names (Names0)
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)

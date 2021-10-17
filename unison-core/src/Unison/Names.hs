@@ -66,7 +66,7 @@ import qualified Unison.Util.Relation         as R
 import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
 import qualified Text.FuzzyFind               as FZF
-import Unison.Names2 (Names'(HQNames))
+import Unison.Names (Names'(HQNames))
 
 -- This will support the APIs of both PrettyPrintEnv and the old HQNames.
 -- For pretty-printing, we need to look up names for References; they may have
