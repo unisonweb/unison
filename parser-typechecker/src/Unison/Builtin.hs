@@ -42,7 +42,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names3 (Names(Names), Names0)
+import           Unison.Names3 (NamesWithHistory(..), Names0)
 import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
@@ -52,8 +52,8 @@ type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
 type Type v = Type.Type v ()
 
-names :: Names
-names = Names names0 mempty
+names :: NamesWithHistory
+names = NamesWithHistory names0 mempty
 
 names0 :: Names0
 names0 = Names3.names0 terms types where

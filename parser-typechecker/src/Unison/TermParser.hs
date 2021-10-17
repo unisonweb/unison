@@ -14,7 +14,7 @@ import           Control.Monad.Reader (asks, local)
 import           Data.Foldable (foldrM)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
-import           Unison.Names3 (Names)
+import           Unison.Names3 (NamesWithHistory)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
@@ -993,7 +993,7 @@ instance Show v => Show (BlockElement v) where
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
-imports :: Var v => P v (Names, [(v,v)])
+imports :: Var v => P v (NamesWithHistory, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
@@ -1003,7 +1003,7 @@ imports = do
 -- A key feature of imports is we want to be able to say:
 -- `use foo.bar Baz qux` without having to specify whether `Baz` or `qux` are
 -- terms or types.
-substImports :: Var v => Names -> [(v,v)] -> Term v Ann -> Term v Ann
+substImports :: Var v => NamesWithHistory -> [(v,v)] -> Term v Ann -> Term v Ann
 substImports ns imports =
   ABT.substsInheritAnnotation [ (suffix, Term.var () full)
     | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound

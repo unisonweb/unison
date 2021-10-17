@@ -40,7 +40,7 @@ getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = Names3.lookupHQTerm hq (Names3.Names parseNames0 mempty)
+      let refs = Names3.lookupHQTerm hq (Names3.NamesWithHistory parseNames0 mempty)
       let a = Parser.Ann.External
       case toList refs of
         [Referent.Ref ref] -> do

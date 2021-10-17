@@ -56,7 +56,7 @@ import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names2 as Names
 import Unison.Names3
-  ( Names (..),
+  ( NamesWithHistory (..),
     Names0,
   )
 import qualified Unison.Names3 as Names3
@@ -152,7 +152,7 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
 basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root path =
   let names0 = basicPrettyPrintNames0 root path
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
+   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
 basicPrettyPrintNames0 :: Branch m -> Path -> Names0
 basicPrettyPrintNames0 root = snd . basicNames0' root
@@ -445,12 +445,12 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames0 :: Path -> Names0
 -- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
 
-getCurrentPrettyNames :: Path -> Branch m -> Names
+getCurrentPrettyNames :: Path -> Branch m -> NamesWithHistory
 getCurrentPrettyNames path root =
-  Names (basicPrettyPrintNames0 root path) mempty
+  NamesWithHistory (basicPrettyPrintNames0 root path) mempty
 
-getCurrentParseNames :: Path -> Branch m -> Names
-getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+getCurrentParseNames :: Path -> Branch m -> NamesWithHistory
+getCurrentParseNames path root = NamesWithHistory (basicParseNames0 root path) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -477,7 +477,7 @@ data Search r = Search
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Int -> Names -> Search Reference
+makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
 makeTypeSearch len names =
   Search
     { lookupNames = \ref -> Names3.typeName len ref names,
@@ -487,7 +487,7 @@ makeTypeSearch len names =
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> Names -> Search Referent
+makeTermSearch :: Int -> NamesWithHistory -> Search Referent
 makeTermSearch len names =
   Search
     { lookupNames = \ref -> Names3.termName len ref names,

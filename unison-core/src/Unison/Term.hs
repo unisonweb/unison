@@ -122,7 +122,7 @@ bindNames keepFreeTerms ns0 e = do
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
-      ns = Names.Names ns0 mempty
+      ns = Names.NamesWithHistory ns0 mempty
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)

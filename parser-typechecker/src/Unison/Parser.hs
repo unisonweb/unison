@@ -47,7 +47,7 @@ import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile.Error as UF
 import Unison.Util.Bytes              (Bytes)
 import Unison.Name as Name
-import Unison.Names3 (Names)
+import Unison.Names3 (NamesWithHistory)
 import qualified Unison.Names.ResolutionResult as Names
 import Control.Monad.Reader.Class (asks)
 import qualified Unison.Hashable as Hashable
@@ -65,7 +65,7 @@ type Err v = P.ParseError (Token Input) (Error v)
 
 data ParsingEnv =
   ParsingEnv { uniqueNames :: UniqueName
-             , names :: Names
+             , names :: NamesWithHistory
              }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)

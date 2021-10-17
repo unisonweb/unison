@@ -85,7 +85,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names3                  ( Names(..), Names0
+import           Unison.Names3                  ( NamesWithHistory(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
@@ -200,7 +200,7 @@ type Action' m v = Action m (Either Event Input) v
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: Names -> Action' m v PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
@@ -637,7 +637,7 @@ loop = do
           uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
           case uf of
             Nothing -> do
-              let parseNames0 = (`Names3.Names` mempty) basicPrettyPrintNames0
+              let parseNames0 = (`Names3.NamesWithHistory` mempty) basicPrettyPrintNames0
                   results = Names3.lookupHQTerm hq parseNames0
               if Set.null results then
                 respond $ SearchTermsNotFound [hq]
@@ -1015,10 +1015,10 @@ loop = do
 
       NamesI thing -> do
         ns0 <- basicParseNames0
-        let ns = Names ns0 mempty
+        let ns = NamesWithHistory ns0 mempty
             terms = Names3.lookupHQTerm thing ns
             types = Names3.lookupHQType thing ns
-            printNames = Names basicPrettyPrintNames0 mempty
+            printNames = NamesWithHistory basicPrettyPrintNames0 mempty
             terms' :: Set (Referent, Set (HQ'.HashQualified Name))
             terms' = Set.map go terms where
               go r = (r, Names3.termName hqLength r printNames)
@@ -1061,7 +1061,7 @@ loop = do
 
         fileByName = do
           ns <- maybe mempty UF.typecheckedToNames0 <$> use latestTypecheckedFile
-          fnames <- pure $ Names3.Names ns mempty
+          fnames <- pure $ Names3.NamesWithHistory ns mempty
           case Names3.lookupHQTerm dotDoc fnames of
             s | Set.size s == 1 -> do
               -- the displayI command expects full term names, so we resolve
@@ -1076,7 +1076,7 @@ loop = do
             [] -> codebaseByName
             [(_name, ref, _tm)] -> do
               len <- eval BranchHashLength
-              let names = Names3.Names basicPrettyPrintNames0 mempty
+              let names = Names3.NamesWithHistory basicPrettyPrintNames0 mempty
               let tm = Term.ref External ref
               tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
               case tm of
@@ -1088,7 +1088,7 @@ loop = do
 
         codebaseByName = do
           parseNames <- basicParseNames0
-          case Names3.lookupHQTerm dotDoc (Names3.Names parseNames mempty) of
+          case Names3.lookupHQTerm dotDoc (Names3.NamesWithHistory parseNames mempty) of
             s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
               | Set.size s == 0 -> respond $ ListOfLinks mempty []
               | otherwise       -> -- todo: return a list of links here too
@@ -1580,11 +1580,11 @@ loop = do
 
       ExecuteI main -> addRunMain main uf >>= \case
         NoTermWithThatName -> do
-          ppe <- suffixifiedPPE (Names3.Names basicPrettyPrintNames0 mempty)
+          ppe <- suffixifiedPPE (Names3.NamesWithHistory basicPrettyPrintNames0 mempty)
           mainType <- eval RuntimeMain
           respond $ NoMainFunction main ppe [mainType]
         TermHasBadType ty -> do
-          ppe <- suffixifiedPPE (Names3.Names basicPrettyPrintNames0 mempty)
+          ppe <- suffixifiedPPE (Names3.NamesWithHistory basicPrettyPrintNames0 mempty)
           mainType <- eval RuntimeMain
           respond $ BadMainFunction main ty ppe [mainType]
         RunMainSuccess unisonFile -> do
@@ -1598,7 +1598,7 @@ loop = do
       MakeStandaloneI output main -> do
         mainType <- eval RuntimeMain
         parseNames <-
-          flip Names3.Names mempty <$> basicPrettyPrintNames0A
+          flip Names3.NamesWithHistory mempty <$> basicPrettyPrintNames0A
         ppe <- suffixifiedPPE parseNames
         let resolved = toList $ Names3.lookupHQTerm main parseNames
             smain = HQ.toString main
@@ -1617,7 +1617,7 @@ loop = do
       IOTestI main -> do
         -- todo - allow this to run tests from scratch file, using addRunMain
         testType <- eval RuntimeTest
-        parseNames <- (`Names3.Names` mempty) <$> basicPrettyPrintNames0A
+        parseNames <- (`Names3.NamesWithHistory` mempty) <$> basicPrettyPrintNames0A
         ppe <- suffixifiedPPE parseNames
         -- use suffixed names for resolving the argument to display
         let
@@ -1898,7 +1898,7 @@ resolveHQToLabeledDependencies = \case
     types <- eval $ TypeReferencesByShortHash sh
     pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: Var v => OutputLocation -> Names -> Term v () -> Action' m v ()
+doDisplay :: Var v => OutputLocation -> NamesWithHistory -> Term v () -> Action' m v ()
 doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
   tf <- use latestTypecheckedFile
@@ -2738,12 +2738,12 @@ fixupNamesRelative currentPath' = Names3.map0 fixName where
     fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 
 makeHistoricalParsingNames ::
-  Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
+  Monad m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicParseNames0
   currentPath <- use currentPath
-  pure $ Names basicNames0
+  pure $ NamesWithHistory basicNames0
                (Names3.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
@@ -2755,7 +2755,7 @@ loadTypeDisplayObject = \case
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> eval (LoadType id)
 
-lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
+lexedSource :: Monad m => SourceName -> Source -> Action' m v (NamesWithHistory, LexedSource)
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
       getHQ = \case
@@ -2768,10 +2768,10 @@ lexedSource name src = do
   parseNames <- makeHistoricalParsingNames hqs
   pure (parseNames, (src, tokens))
 
-suffixifiedPPE :: Names -> Action' m v PPE.PrettyPrintEnv
+suffixifiedPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
 suffixifiedPPE ns = eval CodebaseHashLength <&> (`PPE.fromSuffixNames` ns)
 
-fqnPPE :: Names -> Action' m v PPE.PrettyPrintEnv
+fqnPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
 fqnPPE ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: (Monad m, Var v)
@@ -2785,7 +2785,7 @@ parseType input src = do
   (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
   parseNames <- basicParseNames0
   let names = Names3.push (Names3.currentNames names0)
-                          (Names3.Names parseNames (Names3.oldNames names0))
+                          (Names3.NamesWithHistory parseNames (Names3.oldNames names0))
   e <- eval $ ParseType names lexed
   pure $ case e of
     Left err -> Left $ TypeParseError src err
@@ -2795,12 +2795,12 @@ parseType input src = do
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled
-  :: Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
+  :: Monad m => Set LabeledDependency -> Names0 -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
   Names3.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
 makePrintNamesFromLabeled'
-  :: Monad m => Set LabeledDependency -> Action' m v Names
+  :: Monad m => Set LabeledDependency -> Action' m v NamesWithHistory
 makePrintNamesFromLabeled' deps = do
   root                           <- use root
   currentPath                    <- use currentPath
@@ -2808,7 +2808,7 @@ makePrintNamesFromLabeled' deps = do
     deps
     root
   basicNames0 <- basicPrettyPrintNames0A
-  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+  pure $ NamesWithHistory basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
   :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
@@ -2849,7 +2849,7 @@ findHistoricalHQs lexedHQs0 = do
 basicPrettyPrintNames0A :: Functor m => Action' m v Names0
 basicPrettyPrintNames0A = snd <$> basicNames0'
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names0 -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0A
@@ -2859,7 +2859,7 @@ makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   pure $
     Names3.shadowing
       shadowing
-      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+      (NamesWithHistory basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
 basicParseNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'
@@ -2962,7 +2962,7 @@ executePPE unisonFile =
 -- Produce a `Names` needed to display all the hashes used in the given file.
 displayNames :: (Var v, Monad m)
   => TypecheckedUnisonFile v a
-  -> Action' m v Names
+  -> Action' m v NamesWithHistory
 displayNames unisonFile =
   -- voodoo
   makeShadowedPrintNamesFromLabeled
@@ -2977,7 +2977,7 @@ diffHelper before after = do
   hqLength <- eval CodebaseHashLength
   diff     <- eval . Eval $ BranchDiff.diff0 before after
   names0 <- basicPrettyPrintNames0A
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory names0 mempty)
   (ppe,) <$>
     OBranchDiff.toOutput
       loadTypeOfTerm

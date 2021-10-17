@@ -26,7 +26,7 @@ bindNames
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
 bindNames keepFree ns0 t = let
-  ns = Names.Names ns0 mempty
+  ns = Names.NamesWithHistory ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
   rs = [(v, a, Names.lookupHQType (Name.convert $ Name.fromVar v) ns) | (v,a) <- fvs ]
   ok (v, a, rs) = 
