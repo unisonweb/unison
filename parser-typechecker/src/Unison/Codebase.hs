@@ -73,7 +73,7 @@ getBranchForHash codebase h =
     nestedChildrenForDepth depth b =
       if depth == 0 then []
       else
-        b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
+        b : (Map.elems (Branch.children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
 
     headHashEq = (h ==) . Branch.headHash
 

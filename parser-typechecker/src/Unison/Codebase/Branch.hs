@@ -21,18 +21,18 @@ module Unison.Codebase.Branch
   , cons
   , uncons
   , empty
-  , empty0
+  , emptySnapshot
   , discardHistory0
   , toCausalRaw
   , transform
   -- * Branch tests
   , isEmpty
-  , isEmpty0
+  , isEmptySnapshot
   , isOne
   , before
   , lca
   -- * diff
-  , diff0
+  , diffSnapshot
   -- * properties
   , head
   , headHash
@@ -66,6 +66,12 @@ module Unison.Codebase.Branch
   , terms_
   , types_
   , edits_
+  , deepTerms_
+  , deepTypes_
+  , deepPaths_
+  , deepEdits_
+  , deepTermMetadata_
+  , deepTypeMetadata_
     -- ** Term/type queries
   , deepReferents
   , deepTypeReferences
@@ -127,9 +133,9 @@ type Star r n = Metadata.Star r n
 
 -- | A node in the Unison namespace hierarchy.
 --
--- '_terms' and '_types' are the declarations at this level.
--- '_children' are the nodes one level below us.
--- '_edits' are the 'Patch's stored at this node in the code.
+-- 'terms' and 'types' are the declarations at this level.
+-- 'children' are the nodes one level below us.
+-- 'edits' are the 'Patch's stored at this node in the code.
 --
 -- The @deep*@ fields are derived from the four above.
 data BranchSnapshot m = BranchSnapshot
@@ -176,10 +182,10 @@ instance Monoid BranchDiff where
 
 -- The raw Branch
 data Raw = Raw
-  { _termsR :: Star Referent NameSegment
-  , _typesR :: Star Reference NameSegment
-  , _childrenR :: Map NameSegment Hash
-  , _editsR :: Map NameSegment EditHash
+  { termsR :: Star Referent NameSegment
+  , typesR :: Star Reference NameSegment
+  , childrenR :: Map NameSegment Hash
+  , editsR :: Map NameSegment EditHash
   }
 
 Lens.makeLensesWith (Lens.defaultFieldRules & Lens.lensField .~ Lens.mappingNamer (\n -> [n <> "_"])) ''Branch
@@ -251,7 +257,7 @@ deepEdits' b = go id b where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
     f (c, b) =  go (addPrefix . Name.joinDot (Name.fromSegment c)) (head b)
 
--- Discards the history of a Branch0's children, recursively
+-- Discards the history of a BranchSnapshot's children, recursively
 discardHistory0 :: Applicative m => BranchSnapshot m -> BranchSnapshot m
 discardHistory0 = over children_ (fmap tweak) where
   tweak b = cons (discardHistory0 (head b)) empty
@@ -290,9 +296,9 @@ cachedRead cache deserializeRaw deserializeEdits h =
  where
   fromRaw :: Raw -> m (BranchSnapshot m)
   fromRaw Raw {..} = do
-    children <- traverse go _childrenR
-    edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ branchSnapshot _termsR _typesR children edits
+    children <- traverse go childrenR
+    edits <- for editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
+    pure $ branchSnapshot termsR typesR children edits
   go = cachedRead cache deserializeRaw deserializeEdits
   d :: Causal.Deserialize m Raw (BranchSnapshot m)
   d h = deserializeRaw h >>= \case
@@ -376,32 +382,32 @@ getAt0 p b = case Path.uncons p of
   Nothing -> b
   Just (seg, path) -> case Map.lookup seg (children b) of
     Just c -> getAt0 path (head c)
-    Nothing -> empty0
+    Nothing -> emptySnapshot
 
 empty :: Branch m
-empty = Branch $ Causal.one empty0
+empty = Branch $ Causal.one emptySnapshot
 
 one :: BranchSnapshot m -> Branch m
 one = Branch . Causal.one
 
-empty0 :: BranchSnapshot m
-empty0 =
+emptySnapshot :: BranchSnapshot m
+emptySnapshot =
   BranchSnapshot mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
-isEmpty0 :: BranchSnapshot m -> Bool
-isEmpty0 = (== empty0)
+isEmptySnapshot :: BranchSnapshot m -> Bool
+isEmptySnapshot = (== emptySnapshot)
 
 isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 step :: Applicative m => (BranchSnapshot m -> BranchSnapshot m) -> Branch m -> Branch m
 step f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch (Causal.one (f empty0))
+  Branch (Causal.One _h e) | e == emptySnapshot -> Branch (Causal.one (f emptySnapshot))
   b -> over history_ (Causal.stepDistinct f) b
 
 stepM :: (Monad m, Monad n) => (BranchSnapshot m -> n (BranchSnapshot m)) -> Branch m -> n (Branch m)
 stepM f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
+  Branch (Causal.One _h e) | e == emptySnapshot -> Branch . Causal.one <$> f emptySnapshot
   b -> mapMOf history_ (Causal.stepDistinctM f) b
 
 cons :: Applicative m => BranchSnapshot m -> Branch m -> Branch m
@@ -566,8 +572,8 @@ deleteTypeName _ _ b = b
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
-diff0 :: Monad m => BranchSnapshot m -> BranchSnapshot m -> m BranchDiff
-diff0 old new = do
+diffSnapshot :: Monad m => BranchSnapshot m -> BranchSnapshot m -> m BranchDiff
+diffSnapshot old new = do
   newEdits <- sequenceA $ snd <$> edits new
   oldEdits <- sequenceA $ snd <$> edits old
   let diffEdits = Map.merge (Map.mapMissing $ \_ p -> Patch.diff p mempty)

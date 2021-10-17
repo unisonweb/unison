@@ -30,7 +30,7 @@ import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.Runtime.IOSource as DD
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
-import Unison.Codebase.Branch (Branch, Branch0)
+import Unison.Codebase.Branch (Branch, BranchSnapshot)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import qualified Unison.Codebase.Causal (RawHash(RawHash))
@@ -130,8 +130,8 @@ basicNames0' root path = (parseNames00, prettyPrintNames00)
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
     absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
-    currentBranch0 = Branch.head currentBranch
-    currentPathNames0 = Branch.toNames0 currentBranch0
+    currentBranchSnapshot = Branch.head currentBranch
+    currentPathNames0 = Branch.toNames0 currentBranchSnapshot
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
     currentAndExternalNames0 =
@@ -282,7 +282,7 @@ findShallowReadmeInBranchAndRender width runtime codebase branch =
       readmes :: Set Referent
       readmes = foldMap lookup toCheck
         where lookup seg = R.lookupRan seg rel
-              rel = Star3.d1 (Branch._terms (Branch.head branch))
+              rel = Star3.d1 (Branch.terms (Branch.head branch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
         join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
@@ -292,7 +292,7 @@ termListEntry
   :: Monad m
   => Var v
   => Codebase m v Ann
-  -> Branch0 m
+  -> BranchSnapshot m
   -> Referent
   -> HQ'.HQSegment
   -> Backend m (TermEntry v Ann)
@@ -382,12 +382,12 @@ findShallowInBranch
 findShallowInBranch codebase b = do
   hashLength <- lift $ Codebase.hashLength codebase
   let hqTerm b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._terms $ b0
+        let refs = Star3.lookupD1 ns . Branch.terms $ b0
         in  case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReferent ns r
       hqType b0 ns r =
-        let refs = Star3.lookupD1 ns . Branch._types $ b0
+        let refs = Star3.lookupD1 ns . Branch.types $ b0
         in  case length refs of
               1 -> HQ'.fromName ns
               _ -> HQ'.take hashLength $ HQ'.fromNamedReference ns r
@@ -395,20 +395,20 @@ findShallowInBranch codebase b = do
         (R.size . Branch.deepTerms $ Branch.head b)
           + (R.size . Branch.deepTypes $ Branch.head b)
       b0 = Branch.head b
-  termEntries <- for (R.toList . Star3.d1 $ Branch._terms b0) $ \(r, ns) ->
+  termEntries <- for (R.toList . Star3.d1 $ Branch.terms b0) $ \(r, ns) ->
     ShallowTermEntry <$> termListEntry codebase b0 r (hqTerm b0 ns r)
-  typeEntries <- for (R.toList . Star3.d1 $ Branch._types b0)
+  typeEntries <- for (R.toList . Star3.d1 $ Branch.types b0)
     $ \(r, ns) -> ShallowTypeEntry <$> typeListEntry codebase r (hqType b0 ns r)
   let
     branchEntries =
       [ ShallowBranchEntry ns
                            (SBH.fullFromHash $ Branch.headHash b)
                            (defnCount b)
-      | (ns, b) <- Map.toList $ Branch._children b0
+      | (ns, b) <- Map.toList $ Branch.children b0
       ]
     patchEntries =
       [ ShallowPatchEntry ns
-      | (ns, (_h, _mp)) <- Map.toList $ Branch._edits b0
+      | (ns, (_h, _mp)) <- Map.toList $ Branch.edits b0
       ]
   pure
     .  List.sortOn listEntryName

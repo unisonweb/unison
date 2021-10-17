@@ -3,7 +3,7 @@ module Unison.Codebase.BranchDiff where
 import Unison.Prelude
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Unison.Codebase.Branch (Branch0(..))
+import Unison.Codebase.Branch (BranchSnapshot(..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as Patch
@@ -42,8 +42,8 @@ data BranchDiff = BranchDiff
   , patchesDiff :: Map Name (DiffType PatchDiff)
   } deriving Show
 
-diff0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m BranchDiff
-diff0 old new = BranchDiff terms types <$> patchDiff old new where
+diffSnapshot :: forall m. Monad m => BranchSnapshot m -> BranchSnapshot m -> m BranchDiff
+diffSnapshot old new = BranchDiff terms types <$> patchDiff old new where
   (terms, types) =
     computeSlices
       (deepr4ToSlice (Branch.deepTerms old) (Branch.deepTermMetadata old))
@@ -51,7 +51,7 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new where
       (deepr4ToSlice (Branch.deepTypes old) (Branch.deepTypeMetadata old))
       (deepr4ToSlice (Branch.deepTypes new) (Branch.deepTypeMetadata new))
 
-patchDiff :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
+patchDiff :: forall m. Monad m => BranchSnapshot m -> BranchSnapshot m -> m (Map Name (DiffType PatchDiff))
 patchDiff old new = do
   let oldDeepEdits, newDeepEdits :: Map Name (Branch.EditHash, m Patch)
       oldDeepEdits = Branch.deepEdits' old

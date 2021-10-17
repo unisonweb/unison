@@ -58,7 +58,7 @@ file = do
   -- from the local file.
   --
   -- There's some more complicated logic below to have suffix-based name resolution
-  -- make use of _terms_ from the local file.
+  -- make use of terms_ from the local file.
   local (\e -> e { names = Names.push locals namesStart }) $ do
     names <- asks names
     stanzas0 <- sepBy semi stanza

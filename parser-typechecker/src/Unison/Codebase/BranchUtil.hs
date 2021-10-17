@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Branch (Branch, Branch0)
+import Unison.Codebase.Branch (Branch, BranchSnapshot)
 import qualified Unison.Names2 as Names
 import Unison.Names2 (Names0)
 import qualified Unison.Referent as Referent
@@ -28,108 +28,108 @@ import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
 
 fromNames0 :: Monad m => Names0 -> Branch m
-fromNames0 names0 = Branch.one $ addFromNames0 names0 Branch.empty0
+fromNames0 names0 = Branch.one $ addFromNames0 names0 Branch.emptySnapshot
 
 -- can produce a pure value because there's no history to traverse
 hashesFromNames0 :: Monad m => Names0 -> Map Branch.Hash (Branch m)
 hashesFromNames0 = deepHashes . fromNames0 where
   deepHashes :: Branch m -> Map Branch.Hash (Branch m)
   deepHashes b = Map.singleton (Branch.headHash b) b
-    <> (foldMap deepHashes . view Branch.children . Branch.head) b
+    <> (foldMap deepHashes . view Branch.children_ . Branch.head) b
 
-addFromNames0 :: Monad m => Names0 -> Branch0 m -> Branch0 m
+addFromNames0 :: Monad m => Names0 -> BranchSnapshot m -> BranchSnapshot m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . R.toList $ Names.types names0
   termActions = map doTerm . R.toList $ Names.terms names0
---  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
+--  doTerm :: (Name, Referent) -> (Path, BranchSnapshot m -> BranchSnapshot m)
   doTerm (n, r) = case Path.splitFromName n of
     Nothing -> errorEmptyName
     Just split -> makeAddTermName split r mempty -- no metadata
---  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
+--  doType :: (Name, Reference) -> (Path, BranchSnapshot m -> BranchSnapshot m)
   doType (n, r) = case Path.splitFromName n of
              Nothing -> errorEmptyName
              Just split -> makeAddTypeName split r mempty -- no metadata
   errorEmptyName = error "encountered an empty name"
 
-getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
+getTerm :: Path.HQSplit -> BranchSnapshot m -> Set Referent
 getTerm (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n terms
     HashQualified n sh -> filter sh $ Star3.lookupD1 n terms
   where
   filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
-  terms = Branch._terms (Branch.getAt0 p b)
+  terms = Branch.terms (Branch.getAt0 p b)
 
 getTermMetadataHQNamed
-  :: (Path.Path, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
+  :: (Path.Path, HQ'.HQSegment) -> BranchSnapshot m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms
-  where terms = Metadata.starToR4 . Branch._terms $ Branch.getAt0 path b
+  where terms = Metadata.starToR4 . Branch.terms $ Branch.getAt0 path b
 
 getTypeMetadataHQNamed
   :: (Path.Path, HQ'.HQSegment)
-  -> Branch0 m
+  -> BranchSnapshot m
   -> Metadata.R4 Reference NameSegment
 getTypeMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReference n r hqseg) types
-  where types = Metadata.starToR4 . Branch._types $ Branch.getAt0 path b
+  where types = Metadata.starToR4 . Branch.types $ Branch.getAt0 path b
 
 -- todo: audit usages and maybe eliminate!
 -- Only returns metadata for the term at the exact level given
-getTermMetadataAt :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
+getTermMetadataAt :: (Path.Path, a) -> Referent -> BranchSnapshot m -> Metadata
 getTermMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
-  terms = Branch._terms $ Branch.getAt0 path b
+  terms = Branch.terms $ Branch.getAt0 path b
 
-getType :: Path.HQSplit -> Branch0 m -> Set Reference
+getType :: Path.HQSplit -> BranchSnapshot m -> Set Reference
 getType (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n types
     HashQualified n sh -> filter sh $ Star3.lookupD1 n types
   where
   filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
-  types = Branch._types (Branch.getAt0 p b)
+  types = Branch.types (Branch.getAt0 p b)
 
-getTypeByShortHash :: SH.ShortHash -> Branch0 m -> Set Reference
+getTypeByShortHash :: SH.ShortHash -> BranchSnapshot m -> Set Reference
 getTypeByShortHash sh b = filter sh $ Branch.deepTypeReferences b
   where
   filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
 
-getTypeMetadataAt :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
+getTypeMetadataAt :: (Path.Path, a) -> Reference -> BranchSnapshot m -> Metadata
 getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ types
-  types = Branch._types $ Branch.getAt0 path b
+  types = Branch.types $ Branch.getAt0 path b
 
-getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
+getBranch :: Path.Split -> BranchSnapshot m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
-  [] -> Map.lookup seg (Branch._children b)
+  [] -> Map.lookup seg (Branch.children b)
   h : p ->
-    (Branch.head <$> Map.lookup h (Branch._children b)) >>=
+    (Branch.head <$> Map.lookup h (Branch.children b)) >>=
       getBranch (Path.fromList p, seg)
 
 
-makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
-makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTermName :: Path.Split -> Referent -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeReplacePatch :: Applicative m => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
+makeReplacePatch :: Applicative m => Path.Split -> Patch -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
 
-makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeletePatch :: Path.Split -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
-makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
 
-makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTypeName :: Path.Split -> Reference -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 -- to delete, just set with Branch.empty
 makeSetBranch ::
-  Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
+  Path.Split -> Branch m -> (Path, BranchSnapshot m -> BranchSnapshot m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)

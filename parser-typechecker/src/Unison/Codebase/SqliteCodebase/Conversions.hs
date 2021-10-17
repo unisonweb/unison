@@ -444,7 +444,7 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
     hash1to2c :: V1.Branch.Hash -> V2.CausalHash
     hash1to2c = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
 
-    causal1to2' = causal1to2 @m @V1.Branch.Raw @V2.CausalHash @V2.BranchHash @(V1.Branch.Branch0 m) @(V2.Branch.Branch m)
+    causal1to2' = causal1to2 @m @V1.Branch.Raw @V2.CausalHash @V2.BranchHash @(V1.Branch.BranchSnapshot m) @(V2.Branch.Branch m)
 
     causal1to2 :: forall m h h2c h2e e e2. (Monad m, Ord h2c) => (V1.Causal.RawHash h -> (h2c, h2e)) -> (V1.Causal.RawHash h -> h2c) -> (e -> m e2) -> V1.Causal.Causal m h e -> V2.Causal m h2c h2e e2
     causal1to2 h1to22 h1to2 e1to2 = \case
@@ -452,12 +452,12 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       V1.Causal.Cons (h1to22 -> (hc, hb)) e (ht, mt) -> V2.Causal hc hb (Map.singleton (h1to2 ht) (causal1to2 h1to22 h1to2 e1to2 <$> mt)) (e1to2 e)
       V1.Causal.Merge (h1to22 -> (hc, hb)) e parents -> V2.Causal hc hb (Map.bimap h1to2 (causal1to2 h1to22 h1to2 e1to2 <$>) parents) (e1to2 e)
 
-    branch1to2 :: forall m. Monad m => V1.Branch.Branch0 m -> m (V2.Branch.Branch m)
+    branch1to2 :: forall m. Monad m => V1.Branch.BranchSnapshot m -> m (V2.Branch.Branch m)
     branch1to2 b = do
-      terms <- pure $ doTerms (V1.Branch._terms b)
-      types <- pure $ doTypes (V1.Branch._types b)
-      patches <- pure $ doPatches (V1.Branch._edits b)
-      children <- pure $ doChildren (V1.Branch._children b)
+      terms <- pure $ doTerms (V1.Branch.terms b)
+      types <- pure $ doTypes (V1.Branch.types b)
+      patches <- pure $ doPatches (V1.Branch.edits b)
+      children <- pure $ doChildren (V1.Branch.children b)
       pure $ V2.Branch.Branch terms types patches children
       where
         -- is there a more readable way to structure these that's also linear?
@@ -562,13 +562,13 @@ branch2to1 ::
   (String -> Hash -> m V1.Reference.Size) ->
   (V2.Reference -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->
-  m (V1.Branch.Branch0 m)
+  m (V1.Branch.BranchSnapshot m)
 branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
   v1terms <- toStar (reference2to1 $ lookupSize "term metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 (lookupSize "term") lookupCT) id) v2terms
   v1types <- toStar (reference2to1 $ lookupSize "type metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 (lookupSize "type")) id) v2types
   v1patches <- Map.bitraverse (pure . namesegment2to1) (bitraverse (pure . edithash2to1) (fmap (patch2to1 lookupSize))) v2patches
   v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupSize lookupCT) v2children
-  pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
+  pure $ V1.Branch.branchSnapshot v1terms v1types v1children v1patches
   where
     toStar :: forall m name ref. (Monad m, Ord name, Ord ref) => (V2.Reference -> m V1.Reference) -> Map name (Map ref V2.Branch.MdValues) -> m (V1.Metadata.Star ref name)
     toStar mdref2to1 m = foldM insert mempty (Map.toList m)
@@ -584,7 +584,7 @@ branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2chi
             Relation.insertManyRan ref <$> (traverse (\(t, v) -> (,) <$> mdref2to1 v <*> mdref2to1 t) (Map.toList mdvals)) <*> pure mempty
           pure $ star <> V1.Star3.Star3 facts names types vals
 
--- V2.Branch0 should have the metadata types, could bulk load with relational operations
+-- V2.BranchSnapshot should have the metadata types, could bulk load with relational operations
 -- type Star a n = Star3 a n Type (Type, Value)
 -- type Star a n = Star3 a n Type (Reference, Reference)
 -- MdValues is a Set V2.Reference
@@ -598,11 +598,11 @@ branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2chi
 --     patches :: Map NameSegment (PatchHash, m Patch),
 --     children :: Map NameSegment (Causal m)
 --   }
--- branch0 :: Metadata.Star Referent NameSegment
+-- branchSnapshot :: Metadata.Star Referent NameSegment
 --         -> Metadata.Star Reference NameSegment
 --         -> Map NameSegment (Branch m)
 --         -> Map NameSegment (EditHash, m Patch)
---         -> Branch0 m
+--         -> BranchSnapshot m
 
 -- type Metadata.Star a n = Star3 a n Type (Type, Value)
 

@@ -222,7 +222,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
             Reference.Builtin{} -> pure ()
         pure $ Right rs
 
--- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
+-- doTodo :: Monad m => Codebase m v a -> BranchSnapshot -> m (TodoOutput v a)
 -- doTodo code b = do
 --   -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)
 --   f <- Codebase.frontier code b

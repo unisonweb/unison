@@ -1565,7 +1565,7 @@ bothCompletors c1 c2 q code b currentPath = do
 pathCompletor
   :: Applicative f
   => (String -> [String] -> [Completion])
-  -> (Branch.Branch0 m -> Set Text)
+  -> (Branch.BranchSnapshot m -> Set Text)
   -> String
   -> codebase
   -> Branch.Branch m

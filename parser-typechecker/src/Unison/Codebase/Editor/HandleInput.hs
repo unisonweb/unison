@@ -33,7 +33,7 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
-import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
+import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (SlurpComponent))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo (printNamespace, WriteRemotePath, writeToRead, writePathToRead)
 import qualified Unison.CommandLine.InputPattern as InputPattern
@@ -57,7 +57,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.BranchDiff    as BranchDiff
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import           Unison.Codebase.Branch         ( Branch(..)
-                                                , Branch0(..)
+                                                , BranchSnapshot(BranchSnapshot)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -151,6 +151,7 @@ import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.Codebase.Editor.SlurpComponent as SlurpComponent
 
 type F m i v = Free (Command m i v)
 
@@ -218,7 +219,7 @@ loop = do
       hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
-      currentBranch0 = Branch.head currentBranch'
+      currentBranchSnapshot = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
       defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)
@@ -598,7 +599,7 @@ loop = do
                         tyUpdates types = foldl' go types srclt
                           where
                             go types src = op (src, mdType, mdValue) types
-                     in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+                     in over Branch.terms_ tmUpdates . over Branch.types_ tyUpdates $ b0
                   steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
               stepManyAtNoSync steps
 
@@ -770,7 +771,7 @@ loop = do
         let desta = resolveToAbsolute dest0
         let dest = Path.unabsolute desta
         destb <- getAt desta
-        if Branch.isEmpty0 (Branch.head destb) then unlessGitError do
+        if Branch.isEmptySnapshot (Branch.head destb) then unlessGitError do
           baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
           headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
           lift $ do
@@ -797,7 +798,7 @@ loop = do
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
         b <- use root
-        stepManyAt [ (Path.empty, const Branch.empty0)
+        stepManyAt [ (Path.empty, const Branch.emptySnapshot)
                    , BranchUtil.makeSetBranch (resolveSplit' dest) b ]
         success
 
@@ -844,7 +845,7 @@ loop = do
       DeleteBranchI Nothing ->
         ifConfirmed
             (do
-              stepAt (Path.empty, const Branch.empty0)
+              stepAt (Path.empty, const Branch.emptySnapshot)
               respond DeletedEverything)
             (respond DeleteEverythingConfirmation)
 
@@ -861,7 +862,7 @@ loop = do
           if failed == mempty then do
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
             -- Looks similar to the 'toDelete' above... investigate me! ;)
-            diffHelper b Branch.empty0 >>=
+            diffHelper b Branch.emptySnapshot >>=
               respondNumbered
                 . uncurry (ShowDiffAfterDeleteBranch
                             $ resolveToAbsolute (Path.unsplit' p))
@@ -893,7 +894,7 @@ loop = do
           doHistory !n b acc =
             if maybe False (n >=) resultsCap then
               respond $ History diffCap acc (PageEnd (sbh $ Branch.headHash b) n)
-            else case Branch._history b of
+            else case Branch.history b of
               Causal.One{} ->
                 respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
               Causal.Merge{..} ->
@@ -971,9 +972,9 @@ loop = do
           respond . SearchTermsNotFound . fmap fixupOutput $ unknown
         where
         -- a list of missing sources (if any) and the actions that do the work
-        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+        go :: ([Path.HQSplit], [(Path, BranchSnapshot m -> BranchSnapshot m)])
            -> Path.HQSplit
-           -> ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+           -> ([Path.HQSplit], [(Path, BranchSnapshot m -> BranchSnapshot m)])
         go (missingSrcs, actions) hqsrc =
           let
             src :: Path.Split
@@ -984,8 +985,8 @@ loop = do
             hqProposedDest = first Path.unabsolute $
                               Path.resolve (resolveToAbsolute dest') hqsrc
             -- `Nothing` if src doesn't exist
-            doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
-            doType = case ( BranchUtil.getType hqsrc currentBranch0
+            doType :: Maybe [(Path, BranchSnapshot m -> BranchSnapshot m)]
+            doType = case ( BranchUtil.getType hqsrc currentBranchSnapshot
                           , BranchUtil.getType hqProposedDest root0
                           ) of
               (null -> True, _) -> Nothing -- missing src
@@ -993,9 +994,9 @@ loop = do
                 Just . map addAlias . toList $ Set.difference rsrcs existing
                 where
                 addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
-                oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
-            doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
-            doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
+                oldMD r = BranchUtil.getTypeMetadataAt src r currentBranchSnapshot
+            doTerm :: Maybe [(Path, BranchSnapshot m -> BranchSnapshot m)]
+            doTerm = case ( BranchUtil.getTerm hqsrc currentBranchSnapshot
                           , BranchUtil.getTerm hqProposedDest root0
                           ) of
               (null -> True, _) -> Nothing -- missing src
@@ -1003,7 +1004,7 @@ loop = do
                 Just . map addAlias . toList $ Set.difference rsrcs existing
                 where
                 addAlias r = BranchUtil.makeAddTermName proposedDest r (oldMD r)
-                oldMD r = BranchUtil.getTermMetadataAt src r currentBranch0
+                oldMD r = BranchUtil.getTermMetadataAt src r currentBranchSnapshot
           in case (doType, doTerm) of
             (Nothing, Nothing) -> (missingSrcs :> hqsrc, actions)
             (Just as, Nothing) -> (missingSrcs, actions ++ as)
@@ -1182,8 +1183,8 @@ loop = do
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
-              | (p, b) <- Branch.toList0 currentBranch0
-              , (seg, _) <- Map.toList (Branch._edits b) ]
+              | (p, b) <- Branch.toList0 currentBranchSnapshot
+              , (seg, _) <- Map.toList (Branch.edits b) ]
         respond $ ListOfPatches $ Set.fromList patches
         numberedArgs .= fmap Name.toString patches
 
@@ -1479,7 +1480,7 @@ loop = do
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
               (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
-              updatePatches :: Branch0 m -> m (Branch0 m)
+              updatePatches :: BranchSnapshot m -> m (BranchSnapshot m)
               updatePatches = Branch.modifyPatches seg updatePatch
 
           when (Slurp.isNonempty sr) $ do
@@ -1514,7 +1515,7 @@ loop = do
       TestI showOk showFail -> do
         let
           testTerms = Map.keys . R4.d1 . uncurry R4.selectD34 isTest
-                    . Branch.deepTermMetadata $ currentBranch0
+                    . Branch.deepTermMetadata $ currentBranchSnapshot
           testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
           oks results =
             [ (r, msg)
@@ -1778,7 +1779,7 @@ loop = do
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
             set h = State.modify (Set.insert h)
-            getCausal b = (Branch.headHash b, pure $ Branch._history b)
+            getCausal b = (Branch.headHash b, pure $ Branch.history b)
             goCausal :: forall m. Monad m => [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
             goCausal [] = pure ()
             goCausal ((h, mc) : queue) = do
@@ -1787,9 +1788,9 @@ loop = do
                   Causal.One h b -> goBranch h b mempty queue
                   Causal.Cons h b tail -> goBranch h b [fst tail] (tail : queue)
                   Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
-            goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
+            goBranch :: forall m. Monad m => Branch.Hash -> BranchSnapshot m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
             goBranch h b (Set.fromList -> causalParents) queue = case b of
-              Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ -> let
+              BranchSnapshot terms0 types0 children0 patches0 _ _ _ _ _ _ -> let
                 wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
                 wrangleMetadata s r =
                   (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
@@ -2098,7 +2099,7 @@ confirmedCommand i = do
   i0 <- use lastInput
   pure $ Just i == i0
 
-listBranch :: Branch0 m -> [SearchResult]
+listBranch :: BranchSnapshot m -> [SearchResult]
 listBranch (Branch.toNames0 -> b) =
   List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
 
@@ -2127,7 +2128,7 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
                    Branch.getAt' (Path.singleton last) b
       rootnames =
         Names.filter (== lastName) .
-        Branch.toNames0 . set Branch.children mempty $ Branch.head b
+        Branch.toNames0 . set Branch.children_ mempty $ Branch.head b
       names0 = rootnames <> Names.prefix0 lastName subnames
 
 searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
@@ -2320,18 +2321,18 @@ stepAt
   :: forall m i v
    . Monad m
   => InputDescription
-  -> (Path, Branch0 m -> Branch0 m)
+  -> (Path, BranchSnapshot m -> BranchSnapshot m)
   -> Action m i v ()
 stepAt cause = stepManyAt @m @[] cause . pure
 
 stepAtNoSync :: forall m i v. Monad m
-       => (Path, Branch0 m -> Branch0 m)
+       => (Path, BranchSnapshot m -> BranchSnapshot m)
        -> Action m i v ()
 stepAtNoSync = stepManyAtNoSync @m @[] . pure
 
 stepAtM :: forall m i v. Monad m
         => InputDescription
-        -> (Path, Branch0 m -> m (Branch0 m))
+        -> (Path, BranchSnapshot m -> m (BranchSnapshot m))
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
@@ -2339,21 +2340,21 @@ stepAtM'
   :: forall m i v
    . Monad m
   => InputDescription
-  -> (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> (Path, BranchSnapshot m -> Action m i v (BranchSnapshot m))
   -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
 stepAtMNoSync'
   :: forall m i v
    . Monad m
-  => (Path, Branch0 m -> Action m i v (Branch0 m))
+  => (Path, BranchSnapshot m -> Action m i v (BranchSnapshot m))
   -> Action m i v Bool
 stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
 
 stepManyAt
   :: (Monad m, Foldable f)
   => InputDescription
-  -> f (Path, Branch0 m -> Branch0 m)
+  -> f (Path, BranchSnapshot m -> BranchSnapshot m)
   -> Action m i v ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
@@ -2363,7 +2364,7 @@ stepManyAt reason actions = do
 -- Like stepManyAt, but doesn't update the root
 stepManyAtNoSync
   :: (Monad m, Foldable f)
-  => f (Path, Branch0 m -> Branch0 m)
+  => f (Path, BranchSnapshot m -> BranchSnapshot m)
   -> Action m i v ()
 stepManyAtNoSync actions = do
   b <- use root
@@ -2372,7 +2373,7 @@ stepManyAtNoSync actions = do
 
 stepManyAtM :: (Monad m, Foldable f)
            => InputDescription
-           -> f (Path, Branch0 m -> m (Branch0 m))
+           -> f (Path, BranchSnapshot m -> m (BranchSnapshot m))
            -> Action m i v ()
 stepManyAtM reason actions = do
     stepManyAtMNoSync actions
@@ -2380,7 +2381,7 @@ stepManyAtM reason actions = do
     updateRoot b reason
 
 stepManyAtMNoSync :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> m (Branch0 m))
+           => f (Path, BranchSnapshot m -> m (BranchSnapshot m))
            -> Action m i v ()
 stepManyAtMNoSync actions = do
     b <- use root
@@ -2389,7 +2390,7 @@ stepManyAtMNoSync actions = do
 
 stepManyAtM' :: (Monad m, Foldable f)
            => InputDescription
-           -> f (Path, Branch0 m -> Action m i v (Branch0 m))
+           -> f (Path, BranchSnapshot m -> Action m i v (BranchSnapshot m))
            -> Action m i v Bool
 stepManyAtM' reason actions = do
     b <- use root
@@ -2398,7 +2399,7 @@ stepManyAtM' reason actions = do
     pure (b /= b')
 
 stepManyAtMNoSync' :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Action m i v (Branch0 m))
+           => f (Path, BranchSnapshot m -> Action m i v (BranchSnapshot m))
            -> Action m i v Bool
 stepManyAtMNoSync' actions = do
     b <- use root
@@ -2550,7 +2551,7 @@ toSlurpResult currentPath uf existingNames =
     , r                   <- toList $ Names.termsNamed existingNames n
     -- ignore collisions w/ ctors of types being updated
     , Set.notMember (Referent.toReference r) typesToUpdate
-    , Set.notMember (var n) (terms dups)
+    , Set.notMember (var n) (SlurpComponent.terms dups)
     ]
 
   -- duplicate (n,r) if (n,r) exists in names0
@@ -2647,7 +2648,7 @@ filterBySlurpResult SlurpResult{..}
 doSlurpAdds :: forall m v. (Monad m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
-            -> (Branch0 m -> Branch0 m)
+            -> (BranchSnapshot m -> BranchSnapshot m)
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
@@ -2659,7 +2660,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   md v =
     if Set.member v tests then Metadata.singleton isTestType isTestValue
     else Metadata.empty
-  doTerm :: v -> (Path, Branch0 m -> Branch0 m)
+  doTerm :: v -> (Path, BranchSnapshot m -> BranchSnapshot m)
   doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
@@ -2667,7 +2668,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
       Just split -> BranchUtil.makeAddTermName split r (md v)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
-  doType :: v -> (Path, Branch0 m -> Branch0 m)
+  doType :: v -> (Path, BranchSnapshot m -> BranchSnapshot m)
   doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
@@ -2682,7 +2683,7 @@ doSlurpUpdates :: Monad m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
                -> [(Name, Referent)]
-               -> (Branch0 m -> Branch0 m)
+               -> (BranchSnapshot m -> BranchSnapshot m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
   Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
   where
@@ -2697,7 +2698,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
   -- todo: if the thing being updated, m, is metadata for something x in b0
   -- update x's md to reference `m`
   doType, doTerm ::
-    (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
+    (Name, (Reference, Reference)) -> [(Path, BranchSnapshot m -> BranchSnapshot m)]
   doType (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTypeName split old
@@ -2811,7 +2812,7 @@ makePrintNamesFromLabeled' deps = do
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
-  :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+  :: Monad m => Path.HQSplit -> BranchSnapshot m -> Action' m v (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
@@ -2970,12 +2971,12 @@ displayNames unisonFile =
     (UF.typecheckedToNames0 unisonFile)
 
 diffHelper :: Monad m
-  => Branch0 m
-  -> Branch0 m
+  => BranchSnapshot m
+  -> BranchSnapshot m
   -> Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
 diffHelper before after = do
   hqLength <- eval CodebaseHashLength
-  diff     <- eval . Eval $ BranchDiff.diff0 before after
+  diff     <- eval . Eval $ BranchDiff.diffSnapshot before after
   names0 <- basicPrettyPrintNames0A
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (Names names0 mempty)
   (ppe,) <$>

@@ -75,7 +75,7 @@ instance Show e => Show (Causal m h e) where
     Merge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
 
 -- h is the type of the pure data structure that will be hashed and used as
--- an index; e.g. h = Branch00, e = Branch0 m
+-- an index; e.g. h = BranchSnapshot0, e = BranchSnapshot m
 data Causal m h e
   = One { currentHash :: RawHash h
         , head :: e

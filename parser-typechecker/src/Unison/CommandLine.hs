@@ -79,7 +79,7 @@ watchBranchUpdates currentRoot q codebase = do
     -- heuristic. If a fairly recent head gets deposited at just the right
     -- time, it would get ignored by this logic. This seems unavoidable.
     let maxDepth = 20 -- if it's further back than this, consider it new
-    let isNew b = not <$> beforeHash maxDepth b (Branch._history currentRoot)
+    let isNew b = not <$> beforeHash maxDepth b (Branch.history currentRoot)
     notBefore <- filterM isNew (toList updatedBranches)
     when (length notBefore > 0) $
       atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore

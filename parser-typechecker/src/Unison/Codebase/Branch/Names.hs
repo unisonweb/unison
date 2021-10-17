@@ -31,12 +31,12 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import Prelude hiding (head, read, subtract)
 
-toNames0 :: Branch0 m -> Names0
+toNames0 :: BranchSnapshot m -> Names0
 toNames0 b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
 
 -- This stops searching for a given HashQualified once it encounters
--- any term or type in any Branch0 that satisfies that HashQualified.
+-- any term or type in any BranchSnapshot that satisfies that HashQualified.
 findHistoricalHQs :: Monad m
                   => Set (HashQualified Name)
                   -> Branch m
@@ -62,7 +62,7 @@ findInHistory :: forall m q. (Monad m, Ord q)
   -> (q -> Reference -> Name -> Bool)
   -> Set q -> Branch m -> m (Set q, Names0)
 findInHistory termMatches typeMatches queries b =
-  (Causal.foldHistoryUntil f (queries, mempty) . _history) b <&> \case
+  (Causal.foldHistoryUntil f (queries, mempty) . history) b <&> \case
     -- could do something more sophisticated here later to report that some SH
     -- couldn't be found anywhere in the history.  but for now, I assume that
     -- the normal thing will happen when it doesn't show up in the namespace.

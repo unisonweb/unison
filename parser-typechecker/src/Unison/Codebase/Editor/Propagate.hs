@@ -13,7 +13,7 @@ import           Data.Configurator              ( )
 import qualified Data.Graph                    as Graph
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Unison.Codebase.Branch         ( Branch0(..) )
+import           Unison.Codebase.Branch         ( BranchSnapshot(..) )
 import           Unison.Prelude
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -76,8 +76,8 @@ propagateAndApply
    . (Applicative m, Var v)
   => Names0
   -> Patch
-  -> Branch0 m
-  -> F m i v (Branch0 m)
+  -> BranchSnapshot m
+  -> F m i v (BranchSnapshot m)
 propagateAndApply rootNames patch branch = do
   edits <- propagate rootNames patch branch
   f     <- applyPropagate patch edits
@@ -229,7 +229,7 @@ propagate
   => Names0 -- TODO: this argument can be removed once patches have term replacement
             -- of type `Referent -> Referent`
   -> Patch
-  -> Branch0 m
+  -> BranchSnapshot m
   -> F m i v (Edits v)
 propagate rootNames patch b = case validatePatch patch of
   Nothing -> do
@@ -542,7 +542,7 @@ unhashTypeComponent ref = do
       where reshuffle (r, (v, decl)) = (v, (r, decl))
   unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
 
-applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
+applyDeprecations :: Applicative m => Patch -> BranchSnapshot m -> BranchSnapshot m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
   . deleteDeprecatedTypes deprecatedTypes
  where
@@ -552,16 +552,16 @@ applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
   deprecatedTypes = Set.fromList
     [ r | (r, TypeEdit.Deprecate) <- R.toList (Patch._typeEdits patch) ]
   deleteDeprecatedTerms, deleteDeprecatedTypes
-    :: Set Reference -> Branch0 m -> Branch0 m
+    :: Set Reference -> BranchSnapshot m -> BranchSnapshot m
   deleteDeprecatedTerms rs =
-    over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
-  deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
+    over Branch.terms_ (Star3.deleteFact (Set.map Referent.Ref rs))
+  deleteDeprecatedTypes rs = over Branch.types_ (Star3.deleteFact rs)
 
 -- | Things in the patch are not marked as propagated changes, but every other
 -- definition that is created by the `Edits` which is passed in is marked as
 -- a propagated change.
 applyPropagate
-  :: Var v => Applicative m => Patch -> Edits v -> F m i v (Branch0 m -> Branch0 m)
+  :: Var v => Applicative m => Patch -> Edits v -> F m i v (BranchSnapshot m -> BranchSnapshot m)
 applyPropagate patch Edits {..} = do
   let termTypes = Map.map (Hashing.typeToReference . snd) newTerms
   -- recursively update names and delete deprecated definitions
@@ -576,19 +576,19 @@ applyPropagate patch Edits {..} = do
     :: Map Referent Referent
     -> Map Reference Reference
     -> Map Reference Reference
-    -> Branch0 m
-    -> Branch0 m
-  updateLevel termEdits typeEdits termTypes Branch0 {..} =
-    Branch.branch0 terms types _children _edits
+    -> BranchSnapshot m
+    -> BranchSnapshot m
+  updateLevel termEdits typeEdits termTypes BranchSnapshot {..} =
+    Branch.branchSnapshot terms types children edits
    where
     isPropagatedReferent (Referent.Con _ _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
-    terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+    terms0 = Star3.replaceFacts replaceConstructor constructorReplacements terms
     terms = updateMetadatas Referent.Ref
           $ Star3.replaceFacts replaceTerm termEdits terms0
     types = updateMetadatas id
-          $ Star3.replaceFacts replaceType typeEdits _types
+          $ Star3.replaceFacts replaceType typeEdits types
 
     updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
       where

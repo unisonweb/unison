@@ -12,7 +12,7 @@ import Data.Monoid.Generic (GenericMonoid (..), GenericSemigroup (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import GHC.Generics (Generic)
-import Unison.Codebase.Branch (Branch (Branch), Branch0, EditHash)
+import Unison.Codebase.Branch (Branch (Branch), BranchSnapshot, EditHash)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
@@ -52,18 +52,18 @@ to' Dependencies{..} = Dependencies' (toList patches) (toList terms) (toList dec
 
 fromBranch :: Applicative m => Branch m -> (Branches m, Dependencies)
 fromBranch (Branch c) = case c of
-  Causal.One _hh e         -> fromBranch0 e
-  Causal.Cons _hh e (h, m) -> fromBranch0 e <> fromTails (Map.singleton h m)
-  Causal.Merge _hh e tails -> fromBranch0 e <> fromTails tails
+  Causal.One _hh e         -> fromBranchSnapshot e
+  Causal.Cons _hh e (h, m) -> fromBranchSnapshot e <> fromTails (Map.singleton h m)
+  Causal.Merge _hh e tails -> fromBranchSnapshot e <> fromTails tails
   where
   fromTails m = ([(h, Branch <$> mc) | (h, mc) <- Map.toList m], mempty)
 
-fromBranch0 :: Applicative m => Branch0 m -> (Branches m, Dependencies)
-fromBranch0 b =
-  ( fromChildren (Branch._children b)
-  , fromTermsStar (Branch._terms b)
-    <> fromTypesStar (Branch._types b)
-    <> fromEdits (Branch._edits b) )
+fromBranchSnapshot :: Applicative m => BranchSnapshot m -> (Branches m, Dependencies)
+fromBranchSnapshot b =
+  ( fromChildren (Branch.children b)
+  , fromTermsStar (Branch.terms b)
+    <> fromTypesStar (Branch.types b)
+    <> fromEdits (Branch.edits b) )
   where
   fromChildren :: Applicative m => Map NameSegment (Branch m) -> Branches m
   fromChildren m = [ (Branch.headHash b, pure b) | b <- toList m ]
