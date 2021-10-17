@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.TodoOutput where
 
 import Unison.Prelude
 
-import qualified Unison.NamesWithHistory as Names
+import qualified Unison.Names as Names
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Patch as Patch
@@ -50,8 +50,8 @@ labeledDependencies TodoOutput{..} = Set.fromList (
   [LD.typeRef r | (_, _, UserObject d) <- snd todoFrontierDependents
            , r <- toList (DD.declDependencies d)]) <>
   -- name conflicts
-  Set.map LD.referent (R.ran (Names.terms0 nameConflicts)) <>
-  Set.map LD.typeRef (R.ran (Names.types0 nameConflicts)) <>
+  Set.map LD.referent (R.ran (Names.terms nameConflicts)) <>
+  Set.map LD.typeRef (R.ran (Names.types nameConflicts)) <>
   Patch.labeledDependencies editConflicts
 
 noConflicts :: TodoOutput v a -> Bool

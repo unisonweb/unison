@@ -15,8 +15,7 @@ import qualified Unison.DataDeclaration.Names as DD.Names
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
-import Unison.Names (Names)
-import qualified Unison.NamesWithHistory as Names
+import Unison.Names (Names (Names))
 import Unison.Prelude
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -36,7 +35,7 @@ toNames uf = datas <> effects
     effects = foldMap DD.Names.effectDeclToNames' (Map.toList (UF.effectDeclarationsId uf))
 
 typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
-typecheckedToNames uf = Names.names0 (terms <> ctors) types where
+typecheckedToNames uf = Names (terms <> ctors) types where
   terms = Relation.fromList
     [ (Name.fromVar v, Referent.Ref r)
     | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf, wk == Nothing || wk == Just WK.TestWatch ]

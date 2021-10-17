@@ -23,6 +23,10 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
 import Unison.Names (Names(..) )
 
+-- | NamesWithHistory contains two sets of 'Names',
+-- One represents names which are currently assigned,
+-- the other represents names which no longer apply, perhaps they've been deleted, or the term
+-- was updated and the name points elsewhere now.
 data NamesWithHistory = NamesWithHistory
   { -- | currentNames represent references which are named in the current version of the namespace.
     currentNames :: Names.Names,
@@ -41,24 +45,18 @@ filterTypes = Names.filterTypes
 --
 -- `addedNames` are names in `n2` but not `n1`
 -- `removedNames` are names in `n1` but not `n2`
-diff0 :: Names -> Names -> Diff
-diff0 n1 n2 = Diff n1 added removed where
-  added = Names (terms0 n2 `R.difference` terms0 n1)
-                 (types0 n2 `R.difference` types0 n1)
-  removed = Names (terms0 n1 `R.difference` terms0 n2)
-                   (types0 n1 `R.difference` types0 n2)
+diff :: Names -> Names -> Diff
+diff n1 n2 = Diff n1 added removed where
+  added = Names (terms n2 `R.difference` terms n1)
+                 (types n2 `R.difference` types n1)
+  removed = Names (terms n1 `R.difference` terms n2)
+                   (types n1 `R.difference` types n2)
 
 data Diff =
   Diff { originalNames :: Names
        , addedNames    :: Names
        , removedNames  :: Names
        } deriving Show
-
-isEmptyDiff :: Diff -> Bool
-isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
-
-isEmpty0 :: Names -> Bool
-isEmpty0 n = R.null (terms0 n) && R.null (types0 n)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
@@ -67,13 +65,13 @@ push :: Names -> NamesWithHistory -> NamesWithHistory
 push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
   n1 = suffixify0 n0
   cur = currentNames ns
-  shadowed = names0 terms' types' where
-    terms' = R.dom (terms0 n1) R.<| (terms0 cur `R.difference` terms0 n1)
-    types' = R.dom (types0 n1) R.<| (types0 cur `R.difference` types0 n1)
+  shadowed = Names terms' types' where
+    terms' = R.dom (terms n1) R.<| (terms cur `R.difference` terms n1)
+    types' = R.dom (types n1) R.<| (types cur `R.difference` types n1)
   unionLeft0 :: Names -> Names -> Names
-  unionLeft0 n1 n2 = names0 terms' types' where
-    terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
-    types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
+  unionLeft0 n1 n2 = Names terms' types' where
+    terms' = terms n1 <> R.subtractDom (R.dom $ terms n1) (terms n2)
+    types' = types n1 <> R.subtractDom (R.dom $ types n1) (types n2)
   -- For all names in `ns`, (ex: foo.bar.baz), generate the list of suffixes
   -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
   -- refers to a single definition is added as an alias
@@ -88,41 +86,18 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) wher
   suffixify0 :: Names -> Names
   suffixify0 ns = ns <> suffixNs
     where
-    suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
-    terms = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms0 ns), n <- Name.suffixes n0 ]
-    types = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types0 ns), n <- Name.suffixes n0 ]
-    uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
-    uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
-
-unionLeft0 :: Names -> Names -> Names
-unionLeft0 = Names.unionLeft
-
-unionLeftName0 :: Names -> Names -> Names
-unionLeftName0 = Names.unionLeftName
-
-map0 :: (Name -> Name) -> Names -> Names
-map0 f (Names.Names terms types) = Names.Names terms' types' where
-  terms' = R.mapDom f terms
-  types' = R.mapDom f types
-
-names0 :: Relation Name Referent -> Relation Name Reference -> Names
-names0 = Names.Names
-
-types0 :: Names -> Relation Name Reference
-types0 = Names.types
-
-terms0 :: Names -> Relation Name Referent
-terms0 = Names.terms
+    suffixNs = Names (R.fromList uniqueTerms) (R.fromList uniqueTypes)
+    terms' = List.multimap [ (n,ref) | (n0,ref) <- R.toList (terms ns), n <- Name.suffixes n0 ]
+    types' = List.multimap [ (n,ref) | (n0,ref) <- R.toList (types ns), n <- Name.suffixes n0 ]
+    uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms' ]
+    uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types' ]
 
 -- if I push an existing name, the pushed reference should be the thing
 -- if I push a different name for the same thing, i suppose they should coexist
--- thus, `unionLeftName0`.
+-- thus, `unionLeftName`.
 shadowing :: Names -> NamesWithHistory -> NamesWithHistory
 shadowing prio (NamesWithHistory current old) =
-  NamesWithHistory (prio `unionLeftName0` current) (current <> old)
-
-makeAbsolute0 :: Names -> Names
-makeAbsolute0 = map0 Name.makeAbsolute
+  NamesWithHistory (prio `Names.unionLeft` current) (current <> old)
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
 -- returning types with relative names if they exist, and otherwise
@@ -295,20 +270,7 @@ lookupHQPattern hq ctt names = Set.fromList
     , ct == ctt
     ]
 
--- Finds all the constructors for the given type in the `Names`
-constructorsForType0 :: Reference -> Names -> [(Name,Referent)]
-constructorsForType0 r ns = let
-  -- rather than searching all of names, we use the known possible forms
-  -- that the constructors can take
-  possibleDatas =   [ Referent.Con r cid CT.Data | cid <- [0..] ]
-  possibleEffects = [ Referent.Con r cid CT.Effect | cid <- [0..] ]
-  trim [] = []
-  trim (h:t) = case R.lookupRan h (terms0 ns) of
-    s | Set.null s -> []
-      | otherwise  -> [ (n,h) | n <- toList s ] ++ trim t
-  in trim possibleEffects ++ trim possibleDatas
-
--- Given a mapping from name to qualified name, update a `Names`,
+-- | Given a mapping from name to qualified name, update a `Names`,
 -- so for instance if the input has [(Some, Optional.Some)],
 -- and `Optional.Some` is a constructor in the input `Names`,
 -- the alias `Some` will map to that same constructor and shadow
@@ -317,46 +279,4 @@ constructorsForType0 r ns = let
 -- Only affects `currentNames`.
 importing :: [(Name, Name)] -> NamesWithHistory -> NamesWithHistory
 importing shortToLongName ns =
-  ns { currentNames = importing0 shortToLongName (currentNames ns) }
-
-importing0 :: [(Name, Name)] -> Names -> Names
-importing0 shortToLongName ns =
-  Names.Names
-    (foldl' go (terms0 ns) shortToLongName)
-    (foldl' go (types0 ns) shortToLongName)
-  where
-  go :: (Ord r) => Relation Name r -> (Name, Name) -> Relation Name r
-  go m (shortname, qname) = case Name.searchBySuffix qname m of
-    s | Set.null s -> m
-      | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
-
--- Converts a wildcard import into a list of explicit imports, of the form
--- [(suffix, full)]. Example: if `io` contains two functions, `foo` and
--- `bar`, then `expandWildcardImport io` will produce
--- `[(foo, io.foo), (bar, io.bar)]`.
-expandWildcardImport :: Name -> Names -> [(Name,Name)]
-expandWildcardImport prefix ns =
-  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms0 ns) ] <>
-  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types0 ns) ]
-  where
-  go (full, _) = do
-    -- running example:
-    --   prefix = Int
-    --   full = builtin.Int.negate
-    rem <- Name.suffixFrom prefix full
-    -- rem = Int.negate
-    suffix <- Name.stripNamePrefix prefix rem
-    -- suffix = negate
-    pure (suffix, full)
-
--- Deletes from the `n0 : Names` any definitions whose names
--- are in `ns`. Does so using logarithmic time lookups,
--- traversing only `ns`.
---
--- See usage in `FileParser` for handling precendence of symbol
--- resolution where local names are preferred to codebase names.
-shadowTerms0 :: [Name] -> Names -> Names
-shadowTerms0 ns n0 = names0 terms' (types0 n0)
-  where
-  terms' = foldl' go (terms0 n0) ns
-  go ts name = R.deleteDom name ts
+  ns { currentNames = Names.importing shortToLongName (currentNames ns) }

@@ -16,6 +16,8 @@ module Unison.Names
   , filterByHQs
   , filterBySHs
   , filterTypes
+  , map
+  , makeAbsolute
   , fuzzyFind
   , hqName
   , hqTermName
@@ -38,6 +40,11 @@ module Unison.Names
   , unionLeftName
   , namesForReference
   , namesForReferent
+  , shadowTerms
+  , importing
+  , constructorsForType
+  , expandWildcardImport
+  , isEmpty
   )
 where
 
@@ -46,7 +53,7 @@ import Unison.Prelude
 import qualified Data.Map                     as Map
 import qualified Data.Set                     as Set
 import qualified Data.Text                    as Text
-import           Prelude                      hiding (filter)
+import           Prelude                      hiding (filter, map)
 import qualified Prelude
 import           Unison.HashQualified'        (HashQualified)
 import qualified Unison.HashQualified'        as HQ
@@ -61,15 +68,39 @@ import qualified Unison.Util.Relation         as R
 import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
 import qualified Text.FuzzyFind               as FZF
+import qualified Unison.ConstructorType as CT
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
--- For pretty-printing, we need to look up names for References; they may have
--- some hash-qualification, depending on the context.
+-- For pretty-printing, we need to look up names for References.
 -- For parsing (both .u files and command-line args)
 data Names = Names
   { terms :: Relation Name Referent
   , types :: Relation Name Reference
   } deriving (Eq,Ord)
+
+instance Semigroup (Names) where (<>) = mappend
+
+instance Monoid (Names) where
+  mempty = Names mempty mempty
+  Names e1 t1 `mappend` Names e2 t2 =
+    Names (e1 <> e2) (t1 <> t2)
+
+instance Show (Names) where
+  show (Names terms types) = "Terms:\n" ++
+    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms) ++ "\n" ++
+    "Types:\n" ++
+    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types) ++ "\n"
+
+isEmpty :: Names -> Bool
+isEmpty n = R.null (terms n) && R.null (types n)
+
+map :: (Name -> Name) -> Names -> Names
+map f (Names {terms, types}) = Names terms' types' where
+  terms' = R.mapDom f terms
+  types' = R.mapDom f types
+
+makeAbsolute :: Names -> Names
+makeAbsolute = map Name.makeAbsolute
 
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
@@ -341,16 +372,62 @@ contains names r =
 conflicts :: Names -> Names
 conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
 
-instance Semigroup (Names) where (<>) = mappend
+-- Deletes from the `n0 : Names` any definitions whose names
+-- are in `ns`. Does so using logarithmic time lookups,
+-- traversing only `ns`.
+--
+-- See usage in `FileParser` for handling precendence of symbol
+-- resolution where local names are preferred to codebase names.
+shadowTerms :: [Name] -> Names -> Names
+shadowTerms ns n0 = Names terms' (types n0)
+  where
+  terms' = foldl' go (terms n0) ns
+  go ts name = R.deleteDom name ts
 
-instance Monoid (Names) where
-  mempty = Names mempty mempty
-  Names e1 t1 `mappend` Names e2 t2 =
-    Names (e1 <> e2) (t1 <> t2)
+-- | Given a mapping from name to qualified name, update a `Names`,
+-- so for instance if the input has [(Some, Optional.Some)],
+-- and `Optional.Some` is a constructor in the input `Names`,
+-- the alias `Some` will map to that same constructor and shadow
+-- anything else that is currently called `Some`.
+importing :: [(Name, Name)] -> Names -> Names
+importing shortToLongName ns =
+  Names
+    (foldl' go (terms ns) shortToLongName)
+    (foldl' go (types ns) shortToLongName)
+  where
+  go :: (Ord r) => Relation Name r -> (Name, Name) -> Relation Name r
+  go m (shortname, qname) = case Name.searchBySuffix qname m of
+    s | Set.null s -> m
+      | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
 
-instance Show (Names) where
-  show (Names terms types) = "Terms:\n" ++
-    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms) ++ "\n" ++
-    "Types:\n" ++
-    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types) ++ "\n"
+-- | Converts a wildcard import into a list of explicit imports, of the form
+-- [(suffix, full)]. Example: if `io` contains two functions, `foo` and
+-- `bar`, then `expandWildcardImport io` will produce
+-- `[(foo, io.foo), (bar, io.bar)]`.
+expandWildcardImport :: Name -> Names -> [(Name,Name)]
+expandWildcardImport prefix ns =
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms ns) ] <>
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types ns) ]
+  where
+  go (full, _) = do
+    -- running example:
+    --   prefix = Int
+    --   full = builtin.Int.negate
+    rem <- Name.suffixFrom prefix full
+    -- rem = Int.negate
+    suffix <- Name.stripNamePrefix prefix rem
+    -- suffix = negate
+    pure (suffix, full)
 
+-- Finds all the constructors for the given type in the `Names`
+constructorsForType :: Reference -> Names -> [(Name,Referent)]
+constructorsForType r ns = let
+  -- rather than searching all of names, we use the known possible forms
+  -- that the constructors can take
+  possibleDatas =   [ Referent.Con r cid CT.Data | cid <- [0..] ]
+  possibleEffects = [ Referent.Con r cid CT.Effect | cid <- [0..] ]
+  trim [] = []
+  trim (h:t) = case R.lookupRan h (terms ns) of
+    s | Set.null s -> []
+      | otherwise  -> [ (n,h) | n <- toList s ] ++ trim t
+  in trim possibleEffects ++ trim possibleDatas

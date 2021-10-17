@@ -1942,21 +1942,21 @@ prettyDiff diff = let
   adds = Names.addedNames diff
   removes = Names.removedNames diff
 
-  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 adds)
-                       , not $ R.memberRan r (Names.terms0 removes) ]
-  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 adds)
-                       , not $ R.memberRan r (Names.types0 removes) ]
+  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms adds)
+                       , not $ R.memberRan r (Names.terms removes) ]
+  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types adds)
+                       , not $ R.memberRan r (Names.types removes) ]
   added = sort (hqTerms ++ hqTypes)
     where
       hqTerms = [ Names.hqName adds n (Right r) | (n, r) <- addedTerms ]
       hqTypes = [ Names.hqName adds n (Left r)  | (n, r) <- addedTypes ]
 
-  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 removes)
-                         , not $ R.memberRan r (Names.terms0 adds)
+  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms removes)
+                         , not $ R.memberRan r (Names.terms adds)
                          , Set.notMember n addedTermsSet ] where
     addedTermsSet = Set.fromList (map fst addedTerms)
-  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 removes)
-                         , not $ R.memberRan r (Names.types0 adds)
+  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types removes)
+                         , not $ R.memberRan r (Names.types adds)
                          , Set.notMember n addedTypesSet ] where
     addedTypesSet = Set.fromList (map fst addedTypes)
   removed = sort (hqTerms ++ hqTypes)
@@ -1964,20 +1964,20 @@ prettyDiff diff = let
       hqTerms = [ Names.hqName removes n (Right r) | (n, r) <- removedTerms ]
       hqTypes = [ Names.hqName removes n (Left r)  | (n, r) <- removedTypes ]
 
-  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
+  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms removes)
                         , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
   movedTypes = [ (n,n2) | (n,r) <- R.toList (Names.types removes)
                         , n2 <- toList (R.lookupRan r (Names.types adds)) ]
   moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
 
   copiedTerms = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
-           , not (R.memberRan r (Names.terms0 removes))
-           , n <- toList (R.lookupRan r (Names.terms0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.terms adds)
+           , not (R.memberRan r (Names.terms removes))
+           , n <- toList (R.lookupRan r (Names.terms orig)) ]
   copiedTypes = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
-           , not (R.memberRan r (Names.types0 removes))
-           , n <- toList (R.lookupRan r (Names.types0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.types adds)
+           , not (R.memberRan r (Names.types removes))
+           , n <- toList (R.lookupRan r (Names.types orig)) ]
   copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
   in

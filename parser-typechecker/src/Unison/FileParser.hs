@@ -32,7 +32,8 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as UF
-import qualified Unison.NamesWithHistory as Names
+import qualified Unison.NamesWithHistory as NamesWithHistory
+import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 
@@ -46,12 +47,12 @@ file = do
   -- which are parsed and applied to the type decls and term stanzas
   (namesStart, imports) <- TermParser.imports <* optional semi
   (dataDecls, effectDecls, parsedAccessors) <- declarations
-  env <- case environmentFor (Names.currentNames namesStart) dataDecls effectDecls of
+  env <- case environmentFor (NamesWithHistory.currentNames namesStart) dataDecls effectDecls of
     Right (Right env) -> pure env
     Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
     Left es -> resolutionFailures (toList es)
   let importNames = [(Name.fromVar v, Name.fromVar v2) | (v,v2) <- imports ]
-  let locals = Names.importing0 importNames (UF.names env)
+  let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations. The `Names.push (Names.suffixify0 locals)` here has the effect
   -- of making suffix-based name resolution prefer type and constructor names coming
@@ -59,7 +60,7 @@ file = do
   --
   -- There's some more complicated logic below to have suffix-based name resolution
   -- make use of _terms_ from the local file.
-  local (\e -> e { names = Names.push locals namesStart }) $ do
+  local (\e -> e { names = NamesWithHistory.push locals namesStart }) $ do
     names <- asks names
     stanzas0 <- sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
@@ -76,7 +77,7 @@ file = do
     -- suffixified local term bindings shadow any same-named thing from the outer codebase scope
     -- example: `foo.bar` in local file scope will shadow `foo.bar` and `bar` in codebase scope
     let (curNames, resolveLocals) =
-          ( Names.shadowTerms0 locals (Names.currentNames names)
+          ( Names.shadowTerms locals (NamesWithHistory.currentNames names)
           , resolveLocals )
           where
           -- All locally declared term variables, running example:

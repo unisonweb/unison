@@ -25,6 +25,7 @@ import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.Names ( Names )
+import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
@@ -169,7 +170,7 @@ bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e where
   -- (if a free variable is being used as a typed hole).
   varsToTDNR = Set.filter notFound (freeVars e)
   notFound var =
-    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms0 ns)) /= 1
+    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR

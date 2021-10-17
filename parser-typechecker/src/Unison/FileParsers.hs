@@ -93,7 +93,7 @@ resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
       deps = Term.dependencies tm
       possibleDeps = [ (Name.toText name, Var.name v, r) |
-        (name, r) <- Rel.toList (NamesWithHistory.terms0 preexistingNames),
+        (name, r) <- Rel.toList (Names.terms preexistingNames),
         v <- Set.toList (Term.freeVars tm),
         name `Name.endsWithSegments` Name.fromVar v ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
@@ -116,7 +116,7 @@ resolveNames typeLookupf preexistingNames uf = do
           let nr = Typechecker.NamedReference name typ (Right r) ] <>
         -- local file TDNR possibilities
         [ (Var.name v, nr) |
-          (name, r) <- Rel.toList (NamesWithHistory.terms0 $ UF.toNames uf),
+          (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
           v <- Set.toList (Term.freeVars tm),
           name `Name.endsWithSegments` Name.fromVar v,
           typ <- toList $ TL.typeOfReferent tl r,

@@ -87,4 +87,4 @@ findInHistory termMatches typeMatches queries b =
       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 namesDiff :: Branch m -> Branch m -> Names.Diff
-namesDiff b1 b2 = Names.diff0 (toNames (head b1)) (toNames (head b2))
+namesDiff b1 b2 = Names.diff (toNames (head b1)) (toNames (head b2))

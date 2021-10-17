@@ -127,14 +127,14 @@ basicNames' root path = (parseNames0, prettyPrintNames0)
   where
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames = NamesWithHistory.makeAbsolute0 (Branch.toNames root0)
+    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
     currentBranch0 = Branch.head currentBranch
     currentPathNames = Branch.toNames currentBranch0
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
     currentAndExternalNames =
       currentPathNames
-        `NamesWithHistory.unionLeft0` absDot externalNames
+        `Names.unionLeft` absDot externalNames
       where
         absDot = Names.prefix0 (Name.unsafeFromText "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
@@ -458,7 +458,7 @@ getCurrentParseNames path root = NamesWithHistory (basicParseNames root path) me
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
-fixupNamesRelative root = NamesWithHistory.map0 fixName where
+fixupNamesRelative root = Names.map fixName where
   prefix = Path.toName $ Path.unabsolute root
   fixName n = if root == Path.absoluteEmpty
     then n

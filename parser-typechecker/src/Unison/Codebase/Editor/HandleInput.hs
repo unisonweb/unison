@@ -1439,7 +1439,7 @@ loop = do
               termDeprecations :: [(Name, Referent)]
               termDeprecations =
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
-                         , (n, r) <- NamesWithHistory.constructorsForType0 oldTypeRef currentPathNames ]
+                         , (n, r) <- Names.constructorsForType oldTypeRef currentPathNames ]
 
           ye'ol'Patch <- getPatchAt patchPath
           -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
@@ -1735,7 +1735,7 @@ loop = do
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-            let types = R.toList $ NamesWithHistory.types0 names0
+            let types = R.toList $ Names.types names0
             let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
             let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
@@ -1761,7 +1761,7 @@ loop = do
               tm _ = pure mempty
               in LD.fold tp tm ld
             (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependencies root'
-            let types = R.toList $ NamesWithHistory.types0 names0
+            let types = R.toList $ Names.types names0
             let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
             let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
@@ -1886,8 +1886,8 @@ resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
     parseNames <- basicParseNames
     let terms, types :: Set LabeledDependency
-        terms = Set.map LD.referent . Name.searchBySuffix n $ NamesWithHistory.terms0 parseNames
-        types = Set.map LD.typeRef  . Name.searchBySuffix n $ NamesWithHistory.types0 parseNames
+        terms = Set.map LD.referent . Name.searchBySuffix n $ Names.terms parseNames
+        types = Set.map LD.typeRef  . Name.searchBySuffix n $ Names.types parseNames
     pure $ terms <> types
   -- rationale: the hash should be unique enough that the name never helps
   HQ.HashQualified _n sh -> resolveHashOnly sh
@@ -2732,7 +2732,7 @@ loadDisplayInfo refs = do
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
-fixupNamesRelative currentPath' = NamesWithHistory.map0 fixName where
+fixupNamesRelative currentPath' = Names.map fixName where
   prefix = Path.toName (Path.unabsolute currentPath')
   fixName n = if currentPath' == Path.absoluteEmpty then n else
     fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
@@ -2744,7 +2744,7 @@ makeHistoricalParsingNames lexedHQs = do
   basicNames <- basicParseNames
   currentPath <- use currentPath
   pure $ NamesWithHistory basicNames
-               (NamesWithHistory.makeAbsolute0 rawHistoricalNames <>
+               (Names.makeAbsolute rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
 loadTypeDisplayObject

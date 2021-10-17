@@ -21,8 +21,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Type.Names             as Type.Names
 import           Unison.Var                    ( Var )
-import           Unison.Names                  (Names)
-import qualified Unison.NamesWithHistory       as Names
+import           Unison.Names                  (Names (Names))
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.ConstructorType        as CT
 
@@ -32,10 +31,10 @@ toNames ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
   -- name of the type itself
-  <> Names.names0 mempty (Rel.singleton (Name.fromVar typeSymbol) r)
+  <> Names mempty (Rel.singleton (Name.fromVar typeSymbol) r)
   where
   names (ctor, i) =
-    Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
+    Names (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names
 dataDeclToNames = toNames CT.Data
