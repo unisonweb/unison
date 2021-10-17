@@ -13,6 +13,7 @@ import Unison.Type
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import Unison.Var (Var)
+import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
@@ -22,7 +23,7 @@ import qualified Data.Set.NonEmpty as NES
 bindNames
   :: Var v
   => Set v
-  -> Names.Names0
+  -> Names.UnqualifiedNames
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
 bindNames keepFree ns0 t = let

@@ -24,7 +24,7 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.NamesWithHistory ( Names0 )
+import           Unison.Names ( UnqualifiedNames )
 import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
@@ -113,7 +113,7 @@ type Term0' vt v = Term' vt v ()
 bindNames
   :: forall v a . Var v
   => Set v
-  -> Names0
+  -> UnqualifiedNames
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 bindNames keepFreeTerms ns0 e = do
@@ -142,12 +142,12 @@ bindNames keepFreeTerms ns0 e = do
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
 -- This function replaces free term and type variables with
--- hashes found in the provided `Names0`, using suffix-based
--- lookup. Any terms not found in the `Names0` are kept free.
+-- hashes found in the provided `UnqualifiedNames`, using suffix-based
+-- lookup. Any terms not found in the `UnqualifiedNames` are kept free.
 bindSomeNames
   :: forall v a . Var v
   => Set v
-  -> Names0
+  -> UnqualifiedNames
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 -- bindSomeNames ns e | trace "Term.bindSome" False
