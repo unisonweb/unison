@@ -22,6 +22,7 @@ import qualified Unison.Type                   as Type
 import           Unison.Type                    ( Type )
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Parser.Ann as Parser.Ann
+import qualified Unison.Names as Names
 
 data MainTerm v
   = NotAFunctionName String
@@ -32,15 +33,15 @@ data MainTerm v
 getMainTerm
   :: (Monad m, Var v)
   => (Reference -> m (Maybe (Type v Ann)))
-  -> NamesWithHistory.Names0
+  -> Names.UnqualifiedNames
   -> String
   -> Type.Type v Ann
   -> m (MainTerm v)
-getMainTerm loadTypeOfTerm parseNames0 mainName mainType =
+getMainTerm loadTypeOfTerm parseUnqualifiedNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames0 mempty)
+      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseUnqualifiedNames mempty)
       let a = Parser.Ann.External
       case toList refs of
         [Referent.Ref ref] -> do

@@ -42,10 +42,10 @@ execute codebase runtime mainName =
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->
         die ("Couldn't parse root branch head " ++ show h)
-    let parseNames0 = NamesWithHistory.makeAbsolute0 (Branch.toNames0 (Branch.head root))
+    let parseUnqualifiedNames = NamesWithHistory.makeAbsolute0 (Branch.toUnqualifiedNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime
-    mt <- getMainTerm loadTypeOfTerm parseNames0 mainName mainType
+    mt <- getMainTerm loadTypeOfTerm parseUnqualifiedNames mainName mainType
     case mt of
       MainTerm.NotAFunctionName s -> die ("Not a function name: " ++ s)
       MainTerm.NotFound s -> die ("Not found: " ++ s)

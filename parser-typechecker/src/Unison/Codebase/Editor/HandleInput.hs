@@ -85,10 +85,10 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.NamesWithHistory                  ( NamesWithHistory(..), Names0
-                                                , pattern Names0 )
+import           Unison.NamesWithHistory        ( NamesWithHistory(..) )
+import Unison.Names                             (UnqualifiedNames, pattern UnqualifiedNames )
 import qualified Unison.Names                 as Names
-import qualified Unison.NamesWithHistory                 as NamesWithHistory
+import qualified Unison.NamesWithHistory      as NamesWithHistory
 import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
@@ -242,8 +242,8 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
 
-      basicPrettyPrintNames0 =
-        Backend.basicPrettyPrintNames0 root' (Path.unabsolute currentPath')
+      basicPrettyPrintUnqualifiedNames =
+        Backend.basicPrettyPrintUnqualifiedNames root' (Path.unabsolute currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -296,7 +296,7 @@ loop = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames0
+          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultUnqualifiedNames
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
@@ -616,12 +616,12 @@ loop = do
           where
           resolvedPath = resolveSplit' (HQ'.toName <$> hq)
           goMany tms tys = do
-            let rootNames = Branch.toNames0 root0
+            let rootNames = Branch.toUnqualifiedNames root0
                 name = Path.toName (Path.unsplit resolvedPath)
                 toRel :: Ord ref => Set ref -> R.Relation Name ref
                 toRel = R.fromList . fmap (name,) . toList
                 -- these names are relative to the root
-                toDelete = Names0 (toRel tms) (toRel tys)
+                toDelete = UnqualifiedNames (toRel tms) (toRel tys)
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
             if failed == mempty then do
@@ -637,8 +637,8 @@ loop = do
           uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
           case uf of
             Nothing -> do
-              let parseNames0 = (`NamesWithHistory.NamesWithHistory` mempty) basicPrettyPrintNames0
-                  results = NamesWithHistory.lookupHQTerm hq parseNames0
+              let parseUnqualifiedNames = (`NamesWithHistory.NamesWithHistory` mempty) basicPrettyPrintUnqualifiedNames
+                  results = NamesWithHistory.lookupHQTerm hq parseUnqualifiedNames
               if Set.null results then
                 respond $ SearchTermsNotFound [hq]
               else if Set.size results > 1 then
@@ -646,11 +646,11 @@ loop = do
               -- ... but use the unsuffixed names for display
               else do
                 let tm = Term.fromReferent External $ Set.findMin results
-                pped <- prettyPrintEnvDecl parseNames0
+                pped <- prettyPrintEnvDecl parseUnqualifiedNames
                 tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
                 case tm of
                   Left e -> respond (EvaluationFailure e)
-                  Right tm -> doDisplay outputLoc parseNames0 (Term.unannotate tm)
+                  Right tm -> doDisplay outputLoc parseUnqualifiedNames (Term.unannotate tm)
             Just (toDisplay, unisonFile) -> do
               ppe <- executePPE unisonFile
               unlessError' EvaluationFailure do
@@ -853,10 +853,10 @@ loop = do
         where
         go (Branch.head -> b) = do
           (failed, failedDependents) <-
-            let rootNames = Branch.toNames0 root0
+            let rootNames = Branch.toUnqualifiedNames root0
                 toDelete = Names.prefix0
                   (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
-                  (Branch.toNames0 b)
+                  (Branch.toUnqualifiedNames b)
             in getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then do
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
@@ -1014,11 +1014,11 @@ loop = do
         fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
-        ns0 <- basicParseNames0
+        ns0 <- basicParseUnqualifiedNames
         let ns = NamesWithHistory ns0 mempty
             terms = NamesWithHistory.lookupHQTerm thing ns
             types = NamesWithHistory.lookupHQType thing ns
-            printNames = NamesWithHistory basicPrettyPrintNames0 mempty
+            printNames = NamesWithHistory basicPrettyPrintUnqualifiedNames mempty
             terms' :: Set (Referent, Set (HQ'.HashQualified Name))
             terms' = Set.map go terms where
               go r = (r, NamesWithHistory.termName hqLength r printNames)
@@ -1060,7 +1060,7 @@ loop = do
         dotDoc = hq <&> \n -> Name.joinDot n "doc"
 
         fileByName = do
-          ns <- maybe mempty UF.typecheckedToNames0 <$> use latestTypecheckedFile
+          ns <- maybe mempty UF.typecheckedToUnqualifiedNames <$> use latestTypecheckedFile
           fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
           case NamesWithHistory.lookupHQTerm dotDoc fnames of
             s | Set.size s == 1 -> do
@@ -1076,7 +1076,7 @@ loop = do
             [] -> codebaseByName
             [(_name, ref, _tm)] -> do
               len <- eval BranchHashLength
-              let names = NamesWithHistory.NamesWithHistory basicPrettyPrintNames0 mempty
+              let names = NamesWithHistory.NamesWithHistory basicPrettyPrintUnqualifiedNames mempty
               let tm = Term.ref External ref
               tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
               case tm of
@@ -1087,7 +1087,7 @@ loop = do
               respond $ ListOfLinks ppe out
 
         codebaseByName = do
-          parseNames <- basicParseNames0
+          parseNames <- basicParseUnqualifiedNames
           case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
             s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
               | Set.size s == 0 -> respond $ ListOfLinks mempty []
@@ -1216,7 +1216,7 @@ loop = do
                 pathArgStr = show pathArg
 
       SearchByNameI isVerbose _showAll ws -> do
-        let prettyPrintNames0 = basicPrettyPrintNames0
+        let prettyPrintUnqualifiedNames = basicPrettyPrintUnqualifiedNames
         unlessError do
           results <- case ws of
             -- no query, list everything
@@ -1241,12 +1241,12 @@ loop = do
                       -- aliases to a single search result; in non-verbose mode,
                       -- a separate result may be shown for each alias
                         (if isVerbose then uniqueBy SR.toReferent else id) $
-                        searchResultsFor prettyPrintNames0 matches []
+                        searchResultsFor prettyPrintUnqualifiedNames matches []
                   pure . pure $ results
 
             -- name query
             (map HQ.unsafeFromString -> qs) -> do
-              let ns = basicPrettyPrintNames0
+              let ns = basicPrettyPrintUnqualifiedNames
               let srs = searchBranchScored ns fuzzyNameDistance qs
               pure $ uniqueBy SR.toReferent srs
           lift do
@@ -1383,7 +1383,7 @@ loop = do
           sr <- Slurp.disallowUpdates
               . applySelection hqs uf
               . toSlurpResult currentPath' uf
-             <$> slurpResultNames0
+             <$> slurpResultUnqualifiedNames
           let adds = Slurp.adds sr
           when (Slurp.isNonempty sr) $ do
             stepAtNoSync ( Path.unabsolute currentPath'
@@ -1399,7 +1399,7 @@ loop = do
           sr <-  Slurp.disallowUpdates
                     .  applySelection hqs uf
                     .  toSlurpResult currentPath' uf
-                   <$> slurpResultNames0
+                   <$> slurpResultUnqualifiedNames
           previewResponse sourceName sr uf
         _ -> respond NoUnisonFile
 
@@ -1407,18 +1407,18 @@ loop = do
         Nothing -> respond NoUnisonFile
         Just uf -> do
           let patchPath = fromMaybe defaultPatchPath maybePatchPath
-          slurpCheckNames0 <- slurpResultNames0
-          currentPathNames0 <- currentPathNames0
+          slurpCheckUnqualifiedNames <- slurpResultUnqualifiedNames
+          currentPathUnqualifiedNames <- currentPathUnqualifiedNames
           let sr = applySelection hqs uf
                  . toSlurpResult currentPath' uf
-                 $ slurpCheckNames0
+                 $ slurpCheckUnqualifiedNames
               addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
-              fileNames0 = UF.typecheckedToNames0 uf
+              fileUnqualifiedNames = UF.typecheckedToUnqualifiedNames uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: Map Name (Reference, Reference)
               typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr)) where
-                f v = case (toList (Names.typesNamed slurpCheckNames0 n)
-                           ,toList (Names.typesNamed fileNames0 n)) of
+                f v = case (toList (Names.typesNamed slurpCheckUnqualifiedNames n)
+                           ,toList (Names.typesNamed fileUnqualifiedNames n)) of
                   ([old],[new]) -> (n, (old, new))
                   _ -> error $ "Expected unique matches for "
                                   ++ Var.nameStr v ++ " but got: "
@@ -1429,8 +1429,8 @@ loop = do
                 hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
               termEdits :: Map Name (Reference, Reference)
               termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr)) where
-                g v = case ( toList (Names.refTermsNamed slurpCheckNames0 n)
-                           , toList (Names.refTermsNamed fileNames0 n)) of
+                g v = case ( toList (Names.refTermsNamed slurpCheckUnqualifiedNames n)
+                           , toList (Names.refTermsNamed fileUnqualifiedNames n)) of
                   ([old], [new]) -> (n, (old, new))
                   _ -> error $ "Expected unique matches for "
                                  ++ Var.nameStr v ++ " but got: "
@@ -1439,7 +1439,7 @@ loop = do
               termDeprecations :: [(Name, Referent)]
               termDeprecations =
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
-                         , (n, r) <- NamesWithHistory.constructorsForType0 oldTypeRef currentPathNames0 ]
+                         , (n, r) <- NamesWithHistory.constructorsForType0 oldTypeRef currentPathUnqualifiedNames ]
 
           ye'ol'Patch <- getPatchAt patchPath
           -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
@@ -1503,7 +1503,7 @@ loop = do
         (Just (sourceName, _), Just uf) -> do
           sr <-  applySelection hqs uf
                     .  toSlurpResult currentPath' uf
-                   <$> slurpResultNames0
+                   <$> slurpResultUnqualifiedNames
           previewResponse sourceName sr uf
         _ -> respond NoUnisonFile
 
@@ -1580,11 +1580,11 @@ loop = do
 
       ExecuteI main -> addRunMain main uf >>= \case
         NoTermWithThatName -> do
-          ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames0 mempty)
+          ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintUnqualifiedNames mempty)
           mainType <- eval RuntimeMain
           respond $ NoMainFunction main ppe [mainType]
         TermHasBadType ty -> do
-          ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames0 mempty)
+          ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintUnqualifiedNames mempty)
           mainType <- eval RuntimeMain
           respond $ BadMainFunction main ty ppe [mainType]
         RunMainSuccess unisonFile -> do
@@ -1598,7 +1598,7 @@ loop = do
       MakeStandaloneI output main -> do
         mainType <- eval RuntimeMain
         parseNames <-
-          flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintNames0A
+          flip NamesWithHistory.NamesWithHistory mempty <$> basicPrettyPrintUnqualifiedNamesA
         ppe <- suffixifiedPPE parseNames
         let resolved = toList $ NamesWithHistory.lookupHQTerm main parseNames
             smain = HQ.toString main
@@ -1617,7 +1617,7 @@ loop = do
       IOTestI main -> do
         -- todo - allow this to run tests from scratch file, using addRunMain
         testType <- eval RuntimeTest
-        parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicPrettyPrintNames0A
+        parseNames <- (`NamesWithHistory.NamesWithHistory` mempty) <$> basicPrettyPrintUnqualifiedNamesA
         ppe <- suffixifiedPPE parseNames
         -- use suffixed names for resolving the argument to display
         let
@@ -1663,7 +1663,7 @@ loop = do
         eval $ AddDefsToCodebase uf
         -- add the names; note, there are more names than definitions
         -- due to builtin terms; so we don't just reuse `uf` above.
-        let srcb = BranchUtil.fromNames0 Builtin.names0
+        let srcb = BranchUtil.fromUnqualifiedNames Builtin.names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                eval $ Merge Branch.RegularMerge srcb destb
         success
@@ -1682,8 +1682,8 @@ loop = do
         -- add the names; note, there are more names than definitions
         -- due to builtin terms; so we don't just reuse `uf` above.
         let names0 = Builtin.names0
-                     <> UF.typecheckedToNames0 @v IOSource.typecheckedFile'
-        let srcb = BranchUtil.fromNames0 names0
+                     <> UF.typecheckedToUnqualifiedNames @v IOSource.typecheckedFile'
+        let srcb = BranchUtil.fromUnqualifiedNames names0
         _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                eval $ Merge Branch.RegularMerge srcb destb
 
@@ -1884,7 +1884,7 @@ loop = do
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
   HQ.NameOnly n -> do
-    parseNames <- basicParseNames0
+    parseNames <- basicParseUnqualifiedNames
     let terms, types :: Set LabeledDependency
         terms = Set.map LD.referent . Name.searchBySuffix n $ NamesWithHistory.terms0 parseNames
         types = Set.map LD.typeRef  . Name.searchBySuffix n $ NamesWithHistory.types0 parseNames
@@ -1988,7 +1988,7 @@ propagatePatchNoSync
   -> Action' m v Bool
 propagatePatchNoSync patch scopePath = do
   r <- use root
-  let nroot = Branch.toNames0 (Branch.head r)
+  let nroot = Branch.toUnqualifiedNames (Branch.head r)
   stepAtMNoSync' (Path.unabsolute scopePath,
                   lift . lift . Propagate.propagateAndApply nroot patch)
 
@@ -1997,7 +1997,7 @@ propagatePatch :: (Monad m, Var v) =>
   InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch inputDescription patch scopePath = do
   r <- use root
-  let nroot = Branch.toNames0 (Branch.head r)
+  let nroot = Branch.toUnqualifiedNames (Branch.head r)
   stepAtM' (inputDescription <> " (applying patch)")
            (Path.unabsolute scopePath,
               lift . lift . Propagate.propagateAndApply nroot patch)
@@ -2006,7 +2006,7 @@ propagatePatch inputDescription patch scopePath = do
 doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
 doShowTodoOutput patch scopePath = do
   scope <- getAt scopePath
-  let names0 = Branch.toNames0 (Branch.head scope)
+  let names0 = Branch.toUnqualifiedNames (Branch.head scope)
   -- only needs the local references to check for obsolete defs
   let getPpe = do
         names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
@@ -2019,7 +2019,7 @@ showTodoOutput
      -- ^ Action that fetches the pretty print env. It's expensive because it
      -- involves looking up historical names, so only call it if necessary.
   -> Patch
-  -> Names0
+  -> UnqualifiedNames
   -> Action' m v ()
 showTodoOutput getPpe patch names0 = do
   todo <- checkTodo patch names0
@@ -2032,7 +2032,7 @@ showTodoOutput getPpe patch names0 = do
       ppe <- getPpe
       respond $ TodoOutput ppe todo
 
-checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
+checkTodo :: Patch -> UnqualifiedNames -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
   f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
@@ -2057,7 +2057,7 @@ checkTodo patch names0 = do
       (Patch.conflicts patch)
   where
   frontierTransitiveDependents ::
-    Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)
+    Monad m => (Reference -> m (Set Reference)) -> UnqualifiedNames -> Set Reference -> m (Set Reference)
   frontierTransitiveDependents dependents names0 rs = do
     let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
     tdeps <- transitiveClosure branchDependents rs
@@ -2075,7 +2075,7 @@ checkTodo patch names0 = do
 computeFrontier :: forall m . Monad m
          => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
          -> Patch
-         -> Names0
+         -> UnqualifiedNames
          -> m (R.Relation Reference Reference)
 computeFrontier getDependents patch names = let
   edited :: Set Reference
@@ -2099,7 +2099,7 @@ confirmedCommand i = do
   pure $ Just i == i0
 
 listBranch :: Branch0 m -> [SearchResult]
-listBranch (Branch.toNames0 -> b) =
+listBranch (Branch.toUnqualifiedNames -> b) =
   List.sortOn (\s -> (SR.name s, s)) (SR.fromNames b)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
@@ -2123,14 +2123,14 @@ _searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Just b -> SR.fromNames . Names.prefix0 n $ names0
       where
       lastName = Path.toName (Path.singleton last)
-      subnames = Branch.toNames0 . Branch.head $
+      subnames = Branch.toUnqualifiedNames . Branch.head $
                    Branch.getAt' (Path.singleton last) b
       rootnames =
         Names.filter (== lastName) .
-        Branch.toNames0 . set Branch.children mempty $ Branch.head b
+        Branch.toUnqualifiedNames . set Branch.children mempty $ Branch.head b
       names0 = rootnames <> Names.prefix0 lastName subnames
 
-searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
+searchResultsFor :: UnqualifiedNames -> [Referent] -> [Reference] -> [SearchResult]
 searchResultsFor ns terms types =
   [ SR.termSearchResult ns name ref
   | ref <- terms
@@ -2142,7 +2142,7 @@ searchResultsFor ns terms types =
   ]
 
 searchBranchScored :: forall score. (Ord score)
-              => Names0
+              => UnqualifiedNames
               -> (Name -> Name -> Maybe score)
               -> [HQ.HashQualified Name]
               -> [SearchResult]
@@ -2428,9 +2428,9 @@ zeroOneOrMore f zero one more = case toList f of
 -- `toBeDeleted`), then complain by returning (Y, X).
 getEndangeredDependents :: forall m. Monad m
                         => (Reference -> m (Set Reference))
-                        -> Names0
-                        -> Names0
-                        -> m (Names0, Names0)
+                        -> UnqualifiedNames
+                        -> UnqualifiedNames
+                        -> m (UnqualifiedNames, UnqualifiedNames)
 getEndangeredDependents getDependents toDelete root = do
   let remaining  = root `Names.difference` toDelete
       toDelete', remaining', extinct :: Set Reference
@@ -2467,14 +2467,14 @@ applySelection hqs file = \sr@SlurpResult{..} ->
      , extraDefinitions = closed `SC.difference` selection
      }
   where
-  selectedNames0 =
-    Names.filterByHQs (Set.fromList hqs) (UF.typecheckedToNames0 file)
+  selectedUnqualifiedNames =
+    Names.filterByHQs (Set.fromList hqs) (UF.typecheckedToUnqualifiedNames file)
   selection, closed :: SlurpComponent v
   selection = SlurpComponent selectedTypes selectedTerms
   closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
-  selectedTypes = Set.map var $ R.dom (Names.types selectedNames0)
-  selectedTerms = Set.map var $ R.dom (Names.terms selectedNames0)
+  selectedTypes = Set.map var $ R.dom (Names.types selectedUnqualifiedNames)
+  selectedTerms = Set.map var $ R.dom (Names.terms selectedUnqualifiedNames)
 
 var :: Var v => Name -> v
 var name = Var.named (Name.toText name)
@@ -2484,7 +2484,7 @@ toSlurpResult
    . Var v
   => Path.Absolute
   -> UF.TypecheckedUnisonFile v Ann
-  -> Names0
+  -> UnqualifiedNames
   -> SlurpResult v
 toSlurpResult currentPath uf existingNames =
   Slurp.subtractComponent (conflicts <> ctorCollisions) $ SlurpResult
@@ -2501,7 +2501,7 @@ toSlurpResult currentPath uf existingNames =
     typeAliases
     mempty
   where
-  fileNames0 = UF.typecheckedToNames0 uf
+  fileUnqualifiedNames = UF.typecheckedToUnqualifiedNames uf
 
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
   sc terms types = SlurpComponent { terms = Set.map var (R.dom terms)
@@ -2511,9 +2511,9 @@ toSlurpResult currentPath uf existingNames =
   conflicts :: SlurpComponent v
   conflicts = sc terms types where
     terms = R.filterDom (conflicted . Names.termsNamed existingNames)
-                        (Names.terms fileNames0)
+                        (Names.terms fileUnqualifiedNames)
     types = R.filterDom (conflicted . Names.typesNamed existingNames)
-                        (Names.types fileNames0)
+                        (Names.types fileUnqualifiedNames)
     conflicted s = Set.size s > 1
 
   ctorCollisions :: SlurpComponent v
@@ -2525,7 +2525,7 @@ toSlurpResult currentPath uf existingNames =
   termCtorCollisions :: Set v
   termCtorCollisions = Set.fromList
     [ var n
-    | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+    | (n, Referent.Ref{}) <- R.toList (Names.terms fileUnqualifiedNames)
     , [r@Referent.Con{}]  <- [toList $ Names.termsNamed existingNames n]
     -- ignore collisions w/ ctors of types being updated
     , Set.notMember (Referent.toReference r) typesToUpdate
@@ -2535,7 +2535,7 @@ toSlurpResult currentPath uf existingNames =
   typesToUpdate :: Set Reference
   typesToUpdate = Set.fromList
     [ r
-    | (n, r') <- R.toList (Names.types fileNames0)
+    | (n, r') <- R.toList (Names.types fileUnqualifiedNames)
     , r       <- toList (Names.typesNamed existingNames n)
     , r /= r'
     ]
@@ -2546,7 +2546,7 @@ toSlurpResult currentPath uf existingNames =
   ctorTermCollisions :: Set v
   ctorTermCollisions = Set.fromList
     [ var n
-    | (n, Referent.Con{}) <- R.toList (Names.terms fileNames0)
+    | (n, Referent.Con{}) <- R.toList (Names.terms fileUnqualifiedNames)
     , r                   <- toList $ Names.termsNamed existingNames n
     -- ignore collisions w/ ctors of types being updated
     , Set.notMember (Referent.toReference r) typesToUpdate
@@ -2556,21 +2556,21 @@ toSlurpResult currentPath uf existingNames =
   -- duplicate (n,r) if (n,r) exists in names0
   dups :: SlurpComponent v
   dups = sc terms types where
-    terms = R.intersection (Names.terms existingNames) (Names.terms fileNames0)
-    types = R.intersection (Names.types existingNames) (Names.types fileNames0)
+    terms = R.intersection (Names.terms existingNames) (Names.terms fileUnqualifiedNames)
+    types = R.intersection (Names.types existingNames) (Names.types fileUnqualifiedNames)
 
   -- update (n,r) if (n,r' /= r) exists in existingNames and r, r' are Ref
   updates :: SlurpComponent v
   updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
     terms =
       [ var n
-      | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+      | (n, r'@Referent.Ref{}) <- R.toList (Names.terms fileUnqualifiedNames)
       , [r@Referent.Ref{}]     <- [toList $ Names.termsNamed existingNames n]
       , r' /= r
       ]
     types =
       [ var n
-      | (n, r') <- R.toList (Names.types fileNames0)
+      | (n, r') <- R.toList (Names.types fileUnqualifiedNames)
       , [r]     <- [toList $ Names.typesNamed existingNames n]
       , r' /= r
       ]
@@ -2602,18 +2602,18 @@ toSlurpResult currentPath uf existingNames =
 
   termAliases :: Map v Slurp.Aliases
   termAliases = buildAliases (Names.terms existingNames)
-                             (Names.terms fileNames0)
+                             (Names.terms fileUnqualifiedNames)
                              (SC.terms dups)
 
   typeAliases :: Map v Slurp.Aliases
   typeAliases = buildAliases (R.mapRan Referent.Ref $ Names.types existingNames)
-                             (R.mapRan Referent.Ref $ Names.types fileNames0)
+                             (R.mapRan Referent.Ref $ Names.types fileUnqualifiedNames)
                              (SC.types dups)
 
   -- (n,r) is in `adds` if n isn't in existingNames
   adds = sc terms types where
-    terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
-    types = addTypes (Names.types existingNames) (Names.types fileNames0)
+    terms = addTerms (Names.terms existingNames) (Names.terms fileUnqualifiedNames)
+    types = addTypes (Names.types existingNames) (Names.types fileUnqualifiedNames)
     addTerms existingNames = R.filter go where
       go (n, Referent.Ref{}) = (not . R.memberDom n) existingNames
       go _ = False
@@ -2653,7 +2653,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $
     SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
-  names = UF.typecheckedToNames0 uf
+  names = UF.typecheckedToUnqualifiedNames uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
   md v =
@@ -2731,7 +2731,7 @@ loadDisplayInfo refs = do
 -- e.g. if currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
+fixupNamesRelative :: Path.Absolute -> UnqualifiedNames -> UnqualifiedNames
 fixupNamesRelative currentPath' = NamesWithHistory.map0 fixName where
   prefix = Path.toName (Path.unabsolute currentPath')
   fixName n = if currentPath' == Path.absoluteEmpty then n else
@@ -2741,9 +2741,9 @@ makeHistoricalParsingNames ::
   Monad m => Set (HQ.HashQualified Name) -> Action' m v NamesWithHistory
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicParseNames0
+  basicUnqualifiedNames <- basicParseUnqualifiedNames
   currentPath <- use currentPath
-  pure $ NamesWithHistory basicNames0
+  pure $ NamesWithHistory basicUnqualifiedNames
                (NamesWithHistory.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
@@ -2783,7 +2783,7 @@ parseType :: (Monad m, Var v)
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
   (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
-  parseNames <- basicParseNames0
+  parseNames <- basicParseUnqualifiedNames
   let names = NamesWithHistory.push (NamesWithHistory.currentNames names0)
                           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
   e <- eval $ ParseType names lexed
@@ -2795,7 +2795,7 @@ parseType input src = do
       Right typ -> Right typ
 
 makeShadowedPrintNamesFromLabeled
-  :: Monad m => Set LabeledDependency -> Names0 -> Action' m v NamesWithHistory
+  :: Monad m => Set LabeledDependency -> UnqualifiedNames -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromLabeled deps shadowing =
   NamesWithHistory.shadowing shadowing <$> makePrintNamesFromLabeled' deps
 
@@ -2807,8 +2807,8 @@ makePrintNamesFromLabeled' deps = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs
     deps
     root
-  basicNames0 <- basicPrettyPrintNames0A
-  pure $ NamesWithHistory basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+  basicUnqualifiedNames <- basicPrettyPrintUnqualifiedNamesA
+  pure $ NamesWithHistory basicUnqualifiedNames (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
   :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
@@ -2824,7 +2824,7 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 
 -- discards inputs that aren't hashqualified;
 -- I'd enforce it with finer-grained types if we had them.
-findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action' m v Names0
+findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action' m v UnqualifiedNames
 findHistoricalHQs lexedHQs0 = do
   root <- use root
   currentPath <- use currentPath
@@ -2846,38 +2846,38 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
-basicPrettyPrintNames0A :: Functor m => Action' m v Names0
-basicPrettyPrintNames0A = snd <$> basicNames0'
+basicPrettyPrintUnqualifiedNamesA :: Functor m => Action' m v UnqualifiedNames
+basicPrettyPrintUnqualifiedNamesA = snd <$> basicUnqualifiedNames'
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names0 -> Action' m v NamesWithHistory
+makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> UnqualifiedNames -> Action' m v NamesWithHistory
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicPrettyPrintNames0A
+  basicUnqualifiedNames <- basicPrettyPrintUnqualifiedNamesA
   currentPath <- use currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
     NamesWithHistory.shadowing
       shadowing
-      (NamesWithHistory basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+      (NamesWithHistory basicUnqualifiedNames (fixupNamesRelative currentPath rawHistoricalNames))
 
-basicParseNames0, slurpResultNames0 :: Functor m => Action' m v Names0
-basicParseNames0 = fst <$> basicNames0'
+basicParseUnqualifiedNames, slurpResultUnqualifiedNames :: Functor m => Action' m v UnqualifiedNames
+basicParseUnqualifiedNames = fst <$> basicUnqualifiedNames'
 -- we check the file against everything in the current path
-slurpResultNames0 = currentPathNames0
+slurpResultUnqualifiedNames = currentPathUnqualifiedNames
 
-currentPathNames0 :: Functor m => Action' m v Names0
-currentPathNames0 = do
+currentPathUnqualifiedNames :: Functor m => Action' m v UnqualifiedNames
+currentPathUnqualifiedNames = do
   currentPath' <- use currentPath
   currentBranch' <- getAt currentPath'
-  pure $ Branch.toNames0 (Branch.head currentBranch')
+  pure $ Branch.toUnqualifiedNames (Branch.head currentBranch')
 
--- implementation detail of basicParseNames0 and basicPrettyPrintNames0
-basicNames0' :: Functor m => Action' m v (Names0, Names0)
-basicNames0' = do
+-- implementation detail of basicParseUnqualifiedNames and basicPrettyPrintUnqualifiedNames
+basicUnqualifiedNames' :: Functor m => Action' m v (UnqualifiedNames, UnqualifiedNames)
+basicUnqualifiedNames' = do
   root' <- use root
   currentPath' <- use currentPath
-  pure $ Backend.basicNames0' root' (Path.unabsolute currentPath')
+  pure $ Backend.basicUnqualifiedNames' root' (Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -2921,11 +2921,11 @@ addRunMain
   -> Maybe (TypecheckedUnisonFile v Ann)
   -> Action' m v (AddRunMainResult v)
 addRunMain mainName Nothing = do
-  parseNames0 <- basicParseNames0
+  parseUnqualifiedNames <- basicParseUnqualifiedNames
   let loadTypeOfTerm ref = eval $ LoadTypeOfTerm ref
   mainType <- eval RuntimeMain
   mainToFile <$>
-    MainTerm.getMainTerm loadTypeOfTerm parseNames0 mainName mainType
+    MainTerm.getMainTerm loadTypeOfTerm parseUnqualifiedNames mainName mainType
   where
     mainToFile (MainTerm.NotAFunctionName _) = NoTermWithThatName
     mainToFile (MainTerm.NotFound _) = NoTermWithThatName
@@ -2967,7 +2967,7 @@ displayNames unisonFile =
   -- voodoo
   makeShadowedPrintNamesFromLabeled
     (UF.termSignatureExternalLabeledDependencies unisonFile)
-    (UF.typecheckedToNames0 unisonFile)
+    (UF.typecheckedToUnqualifiedNames unisonFile)
 
 diffHelper :: Monad m
   => Branch0 m
@@ -2976,15 +2976,15 @@ diffHelper :: Monad m
 diffHelper before after = do
   hqLength <- eval CodebaseHashLength
   diff     <- eval . Eval $ BranchDiff.diff0 before after
-  names0 <- basicPrettyPrintNames0A
+  names0 <- basicPrettyPrintUnqualifiedNamesA
   ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory names0 mempty)
   (ppe,) <$>
     OBranchDiff.toOutput
       loadTypeOfTerm
       declOrBuiltin
       hqLength
-      (Branch.toNames0 before)
-      (Branch.toNames0 after)
+      (Branch.toUnqualifiedNames before)
+      (Branch.toUnqualifiedNames after)
       ppe
       diff
 

@@ -55,11 +55,9 @@ import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
 import qualified Unison.Names as Names
-import Unison.NamesWithHistory
-  ( NamesWithHistory (..),
-    Names0,
-  )
+import Unison.NamesWithHistory ( NamesWithHistory (..) )
 import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Names (UnqualifiedNames)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -123,42 +121,42 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- implementation detail of basicParseNames0 and basicPrettyPrintNames0
-basicNames0' :: Branch m -> Path -> (Names0, Names0)
-basicNames0' root path = (parseNames00, prettyPrintNames00)
+-- implementation detail of basicParseUnqualifiedNames and basicPrettyPrintUnqualifiedNames
+basicUnqualifiedNames' :: Branch m -> Path -> (UnqualifiedNames, UnqualifiedNames)
+basicUnqualifiedNames' root path = (parseUnqualifiedNames0, prettyPrintUnqualifiedNames0)
   where
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames0 = NamesWithHistory.makeAbsolute0 (Branch.toNames0 root0)
+    absoluteRootUnqualifiedNames = NamesWithHistory.makeAbsolute0 (Branch.toUnqualifiedNames root0)
     currentBranch0 = Branch.head currentBranch
-    currentPathNames0 = Branch.toNames0 currentBranch0
+    currentPathUnqualifiedNames = Branch.toUnqualifiedNames currentBranch0
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
-    currentAndExternalNames0 =
-      currentPathNames0
+    currentAndExternalUnqualifiedNames =
+      currentPathUnqualifiedNames
         `NamesWithHistory.unionLeft0` absDot externalNames
       where
         absDot = Names.prefix0 (Name.unsafeFromText "")
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-        rootNames = Branch.toNames0 root0
+        externalNames = rootNames `Names.difference` pathPrefixed currentPathUnqualifiedNames
+        rootNames = Branch.toUnqualifiedNames root0
         pathPrefixed = case path of
           Path.Path (toList -> []) -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
-    parseNames00 = currentPathNames0 <> absoluteRootNames0
+    parseUnqualifiedNames0 = currentPathUnqualifiedNames <> absoluteRootUnqualifiedNames
     -- pretty-printing should use local names where available
-    prettyPrintNames00 = currentAndExternalNames0
+    prettyPrintUnqualifiedNames0 = currentAndExternalUnqualifiedNames
 
 basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root path =
-  let names0 = basicPrettyPrintNames0 root path
+  let names0 = basicPrettyPrintUnqualifiedNames root path
    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-basicPrettyPrintNames0 :: Branch m -> Path -> Names0
-basicPrettyPrintNames0 root = snd . basicNames0' root
+basicPrettyPrintUnqualifiedNames :: Branch m -> Path -> UnqualifiedNames
+basicPrettyPrintUnqualifiedNames root = snd . basicUnqualifiedNames' root
 
-basicParseNames0 :: Branch m -> Path -> Names0
-basicParseNames0 root = fst . basicNames0' root
+basicParseUnqualifiedNames :: Branch m -> Path -> UnqualifiedNames
+basicParseUnqualifiedNames root = fst . basicUnqualifiedNames' root
 
 loadReferentType ::
   (Applicative m, Var v) =>
@@ -222,7 +220,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames0 branch path
+      basicPrettyPrintUnqualifiedNames branch path
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -442,15 +440,15 @@ termReferentsByShortHash codebase sh = do
         B.intrinsicTermReferences
   pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
 
--- currentPathNames0 :: Path -> Names0
--- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
+-- currentPathUnqualifiedNames :: Path -> UnqualifiedNames
+-- currentPathUnqualifiedNames = Branch.toUnqualifiedNames . Branch.head . Branch.getAt
 
 getCurrentPrettyNames :: Path -> Branch m -> NamesWithHistory
 getCurrentPrettyNames path root =
-  NamesWithHistory (basicPrettyPrintNames0 root path) mempty
+  NamesWithHistory (basicPrettyPrintUnqualifiedNames root path) mempty
 
 getCurrentParseNames :: Path -> Branch m -> NamesWithHistory
-getCurrentParseNames path root = NamesWithHistory (basicParseNames0 root path) mempty
+getCurrentParseNames path root = NamesWithHistory (basicParseUnqualifiedNames root path) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -459,7 +457,7 @@ getCurrentParseNames path root = NamesWithHistory (basicParseNames0 root path) m
 -- e.g. if currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
+fixupNamesRelative :: Path.Absolute -> UnqualifiedNames -> UnqualifiedNames
 fixupNamesRelative root = NamesWithHistory.map0 fixName where
   prefix = Path.toName $ Path.unabsolute root
   fixName n = if root == Path.absoluteEmpty

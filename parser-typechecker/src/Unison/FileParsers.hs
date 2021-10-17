@@ -20,7 +20,7 @@ import           Data.Text                  (unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import qualified Unison.Name                as Name
-import qualified Unison.NamesWithHistory              as Names
+import qualified Unison.NamesWithHistory              as NamesWithHistory
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.Referent            as Referent
@@ -38,7 +38,8 @@ import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import Unison.NamesWithHistory (Names0)
+import Unison.Names(UnqualifiedNames)
+import qualified Unison.Names as Names
 
 type Term v = Term.Term v Ann
 type Type v = Type.Type v Ann
@@ -68,11 +69,11 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (Either Names0 (UF.TypecheckedUnisonFile v Ann))
+       (Either UnqualifiedNames (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
-  let names0 = Names.currentNames (Parser.names env)
+  let names0 = NamesWithHistory.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
   let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
   tell notes' $> maybe (Left (UF.toNames uf )) Right r
@@ -82,7 +83,7 @@ type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 resolveNames
   :: (Var v, Monad m)
   => (Set Reference -> m (TL.TypeLookup v Ann))
-  -> Names.Names0
+  -> Names.UnqualifiedNames
   -> UnisonFile v
   -> ResultT
        (Seq (Note v Ann))
@@ -92,7 +93,7 @@ resolveNames typeLookupf preexistingNames uf = do
   let tm = UF.typecheckingTerm uf
       deps = Term.dependencies tm
       possibleDeps = [ (Name.toText name, Var.name v, r) |
-        (name, r) <- Rel.toList (Names.terms0 preexistingNames),
+        (name, r) <- Rel.toList (NamesWithHistory.terms0 preexistingNames),
         v <- Set.toList (Term.freeVars tm),
         name `Name.endsWithSegments` Name.fromVar v ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
@@ -115,7 +116,7 @@ resolveNames typeLookupf preexistingNames uf = do
           let nr = Typechecker.NamedReference name typ (Right r) ] <>
         -- local file TDNR possibilities
         [ (Var.name v, nr) |
-          (name, r) <- Rel.toList (Names.terms0 $ UF.toNames uf),
+          (name, r) <- Rel.toList (NamesWithHistory.terms0 $ UF.toNames uf),
           v <- Set.toList (Term.freeVars tm),
           name `Name.endsWithSegments` Name.fromVar v,
           typ <- toList $ TL.typeOfReferent tl r,

@@ -12,12 +12,13 @@ import           Data.Sequence (Seq)
 import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
-import Unison.Parser.Ann (Ann(..))
+import           Unison.Parser.Ann (Ann(..))
 import           Unison.PrintError              ( prettyParseError )
 import           Unison.Result (Result, Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Var (Var)
 import           Unison.UnisonFile (TypecheckedUnisonFile)
+import           Unison.Names (UnqualifiedNames)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
@@ -27,7 +28,6 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
 import qualified Unison.Util.Pretty            as Pr
 import qualified Text.Megaparsec.Error         as MPE
-import qualified Unison.NamesWithHistory
 
 
 type Term v = Term.Term v Ann
@@ -63,7 +63,7 @@ parseAndSynthesizeAsFile
   -> String
   -> Result
        (Seq (Note v Ann))
-       (Either Unison.NamesWithHistory.Names0 (TypecheckedUnisonFile v Ann))
+       (Either UnqualifiedNames (TypecheckedUnisonFile v Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)

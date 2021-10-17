@@ -1533,7 +1533,7 @@ typeCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toUnqualifiedNames
 
 termCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1543,7 +1543,7 @@ termCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toUnqualifiedNames
 
 patchArg :: ArgumentType
 patchArg = ArgumentType "patch" $ pathCompletor

@@ -27,8 +27,8 @@ import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.ConstructorType        as CT
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames0 :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> UnqualifiedNames
-toNames0 ct typeSymbol (Reference.DerivedId -> r) dd =
+toUnqualifiedNames :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> UnqualifiedNames
+toUnqualifiedNames ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
   -- name of the type itself
@@ -38,10 +38,10 @@ toNames0 ct typeSymbol (Reference.DerivedId -> r) dd =
     Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> UnqualifiedNames
-dataDeclToNames = toNames0 CT.Data
+dataDeclToNames = toUnqualifiedNames CT.Data
 
 effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration v a -> UnqualifiedNames
-effectDeclToNames typeSymbol r ed = toNames0 CT.Effect typeSymbol r $ DD.toDataDecl ed
+effectDeclToNames typeSymbol r ed = toUnqualifiedNames CT.Effect typeSymbol r $ DD.toDataDecl ed
 
 dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration v a)) -> UnqualifiedNames
 dataDeclToNames' (v, (r,d)) = dataDeclToNames v r d
