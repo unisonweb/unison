@@ -25,7 +25,7 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
-import Unison.Names ( UnqualifiedNames )
+import Unison.Names ( Names )
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
@@ -133,7 +133,7 @@ data Output v
   -- with whatever named definitions would not have any remaining names if
   -- the path is deleted.
   | DeleteBranchConfirmation
-      [(Path', (UnqualifiedNames, [SearchResult' v Ann]))]
+      [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation

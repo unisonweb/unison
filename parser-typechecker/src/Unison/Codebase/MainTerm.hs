@@ -33,15 +33,15 @@ data MainTerm v
 getMainTerm
   :: (Monad m, Var v)
   => (Reference -> m (Maybe (Type v Ann)))
-  -> Names.UnqualifiedNames
+  -> Names.Names
   -> String
   -> Type.Type v Ann
   -> m (MainTerm v)
-getMainTerm loadTypeOfTerm parseUnqualifiedNames mainName mainType =
+getMainTerm loadTypeOfTerm parseNames mainName mainType =
   case HQ.fromString mainName of
     Nothing -> pure (NotAFunctionName mainName)
     Just hq -> do
-      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseUnqualifiedNames mempty)
+      let refs = NamesWithHistory.lookupHQTerm hq (NamesWithHistory.NamesWithHistory parseNames mempty)
       let a = Parser.Ann.External
       case toList refs of
         [Referent.Ref ref] -> do

@@ -5,9 +5,8 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Names
-  ( UnqualifiedNames
+  ( Names
   , Names'(Names)
-  , pattern UnqualifiedNames
   , addTerm
   , addType
   , allReferences
@@ -75,18 +74,13 @@ data Names' n = Names
   , types :: Relation n Reference
   } deriving (Eq,Ord)
 
-type UnqualifiedNames = Names' Name
-
-pattern UnqualifiedNames :: Relation Name Referent
-                         -> Relation Name Reference
-                         -> UnqualifiedNames
-pattern UnqualifiedNames terms types = Names terms types
+type Names = Names' Name
 
 -- Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
 fuzzyFind
   :: [String]
-  -> UnqualifiedNames
+  -> Names
   -> [(FZF.Alignment, Name, Set (Either Referent Reference))]
 fuzzyFind query names =
   fmap flatten
@@ -262,7 +256,7 @@ hqName b n = \case
     ambiguous = Set.size (termsNamed b n) + Set.size (typesNamed b n) > 1
 
 -- Conditionally apply hash qualifier to term name.
--- Should be the same as the input name if the UnqualifiedNames is unconflicted.
+-- Should be the same as the input name if the Names is unconflicted.
 hqTermName :: (Ord n, Alphabetical n) => Int -> Names' n -> n -> Referent -> HQ.HashQualified n
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
@@ -291,7 +285,7 @@ _hqTermAliases :: (Ord n, Alphabetical n) => Names' n -> n -> Referent -> Set (H
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
--- References in this UnqualifiedNames.
+-- References in this Names.
 hqTermName' :: Int -> n -> Referent -> HQ.HashQualified n
 hqTermName' hqLen n r =
   HQ.take hqLen $ HQ.fromNamedReferent n r
@@ -314,7 +308,7 @@ fromTerms ts = Names (R.fromList ts) mempty
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
 
-prefix0 :: Name -> UnqualifiedNames -> UnqualifiedNames
+prefix0 :: Name -> Names -> Names
 prefix0 n (Names terms types) = Names terms' types' where
   terms' = R.mapDom (Name.joinDot n) terms
   types' = R.mapDom (Name.joinDot n) types
@@ -323,14 +317,14 @@ filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
-filterByHQs :: Set (HashQualified Name) -> UnqualifiedNames -> UnqualifiedNames
+filterByHQs :: Set (HashQualified Name) -> Names -> Names
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types
   f (n, r) = any (HQ.matchesNamedReferent n r) hqs
   g (n, r) = any (HQ.matchesNamedReference n r) hqs
 
-filterBySHs :: Set ShortHash -> UnqualifiedNames -> UnqualifiedNames
+filterBySHs :: Set ShortHash -> Names -> Names
 filterBySHs shs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types

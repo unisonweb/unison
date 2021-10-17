@@ -38,7 +38,7 @@ import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import Unison.Names(UnqualifiedNames)
+import Unison.Names(Names)
 import qualified Unison.Names as Names
 
 type Term v = Term.Term v Ann
@@ -69,7 +69,7 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (Either UnqualifiedNames (UF.TypecheckedUnisonFile v Ann))
+       (Either Names (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   when debug $ traceM "parseAndSynthesizeFile"
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
@@ -83,7 +83,7 @@ type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 resolveNames
   :: (Var v, Monad m)
   => (Set Reference -> m (TL.TypeLookup v Ann))
-  -> Names.UnqualifiedNames
+  -> Names.Names
   -> UnisonFile v
   -> ResultT
        (Seq (Note v Ann))

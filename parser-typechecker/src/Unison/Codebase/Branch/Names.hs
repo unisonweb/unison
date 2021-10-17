@@ -9,7 +9,7 @@ module Unison.Codebase.Branch.Names
     findHistoricalRefs,
     findHistoricalRefs',
     namesDiff,
-    toUnqualifiedNames,
+    toNames,
   )
 where
 
@@ -21,7 +21,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name (..))
-import Unison.Names (Names' (Names), UnqualifiedNames)
+import Unison.Names (Names' (Names), Names)
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude hiding (empty)
@@ -31,8 +31,8 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as R
 import Prelude hiding (head, read, subtract)
 
-toUnqualifiedNames :: Branch0 m -> UnqualifiedNames
-toUnqualifiedNames b = Names (R.swap . deepTerms $ b)
+toNames :: Branch0 m -> Names
+toNames b = Names (R.swap . deepTerms $ b)
                    (R.swap . deepTypes $ b)
 
 -- This stops searching for a given HashQualified once it encounters
@@ -40,19 +40,19 @@ toUnqualifiedNames b = Names (R.swap . deepTerms $ b)
 findHistoricalHQs :: Monad m
                   => Set (HashQualified Name)
                   -> Branch m
-                  -> m (Set (HashQualified Name), UnqualifiedNames)
+                  -> m (Set (HashQualified Name), Names)
 findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)
 
 findHistoricalRefs :: Monad m => Set LabeledDependency -> Branch m
-                   -> m (Set LabeledDependency, UnqualifiedNames)
+                   -> m (Set LabeledDependency, Names)
 findHistoricalRefs = findInHistory
   (\query r _n -> LD.fold (const False) (==r) query)
   (\query r _n -> LD.fold (==r) (const False) query)
 
 findHistoricalRefs' :: Monad m => Set Reference -> Branch m
-                    -> m (Set Reference, UnqualifiedNames)
+                    -> m (Set Reference, Names)
 findHistoricalRefs' = findInHistory
   (\queryRef r _n -> r == Referent.Ref queryRef)
   (\queryRef r _n -> r == queryRef)
@@ -60,7 +60,7 @@ findHistoricalRefs' = findInHistory
 findInHistory :: forall m q. (Monad m, Ord q)
   => (q -> Referent -> Name -> Bool)
   -> (q -> Reference -> Name -> Bool)
-  -> Set q -> Branch m -> m (Set q, UnqualifiedNames)
+  -> Set q -> Branch m -> m (Set q, Names)
 findInHistory termMatches typeMatches queries b =
   (Causal.foldHistoryUntil f (queries, mempty) . _history) b <&> \case
     -- could do something more sophisticated here later to report that some SH
@@ -76,7 +76,7 @@ findInHistory termMatches typeMatches queries b =
   f acc@(remainingQueries, _) b0 = (acc', null remainingQueries')
     where
     acc'@(remainingQueries', _) = foldl' findQ acc remainingQueries
-    findQ :: (Set q, UnqualifiedNames) -> q -> (Set q, UnqualifiedNames)
+    findQ :: (Set q, Names) -> q -> (Set q, Names)
     findQ acc sh =
       foldl' (doType sh) (foldl' (doTerm sh) acc
                             (R.toList $ deepTerms b0))
@@ -87,4 +87,4 @@ findInHistory termMatches typeMatches queries b =
       then (Set.delete q remainingSHs, Names.addType n r names0) else acc
 
 namesDiff :: Branch m -> Branch m -> Names.Diff
-namesDiff b1 b2 = Names.diff0 (toUnqualifiedNames (head b1)) (toUnqualifiedNames (head b2))
+namesDiff b1 b2 = Names.diff0 (toNames (head b1)) (toNames (head b2))

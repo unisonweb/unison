@@ -21,7 +21,7 @@ import qualified Unison.HashQualified'        as HQ'
 import qualified Unison.Name                  as Name
 import           Unison.Name                  ( Name )
 import qualified Unison.Names                as Names
-import           Unison.Names                ( UnqualifiedNames )
+import           Unison.Names                ( Names )
 import           Unison.NamePrinter           (prettyHashQualified)
 import qualified Unison.Reference             as Reference
 import qualified Unison.Referent              as Referent
@@ -114,7 +114,7 @@ fuzzyFindMatchArray query items render =
   -- Ord MatchArray already provides a. and b.  todo: c.
 
 prefixFindInBranch ::
-  UnqualifiedNames -> HQ'.HashQualified Name -> [(SearchResult, P.Pretty P.ColorText)]
+  Names -> HQ'.HashQualified Name -> [(SearchResult, P.Pretty P.ColorText)]
 prefixFindInBranch b hq = fmap getName $
   -- query string includes a name component, so do a prefix find on that
   filter (filterName (HQ'.toName hq)) (candidates b hq)
@@ -127,7 +127,7 @@ prefixFindInBranch b hq = fmap getName $
 
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch :: HasCallStack
-                  => UnqualifiedNames
+                  => Names
                   -> HQ'.HashQualified Name
                   -> [(SearchResult, P.Pretty P.ColorText)]
 fuzzyFindInBranch b hq =

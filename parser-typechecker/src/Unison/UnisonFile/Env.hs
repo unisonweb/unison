@@ -12,7 +12,7 @@ import           Unison.DataDeclaration (DataDeclaration)
 import           Unison.DataDeclaration (EffectDeclaration(..))
 import           Unison.Reference       (Reference)
 import qualified Unison.Reference       as Reference
-import Unison.Names (UnqualifiedNames)
+import Unison.Names (Names)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
@@ -20,7 +20,7 @@ data Env v a = Env
   -- Effect declaration name to hash and its fully resolved form
   , effectsId :: Map v (Reference.Id, EffectDeclaration v a)
   -- Naming environment
-  , names   :: UnqualifiedNames
+  , names   :: Names
 }
 
 datas :: Env v a -> Map v (Reference, DataDeclaration v a)

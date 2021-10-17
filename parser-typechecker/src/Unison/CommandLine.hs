@@ -33,7 +33,7 @@ import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.HashQualified'           as HQ'
-import           Unison.Names (UnqualifiedNames)
+import           Unison.Names (Names)
 import qualified Unison.Util.ColorText           as CT
 import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
@@ -156,7 +156,7 @@ prettyCompletion' (s, p) = Line.Completion s (P.toAnsiUnbroken p) False
 prettyCompletion'' :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
 prettyCompletion'' spaceAtEnd (s, p) = Line.Completion s (P.toAnsiUnbroken p) spaceAtEnd
 
-fuzzyCompleteHashQualified :: UnqualifiedNames -> String -> [Line.Completion]
+fuzzyCompleteHashQualified :: Names -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
   Nothing -> []
   Just query ->

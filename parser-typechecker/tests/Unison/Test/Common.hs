@@ -18,7 +18,7 @@ import           Unison.Result (Result, Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Var (Var)
 import           Unison.UnisonFile (TypecheckedUnisonFile)
-import           Unison.Names (UnqualifiedNames)
+import           Unison.Names (Names)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
@@ -63,7 +63,7 @@ parseAndSynthesizeAsFile
   -> String
   -> Result
        (Seq (Note v Ann))
-       (Either UnqualifiedNames (TypecheckedUnisonFile v Ann))
+       (Either Names (TypecheckedUnisonFile v Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)

@@ -24,7 +24,7 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
 import qualified Unison.Name                   as Name
-import           Unison.Names                  ( UnqualifiedNames )
+import           Unison.Names                  ( Names )
 import qualified Unison.Names                 as Names
 import Unison.Parser.Ann (Ann(..))
 import           Unison.Reference               ( Reference(..) )
@@ -74,7 +74,7 @@ noEdits = Edits mempty mempty mempty mempty mempty mempty mempty
 propagateAndApply
   :: forall m i v
    . (Applicative m, Var v)
-  => UnqualifiedNames
+  => Names
   -> Patch
   -> Branch0 m
   -> F m i v (Branch0 m)
@@ -142,7 +142,7 @@ propagateCtorMapping oldComponent newComponent = let
 -- and if the number of constructors is 1, then the constructor names need not
 -- be the same.
 genInitialCtorMapping ::
-  forall v m i . Var v => UnqualifiedNames -> Map Reference Reference -> F m i v (Map Referent Referent)
+  forall v m i . Var v => Names -> Map Reference Reference -> F m i v (Map Referent Referent)
 genInitialCtorMapping rootNames initialTypeReplacements = do
   let mappings :: (Reference,Reference) -> _ (Map Referent Referent)
       mappings (old,new) = do
@@ -226,7 +226,7 @@ debugMode = False
 propagate
   :: forall m i v
    . (Applicative m, Var v)
-  => UnqualifiedNames -- TODO: this argument can be removed once patches have term replacement
+  => Names -- TODO: this argument can be removed once patches have term replacement
             -- of type `Referent -> Referent`
   -> Patch
   -> Branch0 m
@@ -252,7 +252,7 @@ propagate rootNames patch b = case validatePatch patch of
         in case toList rns of
           [] -> show r
           n : _ -> show n
-      -- this could also become show r if we're removing the dependency on UnqualifiedNames
+      -- this could also become show r if we're removing the dependency on Names
       referentName r = case toList (Names.namesForReferent rootNames r) of
         [] -> Referent.toString r
         n : _ -> show n
@@ -455,7 +455,7 @@ propagate rootNames patch b = case validatePatch patch of
       (zip (view _1 . getReference <$> Graph.topSort graph) [0 ..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
     -- vertex i precedes j when j is a dependent of i.
-  names0 = Branch.toUnqualifiedNames b
+  names0 = Branch.toNames b
   validatePatch
     :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
   validatePatch p =
@@ -634,7 +634,7 @@ computeFrontier
    . Monad m
   => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
   -> Patch
-  -> UnqualifiedNames
+  -> Names
   -> m (R.Relation Reference Reference)
 computeFrontier getDependents patch names = do
       -- (r,r2) ∈ dependsOn if r depends on r2

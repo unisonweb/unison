@@ -35,7 +35,7 @@ import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
 import           Unison.NamesWithHistory        ( NamesWithHistory )
-import           Unison.Names                   ( UnqualifiedNames )
+import           Unison.Names                   ( Names )
 import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
@@ -75,7 +75,7 @@ data LoadSourceResult = InvalidSourceNameError
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (Either UnqualifiedNames (UF.TypecheckedUnisonFile v Ann))
+         (Either Names (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   -- Escape hatch.

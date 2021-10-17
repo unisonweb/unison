@@ -10,7 +10,7 @@ import qualified Unison.Codebase.Patch as Patch
 import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
 import Unison.Reference (Reference)
-import Unison.Names (UnqualifiedNames)
+import Unison.Names (Names)
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(UserObject))
 import Unison.Type (Type)
@@ -28,7 +28,7 @@ data TodoOutput v a = TodoOutput
   , todoFrontierDependents ::
         ( [(Score, Reference, Maybe (Type v a))]
         , [(Score, Reference, DisplayObject () (Decl v a))])
-  , nameConflicts :: UnqualifiedNames
+  , nameConflicts :: Names
   , editConflicts :: Patch
   } deriving (Show)
 

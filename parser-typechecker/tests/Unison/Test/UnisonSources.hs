@@ -33,14 +33,14 @@ import           Unison.Util.Monoid     (intercalateMap)
 import           Unison.Util.Pretty     (toPlain)
 import qualified Unison.Test.Common as Common
 import qualified Unison.NamesWithHistory as NamesWithHistory
-import           Unison.Names (UnqualifiedNames)
+import           Unison.Names (Names)
 
 type Note = Result.Note Symbol Ann
 
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result (Seq Note)
-         (Either UnqualifiedNames TFile)
+         (Either Names TFile)
 
 type EitherResult = Either String TFile
 

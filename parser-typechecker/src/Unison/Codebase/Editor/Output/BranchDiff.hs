@@ -26,7 +26,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
 import qualified Unison.Names as Names
-import Unison.Names (UnqualifiedNames)
+import Unison.Names (Names)
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.Runtime.IOSource (isPropagatedValue)
 
@@ -100,8 +100,8 @@ toOutput :: forall m v a
          => (Referent -> m (Maybe (Type v a)))
          -> (Reference -> m (Maybe (DeclOrBuiltin v a)))
          -> Int
-         -> UnqualifiedNames
-         -> UnqualifiedNames
+         -> Names
+         -> Names
          -> PPE.PrettyPrintEnv
          -> BranchDiff.BranchDiff
          -> m (BranchDiffOutput v a)

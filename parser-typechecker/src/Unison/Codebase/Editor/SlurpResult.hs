@@ -72,7 +72,7 @@ data SlurpResult v = SlurpResult {
 -- Returns the set of constructor names for type names in the given `Set`.
 constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
 constructorsFor types uf = let
-  names = UF.typecheckedToUnqualifiedNames uf
+  names = UF.typecheckedToNames uf
   typesRefs = Set.unions $ Names.typesNamed names . Name.fromVar <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
   isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True

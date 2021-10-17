@@ -9,7 +9,7 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Names as Names
-import Unison.Names (UnqualifiedNames)
+import Unison.Names (Names)
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -27,18 +27,18 @@ import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
 
-fromUnqualifiedNames :: Monad m => UnqualifiedNames -> Branch m
-fromUnqualifiedNames names0 = Branch.one $ addFromUnqualifiedNames names0 Branch.empty0
+fromNames :: Monad m => Names -> Branch m
+fromNames names0 = Branch.one $ addFromNames names0 Branch.empty0
 
 -- can produce a pure value because there's no history to traverse
-hashesFromUnqualifiedNames :: Monad m => UnqualifiedNames -> Map Branch.Hash (Branch m)
-hashesFromUnqualifiedNames = deepHashes . fromUnqualifiedNames where
+hashesFromNames :: Monad m => Names -> Map Branch.Hash (Branch m)
+hashesFromNames = deepHashes . fromNames where
   deepHashes :: Branch m -> Map Branch.Hash (Branch m)
   deepHashes b = Map.singleton (Branch.headHash b) b
     <> (foldMap deepHashes . view Branch.children . Branch.head) b
 
-addFromUnqualifiedNames :: Monad m => UnqualifiedNames -> Branch0 m -> Branch0 m
-addFromUnqualifiedNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
+addFromNames :: Monad m => Names -> Branch0 m -> Branch0 m
+addFromNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . R.toList $ Names.types names0
   termActions = map doTerm . R.toList $ Names.terms names0

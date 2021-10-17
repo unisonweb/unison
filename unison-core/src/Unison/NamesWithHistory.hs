@@ -21,19 +21,19 @@ import qualified Unison.Names as Names
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
-import Unison.Names (UnqualifiedNames, pattern UnqualifiedNames)
+import Unison.Names (Names, pattern Names)
 
 data NamesWithHistory = NamesWithHistory
   { -- | currentNames represent references which are named in the current version of the namespace.
-    currentNames :: Names.UnqualifiedNames,
+    currentNames :: Names.Names,
     -- | oldNames represent things which no longer have names in the current version of the
     -- codebase, but which may have previously had names. This may allow us to show more helpful
     -- context to users rather than just a hash.
-    oldNames :: Names.UnqualifiedNames
+    oldNames :: Names.Names
   }
   deriving (Show)
 
-filterTypes :: (Name -> Bool) -> UnqualifiedNames -> UnqualifiedNames
+filterTypes :: (Name -> Bool) -> Names -> Names
 filterTypes = Names.filterTypes
 
 -- Simple 2 way diff, has the property that:
@@ -41,36 +41,36 @@ filterTypes = Names.filterTypes
 --
 -- `addedNames` are names in `n2` but not `n1`
 -- `removedNames` are names in `n1` but not `n2`
-diff0 :: UnqualifiedNames -> UnqualifiedNames -> Diff
+diff0 :: Names -> Names -> Diff
 diff0 n1 n2 = Diff n1 added removed where
-  added = UnqualifiedNames (terms0 n2 `R.difference` terms0 n1)
+  added = Names (terms0 n2 `R.difference` terms0 n1)
                  (types0 n2 `R.difference` types0 n1)
-  removed = UnqualifiedNames (terms0 n1 `R.difference` terms0 n2)
+  removed = Names (terms0 n1 `R.difference` terms0 n2)
                    (types0 n1 `R.difference` types0 n2)
 
 data Diff =
-  Diff { originalNames :: UnqualifiedNames
-       , addedNames    :: UnqualifiedNames
-       , removedNames  :: UnqualifiedNames
+  Diff { originalNames :: Names
+       , addedNames    :: Names
+       , removedNames  :: Names
        } deriving Show
 
 isEmptyDiff :: Diff -> Bool
 isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
 
-isEmpty0 :: UnqualifiedNames -> Bool
+isEmpty0 :: Names -> Bool
 isEmpty0 n = R.null (terms0 n) && R.null (types0 n)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
 -- referenced hash qualified.
-push :: UnqualifiedNames -> NamesWithHistory -> NamesWithHistory
+push :: Names -> NamesWithHistory -> NamesWithHistory
 push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
   n1 = suffixify0 n0
   cur = currentNames ns
   shadowed = names0 terms' types' where
     terms' = R.dom (terms0 n1) R.<| (terms0 cur `R.difference` terms0 n1)
     types' = R.dom (types0 n1) R.<| (types0 cur `R.difference` types0 n1)
-  unionLeft0 :: UnqualifiedNames -> UnqualifiedNames -> UnqualifiedNames
+  unionLeft0 :: Names -> Names -> Names
   unionLeft0 n1 n2 = names0 terms' types' where
     terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
     types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
@@ -78,14 +78,14 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) wher
   -- of that name [[foo.bar.baz], [bar.baz], [baz]]. Any suffix which uniquely
   -- refers to a single definition is added as an alias
   --
-  -- If `Names` were more like a `[UnqualifiedNames]`, then `push` could just cons
+  -- If `Names` were more like a `[Names]`, then `push` could just cons
   -- onto the list and we could get rid of all this complex logic. The
   -- complexity here is that we have to "bake the shadowing" into a single
-  -- UnqualifiedNames, taking into account suffix-based name resolution.
+  -- Names, taking into account suffix-based name resolution.
   --
   -- We currently have `oldNames`, but that controls an unrelated axis, which
   -- is whether names are hash qualified or not.
-  suffixify0 :: UnqualifiedNames -> UnqualifiedNames
+  suffixify0 :: Names -> Names
   suffixify0 ns = ns <> suffixNs
     where
     suffixNs = names0 (R.fromList uniqueTerms) (R.fromList uniqueTypes)
@@ -94,34 +94,34 @@ push n0 ns = NamesWithHistory (unionLeft0 n1 cur) (oldNames ns <> shadowed) wher
     uniqueTerms = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList terms ]
     uniqueTypes = [ (n,ref) | (n, nubOrd -> [ref]) <- Map.toList types ]
 
-unionLeft0 :: UnqualifiedNames -> UnqualifiedNames -> UnqualifiedNames
+unionLeft0 :: Names -> Names -> Names
 unionLeft0 = Names.unionLeft
 
-unionLeftName0 :: UnqualifiedNames -> UnqualifiedNames -> UnqualifiedNames
+unionLeftName0 :: Names -> Names -> Names
 unionLeftName0 = Names.unionLeftName
 
-map0 :: (Name -> Name) -> UnqualifiedNames -> UnqualifiedNames
+map0 :: (Name -> Name) -> Names -> Names
 map0 f (Names.Names terms types) = Names.Names terms' types' where
   terms' = R.mapDom f terms
   types' = R.mapDom f types
 
-names0 :: Relation Name Referent -> Relation Name Reference -> UnqualifiedNames
+names0 :: Relation Name Referent -> Relation Name Reference -> Names
 names0 = Names.Names
 
-types0 :: UnqualifiedNames -> Relation Name Reference
+types0 :: Names -> Relation Name Reference
 types0 = Names.types
 
-terms0 :: UnqualifiedNames -> Relation Name Referent
+terms0 :: Names -> Relation Name Referent
 terms0 = Names.terms
 
 -- if I push an existing name, the pushed reference should be the thing
 -- if I push a different name for the same thing, i suppose they should coexist
 -- thus, `unionLeftName0`.
-shadowing :: UnqualifiedNames -> NamesWithHistory -> NamesWithHistory
+shadowing :: Names -> NamesWithHistory -> NamesWithHistory
 shadowing prio (NamesWithHistory current old) =
   NamesWithHistory (prio `unionLeftName0` current) (current <> old)
 
-makeAbsolute0 :: UnqualifiedNames -> UnqualifiedNames
+makeAbsolute0 :: Names -> Names
 makeAbsolute0 = map0 Name.makeAbsolute
 
 -- Find all types whose name has a suffix matching the provided `HashQualified`,
@@ -191,8 +191,8 @@ lookupHQTerm' =
 lookupHQRef ::
   forall r.
   Ord r =>
-  -- | A projection of types or terms from a UnqualifiedNames.
-  (UnqualifiedNames -> Relation Name r) ->
+  -- | A projection of types or terms from a Names.
+  (Names -> Relation Name r) ->
   -- | isPrefixOf, for references or referents
   (ShortHash -> r -> Bool) ->
   -- | The name to look up
@@ -295,8 +295,8 @@ lookupHQPattern hq ctt names = Set.fromList
     , ct == ctt
     ]
 
--- Finds all the constructors for the given type in the `UnqualifiedNames`
-constructorsForType0 :: Reference -> UnqualifiedNames -> [(Name,Referent)]
+-- Finds all the constructors for the given type in the `Names`
+constructorsForType0 :: Reference -> Names -> [(Name,Referent)]
 constructorsForType0 r ns = let
   -- rather than searching all of names, we use the known possible forms
   -- that the constructors can take
@@ -319,7 +319,7 @@ importing :: [(Name, Name)] -> NamesWithHistory -> NamesWithHistory
 importing shortToLongName ns =
   ns { currentNames = importing0 shortToLongName (currentNames ns) }
 
-importing0 :: [(Name, Name)] -> UnqualifiedNames -> UnqualifiedNames
+importing0 :: [(Name, Name)] -> Names -> Names
 importing0 shortToLongName ns =
   Names.Names
     (foldl' go (terms0 ns) shortToLongName)
@@ -334,7 +334,7 @@ importing0 shortToLongName ns =
 -- [(suffix, full)]. Example: if `io` contains two functions, `foo` and
 -- `bar`, then `expandWildcardImport io` will produce
 -- `[(foo, io.foo), (bar, io.bar)]`.
-expandWildcardImport :: Name -> UnqualifiedNames -> [(Name,Name)]
+expandWildcardImport :: Name -> Names -> [(Name,Name)]
 expandWildcardImport prefix ns =
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms0 ns) ] <>
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types0 ns) ]
@@ -349,13 +349,13 @@ expandWildcardImport prefix ns =
     -- suffix = negate
     pure (suffix, full)
 
--- Deletes from the `n0 : UnqualifiedNames` any definitions whose names
+-- Deletes from the `n0 : Names` any definitions whose names
 -- are in `ns`. Does so using logarithmic time lookups,
 -- traversing only `ns`.
 --
 -- See usage in `FileParser` for handling precendence of symbol
 -- resolution where local names are preferred to codebase names.
-shadowTerms0 :: [Name] -> UnqualifiedNames -> UnqualifiedNames
+shadowTerms0 :: [Name] -> Names -> Names
 shadowTerms0 ns n0 = names0 terms' (types0 n0)
   where
   terms' = foldl' go (terms0 n0) ns

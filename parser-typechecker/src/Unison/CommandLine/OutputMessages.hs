@@ -71,7 +71,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import           Unison.Names                 (Names'(..), UnqualifiedNames)
+import           Unison.Names                 (Names'(..), Names)
 import qualified Unison.Names                 as Names
 import qualified Unison.NamesWithHistory                 as Names
 import Unison.Parser.Ann (Ann, startingLine)
@@ -1382,7 +1382,7 @@ todoOutput ppe todo =
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
     -- conflicts section
-    c :: UnqualifiedNames
+    c :: Names
     c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
     conflictedTypeNames = (R.dom . Names.types) c
     conflictedTermNames = (R.dom . Names.terms) c

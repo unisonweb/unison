@@ -23,7 +23,7 @@ import qualified Data.Set.NonEmpty as NES
 bindNames
   :: Var v
   => Set v
-  -> Names.UnqualifiedNames
+  -> Names.Names
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
 bindNames keepFree ns0 t = let

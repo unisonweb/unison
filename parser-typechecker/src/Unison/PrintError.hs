@@ -1467,16 +1467,16 @@ prettyResolutionFailures s allFailures =
     toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
     toAmbiguityPair = \case
       (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromUnqualifiedNames names
+        let ppe = ppeFromNames names
          in (v, Just $ NES.map (showTermRef ppe) refs)
       (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromUnqualifiedNames names
+        let ppe = ppeFromNames names
          in (v, Just $ NES.map (showTypeRef ppe) refs)
       (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
-    ppeFromUnqualifiedNames :: Names.UnqualifiedNames -> PPE.PrettyPrintEnv
-    ppeFromUnqualifiedNames names0 =
+    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
+    ppeFromNames names0 =
       PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]

@@ -21,14 +21,14 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import qualified Unison.Type.Names             as Type.Names
 import           Unison.Var                    ( Var )
-import           Unison.Names                  (UnqualifiedNames)
+import           Unison.Names                  (Names)
 import qualified Unison.NamesWithHistory       as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.ConstructorType        as CT
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toUnqualifiedNames :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> UnqualifiedNames
-toUnqualifiedNames ct typeSymbol (Reference.DerivedId -> r) dd =
+toNames :: Var v => CT.ConstructorType -> v -> Reference.Id -> DataDeclaration v a -> Names
+toNames ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
   -- name of the type itself
@@ -37,21 +37,21 @@ toUnqualifiedNames ct typeSymbol (Reference.DerivedId -> r) dd =
   names (ctor, i) =
     Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
-dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> UnqualifiedNames
-dataDeclToNames = toUnqualifiedNames CT.Data
+dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names
+dataDeclToNames = toNames CT.Data
 
-effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration v a -> UnqualifiedNames
-effectDeclToNames typeSymbol r ed = toUnqualifiedNames CT.Effect typeSymbol r $ DD.toDataDecl ed
+effectDeclToNames :: Var v => v -> Reference.Id -> EffectDeclaration v a -> Names
+effectDeclToNames typeSymbol r ed = toNames CT.Effect typeSymbol r $ DD.toDataDecl ed
 
-dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration v a)) -> UnqualifiedNames
+dataDeclToNames' :: Var v => (v, (Reference.Id, DataDeclaration v a)) -> Names
 dataDeclToNames' (v, (r,d)) = dataDeclToNames v r d
 
-effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration v a)) -> UnqualifiedNames
+effectDeclToNames' :: Var v => (v, (Reference.Id, EffectDeclaration v a)) -> Names
 effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
 
 bindNames :: Var v
           => Set v
-          -> UnqualifiedNames
+          -> Names
           -> DataDeclaration v a
           -> Names.ResolutionResult v a (DataDeclaration v a)
 bindNames keepFree names (DataDeclaration m a bound constructors) = do

@@ -6,7 +6,7 @@ import qualified Data.Set              as Set
 import           Unison.HashQualified  (HashQualified)
 import qualified Unison.HashQualified' as HQ'
 import           Unison.Name           (Name)
-import           Unison.Names         (Names'(Names), UnqualifiedNames)
+import           Unison.Names         (Names'(Names), Names)
 import qualified Unison.Names         as Names
 import           Unison.Reference      (Reference)
 import           Unison.Referent       (Referent)
@@ -35,7 +35,7 @@ termResult
   :: HashQualified Name -> Referent -> Set (HQ'.HashQualified Name) -> SearchResult
 termResult hq r as = Tm (TermResult hq r as)
 
-termSearchResult :: UnqualifiedNames -> Name -> Referent -> SearchResult
+termSearchResult :: Names -> Name -> Referent -> SearchResult
 termSearchResult b n r =
   termResult (HQ'.toHQ (Names._hqTermName b n r)) r (Names._hqTermAliases b n r)
 
@@ -44,7 +44,7 @@ typeResult
   :: HashQualified Name -> Reference -> Set (HQ'.HashQualified Name) -> SearchResult
 typeResult hq r as = Tp (TypeResult hq r as)
 
-typeSearchResult :: UnqualifiedNames -> Name -> Reference -> SearchResult
+typeSearchResult :: Names -> Name -> Reference -> SearchResult
 typeSearchResult b n r =
   typeResult (HQ'.toHQ (Names._hqTypeName b n r)) r (Names._hqTypeAliases b n r)
 
@@ -69,12 +69,12 @@ truncateAliases n = \case
   Tp (TypeResult hq r as) -> typeResult hq r (Set.map (HQ'.take n) as)
 
 -- | You may want to sort this list differently afterward.
-fromNames :: UnqualifiedNames -> [SearchResult]
+fromNames :: Names -> [SearchResult]
 fromNames b =
   map (uncurry (typeSearchResult b)) (R.toList . Names.types $ b) <>
   map (uncurry (termSearchResult b)) (R.toList . Names.terms $ b)
 
-_fromNames :: UnqualifiedNames -> [SearchResult]
+_fromNames :: Names -> [SearchResult]
 _fromNames n0@(Names terms types) = typeResults <> termResults where
   typeResults =
     [ typeSearchResult n0 name r

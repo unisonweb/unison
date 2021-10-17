@@ -15,7 +15,7 @@ import qualified Unison.DataDeclaration.Names as DD.Names
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
-import Unison.Names (UnqualifiedNames)
+import Unison.Names (Names)
 import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude
 import qualified Unison.Reference as Reference
@@ -29,14 +29,14 @@ import qualified Unison.Util.Relation as Relation
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 
-toNames :: Var v => UnisonFile v a -> UnqualifiedNames
+toNames :: Var v => UnisonFile v a -> Names
 toNames uf = datas <> effects
   where
     datas = foldMap DD.Names.dataDeclToNames' (Map.toList (UF.dataDeclarationsId uf))
     effects = foldMap DD.Names.effectDeclToNames' (Map.toList (UF.effectDeclarationsId uf))
 
-typecheckedToUnqualifiedNames :: Var v => TypecheckedUnisonFile v a -> UnqualifiedNames
-typecheckedToUnqualifiedNames uf = Names.names0 (terms <> ctors) types where
+typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
+typecheckedToNames uf = Names.names0 (terms <> ctors) types where
   terms = Relation.fromList
     [ (Name.fromVar v, Referent.Ref r)
     | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf, wk == Nothing || wk == Just WK.TestWatch ]
@@ -63,7 +63,7 @@ typecheckedUnisonFile0 = TypecheckedUnisonFileId Map.empty Map.empty mempty memp
 -- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
 -- as it can't refer to a local definition.
 bindNames :: Var v
-          => UnqualifiedNames
+          => Names
           -> UnisonFile v a
           -> Names.ResolutionResult v a (UnisonFile v a)
 bindNames names (UnisonFileId d e ts ws) = do
@@ -85,7 +85,7 @@ bindNames names (UnisonFileId d e ts ws) = do
 -- left.
 environmentFor
   :: forall v a . Var v
-  => UnqualifiedNames
+  => Names
   -> Map v (DataDeclaration v a)
   -> Map v (EffectDeclaration v a)
   -> Names.ResolutionResult v a (Either [Error v a] (Env v a))
