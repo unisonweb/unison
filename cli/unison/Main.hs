@@ -51,7 +51,7 @@ import Compat ( installSignalHandlers )
 import ArgParse
     ( UsageRenderer,
       GlobalOptions(GlobalOptions, codebasePathOption),
-      Command(Launch, PrintVersion, Init, Run, Transcript),
+      Command(Launch, PrintVersion, Init, Run, Transcript, Api),
       IsHeadless(WithCLI, Headless),
       ShouldSaveCodebase(..),
       ShouldForkCodebase(..),
@@ -79,8 +79,21 @@ main = do
     catchIOError (watchConfig configFilePath) $ \_ ->
       Exit.die "Your .unisonConfig could not be loaded. Check that it's correct!"
   case command of
+     Api codebaseServerOpts -> do
+      (token', port, _host, _envUI) <- Server.resolveCodebaseServerOpts codebaseServerOpts
+
+      let displayToken = maybe "not_available" (const token') (Server.token codebaseServerOpts)
+      let baseUrl = Server.BaseUrl Server.localhost displayToken port
+
+      PT.putPrettyLn $ P.lines $ ["The API information is as follows:"
+                                 , P.newline
+                                 , P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl)))
+                                 , P.newline
+                                 , P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
+                                 ]
+
      PrintVersion ->
-       putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
+      putStrLn $ progName ++ " version: " ++ Version.gitDescribeWithDate
      Init -> do
       PT.putPrettyLn $
         P.callout

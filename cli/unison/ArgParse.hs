@@ -99,6 +99,7 @@ data Command
   | Init
   | Run RunSource
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
+  | Api CodebaseServerOpts
   deriving (Show, Eq)
 
 -- | Options shared by sufficiently many subcommands.
@@ -207,8 +208,9 @@ commandParser envOpts =
            , transcriptCommand
            , transcriptForkCommand
            , launchHeadlessCommand envOpts
+           , apiCommand envOpts
            ]
-           
+
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do -- ApplicativeDo
     codebasePathOption <- codebasePathParser <|> codebaseCreateParser
@@ -222,7 +224,7 @@ codebasePathParser = do
       <> metavar "codebase/path"
       <> help "The path to an existing codebase"
     pure (fmap DontCreateCodebaseWhenMissing optString)
-       
+
 codebaseCreateParser :: Parser (Maybe CodebasePathOption)
 codebaseCreateParser = do
     path <- optional . strOption $
@@ -236,6 +238,12 @@ launchHeadlessCommand envOpts =
     command "headless" (info (launchParser envOpts Headless) (progDesc headlessHelp))
   where
     headlessHelp = "Runs the codebase server without the command-line interface."
+
+apiCommand :: CodebaseServerOpts -> Mod CommandFields Command
+apiCommand envOpts =
+    command "api" (info (pure (Api envOpts)) (progDesc apiHelp))
+  where
+    apiHelp = "Provides details about the API."
 
 codebaseServerOptsParser :: CodebaseServerOpts -> Parser CodebaseServerOpts
 codebaseServerOptsParser envOpts = do -- ApplicativeDo

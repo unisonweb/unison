@@ -31,6 +31,7 @@ import Network.HTTP.Types.Status (ok200)
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
+    HostPreference,
     defaultSettings,
     runSettings,
     setBeforeMainLoop,
@@ -128,6 +129,9 @@ data BaseUrl = BaseUrl
     urlToken :: Strict.ByteString,
     urlPort :: Port
   }
+
+localhost :: String
+localhost = "http://127.0.0.1"
 
 data BaseUrlPath = UI | Api
 
@@ -236,16 +240,12 @@ startServer
   -> (BaseUrl -> IO ())
   -> IO ()
 startServer opts rt codebase onStart = do
-  -- the `canonicalizePath` resolves symlinks
-  exePath <- canonicalizePath =<< getExecutablePath
-  envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
-  token <- case token opts of
-    Just t -> return $ C8.pack t
-    _      -> genToken
-  let baseUrl = BaseUrl "http://127.0.0.1" token
+  (token, port', host, envUI) <- resolveCodebaseServerOpts opts
+
+  let baseUrl = BaseUrl localhost token
   let settings = defaultSettings
-               & maybe id setPort (port opts)
-               & maybe id (setHost . fromString) (host opts)
+               & setPort port'
+               & setHost host
   let a = app rt codebase envUI token
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
@@ -257,6 +257,25 @@ startServer opts rt codebase onStart = do
       case result of
         Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
         Right x  -> pure x
+
+type ResolvedCodebaseServerOpts = (Strict.ByteString, Int, HostPreference, String)
+
+resolveCodebaseServerOpts :: CodebaseServerOpts -> IO ResolvedCodebaseServerOpts
+resolveCodebaseServerOpts opts = do
+  -- the `canonicalizePath` resolves symlinks
+  exePath <- canonicalizePath =<< getExecutablePath
+  envUI   <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
+
+  token' <- resolveToken (token opts)
+
+  let port' = resolvePort (port opts)
+  let host' = resolveHost (host opts)
+
+  pure $ (token', port', host', envUI)
+ where
+  resolveToken = maybe genToken (return . C8.pack)
+  resolvePort = fromMaybe 3000
+  resolveHost = maybe "*4" fromString
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = do
