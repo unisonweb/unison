@@ -46,6 +46,8 @@ import Control.Lens (view)
 import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
+import qualified Unison.CommandLine.Globbing as Globbing
+import qualified Data.Set as Set
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -95,8 +97,13 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
       Nothing -> pure QuitI
       Just l  -> case words l of
         [] -> go
-        ws ->
-          case parseInput patterns . (>>= expandNumber numberedArgs) $ ws of
+        ws -> do
+          let expandedInput =
+                ws >>= Globbing.expandGlobs
+                         (Set.fromList [Globbing.Type, Globbing.Term])
+                         (Branch.head rootBranch)
+                   >>= expandNumber numberedArgs
+          case parseInput patterns expandedInput of
             Left msg -> do
               liftIO $ putPrettyLn msg
               go
@@ -127,7 +134,7 @@ main
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
-  welcomeEvents <-Welcome.run codebase welcome 
+  welcomeEvents <-Welcome.run codebase welcome
   do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
@@ -208,7 +215,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
             loop state'
-    -- Run the main program loop, always run cleanup, 
+    -- Run the main program loop, always run cleanup,
     -- If an exception occurred, print it before exiting.
     (loop (HandleInput.loopState0 root initialPath)
       `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))

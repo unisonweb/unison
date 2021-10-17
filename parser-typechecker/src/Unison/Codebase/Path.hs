@@ -61,6 +61,9 @@ module Unison.Codebase.Path
     -- * things that could be replaced with `Snoc` instances
     snoc,
     unsnoc,
+
+  -- This should be moved to a common util module, or we could use the 'witch' package.
+  Convert(..)
   )
 where
 import Unison.Prelude hiding (empty, toList)
@@ -73,7 +76,7 @@ import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
-import Unison.Name (Convert, Name, Parse)
+import Unison.Name (Convert(..), Name, Parse)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
@@ -249,6 +252,7 @@ empty = Path mempty
 instance Show Path where
   show = Text.unpack . toText
 
+-- | Note: This treats the path as relative.
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
 
@@ -346,6 +350,10 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert Absolute Text where convert = toText' . absoluteToPath'
+instance Convert Relative Text where convert = toText . unrelative
+instance Convert Absolute String where convert = Text.unpack . convert
+instance Convert Relative String where convert = Text.unpack . convert
 instance Convert [NameSegment] Path where convert = fromList
 instance Convert Path [NameSegment] where convert = toList
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ

@@ -15,12 +15,16 @@ import Data.Void
 import Text.Megaparsec.Char
 import Control.Applicative (liftA3)
 import qualified Data.Maybe as Maybe
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (second)
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as Relation
 import qualified Data.Set as Set
+import Data.Set (Set)
+import qualified Unison.Util.Monoid as Monoid
+import qualified Data.Either as Either
 
 data TargetType = Type | Term | Namespace
+  deriving (Eq, Ord)
 
 -- Glob paths are always relative.
 type GlobPath = [Either NameSegment GlobArg]
@@ -33,18 +37,24 @@ toPredicate globArg (NameSegment.toText -> ns') =
     Left (NameSegment.toText -> ns) -> ns == ns'
     Right (GlobArg prefix suffix) -> prefix `Text.isPrefixOf` ns' && suffix `Text.isSuffixOf` ns'
 
-unglob :: forall m. GlobPath -> Branch0 m -> [(TargetType, Path.Absolute)]
-unglob gp branch = second (Path.Absolute . Path.fromList) <$> unglobToNameSegments gp branch
+unglob :: Set TargetType -> GlobPath -> Branch0 m -> [(TargetType, Path.Absolute)]
+unglob targets gp branch = second (Path.Absolute . Path.fromList) <$> unglobToNameSegments targets gp branch
 
-unglobToNameSegments :: forall m. GlobPath -> Branch0 m -> [(TargetType, [NameSegment])]
-unglobToNameSegments [] _ = [(Namespace, [])]
-unglobToNameSegments (x:xs) b = matchingTerms <>  matchingTypes <> recursiveMatches
+unglobToNameSegments :: forall m. Set TargetType -> GlobPath -> Branch0 m -> [(TargetType, [NameSegment])]
+unglobToNameSegments targets [] _ =
+  if Set.member Namespace targets
+    then [(Namespace, [])]
+    else []
+unglobToNameSegments targets (x:xs) b =
+     Monoid.whenM (Set.member Term targets) matchingTerms
+  <> Monoid.whenM (Set.member Type targets) matchingTypes
+  <> recursiveMatches
   where
     nextBranches :: [(NameSegment, (Branch0 m))]
     nextBranches = b ^@.. childBranchesByKey (toPredicate x)
     recursiveMatches, matchingTerms, matchingTypes :: ([(TargetType, [NameSegment])])
     recursiveMatches =
-      (foldMap (\(ns, b) -> second (ns:) <$> unglobToNameSegments xs b) nextBranches)
+      (foldMap (\(ns, b) -> second (ns:) <$> unglobToNameSegments targets xs b) nextBranches)
     matchingTerms = matchingNamesInStar Term (toPredicate x) (Branch._terms b)
     matchingTypes = matchingNamesInStar Type (toPredicate x) (Branch._terms b)
     childBranchesByKey :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
@@ -58,10 +68,10 @@ unglobToNameSegments (x:xs) b = matchingTerms <>  matchingTypes <> recursiveMatc
            & pure @[]
            & fmap (typ,)
 
-parseGlobs :: String -> Branch0 m -> Either String [(TargetType, Path.Absolute)]
-parseGlobs s branch = first parseErrorPretty $ do
+expandGlobs :: Set TargetType -> Branch0 m -> String -> [String]
+expandGlobs targets branch s = Either.fromRight [s] $ do
   globPath <- runParser globParser "arguments" s
-  pure $ unglob globPath branch
+  pure . fmap (Path.convert . snd) $ unglob targets globPath branch
 
 globParser :: Parsec Void String GlobPath
 globParser = do
