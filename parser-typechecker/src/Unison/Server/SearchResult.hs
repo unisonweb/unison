@@ -6,7 +6,7 @@ import qualified Data.Set              as Set
 import           Unison.HashQualified  (HashQualified)
 import qualified Unison.HashQualified' as HQ'
 import           Unison.Name           (Name)
-import           Unison.Names         (Names'(Names), Names)
+import           Unison.Names         (Names(..))
 import qualified Unison.Names         as Names
 import           Unison.Reference      (Reference)
 import           Unison.Referent       (Referent)

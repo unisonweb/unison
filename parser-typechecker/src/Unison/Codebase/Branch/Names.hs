@@ -21,7 +21,7 @@ import qualified Unison.HashQualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name (..))
-import Unison.Names (Names' (Names), Names)
+import Unison.Names (Names (..))
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
 import Unison.Prelude hiding (empty)

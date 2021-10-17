@@ -71,7 +71,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import           Unison.Names                 (Names'(..), Names)
+import           Unison.Names                 (Names(..))
 import qualified Unison.Names                 as Names
 import qualified Unison.NamesWithHistory                 as Names
 import Unison.Parser.Ann (Ann, startingLine)
@@ -1397,7 +1397,7 @@ todoOutput ppe todo =
     -- edit conflict, so that the edit conflict will be dealt with first.
     -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
     -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
-    removeEditConflicts :: Ord n => Patch -> Names' n -> Names' n
+    removeEditConflicts :: Patch -> Names -> Names
     removeEditConflicts Patch{..} Names{..} = Names terms' types' where
       terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
       types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types

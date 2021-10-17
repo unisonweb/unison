@@ -86,7 +86,7 @@ import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.NamesWithHistory        ( NamesWithHistory(..) )
-import Unison.Names                             (Names, pattern Names )
+import Unison.Names                             (Names(Names))
 import qualified Unison.Names                 as Names
 import qualified Unison.NamesWithHistory      as NamesWithHistory
 import Unison.Parser.Ann (Ann(..))

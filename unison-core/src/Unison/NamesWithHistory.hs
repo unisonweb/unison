@@ -21,7 +21,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Util.List as List
 import qualified Unison.Util.Relation as R
 import qualified Unison.ConstructorType as CT
-import Unison.Names (Names, pattern Names)
+import Unison.Names (Names(..) )
 
 data NamesWithHistory = NamesWithHistory
   { -- | currentNames represent references which are named in the current version of the namespace.

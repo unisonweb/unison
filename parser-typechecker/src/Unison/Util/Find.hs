@@ -144,7 +144,7 @@ getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)
 getName sr = (sr, P.syntaxToColor $ prettyHashQualified (SR.name sr))
 
 -- Invariant: all `SearchResult` in the output will have names, even though the type allows them to have only hashes
-candidates :: Names.Names' Name.Name -> HQ'.HashQualified Name -> [SearchResult]
+candidates :: Names.Names -> HQ'.HashQualified Name -> [SearchResult]
 candidates b hq = typeCandidates <> termCandidates
   where
   -- filter branch by hash
