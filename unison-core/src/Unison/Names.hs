@@ -62,7 +62,7 @@ import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
 import qualified Text.FuzzyFind               as FZF
 
--- This will support the APIs of both PrettyPrintEnv and the old HQNames.
+-- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
 -- some hash-qualification, depending on the context.
 -- For parsing (both .u files and command-line args)
@@ -147,15 +147,15 @@ restrictReferences refs Names{..} = Names terms' types' where
 --
 -- For pretty-printing:
 --       Probably don't want to add new aliases, unless we don't know which
---       `HQNames` is higher priority.  So if we do have a preferred `HQNames`,
+--       `Names` is higher priority.  So if we do have a preferred `Names`,
 --       don't use `unionLeftName` or (<>).
 --       You don't want to create new conflicts either if you have a preferred
---       `HQNames`.  So in this case, don't use `unionLeftRef` either.
+--       `Names`.  So in this case, don't use `unionLeftRef` either.
 --       I guess that leaves `unionLeft`.
 --
 -- Not sure if the above is helpful or correct!
 
--- unionLeft two HQNames, including new aliases, but excluding new name conflicts.
+-- unionLeft two Names, including new aliases, but excluding new name conflicts.
 -- e.g. unionLeftName [foo -> #a, bar -> #a, cat -> #c]
 --                    [foo -> #b, baz -> #c]
 --                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
@@ -164,14 +164,14 @@ restrictReferences refs Names{..} = Names terms' types' where
 unionLeftName :: Names -> Names -> Names
 unionLeftName = unionLeft' $ const . R.memberDom
 
--- unionLeft two HQNames, including new name conflicts, but excluding new aliases.
+-- unionLeft two Names, including new name conflicts, but excluding new aliases.
 -- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
 --                   [foo -> #b, baz -> #c]
 --                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
 _unionLeftRef :: Names -> Names -> Names
 _unionLeftRef = unionLeft' $ const R.memberRan
 
--- unionLeft two HQNames, but don't create new aliases or new name conflicts.
+-- unionLeft two Names, but don't create new aliases or new name conflicts.
 -- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
 --                [foo -> #b, baz -> #c]
 --              = [foo -> #a, bar -> #a, cat -> #c]
@@ -192,7 +192,7 @@ unionLeft' p a b = Names terms' types'
   go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
   go acc (n, r) = if p n r acc then acc else R.insert n r acc
 
--- could move this to a read-only field in HQNames
+-- could move this to a read-only field in Names
 -- todo: kill this function and pass thru an Int from the codebase, I suppose
 numHashChars :: Names -> Int
 numHashChars b = lenFor hashes
