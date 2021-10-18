@@ -28,6 +28,7 @@ module Unison.Names2
   , _hqTypeName
   , _hqTermAliases
   , _hqTypeAliases
+  , mapNames
   , names0ToNames
   , prefix0
   , restrictReferences
@@ -325,10 +326,20 @@ fromTerms ts = Names (R.fromList ts) mempty
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
 
+-- | Map over each name in a 'Names''.
+mapNames :: Ord n => (n -> n) -> Names' n -> Names' n
+mapNames f Names{terms, types} =
+  Names
+    { terms = R.mapDom f terms
+    , types = R.mapDom f types
+    }
+
+-- | @prefix0 n ns@ prepends @n@ to each name in @ns@.
+--
+-- Precondition: every name in @ns@ is relative.
 prefix0 :: Name -> Names0 -> Names0
-prefix0 n (Names terms types) = Names terms' types' where
-  terms' = R.mapDom (Name.joinDot n) terms
-  types' = R.mapDom (Name.joinDot n) types
+prefix0 n =
+  mapNames (Name.joinDot n)
 
 filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
