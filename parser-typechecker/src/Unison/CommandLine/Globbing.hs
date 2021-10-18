@@ -20,7 +20,6 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
-import Unison.Prelude (traceShowId, trace)
 import Control.Applicative (liftA2)
 import Control.Monad (guard)
 import Control.Error (hush)
@@ -49,27 +48,29 @@ unglobToNameSegments targets [] _ =
   if Set.member Namespace targets
     then [[]] -- Return an empty path, which will be built up by the parents.
     else []   -- Return zero paths.
-unglobToNameSegments targets (x:xs) b =
-     Monoid.whenM (Set.member Term targets) matchingTerms
-  <> Monoid.whenM (Set.member Type targets) matchingTypes
-  <> recursiveMatches
+unglobToNameSegments targets [segment] branch =
+         Monoid.whenM (Set.member Term targets) matchingTerms
+      <> Monoid.whenM (Set.member Type targets) matchingTypes
   where
-    nextBranches :: [(NameSegment, (Branch0 m))]
-    nextBranches = b ^@.. childBranchesByKey (globPredicate x)
-    recursiveMatches, matchingTerms, matchingTypes :: ([[NameSegment]])
-    recursiveMatches =
-      (foldMap (\(ns, b) -> (ns:) <$> unglobToNameSegments targets xs b) nextBranches)
-    matchingTerms = traceShowId $ trace "terms" $ matchingNamesInStar (globPredicate x) (Branch._terms b)
-    matchingTypes = traceShowId $ trace "types" $ matchingNamesInStar (globPredicate x) (Branch._types b)
-    childBranchesByKey :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-    childBranchesByKey keyPredicate = Branch.currentChildren . indices keyPredicate
+    matchingTerms, matchingTypes :: [[NameSegment]]
+    matchingTerms = matchingNamesInStar (globPredicate segment) (Branch._terms branch)
+    matchingTypes = matchingNamesInStar (globPredicate segment) (Branch._types branch)
     matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
     matchingNamesInStar predicate star =
       star & Star3.d1
            & Relation.ran
            & Set.toList
            & filter predicate
-           & pure @[]
+           & fmap (pure @[])
+unglobToNameSegments targets (x:xs) b = recursiveMatches
+  where
+    nextBranches :: [(NameSegment, (Branch0 m))]
+    nextBranches = b ^@.. childBranchesByKey (globPredicate x)
+    recursiveMatches :: ([[NameSegment]])
+    recursiveMatches =
+      (foldMap (\(ns, b) -> (ns:) <$> unglobToNameSegments targets xs b) nextBranches)
+    childBranchesByKey :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
+    childBranchesByKey keyPredicate = Branch.currentChildren . indices keyPredicate
 
 expandGlobs :: forall m. Set TargetType -> Branch0 m -> Path.Absolute -> String -> [String]
 expandGlobs Empty _branch _currentPath s = [s]
