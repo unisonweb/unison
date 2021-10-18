@@ -60,17 +60,17 @@ expandGlobToPaths targets gp branch = (Path.Relative . Path.fromList) <$> expand
 
 -- | Helper for 'expandGlobToPaths'
 expandGlobToNameSegments :: forall m. Set TargetType -> GlobPath -> Branch0 m -> [[NameSegment]]
-expandGlobToNameSegments targets [] _ =
-  if Set.member Namespace targets
-    then [[]] -- Return an empty path, which will be built up by the parents.
-    else []   -- Return zero paths.
+expandGlobToNameSegments _targets [] _branch = []
 expandGlobToNameSegments targets [segment] branch =
          Monoid.whenM (Set.member Term targets) matchingTerms
       <> Monoid.whenM (Set.member Type targets) matchingTypes
+      <> Monoid.whenM (Set.member Namespace targets) matchingNamespaces
   where
-    matchingTerms, matchingTypes :: [[NameSegment]]
-    matchingTerms = matchingNamesInStar (globPredicate segment) (Branch._terms branch)
-    matchingTypes = matchingNamesInStar (globPredicate segment) (Branch._types branch)
+    predicate = globPredicate segment
+    matchingNamespaces, matchingTerms, matchingTypes :: [[NameSegment]]
+    matchingNamespaces = branch ^.. matchingChildBranches predicate . asIndex . to (pure @[])
+    matchingTerms = matchingNamesInStar predicate (Branch._terms branch)
+    matchingTypes = matchingNamesInStar predicate (Branch._types branch)
     matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
     matchingNamesInStar predicate star =
       star & Star3.d1
@@ -81,12 +81,14 @@ expandGlobToNameSegments targets [segment] branch =
 expandGlobToNameSegments targets (x:xs) b = recursiveMatches
   where
     nextBranches :: [(NameSegment, (Branch0 m))]
-    nextBranches = b ^@.. childBranchesByKey (globPredicate x)
+    nextBranches = b ^@.. matchingChildBranches (globPredicate x)
     recursiveMatches :: ([[NameSegment]])
     recursiveMatches =
       (foldMap (\(ns, b) -> (ns:) <$> expandGlobToNameSegments targets xs b) nextBranches)
-    childBranchesByKey :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-    childBranchesByKey keyPredicate = Branch.currentChildren . indices keyPredicate
+
+-- | Find all child branches whose name matches a predicate.
+matchingChildBranches :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
+matchingChildBranches keyPredicate = Branch.currentChildren . indices keyPredicate
 
 -- | Expand a single glob pattern into all matching targets of the specified types.
 expandGlobs :: forall m. Set TargetType
