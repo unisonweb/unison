@@ -211,11 +211,10 @@ parseInput rootBranch currentPath patterns ss = case ss of
   []             -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat@(InputPattern{parse}) -> do
-      parse . traceShowId $ flip ifoldMap args $ \i arg -> do
+      parse $ flip ifoldMap args $ \i arg -> do
             let targets = case InputPattern.argType pat i of
                                  Just argT -> InputPattern.globTargets argT
                                  Nothing -> mempty
-            traceShowM targets
             Globbing.expandGlobs targets rootBranch currentPath arg
     Nothing ->
       Left
