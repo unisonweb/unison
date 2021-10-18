@@ -1562,15 +1562,12 @@ termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchArg :: ArgumentType
-patchArg =
-  ArgumentType
-    { typeName = "patch",
-      suggestions =
-        pathCompletor
-          exactComplete
-          (Set.map Name.toText . Map.keysSet . Branch.deepEdits),
-      globTargets = Set.fromList []
-    }
+patchArg = ArgumentType
+  { typeName = "patch"
+  , suggestions = pathCompletor exactComplete
+                                (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+  , globTargets = Set.fromList []
+  }
 
 
 allCompletors :: Monad m

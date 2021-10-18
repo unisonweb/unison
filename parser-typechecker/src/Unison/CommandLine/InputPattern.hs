@@ -27,13 +27,14 @@ data IsOptional
 data InputPattern = InputPattern
   { patternName :: String
   , aliases     :: [String]
-  , argTypes        :: [(IsOptional, ArgumentType)]
+  , argTypes    :: [(IsOptional, ArgumentType)]
   , help        :: P.Pretty CT.ColorText
   , parse       :: [String] -> Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType
-  { typeName :: String
+  { typeName    :: String
+  -- | Generate completion suggestions for this argument type
   , suggestions :: forall m v a . Monad m
                 => String
                 -> Codebase m v a
