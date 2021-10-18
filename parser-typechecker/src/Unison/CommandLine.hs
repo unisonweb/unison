@@ -30,7 +30,7 @@ import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Server.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
-import           Unison.CommandLine.InputPattern (InputPattern (parse))
+import           Unison.CommandLine.InputPattern (InputPattern (..))
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.HashQualified'           as HQ'
 import           Unison.Names2 (Names0)
@@ -40,6 +40,10 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
+import Control.Lens (ifoldMap)
+import qualified Unison.CommandLine.Globbing as Globbing
+import qualified Unison.CommandLine.InputPattern as InputPattern
+import Unison.Codebase.Branch (Branch0)
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -197,11 +201,19 @@ fixupCompletion q cs@(h:t) = let
      else cs
 
 parseInput
-  :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
-parseInput patterns ss = case ss of
+  :: Branch0 m -- ^ Root branch, used to expand globs
+  -> Map String InputPattern
+  -> [String]
+  -> Either (P.Pretty CT.ColorText) Input
+parseInput rootBranch patterns ss = case ss of
   []             -> Left ""
   command : args -> case Map.lookup command patterns of
-    Just pat -> parse pat args
+    Just pat@(InputPattern{parse}) -> do
+      parse $ flip ifoldMap args $ \i arg -> do
+            let targets = case InputPattern.argType pat i of
+                                 Just argT -> InputPattern.globTargets argT
+                                 Nothing -> mempty
+            Globbing.expandGlobs targets rootBranch arg
     Nothing ->
       Left
         .  warn

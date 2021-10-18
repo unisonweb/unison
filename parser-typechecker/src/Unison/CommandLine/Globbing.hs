@@ -69,19 +69,24 @@ unglobToNameSegments targets (x:xs) b =
            & fmap (typ,)
 
 expandGlobs :: Set TargetType -> Branch0 m -> String -> [String]
+expandGlobs Empty _branch s = [s]
 expandGlobs targets branch s = Either.fromRight [s] $ do
   globPath <- runParser globParser "arguments" s
-  pure . fmap (Path.convert . snd) $ unglob targets globPath branch
+  -- If we didn't parse any globs, pass the original arg as-is
+  pure $ if any Either.isRight globPath
+          then fmap (Path.convert . snd) $ unglob targets globPath branch
+          else [s]
 
 globParser :: Parsec Void String GlobPath
 globParser = do
   _isAbsolute <- Maybe.isJust <$> optional "."
   globArgParser `sepBy`  "."
 
+-- We unintuitively use '?' for glob patterns right now since they're not valid in names.
 globArgParser :: Parsec Void String (Either NameSegment GlobArg)
 globArgParser = do
-  let nsChar = ((char '\\' *> char '*') <|> satisfy (/= '.'))
+  let nsChar = ((char '\\' *> char '?') <|> satisfy (/= '.'))
   let globSegmentP =
-        liftA3 (,,) (many nsChar) (char '*') (many nsChar)
+        liftA3 (,,) (many nsChar) (char '?') (many nsChar)
           <&> \(prefix, _star, suffix) -> GlobArg (Text.pack prefix) (Text.pack suffix)
   (Right <$> try globSegmentP) <|> (Left . NameSegment . Text.pack <$> some anyChar)

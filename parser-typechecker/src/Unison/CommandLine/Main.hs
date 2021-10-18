@@ -103,6 +103,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
                          (Set.fromList [Globbing.Type, Globbing.Term])
                          (Branch.head rootBranch)
                    >>= expandNumber numberedArgs
+          liftIO $ print expandedInput
           case parseInput patterns expandedInput of
             Left msg -> do
               liftIO $ putPrettyLn msg
