@@ -2,7 +2,10 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.CommandLine.Main where
+module Unison.CommandLine.Main 
+  ( main
+  , expandNumber
+  ) where
 
 import Unison.Prelude
 

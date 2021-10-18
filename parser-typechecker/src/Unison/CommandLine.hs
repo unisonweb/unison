@@ -27,12 +27,15 @@ module Unison.CommandLine
   , prettyCompletion
   , prettyCompletion'
   , prettyCompletion''
+  , fixupCompletion
   -- * Other
   , parseInput
   , prompt
   , watchBranchUpdates
   , watchConfig
   , watchFileSystem
+  -- * Exported for testing
+  , beforeHash
   ) where
 
 import Unison.Prelude
