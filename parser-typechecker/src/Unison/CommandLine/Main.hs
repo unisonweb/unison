@@ -46,8 +46,6 @@ import Control.Lens (view)
 import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
-import qualified Unison.CommandLine.Globbing as Globbing
-import qualified Data.Set as Set
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -98,13 +96,8 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
       Just l  -> case words l of
         [] -> go
         ws -> do
-          let expandedInput =
-                ws >>= Globbing.expandGlobs
-                         (Set.fromList [Globbing.Type, Globbing.Term])
-                         (Branch.head rootBranch)
-                   >>= expandNumber numberedArgs
-          liftIO $ print expandedInput
-          case parseInput patterns expandedInput of
+          let expandedInput = ws >>= expandNumber numberedArgs
+          case parseInput (Branch.head rootBranch) currentPath patterns expandedInput of
             Left msg -> do
               liftIO $ putPrettyLn msg
               go

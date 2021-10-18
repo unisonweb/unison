@@ -44,6 +44,7 @@ import Control.Lens (ifoldMap)
 import qualified Unison.CommandLine.Globbing as Globbing
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Codebase.Branch (Branch0)
+import qualified Unison.Codebase.Path as Path
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -202,18 +203,20 @@ fixupCompletion q cs@(h:t) = let
 
 parseInput
   :: Branch0 m -- ^ Root branch, used to expand globs
+  -> Path.Absolute -- ^ Current path from root, used to expand globs
   -> Map String InputPattern
   -> [String]
   -> Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch patterns ss = case ss of
+parseInput rootBranch currentPath patterns ss = case ss of
   []             -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat@(InputPattern{parse}) -> do
-      parse $ flip ifoldMap args $ \i arg -> do
+      parse . traceShowId $ flip ifoldMap args $ \i arg -> do
             let targets = case InputPattern.argType pat i of
                                  Just argT -> InputPattern.globTargets argT
                                  Nothing -> mempty
-            Globbing.expandGlobs targets rootBranch arg
+            traceShowM targets
+            Globbing.expandGlobs targets rootBranch currentPath arg
     Nothing ->
       Left
         .  warn
