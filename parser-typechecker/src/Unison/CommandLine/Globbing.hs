@@ -14,75 +14,77 @@ import Text.Megaparsec
 import Data.Void
 import Text.Megaparsec.Char
 import qualified Data.Maybe as Maybe
-import Data.Bifunctor (second)
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as Relation
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
-import Unison.Prelude (traceShowId, traceShow)
+import Unison.Prelude (traceShowId, trace)
 import Control.Applicative (liftA2)
+import Control.Monad (guard)
+import Control.Error (hush)
 
 data TargetType = Type | Term | Namespace
   deriving (Eq, Ord, Show)
 
 -- Glob paths are always relative.
 type GlobPath = [Either NameSegment GlobArg]
-data GlobArg =
-  GlobArg {namespacePrefix :: Text, namespaceSuffix :: Text}
-  deriving (Show)
+data GlobArg = GlobArg
+    { namespacePrefix :: Text
+    , namespaceSuffix :: Text
+    } deriving (Show)
 
-toPredicate :: Either NameSegment GlobArg -> (NameSegment -> Bool)
-toPredicate globArg (NameSegment.toText -> ns') =
+globPredicate :: Either NameSegment GlobArg -> (NameSegment -> Bool)
+globPredicate globArg (NameSegment.toText -> ns') =
   case globArg of
     Left (NameSegment.toText -> ns) -> ns == ns'
     Right (GlobArg prefix suffix) -> prefix `Text.isPrefixOf` ns' && suffix `Text.isSuffixOf` ns'
 
-unglob :: Set TargetType -> GlobPath -> Branch0 m -> [(TargetType, Path.Relative)]
-unglob targets gp branch = second (Path.Relative . Path.fromList) <$> unglobToNameSegments targets gp branch
+unglob :: Set TargetType -> GlobPath -> Branch0 m -> [Path.Relative]
+unglob targets gp branch = (Path.Relative . Path.fromList) <$> unglobToNameSegments targets gp branch
 
-unglobToNameSegments :: forall m. Set TargetType -> GlobPath -> Branch0 m -> [(TargetType, [NameSegment])]
+unglobToNameSegments :: forall m. Set TargetType -> GlobPath -> Branch0 m -> [[NameSegment]]
 unglobToNameSegments targets [] _ =
   if Set.member Namespace targets
-    then [(Namespace, [])]
-    else []
-unglobToNameSegments targets (x:xs) b = traceShow (x:xs) $ 
+    then [[]] -- Return an empty path, which will be built up by the parents.
+    else []   -- Return zero paths.
+unglobToNameSegments targets (x:xs) b =
      Monoid.whenM (Set.member Term targets) matchingTerms
   <> Monoid.whenM (Set.member Type targets) matchingTypes
   <> recursiveMatches
   where
     nextBranches :: [(NameSegment, (Branch0 m))]
-    nextBranches = b ^@.. childBranchesByKey (toPredicate x)
-    recursiveMatches, matchingTerms, matchingTypes :: ([(TargetType, [NameSegment])])
+    nextBranches = b ^@.. childBranchesByKey (globPredicate x)
+    recursiveMatches, matchingTerms, matchingTypes :: ([[NameSegment]])
     recursiveMatches =
-      (foldMap (\(ns, b) -> second (ns:) <$> unglobToNameSegments targets xs b) nextBranches)
-    matchingTerms = matchingNamesInStar Term (toPredicate x) (Branch._terms b)
-    matchingTypes = matchingNamesInStar Type (toPredicate x) (Branch._types b)
+      (foldMap (\(ns, b) -> (ns:) <$> unglobToNameSegments targets xs b) nextBranches)
+    matchingTerms = traceShowId $ trace "terms" $ matchingNamesInStar (globPredicate x) (Branch._terms b)
+    matchingTypes = traceShowId $ trace "types" $ matchingNamesInStar (globPredicate x) (Branch._types b)
     childBranchesByKey :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
     childBranchesByKey keyPredicate = Branch.currentChildren . indices keyPredicate
-    matchingNamesInStar :: TargetType -> (NameSegment -> Bool) -> Branch.Star a NameSegment -> [(TargetType, [NameSegment])]
-    matchingNamesInStar typ predicate star =
+    matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
+    matchingNamesInStar predicate star =
       star & Star3.d1
            & Relation.ran
            & Set.toList
            & filter predicate
            & pure @[]
-           & fmap (typ,)
 
-expandGlobs :: Set TargetType -> Branch0 m -> Path.Absolute -> String -> [String]
+expandGlobs :: forall m. Set TargetType -> Branch0 m -> Path.Absolute -> String -> [String]
 expandGlobs Empty _branch _currentPath s = [s]
-expandGlobs targets branch currentPath s = Either.fromRight [s] $ do
-  (isAbsolute, globPath) <- traceShowId $ runParser globParser "arguments" s
-  let relocatePath :: Path.Relative -> Path.Absolute
-      relocatePath p | isAbsolute = Path.Absolute . Path.unprefix currentPath . Path.Path' . Right $ p
-                     | otherwise = Path.resolve currentPath p
-  -- If we didn't parse any globs, pass the original arg as-is
-  pure $ if any Either.isRight globPath
-            then let pathsWithType = unglob targets globPath branch
-                     relocatedPaths = Path.convert @Path.Absolute @String . relocatePath . snd <$> pathsWithType
-                in relocatedPaths
-          else [s]
+expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
+  (isAbsolute, globPath) <- hush $ runParser globParser "arguments" s
+  -- If we don't have any actual globs, we can fail to fall back to the original argument.
+  guard (any Either.isRight globPath)
+  let currentBranch :: Branch0 m
+      currentBranch
+        | isAbsolute = rootBranch
+        | otherwise = Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+  let paths = unglob targets globPath currentBranch
+  let relocatedPaths | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
+                     | otherwise = Path.resolve currentPath <$> paths
+  pure (Path.convert <$> relocatedPaths)
 
 globParser :: Parsec Void String (Bool, GlobPath)
 globParser = do
