@@ -2,6 +2,9 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+{-
+   This module defines 'InputPattern' values for every supported input command.
+-}
 module Unison.CommandLine.InputPatterns where
 
 import Unison.Prelude
@@ -1401,7 +1404,7 @@ createAuthor = InputPattern "create.author" []
   (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
     <> "creates" <> backtick "alicecoder" <> "values in"
     <> backtick "metadata.authors" <> "and"
-    <> backtickEOS "metadata.copyrightHolders")
+    <> backtick "metadata.copyrightHolders" <> ".")
   (\case
       symbolStr : authorStr@(_:_) -> first fromString $ do
         symbol <- Path.definitionNameSegment symbolStr

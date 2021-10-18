@@ -3,7 +3,37 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine where
+module Unison.CommandLine
+  ( -- * Pretty Printing
+    allow
+  , backtick
+  , aside
+  , bigproblem
+  , note
+  , nothingTodo
+  , plural
+  , plural'
+  , problem
+  , tip
+  , warn
+  , warnNote
+  -- * Completers
+  , completion
+  , completion'
+  , exactComplete
+  , fuzzyComplete
+  , fuzzyCompleteHashQualified
+  , prefixIncomplete
+  , prettyCompletion
+  , prettyCompletion'
+  , prettyCompletion''
+  -- * Other
+  , parseInput
+  , prompt
+  , watchBranchUpdates
+  , watchConfig
+  , watchFileSystem
+  ) where
 
 import Unison.Prelude
 
@@ -109,9 +139,6 @@ warnNote s = "⚠️  " <> s
 
 backtick :: IsString s => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
-
-backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
-backtickEOS s = P.group ("`" <> s <> "`.")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 tip s = P.column2 [("Tip:", P.wrap s)]
