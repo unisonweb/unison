@@ -45,6 +45,8 @@ module Unison.Names
   , constructorsForType
   , expandWildcardImport
   , isEmpty
+  , hashQualifyTypesRelation
+  , hashQualifyTermsRelation
   )
 where
 
@@ -55,8 +57,8 @@ import qualified Data.Set                     as Set
 import qualified Data.Text                    as Text
 import           Prelude                      hiding (filter, map)
 import qualified Prelude
-import           Unison.HashQualified'        (HashQualified)
-import qualified Unison.HashQualified'        as HQ
+import qualified Unison.HashQualified         as HQ
+import qualified Unison.HashQualified'        as HQ'
 import           Unison.Name                  (Name)
 import qualified Unison.Name                  as Name
 import           Unison.Reference             (Reference)
@@ -223,14 +225,9 @@ unionLeft' p a b = Names terms' types'
   go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
   go acc (n, r) = if p n r acc then acc else R.insert n r acc
 
--- could move this to a read-only field in Names
--- todo: kill this function and pass thru an Int from the codebase, I suppose
-numHashChars :: Names -> Int
-numHashChars b = lenFor hashes
-  where lenFor _hashes = 3
-        hashes = foldl' f (foldl' g mempty (R.ran $ types b)) (R.ran $ terms b)
-        g s r = Set.insert r s
-        f s r = Set.insert (Referent.toReference r) s
+-- | TODO: get this from database. For now it's a constant.
+numHashChars :: Int
+numHashChars = 3
 
 termsNamed :: Names -> Name -> Set Referent
 termsNamed = flip R.lookupDom . terms
@@ -273,58 +270,58 @@ addTerm n r = (<> fromTerms [(n, r)])
 --
 -- We want to append the hash regardless of whether or not one is a term and the
 -- other is a type.
-hqName :: Names -> Name -> Either Reference Referent -> HQ.HashQualified Name
+hqName :: Names -> Name -> Either Reference Referent -> HQ'.HashQualified Name
 hqName b n = \case
-  Left r  -> if ambiguous then _hqTypeName' b n r else HQ.fromName n
-  Right r -> if ambiguous then _hqTermName' b n r else HQ.fromName n
+  Left r  -> if ambiguous then _hqTypeName' b n r else HQ'.fromName n
+  Right r -> if ambiguous then _hqTermName' b n r else HQ'.fromName n
   where
     ambiguous = Set.size (termsNamed b n) + Set.size (typesNamed b n) > 1
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names is unconflicted.
-hqTermName :: Int -> Names -> Name -> Referent -> HQ.HashQualified Name
+hqTermName :: Int -> Names -> Name -> Referent -> HQ'.HashQualified Name
 hqTermName hqLen b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' hqLen n r
-  else HQ.fromName n
+  else HQ'.fromName n
 
-hqTypeName :: Int -> Names -> Name -> Reference -> HQ.HashQualified Name
+hqTypeName :: Int -> Names -> Name -> Reference -> HQ'.HashQualified Name
 hqTypeName hqLen b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName' hqLen n r
-  else HQ.fromName n
+  else HQ'.fromName n
 
-_hqTermName :: Names -> Name -> Referent -> HQ.HashQualified Name
+_hqTermName :: Names -> Name -> Referent -> HQ'.HashQualified Name
 _hqTermName b n r = if Set.size (termsNamed b n) > 1
   then _hqTermName' b n r
-  else HQ.fromName n
+  else HQ'.fromName n
 
-_hqTypeName :: Names -> Name -> Reference -> HQ.HashQualified Name
+_hqTypeName :: Names -> Name -> Reference -> HQ'.HashQualified Name
 _hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then _hqTypeName' b n r
-  else HQ.fromName n
+  else HQ'.fromName n
 
-_hqTypeAliases :: Names -> Name -> Reference -> Set (HQ.HashQualified Name)
+_hqTypeAliases :: Names -> Name -> Reference -> Set (HQ'.HashQualified Name)
 _hqTypeAliases b n r = Set.map (flip (_hqTypeName b) r) (typeAliases b n r)
 
-_hqTermAliases :: Names -> Name -> Referent -> Set (HQ.HashQualified Name)
+_hqTermAliases :: Names -> Name -> Referent -> Set (HQ'.HashQualified Name)
 _hqTermAliases b n r = Set.map (flip (_hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the
 -- References in this Names.
-hqTermName' :: Int -> Name -> Referent -> HQ.HashQualified Name
+hqTermName' :: Int -> Name -> Referent -> HQ'.HashQualified Name
 hqTermName' hqLen n r =
-  HQ.take hqLen $ HQ.fromNamedReferent n r
+  HQ'.take hqLen $ HQ'.fromNamedReferent n r
 
-hqTypeName' :: Int -> Name -> Reference -> HQ.HashQualified Name
+hqTypeName' :: Int -> Name -> Reference -> HQ'.HashQualified Name
 hqTypeName' hqLen n r =
-  HQ.take hqLen $ HQ.fromNamedReference n r
+  HQ'.take hqLen $ HQ'.fromNamedReference n r
 
-_hqTermName' :: Names -> Name -> Referent -> HQ.HashQualified Name
-_hqTermName' b n r =
-  HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
+_hqTermName' :: Names -> Name -> Referent -> HQ'.HashQualified Name
+_hqTermName' _b n r =
+  HQ'.take numHashChars $ HQ'.fromNamedReferent n r
 
-_hqTypeName' :: Names -> Name -> Reference -> HQ.HashQualified Name
-_hqTypeName' b n r =
-  HQ.take (numHashChars b) $ HQ.fromNamedReference n r
+_hqTypeName' :: Names -> Name -> Reference -> HQ'.HashQualified Name
+_hqTypeName' _b n r =
+  HQ'.take numHashChars $ HQ'.fromNamedReference n r
 
 fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = Names (R.fromList ts) mempty
@@ -341,12 +338,12 @@ filter :: (Name -> Bool) -> Names -> Names
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- currently used for filtering before a conditional `add`
-filterByHQs :: Set (HashQualified Name) -> Names -> Names
+filterByHQs :: Set (HQ'.HashQualified Name) -> Names -> Names
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
   types' = R.filter g types
-  f (n, r) = any (HQ.matchesNamedReferent n r) hqs
-  g (n, r) = any (HQ.matchesNamedReference n r) hqs
+  f (n, r) = any (HQ'.matchesNamedReferent n r) hqs
+  g (n, r) = any (HQ'.matchesNamedReference n r) hqs
 
 filterBySHs :: Set ShortHash -> Names -> Names
 filterBySHs shs Names{..} = Names terms' types' where
@@ -431,3 +428,18 @@ constructorsForType r ns = let
     s | Set.null s -> []
       | otherwise  -> [ (n,h) | n <- toList s ] ++ trim t
   in trim possibleEffects ++ trim possibleDatas
+
+hashQualifyTermsRelation :: R.Relation Name Referent -> R.Relation (HQ.HashQualified Name) Referent
+hashQualifyTermsRelation = hashQualifyRelation HQ.fromNamedReferent
+
+hashQualifyTypesRelation :: R.Relation Name Reference -> R.Relation (HQ.HashQualified Name) Reference
+hashQualifyTypesRelation = hashQualifyRelation HQ.fromNamedReference
+
+hashQualifyRelation :: Ord r => (Name -> r -> HQ.HashQualified Name) -> R.Relation Name r -> R.Relation (HQ.HashQualified Name) r
+hashQualifyRelation fromNamedRef rel = R.map go rel
+  where
+    go (n, r) =
+      if Set.size (R.lookupDom n rel) > 1
+      then (HQ.take numHashChars $ fromNamedRef n r, r)
+      else (HQ.NameOnly n, r)
+
