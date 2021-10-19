@@ -93,7 +93,9 @@ pullBranch repo@(ReadGitRepo uri) = do
       -- Otherwise proceed!
       (catchIO
         (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
-          gitIn localPath ["reset", "--hard", "--quiet", "HEAD"]
+          -- Fetch only the latest 
+          gitIn localPath (["fetch", "origin", "HEAD"] ++ ["--depth", "1"])
+          gitIn localPath ["reset", "--hard", "--quiet", "origin/HEAD"]
           gitIn localPath ["clean", "-d", "--force", "--quiet"]
           gitIn localPath ["pull", "--force", "--quiet"])
         (const $ goFromScratch))
