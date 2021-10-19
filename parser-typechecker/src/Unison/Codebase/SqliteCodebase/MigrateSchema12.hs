@@ -17,6 +17,7 @@ import qualified U.Codebase.WatchKind as WK
 import Unison.Prelude (ByteString, Map, MonadIO)
 import Unison.Reference (Pos)
 import Unison.Referent (ConstructorId)
+import Data.Set (Set)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -35,11 +36,26 @@ import Unison.Referent (ConstructorId)
 -- newtype ConstructorMapping = ConstructorMapping (Map ObjectId (Vector (Vector (Pos, ConstructorId))))
 -- newtype TermLookup = TermLookup (Map ObjectId (Vector Pos))
 
+type TypeIdentifier = (ObjectId, Pos)
+type Old a = a
+type New a = a
 data MigrationState = MigrationState
-  { declLookup :: Map ObjectId (Map Pos Pos),
-    ctorLookup :: Map (ObjectId, Pos) (Map ConstructorId ConstructorId),
-    termLookup :: Map ObjectId (Map Pos Pos)
+  -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
+  { declLookup :: Map (Old ObjectId) (Map (Old Pos) (New Pos)),
+    -- Mapping between contructor indexes for the type identified by (ObjectId, Pos)
+    ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
+    -- This provides the info needed for rewriting a term.  You'll access it with a function :: Old
+    termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
+    objLookup :: Map (Old ObjectId) (New ObjectId),
+
+
+    --
+    componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
+    constructorIDMapping :: Map ObjectId (Map (Old ConstructorId) (New ConstructorId)),
+    completed :: Set ObjectId
   }
+
+  -- declLookup :: Map ObjectId (Map Pos (Pos, Map ConstructorId ConstructorId)),
 
 {-
 * Load entire codebase as a list
@@ -87,11 +103,11 @@ migrationSync = Sync \case
   --   * Otherwise, read the object from the database and switch on its object type.
   --   * See next steps below v
   --
-  -- To sync a term component object,
+  -- To sync a decl component object,
   --   * If we have not already synced all dependencies, push syncing them onto the front of the work queue.
   --   * Otherwise, ???
   --
-  -- To sync a decl component object,
+  -- To sync a term component object,
   --   * If we have not already synced all dependencies, push syncing them onto the front of the work queue.
   --   * Otherwise, ???
   --
@@ -104,16 +120,17 @@ migrationSync = Sync \case
   --         reference ids used in keys is definitely not preserved by this migration), or by permuting the local id vectors,
   --         but we may be at a level too low or high for us to care?
   --     * Its 'LocalBranch' must have all references changed in-place per the (old (object id, pos) => new (object id, pos)) mapping.
-  --       position of any term/decl within its component has changed. Therefore, we need to adjust each referent's component position
-  --     * We need to recompute the References contained in the Branch body since the pos within the reference may have changed.
-  --       We can look up the position changes in our Migration State, they must have been added when computing the objects pointed to by the reference.
-  --     * The normalized object IDs within the body _likely_ don't need to change.
+  --     * The local IDs within the body _likely_ don't need to change. (why likely?)
   --     * Its 'BranchLocalIds' must be translated from the old codebase object IDs to the new object IDs,
   --       we can use our MigrationState to look these up, since they must have already been migrated.
   --   * To sync a 'BranchDiff',
-  --     * ???
+  --     * These don't exist in schema v1; we can error if we encounter one.
   --
-  -- To sync a patch object, ???
+  -- To sync a patch object
+  --   * Rewrite all old hashes in the patch to the new hashes.
+  --
+  -- To sync a watch expression
+  --   * ???
   --
   -- To sync a Causal
   --- * If we haven't yet synced its parents, push them onto the work queue
