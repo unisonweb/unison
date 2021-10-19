@@ -15,7 +15,8 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
-import Data.Foldable (toList, traverse_)
+import Data.Foldable (toList, traverse_, fold)
+import Data.Ord (comparing)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -30,6 +31,7 @@ import Control.Lens ((<&>))
 import Control.Concurrent (forkIO, ThreadId)
 
 import qualified Data.Primitive.PrimArray as PA
+import Data.Primitive.ByteArray (byteArrayFromList, indexByteArray)
 
 import Text.Read (readMaybe)
 
@@ -39,8 +41,15 @@ import Unison.Referent (pattern Ref)
 import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 
-import Unison.Runtime.ANF
-  as ANF (Mem(..), CompileExn(..), SuperGroup, valueLinks, groupLinks)
+import Unison.Runtime.ANF as ANF
+  ( Mem(..)
+  , CompileExn(..)
+  , SuperGroup
+  , valueLinks
+  , groupLinks
+  , maskTags
+  , packTags
+  )
 import qualified Unison.Runtime.ANF as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
@@ -637,44 +646,44 @@ dumpData
   -> IO (Stack 'UN, Stack 'BX)
 dumpData !_ !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataU1 _ t x) = do
   ustk <- bumpn ustk 2
   pokeOff ustk 1 x
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataU2 _ t x y) = do
   ustk <- bumpn ustk 3
   pokeOff ustk 2 y
   pokeOff ustk 1 x
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataB1 _ t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
   poke bstk x
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataB2 _ t x y) = do
   ustk <- bump ustk
   bstk <- bumpn bstk 2
   pokeOff bstk 1 y
   poke bstk x
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataUB _ t x y) = do
   ustk <- bumpn ustk 2
   bstk <- bump bstk
   pokeOff ustk 1 x
   poke bstk y
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !_ !ustk !bstk (DataG _ t us bs) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
-  pokeN ustk t
+  pokeN ustk $ maskTags t
   pure (ustk, bstk)
 dumpData !mr !_    !_  clo
   = die $ "dumpData: bad closure: " ++ show clo
@@ -1169,7 +1178,7 @@ bprim1 !ustk !bstk PAKT i = do
   pokeBi bstk . Tx.pack . toList $ clo2char <$> s
   pure (ustk, bstk)
   where
-  clo2char (DataU1 _ 0 i) = toEnum i
+  clo2char (DataU1 _ t i) | t == charTag = toEnum i
   clo2char c = error $ "pack text: non-character closure: " ++ show c
 bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
@@ -1183,7 +1192,7 @@ bprim1 !ustk !bstk PAKB i = do
   pokeBi bstk . By.fromWord8s . fmap clo2w8 $ toList s
   pure (ustk, bstk)
   where
-  clo2w8 (DataU1 _ 0 n) = toEnum n
+  clo2w8 (DataU1 _ t n) | t == natTag = toEnum n
   clo2w8 c = error $ "pack bytes: non-natural closure: " ++ show c
 bprim1 !ustk !bstk UPKB i = do
   b <- peekOffBi bstk i
@@ -1578,7 +1587,7 @@ reflectValue rty = goV
   goV (PApV cix ua ba)
     = ANF.Partial (goIx cix) (fromIntegral <$> ua) <$> traverse goV ba
   goV (DataC r t us bs)
-    = ANF.Data r t (fromIntegral <$> us) <$> traverse goV bs
+    = ANF.Data r (maskTags t) (fromIntegral <$> us) <$> traverse goV bs
   goV (CapV k us bs)
     = ANF.Cont (fromIntegral <$> us) <$> traverse goV bs <*> goK k
   goV (Foreign f) = ANF.BLit <$> goF f
@@ -1641,8 +1650,9 @@ reifyValue0 (rty, rtm) = goV
   goV (ANF.Partial gr ua ba)
     = pap <$> (goIx gr) <*> traverse goV ba
     where pap i = PApV i (fromIntegral <$> ua)
-  goV (ANF.Data r t us bs)
-    = DataC r t (fromIntegral <$> us) <$> traverse goV bs
+  goV (ANF.Data r t0 us bs) = do
+    t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
+    DataC r t (fromIntegral <$> us) <$> traverse goV bs
   goV (ANF.Cont us bs k) = cv <$> goK k <*> traverse goV bs
     where
     cv k bs = CapV k (fromIntegral <$> us) bs
@@ -1666,3 +1676,109 @@ reifyValue0 (rty, rtm) = goV
   goL (ANF.TmLink r) = pure . Foreign $ Wrap Rf.termLinkRef r
   goL (ANF.TyLink r) = pure . Foreign $ Wrap Rf.typeLinkRef r
   goL (ANF.Bytes b) = pure . Foreign $ Wrap Rf.bytesRef b
+
+-- Universal comparison functions
+
+closureNum :: Closure -> Int
+closureNum PAp{} = 0
+closureNum DataC{} = 1
+closureNum Captured{} = 2
+closureNum Foreign{} = 3
+closureNum BlackHole{} = error "BlackHole"
+
+universalEq
+  :: (Foreign -> Foreign -> Bool)
+  -> Closure
+  -> Closure
+  -> Bool
+universalEq frn = eqc
+  where
+  eql cm l r = length l == length r && and (zipWith cm l r)
+  eqc (DataC _ ct1 us1 bs1) (DataC _ ct2 us2 bs2)
+    = ct1 == ct2
+   && eql (==) us1 us2
+   && eql eqc bs1 bs2
+  eqc (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+    = i1 == i2
+   && eql (==) us1 us2
+   && eql eqc bs1 bs2
+  eqc (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+    = k1 == k2
+   && eql (==) us1 us2
+   && eql eqc bs1 bs2
+  eqc (Foreign fl) (Foreign fr)
+    | Just sl <- maybeUnwrapForeign Rf.listRef fl
+    , Just sr <- maybeUnwrapForeign Rf.listRef fr
+    = length sl == length sr && and (Sq.zipWith eqc sl sr)
+    | otherwise = frn fl fr
+  eqc c d = closureNum c == closureNum d
+
+compareAsFloat :: Int -> Int -> Ordering
+compareAsFloat i j = compare fi fj
+  where
+  ba = byteArrayFromList [i,j]
+  fi, fj :: Double
+  fi = indexByteArray ba 0
+  fj = indexByteArray ba 1
+
+compareAsNat :: Int -> Int -> Ordering
+compareAsNat i j = compare ni nj
+  where
+  ni, nj :: Word
+  ni = fromIntegral i
+  nj = fromIntegral j
+
+floatTag :: Word64
+floatTag
+  | Just n <- M.lookup Rf.floatRef builtinTypeNumbering
+  , rt <- toEnum (fromIntegral n)
+  = packTags rt 0
+  | otherwise = error "internal error: floatTag"
+
+natTag :: Word64
+natTag
+  | Just n <- M.lookup Rf.natRef builtinTypeNumbering
+  , rt <- toEnum (fromIntegral n)
+  = packTags rt 0
+  | otherwise = error "internal error: natTag"
+
+charTag :: Word64
+charTag
+  | Just n <- M.lookup Rf.charRef builtinTypeNumbering
+  , rt <- toEnum (fromIntegral n)
+  = packTags rt 0
+  | otherwise = error "internal error: charTag"
+
+universalCompare
+  :: (Foreign -> Foreign -> Ordering)
+  -> Closure
+  -> Closure
+  -> Ordering
+universalCompare frn = cmpc False
+  where
+  cmpl cm l r
+    = compare (length l) (length r) <> fold (zipWith cm l r)
+  cmpc _ (DataC _ ct1 [i] []) (DataC _ ct2 [j] [])
+    | ct1 == floatTag && ct2 == floatTag = compareAsFloat i j
+    | ct1 == natTag && ct2 == natTag = compareAsNat i j
+  cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
+    = (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
+   <> compare (maskTags ct1) (maskTags ct2)
+   <> cmpl compare us1 us2
+   -- when comparing corresponding `Any` values, which have
+   -- existentials inside check that type references match
+   <> cmpl (cmpc $ tyEq || rf1 == Rf.anyRef) bs1 bs2
+  cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
+    = compare i1 i2
+   <> cmpl compare us1 us2
+   <> cmpl (cmpc tyEq) bs1 bs2
+  cmpc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
+    = compare k1 k2
+   <> cmpl compare us1 us2
+   <> cmpl (cmpc True) bs1 bs2
+  cmpc tyEq (Foreign fl) (Foreign fr)
+    | Just sl <- maybeUnwrapForeign Rf.listRef fl
+    , Just sr <- maybeUnwrapForeign Rf.listRef fr
+    = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
+    | otherwise = frn fl fr
+  cmpc _ c d = comparing closureNum c d

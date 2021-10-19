@@ -64,6 +64,7 @@ import Unison.Runtime.ANF
   , SuperGroup(..)
   , CTag
   , Tag(..)
+  , packTags
   , pattern TVar
   , pattern TLit
   , pattern TApp
@@ -813,9 +814,11 @@ emitFunction rns _   _   _   (FComb r) as
   | otherwise -- slow path
   = App False (Env n 0) as
   where n = cnum rns r
-emitFunction _   _   _   _   (FCon r t) as
-  = Ins (Pack r (rawTag t) as)
+emitFunction rns _   _   _   (FCon r t) as
+  = Ins (Pack r (packTags rt t) as)
   . Yield $ BArg1 0
+  where
+  rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _   _   _   (FReq r e) as
   -- Currently implementing packed calling convention for abilities
   = Ins (Lit (MI . fromIntegral $ rawTag e))
@@ -913,8 +916,10 @@ emitLet _   _   _   _ _   _   (TLit l)
 --   = fmap (Ins . Name (Env n 0) $ emitArgs grp ctx args)
 --   where
 --   n = cnum rns r
-emitLet _   grp _   _ _   ctx (TApp (FCon r n) args)
-  = fmap (Ins . Pack r (rawTag n) $ emitArgs grp ctx args)
+emitLet rns grp _   _ _   ctx (TApp (FCon r n) args)
+  = fmap (Ins . Pack r (packTags rt n) $ emitArgs grp ctx args)
+  where
+  rt = toEnum . fromIntegral $ dnum rns r
 emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grp rec d vcs ctx bnd
