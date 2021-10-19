@@ -429,7 +429,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
-          CreateMessage{} -> wat 
+          CreateMessage{} -> wat
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
@@ -662,10 +662,10 @@ loop = do
                     doDisplay outputLoc ns tm
 
       in case input of
-      
-      CreateMessage pretty -> 
+
+      CreateMessage pretty ->
         respond $ PrintMessage pretty
-      
+
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=
@@ -1377,22 +1377,23 @@ loop = do
               LoadError -> respond $ SourceLoadFailed path
               LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
 
-      AddI hqs -> case uf of
-        Nothing -> respond NoUnisonFile
-        Just uf -> do
-          sr <- Slurp.disallowUpdates
-              . applySelection hqs uf
-              . toSlurpResult currentPath' uf
-             <$> slurpResultNames0
-          let adds = Slurp.adds sr
-          when (Slurp.isNonempty sr) $ do
-            stepAtNoSync ( Path.unabsolute currentPath'
-                   , doSlurpAdds adds uf)
-            eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<< displayNames uf
-          respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-          addDefaultMetadata adds
-          syncRoot
+      AddI hqs ->
+        case uf of
+          Nothing -> respond NoUnisonFile
+          Just uf -> do
+            sr <-
+              Slurp.disallowUpdates
+                . applySelection hqs uf
+                . toSlurpResult currentPath' uf
+                <$> slurpResultNames0
+            let adds = Slurp.adds sr
+            when (Slurp.isNonempty sr) do
+              stepAtNoSync (Path.unabsolute currentPath', doSlurpAdds adds uf)
+              eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+            ppe <- prettyPrintEnvDecl =<< displayNames uf
+            respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            addDefaultMetadata adds
+            syncRoot
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
