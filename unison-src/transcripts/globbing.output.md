@@ -23,22 +23,6 @@ othernest.toList = 5
 othernest.toMap = 6
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      convertFromThing : ##Nat
-      convertToThing   : ##Nat
-      nested.toList    : ##Nat
-      nested.toMap     : ##Nat
-      othernest.toList : ##Nat
-      othernest.toMap  : ##Nat
-
-```
 Globbing as a prefix, infix, or suffix wildcard.
 
 ```ucm
@@ -112,5 +96,25 @@ This should expand to the empty argument and silently succeed.
 
 ```ucm
 .> view other?
+
+```
+Globbing should work from within a namespace with both absolute and relative patterns.
+
+```ucm
+.nested> view .othernest.to?
+
+  .othernest.toList : ##Nat
+  .othernest.toList = 5
+  
+  .othernest.toMap : ##Nat
+  .othernest.toMap = 6
+
+.nested> view to?
+
+  toList : ##Nat
+  toList = 3
+  
+  toMap : ##Nat
+  toMap = 4
 
 ```

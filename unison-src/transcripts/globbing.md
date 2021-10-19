@@ -12,7 +12,7 @@ This allows quickly selecting terms, types, and namespaces for any "bulk" comman
 ## Demo
 
 Add some definitions which we can match over:
-```unison
+```unison:hide
 convertToThing = 1
 convertFromThing = 2
 
@@ -56,4 +56,11 @@ This should expand to the empty argument and silently succeed.
 
 ```ucm
 .> view other?
+```
+
+Globbing should work from within a namespace with both absolute and relative patterns.
+
+```ucm
+.nested> view .othernest.to?
+.nested> view to?
 ```
