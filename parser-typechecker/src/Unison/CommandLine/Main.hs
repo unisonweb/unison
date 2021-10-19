@@ -79,7 +79,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
       Just l  -> case words l of
         [] -> go
         ws ->
-          case parseInput (Branch.head rootBranch) currentPath patterns numberedArgs $ ws of
+          case parseInput (Branch.head rootBranch) currentPath numberedArgs patterns $ ws of
             Left msg -> do
               liftIO $ putPrettyLn msg
               go

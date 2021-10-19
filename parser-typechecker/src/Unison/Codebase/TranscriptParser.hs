@@ -189,7 +189,10 @@ run dir configFile stanzas codebase = do
               args -> do
                 output ("\n" <> show p <> "\n")
                 numberedArgs <- readIORef numberedArgsRef
-                case parseInput patternMap numberedArgs args of
+                currentRoot <- Codebase.getRootBranch codebase >>= \case
+                  Left _ -> dieWithMsg $ "Failed to get root branch of codebase."
+                  Right b -> pure (Branch.head b)
+                case parseInput currentRoot curPath numberedArgs patternMap args of
                   -- invalid command is treated as a failure
                   Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
                   Right input -> pure $ Right input

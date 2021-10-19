@@ -239,25 +239,26 @@ parseInput
   -> Map String InputPattern -- ^ Input Pattern Map
   -> [String] -- ^ Arguments
   -> Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath patterns ss = do
+parseInput rootBranch currentPath numberedArgs patterns args = do
   let expandedArgs :: [String]
       expandedArgs = foldMap (expandNumber numberedArgs) args
   case expandedArgs of
-    []             -> Left ""
+    [] -> Left ""
     command : args -> case Map.lookup command patterns of
-      Just pat@(InputPattern{parse}) -> do
-        parse $ flip ifoldMap args $ \i arg -> do
-              let targets = case InputPattern.argType pat i of
-                                   Just argT -> InputPattern.globTargets argT
-                                   Nothing -> mempty
-              Globbing.expandGlobs targets rootBranch currentPath arg
+      Just pat@(InputPattern {parse}) -> do
+        parse $
+          flip ifoldMap args $ \i arg -> do
+            let targets = case InputPattern.argType pat i of
+                  Just argT -> InputPattern.globTargets argT
+                  Nothing -> mempty
+            Globbing.expandGlobs targets rootBranch currentPath arg
       Nothing ->
         Left
-          .  warn
-          .  P.wrap
-          $  "I don't know how to "
-          <> P.group (fromString command <> ".")
-          <> "Type `help` or `?` to get help."
+          . warn
+          . P.wrap
+          $ "I don't know how to "
+            <> P.group (fromString command <> ".")
+            <> "Type `help` or `?` to get help."
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
