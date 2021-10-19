@@ -23,8 +23,10 @@ testMvars _ =
     test2 = "test2"
     ma = MVar.new test
     check "ma should not be empty" (not (isEmpty ma))
-    test' = take ma
-    expectU "should reap what you sow" test test'
+    test0 = read ma
+    test1 = take ma
+    expectU "should read what you sow" test test0
+    expectU "should reap what you sow" test test1
     check "ma should be empty" (isEmpty ma)
     put ma test
     test'' = swap ma test2
@@ -72,6 +74,7 @@ testMvars _ =
     New test results:
   
   ◉ testMvars   ma should not be empty
+  ◉ testMvars   should read what you sow
   ◉ testMvars   should reap what you sow
   ◉ testMvars   ma should be empty
   ◉ testMvars   swap returns old contents
@@ -83,7 +86,7 @@ testMvars _ =
   ◉ testMvars   tryTake should fail when empty
   ◉ testMvars   tryRead should fail when empty
   
-  ✅ 11 test(s) passing
+  ✅ 12 test(s) passing
   
   Tip: Use view testMvars to view the source of a test.
 

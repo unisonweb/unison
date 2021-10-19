@@ -23,8 +23,10 @@ testMvars _ =
     test2 = "test2"
     ma = MVar.new test
     check "ma should not be empty" (not (isEmpty ma))
-    test' = take ma
-    expectU "should reap what you sow" test test'
+    test0 = read ma
+    test1 = take ma
+    expectU "should read what you sow" test test0
+    expectU "should reap what you sow" test test1
     check "ma should be empty" (isEmpty ma)
     put ma test
     test'' = swap ma test2

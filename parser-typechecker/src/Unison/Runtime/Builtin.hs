@@ -1701,7 +1701,7 @@ declareForeigns = do
   declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.impl.v3" boxBoxToEFBox
+  declareForeign "MVar.read.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
   declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
