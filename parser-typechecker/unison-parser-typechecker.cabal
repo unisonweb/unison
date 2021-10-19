@@ -73,6 +73,7 @@ library
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
+      Unison.Codebase.SqliteCodebase.MigrateSchema12
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit

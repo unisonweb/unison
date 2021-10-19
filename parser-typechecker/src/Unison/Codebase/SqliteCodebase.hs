@@ -276,8 +276,8 @@ sqliteCodebase debugName root = do
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
-  runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 1 -> do
+  let
+    startCodebase = do
       rootBranchCache <- newTVarIO Nothing
       -- The v1 codebase interface has operations to read and write individual definitions
       -- whereas the v2 codebase writes them as complete components.  These two fields buffer
@@ -799,6 +799,9 @@ sqliteCodebase debugName root = do
             (Just \l r -> runDB conn $ fromJust <$> before l r)
           in code
         )
+  runReaderT Q.schemaVersion conn >>= \case
+    SchemaVersion 2 -> startCodebase
+    SchemaVersion 1 -> _migrate12 conn >> startCodebase
     v -> shutdownConnection conn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
@@ -833,14 +836,16 @@ syncInternal ::
   Branch m ->
   m ()
 syncInternal progress srcConn destConn b = time "syncInternal" do
+  -- We start a savepoint on the src connection because it seemed to speed things up.
+  -- Mitchell says: that doesn't sound right... why would that be the case?
+  -- TODO: look into this; this connection should be used only for reads.
   runDB srcConn $ Q.savepoint "sync"
   runDB destConn $ Q.savepoint "sync"
   result <- runExceptT do
     let syncEnv = Sync22.Env srcConn destConn (16 * 1024 * 1024)
     -- we want to use sync22 wherever possible
-    -- so for each branch, we'll check if it exists in the destination branch
-    -- or if it exists in the source branch, then we can sync22 it
-    -- oh god but we have to figure out the dbid
+    -- so for each source branch, we'll check if it exists in the destination codebase
+    -- or if it exists in the source codebase, then we can sync22 it
     -- if it doesn't exist in the dest or source branch,
     -- then just use putBranch to the dest
     let se :: forall m a. Functor m => (ExceptT Sync22.Error m a -> ExceptT SyncEphemeral.Error m a)
