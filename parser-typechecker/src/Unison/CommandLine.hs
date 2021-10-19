@@ -237,17 +237,17 @@ parseInput
   -> Path.Absolute -- ^ Current path from root, used to expand globs
   -> [String] -- ^ Numbered arguments
   -> Map String InputPattern -- ^ Input Pattern Map
-  -> [String] -- ^ Arguments
+  -> [String] -- ^ command:arguments
   -> Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath numberedArgs patterns args = do
-  let expandedArgs :: [String]
-      expandedArgs = foldMap (expandNumber numberedArgs) args
-  case expandedArgs of
+parseInput rootBranch currentPath numberedArgs patterns segments = do
+  case segments of
     [] -> Left ""
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
+        let expandedArgs :: [String]
+            expandedArgs = foldMap (expandNumber numberedArgs) args
         parse $
-          flip ifoldMap args $ \i arg -> do
+          flip ifoldMap expandedArgs $ \i arg -> do
             let targets = case InputPattern.argType pat i of
                   Just argT -> InputPattern.globTargets argT
                   Nothing -> mempty
