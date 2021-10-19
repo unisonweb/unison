@@ -9,16 +9,14 @@
 module Main where
 
 import Control.Concurrent (newEmptyMVar, takeMVar)
+import Control.Exception (evaluate)
 import Control.Error.Safe (rightMay)
 import Data.Configurator.Types (Config)
-import Data.Compact (getCompact)
-import Data.Compact.Serialize (hUnsafeGetCompact)
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName)
-import System.IO (IOMode(ReadMode), withFile)
-import System.Info (os, arch)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
@@ -43,6 +41,7 @@ import Unison.Prelude
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Runtime.Interface as RTI
+import Unison.Runtime.Exception (RuntimeExn(..))
 import qualified Unison.Server.CodebaseServer as Server
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
@@ -127,22 +126,35 @@ main = do
             ShouldNotDownloadBase
             initRes
           closeCodebase
-     Run (RunCompiled file) -> withFile file ReadMode $ \h ->
-       RTI.readCompiledHeader h >>= \case
-         Left _ -> putStrLn "Could not read compiled file header."
-         Right (v,o,a,rf)
+     Run (RunCompiled file) ->
+       BL.readFile file >>= \bs ->
+       try (evaluate $ RTI.decodeStandalone bs) >>= \case
+         Left (PE _cs err) -> do
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , P.indentN 2 $ err
+             ]
+         Right (Left err) ->
+           PT.putPrettyLn . P.lines $
+             [ P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated the following error:"
+             , ""
+             , P.indentN 2 . P.wrap $ P.string err
+             ]
+         Left _ -> do
+           PT.putPrettyLn . P.wrap . P.text $
+               "I was unable to parse this file as a compiled\
+               \ program. The parser generated an unrecognized error."
+         Right (Right (v, rf, w, sto))
            | not vmatch -> mismatchMsg
-           | otherwise -> hUnsafeGetCompact h >>= \case
-             Left err ->
-               PT.putPrettyLn . P.callout "⚠️"
-                $ "I could not load the specified binary output.\n"
-               <> fromString err
-             Right (getCompact -> (w, sto)) -> RTI.runStandalone sto w
+           | otherwise -> RTI.runStandalone sto w
            where
-           vmatch = v == Version.gitDescribeWithDate
-                 && o == os
-                 && a == arch
-           ws s = P.wrap (P.string s)
+           vmatch = v == Text.pack Version.gitDescribeWithDate
+           ws s = P.wrap (P.text s)
            ifile | 'c':'u':'.':rest <- reverse file = reverse rest
                  | otherwise = file
            mismatchMsg = PT.putPrettyLn . P.lines $
@@ -151,22 +163,19 @@ main = do
                \than the one you're running."
              , ""
              , "Compiled file version"
-             , P.indentN 4
-               $ P.string v <> " for " <> P.string o <> " " <> P.string a
+             , P.indentN 4 $ P.text v
              , ""
              , "Your version"
-             , P.indentN 4
-               $ P.string Version.gitDescribeWithDate <> " for "
-               <> P.string os <> " " <> P.string arch
+             , P.indentN 4 $ P.string Version.gitDescribeWithDate
              , ""
              , P.wrap $ "The program was compiled from hash "
-                 <> (P.string $ "`" ++ rf ++ "`.")
+                 <> (P.text $ "`" <> rf <> "`.")
                  <> "If you have that hash in your codebase,"
                  <> "you can do:"
              , ""
              , P.indentN 4
                $ ".> compile.output "
-                 <> P.string rf <> " " <> P.string ifile
+                 <> P.text rf <> " " <> P.string ifile
              , ""
              , P.wrap "to produce a new compiled program \
                \that matches your version of Unison."
