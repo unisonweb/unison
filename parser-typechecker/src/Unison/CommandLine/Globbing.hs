@@ -15,9 +15,6 @@ import Control.Lens as Lens hiding (noneOf)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.NameSegment as NameSegment
 import qualified Data.Text as Text
-import Text.Megaparsec
-import Data.Void
-import Text.Megaparsec.Char
 import qualified Data.Maybe as Maybe
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as Relation
@@ -25,9 +22,7 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
-import Control.Applicative (liftA2)
 import Control.Monad (guard)
-import Control.Error (hush)
 
 -- | Possible targets which a glob may select.
 data TargetType
@@ -105,7 +100,7 @@ expandGlobs :: forall m. Set TargetType
             -> [String] -- ^ Fully expanded, absolute paths. E.g. [".base.List.map"]
 expandGlobs Empty _rootBranch _currentPath s = [s]
 expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
-  (isAbsolute, globPath) <- hush $ runParser globbedPathParser "arguments" s
+  let (isAbsolute, globPath) = globbedPathParser (Text.pack s)
   -- If we don't have any actual globs, we can fail to fall back to the original argument.
   guard (any Either.isRight globPath)
   let currentBranch :: Branch0 m
@@ -117,11 +112,6 @@ expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
                      | otherwise = Path.resolve currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
 
--- | Ad-hoc parser for paths which may contain globs in them.
-globbedPathParser :: Parsec Void String (Bool, GlobPath)
-globbedPathParser = do
-  isAbsolute <- Maybe.isJust <$> optional "."
-  (isAbsolute,) <$> (globArgParser `sepBy`  "." <* eof)
 
 -- | Parses a single name segment into a GlobArg or a bare segment according to whether
 -- there's a glob.
@@ -129,9 +119,17 @@ globbedPathParser = do
 --   "toList" -> Left (NameSegment "toList")
 --   "to?" -> Left (GlobArg "to" "")
 -- We unintuitively use '?' for glob patterns right now since they're not valid in names.
-globArgParser :: Parsec Void String (Either NameSegment GlobArg)
-globArgParser = do
-  let nsChar = ((char '\\' *> char '?') <|> noneOf ['.', '?'] )
-  let globSegmentP =
-        liftA2 GlobArg (Text.pack <$> manyTill nsChar "?") (Text.pack <$> many nsChar)
-  (Right <$> try globSegmentP) <|> (Left . NameSegment . Text.pack <$> some (satisfy (/= '.')))
+globbedPathParser :: Text -> (Bool, GlobPath)
+globbedPathParser txt = 
+  let (isAbsolute, segments) = 
+        case Text.split (== '.') txt of
+          -- An initial '.' creates an empty split
+          ("":segments) -> (True, segments)
+          (segments) -> (False, segments)
+   in (isAbsolute, fmap globArgParser segments)
+
+globArgParser :: Text -> Either NameSegment GlobArg
+globArgParser txt =
+  case Text.split (== '?') txt of
+    [prefix, suffix] -> Right (GlobArg prefix suffix)
+    _ -> Left (NameSegment txt)
