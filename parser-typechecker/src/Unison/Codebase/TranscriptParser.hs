@@ -131,6 +131,7 @@ run dir configFile stanzas codebase = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   do
     pathRef                  <- newIORef initialPath
+    rootBranchRef            <- newIORef root
     numberedArgsRef          <- newIORef []
     inputQueue               <- Q.newIO
     cmdQueue                 <- Q.newIO
@@ -189,9 +190,7 @@ run dir configFile stanzas codebase = do
               args -> do
                 output ("\n" <> show p <> "\n")
                 numberedArgs <- readIORef numberedArgsRef
-                currentRoot <- Codebase.getRootBranch codebase >>= \case
-                  Left _ -> dieWithMsg $ "Failed to get root branch of codebase."
-                  Right b -> pure (Branch.head b)
+                currentRoot <- Branch.head <$> readIORef rootBranchRef
                 case parseInput currentRoot curPath numberedArgs patternMap args of
                   -- invalid command is treated as a failure
                   Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
@@ -325,6 +324,7 @@ run dir configFile stanzas codebase = do
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
+            writeIORef rootBranchRef (HandleInput._root state')
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)

@@ -23,32 +23,88 @@ othernest.toList = 5
 othernest.toMap = 6
 ```
 
-```ucm:hide
-.> add
-```
+```ucm
 
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      convertFromThing : ##Nat
+      convertToThing   : ##Nat
+      nested.toList    : ##Nat
+      nested.toMap     : ##Nat
+      othernest.toList : ##Nat
+      othernest.toMap  : ##Nat
+
+```
 Globbing as a prefix, infix, or suffix wildcard.
 
 ```ucm
 .> view convert?
-.> view convert?Thing
-.> view ?Thing
-```
 
+  convertFromThing : ##Nat
+  convertFromThing = 2
+  
+  convertToThing : ##Nat
+  convertToThing = 1
+
+.> view convert?Thing
+
+  convertFromThing : ##Nat
+  convertFromThing = 2
+  
+  convertToThing : ##Nat
+  convertToThing = 1
+
+.> view ?Thing
+
+  convertFromThing : ##Nat
+  convertFromThing = 2
+  
+  convertToThing : ##Nat
+  convertToThing = 1
+
+```
 Globbing can occur in any name segment.
 
 ```ucm
 .> view ?.toList
-.> view nested.to?
-```
 
+  nested.toList : ##Nat
+  nested.toList = 3
+  
+  othernest.toList : ##Nat
+  othernest.toList = 5
+
+.> view nested.to?
+
+  nested.toList : ##Nat
+  nested.toList = 3
+  
+  nested.toMap : ##Nat
+  nested.toMap = 4
+
+```
 You may have up to one glob per name segment.
 
 ```ucm
 .> view ?.to?
+
+  nested.toList : ##Nat
+  nested.toList = 3
+  
+  nested.toMap : ##Nat
+  nested.toMap = 4
+  
+  othernest.toList : ##Nat
+  othernest.toList = 5
+  
+  othernest.toMap : ##Nat
+  othernest.toMap = 6
+
 ```
-
-
 Globbing only expands to the appropriate argument type.
 
 E.g. `view` should not see glob expansions for namespaces.
@@ -56,4 +112,5 @@ This should expand to the empty argument and silently succeed.
 
 ```ucm
 .> view other?
+
 ```
