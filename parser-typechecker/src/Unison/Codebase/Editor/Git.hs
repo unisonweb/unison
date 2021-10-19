@@ -93,11 +93,12 @@ pullBranch repo@(ReadGitRepo uri) = do
       -- Otherwise proceed!
       (catchIO
         (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
-          -- Fetch only the latest 
-          gitIn localPath (["fetch", "origin", "HEAD"] ++ ["--depth", "1"])
-          gitIn localPath ["reset", "--hard", "--quiet", "origin/HEAD"]
-          gitIn localPath ["clean", "-d", "--force", "--quiet"]
-          gitIn localPath ["pull", "--force", "--quiet"])
+          -- Fetch only the latest commit, we don't need history.
+          gitIn localPath (["fetch", "origin", "HEAD", "--quiet"] ++ ["--depth", "1"])
+          -- Reset our branch to point at the latest code from the remote.
+          gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
+          -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+          gitIn localPath ["clean", "-d", "--force", "--quiet"])
         (const $ goFromScratch))
 
     where
