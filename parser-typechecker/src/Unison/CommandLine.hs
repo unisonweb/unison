@@ -40,6 +40,8 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
+import qualified Data.List as List
+import Data.List.Extra (nubOrd)
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -143,18 +145,20 @@ completion s = Line.Completion s s True
 completion' :: String -> Line.Completion
 completion' s = Line.Completion s s False
 
-prettyCompletion :: (String, P.Pretty P.ColorText) -> Line.Completion
--- -- discards formatting in favor of better alignment
+-- discards formatting in favor of better alignment
 -- prettyCompletion (s, p) = Line.Completion s (P.toPlainUnbroken p) True
 -- preserves formatting, but Haskeline doesn't know how to align
-prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
+prettyCompletion :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
+prettyCompletion endWithSpace (s, p) = Line.Completion s (P.toAnsiUnbroken p) endWithSpace
 
--- avoids adding a space after successful completion
-prettyCompletion' :: (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion' (s, p) = Line.Completion s (P.toAnsiUnbroken p) False
-
-prettyCompletion'' :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion'' spaceAtEnd (s, p) = Line.Completion s (P.toAnsiUnbroken p) spaceAtEnd
+-- | Renders a completion option with the prefix matching the query greyed out.
+prettyCompletionWithQueryPrefix :: Bool
+                                -> String -- ^ query
+                                -> String  -- ^ completion
+                                -> Line.Completion
+prettyCompletionWithQueryPrefix endWithSpace query s =
+   let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
+    in Line.Completion s (P.toAnsiUnbroken coloredMatch) endWithSpace
 
 fuzzyCompleteHashQualified :: Names -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
@@ -164,20 +168,42 @@ fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
       makeCompletion <$> Find.fuzzyFindInBranch b query
   where
   makeCompletion (sr, p) =
-    prettyCompletion' (HQ.toString . SR.name $ sr, p)
+    prettyCompletion False (HQ.toString . SR.name $ sr, p)
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
-fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion' <$> Find.simpleFuzzyFinder q ss id)
+fuzzyComplete absQuery@('.':_) ss = completeWithinQueryNamespace absQuery ss
+fuzzyComplete fuzzyQuery ss =
+  fixupCompletion fuzzyQuery (prettyCompletion False <$> Find.simpleFuzzyFinder fuzzyQuery ss id)
 
+-- | Constructs a list of 'Completion's from a query and completion options by
+-- filtering them for prefix matches. A completion will be selected if it's an exact match for
+-- a provided option.
 exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss where
-  go s = prettyCompletion'' (s == q)
-           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
+  go s = prettyCompletionWithQueryPrefix (s == q) q s
+
+
+-- | Completes a list of options, limiting options to the same namespace as the query, 
+-- or the namespace's children if the query is itself a namespace.
+--
+-- E.g.
+-- query: "base"
+-- would match: ["base", "base.List", "base2"]
+-- wouldn't match: ["base.List.map", "contrib", "base2.List"]
+completeWithinQueryNamespace :: String -> [String] -> [Line.Completion]
+completeWithinQueryNamespace q ss = (go <$> (limitToQueryNamespace q $ ss))
+  where
+    go s = prettyCompletionWithQueryPrefix (s == q) q s
+    limitToQueryNamespace :: String -> [String] -> [String]
+    limitToQueryNamespace query xs =
+      nubOrd $ catMaybes (fmap ((query <>) . thing) . List.stripPrefix query <$> xs)
+        where
+          thing ('.':rest) = '.' : takeWhile (/= '.') rest
+          thing other = takeWhile (/= '.') other
 
 prefixIncomplete :: String -> [String] -> [Line.Completion]
 prefixIncomplete q ss = go <$> filter (isPrefixOf q) ss where
-  go s = prettyCompletion'' False
+  go s = prettyCompletion False
            (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
 -- workaround for https://github.com/judah/haskeline/issues/100
