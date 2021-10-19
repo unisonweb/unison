@@ -51,12 +51,30 @@ mapD1 f Relation3 {d1, d2, d3} =
       d3 = Map.map (R.mapDom f) d3
     }
 
+-- | Like 'mapD1', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD1Monotonic :: (Ord a, Ord a', Ord b, Ord c) => (a -> a') -> Relation3 a b c -> Relation3 a' b c
+mapD1Monotonic f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.mapKeysMonotonic f d1,
+      d2 = Map.map (R.mapDomMonotonic f) d2,
+      d3 = Map.map (R.mapDomMonotonic f) d3
+    }
+
 mapD2 :: (Ord a, Ord b, Ord b', Ord c) => (b -> b') -> Relation3 a b c -> Relation3 a b' c
 mapD2 f Relation3 {d1, d2, d3} =
   Relation3
     { d1 = Map.map (R.mapDom f) d1,
       d2 = Map.mapKeysWith R.union f d2,
       d3 = Map.map (R.mapRan f) d3
+    }
+
+-- | Like 'mapD2', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD2Monotonic :: (Ord a, Ord b, Ord b', Ord c) => (b -> b') -> Relation3 a b c -> Relation3 a b' c
+mapD2Monotonic f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.map (R.mapDomMonotonic f) d1,
+      d2 = Map.mapKeysMonotonic f d2,
+      d3 = Map.map (R.mapRanMonotonic f) d3
     }
 
 member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool

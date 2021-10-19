@@ -200,45 +200,70 @@ children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
 -- creates a Branch0 from the primary fields and derives the others.
-branch0 :: Metadata.Star Referent NameSegment
-        -> Metadata.Star Reference NameSegment
-        -> Map NameSegment (Branch m)
-        -> Map NameSegment (EditHash, m Patch)
-        -> Branch0 m
+branch0 ::
+  forall m.
+  Metadata.Star Referent NameSegment ->
+  Metadata.Star Reference NameSegment ->
+  Map NameSegment (Branch m) ->
+  Map NameSegment (EditHash, m Patch) ->
+  Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits
-          deepTerms' deepTypes'
-          deepTermMetadata' deepTypeMetadata'
-          deepPaths' deepEdits'
+  Branch0
+    { _terms = terms,
+      _types = types,
+      _children = children,
+      _edits = edits,
+      deepTerms = deepTerms',
+      deepTypes = deepTypes',
+      deepTermMetadata = deepTermMetadata',
+      deepTypeMetadata = deepTypeMetadata',
+      deepPaths = deepPaths',
+      deepEdits = deepEdits'
+    }
   where
-  deepTerms' = (R.mapRan Name.fromSegment . Star3.d1) terms
-    <> foldMap go (Map.toList children)
-   where
-    go (Name.fromSegment -> n, b) =
-      R.mapRan (Name.joinDot n) (deepTerms $ head b) -- could use mapKeysMonotonic
-  deepTypes' = (R.mapRan Name.fromSegment . Star3.d1) types
-    <> foldMap go (Map.toList children)
-   where
-    go (Name.fromSegment -> n, b) =
-      R.mapRan (Name.joinDot n) (deepTypes $ head b) -- could use mapKeysMonotonic
-  deepTermMetadata' = R4.mapD2 Name.fromSegment (Metadata.starToR4 terms)
-    <> foldMap go (Map.toList children)
-   where
-    go (Name.fromSegment -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTermMetadata $ head b)
-  deepTypeMetadata' = R4.mapD2 Name.fromSegment (Metadata.starToR4 types)
-    <> foldMap go (Map.toList children)
-   where
-    go (Name.fromSegment -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
-  deepPaths' = Set.map Path.singleton (Map.keysSet children)
-    <> foldMap go (Map.toList children)
-    where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
-  deepEdits' = Map.mapKeys Name.fromSegment (Map.map fst edits)
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSeg, b) =
-      Map.mapKeysMonotonic (Name.cons nameSeg) . deepEdits $ head b
+    children' :: [(NameSegment, Branch m)]
+    children' =
+      Map.toList children
+    deepTerms' :: Relation Referent Name
+    deepTerms' =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 terms) <> foldMap go children'
+      where
+        go :: (NameSegment, Branch m) -> Relation Referent Name
+        go (n, b) =
+          R.mapRanMonotonic (Name.cons n) (deepTerms $ head b)
+    deepTypes' :: Relation Reference Name
+    deepTypes' =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> foldMap go children'
+      where
+        go :: (NameSegment, Branch m) -> Relation Reference Name
+        go (n, b) =
+          R.mapRanMonotonic (Name.cons n) (deepTypes $ head b)
+    deepTermMetadata' :: Metadata.R4 Referent Name
+    deepTermMetadata' =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> foldMap go children'
+      where
+        go (n, b) =
+          R4.mapD2Monotonic (Name.cons n) (deepTermMetadata $ head b)
+    deepTypeMetadata' :: Metadata.R4 Reference Name
+    deepTypeMetadata' =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> foldMap go children'
+      where
+        go (n, b) =
+          R4.mapD2Monotonic (Name.cons n) (deepTypeMetadata $ head b)
+    deepPaths' :: Set Path
+    deepPaths' =
+      Set.mapMonotonic Path.singleton (Map.keysSet children) <> foldMap go children'
+      where
+        go (n, b) =
+          -- N.B. (Path.cons n) is not monotonic wrt. Path ordering, because Path, unlike Name, does not compare in
+          -- reverse segment order.
+          Set.map (Path.cons n) (deepPaths $ head b)
+    deepEdits' :: Map Name EditHash
+    deepEdits' =
+      Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> foldMap go children'
+      where
+        go (n, b) =
+          Map.mapKeysMonotonic (Name.cons n) (deepEdits $ head b)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
