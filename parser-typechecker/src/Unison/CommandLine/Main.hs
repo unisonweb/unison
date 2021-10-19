@@ -44,6 +44,8 @@ import qualified Unison.CommandLine.Welcome as Welcome
 import Text.Regex.TDFA
 import Control.Lens (view)
 import Control.Error (rightMay)
+import UnliftIO (catchSyncOrAsync, throwIO, withException)
+import System.IO (hPutStrLn, stderr)
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: [String] -> String -> [String]
@@ -66,7 +68,8 @@ expandNumber numberedArgs s =
           _ -> Nothing
 
 getUserInput
-  :: (MonadIO m, Line.MonadException m)
+  :: forall m v a
+   . (MonadIO m, Line.MonadException m)
   => Map String InputPattern
   -> Codebase m v a
   -> Branch m
@@ -75,8 +78,16 @@ getUserInput
   -> m Input
 getUserInput patterns codebase branch currentPath numberedArgs = Line.runInputT
   settings
-  go
+  (haskelineCtrlCHandling go)
  where
+  -- Catch ctrl-c and simply re-render the prompt.
+  haskelineCtrlCHandling :: Line.InputT m b -> Line.InputT m b
+  haskelineCtrlCHandling act = do
+    -- We return a Maybe result to ensure we don't nest an action within the masked exception
+    -- handler.
+    Line.handleInterrupt (pure Nothing) (Line.withInterrupt (Just <$> act)) >>= \case
+      Nothing -> haskelineCtrlCHandling act
+      Just a -> pure a
   go = do
     line <- Line.getInputLine
       $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
@@ -170,9 +181,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 e
               x      -> do
                 writeIORef pageOutput True
-                pure x) `catch` interruptHandler
+                pure x) `catchSyncOrAsync` interruptHandler
       interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-      interruptHandler e = error (show e)
+      interruptHandler e = hPutStrLn stderr ("Exception: " <> show e) *> throwIO e
       cleanup = do
         Runtime.terminate runtime
         cancelConfig
@@ -197,5 +208,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
             loop state'
-    (`finally` cleanup)
-      $ loop (HandleInput.loopState0 root initialPath)
+    -- Run the main program loop, always run cleanup, 
+    -- If an exception occurred, print it before exiting.
+    (loop (HandleInput.loopState0 root initialPath)
+      `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))
+      `finally` cleanup

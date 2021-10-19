@@ -39,10 +39,10 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
+      Unison.Names
       Unison.Names.ResolutionResult
-      Unison.Names2
-      Unison.Names3
       Unison.NameSegment
+      Unison.NamesWithHistory
       Unison.Paths
       Unison.Pattern
       Unison.Reference

@@ -37,7 +37,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
 import           Unison.Name ( Name )
-import qualified Unison.Names2 as Names
+import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -48,6 +48,7 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
+import Unison.NameSegment (NameSegment(NameSegment))
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -102,7 +103,7 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Optional, patchArg), (Optional, pathArg)]
+  [(Optional, patchArg), (Optional, namespaceArg)]
   (P.wrapColumn2
     [ ( makeExample' todo
       , "lists the refactor work remaining in the default patch for the current"
@@ -248,7 +249,7 @@ patch :: InputPattern
 patch = InputPattern
   "patch"
   []
-  [(Required, patchArg), (Optional, pathArg)]
+  [(Required, patchArg), (Optional, namespaceArg)]
   (  P.wrap
   $  makeExample' patch
   <> "rewrites any definitions that depend on "
@@ -356,7 +357,7 @@ findShallow :: InputPattern
 findShallow = InputPattern
   "list"
   ["ls"]
-  [(Optional, pathArg)]
+  [(Optional, namespaceArg)]
   (P.wrapColumn2
     [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
     , ( "`list foo`", "lists the 'foo' namespace." )
@@ -572,7 +573,7 @@ up = InputPattern "up" [] []
     )
 
 cd :: InputPattern
-cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
+cd = InputPattern "namespace" ["cd", "j"] [(Required, namespaceArg)]
     (P.wrapColumn2
       [ (makeExample cd ["foo.bar"],
           "descends into foo.bar from the current namespace.")
@@ -598,7 +599,7 @@ back = InputPattern "back" ["popd"] []
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
+deleteBranch = InputPattern "delete.namespace" [] [(Required, namespaceArg)]
   "`delete.namespace <foo>` deletes the namespace `foo`"
    (\case
         ["."] -> first fromString .
@@ -654,7 +655,7 @@ renamePatch = InputPattern "move.patch"
 renameBranch :: InputPattern
 renameBranch = InputPattern "move.namespace"
    ["rename.namespace"]
-   [(Required, pathArg), (Required, newNameArg)]
+   [(Required, namespaceArg), (Required, newNameArg)]
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
@@ -669,7 +670,7 @@ renameBranch = InputPattern "move.namespace"
 
 history :: InputPattern
 history = InputPattern "history" []
-   [(Optional, pathArg)]
+   [(Optional, namespaceArg)]
    (P.wrapColumn2 [
      (makeExample history [], "Shows the history of the current path."),
      (makeExample history [".foo"], "Shows history of the path .foo."),
@@ -686,7 +687,7 @@ history = InputPattern "history" []
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
+forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, namespaceArg)
                                    ,(Required, newNameArg)]
     (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
@@ -698,7 +699,7 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
     )
 
 resetRoot :: InputPattern
-resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
+resetRoot = InputPattern "reset-root" [] [(Required, namespaceArg)]
   (P.wrapColumn2 [
     (makeExample resetRoot [".foo"],
       "Reset the root namespace (along with its history) to that of the `.foo` namespace."),
@@ -722,11 +723,11 @@ pullImpl :: String -> Verbosity -> InputPattern
 pullImpl name verbosity = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else "" 
+    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self = InputPattern
       name
       []
-      [(Optional, gitUrlArg), (Optional, pathArg)]
+      [(Optional, gitUrlArg), (Optional, namespaceArg)]
       (P.lines
         [ P.wrap
           "The" <> makeExample' self <> "command merges a remote namespace into a local namespace" <> addendum
@@ -770,7 +771,7 @@ pullExhaustive :: InputPattern
 pullExhaustive = InputPattern
   "debug.pull-exhaustive"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap $
       "The " <> makeExample' pullExhaustive <> "command can be used in place of"
@@ -796,7 +797,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap
       "The `push` command merges a local namespace into a remote namespace."
@@ -838,7 +839,7 @@ pushExhaustive :: InputPattern
 pushExhaustive = InputPattern
   "debug.push-exhaustive"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap $
       "The " <> makeExample' pushExhaustive <> "command can be used in place of"
@@ -861,7 +862,7 @@ pushExhaustive = InputPattern
 
 createPullRequest :: InputPattern
 createPullRequest = InputPattern "pull-request.create" ["pr.create"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
   (P.group $ P.lines
     [ P.wrap $ makeExample createPullRequest ["base", "head"]
         <> "will generate a request to merge the remote repo `head`"
@@ -881,7 +882,7 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
 
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
    [P.wrap $ makeExample loadPullRequest ["base", "head"]
     <> "will load a pull request for merging the remote repo `head` into the"
@@ -920,7 +921,7 @@ parsePushPath label input = do
 
 squashMerge :: InputPattern
 squashMerge =
-  InputPattern "merge.squash" ["squash"] [(Required, pathArg), (Required, pathArg)]
+  InputPattern "merge.squash" ["squash"] [(Required, namespaceArg), (Required, namespaceArg)]
   (P.wrap $ makeExample squashMerge ["src","dest"]
          <> "merges `src` namespace into `dest`,"
          <> "discarding the history of `src` in the process."
@@ -935,8 +936,8 @@ squashMerge =
   )
 
 mergeLocal :: InputPattern
-mergeLocal = InputPattern "merge" [] [(Required, pathArg)
-                                     ,(Optional, pathArg)]
+mergeLocal = InputPattern "merge" [] [(Required, namespaceArg)
+                                     ,(Optional, namespaceArg)]
  (P.column2 [
    ("`merge src`", "merges `src` namespace into the current namespace"),
    ("`merge src dest`", "merges `src` namespace into the `dest` namespace")])
@@ -955,7 +956,7 @@ diffNamespace :: InputPattern
 diffNamespace = InputPattern
   "diff.namespace"
   []
-  [(Required, pathArg), (Optional, pathArg)]
+  [(Required, namespaceArg), (Optional, namespaceArg)]
   (P.column2
     [ ( "`diff.namespace before after`"
       , P.wrap
@@ -982,7 +983,7 @@ previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
   "merge.preview"
   []
-  [(Required, pathArg), (Optional, pathArg)]
+  [(Required, namespaceArg), (Optional, namespaceArg)]
   (P.column2
     [ ( "`merge.preview src`"
       , "shows how the current namespace will change after a `merge src`."
@@ -1533,7 +1534,7 @@ typeCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
 
 termCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1543,7 +1544,7 @@ termCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
 patchArg = ArgumentType "patch" $ pathCompletor
@@ -1562,11 +1563,16 @@ bothCompletors c1 c2 q code b currentPath = do
        . nubOrdOn Completion.display
        $ suggestions1 ++ suggestions2
 
+-- |
 pathCompletor
   :: Applicative f
   => (String -> [String] -> [Completion])
+     -- ^ Turns a query and list of possible completions into a 'Completion'.
   -> (Branch.Branch0 m -> Set Text)
+     -- ^ Construct completions given ucm's current branch context, or the root namespace if
+     -- the query is absolute.
   -> String
+     -- ^ The portion of this arg that the user has already typed.
   -> codebase
   -> Branch.Branch m
   -> Path.Absolute
@@ -1582,9 +1588,16 @@ pathCompletor filterQuery getNames query _code b p = let
        else
          []
 
-pathArg :: ArgumentType
-pathArg = ArgumentType "namespace" $
-  pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+namespaceArg :: ArgumentType
+namespaceArg = ArgumentType "namespace" $
+    pathCompletor completeWithinQueryNamespace  (Set.fromList . allSubNamespaces)
+
+-- | Recursively collects all names of namespaces which are children of the branch.
+allSubNamespaces :: Branch.Branch0 m -> [Text]
+allSubNamespaces b =
+  flip Map.foldMapWithKey (Branch._children b) $
+    \(NameSegment k) (Branch.head -> b') ->
+      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
 newNameArg :: ArgumentType
 newNameArg = ArgumentType "new-name" $

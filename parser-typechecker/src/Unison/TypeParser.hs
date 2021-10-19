@@ -14,7 +14,7 @@ import           Unison.Var (Var)
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Data.Set as Set
 import Control.Monad.Reader (asks)
 
