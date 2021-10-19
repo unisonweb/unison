@@ -73,6 +73,7 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
+import Text.Regex.TDFA ((=~))
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -227,18 +228,45 @@ fixupCompletion q cs@(h:t) = let
      else cs
 
 parseInput
-  :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
-parseInput patterns ss = case ss of
-  []             -> Left ""
-  command : args -> case Map.lookup command patterns of
-    Just pat -> parse pat args
-    Nothing ->
-      Left
-        .  warn
-        .  P.wrap
-        $  "I don't know how to "
-        <> P.group (fromString command <> ".")
-        <> "Type `help` or `?` to get help."
+  :: Map String InputPattern
+  -> [String] -- ^ Numbered-Args
+  -> [String] -- ^ Arguments
+  -> Either (P.Pretty CT.ColorText) Input
+parseInput patterns numberedArgs args = do
+  let expandedArgs :: [String]
+      expandedArgs = foldMap (expandNumber numberedArgs) args
+  case expandedArgs of
+    []             -> Left ""
+    command : args -> case Map.lookup command patterns of
+      Just pat -> parse pat args
+      Nothing ->
+        Left
+          .  warn
+          .  P.wrap
+          $  "I don't know how to "
+          <> P.group (fromString command <> ".")
+          <> "Type `help` or `?` to get help."
+
+-- Expand a numeric argument like `1` or a range like `3-9`
+expandNumber :: [String] -> String -> [String]
+expandNumber numberedArgs s =
+  maybe [s]
+        (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
+        expandedNumber
+ where
+  rangeRegex = "([0-9]+)-([0-9]+)" :: String
+  (junk,_,moreJunk, ns) =
+    s =~ rangeRegex :: (String, String, String, [String])
+  expandedNumber =
+    case readMay s of
+      Just i -> Just [i]
+      Nothing ->
+        -- check for a range
+        case (junk, moreJunk, ns) of
+          ("", "", [from, to]) ->
+            (\x y -> [x..y]) <$> readMay from <*> readMay to
+          _ -> Nothing
+
 
 prompt :: String
 prompt = "> "
