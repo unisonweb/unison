@@ -610,5 +610,7 @@ transform f b = case _history b of
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 
+-- | Traverse the head branch of all direct children.
+-- The index of the traversal is the name of that child branch according to the parent.
 currentChildren :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 currentChildren = children .> itraversed <. (history . Causal.head_)
