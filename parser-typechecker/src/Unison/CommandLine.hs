@@ -3,7 +3,40 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine where
+module Unison.CommandLine
+  ( -- * Pretty Printing
+    allow
+  , backtick
+  , aside
+  , bigproblem
+  , note
+  , nothingTodo
+  , plural
+  , plural'
+  , problem
+  , tip
+  , warn
+  , warnNote
+  -- * Completers
+  , completion
+  , completion'
+  , exactComplete
+  , fuzzyComplete
+  , fuzzyCompleteHashQualified
+  , prefixIncomplete
+  , prettyCompletion
+  , prettyCompletion'
+  , prettyCompletion''
+  , fixupCompletion
+  -- * Other
+  , parseInput
+  , prompt
+  , watchBranchUpdates
+  , watchConfig
+  , watchFileSystem
+  -- * Exported for testing
+  , beforeHash
+  ) where
 
 import Unison.Prelude
 
@@ -45,6 +78,7 @@ import qualified Unison.CommandLine.Globbing as Globbing
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Path as Path
+import Text.Regex.TDFA ((=~))
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -114,9 +148,6 @@ warnNote s = "⚠️  " <> s
 
 backtick :: IsString s => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
-
-backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
-backtickEOS s = P.group ("`" <> s <> "`.")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 tip s = P.column2 [("Tip:", P.wrap s)]
@@ -204,25 +235,49 @@ fixupCompletion q cs@(h:t) = let
 parseInput
   :: Branch0 m -- ^ Root branch, used to expand globs
   -> Path.Absolute -- ^ Current path from root, used to expand globs
-  -> Map String InputPattern
-  -> [String]
+  -> [String] -- ^ Numbered arguments
+  -> Map String InputPattern -- ^ Input Pattern Map
+  -> [String] -- ^ Arguments
   -> Either (P.Pretty CT.ColorText) Input
-parseInput rootBranch currentPath patterns ss = case ss of
-  []             -> Left ""
-  command : args -> case Map.lookup command patterns of
-    Just pat@(InputPattern{parse}) -> do
-      parse $ flip ifoldMap args $ \i arg -> do
-            let targets = case InputPattern.argType pat i of
-                                 Just argT -> InputPattern.globTargets argT
-                                 Nothing -> mempty
-            Globbing.expandGlobs targets rootBranch currentPath arg
-    Nothing ->
-      Left
-        .  warn
-        .  P.wrap
-        $  "I don't know how to "
-        <> P.group (fromString command <> ".")
-        <> "Type `help` or `?` to get help."
+parseInput rootBranch currentPath patterns ss = do
+  let expandedArgs :: [String]
+      expandedArgs = foldMap (expandNumber numberedArgs) args
+  case expandedArgs of
+    []             -> Left ""
+    command : args -> case Map.lookup command patterns of
+      Just pat@(InputPattern{parse}) -> do
+        parse $ flip ifoldMap args $ \i arg -> do
+              let targets = case InputPattern.argType pat i of
+                                   Just argT -> InputPattern.globTargets argT
+                                   Nothing -> mempty
+              Globbing.expandGlobs targets rootBranch currentPath arg
+      Nothing ->
+        Left
+          .  warn
+          .  P.wrap
+          $  "I don't know how to "
+          <> P.group (fromString command <> ".")
+          <> "Type `help` or `?` to get help."
+
+-- Expand a numeric argument like `1` or a range like `3-9`
+expandNumber :: [String] -> String -> [String]
+expandNumber numberedArgs s =
+  maybe [s]
+        (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
+        expandedNumber
+ where
+  rangeRegex = "([0-9]+)-([0-9]+)" :: String
+  (junk,_,moreJunk, ns) =
+    s =~ rangeRegex :: (String, String, String, [String])
+  expandedNumber =
+    case readMay s of
+      Just i -> Just [i]
+      Nothing ->
+        -- check for a range
+        case (junk, moreJunk, ns) of
+          ("", "", [from, to]) ->
+            (\x y -> [x..y]) <$> readMay from <*> readMay to
+          _ -> Nothing
 
 prompt :: String
 prompt = "> "
