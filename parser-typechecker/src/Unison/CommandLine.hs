@@ -3,7 +3,39 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine where
+module Unison.CommandLine
+  ( -- * Pretty Printing
+    allow
+  , backtick
+  , aside
+  , bigproblem
+  , note
+  , nothingTodo
+  , plural
+  , plural'
+  , problem
+  , tip
+  , warn
+  , warnNote
+  -- * Completers
+  , completion
+  , completion'
+  , exactComplete
+  , fuzzyComplete
+  , fuzzyCompleteHashQualified
+  , prefixIncomplete
+  , prettyCompletion
+  , fixupCompletion
+  , completeWithinQueryNamespace
+  -- * Other
+  , parseInput
+  , prompt
+  , watchBranchUpdates
+  , watchConfig
+  , watchFileSystem
+  -- * Exported for testing
+  , beforeHash
+  ) where
 
 import Unison.Prelude
 
@@ -30,7 +62,7 @@ import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Server.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
-import           Unison.CommandLine.InputPattern (InputPattern (parse))
+import           Unison.CommandLine.InputPattern (InputPattern (..))
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.HashQualified'           as HQ'
 import           Unison.Names (Names)
@@ -40,6 +72,12 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
+import Control.Lens (ifoldMap)
+import qualified Unison.CommandLine.Globbing as Globbing
+import qualified Unison.CommandLine.InputPattern as InputPattern
+import Unison.Codebase.Branch (Branch0)
+import qualified Unison.Codebase.Path as Path
+import Text.Regex.TDFA ((=~))
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
 
@@ -111,9 +149,6 @@ warnNote s = "⚠️  " <> s
 
 backtick :: IsString s => P.Pretty s -> P.Pretty s
 backtick s = P.group ("`" <> s <> "`")
-
-backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
-backtickEOS s = P.group ("`" <> s <> "`.")
 
 tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 tip s = P.column2 [("Tip:", P.wrap s)]
@@ -223,18 +258,52 @@ fixupCompletion q cs@(h:t) = let
      else cs
 
 parseInput
-  :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
-parseInput patterns ss = case ss of
-  []             -> Left ""
-  command : args -> case Map.lookup command patterns of
-    Just pat -> parse pat args
-    Nothing ->
-      Left
-        .  warn
-        .  P.wrap
-        $  "I don't know how to "
-        <> P.group (fromString command <> ".")
-        <> "Type `help` or `?` to get help."
+  :: Branch0 m -- ^ Root branch, used to expand globs
+  -> Path.Absolute -- ^ Current path from root, used to expand globs
+  -> [String] -- ^ Numbered arguments
+  -> Map String InputPattern -- ^ Input Pattern Map
+  -> [String] -- ^ command:arguments
+  -> Either (P.Pretty CT.ColorText) Input
+parseInput rootBranch currentPath numberedArgs patterns segments = do
+  case segments of
+    [] -> Left ""
+    command : args -> case Map.lookup command patterns of
+      Just pat@(InputPattern {parse}) -> do
+        let expandedArgs :: [String]
+            expandedArgs = foldMap (expandNumber numberedArgs) args
+        parse $
+          flip ifoldMap expandedArgs $ \i arg -> do
+            let targets = case InputPattern.argType pat i of
+                  Just argT -> InputPattern.globTargets argT
+                  Nothing -> mempty
+            Globbing.expandGlobs targets rootBranch currentPath arg
+      Nothing ->
+        Left
+          . warn
+          . P.wrap
+          $ "I don't know how to "
+            <> P.group (fromString command <> ".")
+            <> "Type `help` or `?` to get help."
+
+-- Expand a numeric argument like `1` or a range like `3-9`
+expandNumber :: [String] -> String -> [String]
+expandNumber numberedArgs s =
+  maybe [s]
+        (map (\i -> fromMaybe (show i) . atMay numberedArgs $ i - 1))
+        expandedNumber
+ where
+  rangeRegex = "([0-9]+)-([0-9]+)" :: String
+  (junk,_,moreJunk, ns) =
+    s =~ rangeRegex :: (String, String, String, [String])
+  expandedNumber =
+    case readMay s of
+      Just i -> Just [i]
+      Nothing ->
+        -- check for a range
+        case (junk, moreJunk, ns) of
+          ("", "", [from, to]) ->
+            (\x y -> [x..y]) <$> readMay from <*> readMay to
+          _ -> Nothing
 
 prompt :: String
 prompt = "> "

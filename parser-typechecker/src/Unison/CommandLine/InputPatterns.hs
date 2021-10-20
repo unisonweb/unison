@@ -2,6 +2,9 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+{-
+   This module defines 'InputPattern' values for every supported input command.
+-}
 module Unison.CommandLine.InputPatterns where
 
 import Unison.Prelude
@@ -48,6 +51,7 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.Globbing as Globbing
 import Unison.NameSegment (NameSegment(NameSegment))
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
@@ -1068,8 +1072,11 @@ edit = InputPattern
   )
 
 topicNameArg :: ArgumentType
-topicNameArg =
-  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+topicNameArg = ArgumentType
+  { typeName = "topic"
+  , suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+  , globTargets = mempty
+  }
 
 helpTopics :: InputPattern
 helpTopics = InputPattern
@@ -1402,7 +1409,7 @@ createAuthor = InputPattern "create.author" []
   (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
     <> "creates" <> backtick "alicecoder" <> "values in"
     <> backtick "metadata.authors" <> "and"
-    <> backtickEOS "metadata.copyrightHolders")
+    <> backtick "metadata.copyrightHolders" <> ".")
   (\case
       symbolStr : authorStr@(_:_) -> first fromString $ do
         symbol <- Path.definitionNameSegment symbolStr
@@ -1496,35 +1503,47 @@ commandNames :: [String]
 commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
-commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+commandNameArg = ArgumentType
+  { typeName = "command"
+  , suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+  , globTargets = mempty
+  }
 
 exactDefinitionOrPathArg :: ArgumentType
-exactDefinitionOrPathArg =
-  ArgumentType "definition or path" $
-    bothCompletors
-      (bothCompletors
-        (termCompletor exactComplete)
-        (typeCompletor exactComplete))
-      (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
+exactDefinitionOrPathArg = ArgumentType
+  { typeName = "definition or path"
+  , suggestions = allCompletors [ termCompletor exactComplete
+                                , typeCompletor exactComplete
+                                , pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+                                ]
+  , globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
+  }
 
+-- todo: improve this
 fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
-  -- todo: improve this
-  ArgumentType "fuzzy definition query" $
-    bothCompletors (termCompletor fuzzyComplete)
-                   (typeCompletor fuzzyComplete)
+fuzzyDefinitionQueryArg = ArgumentType
+  { typeName = "fuzzy definition query"
+  , suggestions = bothCompletors (termCompletor fuzzyComplete)
+                                 (typeCompletor fuzzyComplete)
+  , globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+  }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = fuzzyDefinitionQueryArg { typeName = "definition query" }
+definitionQueryArg = fuzzyDefinitionQueryArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
-exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ typeCompletor exactComplete
+exactDefinitionTypeQueryArg = ArgumentType
+  { typeName = "type definition query"
+  , suggestions = typeCompletor exactComplete
+  , globTargets = Set.fromList [Globbing.Type]
+  }
 
 exactDefinitionTermQueryArg :: ArgumentType
-exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ termCompletor exactComplete
+exactDefinitionTermQueryArg = ArgumentType
+  { typeName = "term definition query"
+  , suggestions = termCompletor exactComplete
+  , globTargets = Set.fromList [Globbing.Term]
+  }
 
 typeCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1547,9 +1566,18 @@ termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
-patchArg = ArgumentType "patch" $ pathCompletor
-  exactComplete
-  (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+patchArg = ArgumentType
+  { typeName = "patch"
+  , suggestions = pathCompletor exactComplete
+                                (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+  , globTargets = Set.fromList []
+  }
+
+
+allCompletors :: Monad m
+              => ([String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]]
+              -> (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]))
+allCompletors = foldl' bothCompletors I.noSuggestions
 
 bothCompletors
   :: (Monad m)
@@ -1589,8 +1617,11 @@ pathCompletor filterQuery getNames query _code b p = let
          []
 
 namespaceArg :: ArgumentType
-namespaceArg = ArgumentType "namespace" $
-    pathCompletor completeWithinQueryNamespace  (Set.fromList . allSubNamespaces)
+namespaceArg = ArgumentType
+  { typeName = "namespace"
+  , suggestions = pathCompletor completeWithinQueryNamespace  (Set.fromList . allSubNamespaces)
+  , globTargets = Set.fromList [Globbing.Namespace]
+  }
 
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
@@ -1600,24 +1631,36 @@ allSubNamespaces b =
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
 newNameArg :: ArgumentType
-newNameArg = ArgumentType "new-name" $
-  pathCompletor prefixIncomplete
-    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
+newNameArg = ArgumentType 
+  { typeName = "new-name"  
+  , suggestions = pathCompletor 
+                    prefixIncomplete
+                    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
+  , globTargets = mempty
+  }
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType "word" I.noSuggestions
+noCompletions = ArgumentType 
+  { typeName = "word" 
+  , suggestions = I.noSuggestions
+  , globTargets = mempty
+  }
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
-  "gh" -> complete "https://github.com/"
-  "gl" -> complete "https://gitlab.com/"
-  "bb" -> complete "https://bitbucket.com/"
-  "ghs" -> complete "git@github.com:"
-  "gls" -> complete "git@gitlab.com:"
-  "bbs" -> complete "git@bitbucket.com:"
-  _ -> pure []
-  where complete s = pure [Completion s s False]
+gitUrlArg = ArgumentType 
+  { typeName = "git-url" 
+  , suggestions = let complete s = pure [Completion s s False]
+      in \input _ _ _ -> case input of
+           "gh" -> complete "https://github.com/"
+           "gl" -> complete "https://gitlab.com/"
+           "bb" -> complete "https://bitbucket.com/"
+           "ghs" -> complete "git@github.com:"
+           "gls" -> complete "git@gitlab.com:"
+           "bbs" -> complete "git@bitbucket.com:"
+           _ -> pure []
+  , globTargets = mempty
+  }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]

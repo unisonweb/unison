@@ -1,10 +1,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Causal
   ( Causal (..),
     Raw (..),
     RawHash (..),
+    head_,
     one,
     cons,
     cons',
@@ -41,6 +43,7 @@ import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 import Prelude hiding (head, read, tail)
+import qualified Control.Lens as Lens
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -89,6 +92,8 @@ data Causal m h e
           , head :: e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
+
+Lens.makeLensesFor [("head", "head_")] ''Causal
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
