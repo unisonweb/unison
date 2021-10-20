@@ -33,7 +33,7 @@ import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.HashQualified'           as HQ'
-import           Unison.Names2 (Names0)
+import           Unison.Names (Names)
 import qualified Unison.Util.ColorText           as CT
 import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
@@ -160,7 +160,7 @@ prettyCompletionWithQueryPrefix endWithSpace query s =
    let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
     in Line.Completion s (P.toAnsiUnbroken coloredMatch) endWithSpace
 
-fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
+fuzzyCompleteHashQualified :: Names -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ'.fromString -> query) = case query of
   Nothing -> []
   Just query ->

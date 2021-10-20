@@ -34,7 +34,8 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Names3                  ( Names, Names0 )
+import           Unison.NamesWithHistory        ( NamesWithHistory )
+import           Unison.Names                   ( Names )
 import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
@@ -74,7 +75,7 @@ data LoadSourceResult = InvalidSourceNameError
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (Either Names0 (UF.TypecheckedUnisonFile v Ann))
+         (Either Names (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   -- Escape hatch.
@@ -124,13 +125,13 @@ data Command m i v a where
 
   BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
 
-  ParseType :: Names -> LexedSource
+  ParseType :: NamesWithHistory -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
 
   LoadSource :: SourceName -> Command m i v LoadSourceResult
 
   Typecheck :: AmbientAbilities v
-            -> Names
+            -> NamesWithHistory
             -> SourceName
             -> LexedSource
             -> Command m i v (TypecheckingResult v)

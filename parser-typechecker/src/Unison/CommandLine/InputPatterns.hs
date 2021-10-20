@@ -37,7 +37,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
 import           Unison.Name ( Name )
-import qualified Unison.Names2 as Names
+import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -1534,7 +1534,7 @@ typeCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
 
 termCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1544,7 +1544,7 @@ termCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
 patchArg = ArgumentType "patch" $ pathCompletor
