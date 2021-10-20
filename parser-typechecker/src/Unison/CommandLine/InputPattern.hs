@@ -22,7 +22,7 @@ data IsOptional
   | Optional -- 0 or 1, at the end
   | ZeroPlus -- 0 or more, at the end
   | OnePlus -- 1 or more, at the end
-  deriving Show
+  deriving (Show, Eq)
 
 data InputPattern = InputPattern
   { patternName :: String
@@ -62,13 +62,12 @@ argType ip i = go (i, argTypes ip) where
   -- any later argument number.
   go (_, [(ZeroPlus, t)]) = Just t
   go (_, [(OnePlus, t)]) = Just t
-  -- Optional parameters only work at position 0, under this countdown scheme.
-  go (_, [(Optional, _)]) = Nothing
   -- If requesting a later parameter, decrement and drop one.
-  go (n, (Required, _) : argTypes) = go (n - 1, argTypes)
-  -- The argument list spec is invalid if something follows optional or vararg
-  go _ = error $ "Input pattern " <> show (patternName ip)
-    <> " has an invalid argument list: " <> (show . fmap fst) (argTypes ip)
+  go (n, (o, _) : argTypes) 
+    | o == Optional || o == Required = go (n - 1, argTypes)
+  -- The argument list spec is invalid if something follows a vararg
+  go args = error $ "Input pattern " <> show (patternName ip)
+    <> " has an invalid argument list: " <> show args
 
 minArgs :: InputPattern -> Int
 minArgs ip@(fmap fst . argTypes -> argTypes) = go argTypes where
