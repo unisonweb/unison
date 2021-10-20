@@ -1083,7 +1083,7 @@ wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` ['_','!','\'']
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
