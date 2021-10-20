@@ -429,7 +429,7 @@ loop = do
                        (uncurry3 printNamespace) orepo
               <> " "
               <> p' dest
-          CreateMessage{} -> wat 
+          CreateMessage{} -> wat
           LoadI{} -> wat
           PreviewAddI{} -> wat
           PreviewUpdateI{} -> wat
@@ -521,29 +521,33 @@ loop = do
           ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl names
           respond $ Typechecked (Text.pack sourceName) ppe sr uf
 
+        -- Add default metadata to all added types and terms in a slurp component.
+        --
+        -- No-op if the slurp component is empty.
         addDefaultMetadata
           :: SlurpComponent v
           -> Action m (Either Event Input) v ()
-        addDefaultMetadata adds = do
-          let addedVs = Set.toList $ SC.types adds <> SC.terms adds
-              addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
-          case addedNs of
-            Nothing ->
-              error $ "I couldn't parse a name I just added to the codebase! "
-                    <> "-- Added names: " <> show addedVs
-            Just addedNames -> do
-              dm <- resolveDefaultMetadata currentPath'
-              case toList dm of
-                []  -> pure ()
-                dm' -> do
-                  let hqs = traverse InputPatterns.parseHashQualifiedName dm'
-                  case hqs of
-                    Left e -> respond $ ConfiguredMetadataParseError
-                      (Path.absoluteToPath' currentPath')
-                      (show dm')
-                      e
-                    Right defaultMeta ->
-                      manageLinks True addedNames defaultMeta Metadata.insert
+        addDefaultMetadata adds =
+          when (not (SC.isEmpty adds)) do
+            let addedVs = Set.toList $ SC.types adds <> SC.terms adds
+                addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
+            case addedNs of
+              Nothing ->
+                error $ "I couldn't parse a name I just added to the codebase! "
+                      <> "-- Added names: " <> show addedVs
+              Just addedNames -> do
+                dm <- resolveDefaultMetadata currentPath'
+                case toList dm of
+                  []  -> pure ()
+                  dm' -> do
+                    let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+                    case hqs of
+                      Left e -> respond $ ConfiguredMetadataParseError
+                        (Path.absoluteToPath' currentPath')
+                        (show dm')
+                        e
+                      Right defaultMeta ->
+                        manageLinks True addedNames defaultMeta Metadata.insert
 
         -- Add/remove links between definitions and metadata.
         -- `silent` controls whether this produces any output to the user.
@@ -662,10 +666,10 @@ loop = do
                     doDisplay outputLoc ns tm
 
       in case input of
-      
-      CreateMessage pretty -> 
+
+      CreateMessage pretty ->
         respond $ PrintMessage pretty
-      
+
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
         numberedArgs .=
@@ -1377,22 +1381,22 @@ loop = do
               LoadError -> respond $ SourceLoadFailed path
               LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
 
-      AddI hqs -> case uf of
-        Nothing -> respond NoUnisonFile
-        Just uf -> do
-          sr <- Slurp.disallowUpdates
-              . applySelection hqs uf
-              . toSlurpResult currentPath' uf
-             <$> slurpResultNames
-          let adds = Slurp.adds sr
-          when (Slurp.isNonempty sr) $ do
-            stepAtNoSync ( Path.unabsolute currentPath'
-                   , doSlurpAdds adds uf)
+      AddI hqs ->
+        case uf of
+          Nothing -> respond NoUnisonFile
+          Just uf -> do
+            sr <-
+              Slurp.disallowUpdates
+                . applySelection hqs uf
+                . toSlurpResult currentPath' uf
+                <$> slurpResultNames
+            let adds = Slurp.adds sr
+            stepAtNoSync (Path.unabsolute currentPath', doSlurpAdds adds uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-          ppe <- prettyPrintEnvDecl =<< displayNames uf
-          respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-          addDefaultMetadata adds
-          syncRoot
+            ppe <- prettyPrintEnvDecl =<< displayNames uf
+            respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            addDefaultMetadata adds
+            syncRoot
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
