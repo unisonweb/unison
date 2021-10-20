@@ -37,6 +37,8 @@ testMvars _ =
     ma2 = !MVar.newEmpty
     check "tryRead should succeed when not empty"
       (eitherCk (x -> not (isNone x)) (tryRead.impl ma))
+    check "tryPut should fail when not empty"
+      (eitherCk (b -> not b) (tryPut.impl ma test))
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 

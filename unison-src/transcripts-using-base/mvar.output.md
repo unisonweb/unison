@@ -37,6 +37,8 @@ testMvars _ =
     ma2 = !MVar.newEmpty
     check "tryRead should succeed when not empty"
       (eitherCk (x -> not (isNone x)) (tryRead.impl ma))
+    check "tryPut should fail when not empty"
+      (eitherCk (b -> not b) (tryPut.impl ma test))
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 
@@ -80,13 +82,14 @@ testMvars _ =
   ◉ testMvars   swap returns old contents
   ◉ testMvars   swap returns old contents
   ◉ testMvars   tryRead should succeed when not empty
+  ◉ testMvars   tryPut should fail when not empty
   ◉ testMvars   tryTake should succeed when not empty
   ◉ testMvars   tryTake should not succeed when empty
   ◉ testMvars   ma2 should be empty
   ◉ testMvars   tryTake should fail when empty
   ◉ testMvars   tryRead should fail when empty
   
-  ✅ 12 test(s) passing
+  ✅ 13 test(s) passing
   
   Tip: Use view testMvars to view the source of a test.
 

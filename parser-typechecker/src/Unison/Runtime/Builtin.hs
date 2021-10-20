@@ -1693,7 +1693,7 @@ declareForeigns = do
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
   declareForeign "MVar.tryPut.impl.v3" boxBoxToEFBool
-    . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
+    . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
