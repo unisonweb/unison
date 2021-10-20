@@ -62,7 +62,7 @@ module Unison.Codebase.Branch
   , getAt0
   , modifyAt
   , modifyAtM
-  , currentChildren
+  , children0
   -- * Branch terms/types/edits
   -- ** Term/type/edits lenses
   , terms
@@ -612,5 +612,5 @@ transform f b = case _history b of
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
-currentChildren :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-currentChildren = children .> itraversed <. (history . Causal.head_)
+children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
+children0 = children .> itraversed <. (history . Causal.head_)

@@ -90,7 +90,7 @@ expandGlobToNameSegments targets branch globPath =
 
 -- | Find all child branches whose name matches a predicate.
 matchingChildBranches :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-matchingChildBranches keyPredicate = Branch.currentChildren . indices keyPredicate
+matchingChildBranches keyPredicate = Branch.children0 . indices keyPredicate
 
 -- | Expand a single glob pattern into all matching targets of the specified types.
 expandGlobs :: forall m. Set TargetType
