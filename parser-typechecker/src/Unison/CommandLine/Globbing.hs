@@ -98,8 +98,8 @@ expandGlobs :: forall m. Set TargetType
             -> Path.Absolute -- ^ UCM's current path
             -> String -- ^ The glob string, e.g. .base.List.?.doc
             -> [String] -- ^ Fully expanded, absolute paths. E.g. [".base.List.map"]
-expandGlobs Empty _rootBranch _currentPath s = [s]
 expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
+  guard (not . null $ targets)
   let (isAbsolute, globPath) = globbedPathParser (Text.pack s)
   -- If we don't have any actual globs, we can fail to fall back to the original argument.
   guard (any Either.isRight globPath)
