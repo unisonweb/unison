@@ -20,11 +20,11 @@ import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       ( Runtime )
 import           Unison.Var                    ( Var )
 import qualified Unison.PrettyPrintEnv         as PPE
-import qualified Unison.Names3                 as Names3
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import           System.Exit (die)
 import           Control.Exception (finally)
+import qualified Unison.Names as Names
 
 execute
   :: Var v
@@ -42,10 +42,10 @@ execute codebase runtime mainName =
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->
         die ("Couldn't parse root branch head " ++ show h)
-    let parseNames0 = Names3.makeAbsolute0 (Branch.toNames0 (Branch.head root))
+    let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime
-    mt <- getMainTerm loadTypeOfTerm parseNames0 mainName mainType
+    mt <- getMainTerm loadTypeOfTerm parseNames mainName mainType
     case mt of
       MainTerm.NotAFunctionName s -> die ("Not a function name: " ++ s)
       MainTerm.NotFound s -> die ("Not found: " ++ s)
