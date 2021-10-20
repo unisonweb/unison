@@ -1390,15 +1390,13 @@ loop = do
                 . applySelection hqs uf
                 . toSlurpResult currentPath' uf
                 <$> slurpResultNames
-            if Slurp.isNonempty sr then do
-              let adds = Slurp.adds sr
-              stepAtNoSync (Path.unabsolute currentPath', doSlurpAdds adds uf)
-              eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-              ppe <- prettyPrintEnvDecl =<< displayNames uf
-              respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
-              addDefaultMetadata adds
-              syncRoot
-            else respond NoOp
+            let adds = Slurp.adds sr
+            stepAtNoSync (Path.unabsolute currentPath', doSlurpAdds adds uf)
+            eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+            ppe <- prettyPrintEnvDecl =<< displayNames uf
+            respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+            addDefaultMetadata adds
+            syncRoot
 
       PreviewAddI hqs -> case (latestFile', uf) of
         (Just (sourceName, _), Just uf) -> do
