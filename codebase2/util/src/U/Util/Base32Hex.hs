@@ -7,7 +7,6 @@ where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base32.Hex as Base32.Hex
-import Data.Coerce (coerce)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
