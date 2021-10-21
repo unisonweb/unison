@@ -1,8 +1,11 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
+import Unison.Prelude
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.State (MonadState)
 import U.Codebase.Sqlite.Connection (Connection)
@@ -19,6 +22,22 @@ import Unison.Reference (Pos)
 import Unison.Referent (ConstructorId)
 import Data.Set (Set)
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
+import Unison.Codebase (Codebase (Codebase))
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import qualified Data.Map as Map
+import Unison.Type (Type)
+import qualified Unison.ABT as ABT
+import Control.Monad.Trans.Writer.CPS (WriterT)
+import qualified Unison.Type as Type
+import qualified Data.List as List
+import Control.Lens
+import Control.Monad.State.Strict
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Except (throwE)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -50,7 +69,6 @@ data MigrationState = MigrationState
     -- This provides the info needed for rewriting a term.  You'll access it with a function :: Old
     termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
     objLookup :: Map (Old ObjectId) (New ObjectId),
-
 
     --
     componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
@@ -163,10 +181,10 @@ migrationSync = Sync \case
 --   | Namespace -- 2
 --   | Patch -- 3
 
-migrateObject :: ObjectType -> HashId -> ByteString -> m _
-migrateObject objType hash bytes = case objType of
+migrateObject :: Codebase m v a -> ObjectType -> HashId -> ByteString -> m _
+migrateObject codebase objType hash bytes = case objType of
   OT.TermComponent -> migrateTermComponent hash bytes
-  OT.DeclComponent -> migrateDeclComponent hash bytes
+  OT.DeclComponent -> migrateDeclComponent codebase hash
   OT.Namespace -> migrateNamespace hash bytes
   OT.Patch -> migratePatch hash bytes
 
@@ -179,18 +197,19 @@ migrateNamespace = error "not implemented"
 migrateTermComponent :: HashId -> ByteString -> m _
 migrateTermComponent = error "not implemented"
 
-migrateDeclComponent :: EDB m => Codebase m v a -> HashId -> m _
-migrateDeclComponent Codebase{..} hashId = do
-  hash <- Ops.loadHashByHashId hashId
-  declComponent :: [Decl v a] <- Codebase.getDeclComponent (Cv.hash2to1 hash) >>= \case
-    Nothing -> error "handle this" -- not non-fatal! 
+migrateDeclComponent :: Ops.EDB m => Codebase m v a -> HashId -> m (Sync.TrySyncResult Reference.Id)
+migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
+  hash' <- lift $ Ops.loadHashByHashId hashId
+  let hash = Cv.hash2to1 hash'
+  declComponent :: [DD.Decl v a] <- lift (getDeclComponent hash) >>= \case
+    Nothing -> error "handle this" -- not non-fatal!
     Just dc -> pure dc
-  
+
   -- type Decl = Either EffectDeclaration DataDeclaration
-  let componentIDMap :: Map Reference.Id (Decl v a)
+  let componentIDMap :: Map Reference.Id (DD.Decl v a)
       componentIDMap = Map.fromList $ Reference.componentFor hash declComponent
 
-  let unhashed :: Map Reference.Id (v, Decl v a)
+  let unhashed :: Map Reference.Id (v, DD.Decl v a)
       unhashed = DD.unhashComponent componentIDMap
 --  data DataDeclaration v a = DataDeclaration {
 --   modifier :: Modifier,
@@ -198,12 +217,26 @@ migrateDeclComponent Codebase{..} hashId = do
 --   bound :: [v],
 --   constructors' :: [(a, v, Type v a)]
 -- } deriving (Eq, Show, Functor)
- 
+
   let allTypes :: [Type v a]
-      allTypes = (\(_, _, typ) -> typ) . concatMap (constructors' . snd) . Map.values $ unhashed
+      allTypes =
+        unhashed
+        ^.. traversed
+        . _2
+        . beside coerced id
+        . to DD.constructors'
+        . traversed
+        . _3
   let allContainedReferences :: [Reference.Id]
-      allContainedReferences = foldMap (ABT.find findReferenceIds) (constructors)
-  
+      allContainedReferences = foldMap (ABT.find findReferenceIds) allTypes
+  -- unmigratedIds :: [Reference.Id]
+  declMap <- gets declLookup
+  let unmigratedIds :: [Reference.Id]
+      unmigratedIds = filter (\ref -> not (Map.member ref declMap)) allContainedReferences
+  when (not . null $ unmigratedIds) $ throwE (Sync.Missing unmigratedIds)
+  -- At this point we know we have all the required mappings from old references  to new ones.
+  _
+
 
 
 -- get references:
@@ -212,20 +245,20 @@ migrateDeclComponent Codebase{..} hashId = do
 --
 -- are all those references keys in our skymap?
 --   yes => migrate term
---   no => returh those references (as Entity, though) as more work to do 
+--   no => returh those references (as Entity, though) as more work to do
 
 -- how to turn Reference.Id into Entity?
 --   need its ObjectId,
 
 -- Term f v a -> ValidateT (Seq Reference.Id) m (Term f v a)
--- 
+--
 recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
 recordRefsInType = _
 
-findReferenceIds :: Type v a -> FindAction Reference.Id
-findReferenceIds = Term.out >>> \case
-  Tm (Ref (Reference.DerivedId r)) -> Found r
-  x -> Continue
+findReferenceIds :: Type v a -> ABT.FindAction Reference.Id
+findReferenceIds = ABT.out >>> \case
+  ABT.Tm (Type.Ref (Reference.DerivedId r)) -> ABT.Found r
+  x -> ABT.Continue
 
 
 
@@ -252,14 +285,13 @@ findReferenceIds = Term.out >>> \case
 --   do we kinda have circular dependency issues here?
 --   parser-typechecker depends on codebase2, but we are talking about doing things at the parser-typechecker level in this migration
 --   answer: no
-  
+
   -- unhashComponent
   -- :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 
-  let dataDecls = fmap (either toDataDecl id) declComponent
   -- DD.unhashComponent
-  
-  
+
+
   -- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
 
 
@@ -276,7 +308,7 @@ findReferenceIds = Term.out >>> \case
 --
 --  And write it with variables in place of recursive mentions like
 --
---     (Var 1, Alternatives [Nil, Cons a (Var 1)]  
+--     (Var 1, Alternatives [Nil, Cons a (Var 1)]
 
 -- can derive `original` from Hash + [OldDecl]
 -- original :: Map Reference.Id (Decl v a)
@@ -291,8 +323,8 @@ findReferenceIds = Term.out >>> \case
 -- new_references :: Map v (Reference.Id {new}, DataDeclaration v a)
 -- new_references = Unison.Hashing.V2.Convert.hashDecls $ Map.toList $ Foldable.toList rewritten_dependencies
 
-  
-  
+
+
 
 
   -- let DeclFormat locallyIndexedComponent = case runGetS S.getDeclFormat declFormatBytes of
@@ -300,8 +332,8 @@ findReferenceIds = Term.out >>> \case
   --   Right declFormat -> declFormat
 
   -- Operations.hs converts from S level to C level
-  -- SqliteCodebase.hs converts from C level to 
-  
+  -- SqliteCodebase.hs converts from C level to
+
 
 -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
 migrateSchema12 :: Applicative m => Connection -> m Bool

@@ -50,10 +50,10 @@ newtype LocallyIndexedComponent
 
 -- new_references :: Map v (Reference.Id {new}, DataDeclaration v a)
 -- new_references = Unison.Hashing.V2.Convert.hashDecls $ Map.toList $ Foldable.toList rewritten_dependencies
-hashDecls ::
-  Var v =>
-  Map v (Memory.DD.DataDeclaration v a) ->
-  ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
+-- hashDecls ::
+--   Var v =>
+--   Map v (Memory.DD.DataDeclaration v a) ->
+--   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 
 -- compute correspondence between `v`s in `fst <$> named` compared to `fst <$> new_references` to get a Reference.Id -> Reference.Id mapping
 -- mitchell tapped out before understanding the following line
