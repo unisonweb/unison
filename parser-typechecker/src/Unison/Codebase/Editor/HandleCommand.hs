@@ -47,6 +47,7 @@ import qualified Unison.Util.Free as Free
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
+import System.Environment (withArgs)
 
 typecheck
   :: (Monad m, Var v)
@@ -118,7 +119,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
           env = Parser.ParsingEnv namegen names
       lift $ typecheck ambient codebase env sourceName source
     TypecheckFile file ambient     -> lift $ typecheck' ambient codebase file
-    Evaluate ppe unisonFile        -> lift $ evalUnisonFile ppe unisonFile
+    Evaluate ppe unisonFile        -> lift $ evalUnisonFile ppe unisonFile []
     Evaluate1 ppe useCache term    -> lift $ eval1 ppe useCache term
     LoadLocalRootBranch        -> lift $ either (const Branch.empty) id <$> Codebase.getRootBranch codebase
     LoadLocalBranch h          -> lift $ fromMaybe Branch.empty <$> Codebase.getBranchForHash codebase h
@@ -173,8 +174,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
 
-    Execute ppe uf ->
-      lift $ evalUnisonFile ppe uf
+    Execute ppe uf args ->
+      lift $ evalUnisonFile ppe uf args
     AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
@@ -206,8 +207,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Left _ -> pure ()
     pure $ r <&> Term.amap (const Ann.External)
 
-  evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
-  evalUnisonFile ppe unisonFile = do
+  evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> _
+  evalUnisonFile ppe unisonFile args = withArgs args do
     let codeLookup = Codebase.toCodeLookup codebase
     r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
     case r of

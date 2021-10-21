@@ -229,7 +229,7 @@ data Command m i v a where
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v (Runtime.WatchResults v Ann)
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command m i v (Runtime.WatchResults v Ann)
 
   CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)
 

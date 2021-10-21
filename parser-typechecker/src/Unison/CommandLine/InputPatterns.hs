@@ -1355,16 +1355,19 @@ execute :: InputPattern
 execute = InputPattern
   "run"
   []
-  []
+  [(Required, noCompletions), (Optional, argSeparator), (ZeroPlus, noCompletions)]
   (P.wrapColumn2
     [ ( "`run mymain`"
       , "Runs `!mymain`, where `mymain` is searched for in the most recent"
-        <> "typechecked file, or in the codebase."
+        <> "typechecked file, or in the codebase. Command line arguments"
+        <> "for `mymain` can optionally be supplied after `--`. E.g:"
+        <> "`run mymain -- --foo=bar baz`"
       )
     ]
   )
   (\case
-    [w] -> pure . Input.ExecuteI $ w
+    [w] -> pure $ Input.ExecuteI w []
+    (w : "--" : ws) -> pure $ Input.ExecuteI w ws --  TODO evan: maybe make the -- optional
     _   -> Left $ showPatternHelp execute
   )
 
@@ -1645,6 +1648,10 @@ noCompletions = ArgumentType
   , suggestions = I.noSuggestions
   , globTargets = mempty
   }
+
+argSeparator :: ArgumentType
+argSeparator = ArgumentType "separator"
+  $ \_ _ _ _ -> pure [Completion "--" "--" False]
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
