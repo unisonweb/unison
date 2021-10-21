@@ -27,11 +27,13 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
+import Data.Bitraversable (bitraverse)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, ($>), (<&>))
 import qualified Data.List as List
+import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -284,19 +286,12 @@ sqliteCodebase debugName root = do
       -- the individual definitions until a complete component has been written.
       termBuffer :: TVar (Map Hash TermBufferEntry) <- newTVarIO Map.empty
       declBuffer :: TVar (Map Hash DeclBufferEntry) <- newTVarIO Map.empty
-      cycleLengthCache <- Cache.semispaceCache 8192
       declTypeCache <- Cache.semispaceCache 2048
       let getTerm :: MonadIO m => Reference.Id -> m (Maybe (Term Symbol Ann))
-          getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
+          getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
-
-          getCycleLen :: EDB m => String -> Hash -> m Reference.Size
-          getCycleLen source = Cache.apply cycleLengthCache \h ->
-            (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
-              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> pure . error $ show e ++ " in " ++ source
-              e -> Except.throwError e
+              Cv.term2to1 h1 getDeclType term2
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
           getDeclType = Cache.apply declTypeCache \case
@@ -315,42 +310,57 @@ sqliteCodebase debugName root = do
 
           getTypeOfTermImpl :: MonadIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
           getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined
-          getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
+          getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
-              Cv.ttype2to1 (getCycleLen "getTypeOfTermImpl") type2
+              pure $ Cv.ttype2to1 type2
+
+          getTermComponentWithTypes :: MonadIO m => Hash -> m (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+          getTermComponentWithTypes h1@(Cv.hash1to2 -> h2) =
+            runDB' conn $ do
+              tms <- Ops.loadTermComponent h2
+              for tms (bitraverse (Cv.term2to1 h1 getDeclType) (pure . Cv.ttype2to1))
 
           getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
-          getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
+          getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i) =
             runDB' conn do
               decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-              Cv.decl2to1 h1 (getCycleLen "getTypeDeclaration") decl2
+              pure $ Cv.decl2to1 h1 decl2
+
+          getDeclComponent :: MonadIO m => Hash -> m (Maybe [Decl Symbol Ann])
+          getDeclComponent h1@(Cv.hash1to2 -> h2) =
+            runDB' conn $  map (Cv.decl2to1 h1) <$> Ops.loadDeclComponent h2
+
+          --putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
+          --putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
+
+          -- option 1: tweak putTerm to incrementally notice the cycle length until each component is full
+          -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
+          -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
           putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
           putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
-          putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n') tm tp =
+          putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
             runDB conn $
               unlessM
                 (Ops.objectExistsForHash h2 >>= if debug then \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b else pure)
                 ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
                     Monad.when debug $ traceM $ "adding to BufferEntry" ++ show be
-                    let size' = Just n'
-                    -- if size was previously set, it's expected to match size'.
-                    case size of
-                      Just n
-                        | n /= n' ->
-                          error $ "targetSize for term " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
-                      _ -> pure ()
+                    let termDependencies = Set.toList $ Term.termDependencies tm
+                    -- update the component target size if we encounter any higher self-references
+                    let size' = max size (Just $ biggestSelfReference + 1) where
+                          biggestSelfReference = maximum1 $
+                            i :| [ i' | Reference.Derived h' i' <- termDependencies, h == h' ]
                     let comp' = Map.insert i (tm, tp) comp
                     -- for the component element that's been passed in, add its dependencies to missing'
                     missingTerms' <-
                       filterM
                         (fmap not . Ops.objectExistsForHash . Cv.hash1to2)
-                        [h | Reference.Derived h _i _n <- Set.toList $ Term.termDependencies tm]
+                        [h | Reference.Derived h _i <- termDependencies]
                     missingTypes' <-
                       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-                        [h | Reference.Derived h _i _n <- Set.toList $ Term.typeDependencies tm]
-                          ++ [h | Reference.Derived h _i _n <- Set.toList $ Type.dependencies tp]
+                        [h | Reference.Derived h _i <- Set.toList $ Term.typeDependencies tm]
+                          ++ [h | Reference.Derived h _i <- Set.toList $ Type.dependencies tp]
                     let missing' = missing <> Set.fromList (missingTerms' <> missingTypes')
                     -- notify each of the dependencies that h depends on them.
                     traverse (addBufferDependent h termBuffer) missingTerms'
@@ -466,21 +476,19 @@ sqliteCodebase debugName root = do
               h
 
           putTypeDeclaration :: MonadIO m => Reference.Id -> Decl Symbol Ann -> m ()
-          putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n') decl =
+          putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i) decl =
             runDB conn $
               unlessM
                 (Ops.objectExistsForHash h2)
                 ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
-                    let size' = Just n'
-                    case size of
-                      Just n
-                        | n /= n' ->
-                          error $ "targetSize for type " ++ show h ++ " was " ++ show size ++ ", but now " ++ show size'
-                      _ -> pure ()
+                    let declDependencies = Set.toList $ Decl.declDependencies decl
+                    let size' = max size (Just $ biggestSelfReference + 1) where
+                          biggestSelfReference = maximum1 $
+                            i :| [i' | Reference.Derived h' i' <- declDependencies, h == h']
                     let comp' = Map.insert i decl comp
                     moreMissing <-
                       filterM (fmap not . Ops.objectExistsForHash . Cv.hash1to2) $
-                        [h | Reference.Derived h _i _n <- Set.toList $ Decl.declDependencies decl]
+                        [h | Reference.Derived h _i <- declDependencies]
                     let missing' = missing <> Set.fromList moreMissing
                     traverse (addBufferDependent h declBuffer) moreMissing
                     putBuffer declBuffer h (BufferEntry size' comp' missing' waiting)
@@ -508,7 +516,7 @@ sqliteCodebase debugName root = do
                     . runExceptT
                     . flip runReaderT conn
                     . fmap (Branch.transform (runDB conn))
-                    $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
+                    $ Cv.causalbranch2to1 getDeclType =<< Ops.loadRootCausal
                 v <- runDB conn Ops.dataVersion
                 for_ b (atomically . writeTVar rootBranchCache . Just . (v,))
                 pure b
@@ -580,7 +588,7 @@ sqliteCodebase debugName root = do
             Ops.loadCausalBranchByCausalHash (Cv.branchHash1to2 h) >>= \case
               Just b ->
                 pure . Just . Branch.transform (runDB conn)
-                  =<< Cv.causalbranch2to1 getCycleLen getDeclType b
+                  =<< Cv.causalbranch2to1 getDeclType b
               Nothing -> pure Nothing
 
           putBranch :: MonadIO m => Branch m -> m ()
@@ -594,7 +602,7 @@ sqliteCodebase debugName root = do
             runDB conn . runMaybeT $
               MaybeT (Ops.primaryHashToMaybePatchObjectId (Cv.patchHash1to2 h))
                 >>= Ops.loadPatchById
-                >>= Cv.patch2to1 getCycleLen
+                <&> Cv.patch2to1
 
           putPatch :: MonadIO m => Branch.EditHash -> Patch -> m ()
           putPatch h p =
@@ -607,8 +615,14 @@ sqliteCodebase debugName root = do
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
-              Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
-                =<< Ops.dependents (Cv.reference1to2 r)
+              Set.map Cv.referenceid2to1
+                <$> Ops.dependents (Cv.reference1to2 r)
+
+          dependentsOfComponentImpl :: MonadIO m => Hash -> m (Set Reference.Id)
+          dependentsOfComponentImpl h =
+            runDB conn $
+              Set.map Cv.referenceid2to1
+                <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
@@ -627,20 +641,20 @@ sqliteCodebase debugName root = do
           watches w =
             runDB conn $
               Ops.listWatches (Cv.watchKind1to2 w)
-                >>= traverse (Cv.referenceid2to1 (getCycleLen "watches"))
+                <&> fmap Cv.referenceid2to1
 
           getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
-          getWatch k r@(Reference.Id h _i _n)
+          getWatch k r@(Reference.Id h _i)
             | elem k standardWatchKinds =
               runDB' conn $
                 Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h (getCycleLen "getWatch") getDeclType
+                  >>= Cv.term2to1 h getDeclType
           getWatch _unknownKind _ = pure Nothing
 
           standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
           putWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
-          putWatch k r@(Reference.Id h _i _n) tm
+          putWatch k r@(Reference.Id h _i) tm
             | elem k standardWatchKinds =
               runDB conn $
                 Ops.saveWatch
@@ -682,13 +696,13 @@ sqliteCodebase debugName root = do
           termsOfTypeImpl r =
             runDB conn $
               Ops.termsHavingType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsOfTypeImpl") getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 getDeclType)
 
           termsMentioningTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
           termsMentioningTypeImpl r =
             runDB conn $
               Ops.termsMentioningType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsMentioningTypeImpl") getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 getDeclType)
 
           hashLength :: Applicative m => m Int
           hashLength = pure 10
@@ -705,7 +719,7 @@ sqliteCodebase debugName root = do
                   >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
                   >>= pure . Set.fromList
 
-              Set.fromList <$> traverse (Cv.referenceid2to1 (getCycleLen "defnReferencesByPrefix")) (Set.toList refs)
+              pure $ Set.map Cv.referenceid2to1 refs
 
           termReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
           termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
@@ -718,11 +732,11 @@ sqliteCodebase debugName root = do
           referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = runDB conn do
             termReferents <-
               Ops.termReferentsByPrefix prefix cycle
-                >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
+                >>= traverse (Cv.referentid2to1 getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
-                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
-                    | (h, pos, len, ct, cids) <- declReferents',
+                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid) (Cv.decltype2to1 ct)
+                    | (h, pos, ct, cids) <- declReferents',
                       cid <- cids
                   ]
             pure . Set.fromList $ termReferents <> declReferents
@@ -767,6 +781,11 @@ sqliteCodebase debugName root = do
             (Cache.applyDefined declCache getTypeDeclaration)
             putTerm
             putTypeDeclaration
+            -- _getTermComponent
+            getTermComponentWithTypes
+            -- _getTermComponentLength
+            getDeclComponent
+            -- _getDeclComponentLength
             (getRootBranch rootBranchCache)
             (putRootBranch rootBranchCache)
             (rootBranchUpdates rootBranchCache)
@@ -777,6 +796,7 @@ sqliteCodebase debugName root = do
             putPatch
             patchExists
             dependentsImpl
+            dependentsOfComponentImpl
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'

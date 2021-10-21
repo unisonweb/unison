@@ -106,11 +106,11 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   
     25 | > ex4
            ⧩
-           "84012f06fbedb0f12ff27cf749927e6316aa2d5998efce7da7666cd16bdae204"
+           "c9adb8fbda582aeab113379dbd8f6af3ea450df1782780d61d44ad1ef7bff76e"
   
     26 | > ex5
            ⧩
-           "36a41b5fa0898be800d740dea2091fb1ed8987400239d4863e44a995750bc901"
+           "b198a72da9e6c11536c0a2118002760a9eac57db7f9a0ce9ebda8cd8a806bd06"
 
 ```
 And here's the full API:

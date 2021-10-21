@@ -43,7 +43,7 @@ And then we add it.
   2. -- #v4a90flt15t54qnjbvbdtj42ouqo8dktu5da8g6q30l4frc6l81ttjtov42r1nbj5jq3hh98snlb64tkbb1mc5dk8les96v71b4qr6g#0
      Foo.Foo : Foo
      
-  3. -- #31g7t8qcmqqdtpe4bdo1591egqh1q0ltnt69u345gdrdur0n8flfu1ohpjasauc9k81msvi2a4q4b03tp1018sac9esd8d3qmbq4b2g
+  3. -- #5k9rns49vrtujrpbiegajeja9qjjs77fju3usg1i1dpeo44kefkbce776u1kvqhvtutk6a6f178kovr422ocsd4fdsbsg7fprf4o0dg
      fooToInt : Foo -> Int
      
   

@@ -88,13 +88,13 @@ unhashComponentTest = tests
         forall = Type.forall ()
         (-->) = Type.arrow ()
         h = Hash.unsafeFromBase32Hex "abcd"
-        ref = R.Derived h 0 1
-        a = Var.refNamed ref
+        ref = R.Id h 0
+        a = Var.refIdNamed ref
         b = Var.named "b"
         nil = Var.named "Nil"
-        cons = Var.refNamed ref
+        cons = Var.refIdNamed ref
         listRef = ref
-        listType = Type.ref () listRef
+        listType = Type.refId () listRef
         listDecl = DataDeclaration {
           modifier = DD.Structural,
           annotation = (),
@@ -104,9 +104,9 @@ unhashComponentTest = tests
            , ((), cons, forall b (var b --> listType `app` var b --> listType `app` var b))
            ]
         }
-        component :: Map R.Reference (Decl Symbol ())
+        component :: Map R.Id (Decl Symbol ())
         component = Map.singleton listRef (Right listDecl)
-        component' :: Map R.Reference (Symbol, Decl Symbol ())
+        component' :: Map R.Id (Symbol, Decl Symbol ())
         component' = DD.unhashComponent component
         (listVar, Right listDecl') = component' ! listRef
         listType' = var listVar

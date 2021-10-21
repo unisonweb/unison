@@ -6,12 +6,15 @@ module Unison.Codebase.Type (Codebase (..), CodebasePath, GitError(..), GetRootB
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
+import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -20,8 +23,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
-import Unison.Codebase.GitError (GitProtocolError, GitCodebaseError)
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -38,6 +39,11 @@ data Codebase m v a = Codebase
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),
     putTerm :: Reference.Id -> Term v a -> Type v a -> m (),
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
+    -- getTermComponent :: Hash -> m (Maybe [Term v a]),
+    getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
+    -- getTermComponentLength :: Hash -> m (Reference.CycleSize),
+    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    -- getDeclComponentLength :: Hash -> m (Reference.CycleSize),
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
@@ -48,6 +54,7 @@ data Codebase m v a = Codebase
     putPatch :: Branch.EditHash -> Patch -> m (),
     patchExists :: Branch.EditHash -> m Bool,
     dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- This copies all the dependencies of `b` from the specified Codebase into this one
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- This copies all the dependencies of `b` from this Codebase

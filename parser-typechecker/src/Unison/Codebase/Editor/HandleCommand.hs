@@ -134,8 +134,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncRemoteRootBranch repo branch syncMode ->
       lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
     LoadTerm r -> lift $ Codebase.getTerm codebase r
-    LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
+    LoadTermComponentWithTypes h -> lift $ Codebase.getTermComponentWithTypes codebase h
+    LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
+    LoadDeclComponent r -> lift $ Codebase.getDeclComponent codebase r
     PutTerm r tm tp -> lift $ Codebase.putTerm codebase r tm tp
     PutDecl r decl -> lift $ Codebase.putTypeDeclaration codebase r decl
     PutWatch kind r e -> lift $ Codebase.putWatch codebase kind r e
@@ -146,6 +148,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     IsTerm r -> lift $ Codebase.isTerm codebase r
     IsType r -> lift $ Codebase.isType codebase r
     GetDependents r -> lift $ Codebase.dependents codebase r
+    GetDependentsOfComponent h -> lift $ Codebase.dependentsOfComponent codebase h
     AddDefsToCodebase unisonFile -> lift $ Codebase.addDefsToCodebase codebase unisonFile
     GetTermsOfType ty -> lift $ Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> lift $ Codebase.termsMentioningType codebase ty

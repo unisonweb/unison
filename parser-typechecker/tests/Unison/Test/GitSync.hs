@@ -194,10 +194,16 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #dsh
+        .> reset-root #97u
         .> history
         ```
-    |])
+    |]) -- Not sure why this hash is here.
+    -- Is it to test `reset-root`?
+    -- Or to notice a change in hashing?
+    -- Or to test that two distinct points of history were pulled?
+    -- It would be great to not need the explicit hash here,
+    -- since it does change periodically.
+    -- Though, I guess that should also be rare, so maybe this is fine.
   ,
 
   pushPullTest "one-term" fmt

@@ -142,7 +142,9 @@ type EDB m = (Err m, DB m)
 type ErrString = String
 
 data DecodeError
-  = ErrTermElement Word64
+  = ErrTermFormat
+  | ErrDeclFormat
+  | ErrTermElement Word64
   | ErrDeclElement Word64
   | ErrFramedArrayLen
   | ErrTypeOfTerm C.Reference.Id
@@ -197,6 +199,12 @@ primaryHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
 primaryHashToMaybeObjectId h = do
   (Q.loadHashId . H.toBase32Hex) h >>= \case
     Just hashId -> Q.maybeObjectIdForPrimaryHashId hashId
+    Nothing -> pure Nothing
+
+anyHashToMaybeObjectId :: DB m => H.Hash -> m (Maybe Db.ObjectId)
+anyHashToMaybeObjectId h = do
+  (Q.loadHashId . H.toBase32Hex) h >>= \case
+    Just hashId -> Q.maybeObjectIdForAnyHashId hashId
     Nothing -> pure Nothing
 
 primaryHashToMaybePatchObjectId :: EDB m => PatchHash -> m (Maybe Db.PatchObjectId)
@@ -383,6 +391,9 @@ diffPatch (S.Patch fullTerms fullTypes) (S.Patch refTerms refTypes) =
 
 -- * Deserialization helpers
 
+decodeTermFormat :: Err m => ByteString -> m S.Term.TermFormat
+decodeTermFormat = getFromBytesOr ErrTermFormat S.getTermFormat
+
 decodeComponentLengthOnly :: Err m => ByteString -> m Word64
 decodeComponentLengthOnly = getFromBytesOr ErrFramedArrayLen (Get.skip 1 >> S.lengthFramedArray)
 
@@ -394,6 +405,9 @@ decodeTermElementDiscardingTerm i = getFromBytesOr (ErrTermElement i) (S.lookupT
 
 decodeTermElementDiscardingType :: Err m => C.Reference.Pos -> ByteString -> m (LocalIds, S.Term.Term)
 decodeTermElementDiscardingType i = getFromBytesOr (ErrTermElement i) (S.lookupTermElementDiscardingType i)
+
+decodeDeclFormat :: Err m => ByteString -> m S.Decl.DeclFormat
+decodeDeclFormat = getFromBytesOr ErrDeclFormat S.getDeclFormat
 
 decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
 decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
@@ -429,6 +443,17 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
+loadTermComponent :: EDB m => H.Hash -> MaybeT m [(C.Term Symbol, C.Term.Type Symbol)]
+loadTermComponent h = do
+  MaybeT (anyHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectById
+    -- retrieve and deserialize the blob
+    >>= decodeTermFormat
+    >>= \case
+      S.Term.Term (S.Term.LocallyIndexedComponent elements) ->
+        lift . traverse (uncurry3 s2cTermWithType) $
+          Foldable.toList elements
+
 saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
 saveTermComponent h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
@@ -621,7 +646,7 @@ s2cTypeOfTerm ids tp = do
   (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId ids
   pure $ x2cTType substText substHash tp
 
--- | implementation detail of {s,w}2c*Term*
+-- | implementation detail of {s,w}2c*Term* & s2cDecl
 localIdsToLookups :: Monad m => (t -> m Text) -> (d -> m H.Hash) -> LocalIds' t d -> m (LocalTextId -> Text, LocalDefnId -> H.Hash)
 localIdsToLookups loadText loadHash localIds = do
   texts <- traverse loadText $ LocalIds.textLookup localIds
@@ -629,6 +654,11 @@ localIdsToLookups loadText loadHash localIds = do
   let substText (LocalTextId w) = texts Vector.! fromIntegral w
       substHash (LocalDefnId w) = hashes Vector.! fromIntegral w
   pure (substText, substHash)
+
+localIdsToTypeRefLookup :: EDB m => LocalIds -> m (S.Decl.TypeRef -> C.Decl.TypeRef)
+localIdsToTypeRefLookup localIds = do
+  (substText, substHash) <- localIdsToLookups loadTextById loadHashByObjectId localIds
+  pure $ bimap substText (fmap substHash)
 
 -- | implementation detail of {s,w}2c*Term*
 x2cTerm :: (LocalTextId -> Text) -> (LocalDefnId -> H.Hash) -> S.Term.Term -> C.Term Symbol
@@ -725,7 +755,16 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol)] -> m Db.ObjectId
+loadDeclComponent :: EDB m => H.Hash -> MaybeT m [C.Decl Symbol]
+loadDeclComponent h = do
+  MaybeT (anyHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectById
+    >>= decodeDeclFormat
+    >>= \case
+      S.Decl.Decl (S.Decl.LocallyIndexedComponent elements) ->
+        lift . traverse (uncurry s2cDecl) $ Foldable.toList elements
+
+saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
@@ -778,26 +817,19 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
               (Vector.fromList (Foldable.toList defnIds))
       pure (ids, decl)
 
+s2cDecl :: EDB m => LocalIds -> S.Decl.Decl Symbol -> m (C.Decl Symbol)
+s2cDecl ids (C.Decl.DataDeclaration dt m b ct) = do
+  substTypeRef <- localIdsToTypeRefLookup ids
+  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct))
+
 loadDeclByReference :: EDB m => C.Reference.Id -> MaybeT m (C.Decl Symbol)
 loadDeclByReference r@(C.Reference.Id h i) = do
   when debug . traceM $ "loadDeclByReference " ++ show r
-  -- retrieve the blob
-  (localIds, C.Decl.DataDeclaration dt m b ct) <-
-    MaybeT (primaryHashToMaybeObjectId h)
-      >>= liftQ . Q.loadObjectWithTypeById
-      >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
-      >>= decodeDeclElement i
-
-  -- look up the text and hashes that are used by the term
-  texts <- traverse loadTextById $ LocalIds.textLookup localIds
-  hashes <- traverse loadHashByObjectId $ LocalIds.defnLookup localIds
-
-  -- substitute the text and hashes back into the term
-  let substText tIdx = texts Vector.! fromIntegral tIdx
-      substHash hIdx = hashes Vector.! fromIntegral hIdx
-      substTypeRef :: S.Decl.TypeRef -> C.Decl.TypeRef
-      substTypeRef = bimap substText (fmap substHash)
-  pure (C.Decl.DataDeclaration dt m b (C.Type.rmap substTypeRef <$> ct)) -- lens might be nice here
+  MaybeT (primaryHashToMaybeObjectId h)
+    >>= liftQ . Q.loadObjectWithTypeById
+    >>= \case (OT.DeclComponent, blob) -> pure blob; _ -> mzero
+    >>= decodeDeclElement i
+    >>= uncurry s2cDecl
 
 -- * Branch transformation
 
@@ -1300,26 +1332,25 @@ declReferentsByPrefix ::
   Text ->
   Maybe C.Reference.Pos ->
   Maybe ConstructorId ->
-  m [(H.Hash, C.Reference.Pos, Word64, C.DeclType, [C.Decl.ConstructorId])]
+  m [(H.Hash, C.Reference.Pos, C.DeclType, [C.Decl.ConstructorId])]
 declReferentsByPrefix b32prefix pos cid = do
   componentReferencesByPrefix OT.DeclComponent b32prefix pos
     >>= traverse (loadConstructors cid)
   where
-    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, Word64, C.DeclType, [ConstructorId])
+    loadConstructors :: EDB m => Maybe Word64 -> S.Reference.Id -> m (H.Hash, C.Reference.Pos, C.DeclType, [ConstructorId])
     loadConstructors cid rid@(C.Reference.Id oId pos) = do
-      (dt, len, ctorCount) <- getDeclCtorCount rid
+      (dt, ctorCount) <- getDeclCtorCount rid
       h <- loadHashByObjectId oId
       let test :: ConstructorId -> Bool
           test = maybe (const True) (==) cid
           cids = [cid | cid <- [0 :: ConstructorId .. ctorCount - 1], test cid]
-      pure (h, pos, len, dt, cids)
-    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, Word64, ConstructorId)
+      pure (h, pos, dt, cids)
+    getDeclCtorCount :: EDB m => S.Reference.Id -> m (C.Decl.DeclType, ConstructorId)
     getDeclCtorCount id@(C.Reference.Id r i) = do
       when debug $ traceM $ "getDeclCtorCount " ++ show id
       bs <- liftQ (Q.loadObjectById r)
-      len <- decodeComponentLengthOnly bs
       (_localIds, decl) <- decodeDeclElement i bs
-      pure (C.Decl.declType decl, len, fromIntegral $ length (C.Decl.constructorTypes decl))
+      pure (C.Decl.declType decl, fromIntegral $ length (C.Decl.constructorTypes decl))
 
 branchHashesByPrefix :: EDB m => ShortBranchHash -> m (Set BranchHash)
 branchHashesByPrefix (ShortBranchHash b32prefix) = do
@@ -1338,8 +1369,14 @@ dependents :: EDB m => C.Reference -> m (Set C.Reference.Id)
 dependents r = do
   r' <- c2sReference r
   sIds :: [S.Reference.Id] <- Q.getDependentsForDependency r'
-  -- how will you convert this back to Unison.Reference if you
-  -- don't know the cycle size?
+  cIds <- traverse s2cReferenceId sIds
+  pure $ Set.fromList cIds
+
+-- | returns a list of known definitions referencing `h`
+dependentsOfComponent :: EDB m => H.Hash -> m (Set C.Reference.Id)
+dependentsOfComponent h = do
+  oId <- primaryHashToExistingObjectId h
+  sIds :: [S.Reference.Id] <- Q.getDependentsForDependencyComponent oId
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 

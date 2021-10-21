@@ -17,8 +17,8 @@ inside.r = d
 ```ucm
 .> debug.file
 
-  type inside.M#4idrjau939
-  type outside.A#0n4pbd0q9u
+  type inside.M#ld0okei52l
+  type outside.A#e6mpjfecmg
   type outside.B#muulibntaq
   inside.p#fiupm7pl7o
   inside.q#l5pndeifuh

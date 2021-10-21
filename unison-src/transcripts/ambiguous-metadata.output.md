@@ -14,10 +14,10 @@ x = 1
   
   New name conflicts:
   
-    1. doc#tj3gfqdnje : #v00j3buk6m
+    1. doc#mqm91b53vp : #qpp8bgqet0
        ↓
-    2. ┌ doc#d4ormokpf9 : #v00j3buk6m
-    3. └ doc#tj3gfqdnje : #v00j3buk6m
+    2. ┌ doc#a09ch66esd : #qpp8bgqet0
+    3. └ doc#mqm91b53vp : #qpp8bgqet0
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -32,7 +32,7 @@ x = 1
   there are multiple matches:
   
     foo.doc
-    doc#tj3gfqdnje
+    doc#mqm91b53vp
   
   Tip: Try again and supply one of the above definitions
        explicitly.

@@ -3,6 +3,8 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 376639c26bffa766c92695ee10dfb8e173ff944dd0483f4aa41b3a6a79887099
 
 name:           unison-core1
 version:        0.0.0
@@ -44,7 +46,6 @@ library
       Unison.Paths
       Unison.Pattern
       Unison.Reference
-      Unison.Reference.Util
       Unison.Referent
       Unison.Referent'
       Unison.Settings
