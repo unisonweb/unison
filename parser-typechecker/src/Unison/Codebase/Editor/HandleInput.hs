@@ -409,7 +409,7 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           UiI -> "ui"
-          ExecuteI s -> "execute " <> Text.pack s
+          ExecuteI s args -> Text.unwords $ map Text.pack (["execute", s] ++ args)
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
             "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
@@ -1582,7 +1582,7 @@ loop = do
         updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
-      ExecuteI main -> addRunMain main uf >>= \case
+      ExecuteI main args -> addRunMain main uf >>= \case
         NoTermWithThatName -> do
           ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
           mainType <- eval RuntimeMain
@@ -1593,7 +1593,7 @@ loop = do
           respond $ BadMainFunction main ty ppe [mainType]
         RunMainSuccess unisonFile -> do
           ppe <- executePPE unisonFile
-          e <- eval $ Execute ppe unisonFile
+          e <- eval $ Execute ppe unisonFile args
 
           case e of
             Left e -> respond $ EvaluationFailure e

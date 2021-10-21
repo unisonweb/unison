@@ -112,8 +112,8 @@ data Input
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any
   | HistoryI (Maybe Int) (Maybe Int) BranchId
-  -- execute an IO thunk
-  | ExecuteI String
+  -- execute an IO thunk with args
+  | ExecuteI String [String]
   -- execute an IO [Result]
   | IOTestI (HQ.HashQualified Name)
   -- make a standalone binary file

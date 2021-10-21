@@ -109,7 +109,7 @@ main = do
                 ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
                 rt <- RTI.startRuntime Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName [], Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
                 closeCodebase
      Run (RunFromPipe mainName) -> do
       e <- safeReadUtf8StdIn
@@ -121,7 +121,7 @@ main = do
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config rt theCodebase
-            [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+            [Left fileEvent, Right $ Input.ExecuteI mainName [], Right Input.QuitI]
             Nothing
             ShouldNotDownloadBase
             initRes
