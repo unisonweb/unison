@@ -19,6 +19,7 @@ import Options.Applicative
        , ParserInfo
        , ParserPrefs
        , action
+       , argument
        , auto
        , columns
        , command
@@ -31,6 +32,7 @@ import Options.Applicative
        , helpShowGlobals
        , helper
        , hsubparser
+       , idm
        , info
        , long
        , metavar
@@ -40,6 +42,7 @@ import Options.Applicative
        , progDesc
        , renderFailure
        , showHelpOnError
+       , str
        , strArgument
        , strOption
        )
@@ -97,7 +100,7 @@ data Command
   | PrintVersion
   -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
   | Init
-  | Run RunSource
+  | Run RunSource [String]
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
   deriving (Show, Eq)
 
@@ -283,23 +286,26 @@ initParser = pure Init
 versionParser :: Parser Command
 versionParser = pure PrintVersion
 
+runArgumentParser :: Parser [String]
+runArgumentParser = many (argument str idm)
+
 runSymbolParser :: Parser Command
 runSymbolParser =
-  Run . RunFromSymbol <$> strArgument (metavar "SYMBOL")
+  Run . RunFromSymbol <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
 
 runFileParser :: Parser Command
-runFileParser = do -- ApplicativeDo
-  pathTofile <- fileArgument "path/to/file"
-  symbolName <- strArgument (metavar "SYMBOL")
-  pure $ Run (RunFromFile pathTofile symbolName)
+runFileParser =
+  Run <$> (RunFromFile <$> fileArgument "path/to/file"
+                       <*> strArgument (metavar "SYMBOL"))
+      <*> runArgumentParser
 
 runPipeParser :: Parser Command
 runPipeParser =
-  Run . RunFromPipe <$> strArgument (metavar "SYMBOL")
+  Run . RunFromPipe <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
 
 runCompiledParser :: Parser Command
 runCompiledParser =
-  Run . RunCompiled <$> fileArgument "path/to/file"
+  Run . RunCompiled <$> fileArgument "path/to/file" <*> runArgumentParser
 
 saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)
