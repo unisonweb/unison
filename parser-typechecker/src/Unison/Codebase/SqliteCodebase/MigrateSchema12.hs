@@ -42,6 +42,8 @@ import Control.Monad.Trans.Except (throwE)
 import Data.Either.Extra (maybeToEither)
 import Data.Generics.Product
 import Data.Generics.Sum
+import qualified Unison.Hash as Unison
+import qualified Unison.Hashing.V2.Convert as Convert
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -110,11 +112,21 @@ data X = MkX Y
 data Y = MkY Int
 -}
 
-data Entity
-  = O ObjectId
+data Entity'
+  = TComponent Unison.Hash
+  | DComponent Unison.Hash
+  | Patch ObjectId
+  | NS ObjectId
   | C CausalHashId
-  | W WK.WatchKind S.Reference.IdH
+  | W WK.WatchKind S.Reference.IdH -- Hash Reference.Id
   deriving (Eq, Ord, Show)
+
+
+-- data Entity
+--   = O ObjectId -- Hash
+--   | C CausalHashId
+--   | W WK.WatchKind S.Reference.IdH -- Hash Reference.Id
+--   deriving (Eq, Ord, Show)
 
 data Env = Env {db :: Connection}
 
@@ -201,10 +213,8 @@ migrateNamespace = error "not implemented"
 migrateTermComponent :: HashId -> ByteString -> m _
 migrateTermComponent = error "not implemented"
 
-migrateDeclComponent :: forall m v a. Ops.EDB m => Codebase m v a -> HashId -> m (Sync.TrySyncResult Reference.Id)
-migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
-  hash' <- lift $ Ops.loadHashByHashId hashId
-  let hash = Cv.hash2to1 hash'
+migrateDeclComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity')
+migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   declComponent :: [DD.Decl v a] <- lift (getDeclComponent hash) >>= \case
     Nothing -> error "handle this" -- not non-fatal!
     Just dc -> pure dc
@@ -227,7 +237,7 @@ migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
         unhashed
         ^.. traversed
         . _2
-        . beside coerced id
+        . beside asDataDecl_ id
         . to DD.constructors'
         . traversed
         . _3
@@ -238,28 +248,77 @@ migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
   declMap <- gets declLookup
   let unmigratedIds :: [Reference.Id]
       unmigratedIds = filter (\ref -> not (Map.member ref declMap)) allContainedReferences
-  when (not . null $ unmigratedIds) $ throwE (Sync.Missing unmigratedIds)
-  -- At this point we know we have all the required mappings from old references  to new ones.
-  let remapTerm :: Type v a -> ExceptT (Sync.TrySyncResult Reference.Id) m (Type v a)
-      remapTerm typ = either throwE pure $ ABT.visit' (remapReferences declMap) typ
+  when (not . null $ unmigratedIds) do
+    let unmigratedHashes :: [Unison.Hash]
+        unmigratedHashes =
+          nubOrd (map Reference.idToHash unmigratedIds)
+    throwE (Sync.Missing (map DComponent unmigratedHashes))
 
-  result :: [DD.Decl v a] <- declComponent
-               & traversed
-               . beside DD.asDataDecl_ id
-               . DD.constructors_
-               . traversed
-               . _3
-               %%~ remapTerm
-  -- putTypeDeclaration
+  -- At this point we know we have all the required mappings from old references  to new ones.
+  let remapTerm :: Type v a -> Type v a
+      remapTerm typ = runIdentity $ ABT.visit' (remapReferences declMap) typ
+
+  let remappedReferences :: Map (Old Reference.Id) (v, DD.Decl v a)
+      remappedReferences = unhashed
+               & traversed -- Traverse map of reference IDs
+               . _2 -- Select the DataDeclaration
+               . beside DD.asDataDecl_ id -- Unpack effect decls
+               . DD.constructors_ -- Get the data constructors
+               . traversed -- traverse the list of them
+               . _3 -- Select the Type term.
+               %~ remapTerm
+  let vToOldReference :: Map v (Old Reference.Id)
+      vToOldReference = Map.fromList . fmap swap . Map.toList . fmap fst $ remappedReferences
+
+  -- hashDecls ::
+  -- Var v =>
+  -- Map v (Memory.DD.DataDeclaration v a) ->
+  -- ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
+
+  let newComponent :: ([(v, Reference.Id, DD.DataDeclaration v a)])
+      newComponent = Convert.hashDecls (Map.fromList $ Map.elems remappedReferences)
+  for newComponent $ \(v, newReferenceId, dd) -> do
+    field @"declLookup" %= Map.insert (vToReference Map.! v) newReferenceId
+    putTypeDeclaration newReference (_ d)
   pure Sync.Done
+
+
+structural type Ping x = P1 (Pong x)
+  P1 : forall x. Pong x -> Ping x
+
+structural type Pong x = P2 (Ping x) | P3 Nat
+  P2 : forall x. Ping x -> Pong x
+  P3 : forall x. Nat -> Pong x
+
+
+
+
+end up with
+decl Ping (Ref.Id #abc pos=0)
+decl Pong (Ref.Id #abc pos=1)
+ctor P1: #abc pos=0 cid=0
+ctor P2: #abc pos=1 cid=0
+ctor P3: #abc pos=1 cid=1
+
+we unhashComponent and get:
+{ X -> structural type X x = AAA (Y x)
+, Y -> structural type Y x = BBB (X x) | CCC Nat }
+
+
+
+
+
 
 
 
 remapReferences :: Map (Old Reference.Id) (New Reference.Id)
                 -> Type.F (Type v a)
-                -> Either (Sync.TrySyncResult Reference.Id) (Type.F (Type v a))
+                -> Identity Type.F (Type v a)
 remapReferences declMap = \case
-  (Type.Ref (Reference.DerivedId refId)) -> (Type.Ref . Reference.DerivedId) <$> maybeToEither (Sync.Missing [refId]) (Map.lookup refId declMap)
+  (Type.Ref (Reference.DerivedId refId)) ->
+    fromMaybe
+      (error $ "Expected reference to exist in decl mapping, but it wasn't found: " <> show refId)
+      (Sync.Missing [DComponent Reference.idToHash refId]) (Map.lookup refId declMap)
   x -> pure x
 
 
