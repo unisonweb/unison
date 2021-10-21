@@ -32,12 +32,15 @@ module Unison.DataDeclaration
     withEffectDeclM,
     amap,
     updateDependencies,
+
+    constructors_,
+    asDataDecl_,
   )
 where
 
 import Unison.Prelude
 
-import Control.Lens (over, _3)
+import Control.Lens (over, _3, Iso', iso, Lens', lens)
 import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
@@ -89,9 +92,18 @@ data DataDeclaration v a = DataDeclaration {
   constructors' :: [(a, v, Type v a)]
 } deriving (Eq, Show, Functor)
 
+constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
+constructors_ = lens getter setter
+  where
+    getter = constructors'
+    setter dd ctors = dd{constructors'=ctors}
+
 newtype EffectDeclaration v a = EffectDeclaration {
   toDataDecl :: DataDeclaration v a
 } deriving (Eq,Show,Functor)
+
+asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
+asDataDecl_ = iso toDataDecl EffectDeclaration
 
 withEffectDeclM :: Functor f
                 => (DataDeclaration v a -> f (DataDeclaration v' a'))

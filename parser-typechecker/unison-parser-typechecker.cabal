@@ -243,6 +243,7 @@ library
     , fingertree
     , fsnotify
     , fuzzyfind
+    , generic-lens
     , generic-monoid
     , hashable
     , hashtables

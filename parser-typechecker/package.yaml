@@ -126,6 +126,7 @@ library:
     - unison-util-relation
     - open-browser
     - uri-encode
+    - generic-lens
 
 executables:
   prettyprintdemo:

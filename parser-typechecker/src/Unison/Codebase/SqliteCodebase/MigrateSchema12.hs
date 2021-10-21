@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
@@ -36,8 +37,11 @@ import qualified Unison.Type as Type
 import qualified Data.List as List
 import Control.Lens
 import Control.Monad.State.Strict
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Except (runExceptT, ExceptT)
 import Control.Monad.Trans.Except (throwE)
+import Data.Either.Extra (maybeToEither)
+import Data.Generics.Product
+import Data.Generics.Sum
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -169,11 +173,11 @@ migrationSync = Sync \case
   -- To sync a causal,
   --   1. ???
   --   2. Synced
-  C causalHashID -> _
+  C causalHashID -> undefined
   -- To sync a watch result,
   --   1. ???
   --   2. Synced
-  W watchKind idH -> _
+  W watchKind idH -> undefined
 
 -- data ObjectType
 --   = TermComponent -- 0
@@ -197,7 +201,7 @@ migrateNamespace = error "not implemented"
 migrateTermComponent :: HashId -> ByteString -> m _
 migrateTermComponent = error "not implemented"
 
-migrateDeclComponent :: Ops.EDB m => Codebase m v a -> HashId -> m (Sync.TrySyncResult Reference.Id)
+migrateDeclComponent :: forall m v a. Ops.EDB m => Codebase m v a -> HashId -> m (Sync.TrySyncResult Reference.Id)
 migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
   hash' <- lift $ Ops.loadHashByHashId hashId
   let hash = Cv.hash2to1 hash'
@@ -227,6 +231,7 @@ migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
         . to DD.constructors'
         . traversed
         . _3
+
   let allContainedReferences :: [Reference.Id]
       allContainedReferences = foldMap (ABT.find findReferenceIds) allTypes
   -- unmigratedIds :: [Reference.Id]
@@ -235,7 +240,27 @@ migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
       unmigratedIds = filter (\ref -> not (Map.member ref declMap)) allContainedReferences
   when (not . null $ unmigratedIds) $ throwE (Sync.Missing unmigratedIds)
   -- At this point we know we have all the required mappings from old references  to new ones.
-  _
+  let remapTerm :: Type v a -> ExceptT (Sync.TrySyncResult Reference.Id) m (Type v a)
+      remapTerm typ = either throwE pure $ ABT.visit' (remapReferences declMap) typ
+
+  result :: [DD.Decl v a] <- declComponent
+               & traversed
+               . beside DD.asDataDecl_ id
+               . DD.constructors_
+               . traversed
+               . _3
+               %%~ remapTerm
+  -- putTypeDeclaration
+  pure Sync.Done
+
+
+
+remapReferences :: Map (Old Reference.Id) (New Reference.Id)
+                -> Type.F (Type v a)
+                -> Either (Sync.TrySyncResult Reference.Id) (Type.F (Type v a))
+remapReferences declMap = \case
+  (Type.Ref (Reference.DerivedId refId)) -> (Type.Ref . Reference.DerivedId) <$> maybeToEither (Sync.Missing [refId]) (Map.lookup refId declMap)
+  x -> pure x
 
 
 
@@ -252,8 +277,8 @@ migrateDeclComponent Codebase{..} hashId = fmap (either id id) . runExceptT $ do
 
 -- Term f v a -> ValidateT (Seq Reference.Id) m (Term f v a)
 --
-recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
-recordRefsInType = _
+-- recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
+-- recordRefsInType = _
 
 findReferenceIds :: Type v a -> ABT.FindAction Reference.Id
 findReferenceIds = ABT.out >>> \case
