@@ -163,7 +163,7 @@ migrationSync = Sync \case
 migrateObject :: ObjectType -> HashId -> ByteString -> m _
 migrateObject objType hash bytes = case objType of
   OT.TermComponent -> migrateTermComponent hash bytes
-  OT.DeclComponent -> migrateTermComponent hash bytes
+  OT.DeclComponent -> migrateDeclComponent hash bytes
   OT.Namespace -> migrateNamespace hash bytes
   OT.Patch -> migratePatch hash bytes
 
@@ -175,6 +175,14 @@ migrateNamespace = error "not implemented"
 
 migrateTermComponent :: HashId -> ByteString -> m _
 migrateTermComponent = error "not implemented"
+
+migrateDeclComponent :: HashId -> ByteString -> m _
+migrateDeclComponent hashId declFormatBytes = do
+  let DeclFormat locallyIndexedComponent = case runGetS S.getDeclFormat declFormatBytes of
+    Left err -> error "something went wrong"
+    Right declFormat -> declFormat
+  let unhashed = Decl.unhashComponent
+  
 
 -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
 migrateSchema12 :: Applicative m => Connection -> m Bool
