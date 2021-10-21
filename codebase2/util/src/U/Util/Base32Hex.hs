@@ -19,7 +19,7 @@ newtype Base32Hex = UnsafeBase32Hex {toText :: Text}
 -- Multibase prefix would be 'v', see https://github.com/multiformats/multibase
 fromByteString :: ByteString -> Base32Hex
 fromByteString =
-  coerce (Text.toLower . Base32.Hex.encodeBase32Unpadded)
+  UnsafeBase32Hex . Text.toLower . Base32.Hex.encodeBase32Unpadded
 
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 toByteString :: Base32Hex -> ByteString
