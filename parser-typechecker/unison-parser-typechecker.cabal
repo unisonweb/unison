@@ -85,6 +85,7 @@ library
       Unison.CodebasePath
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
+      Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
@@ -202,6 +203,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections
@@ -325,6 +327,7 @@ executable prettyprintdemo
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections
@@ -395,6 +398,7 @@ executable tests
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections
@@ -455,6 +459,7 @@ benchmark runtime
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections

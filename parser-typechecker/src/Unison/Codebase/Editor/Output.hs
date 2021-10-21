@@ -25,7 +25,7 @@ import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names )
+import Unison.Names ( Names )
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Reference as Reference
 import Unison.Reference ( Reference )
@@ -51,7 +51,7 @@ import Unison.Server.SearchResult' (SearchResult')
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.Names.ResolutionResult as Names
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Data.Set as Set
 import Unison.NameSegment (NameSegment)
 import Unison.ShortHash (ShortHash)

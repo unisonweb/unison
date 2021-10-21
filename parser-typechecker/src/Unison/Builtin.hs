@@ -42,8 +42,8 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names3 (Names(Names), Names0)
-import qualified Unison.Names3 as Names3
+import           Unison.NamesWithHistory (NamesWithHistory(..))
+import           Unison.Names            (Names (Names))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Hashing.V2.Convert as H
@@ -52,11 +52,11 @@ type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
 type Type v = Type.Type v ()
 
-names :: Names
-names = Names names0 mempty
+names :: NamesWithHistory
+names = NamesWithHistory names0 mempty
 
-names0 :: Names0
-names0 = Names3.names0 terms types where
+names0 :: Names
+names0 = Names terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.unsafeFromVar vc, Referent.Con (R.DerivedId r) cid ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>

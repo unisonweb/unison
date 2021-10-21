@@ -14,7 +14,7 @@ import           Control.Monad.Reader (asks, local)
 import           Data.Foldable (foldrM)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
-import           Unison.Names3 (Names)
+import           Unison.NamesWithHistory (NamesWithHistory)
 import           Unison.Reference (Reference)
 import           Unison.Referent (Referent)
 import           Unison.Parser hiding (seq)
@@ -38,7 +38,7 @@ import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
-import qualified Unison.Names3 as Names
+import qualified Unison.Names as Names
 import qualified Unison.Parser as Parser (seq, uniqueName)
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Pattern as Pattern
@@ -48,6 +48,7 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
+import qualified Unison.NamesWithHistory as NamesWithHistory
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -85,7 +86,7 @@ typeLink' :: Var v => P v (L.Token Reference)
 typeLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQType (L.payload id) ns of
+  case NamesWithHistory.lookupHQType (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownType id s
 
@@ -93,7 +94,7 @@ termLink' :: Var v => P v (L.Token Referent)
 termLink' = do
   id <- hqPrefixId
   ns <- asks names
-  case Names.lookupHQTerm (L.payload id) ns of
+  case NamesWithHistory.lookupHQTerm (L.payload id) ns of
     s | Set.size s == 1 -> pure $ const (Set.findMin s) <$> id
       | otherwise       -> customFailure $ UnknownTerm id s
 
@@ -101,7 +102,7 @@ link' :: Var v => P v (Either (L.Token Reference) (L.Token Referent))
 link' = do
   id <- hqPrefixId
   ns <- asks names
-  case (Names.lookupHQTerm (L.payload id) ns, Names.lookupHQType (L.payload id) ns) of
+  case (NamesWithHistory.lookupHQTerm (L.payload id) ns, NamesWithHistory.lookupHQType (L.payload id) ns) of
     (s, s2) | Set.size s == 1 && Set.null s2 -> pure . Right $ const (Set.findMin s) <$> id
     (s, s2) | Set.size s2 == 1 && Set.null s -> pure . Left $ const (Set.findMin s2) <$> id
     (s, s2) -> customFailure $ UnknownId id s s2
@@ -222,7 +223,7 @@ parsePattern = root
     names <- asks names
     -- probably should avoid looking up in `names` if `L.payload tok`
     -- starts with a lowercase
-    case Names.lookupHQPattern (L.payload tok) ct names of
+    case NamesWithHistory.lookupHQPattern (L.payload tok) ct names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
         | otherwise      -> -- matched ctor name, consume the token
@@ -359,7 +360,7 @@ resolveHashQualified tok = do
   names <- asks names
   case L.payload tok of
     HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
-    _ -> case Names.lookupHQTerm (L.payload tok) names of
+    _ -> case NamesWithHistory.lookupHQTerm (L.payload tok) names of
       s | Set.null s     -> failCommitted $ UnknownTerm tok s
         | Set.size s > 1 -> failCommitted $ UnknownTerm tok s
         | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
@@ -975,7 +976,7 @@ importp = do
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
     (Just (Right prefix), Nothing) -> do -- `wildcard import`
       names <- asks names
-      pure $ Names.expandWildcardImport (L.payload prefix) (Names.currentNames names)
+      pure $ Names.expandWildcardImport (L.payload prefix) (NamesWithHistory.currentNames names)
     (Just (Right prefix), Just suffixes) -> pure $ do
       suffix <- L.payload <$> suffixes
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
@@ -993,23 +994,23 @@ instance Show v => Show (BlockElement v) where
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
-imports :: Var v => P v (Names, [(v,v)])
+imports :: Var v => P v (NamesWithHistory, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  ns' <- Names.importing imported <$> asks names
+  ns' <- NamesWithHistory.importing imported <$> asks names
   pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
 
 -- A key feature of imports is we want to be able to say:
 -- `use foo.bar Baz qux` without having to specify whether `Baz` or `qux` are
 -- terms or types.
-substImports :: Var v => Names -> [(v,v)] -> Term v Ann -> Term v Ann
+substImports :: Var v => NamesWithHistory -> [(v,v)] -> Term v Ann -> Term v Ann
 substImports ns imports =
   ABT.substsInheritAnnotation [ (suffix, Term.var () full)
     | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound
                                    -- not in Names, but in a later term binding
   Term.substTypeVars [ (suffix, Type.var () full)
-    | (suffix, full) <- imports, Names.hasTypeNamed (Name.unsafeFromVar full) ns ]
+    | (suffix, full) <- imports, NamesWithHistory.hasTypeNamed (Name.unsafeFromVar full) ns ]
 
 block' :: Var v => IsTop -> String -> P v (L.Token ()) -> P v b -> TermP v
 block' isTop = block'' isTop False

@@ -7,14 +7,14 @@ module Unison.Names.ResolutionResult where
 import Unison.Prelude
 import Unison.Reference as Reference ( Reference )
 import Unison.Referent as Referent ( Referent )
-import Unison.Names3 (Names0)
+import Unison.Names (Names)
 import Data.Set.NonEmpty
 
 data ResolutionError ref
   = NotFound
     -- Contains the names which were in scope and which refs were possible options
     -- The NonEmpty set of refs must contain 2 or more refs (otherwise what is ambiguous?).
-  | Ambiguous Names0 (NESet ref)
+  | Ambiguous Names (NESet ref)
   deriving (Eq, Ord, Show)
 
 -- | ResolutionFailure represents the failure to resolve a given variable.
