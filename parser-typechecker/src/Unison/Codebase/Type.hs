@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Type (Codebase (..), CodebasePath, GitError(..), GetRootBranchError (..), SyncToDir) where
+module Unison.Codebase.Type (Codebase, Codebase' (..), CodebasePath, GitError(..), GetRootBranchError (..), SyncToDir) where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -29,10 +29,12 @@ type SyncToDir m =
   Branch m -> -- branch to sync to dest codebase
   m ()
 
+type Codebase m v a = Codebase' m Reference.Id v a
+
 -- | Abstract interface to a user's codebase.
 --
 -- One implementation is 'Unison.Codebase.FileCodebase' which uses the filesystem.
-data Codebase m v a = Codebase
+data Codebase' m refId v a = Codebase
   { getTerm :: Reference.Id -> m (Maybe (Term v a)),
     getTypeOfTermImpl :: Reference.Id -> m (Maybe (Type v a)),
     getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a)),

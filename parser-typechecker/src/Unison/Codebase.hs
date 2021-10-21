@@ -3,7 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase
-  ( Codebase (..),
+  ( Codebase'(..),
     CodebasePath,
     GetRootBranchError (..),
     getBranchForHash,
