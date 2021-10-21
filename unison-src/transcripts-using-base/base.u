@@ -200,5 +200,6 @@ socketAccept = compose reraise socketAccept.impl
 socketPort = compose reraise socketPort.impl
 newClient = compose2 reraise newClient.impl
 MVar.take = compose reraise take.impl
+MVar.read = compose reraise read.impl
 MVar.put = compose2 reraise put.impl
 MVar.swap = compose2 reraise MVar.swap.impl

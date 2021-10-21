@@ -5,7 +5,7 @@ import Unison.Prelude
 import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )
-import qualified Unison.Names3                 as Names
+import qualified Unison.NamesWithHistory                 as Names
 import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
 import Unison.Parser.Ann (Ann)
@@ -80,7 +80,7 @@ unsafeParseFileBuiltinsOnly
 unsafeParseFileBuiltinsOnly =
   unsafeReadAndParseFile $ Parser.ParsingEnv
     mempty
-    (Names.Names Builtin.names0 mempty)
+    (Names.NamesWithHistory Builtin.names0 mempty)
 
 unsafeParseFile
   :: String -> Parser.ParsingEnv -> UnisonFile Symbol Ann

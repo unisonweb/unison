@@ -54,12 +54,10 @@ import qualified Unison.Name as Name
 import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Names2 as Names
-import Unison.Names3
-  ( Names (..),
-    Names0,
-  )
-import qualified Unison.Names3 as Names3
+import qualified Unison.Names as Names
+import Unison.NamesWithHistory ( NamesWithHistory (..) )
+import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.PrettyPrintEnv as PPE
@@ -123,42 +121,42 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- implementation detail of basicParseNames0 and basicPrettyPrintNames0
-basicNames0' :: Branch m -> Path -> (Names0, Names0)
-basicNames0' root path = (parseNames00, prettyPrintNames00)
+-- implementation detail of basicParseNames and basicPrettyPrintNames
+basicNames' :: Branch m -> Path -> (Names, Names)
+basicNames' root path = (parseNames0, prettyPrintNames0)
   where
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
+    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
     currentBranch0 = Branch.head currentBranch
-    currentPathNames0 = Branch.toNames0 currentBranch0
+    currentPathNames = Branch.toNames currentBranch0
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
-    currentAndExternalNames0 =
-      currentPathNames0
-        `Names3.unionLeft0` absDot externalNames
+    currentAndExternalNames =
+      currentPathNames
+        `Names.unionLeft` absDot externalNames
       where
         absDot = Names.prefix0 (Name.unsafeFromText "")
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-        rootNames = Branch.toNames0 root0
+        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
+        rootNames = Branch.toNames root0
         pathPrefixed = case path of
           Path.Path (toList -> []) -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
-    parseNames00 = currentPathNames0 <> absoluteRootNames0
+    parseNames0 = currentPathNames <> absoluteRootNames
     -- pretty-printing should use local names where available
-    prettyPrintNames00 = currentAndExternalNames0
+    prettyPrintNames0 = currentAndExternalNames
 
 basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root path =
-  let names0 = basicPrettyPrintNames0 root path
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
+  let names0 = basicPrettyPrintNames root path
+   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-basicPrettyPrintNames0 :: Branch m -> Path -> Names0
-basicPrettyPrintNames0 root = snd . basicNames0' root
+basicPrettyPrintNames :: Branch m -> Path -> Names
+basicPrettyPrintNames root = snd . basicNames' root
 
-basicParseNames0 :: Branch m -> Path -> Names0
-basicParseNames0 root = fst . basicNames0' root
+basicParseNames :: Branch m -> Path -> Names
+basicParseNames root = fst . basicNames' root
 
 loadReferentType ::
   (Applicative m, Var v) =>
@@ -222,7 +220,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames0 branch path
+      basicPrettyPrintNames branch path
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -442,15 +440,15 @@ termReferentsByShortHash codebase sh = do
         B.intrinsicTermReferences
   pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
 
--- currentPathNames0 :: Path -> Names0
--- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
+-- currentPathNames :: Path -> Names
+-- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
 
-getCurrentPrettyNames :: Path -> Branch m -> Names
+getCurrentPrettyNames :: Path -> Branch m -> NamesWithHistory
 getCurrentPrettyNames path root =
-  Names (basicPrettyPrintNames0 root path) mempty
+  NamesWithHistory (basicPrettyPrintNames root path) mempty
 
-getCurrentParseNames :: Path -> Branch m -> Names
-getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+getCurrentParseNames :: Path -> Branch m -> NamesWithHistory
+getCurrentParseNames path root = NamesWithHistory (basicParseNames root path) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -459,8 +457,8 @@ getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
 -- e.g. if currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative root = Names3.map0 fixName where
+fixupNamesRelative :: Path.Absolute -> Names -> Names
+fixupNamesRelative root = Names.map fixName where
   prefix = Path.toName $ Path.unabsolute root
   fixName n = if root == Path.absoluteEmpty
     then n
@@ -477,21 +475,21 @@ data Search r = Search
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Int -> Names -> Search Reference
+makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
 makeTypeSearch len names =
   Search
-    { lookupNames = \ref -> Names3.typeName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQType' name names,
+    { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQType' name names,
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> Names -> Search Referent
+makeTermSearch :: Int -> NamesWithHistory -> Search Referent
 makeTermSearch len names =
   Search
-    { lookupNames = \ref -> Names3.termName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQTerm' name names,
+    { lookupNames = \ref -> NamesWithHistory.termName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQTerm' name names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
@@ -687,7 +685,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
-        let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
@@ -701,7 +699,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [r] $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
         mk docs ts bn tag
        where
         mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -719,7 +717,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [] $ docNames (Names3.typeName hqLength r printNames)
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag

@@ -57,9 +57,10 @@ import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
 import qualified Unison.PrettyPrintEnv.Names as PPE
-import qualified Unison.Names3 as Names3
+import qualified Unison.NamesWithHistory as NamesWithHistory
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NES
+import qualified Unison.Names as Names
 
 type Env = PPE.PrettyPrintEnv
 
@@ -1466,17 +1467,17 @@ prettyResolutionFailures s allFailures =
     toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
     toAmbiguityPair = \case
       (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromNames0 names
+        let ppe = ppeFromNames names
          in (v, Just $ NES.map (showTermRef ppe) refs)
       (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
-        let ppe = ppeFromNames0 names
+        let ppe = ppeFromNames names
          in (v, Just $ NES.map (showTypeRef ppe) refs)
       (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
       (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
 
-    ppeFromNames0 :: Names3.Names0 -> PPE.PrettyPrintEnv
-    ppeFromNames0 names0 =
-      PPE.fromNames PPE.todoHashLength (Names3.Names {currentNames = names0, oldNames = mempty})
+    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
+    ppeFromNames names0 =
+      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
 
     prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
     prettyRow (v, mSet) = case mSet of

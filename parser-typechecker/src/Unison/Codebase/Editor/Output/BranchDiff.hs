@@ -25,8 +25,8 @@ import Unison.HashQualified' (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Referent as Referent
 import Unison.Referent (Referent)
-import qualified Unison.Names2 as Names2
-import Unison.Names3 (Names0)
+import qualified Unison.Names as Names
+import Unison.Names (Names)
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.Runtime.IOSource (isPropagatedValue)
 
@@ -100,8 +100,8 @@ toOutput :: forall m v a
          => (Referent -> m (Maybe (Type v a)))
          -> (Reference -> m (Maybe (DeclOrBuiltin v a)))
          -> Int
-         -> Names0
-         -> Names0
+         -> Names
+         -> Names
          -> PPE.PrettyPrintEnv
          -> BranchDiff.BranchDiff
          -> m (BranchDiffOutput v a)
@@ -169,15 +169,15 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     loadOld :: Bool -> Name -> Reference -> m (SimpleTypeDisplay v a)
     loadOld forceHQ n r_old =
       (,,) <$> pure (if forceHQ
-                     then Names2.hqTypeName' hqLen n r_old
-                     else Names2.hqTypeName hqLen names1 n r_old)
+                     then Names.hqTypeName' hqLen n r_old
+                     else Names.hqTypeName hqLen names1 n r_old)
            <*> pure r_old
            <*> declOrBuiltin r_old
     loadNew :: Bool -> Bool -> Name -> Set Reference -> Reference -> m (TypeDisplay v a)
     loadNew hidePropagatedMd forceHQ n rs_old r_new =
       (,,,) <$> pure (if forceHQ
-                      then Names2.hqTypeName' hqLen n r_new
-                      else Names2.hqTypeName hqLen names2 n r_new)
+                      then Names.hqTypeName' hqLen n r_new
+                      else Names.hqTypeName hqLen names2 n r_new)
             <*> pure r_new
             <*> declOrBuiltin r_new
             <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd typesDiff n rs_old r_new)
@@ -204,13 +204,13 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     -- if they were already included in `nsUpdates)
     metadataUpdates = getMetadataUpdates termsDiff
     loadOld forceHQ n r_old =
-      (,,) <$> pure (if forceHQ then Names2.hqTermName' hqLen n r_old
-                     else Names2.hqTermName hqLen names1 n r_old)
+      (,,) <$> pure (if forceHQ then Names.hqTermName' hqLen n r_old
+                     else Names.hqTermName hqLen names1 n r_old)
            <*> pure r_old
            <*> typeOf r_old
     loadNew hidePropagatedMd forceHQ n rs_old r_new =
-      (,,,) <$> pure (if forceHQ then Names2.hqTermName' hqLen n r_new
-                      else Names2.hqTermName hqLen names2 n r_new)
+      (,,,) <$> pure (if forceHQ then Names.hqTermName' hqLen n r_new
+                      else Names.hqTermName hqLen names2 n r_new)
             <*> pure r_new
             <*> typeOf r_new
             <*> fillMetadata ppe (getNewMetadataDiff hidePropagatedMd termsDiff n rs_old r_new)
@@ -248,7 +248,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     for typeAdds $ \(r, nsmd) -> do
       hqmds :: [(HashQualified Name, [MetadataDisplay v a])] <-
         for nsmd $ \(n, mdRefs) ->
-          (,) <$> pure (Names2.hqTypeName hqLen names2 n r)
+          (,) <$> pure (Names.hqTypeName hqLen names2 n r)
               <*> fillMetadata ppe mdRefs
       (hqmds, r, ) <$> declOrBuiltin r
 
@@ -261,7 +261,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
           ]
     for termAdds $ \(r, nsmd) -> do
       hqmds <- for nsmd $ \(n, mdRefs) ->
-        (,) <$> pure (Names2.hqTermName hqLen names2 n r)
+        (,) <$> pure (Names.hqTermName hqLen names2 n r)
             <*> fillMetadata ppe mdRefs
       (hqmds, r, ) <$> typeOf r
 
@@ -273,7 +273,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     typeRemoves :: [(Reference, [Name])] = sortOn snd $
       Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ typesDiff
     in for typeRemoves $ \(r, ns) ->
-      (,,) <$> pure ((\n -> Names2.hqTypeName hqLen names1 n r) <$> ns)
+      (,,) <$> pure ((\n -> Names.hqTypeName hqLen names1 n r) <$> ns)
            <*> pure r
            <*> declOrBuiltin r
 
@@ -281,7 +281,7 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
     termRemoves :: [(Referent, [Name])] = sortOn snd $
       Map.toList . fmap toList . R.toMultimap . BranchDiff.tallremoves $ termsDiff
     in for termRemoves $ \(r, ns) ->
-      (,,) <$> pure ((\n -> Names2.hqTermName hqLen names1 n r) <$> ns)
+      (,,) <$> pure ((\n -> Names.hqTermName hqLen names1 n r) <$> ns)
            <*> pure r
            <*> typeOf r
 
@@ -294,16 +294,16 @@ toOutput typeOf declOrBuiltin hqLen names1 names2 ppe
         for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> typeOf r
-                <*> pure (Set.map (\n -> Names2.hqTermName hqLen names1 n r) ol'names)
-                <*> pure (Set.map (\n -> Names2.hqTermName hqLen names2 n r) new'names)
+                <*> pure (Set.map (\n -> Names.hqTermName hqLen names1 n r) ol'names)
+                <*> pure (Set.map (\n -> Names.hqTermName hqLen names2 n r) new'names)
 
   let renamedType :: Map Reference (Set Name, Set Name) -> m [RenameTypeDisplay v a]
       renamedType renames =
         for (sortOn snd $ Map.toList renames) $ \(r, (ol'names, new'names)) ->
           (,,,) <$> pure r
                 <*> declOrBuiltin r
-                <*> pure (Set.map (\n -> Names2.hqTypeName hqLen names1 n r) ol'names)
-                <*> pure (Set.map (\n -> Names2.hqTypeName hqLen names2 n r) new'names)
+                <*> pure (Set.map (\n -> Names.hqTypeName hqLen names1 n r) ol'names)
+                <*> pure (Set.map (\n -> Names.hqTypeName hqLen names2 n r) new'names)
 
   renamedTypes :: [RenameTypeDisplay v a] <- renamedType (BranchDiff.trenames typesDiff)
   renamedTerms :: [RenameTermDisplay v a] <- renamedTerm (BranchDiff.trenames termsDiff)
