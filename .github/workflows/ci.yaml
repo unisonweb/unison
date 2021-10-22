@@ -28,7 +28,13 @@ jobs:
       - uses: actions/checkout@v2
         env:
           # Build haddocks on trunk, and only need to build them on a single os.
-          build_haddocks: ${{runner.os == 'Linux' && github.ref == 'refs/heads/haddock-upload'}}
+          build_haddocks: ${{runner.os == 'Linux' && github.ref == 'refs/heads/cp/haddock-upload'}}
+      - name: sanity check
+        run: |
+          echo runner.os ${{ runner.os }} 
+          echo github.ref ${{ github.ref }}
+          echo build_haddocks ${{runner.os == 'Linux' && github.ref == 'refs/heads/cp/haddock-upload'}}
+          echo BUILD_HADDOCKS $BUILD_HADDOCKS
 
       # The random number towards the beginning of the cache keys below are meant to be bumped as a crude means to clear
       # a cache. GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -84,7 +90,7 @@ jobs:
         run: stack --no-terminal build --fast --only-dependencies
 
       - name: build (with haddocks)
-        if: env.build_haddocks
+        if: ${{ env.build_haddocks }}
         run: stack --no-terminal build --fast --haddock
       - name: build
         if: ${{ !env.build_haddocks }}
