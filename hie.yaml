@@ -12,7 +12,10 @@ cradle:
     - path: "codebase2/core"
       component: "unison-core:lib"
 
-    - path: "codebase2/util"
+    - path: "codebase2/util/bench"
+      component: "unison-util:bench:bench"
+
+    - path: "codebase2/util/src"
       component: "unison-util:lib"
 
     - path: "codebase2/util-serialization"
