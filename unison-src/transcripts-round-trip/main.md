@@ -233,3 +233,25 @@ r = 'let
 .> load scratch.u
 ```
 
+## Raw codeblocks add indentation
+
+Regression test for https://github.com/unisonweb/unison/issues/2271
+
+```ucm
+.> load unison-src/transcripts-round-trip/docTest2.u
+.> add
+```
+
+```unison:hide
+x = 2
+```
+
+```ucm
+.> edit docTest2
+```
+
+```ucm
+.> load scratch.u
+.> add
+```
+

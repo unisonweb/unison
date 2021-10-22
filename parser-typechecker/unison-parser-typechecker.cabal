@@ -139,6 +139,7 @@ library
       Unison.Server.Backend
       Unison.Server.CodebaseServer
       Unison.Server.Doc
+      Unison.Server.Doc.AsHtml
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
@@ -243,6 +244,7 @@ library
     , http-media
     , http-types
     , lens
+    , lucid
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mmorph

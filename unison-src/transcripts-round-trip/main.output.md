@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ugtr8mvop3 : add
-  2. #epnudil1fk : builtins.mergeio
+  1. #ec8bplo3a5 : add
+  2. #umob2h2nfc : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #97dstg1ao2 : add
-  2. #epnudil1fk : reset-root #epnudil1fk
-  3. #ugtr8mvop3 : add
-  4. #epnudil1fk : builtins.mergeio
+  1. #nf6v4skcpk : add
+  2. #umob2h2nfc : reset-root #umob2h2nfc
+  3. #ec8bplo3a5 : add
+  4. #umob2h2nfc : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #hogb1vion0 : add
-  2. #epnudil1fk : reset-root #epnudil1fk
-  3. #97dstg1ao2 : add
-  4. #epnudil1fk : reset-root #epnudil1fk
-  5. #ugtr8mvop3 : add
-  6. #epnudil1fk : builtins.mergeio
+  1. #6u70tqt1nb : add
+  2. #umob2h2nfc : reset-root #umob2h2nfc
+  3. #nf6v4skcpk : add
+  4. #umob2h2nfc : reset-root #umob2h2nfc
+  5. #ec8bplo3a5 : add
+  6. #umob2h2nfc : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #7rhiegjl3c : add
-  2. #epnudil1fk : reset-root #epnudil1fk
-  3. #hogb1vion0 : add
-  4. #epnudil1fk : reset-root #epnudil1fk
-  5. #97dstg1ao2 : add
-  6. #epnudil1fk : reset-root #epnudil1fk
-  7. #ugtr8mvop3 : add
-  8. #epnudil1fk : builtins.mergeio
+  1. #8cfe45q2aq : add
+  2. #umob2h2nfc : reset-root #umob2h2nfc
+  3. #6u70tqt1nb : add
+  4. #umob2h2nfc : reset-root #umob2h2nfc
+  5. #nf6v4skcpk : add
+  6. #umob2h2nfc : reset-root #umob2h2nfc
+  7. #ec8bplo3a5 : add
+  8. #umob2h2nfc : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #5bpdpn1048 : add
-  2.  #epnudil1fk : reset-root #epnudil1fk
-  3.  #7rhiegjl3c : add
-  4.  #epnudil1fk : reset-root #epnudil1fk
-  5.  #hogb1vion0 : add
-  6.  #epnudil1fk : reset-root #epnudil1fk
-  7.  #97dstg1ao2 : add
-  8.  #epnudil1fk : reset-root #epnudil1fk
-  9.  #ugtr8mvop3 : add
-  10. #epnudil1fk : builtins.mergeio
+  1.  #lrkr6m9s84 : add
+  2.  #umob2h2nfc : reset-root #umob2h2nfc
+  3.  #8cfe45q2aq : add
+  4.  #umob2h2nfc : reset-root #umob2h2nfc
+  5.  #6u70tqt1nb : add
+  6.  #umob2h2nfc : reset-root #umob2h2nfc
+  7.  #nf6v4skcpk : add
+  8.  #umob2h2nfc : reset-root #umob2h2nfc
+  9.  #ec8bplo3a5 : add
+  10. #umob2h2nfc : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #epnudil1fk .old`   to make an old namespace
+    `fork #umob2h2nfc .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #epnudil1fk`  to reset the root namespace and
+    `reset-root #umob2h2nfc`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #58g13u2vjv : add
-  2.  #epnudil1fk : reset-root #epnudil1fk
-  3.  #5bpdpn1048 : add
-  4.  #epnudil1fk : reset-root #epnudil1fk
-  5.  #7rhiegjl3c : add
-  6.  #epnudil1fk : reset-root #epnudil1fk
-  7.  #hogb1vion0 : add
-  8.  #epnudil1fk : reset-root #epnudil1fk
-  9.  #97dstg1ao2 : add
-  10. #epnudil1fk : reset-root #epnudil1fk
-  11. #ugtr8mvop3 : add
-  12. #epnudil1fk : builtins.mergeio
+  1.  #4bomvvof2t : add
+  2.  #umob2h2nfc : reset-root #umob2h2nfc
+  3.  #lrkr6m9s84 : add
+  4.  #umob2h2nfc : reset-root #umob2h2nfc
+  5.  #8cfe45q2aq : add
+  6.  #umob2h2nfc : reset-root #umob2h2nfc
+  7.  #6u70tqt1nb : add
+  8.  #umob2h2nfc : reset-root #umob2h2nfc
+  9.  #nf6v4skcpk : add
+  10. #umob2h2nfc : reset-root #umob2h2nfc
+  11. #ec8bplo3a5 : add
+  12. #umob2h2nfc : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -691,5 +691,71 @@ r = 'let
     ⍟ These new definitions are ok to `add`:
     
       r : 'Nat
+
+```
+## Raw codeblocks add indentation
+
+Regression test for https://github.com/unisonweb/unison/issues/2271
+
+```ucm
+.> load unison-src/transcripts-round-trip/docTest2.u
+
+  I found and typechecked these definitions in
+  unison-src/transcripts-round-trip/docTest2.u. If you do an
+  `add` or `update`, here's how your codebase would change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      docTest2 : Doc2
+
+.> add
+
+  ⍟ I've added these definitions:
+  
+    docTest2 : Doc2
+
+```
+```unison
+x = 2
+```
+
+```ucm
+.> edit docTest2
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    docTest2 : Doc2
+    docTest2 =
+      {{ # Full doc body indented
+      
+        ``` raw
+        myVal1 = 42 
+        myVal2 = 43
+        myVal4 = 44
+        ```
+        
+        ``` raw
+        indented1= "hi"
+        indented2="this is two indents"
+        ```
+        
+        I am two spaces over }}
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked the definitions in scratch.u. This
+  file has been previously added to the codebase.
+
+.> add
+
+  ⊡ Ignored previously added definitions: docTest2
 
 ```
