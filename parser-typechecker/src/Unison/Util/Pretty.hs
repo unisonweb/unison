@@ -48,6 +48,8 @@ module Unison.Util.Pretty (
    hang,
    hangUngrouped',
    hangUngrouped,
+   softHang',
+   softHang,
    indent,
    indentAfterNewline,
    indentN,
@@ -269,7 +271,7 @@ toHTML cssPrefix avail p = CT.toHTML cssPrefix (render avail p)
 toPlainUnbroken :: Pretty ColorText -> String
 toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 
-syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
+syntaxToColor :: Pretty (ST.SyntaxText' r) -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
 -- set the syntax, overriding any present syntax
@@ -668,6 +670,45 @@ string = fromString
 shown :: (Show a, IsString s) => a -> Pretty s
 shown = fromString . show
 
+-- `softHang foo bar` will attempt to put the first line of `bar` right after
+-- `foo` on the same line, but will behave like `hang foo bar` if there's not
+-- enough horizontal space.
+--
+-- Used for example to allow the `let` keyword to appear on the same line as
+-- an equals sign.
+--
+-- myDef x = 'let
+--   y = f x
+--   g y
+--
+-- But if the name is too long, the `'let` is allowed to float to the next line:
+--
+-- myLongDef x =
+--   'let
+--     y = f x
+--     g y
+--
+-- To do this, we'd use `softHang "=" "'let" <> newline <> ...`
+--
+softHang :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+softHang from = softHang' from "  "
+
+-- `softHang' by foo bar` will attempt to put `bar` right after `foo` on the same
+-- line, but will behave like `hang by foo bar` if there's not enough horizontal
+-- space for both `foo` and `bar`.
+softHang' :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+softHang' from by p = group $
+  (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+
+-- Same as `hang`, except instead of indenting by two spaces, it indents by
+-- the `by` argument.
 hang'
   :: (LL.ListLike s Char, IsString s)
   => Pretty s
@@ -676,7 +717,27 @@ hang'
   -> Pretty s
 hang' from by p = group $ if isMultiLine p
   then from <> "\n" <> group (indent by p)
-  else (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+  else softHang' from by p
+
+-- Indents its argument by two spaces, following `from`, so that the text
+-- seems to "hang" from it.
+--
+-- For example, `hang "foo" ("bar" <> newline <> "baz")` results in:
+--
+-- foo
+--   bar
+--   baz
+--
+-- If the argument spans multiple lines, `hang` will always put it on the
+-- next line. But if it's only a single line, `hang` will attempt to fit it
+-- on the same line as `from`.
+--
+-- For example, `hang "foo" "bar"`:
+--
+-- foo bar
+--
+hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+hang from = hang' from "  "
 
 hangUngrouped'
   :: (LL.ListLike s Char, IsString s)
@@ -691,9 +752,6 @@ hangUngrouped' from by p = if isMultiLine p
 hangUngrouped
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 hangUngrouped from = hangUngrouped' from "  "
-
-hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-hang from = hang' from "  "
 
 nest :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 nest = hang' ""

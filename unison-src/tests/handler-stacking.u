@@ -15,11 +15,11 @@ replicate n x =
     !x
     replicate (n `drop` 1) x
 
-ability State a where
+structural ability State a where
   get : {State a} a
   put : a -> {State a} ()
 
-ability Writer w where
+structural ability Writer w where
   tell : w -> {Writer w} ()
 
 stateHandler : s -> Request {State s} a -> (s, a)

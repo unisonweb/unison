@@ -5,7 +5,7 @@ basicFormatting = {{
     Paragraphs are separated by one or more blanklines. Sections
     have a title and 0 or more paragraphs or other section elements.
     
-    Text can be __bold__, *italicized*, ~~strikethrough~~, or
+    Text can be **bold**, __italicized__, ~~strikethrough~~, or
     ''monospaced''.
     
     You can link to Unison terms, types, and external URLs:
@@ -20,7 +20,7 @@ basicFormatting = {{
     This is useful for creating documents programmatically
     or just including other documents.
 
-    *Next up:* {lists}
+    __Next up:__ {lists}
 }}
 
 lists = {{
@@ -96,10 +96,14 @@ Some rendering targets also support folded source:
 
 @foldedSource{type Optional, sqr}
 
-You can also include just a signature, inline, with @signature{sqr},
+You can also include just a signature, inline, with @inlineSignature{sqr},
 or you can include one or more signatures as a block:
 
 @signatures{sqr, Nat.+}
+
+Or alternately:
+
+@signature{List.map}
 
 ## Inline snippets
 
@@ -164,7 +168,7 @@ This is an aside. {{ docAside {{ Some extra detail that doesn't belong in main t
   docBlockquote {{
     "And what is the use of a book," thought Alice, "without pictures or conversation?"
 
-    *Lewis Carroll, Alice's Adventures in Wonderland* }} 
+    _Lewis Carroll, Alice's Adventures in Wonderland_ }} 
 }}
 
 {{ docTooltip {{Hover over me}} {{Extra detail}} }} 

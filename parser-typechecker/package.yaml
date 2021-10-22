@@ -12,6 +12,9 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
@@ -21,7 +24,7 @@ ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synony
 flags:
   optimized:
     manual: true
-    default: false
+    default: true
 
 when:
   - condition: flag(optimized)
@@ -37,30 +40,25 @@ library:
     - base16 >= 0.2.1.0
     - base64-bytestring
     - basement
-    - bifunctors
+    - binary
     - bytes
     - bytestring
     - bytestring-to-vector
     - cereal
     - containers >= 0.6.3
-    - comonad
-    - concurrent-supply
     - configurator
     - cryptonite
     - data-default
+    - deepseq
     - directory
     - either
     - fuzzyfind
-    - guid
     - data-memocombinators
-    - edit-distance
     - errors
     - exceptions
     - extra
     - filepath
-    - filepattern
     - fingertree
-    - free
     - fsnotify
     - generic-monoid
     - hashable
@@ -68,24 +66,22 @@ library:
     - haskeline
     - http-types
     - http-media
-    - io-streams
     - lens
     - ListLike
     - megaparsec >= 5.0.0 && < 7.0.0
     - memory
     - mmorph
-    - monad-loops
     - monad-validate
     - mtl
-    - murmur-hash
     - mutable-containers
     - natural-transformation
     - network
     - network-simple
     - nonempty-containers
+    - optparse-applicative >= 0.16.1.0
     - openapi3
-    - optparse-applicative
     - pem
+    - prelude-extras
     - process
     - primitive
     - random >= 1.2.0
@@ -94,13 +90,14 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - mwc-random
+    - NanoID
+    - lucid
     - servant
     - servant-docs
     - servant-openapi3
     - servant-server
-    - servant-auth-server
     - shellmet
-    - split
     - stm
     - strings
     - sqlite-simple
@@ -113,11 +110,8 @@ library:
     - tls
     - transformers
     - unliftio
-    - unliftio-core
     - utf8-string
-    - util
     - unicode-show
-    - validation
     - vector
     - wai
     - warp
@@ -125,42 +119,19 @@ library:
     - x509
     - x509-store
     - x509-system
+    - zlib
     - unison-codebase
     - unison-codebase-sqlite
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-prelude
     - unison-util
+    - unison-util-relation
+    - open-browser
+    - uri-encode
 
 executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - uri-encode
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
   prettyprintdemo:
     source-dirs: prettyprintdemo
     main: Main.hs
@@ -186,6 +157,7 @@ executables:
       - extra
       - filepath
       - filemanip
+      - haskeline
       - here
       - lens
       - megaparsec
@@ -200,23 +172,9 @@ executables:
       - unliftio
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
       - unison-util
-
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
+      - unison-util-relation
 
 benchmarks:
   runtime:

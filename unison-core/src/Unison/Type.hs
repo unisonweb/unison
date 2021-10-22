@@ -17,17 +17,13 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
-import           Unison.Hashable (Hashable1)
-import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
-import qualified Unison.Util.Relation as R
-import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
 
@@ -62,17 +58,17 @@ bindExternal
   :: ABT.Var v => [(v, Reference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [ (v, ref () r) | (v, r) <- bs ]
 
-bindNames
+bindReferences
   :: Var v
   => Set v
-  -> Names.Names0
+  -> Map Name.Name Reference
   -> Type v a
   -> Names.ResolutionResult v a (Type v a)
-bindNames keepFree ns t = let
+bindReferences keepFree ns t = let
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
-  ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
-                  else Left (pure (Names.TypeResolutionFailure v a rs))
+  rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
+  ok (v, _a, Just r) = pure (v, r)
+  ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
   in List.validate ok rs <&> \es -> bindExternal es t
 
 newtype Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
@@ -95,6 +91,7 @@ arity _ = 0
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
 pattern Arrows' spine <- (unArrows -> Just spine)
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)
@@ -185,9 +182,6 @@ isArrow _ = False
 
 -- some smart constructors
 
---vectorOf :: Ord v => a -> Type v a -> Type v
---vectorOf a t = vector `app` t
-
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
@@ -202,9 +196,6 @@ typeLink a = ABT.tm' a . Ref $ typeLinkRef
 
 derivedBase32Hex :: Ord v => Reference -> a -> Type v a
 derivedBase32Hex r a = ref a r
-
--- derivedBase58' :: Text -> Reference
--- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
 intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: Reference
 intRef = Reference.Builtin "Int"
@@ -225,6 +216,10 @@ fileHandleRef = Reference.Builtin "Handle"
 filePathRef = Reference.Builtin "FilePath"
 threadIdRef = Reference.Builtin "ThreadId"
 socketRef = Reference.Builtin "Socket"
+
+scopeRef, refRef :: Reference
+scopeRef = Reference.Builtin "Scope"
+refRef = Reference.Builtin "Ref"
 
 mvarRef, tvarRef :: Reference
 mvarRef = Reference.Builtin "MVar"
@@ -296,6 +291,12 @@ threadId a = ref a threadIdRef
 
 builtinIO :: Ord v => a -> Type v a
 builtinIO a = ref a builtinIORef
+
+scopeType :: Ord v => a -> Type v a
+scopeType a = ref a scopeRef
+
+refType :: Ord v => a -> Type v a
+refType a = ref a refRef
 
 socket :: Ord v => a -> Type v a
 socket a = ref a socketRef
@@ -481,15 +482,31 @@ freeEffectVars t =
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
+-- Converts all unadorned arrows in a type to have fresh
+-- existential ability requirements. For example:
+--
+--   (a -> b) -> [a] -> [b]
+--
+-- Becomes
+--
+--   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
 existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
-existentializeArrows freshVar = ABT.visit go
+existentializeArrows newVar t = ABT.visit go t
  where
   go t@(Arrow' a b) = case b of
-    Effect1' _ _ -> Nothing
+    -- If an arrow already has attached abilities,
+    -- leave it alone. Ex: `a ->{e} b` is kept as is.
+    Effect1' _ _ -> Just $ do
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
+      pure $ arrow (ABT.annotation t) a b
+    -- For unadorned arrows, make up a fresh variable.
+    -- So `a -> b` becomes `a ->{e} b`, using the
+    -- `newVar` variable generator.
     _            -> Just $ do
-      e <- freshVar
-      a <- existentializeArrows freshVar a
-      b <- existentializeArrows freshVar b
+      e <- newVar
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing
@@ -535,14 +552,29 @@ removeAllEffectVars t = let
 removePureEffects :: ABT.Var v => Type v a -> Type v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
+  generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
-    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
-    -- If an effect variable is mentioned only once, it is on
-    -- an arrow `a ->{e} b`. Generalizing this to
-    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
-    isPure v = ABT.occurrences v tu <= 1
+    vss = Set.fromList vs
+    fvs = freeEffectVars tu `Set.difference` keep
+
+    keep = keepVarsT True tu
+
+    keepVarsT pos (Arrow' i o)
+      = keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (Effect1' e o)
+      = keepVarsT pos e <> keepVarsT pos o
+    keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
+    keepVarsT pos (ForallNamed' _ t) = keepVarsT pos t
+    keepVarsT pos (IntroOuterNamed' _ t) = keepVarsT pos t
+    keepVarsT _ t = freeVars t
+
+    -- Note, this only allows removal if the variable was quantified,
+    -- so variables that were free in `t` will not be removed.
+    keepVarsE pos (Var' v)
+      | pos, v `Set.member` vss = mempty
+      | otherwise = Set.singleton v
+    keepVarsE pos e = keepVarsT pos e
 
 editFunctionResult
   :: forall v a
@@ -637,43 +669,8 @@ cleanup :: Var v => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
-toReference :: (ABT.Var v, Show v) => Type v a -> Reference
-toReference (Ref' r) = r
--- a bit of normalization - any unused type parameters aren't part of the hash
-toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
-toReference t = Reference.Derived (ABT.hash t) 0 1
-
-toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
-toReferenceMentions ty =
-  let (vs, _) = unforall' ty
-      gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
-  in Set.fromList $ toReference . gen <$> ABT.subterms ty
-
-hashComponents
-  :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
-hashComponents = ReferenceUtil.hashComponents $ refId ()
-
-instance Hashable1 F where
-  hash1 hashCycle hash e =
-    let
-      (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
-      -- Note: start each layer with leading `0` byte, to avoid collisions with
-      -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
-    in Hashable.accumulate $ tag 0 : case e of
-      Ref r -> [tag 0, Hashable.accumulateToken r]
-      Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
-      App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
-      Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
-      -- Example:
-      --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
-      --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
-      --   c) {Remote, Abort} (() -> {Abort} ())
-      Effects es -> let
-        (hs, _) = hashCycle es
-        in tag 4 : map hashed hs
-      Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
-      Forall a -> [tag 6, hashed (hash a)]
-      IntroOuter a -> [tag 7, hashed (hash a)]
+builtinAbilities :: Set Reference
+builtinAbilities = Set.fromList [builtinIORef, stmRef]
 
 instance Show a => Show (F a) where
   showsPrec = go where

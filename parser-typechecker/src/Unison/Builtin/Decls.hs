@@ -4,6 +4,7 @@
 
 module Unison.Builtin.Decls where
 
+import Control.Lens (over, _3)
 import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
@@ -12,16 +13,16 @@ import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration
   ( DataDeclaration (..),
     Modifier (Structural, Unique),
-    hashDecls,
   )
 import qualified Unison.DataDeclaration as DD
+import Unison.Hashing.V2.Convert (hashDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (Referent)
+import Unison.Referent (ConstructorId, Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
-import Unison.Term (ConstructorId, Term, Term2)
+import Unison.Term (Term, Term2)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -30,10 +31,17 @@ import qualified Unison.Var as Var
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
-  | [(_, d, _)] <- filter (\(v, _, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = builtinDataDecls @Symbol
+    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ]
+
+lookupEffectRef :: Text -> Reference
+lookupEffectRef str
+  | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
+  | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
+  where
+    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls @Symbol ]
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -41,8 +49,11 @@ pairRef = lookupDeclRef "Tuple"
 optionalRef = lookupDeclRef "Optional"
 eitherRef = lookupDeclRef "Either"
 
-testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef, failureRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
+testResultRef, linkRef, docRef, ioErrorRef, stdHandleRef :: Reference
+failureRef, ioFailureRef, tlsFailureRef :: Reference
+exceptionRef, tlsSignedCertRef, tlsPrivateKeyRef :: Reference
 isPropagatedRef, isTestRef :: Reference
+
 isPropagatedRef = lookupDeclRef "IsPropagated"
 isTestRef = lookupDeclRef "IsTest"
 testResultRef = lookupDeclRef "Test.Result"
@@ -51,6 +62,9 @@ docRef = lookupDeclRef "Doc"
 ioErrorRef = lookupDeclRef "io2.IOError"
 stdHandleRef = lookupDeclRef "io2.StdHandle"
 failureRef = lookupDeclRef "io2.Failure"
+exceptionRef = lookupEffectRef "Exception"
+ioFailureRef = lookupDeclRef "io2.IOFailure"
+tlsFailureRef = lookupDeclRef "io2.TlsFailure"
 tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
@@ -70,8 +84,11 @@ constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
   elemIndex name $ DD.constructorNames dd
 
-okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
+noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
+seqViewEmpty, seqViewElem :: ConstructorId
+Just noneId = constructorId optionalRef "Optional.None"
+Just someId = constructorId optionalRef "Optional.Some"
 Just isPropagatedConstructorId = constructorId isPropagatedRef "IsPropagated.IsPropagated"
 Just isTestConstructorId = constructorId isTestRef "IsTest.IsTest"
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
@@ -86,6 +103,8 @@ Just linkTermId = constructorId linkRef "Link.Term"
 Just linkTypeId = constructorId linkRef "Link.Type"
 Just eitherRightId = constructorId eitherRef "Either.Right"
 Just eitherLeftId = constructorId eitherRef "Either.Left"
+Just seqViewEmpty = constructorId seqViewRef "SeqView.VEmpty"
+Just seqViewElem = constructorId seqViewRef "SeqView.VElem"
 
 Just bufferModeNoBufferingId = constructorId bufferModeRef "io2.BufferMode.NoBuffering"
 Just bufferModeLineBufferingId = constructorId bufferModeRef "io2.BufferMode.LineBuffering"
@@ -288,13 +307,29 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: [(v, Reference.Id, DD.EffectDeclaration v ())]
-builtinEffectDecls = []
+builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
+builtinEffectDecls =
+  case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
+    Right a -> over _3 DD.EffectDeclaration <$> a
+    Left e -> error $ "builtinEffectDecls: " <> show e
+  where
+    v = Var.named
+    var name = Type.var () (v name)
+    arr  = Type.arrow'
+    self t = Type.cleanupAbilityLists $ Type.effect () [var "Exception"] t
+    exception = DataDeclaration
+      Structural
+      ()
+      []
+      [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+      ]
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
 pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
+pattern OptionalNone' <- Term.Constructor' OptionalRef ((==) noneId -> True)
+pattern OptionalSome' d <- Term.App' (Term.Constructor' OptionalRef ((==) someId -> True)) d
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
@@ -338,7 +373,7 @@ pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
 
 unitType, pairType, optionalType, testResultType,
   eitherType, ioErrorType, fileModeType, filePathType, bufferModeType, seekModeType,
-  stdHandleType, failureType
+  stdHandleType, failureType, exceptionType
     :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
@@ -352,6 +387,7 @@ bufferModeType a = Type.ref a bufferModeRef
 seekModeType a = Type.ref a seekModeRef
 stdHandleType a = Type.ref a stdHandleRef
 failureType a = Type.ref a failureRef
+exceptionType a = Type.ref a exceptionRef
 
 tlsSignedCertType :: Var v => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef

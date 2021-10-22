@@ -1,4 +1,3 @@
-
 Lets just make sure we can start a thread
 
 ```unison
@@ -30,7 +29,7 @@ thread1 x mv = 'let
   go = 'let
     put mv (increment x)
 
-  match (toEither go) with 
+  match (toEither go) with
     Left (Failure _ t _) -> watch t ()
     _ -> ()
 
@@ -58,7 +57,7 @@ sendingThread: Nat -> MVar Nat -> '{io2.IO}()
 sendingThread toSend mv = 'let
   go = 'let
     put mv (increment toSend)
-    
+
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
     _ -> ()
@@ -69,11 +68,11 @@ receivingThread recv send = 'let
   go = 'let
     recvd = take recv
     put send (toText recvd)
-    
+
   match (toEither go) with
     Left (Failure _ t _) -> watch t ()
     _ -> ()
-  
+
 testTwoThreads: '{io2.IO}[Result]
 testTwoThreads = 'let
   test = 'let
@@ -89,7 +88,7 @@ testTwoThreads = 'let
 
   runTest test
 
-```    
+```
 
 ```ucm
 .> add

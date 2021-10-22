@@ -66,7 +66,7 @@ x = 2
 
 ```
 ```unison
-type Foo = Foo
+unique[a] type Foo = Foo
 ```
 
 ```ucm
@@ -77,7 +77,7 @@ type Foo = Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -85,11 +85,11 @@ type Foo = Foo
 
   ⍟ I've added these definitions:
   
-    type Foo
+    unique type Foo
 
 ```
 ```unison
-type Foo = Foo | Bar
+unique[b] type Foo = Foo | Bar
 ```
 
 ```ucm
@@ -101,7 +101,7 @@ type Foo = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      type Foo
+      unique type Foo
 
 ```
 ```ucm
@@ -109,11 +109,11 @@ type Foo = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    type Foo
+    unique type Foo
 
 .> view.patch
 
-  Edited Types: Foo#568rsi7o3g -> Foo
+  Edited Types: Foo#hsk1l8232e -> Foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -121,7 +121,7 @@ type Foo = Foo | Bar
 
 ```
 ```ucm
-.> delete.type-replacement #568rsi7o3g
+.> delete.type-replacement #hsk1l8232e
 
   Done.
 
@@ -132,7 +132,7 @@ type Foo = Foo | Bar
 ```
 ```unison
 bar = 3
-type bar = Foo
+unique[aa] type bar = Foo
 ```
 
 ```ucm
@@ -143,7 +143,7 @@ type bar = Foo
   
     ⍟ These new definitions are ok to `add`:
     
-      type bar
+      unique type bar
       bar : ##Nat
 
 ```
@@ -152,12 +152,12 @@ type bar = Foo
 
   ⍟ I've added these definitions:
   
-    type bar
+    unique type bar
     bar : ##Nat
 
 ```
 ```unison
-type bar = Foo | Bar
+unique[bb] type bar = Foo | Bar
 ```
 
 ```ucm
@@ -169,8 +169,7 @@ type bar = Foo | Bar
     ⍟ These names already exist. You can `update` them to your
       new definition:
     
-      type bar
-        (also named Foo)
+      unique type bar
 
 ```
 ```ucm
@@ -178,27 +177,22 @@ type bar = Foo | Bar
 
   ⍟ I've updated these names to your new definition:
   
-    type bar
-      (also named Foo)
+    unique type bar
 
 .> view.patch
 
-  Edited Types: bar#568rsi7o3g -> Foo
+  Edited Types: bar#b1ct5ub6du -> bar
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
        appropriate.
 
-.> delete.type-replacement bar
+.> delete.type-replacement #b1ct5ub6du
 
   Done.
 
 .> view.patch
 
-  Edited Types: bar#568rsi7o3g -> Foo
-  
-  Tip: To remove entries from a patch, use
-       delete.term-replacement or delete.type-replacement, as
-       appropriate.
+  This patch is empty.
 
 ```

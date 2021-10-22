@@ -3,14 +3,14 @@ module Unison.Codebase.Editor.TodoOutput where
 
 import Unison.Prelude
 
-import qualified Unison.Names3 as Names
+import qualified Unison.Names as Names
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Patch as Patch
 import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
 import Unison.Reference (Reference)
-import Unison.Names3 (Names0)
+import Unison.Names (Names)
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(UserObject))
 import Unison.Type (Type)
@@ -24,11 +24,11 @@ data TodoOutput v a = TodoOutput
   { todoScore :: Score
   , todoFrontier ::
         ( [(Reference, Maybe (Type v a))]
-        , [(Reference, DisplayObject (Decl v a))])
+        , [(Reference, DisplayObject () (Decl v a))])
   , todoFrontierDependents ::
         ( [(Score, Reference, Maybe (Type v a))]
-        , [(Score, Reference, DisplayObject (Decl v a))])
-  , nameConflicts :: Names0
+        , [(Score, Reference, DisplayObject () (Decl v a))])
+  , nameConflicts :: Names
   , editConflicts :: Patch
   } deriving (Show)
 
@@ -50,8 +50,8 @@ labeledDependencies TodoOutput{..} = Set.fromList (
   [LD.typeRef r | (_, _, UserObject d) <- snd todoFrontierDependents
            , r <- toList (DD.declDependencies d)]) <>
   -- name conflicts
-  Set.map LD.referent (R.ran (Names.terms0 nameConflicts)) <>
-  Set.map LD.typeRef (R.ran (Names.types0 nameConflicts)) <>
+  Set.map LD.referent (R.ran (Names.terms nameConflicts)) <>
+  Set.map LD.typeRef (R.ran (Names.types nameConflicts)) <>
   Patch.labeledDependencies editConflicts
 
 noConflicts :: TodoOutput v a -> Bool

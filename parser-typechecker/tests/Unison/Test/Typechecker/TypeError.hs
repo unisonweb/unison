@@ -5,7 +5,7 @@ module Unison.Test.Typechecker.TypeError where
 import           Data.Foldable                (toList)
 import           Data.Maybe                   (isJust)
 import           EasyTest
-import           Unison.Parser                (Ann)
+import Unison.Parser.Ann (Ann)
 import           Unison.Result                (pattern Result)
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)
@@ -32,7 +32,7 @@ test = scope "> extractor" . tests $
   , n "> match 3 with 3 | 3 -> 3" Err.matchBody
   , y "> 1 1" Err.applyingNonFunction
   , y "> 1 Int.+ 1" Err.applyingFunction
-  , y ( "ability Abort where\n" ++
+  , y ( "structural ability Abort where\n" ++
         "  abort : {Abort} a\n" ++
         "\n" ++
         "xyz : t -> Request Abort t -> t\n" ++

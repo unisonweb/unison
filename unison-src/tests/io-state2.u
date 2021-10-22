@@ -1,5 +1,5 @@
 --IO/State2 ability
-ability IO where
+structural ability IO where
   launchMissiles : {IO} ()
 
 foo : Int -> {IO} Int
@@ -12,10 +12,10 @@ foo unit =
     +42
   +43
 
-type Optional a =
+structural type Optional a =
   Some a | None
 
-ability State se2 where
+structural ability State se2 where
   put : ∀ se . se -> {State se} ()
   get : ∀ se . {State se} se
 

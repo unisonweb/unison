@@ -1,0 +1,34 @@
+name: unison-prelude
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+
+dependencies:
+  - base
+  - bytestring
+  - containers
+  - either
+  - extra
+  - mtl
+  - safe
+  - text
+  - transformers
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications

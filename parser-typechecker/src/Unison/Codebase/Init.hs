@@ -1,40 +1,113 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Init where
+module Unison.Codebase.Init
+  ( Init (..),
+    DebugName,
+    InitError (..),
+    CodebaseInitOptions (..),
+    InitResult (..),
+    SpecifiedCodebase (..),
+    Pretty,
+    createCodebase,
+    initCodebaseAndExit,
+    openOrCreateCodebase,
+    openNewUcmCodebaseOrExit,
+  )
+where
 
-import qualified Data.Text as Text
 import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
-import Unison.Parser (Ann)
+import qualified Unison.Codebase.FileCodebase as FCC
+import Unison.Parser.Ann (Ann(..))
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath)
-import UnliftIO.Environment (getProgName)
+import Unison.Codebase.Init.CreateCodebaseError 
 
-type Pretty = P.Pretty P.ColorText
+-- CodebaseInitOptions is used to help pass around a Home directory that isn't the
+-- actual home directory of the user. Useful in tests.
+data CodebaseInitOptions 
+  = Home CodebasePath
+  | Specified SpecifiedCodebase
 
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseOther Pretty
+data SpecifiedCodebase 
+  = CreateWhenMissing CodebasePath 
+  | DontCreateWhenMissing CodebasePath
+
+initOptionsToDir :: CodebaseInitOptions -> CodebasePath
+initOptionsToDir (Home dir ) = dir
+initOptionsToDir (Specified (CreateWhenMissing dir)) = dir
+initOptionsToDir (Specified (DontCreateWhenMissing dir)) = dir
+
+type DebugName = String
 
 data Init m v a = Init
   { -- | open an existing codebase
-    openCodebase :: CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
+    openCodebase :: DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
     -- | create a new codebase
-    createCodebase' :: CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
+    createCodebase' :: DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
     -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
 
-createCodebase :: MonadIO m => Init m v a -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
-createCodebase cbInit path = do
+type FinalizerAndCodebase m v a = (m (), Codebase m v a) 
+
+data InitError 
+  = NoCodebaseFoundAtSpecifiedDir
+  | FoundV1Codebase
+  | CouldntCreateCodebase Pretty
+
+data InitResult m v a 
+  = OpenedCodebase CodebasePath (FinalizerAndCodebase m v a) 
+  | CreatedCodebase CodebasePath (FinalizerAndCodebase m v a) 
+  | Error CodebasePath InitError 
+
+createCodebaseWithResult :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (InitResult m v a)
+createCodebaseWithResult cbInit debugName dir = 
+  createCodebase cbInit debugName dir >>= \case
+    Left errorMessage -> do
+      pure (Error dir (CouldntCreateCodebase errorMessage))
+    Right cb -> do
+      pure (CreatedCodebase dir cb)
+
+whenNoV1Codebase :: MonadIO m => CodebasePath -> m (InitResult m v a) -> m (InitResult m v a )
+whenNoV1Codebase dir initResult =
+  ifM (FCC.codebaseExists dir)
+    (pure (Error dir FoundV1Codebase))
+    initResult
+
+openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> m (InitResult m v a)
+openOrCreateCodebase cbInit debugName initOptions = do
+  let resolvedPath = initOptionsToDir initOptions
+  openCodebase cbInit debugName resolvedPath >>= \case 
+    Right cb -> pure (OpenedCodebase resolvedPath cb)
+    Left _ ->
+      case initOptions of
+        Home homeDir -> do
+          ifM (FCC.codebaseExists homeDir)
+            (do pure (Error homeDir FoundV1Codebase))
+            (do
+              -- Create V2 codebase if neither a V1 or V2 exists
+              createCodebaseWithResult cbInit debugName homeDir
+            )
+
+        Specified specified ->
+          whenNoV1Codebase resolvedPath $ do 
+            case specified of
+              DontCreateWhenMissing dir ->
+                pure (Error dir NoCodebaseFoundAtSpecifiedDir)
+              CreateWhenMissing dir ->
+                createCodebaseWithResult cbInit debugName dir
+
+createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a))
+createCodebase cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase' cbInit path <&> mapLeft \case
+  createCodebase' cbInit debugName path <&> mapLeft \case
     CreateCodebaseAlreadyExists ->
       P.wrap $
         "It looks like there's already a codebase in: "
@@ -49,42 +122,12 @@ createCodebase cbInit path = do
 
 -- * compatibility stuff
 
--- | load an existing codebase or exit.
-getCodebaseOrExit :: MonadIO m => Init m v a -> Maybe CodebasePath -> m (m (), Codebase m v a)
-getCodebaseOrExit init mdir = do
-  dir <- Codebase.getCodebaseDir mdir
-  openCodebase init dir >>= \case
-    Left _e -> liftIO do
-      progName <- getProgName
-      prettyDir <- P.string <$> canonicalizePath dir
-      PT.putPrettyLn' $ getNoCodebaseErrorMsg ((P.text . Text.pack) progName) prettyDir mdir
-      exitFailure
-    Right x -> pure x
-  where
-    getNoCodebaseErrorMsg :: IsString s => P.Pretty s -> P.Pretty s -> Maybe FilePath -> P.Pretty s
-    getNoCodebaseErrorMsg executable prettyDir mdir =
-      let secondLine =
-            case mdir of
-              Just dir ->
-                "Run `" <> executable <> " -codebase " <> fromString dir
-                  <> " init` to create one, then try again!"
-              Nothing ->
-                "Run `" <> executable <> " init` to create one there,"
-                  <> " then try again;"
-                  <> " or `"
-                  <> executable
-                  <> " -codebase <dir>` to load a codebase from someplace else!"
-       in P.lines
-            [ "No codebase exists in " <> prettyDir <> ".",
-              secondLine
-            ]
-
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> CodebasePath -> m (m (), Codebase m Symbol Ann)
-openNewUcmCodebaseOrExit cbInit path = do
+openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> m (m (), Codebase m Symbol Ann)
+openNewUcmCodebaseOrExit cbInit debugName path = do
   prettyDir <- P.string <$> canonicalizePath path
-  createCodebase cbInit path >>= \case
+  createCodebase cbInit debugName path >>= \case
     Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
     Right x@(_, codebase) -> do
       liftIO $
@@ -96,6 +139,6 @@ openNewUcmCodebaseOrExit cbInit path = do
       pure x
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm -codebase dir init`)
-initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> Maybe CodebasePath -> m ()
-initCodebaseAndExit i mdir =
-  void $ openNewUcmCodebaseOrExit i =<< Codebase.getCodebaseDir mdir
+initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m () 
+initCodebaseAndExit i debugName mdir =
+  void $ openNewUcmCodebaseOrExit i debugName =<< Codebase.getCodebaseDir mdir

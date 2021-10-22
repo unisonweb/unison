@@ -38,7 +38,7 @@ The `view` and `display` commands also benefit from this:
 ```ucm
 .> view List.drop
 
-  -- builtin.List.drop is built-in.
+  builtin builtin.List.drop : Nat -> [a] -> [a]
 
 .> display bar.a
 
@@ -55,5 +55,57 @@ Type-based search also benefits from this, we can just say `Nat` rather than `.b
   1. builtin.List.drop : Nat -> [a] -> [a]
   2. builtin.List.take : Nat -> [a] -> [a]
   
+
+```
+## Corner cases
+
+If a definition is given in a scratch file, its suffixes shadow existing definitions that exist in the codebase with the same suffixes. For example:
+
+```unison
+unique type A = Thing1 Nat | thing2 Nat
+
+foo.a = 23
+bar = 100
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    unique type A
+    bar   : Nat
+    foo.a : Nat
+
+```
+```unison
+unique type B = Thing1 Text | thing2 Text | Thing3 Text
+
+zoink.a = "hi"
+
+-- verifying that the `a` here references `zoink.a`
+foo.baz.qux.bar : Text
+foo.baz.qux.bar = a
+
+-- verifying that the `bar` is resolving to `foo.baz.qux.bar`
+-- and that `Thing1` references `B.Thing1` from the current file
+fn = cases
+  Thing1 msg -> msg Text.++ bar
+  thing2 msg -> msg Text.++ bar
+  _ -> todo "hmm"
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      unique type B
+      fn              : B -> Text
+      foo.baz.qux.bar : Text
+      zoink.a         : Text
 
 ```

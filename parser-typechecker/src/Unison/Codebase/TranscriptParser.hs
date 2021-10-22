@@ -2,12 +2,21 @@
 {-# Language BangPatterns #-}
 {-# Language ViewPatterns #-}
 
-module Unison.Codebase.TranscriptParser (
-  Stanza(..), FenceType, ExpectingError, Hidden, Err, UcmCommand(..),
-  run, parse, parseFile)
-  where
+{- Parse and execute markdown transcripts.
+-}
+module Unison.Codebase.TranscriptParser
+  ( Stanza (..),
+    FenceType,
+    ExpectingError,
+    Hidden,
+    Err,
+    UcmCommand (..),
+    run,
+    parse,
+    parseFile,
+  )
+where
 
--- import qualified Text.Megaparsec.Char as P
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Control.Monad.State (runStateT)
@@ -25,11 +34,11 @@ import Unison.CommandLine
 import Unison.CommandLine.InputPattern (InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, notifyNumbered)
-import Unison.Parser (Ann)
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Symbol (Symbol)
-import Unison.CommandLine.Main (asciiartUnison, expandNumber)
+import Unison.CommandLine.Welcome (asciiartUnison)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -41,14 +50,18 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Runtime.Interface as RTI
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
 import Control.Error (rightMay)
+
+-- | Render transcript errors at a width of 65 chars.
+terminalWidth :: P.Width
+terminalWidth = 65
 
 type ExpectingError = Bool
 type Err = String
@@ -118,6 +131,7 @@ run dir configFile stanzas codebase = do
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   do
     pathRef                  <- newIORef initialPath
+    rootBranchRef            <- newIORef root
     numberedArgsRef          <- newIORef []
     inputQueue               <- Q.newIO
     cmdQueue                 <- Q.newIO
@@ -130,7 +144,7 @@ run dir configFile stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- RTI.startRuntime
+    runtime                  <- RTI.startRuntime ""
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList
@@ -148,36 +162,39 @@ run dir configFile stanzas codebase = do
         HideOutput -> True && (not inputEcho)
         HideAll    -> True
 
+      output, outputEcho :: (String -> IO ())
       output = output' False
       outputEcho = output' True
 
+      awaitInput :: IO (Either Event Input)
       awaitInput = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
           -- end of ucm block
           Just Nothing -> do
             output "\n```\n"
+            -- We clear the file cache after each `ucm` stanza, so
+            -- that `load` command can read the file written by `edit`
+            -- rather than hitting the cache.
+            writeIORef unisonFiles Map.empty
             dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
           Just (Just p@(UcmCommand path lineTxt)) -> do
             curPath <- readIORef pathRef
-            numberedArgs <- readIORef numberedArgsRef
             if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
-            else case (>>= expandNumber numberedArgs)
-                       . words . Text.unpack $ lineTxt of
+            else case words . Text.unpack $ lineTxt of
               [] -> awaitInput
-              cmd:args -> do
+              args -> do
                 output ("\n" <> show p <> "\n")
-                case Map.lookup cmd patternMap of
+                numberedArgs <- readIORef numberedArgsRef
+                currentRoot <- Branch.head <$> readIORef rootBranchRef
+                case parseInput currentRoot curPath numberedArgs patternMap args of
                   -- invalid command is treated as a failure
-                  Nothing ->
-                    dieWithMsg $ "invalid command name: " <> cmd
-                  Just pat -> case IP.parse pat args of
-                    Left msg -> dieWithMsg $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
-                    Right input -> pure $ Right input
+                  Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
+                  Right input -> pure $ Right input
 
           Nothing -> do
             dieUnexpectedSuccess
@@ -236,7 +253,7 @@ run dir configFile stanzas codebase = do
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
-        let rendered = P.toPlain 65 (P.border 2 msg)
+        let rendered = P.toPlain terminalWidth (P.border 2 msg)
         output rendered
         when (Output.isFailure o) $
           if errOk then writeIORef hasErrors True
@@ -245,7 +262,7 @@ run dir configFile stanzas codebase = do
       printNumbered o = do
         let (msg, numberedArgs) = notifyNumbered o
         errOk <- readIORef allowErrors
-        let rendered = P.toPlain 65 (P.border 2 msg)
+        let rendered = P.toPlain terminalWidth (P.border 2 msg)
         output rendered
         when (Output.isNumberedFailure o) $
           if errOk then writeIORef hasErrors True
@@ -298,6 +315,7 @@ run dir configFile stanzas codebase = do
                                      printNumbered
                                      loadPreviousUnisonBlock
                                      codebase
+                                     Nothing
                                      rng
                                      free
         case o of
@@ -306,6 +324,7 @@ run dir configFile stanzas codebase = do
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
           Just () -> do
             writeIORef numberedArgsRef (HandleInput._numberedArgs state')
+            writeIORef rootBranchRef (HandleInput._root state')
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)

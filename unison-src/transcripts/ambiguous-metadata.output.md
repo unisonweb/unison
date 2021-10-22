@@ -32,11 +32,9 @@ x = 1
   there are multiple matches:
   
     foo.doc
-    boo.doc#tj3gfqdnje
+    doc#tj3gfqdnje
   
   Tip: Try again and supply one of the above definitions
        explicitly.
-
-  I didn't make any changes.
 
 ```

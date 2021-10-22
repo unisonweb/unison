@@ -15,7 +15,7 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import Data.Maybe (fromMaybe)
 
 import Data.Bits
-import Data.Foldable (toList)
+import Data.Foldable (toList, traverse_)
 import Data.Traversable
 import Data.Word (Word64)
 
@@ -33,12 +33,14 @@ import qualified Data.Primitive.PrimArray as PA
 
 import Text.Read (readMaybe)
 
-import Unison.Reference (Reference(Builtin))
+import Unison.Builtin.Decls (exceptionRef, ioFailureRef)
+import Unison.Reference (Reference(Builtin), toShortHash)
 import Unison.Referent (pattern Ref)
+import qualified Unison.ShortHash as SH
 import Unison.Symbol (Symbol)
 
 import Unison.Runtime.ANF
-  as ANF (Mem(..), SuperGroup, valueLinks, groupLinks)
+  as ANF (Mem(..), CompileExn(..), SuperGroup, valueLinks, groupLinks)
 import qualified Unison.Runtime.ANF as ANF
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception
@@ -50,6 +52,7 @@ import Unison.Runtime.MCode
 import qualified Unison.Type as Rf
 
 import qualified Unison.Util.Bytes as By
+import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.EnumContainers as EC
 
 type Tag = Word64
@@ -105,9 +108,11 @@ baseCCache
   ftm = 1 + maximum builtinTermNumbering
   fty = 1 + maximum builtinTypeNumbering
 
+  rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
+
   combs
     = mapWithKey
-        (\k v -> emitComb @Symbol emptyRNs k mempty (0,v))
+        (\k v -> emitComb @Symbol rns k mempty (0,v))
         numberedTermLookup
 
 info :: Show a => String -> a -> IO ()
@@ -122,6 +127,19 @@ eval0 !env !co = do
   bstk <- alloc
   eval env mempty ustk bstk KE co
 
+topDEnv
+  :: M.Map Reference Word64
+  -> M.Map Reference Word64
+  -> (DEnv, K -> K)
+topDEnv rfTy rfTm
+  | Just n <- M.lookup exceptionRef rfTy
+  , rcrf <- Builtin (Tx.pack "raise")
+  , Just j <- M.lookup rcrf rfTm
+  = ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull)
+    , Mark (EC.setSingleton n) mempty
+    )
+topDEnv _ _ = (mempty, id)
+
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
 --
@@ -134,10 +152,12 @@ apply0 !callback !env !i = do
     ustk <- alloc
     bstk <- alloc
     cmbrs <- readTVarIO $ combRefs env
+    (denv, kf) <-
+      topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
     r <- case EC.lookup i cmbrs of
            Just r -> pure r
            Nothing -> die "apply0: missing reference to entry point"
-    apply env mempty ustk bstk k0 True ZArgs
+    apply env denv ustk bstk (kf k0) True ZArgs
       $ PAp (CIx r i 0) unull bnull
   where
   k0 = maybe KE (CB . Hook) callback
@@ -198,8 +218,25 @@ exec !env !denv !ustk !bstk !k (BPrim1 CACH i) = do
   unknown <- cacheAdd news env
   bstk <- bump bstk
   pokeS bstk
-    (Sq.fromList $ Foreign . Wrap Rf.typeLinkRef . Ref <$> unknown)
+    (Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
   pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim1 CVLD i) = do
+  arg <- peekOffS bstk i
+  news <- decodeCacheArgument arg
+  codeValidate news env >>= \case
+    Nothing -> do
+      ustk <- bump ustk
+      poke ustk 0
+      pure (denv, ustk, bstk, k)
+    Just (Failure ref msg clo) -> do
+      ustk <- bump ustk
+      bstk <- bumpn bstk 3
+      poke ustk 1
+      poke bstk (Foreign $ Wrap Rf.typeLinkRef ref)
+      pokeOffBi bstk 1 msg
+      pokeOff bstk 2 clo
+      pure (denv, ustk, bstk, k)
+
 exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
   clink <- peekOff bstk i
   let Ref link = unwrapForeign $ marshalToForeign clink
@@ -212,6 +249,13 @@ exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
       bstk <- bump bstk
       bstk <$ pokeBi bstk sg
   pure (denv, ustk, bstk, k)
+exec !_ !denv !ustk !bstk !k (BPrim1 TLTT i) = do
+  clink <- peekOff bstk i
+  let Ref link = unwrapForeign $ marshalToForeign clink
+  let sh = SH.toText $ toShortHash link
+  bstk <- bump bstk
+  pokeBi bstk sh
+  pure (denv, ustk, bstk, k)
 exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
   v <- peekOffBi bstk i
   ustk <- bump ustk
@@ -219,7 +263,8 @@ exec !env !denv !ustk !bstk !k (BPrim1 LOAD i) = do
   reifyValue env v >>= \case
     Left miss -> do
       poke ustk 0
-      pokeS bstk $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef <$> miss
+      pokeS bstk
+        $ Sq.fromList $ Foreign . Wrap Rf.termLinkRef . Ref <$> miss
     Right x -> do
       poke ustk 1
       poke bstk x
@@ -237,10 +282,7 @@ exec !_   !denv !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
-  poke ustk
-    $ case universalCompare compare x y of
-        EQ -> 1
-        _ -> 0
+  poke ustk $ if universalEq (==) x y then 1 else 0
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   x <- peekOff bstk i
@@ -256,8 +298,8 @@ exec !_   !denv !ustk !bstk !k (Pack r t args) = do
   bstk <- bump bstk
   poke bstk clo
   pure (denv, ustk, bstk, k)
-exec !_   !denv !ustk !bstk !k (Unpack i) = do
-  (ustk, bstk) <- dumpData ustk bstk =<< peekOff bstk i
+exec !_   !denv !ustk !bstk !k (Unpack r i) = do
+  (ustk, bstk) <- dumpData r ustk bstk =<< peekOff bstk i
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (Print i) = do
   t <- peekOffBi bstk i
@@ -588,49 +630,55 @@ buildData !ustk !bstk !r !t (DArgV ui bi) = do
 {-# inline buildData #-}
 
 dumpData
-  :: Stack 'UN -> Stack 'BX -> Closure -> IO (Stack 'UN, Stack 'BX)
-dumpData !ustk !bstk (Enum _ t) = do
+  :: Maybe Reference
+  -> Stack 'UN
+  -> Stack 'BX
+  -> Closure
+  -> IO (Stack 'UN, Stack 'BX)
+dumpData !_ !ustk !bstk (Enum _ t) = do
   ustk <- bump ustk
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU1 _ t x) = do
+dumpData !_ !ustk !bstk (DataU1 _ t x) = do
   ustk <- bumpn ustk 2
   pokeOff ustk 1 x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataU2 _ t x y) = do
+dumpData !_ !ustk !bstk (DataU2 _ t x y) = do
   ustk <- bumpn ustk 3
   pokeOff ustk 2 y
   pokeOff ustk 1 x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB1 _ t x) = do
+dumpData !_ !ustk !bstk (DataB1 _ t x) = do
   ustk <- bump ustk
   bstk <- bump bstk
   poke bstk x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataB2 _ t x y) = do
+dumpData !_ !ustk !bstk (DataB2 _ t x y) = do
   ustk <- bump ustk
   bstk <- bumpn bstk 2
   pokeOff bstk 1 y
   poke bstk x
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataUB _ t x y) = do
+dumpData !_ !ustk !bstk (DataUB _ t x y) = do
   ustk <- bumpn ustk 2
   bstk <- bump bstk
   pokeOff ustk 1 x
   poke bstk y
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !ustk !bstk (DataG _ t us bs) = do
+dumpData !_ !ustk !bstk (DataG _ t us bs) = do
   ustk <- dumpSeg ustk us S
   bstk <- dumpSeg bstk bs S
   ustk <- bump ustk
   pokeN ustk t
   pure (ustk, bstk)
-dumpData !_    !_  clo = die $ "dumpData: bad closure: " ++ show clo
+dumpData !mr !_    !_  clo
+  = die $ "dumpData: bad closure: " ++ show clo
+       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# inline dumpData #-}
 
 -- Note: although the representation allows it, it is impossible
@@ -901,6 +949,18 @@ uprim2 !ustk LEQN !i !j = do
   ustk <- bump ustk
   poke ustk $ if m <= n then 1 else 0
   pure ustk
+uprim2 !ustk DIVN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`div`n)
+  pure ustk
+uprim2 !ustk MODN !i !j = do
+  m <- peekOffN ustk i
+  n <- peekOffN ustk j
+  ustk <- bump ustk
+  pokeN ustk (m`mod`n)
+  pure ustk
 uprim2 !ustk ADDF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
@@ -953,13 +1013,13 @@ uprim2 !ustk EQLF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x == y then 1 else 0)
+  poke ustk (if x == y then 1 else 0)
   pure ustk
 uprim2 !ustk LEQF !i !j = do
   x <- peekOffD ustk i
   y <- peekOffD ustk j
   ustk <- bump ustk
-  pokeD ustk (if x <= y then 1 else 0)
+  poke ustk (if x <= y then 1 else 0)
   pure ustk
 uprim2 !ustk ATN2 !i !j = do
   x <- peekOffD ustk i
@@ -1145,6 +1205,8 @@ bprim1 !ustk !bstk FLTB i = do
 bprim1 !ustk !bstk MISS _ = pure (ustk, bstk)
 bprim1 !ustk !bstk CACH _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LKUP _ = pure (ustk, bstk)
+bprim1 !ustk !bstk CVLD _ = pure (ustk, bstk)
+bprim1 !ustk !bstk TLTT _ = pure (ustk, bstk)
 bprim1 !ustk !bstk LOAD _ = pure (ustk, bstk)
 bprim1 !ustk !bstk VALU _ = pure (ustk, bstk)
 {-# inline bprim1 #-}
@@ -1315,9 +1377,11 @@ yield !env !denv !ustk !bstk !k = leap denv k
    poke bstk . DataB1 Rf.effectRef 0 =<< peek bstk
    apply env denv ustk bstk k False (BArg1 0) clo
  leap !denv (Push ufsz bfsz uasz basz cix k) = do
-   Lam _ _ _ _ nx <- combSection env cix
+   Lam _ _ uf bf nx <- combSection env cix
    ustk <- restoreFrame ustk ufsz uasz
    bstk <- restoreFrame bstk bfsz basz
+   ustk <- ensure ustk uf
+   bstk <- ensure bstk bf
    eval env denv ustk bstk k nx
  leap _ (CB (Hook f)) = f ustk bstk
  leap _ KE = pure ()
@@ -1413,7 +1477,9 @@ decodeCacheArgument
   :: Sq.Seq Closure -> IO [(Reference, SuperGroup Symbol)]
 decodeCacheArgument s = for (toList s) $ \case
   DataB2 _ _ (Foreign x) (DataB2 _ _ (Foreign y) _)
-    -> pure (unwrapForeign x, unwrapForeign y)
+    -> case unwrapForeign x of
+      Ref r -> pure (r, unwrapForeign y)
+      _ -> die "decodeCacheArgument: Con reference"
   _ -> die "decodeCacheArgument: unrecognized value"
 
 addRefs
@@ -1434,6 +1500,30 @@ addRefs vfrsh vfrom vto rs = do
   modifyTVar vto (nto <>)
   pure from
 
+codeValidate
+  :: [(Reference, SuperGroup Symbol)]
+  -> CCache
+  -> IO (Maybe (Failure Closure))
+codeValidate tml cc = do
+  rty0 <- readTVarIO (refTy cc)
+  fty <- readTVarIO (freshTy cc)
+  let f b r | b, M.notMember r rty0 = S.singleton r
+            | otherwise = mempty
+      ntys0 = (foldMap.foldMap) (groupLinks f) tml
+      ntys = M.fromList $ zip (S.toList ntys0) [fty..]
+      rty = ntys <> rty0
+  ftm <- readTVarIO (freshTm cc)
+  rtm0 <- readTVarIO (refTm cc)
+  let (rs, gs) = unzip tml
+      rtm = rtm0 `M.withoutKeys` S.fromList rs
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm)
+      combinate (n, g) = evaluate $ emitCombs rns n g
+  (Nothing <$ traverse_ combinate (zip [ftm..] gs))
+    `catch` \(CE cs perr) -> let
+      msg = Tx.pack $ toPlainUnbroken perr
+      extra = Foreign . Wrap Rf.textRef . Tx.pack $ show cs in
+      pure . Just $ Failure ioFailureRef msg extra
+
 cacheAdd0
   :: S.Set Reference
   -> [(Reference, SuperGroup Symbol)]
@@ -1444,6 +1534,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
       (rs,gs) = unzip $ M.toList new
+  int <- writeTVar (intermed cc) (have <> new)
   rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
   ntm <- stateTVar (freshTm cc) $ \i -> (i, i+sz)
   rtm <- updateMap (M.fromList $ zip rs [ntm..]) (refTm cc)
@@ -1452,7 +1543,7 @@ cacheAdd0 ntys0 tml cc = atomically $ do
       combinate n g = (n, emitCombs rns n g)
   nrs <- updateMap (mapFromList $ zip [ntm..] rs) (combRefs cc)
   ncs <- updateMap (mapFromList $ zipWith combinate [ntm..] gs) (combs cc)
-  pure $ rtm `seq` nrs `seq` ncs `seq` ()
+  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` ()
   where
   toAdd = M.fromList tml
 
@@ -1516,7 +1607,7 @@ reflectValue rty = goV
     = pure (ANF.TmLink l)
     | Just l <- maybeUnwrapForeign Rf.typeLinkRef f
     = pure (ANF.TyLink l)
-    | otherwise = die $ err "foreign value"
+    | otherwise = die $ err $ "foreign value: " <> (show f)
 
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Closure)

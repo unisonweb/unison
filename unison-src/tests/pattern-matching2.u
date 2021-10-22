@@ -1,7 +1,7 @@
-type Foo0 = Foo0
-type Foo1 a = Foo1 a
-type Foo2 a b = Foo2 a b
-type Foo3 a b c = Foo3 a b c
+structural type Foo0 = Foo0
+structural type Foo1 a = Foo1 a
+structural type Foo2 a b = Foo2 a b
+structural type Foo3 a b c = Foo3 a b c
 
 use Foo0 Foo0
 use Foo1 Foo1

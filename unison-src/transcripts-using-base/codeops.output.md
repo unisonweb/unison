@@ -31,7 +31,7 @@ identical err x y =
   then ()
   else throw ("mismatch" ++ err)
 
-type Three a b c = zero a | one b | two c
+structural type Three a b c = zero a | one b | two c
 
 showThree : Three Nat Nat Nat -> Text
 showThree = cases
@@ -87,28 +87,22 @@ identicality t x
   
     ⍟ These new definitions are ok to `add`:
     
-      type Three a b c
-      concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
+      structural type Three a b c
+      concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
       extensionality : Text
-                       -> (Three Nat Nat Nat
-                       ->{Throw Text} Nat
-                       ->{Throw Text} b)
+                       -> (Three Nat Nat Nat -> Nat -> b)
                        ->{IO} Result
-      extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
-                       ->{Throw Text} (a
-                       ->{Throw Text} b
-                       ->{Throw Text} c)
-                       ->{Throw Text} (a
-                       ->{Throw Text} b
-                       ->{Throw Text} c)
-                       ->{Throw Text} [(a, b)]
+      extensionals   : (a -> b -> Text)
+                       -> (a -> b -> c)
+                       -> (a -> b -> c)
+                       -> [(a, b)]
                        ->{Throw Text} ()
       fib10          : [Nat]
       handleTest     : Text -> Request {Throw Text} a -> Result
       identical      : Text -> a -> a ->{Throw Text} ()
       identicality   : Text -> a ->{IO} Result
       load           : Bytes ->{IO, Throw Text} a
-      prod           : [a] ->{g} [b] ->{g} [(a, b)]
+      prod           : [a] -> [b] -> [(a, b)]
       roundtrip      : a ->{IO, Throw Text} a
       save           : a -> Bytes
       showThree      : Three Nat Nat Nat -> Text
@@ -120,28 +114,22 @@ identicality t x
 
   ⍟ I've added these definitions:
   
-    type Three a b c
-    concatMap      : (a ->{g} [b]) ->{g} [a] ->{g} [b]
+    structural type Three a b c
+    concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
     extensionality : Text
-                     -> (Three Nat Nat Nat
-                     ->{Throw Text} Nat
-                     ->{Throw Text} b)
+                     -> (Three Nat Nat Nat -> Nat -> b)
                      ->{IO} Result
-    extensionals   : (a ->{Throw Text} b ->{Throw Text} Text)
-                     ->{Throw Text} (a
-                     ->{Throw Text} b
-                     ->{Throw Text} c)
-                     ->{Throw Text} (a
-                     ->{Throw Text} b
-                     ->{Throw Text} c)
-                     ->{Throw Text} [(a, b)]
+    extensionals   : (a -> b -> Text)
+                     -> (a -> b -> c)
+                     -> (a -> b -> c)
+                     -> [(a, b)]
                      ->{Throw Text} ()
     fib10          : [Nat]
     handleTest     : Text -> Request {Throw Text} a -> Result
     identical      : Text -> a -> a ->{Throw Text} ()
     identicality   : Text -> a ->{IO} Result
     load           : Bytes ->{IO, Throw Text} a
-    prod           : [a] ->{g} [b] ->{g} [(a, b)]
+    prod           : [a] -> [b] -> [(a, b)]
     roundtrip      : a ->{IO, Throw Text} a
     save           : a -> Bytes
     showThree      : Three Nat Nat Nat -> Text
@@ -149,7 +137,7 @@ identicality t x
 
 ```
 ```unison
-ability Zap where
+structural ability Zap where
   zap : Three Nat Nat Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat
@@ -197,6 +185,23 @@ tests =
    , identicality "ident bool" false
    , identicality "ident bytes" [fSer, Bytes.empty]
    ]
+
+badLoad : '{IO} [Result]
+badLoad _ =
+  payload = Bytes.fromList[0,0,0,1,0,1,64,175,174,29,188,217,78,209,175,255,137,165,135,165,1,20,151,182,215,54,21,196,43,159,247,106,175,177,213,20,111,178,134,214,188,207,243,196,240,187,111,44,245,111,219,223,98,88,183,163,97,22,18,153,104,185,125,175,157,36,209,151,166,168,102,0,1,0,0,0,0,0,2,0,0,0,0]
+  go _ =
+    match Value.deserialize payload with
+      Left t -> Fail "deserialize exception"
+      Right a -> match Value.load a with
+        Left terms -> 
+            bs = Value.serialize (Value.value terms)
+            s = size bs
+            Ok ("serialized" ++ toText s)
+        Right _ ->
+            Ok "actually loaded"
+  match toEither go with
+    Right v -> [v]
+    Left _ -> [Fail "Exception"]
 ```
 
 ```ucm
@@ -207,15 +212,16 @@ tests =
   
     ⍟ These new definitions are ok to `add`:
     
-      ability Zap
-      f      : Nat ->{Zap} Nat
-      fDeps  : [Link.Term]
-      fSer   : Bytes
-      fVal   : Value
-      h      : Three Nat Nat Nat -> Nat -> Nat
-      rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-      tests  : '{IO} [Result]
-      zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
+      structural ability Zap
+      badLoad : '{IO} [Result]
+      f       : Nat ->{Zap} Nat
+      fDeps   : [Link.Term]
+      fSer    : Bytes
+      fVal    : Value
+      h       : Three Nat Nat Nat -> Nat -> Nat
+      rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
+      tests   : '{IO} [Result]
+      zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
 ```
 This simply runs some functions to make sure there isn't a crash. Once
@@ -227,15 +233,16 @@ to actual show that the serialization works.
 
   ⍟ I've added these definitions:
   
-    ability Zap
-    f      : Nat ->{Zap} Nat
-    fDeps  : [Link.Term]
-    fSer   : Bytes
-    fVal   : Value
-    h      : Three Nat Nat Nat -> Nat -> Nat
-    rotate : Three Nat Nat Nat -> Three Nat Nat Nat
-    tests  : '{IO} [Result]
-    zapper : Three Nat Nat Nat ->{g} Request {Zap} r ->{g} r
+    structural ability Zap
+    badLoad : '{IO} [Result]
+    f       : Nat ->{Zap} Nat
+    fDeps   : [Link.Term]
+    fSer    : Bytes
+    fVal    : Value
+    h       : Three Nat Nat Nat -> Nat -> Nat
+    rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
+    tests   : '{IO} [Result]
+    zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
 .> display fDeps
 
@@ -262,5 +269,79 @@ to actual show that the serialization works.
   ✅ 13 test(s) passing
   
   Tip: Use view tests to view the source of a test.
+
+.> io.test badLoad
+
+    New test results:
+  
+  ◉ badLoad   serialized78
+  
+  ✅ 1 test(s) passing
+  
+  Tip: Use view badLoad to view the source of a test.
+
+```
+```unison
+validateTest : Link.Term ->{IO} Result
+validateTest l = match Code.lookup l with
+  None -> Fail "Couldn't look up link"
+  Some co -> match Code.validate [(l, co)] with
+    Some f -> Fail "invalid code pre"
+    None -> match Code.deserialize (Code.serialize co) with
+      Left _ -> Fail "code failed deserialization"
+      Right co -> match Code.validate [(l, co)] with
+        Some f -> Fail "invalid code post"
+        None -> Ok "validated"
+
+vtests : '{IO} [Result]
+vtests _ =
+  List.map validateTest
+    [ termLink fib10
+    , termLink compose
+    , termLink List.all
+    , termLink hex
+    , termLink isDirectory
+    , termLink delay
+    , termLink printLine
+    , termLink isNone
+    ]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      validateTest : Link.Term ->{IO} Result
+      vtests       : '{IO} [Result]
+
+```
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    validateTest : Link.Term ->{IO} Result
+    vtests       : '{IO} [Result]
+
+.> io.test vtests
+
+    New test results:
+  
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  ◉ vtests   validated
+  
+  ✅ 8 test(s) passing
+  
+  Tip: Use view vtests to view the source of a test.
 
 ```

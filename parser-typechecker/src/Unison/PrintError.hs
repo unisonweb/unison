@@ -25,8 +25,9 @@ import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
 import           Unison.Name                  ( Name )
-import           Unison.Parser                (Ann (..), Annotated, ann)
-import qualified Unison.Parser                as Parser
+import Unison.Parser (Annotated, ann)
+import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent, pattern Ref)
 import           Unison.Result                (Note (..))
@@ -37,7 +38,7 @@ import qualified Unison.Type                  as Type
 import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
 import qualified Unison.Typechecker.TypeVar   as TypeVar
-import qualified Unison.UnisonFile            as UF
+import qualified Unison.UnisonFile.Error as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
 import           Unison.Util.ColorText        (Color)
@@ -50,11 +51,16 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import Unison.Util.Pretty (Pretty, ColorText)
-import qualified Unison.Names3 as Names
+import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
+import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.NamesWithHistory as NamesWithHistory
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NES
+import qualified Unison.Names as Names
 
 type Env = PPE.PrettyPrintEnv
 
@@ -68,6 +74,10 @@ pattern Identifier = Color.Bold
 
 defaultWidth :: Pr.Width
 defaultWidth = 60
+
+-- Various links used in error messages, collected here for a quick overview
+structuralVsUniqueDocsLink :: IsString a => Pretty a
+structuralVsUniqueDocsLink = "https://www.unisonweb.org/docs/language-reference/#unique-types"
 
 fromOverHere'
   :: Ord a
@@ -177,9 +187,9 @@ renderTypeError e env src = case e of
           <> style ErrorSite "if"
           <> "-expression has to be"
       AndMismatch ->
-        "The arguments to " <> style ErrorSite "and" <> " have to be"
+        "The arguments to " <> style ErrorSite "&&" <> " have to be"
       OrMismatch ->
-        "The arguments to " <> style ErrorSite "or" <> " have to be"
+        "The arguments to " <> style ErrorSite "||" <> " have to be"
       GuardMismatch ->
         "The guard expression for a "
           <> style ErrorSite "match"
@@ -359,6 +369,50 @@ renderTypeError e env src = case e of
       ]
     , debugSummary note
     ]
+  AbilityCheckFailure {..}
+    | [tv@(Type.Var' ev)] <- ambient
+    , ev `Set.member` foldMap Type.freeVars requested -> mconcat
+    [ "I tried to infer a cyclic ability."
+    , "\n\n"
+    , "The expression "
+    , describeStyle ErrorSite
+    , " was inferred to require the "
+    , case length requested of
+        1 -> "ability: "
+        _ -> "abilities: "
+    , "\n\n    {"
+    , commas (renderType' env) requested
+    , "}"
+    , "\n\n"
+    , "where `"
+    , renderType' env tv
+    , "` is its overall abilities."
+    , "\n\n"
+    , "I need a type signature to help figure this out."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
+    , debugSummary note
+    ]
+  AbilityCheckFailure {..}
+    | C.InSubtype{} :<| _ <- C.path note -> mconcat
+    [ "The expression "
+    , describeStyle ErrorSite
+    , "\n\n"
+    , "              needs the abilities: {"
+    , commas (renderType' env) requested
+    , "}\n"
+    , "  but was assumed to only require: {"
+    , commas (renderType' env) ambient
+    , "}"
+    , "\n\n"
+    , "This is likely a result of using an un-annotated "
+    , "function as an argument with concrete abilities. "
+    , "Try adding an annotation to the function definition whose "
+    , "body is red."
+    , "\n\n"
+    , annotatedAsErrorSite src abilityCheckFailureSite
+    , debugSummary note
+    ]
   AbilityCheckFailure {..} -> mconcat
     [ "The expression "
     , describeStyle ErrorSite
@@ -418,7 +472,7 @@ renderTypeError e env src = case e of
           , "\n\n"
           , annotatedAsErrorSite src termSite
           , case expectedType of
-            Type.Var' (TypeVar.Existential _ _) -> "\nThere are no constraints on its type."
+            Type.Var' (TypeVar.Existential{}) -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
                 <> style Type1 (renderType' env expectedType)
@@ -762,7 +816,7 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
     -> Pretty (AnnotatedText a)
   showElem _ctx (C.Var v) = case v of
     TypeVar.Universal x     -> "@" <> renderVar x
-    TypeVar.Existential _ x -> "'" <> renderVar x
+    e -> Pr.shown e
   showElem ctx (C.Solved _ v (Type.Monotype t)) =
     "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
   showElem ctx (C.Ann v t) =
@@ -982,6 +1036,10 @@ prettyParseError s = \case
     where
     excerpt = showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
     go = \case
+      L.UnexpectedDelimiter s ->
+        "I found a " <> style ErrorSite (fromString s) <>
+        " here, but I didn't see a list or tuple that it might be a separator for.\n\n" <>
+        excerpt
       L.CloseWithoutMatchingOpen open close ->
         "I found a closing " <> style ErrorSite (fromString close) <>
         " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
@@ -1088,6 +1146,14 @@ prettyParseError s = \case
              <> Pr.hiBlue (Pr.shown expected) <> "arguments (based on the previous patterns)"
              <> "but this one has " <> Pr.hiRed (Pr.shown actual) <> "arguments:",
       annotatedAsErrorSite s loc
+      ]
+  go (Parser.FloatPattern loc) = msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines
+      [ Pr.wrap
+          $ "Floating point pattern matching is disallowed. Instead,"
+         <> "it is recommended to test that a value is within"
+         <> "an acceptable error bound of the expected value."
+      , annotatedAsErrorSite s loc
       ]
   go (Parser.UseEmpty tok) = msg where
     msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
@@ -1259,6 +1325,15 @@ prettyParseError s = \case
     missing = Set.null referents
   go (Parser.ResolutionFailures        failures) =
     Pr.border 2 . prettyResolutionFailures s $ failures
+  go (Parser.MissingTypeModifier keyword name) = Pr.lines
+    [ Pr.wrap $
+        "I expected to see `structural` or `unique` at the start of this line:"
+    , ""
+    , tokensAsErrorSite s [void keyword, void name]
+    , Pr.wrap $ "Learn more about when to use `structural` vs `unique` in the Unison Docs: "
+              <> structuralVsUniqueDocsLink
+    ]
+
   unknownConstructor
     :: String -> L.Token (HashQualified Name) -> Pretty ColorText
   unknownConstructor ctorType tok = Pr.lines [
@@ -1360,42 +1435,54 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
       <> "."
   _ -> ""
 
-prettyResolutionFailures
-  :: (Annotated a, Var v)
-  => String
-  -> [Names.ResolutionFailure v a]
-  -> Pretty ColorText
-prettyResolutionFailures s failures = Pr.callout "❓" $ Pr.linesNonEmpty
-  [ Pr.wrap
-    ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
-  , ""
-  , annotatedsAsErrorSite s
-  $  [ a | Names.TermResolutionFailure _ a _ <- failures ]
-  ++ [ a | Names.TypeResolutionFailure _ a _ <- failures ]
-  , let
-      conflicts =
-        nubOrd
-          $  [ v
-             | Names.TermResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-          ++ [ v
-             | Names.TypeResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-      allVars =
-        nubOrd
-          $  [ v | Names.TermResolutionFailure v _ _ <- failures ]
-          ++ [ v | Names.TypeResolutionFailure v _ _ <- failures ]
-    in
-      "Using these fully qualified names:"
-      `Pr.hang` Pr.spaced (prettyVar <$> allVars)
-      <>        "\n"
-      <>        if null conflicts
-                  then ""
-                  else Pr.spaced (prettyVar <$> conflicts)
-                    <> Pr.bold " are currently conflicted symbols"
-  ]
+-- | Pretty prints resolution failure annotations, including a table of disambiguation
+-- suggestions.
+prettyResolutionFailures ::
+  forall v a.
+  (Annotated a, Var v, Ord a) =>
+  -- | src
+  String ->
+  [Names.ResolutionFailure v a] ->
+  Pretty ColorText
+prettyResolutionFailures s allFailures =
+  Pr.callout "❓" $
+    Pr.linesNonEmpty
+      [ Pr.wrap
+          ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
+        "",
+        annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
+        "",
+        ambiguitiesToTable allFailures
+      ]
+  where
+    -- Collapses identical failures which may have multiple annotations into a single failure.
+    -- uniqueFailures
+    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable failures =
+      let pairs :: ([(v, Maybe (NESet String))])
+          pairs = nubOrd . fmap toAmbiguityPair $ failures
+          spacerRow = ("", "")
+       in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
+
+    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
+    toAmbiguityPair = \case
+      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+        let ppe = ppeFromNames names
+         in (v, Just $ NES.map (showTermRef ppe) refs)
+      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+        let ppe = ppeFromNames names
+         in (v, Just $ NES.map (showTypeRef ppe) refs)
+      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+
+    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
+    ppeFromNames names0 =
+      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+
+    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
+    prettyRow (v, mSet) = case mSet of
+      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
+      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [

@@ -2,7 +2,7 @@
 -- Now check exact and underapply cases for constructors
 -- (overapply of a constructor is always a type error)
 
-type Woot = Woot Nat Nat Nat Nat
+structural type Woot = Woot Nat Nat Nat Nat
 
 toSeq : Woot -> [Nat]
 toSeq = cases

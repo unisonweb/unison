@@ -1,5 +1,5 @@
 --Abort
-ability Abort where
+structural ability Abort where
   Abort : forall a . () -> {Abort} a
 
 use Nat +

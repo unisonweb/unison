@@ -1,7 +1,7 @@
-ability Emit a where
+structural ability Emit a where
   emit : a ->{Emit a} ()
 
-type Stream e a r = Stream ('{e, Emit a} r)
+structural type Stream e a r = Stream ('{e, Emit a} r)
 
 use Stream Stream
 use Optional None Some
@@ -50,7 +50,7 @@ namespace Stream where
   run : Stream e a r ->{e, Emit a} r
   run = cases Stream c -> !c
 
-ability Abort where
+structural ability Abort where
   abort : {Abort} a
 
 ---

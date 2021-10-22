@@ -1,7 +1,10 @@
 {-# language LambdaCase #-}
 {-# language BangPatterns #-}
+{-# language PatternSynonyms #-}
 
 module Unison.Runtime.ANF.Serialize where
+
+import Prelude hiding (putChar, getChar)
 
 import Control.Monad
 
@@ -14,18 +17,19 @@ import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
 import Data.Serialize.Put (runPutLazy)
-import Data.Word (Word8, Word16, Word64)
+import Data.Word (Word16, Word64)
 
 import qualified Data.Sequence as Seq
 import qualified Data.ByteString.Lazy as L
 
 import GHC.Stack
 
-import Unison.Codebase.Serialization.V1 as V1
-import Unison.Util.EnumContainers as EC
 import Unison.Reference (Reference)
+
 import Unison.ABT.Normalized (Term(..))
+import Unison.Runtime.Exception
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.Serialize
 import Unison.Var (Var(..), Type(ANFBlank))
 
 data TmTag
@@ -48,10 +52,6 @@ data BLTag = TextT | ListT | TmLinkT | TyLinkT | BytesT
 data VaTag = PartialT | DataT | ContT | BLitT
 data CoTag = KET | MarkT | PushT
 
-class Tag t where
-  tag2word :: t -> Word8
-  word2tag :: Word8 -> t
-
 instance Tag TmTag where
   tag2word = \case
     VarT -> 1
@@ -66,18 +66,18 @@ instance Tag TmTag where
     LetDirT -> 10
     LetIndT -> 11
   word2tag = \case
-    1 -> VarT
-    2 -> ForceT
-    3 -> AppT
-    4 -> HandleT
-    5 -> ShiftT
-    6 -> MatchT
-    7 -> LitT
-    8 -> NameRefT
-    9 -> NameVarT
-    10 -> LetDirT
-    11 -> LetIndT
-    _ -> error "unknown TmTag word"
+    1 -> pure VarT
+    2 -> pure ForceT
+    3 -> pure AppT
+    4 -> pure HandleT
+    5 -> pure ShiftT
+    6 -> pure MatchT
+    7 -> pure LitT
+    8 -> pure NameRefT
+    9 -> pure NameVarT
+    10 -> pure LetDirT
+    11 -> pure LetIndT
+    n -> unknownTag "TmTag" n
 
 instance Tag FnTag where
   tag2word = \case
@@ -89,13 +89,13 @@ instance Tag FnTag where
     FPrimT -> 5
 
   word2tag = \case
-    0 -> FVarT
-    1 -> FCombT
-    2 -> FContT
-    3 -> FConT
-    4 -> FReqT
-    5 -> FPrimT
-    _ -> error "unknown FnTag word"
+    0 -> pure FVarT
+    1 -> pure FCombT
+    2 -> pure FContT
+    3 -> pure FConT
+    4 -> pure FReqT
+    5 -> pure FPrimT
+    n -> unknownTag "FnTag" n
 
 instance Tag MtTag where
   tag2word = \case
@@ -107,13 +107,13 @@ instance Tag MtTag where
     MSumT -> 5
 
   word2tag = \case
-    0 -> MIntT
-    1 -> MTextT
-    2 -> MReqT
-    3 -> MEmptyT
-    4 -> MDataT
-    5 -> MSumT
-    _ -> error "unknown MtTag word"
+    0 -> pure MIntT
+    1 -> pure MTextT
+    2 -> pure MReqT
+    3 -> pure MEmptyT
+    4 -> pure MDataT
+    5 -> pure MSumT
+    n -> unknownTag "MtTag" n
 
 instance Tag LtTag where
   tag2word = \case
@@ -126,14 +126,14 @@ instance Tag LtTag where
     LYT -> 6
 
   word2tag = \case
-    0 -> IT
-    1 -> NT
-    2 -> FT
-    3 -> TT
-    4 -> CT
-    5 -> LMT
-    6 -> LYT
-    _ -> error "unknown LtTag word"
+    0 -> pure IT
+    1 -> pure NT
+    2 -> pure FT
+    3 -> pure TT
+    4 -> pure CT
+    5 -> pure LMT
+    6 -> pure LYT
+    n -> unknownTag "LtTag" n
 
 instance Tag BLTag where
   tag2word = \case
@@ -144,12 +144,12 @@ instance Tag BLTag where
     BytesT -> 4
 
   word2tag = \case
-    0 -> TextT
-    1 -> ListT
-    2 -> TmLinkT
-    3 -> TyLinkT
-    4 -> BytesT
-    _ -> error "unknown BLTag word"
+    0 -> pure TextT
+    1 -> pure ListT
+    2 -> pure TmLinkT
+    3 -> pure TyLinkT
+    4 -> pure BytesT
+    t -> unknownTag "BLTag" t
 
 instance Tag VaTag where
   tag2word = \case
@@ -159,11 +159,11 @@ instance Tag VaTag where
     BLitT -> 3
 
   word2tag = \case
-    0 -> PartialT
-    1 -> DataT
-    2 -> ContT
-    3 -> BLitT
-    _ -> error "unknown VaTag word"
+    0 -> pure PartialT
+    1 -> pure DataT
+    2 -> pure ContT
+    3 -> pure BLitT
+    t -> unknownTag "VaTag" t
 
 instance Tag CoTag where
   tag2word = \case
@@ -171,16 +171,10 @@ instance Tag CoTag where
     MarkT -> 1
     PushT -> 2
   word2tag = \case
-    0 -> KET
-    1 -> MarkT
-    2 -> PushT
-    _ -> error "unknown CoTag word"
-
-putTag :: MonadPut m => Tag t => t -> m ()
-putTag = putWord8 . tag2word
-
-getTag :: MonadGet m => Tag t => m t
-getTag = word2tag <$> getWord8
+    0 -> pure KET
+    1 -> pure MarkT
+    2 -> pure PushT
+    t -> unknownTag "CoTag" t
 
 index :: Eq v => [v] -> v -> Maybe Word64
 index ctx u = go 0 ctx
@@ -191,7 +185,7 @@ index ctx u = go 0 ctx
     | otherwise = go (n+1) vs
 
 deindex :: HasCallStack => [v] -> Word64 -> v
-deindex [] _ = error "deindex: bad index"
+deindex [] _ = exn "deindex: bad index"
 deindex (v:vs) n
   | n == 0 = v
   | otherwise = deindex vs (n-1)
@@ -205,7 +199,7 @@ getIndex = unVarInt <$> deserialize
 putVar :: MonadPut m => Eq v => [v] -> v -> m ()
 putVar ctx v
   | Just i <- index ctx v = putIndex i
-  | otherwise = error "putVar: variable not in context"
+  | otherwise = exn "putVar: variable not in context"
 
 getVar :: MonadGet m => [v] -> m v
 getVar ctx = deindex ctx <$> getIndex
@@ -227,7 +221,7 @@ getCCs :: MonadGet m => m [Mem]
 getCCs = getList $ getWord8 <&> \case
   0 -> UN
   1 -> BX
-  _ -> error "getCCs: bad calling convention"
+  _ -> exn "getCCs: bad calling convention"
 
 putGroup :: MonadPut m => Var v => SuperGroup v -> m ()
 putGroup (Rec bs e)
@@ -281,7 +275,7 @@ putNormal ctx tm = case tm of
   TLets (Indirect w) us ccs l e
     -> putTag LetIndT *> putWord16be w *> putCCs ccs *> putNormal ctx l
     *> putNormal (us ++ ctx) e
-  _ -> error "putNormal: malformed term"
+  _ -> exn "putNormal: malformed term"
 
 getNormal :: MonadGet m => Var v => [v] -> Word64 -> m (ANormal v)
 getNormal ctx frsh0 = getTag >>= \case
@@ -332,7 +326,7 @@ putFunc ctx f = case f of
   FCon r c -> putTag FConT *> putReference r *> putCTag c
   FReq r c -> putTag FReqT *> putReference r *> putCTag c
   FPrim (Left p) -> putTag FPrimT *> putPOp p
-  FPrim _ -> error "putFunc: can't serialize foreign func"
+  FPrim _ -> exn "putFunc: can't serialize foreign func"
 
 getFunc :: MonadGet m => Var v => [v] -> m (Func v)
 getFunc ctx = getTag >>= \case
@@ -346,12 +340,12 @@ getFunc ctx = getTag >>= \case
 putPOp :: MonadPut m => POp -> m ()
 putPOp op
   | Just w <- Map.lookup op pop2word = putWord16be w
-  | otherwise = error "putPOp: unknown POp"
+  | otherwise = exn "putPOp: unknown POp"
 
 getPOp :: MonadGet m => m POp
 getPOp = getWord16be >>= \w -> case Map.lookup w word2pop of
   Just op -> pure op
-  Nothing -> error "getPOp: unknown enum code"
+  Nothing -> exn "getPOp: unknown enum code"
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc
@@ -401,7 +395,7 @@ putLit (I i) = putTag IT *> putInt i
 putLit (N n) = putTag NT *> putNat n
 putLit (F f) = putTag FT *> putFloat f
 putLit (T t) = putTag TT *> putText t
-putLit (C c) = putTag CT *> V1.putChar c
+putLit (C c) = putTag CT *> putChar c
 putLit (LM r) = putTag LMT *> putReferent r
 putLit (LY r) = putTag LYT *> putReference r
 
@@ -411,7 +405,7 @@ getLit = getTag >>= \case
   NT -> N <$> getNat
   FT -> F <$> getFloat
   TT -> T <$> getText
-  CT -> C <$> V1.getChar
+  CT -> C <$> getChar
   LMT -> LM <$> getReferent
   LYT -> LY <$> getReference
 
@@ -436,15 +430,6 @@ putRefs rs = putFoldable putReference rs
 getRefs :: MonadGet m => m [Reference]
 getRefs = getList getReference
 
-putEnumMap
-  :: MonadPut m
-  => EnumKey k
-  => (k -> m ()) -> (v -> m ()) -> EnumMap k v -> m ()
-putEnumMap pk pv m = putFoldable (putPair pk pv) (mapToList m)
-
-getEnumMap :: MonadGet m => EnumKey k => m k -> m v -> m (EnumMap k v)
-getEnumMap gk gv = mapFromList <$> getList (getPair gk gv)
-
 putBranches :: MonadPut m => Var v => [v] -> Branched (ANormal v) -> m ()
 putBranches ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
@@ -460,7 +445,7 @@ putBranches ctx bs = case bs of
     putTag MReqT
     putMap putReference (putEnumMap putCTag (putCase ctx)) m
     putNormal (v:ctx) df
-    where 
+    where
   MatchData r m df -> do
     putTag MDataT
     putReference r
@@ -469,7 +454,7 @@ putBranches ctx bs = case bs of
   MatchSum m -> do
     putTag MSumT
     putEnumMap putWord64be (putCase ctx) m
-  _ -> error "putBranches: malformed intermediate term"
+  _ -> exn "putBranches: malformed intermediate term"
 
 getBranches
   :: MonadGet m => Var v => [v] -> Word64 -> m (Branched (ANormal v))
@@ -505,7 +490,7 @@ getCase ctx frsh0 = do
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0..]
-  (,) ccs <$> getNormal (us++ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (us++ctx) frsh
 
 putCTag :: MonadPut m => CTag -> m ()
 putCTag c = serialize (VarInt $ fromEnum c)

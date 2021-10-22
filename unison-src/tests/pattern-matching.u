@@ -1,8 +1,8 @@
-type Foo0 = Foo0
-type Foo1 a = Foo1 a
-type Foo2 a b = Foo2 a b
-type Foo3 a b c = Foo3 a b c
-type List a = Nil | Cons a (List a)
+structural type Foo0 = Foo0
+structural type Foo1 a = Foo1 a
+structural type Foo2 a b = Foo2 a b
+structural type Foo3 a b c = Foo3 a b c
+structural type List a = Nil | Cons a (List a)
 
 use Foo0 Foo0
 use Foo1 Foo1
@@ -33,4 +33,21 @@ len = cases
   List.Nil -> 0
   List.Cons _ t -> len t + 1
 
-> (w, w2, len)
+foo = cases
+  List.Cons h t 
+    | h > 10 ->
+      x = 3124
+      y = 230
+      x + y
+    | h < 10 -> 10
+    | otherwise -> 11
+
+  List.Nil -> 0
+
+foo2 = cases
+  List.Cons h t | h > 10 -> 1
+                | h < 10 -> 2
+                | otherwise -> 3
+  List.Nil -> 0
+
+> (w, w2 (Foo3 1 4 "bye"), len (List.Cons 1 List.Nil), foo (List.Cons 0 List.Nil), foo2 List.Nil)

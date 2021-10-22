@@ -19,6 +19,8 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DP
 import qualified Unison.NamePrinter as NP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import qualified Unison.ShortHash as SH
@@ -30,6 +32,7 @@ import qualified Unison.Util.SyntaxText as S
 import qualified Unison.Codebase.Editor.DisplayObject as DO
 import qualified Unison.CommandLine.OutputMessages as OutputMessages
 import qualified Unison.ConstructorType as CT
+import qualified Unison.Builtin as Builtin
 
 type Pretty = P.Pretty P.ColorText
 
@@ -132,19 +135,18 @@ displayPretty pped terms typeOf eval types tm = go tm
         tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
     typeMap <- let
       -- todo: populate the variable names / kind once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
+      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject ())
       go ref = (ref,) <$> do
         decl <- types ref
         let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
         pure $ maybe missing DO.UserObject decl
       in Map.fromList <$> traverse go tys
     termMap <- let
-      -- todo: populate the type signature once BuiltinObject supports that
-      go ref@(Reference.Builtin _) = pure (ref, DO.BuiltinObject)
-      go ref = (ref,) <$> do
-        tm <- terms ref
-        let missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
-        pure $ maybe missing DO.UserObject tm
+      go ref = (ref,) <$> case ref of
+        Reference.Builtin _ -> pure $ Builtin.typeOf missing DO.BuiltinObject ref
+        _ -> maybe missing DO.UserObject <$> terms ref
+        where
+          missing = DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
       in Map.fromList <$> traverse go tms
     -- in docs, we use suffixed names everywhere
     let pped' = pped { PPE.unsuffixifiedPPE = PPE.suffixifiedPPE pped }
@@ -310,7 +312,7 @@ displayDoc pped terms typeOf evaluated types = go
     Referent.Con r _ _ -> prettyType r
   prettyType r = let ppe = PPE.declarationPPE pped r in types r >>= \case
     Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
-    Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl ppe r (PPE.typeName ppe r) ty
+    Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped r (PPE.typeName ppe r) ty
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r = P.syntaxToColor $

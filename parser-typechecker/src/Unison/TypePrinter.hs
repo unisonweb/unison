@@ -9,21 +9,26 @@ import qualified Data.Map              as Map
 import           Unison.HashQualified  (HashQualified)
 import           Unison.Name           ( Name )
 import           Unison.NamePrinter    (styleHashQualified'')
-import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
+import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
-import           Unison.Reference      (pattern Builtin)
+import Unison.PrettyPrintEnv.FQN (Imports, elideFQN)
+import Unison.Reference (Reference, pattern Builtin)
 import           Unison.Type
 import           Unison.Util.Pretty    (ColorText, Pretty, Width)
 import           Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.SyntaxText as S
-import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
 
+type SyntaxText = S.SyntaxText' Reference
+
 pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
+pretty ppe = PP.syntaxToColor . prettySyntax ppe
+
+prettySyntax :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
+prettySyntax ppe = pretty0 ppe mempty (-1)
 
 pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
 pretty' (Just width) n t =
@@ -99,40 +104,42 @@ prettyRaw n im p tp = go n im p tp
            in (fmt S.TypeOperator "∀ " <> vformatted <> fmt S.TypeOperator ".")
               `PP.hang` go n im (-1) body
     t@(Arrow' _ _) -> case t of
-      EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
+      EffectfulArrows' (Ref' DD.UnitRef) rest ->
+        PP.parenthesizeIf (p >= 10) $ arrows True True rest
       EffectfulArrows' fst rest ->
         case fst of
-          Var' v | Var.name v == "()"
-            -> fmt S.DelayForceChar "'" <> arrows False True rest
+          Var' v | Var.name v == "()" ->
+            PP.parenthesizeIf (p >= 10) $ arrows True True rest
           _ -> PP.parenthesizeIf (p >= 0) $
                  go n im 0 fst <> arrows False False rest
       _ -> "error"
     _ -> "error"
   effects Nothing   = mempty
-  effects (Just es) = PP.group $ (fmt S.AbilityBraces "{") <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
+  effects (Just es) = PP.group $ fmt S.AbilityBraces "{" <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
+  -- `first`: is this the first argument?
+  -- `mes`: list of effects
   arrow delay first mes =
-    (if first then mempty else PP.softbreak <> (fmt S.TypeOperator "->"))
-      <> (if delay then (if first then (fmt S.DelayForceChar "'") else (fmt S.DelayForceChar " '")) else mempty)
+    (if first then mempty else PP.softbreak <> fmt S.TypeOperator "->")
+      <> (if delay then (if first then fmt S.DelayForceChar "'" else fmt S.DelayForceChar " '") else mempty)
       <> effects mes
-      <> if (isJust mes) || (not delay) && (not first) then " " else mempty
+      <> if isJust mes || not delay && not first then " " else mempty
 
-  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.Unit "()")
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> fmt S.Unit "()"
   arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
-    arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
+    arrow delay first mes <> parenNoGroup delay (arrows True True rest)
   arrows delay first ((mes, arg) : rest) =
-    arrow delay first mes
-      <> (  parenNoGroup (delay && (not $ null rest))
-         $  go n im 0 arg
-         <> arrows False False rest
-         )
+    arrow delay first mes <> parenNoGroup
+      (delay && not (null rest))
+      (go n im 0 arg <> arrows False False rest)
+
   arrows False False [] = mempty
   arrows False True  [] = mempty  -- not reachable
   arrows True  _     [] = mempty  -- not reachable
 
-  paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
+  paren True  s = PP.group $ fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
   paren False s = PP.group s
 
-  parenNoGroup True  s = ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
+  parenNoGroup True  s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
   parenNoGroup False s = s
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
@@ -143,7 +150,13 @@ prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified Name, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = map PP.syntaxToColor $ PP.align
+prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
+
+prettySignatures''
+  :: Var v => PrettyPrintEnv
+  -> [(HashQualified Name, Type v a)]
+  -> [Pretty SyntaxText]
+prettySignatures'' env ts = PP.align
   [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "

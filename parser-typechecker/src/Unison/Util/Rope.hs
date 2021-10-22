@@ -5,6 +5,7 @@ module Unison.Util.Rope where
 
 import Prelude hiding (drop,take,reverse,map,traverse)
 import Data.Foldable (toList)
+import Control.DeepSeq (NFData(..))
 
 data Rope a
   = Empty
@@ -175,3 +176,8 @@ instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
 -- Lexicographical ordering
 instance (Sized a, Take a, Drop a, Ord a) => Ord (Rope a) where
   b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
+
+instance NFData a => NFData (Rope a) where 
+  rnf Empty = ()
+  rnf (One _ a) = rnf a
+  rnf (Two _ l r) = rnf l `seq` rnf r

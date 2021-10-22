@@ -27,6 +27,8 @@ module Unison.Runtime.MCode
   , emitComb
   , emptyRNs
   , argsToLists
+  , combDeps
+  , combTypes
   , prettyCombs
   , prettyComb
   ) where
@@ -73,6 +75,7 @@ import Unison.Runtime.ANF
   , pattern TLets
   , pattern TName
   , pattern TMatch
+  , internalBug
   )
 import qualified Unison.Runtime.ANF as ANF
 
@@ -270,7 +273,7 @@ argsToLists (DArgR ui ul bi bl) = (take ul [ui..], take bl [bi..])
 argsToLists (BArgN bs) = ([], primArrayToList bs)
 argsToLists (UArgN us) = (primArrayToList us, [])
 argsToLists (DArgN us bs) = (primArrayToList us, primArrayToList bs)
-argsToLists (DArgV _ _) = error "argsToLists: DArgV"
+argsToLists (DArgV _ _) = internalBug "argsToLists: DArgV"
 
 ucount, bcount :: Args -> Int
 
@@ -307,6 +310,7 @@ data UPrim1
 data UPrim2
   -- integral
   = ADDI | SUBI | MULI | DIVI | MODI -- +,-,*,/,mod
+  | DIVN | MODN
   | SHLI | SHRI | SHRN | POWI        -- shiftl,shiftr,shiftr,pow
   | EQLI | LEQI | LEQN               -- ==,<=,<=
   | ANDN | IORN | XORN               -- and,or,xor
@@ -328,7 +332,8 @@ data BPrim1
   | FLTB               -- flatten
   -- code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
-  | VALU                      -- value
+  | CVLD                      -- validate
+  | VALU | TLTT               -- value, Term.Link.toText
   deriving (Show, Eq, Ord)
 
 data BPrim2
@@ -406,7 +411,8 @@ data Instr
          !Args      -- arguments to pack
 
   -- Unpack the contents of a data type onto the stack
-  | Unpack !Int -- stack index of data to unpack
+  | Unpack !(Maybe Reference) -- debug reference
+           !Int               -- stack index of data to unpack
 
   -- Push a particular value onto the appropriate stack
   | Lit !MLit -- value to push onto the stack
@@ -488,7 +494,7 @@ data RefNums
 
 emptyRNs :: RefNums
 emptyRNs = RN mt mt
-  where mt _ = error "RefNums: empty"
+  where mt _ = internalBug "RefNums: empty"
 
 data Comb
   = Lam !Int -- Number of unboxed arguments
@@ -736,13 +742,13 @@ emitSection _   _   _   ctx (TLit l)
     | otherwise = addCount 1 0
 emitSection rns grpn rec ctx (TMatch v bs)
   | Just (i,BX) <- ctxResolve ctx v
-  , MatchData _ cs df <- bs
-  =  Ins (Unpack i)
- <$> emitDataMatching rns grpn rec ctx cs df
+  , MatchData r cs df <- bs
+  =  Ins (Unpack (Just r) i)
+ <$> emitDataMatching r rns grpn rec ctx cs df
   | Just (i,BX) <- ctxResolve ctx v
   , MatchRequest hs0 df <- bs
   , hs <- mapFromList $ first (dnum rns) <$> M.toList hs0
-  =  Ins (Unpack i)
+  =  Ins (Unpack Nothing i)
  <$> emitRequestMatching rns grpn rec ctx hs df
   | Just (i,UN) <- ctxResolve ctx v
   , MatchIntegral cs df <- bs
@@ -756,11 +762,11 @@ emitSection rns grpn rec ctx (TMatch v bs)
   , MatchSum cs <- bs
   = emitSumMatching rns grpn rec ctx v i cs
   | Just (_,cc) <- ctxResolve ctx v
-  = error
+  = internalBug
   $ "emitSection: mismatched calling convention for match: "
   ++ matchCallingError cc bs
   | otherwise
-  = error
+  = internalBug
   $ "emitSection: could not resolve match variable: " ++ show (ctx,v)
 emitSection rns grpn rec ctx (THnd rs h b)
   | Just (i,BX) <- ctxResolve ctx h
@@ -777,11 +783,11 @@ emitSection rns grpn rec ctx (TShift r v e)
 emitSection _   _   _   ctx (TFrc v)
   | Just (i,BX) <- ctxResolve ctx v
   = countCtx ctx $ App False (Stk i) ZArgs
-  | Just _ <- ctxResolve ctx v = error
+  | Just _ <- ctxResolve ctx v = internalBug
   $ "emitSection: values to be forced must be boxed: " ++ show v
   | otherwise = emitSectionVErr v
 emitSection _   _ _ _ tm
-  = error $ "emitSection: unhandled code: " ++ show tm
+  = internalBug $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
 emitFunction
@@ -820,9 +826,9 @@ emitFunction rns _   _   _   (FReq r e) as
 emitFunction _   _   _   ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
-  | otherwise = error $ "emitFunction: continuations are boxed"
+  | otherwise = internalBug $ "emitFunction: continuations are boxed"
 emitFunction _ _ _ _ (FPrim _) _
-  = error "emitFunction: impossible"
+  = internalBug "emitFunction: impossible"
 
 -- Modify function arguments for packing into a request
 reqArgs :: Args -> Args
@@ -875,12 +881,12 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v
-  = error
+  = internalBug
   $ "emitSection: could not resolve function variable: " ++ show v
 
 emitFunctionVErr :: (Var v, HasCallStack) => v -> a
 emitFunctionVErr v
-  = error
+  = internalBug
   $ "emitFunction: could not resolve function variable: " ++ show v
 
 litArg :: ANF.Lit -> Args
@@ -913,7 +919,7 @@ emitLet _   grp _   _ _   ctx (TApp (FPrim p) args)
   = fmap (Ins . either emitPOp emitFOp p $ emitArgs grp ctx args)
 emitLet rns grp rec d vcs ctx bnd
   | Direct <- d
-  = error $ "unsupported compound direct let" ++ show bnd
+  = internalBug $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d
   = \esect ->
       f <$> emitSection rns grp rec (Block ctx) bnd
@@ -936,9 +942,9 @@ emitPOp ANF.SUBN = emitP2 SUBI
 emitPOp ANF.MULI = emitP2 MULI
 emitPOp ANF.MULN = emitP2 MULI
 emitPOp ANF.DIVI = emitP2 DIVI
-emitPOp ANF.DIVN = emitP2 DIVI
+emitPOp ANF.DIVN = emitP2 DIVN
 emitPOp ANF.MODI = emitP2 MODI -- TODO: think about how these behave
-emitPOp ANF.MODN = emitP2 MODI -- TODO: think about how these behave
+emitPOp ANF.MODN = emitP2 MODN -- TODO: think about how these behave
 emitPOp ANF.POWI = emitP2 POWI
 emitPOp ANF.POWN = emitP2 POWI
 emitPOp ANF.SHLI = emitP2 SHLI
@@ -1054,6 +1060,8 @@ emitPOp ANF.CMPU = emitBP2 CMPU
 emitPOp ANF.MISS = emitBP1 MISS
 emitPOp ANF.CACH = emitBP1 CACH
 emitPOp ANF.LKUP = emitBP1 LKUP
+emitPOp ANF.TLTT = emitBP1 TLTT
+emitPOp ANF.CVLD = emitBP1 CVLD
 emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
 
@@ -1064,16 +1072,16 @@ emitPOp ANF.EROR = emitBP2 THRO
 emitPOp ANF.BLDS = Seq
 emitPOp ANF.FORK = \case
   BArg1 i -> Fork i
-  _ -> error "fork takes exactly one boxed argument"
+  _ -> internalBug "fork takes exactly one boxed argument"
 emitPOp ANF.ATOM = \case
   BArg1 i -> Atomically i
-  _ -> error "atomically takes exactly one boxed argument"
+  _ -> internalBug "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   BArg1 i -> Print i
-  _ -> error "print takes exactly one boxed argument"
+  _ -> internalBug "print takes exactly one boxed argument"
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
-  _ -> error "info takes no arguments"
+  _ -> internalBug "info takes no arguments"
 -- handled in emitSection because Die is not an instruction
 
 -- Emit machine code for ANF IO operations. These are all translated
@@ -1088,47 +1096,52 @@ emitFOp fop = ForeignCall True (fromIntegral $ fromEnum fop)
 emitP1 :: UPrim1 -> Args -> Instr
 emitP1 p (UArg1 i) = UPrim1 p i
 emitP1 p a
-  = error $ "wrong number of args for unary unboxed primop: "
-         ++ show (p, a)
+  = internalBug
+      $ "wrong number of args for unary unboxed primop: "
+     ++ show (p, a)
 
 emitP2 :: UPrim2 -> Args -> Instr
 emitP2 p (UArg2 i j) = UPrim2 p i j
 emitP2 p a
-  = error $ "wrong number of args for binary unboxed primop: "
-         ++ show (p, a)
+  = internalBug
+      $ "wrong number of args for binary unboxed primop: "
+     ++ show (p, a)
 
 emitBP1 :: BPrim1 -> Args -> Instr
 emitBP1 p (UArg1 i) = BPrim1 p i
 emitBP1 p (BArg1 i) = BPrim1 p i
 emitBP1 p a
-  = error $ "wrong number of args for unary boxed primop: "
-         ++ show (p,a)
+  = internalBug
+      $ "wrong number of args for unary boxed primop: "
+     ++ show (p,a)
 
 emitBP2 :: BPrim2 -> Args -> Instr
 emitBP2 p (UArg2 i j) = BPrim2 p i j
 emitBP2 p (BArg2 i j) = BPrim2 p i j
 emitBP2 p (DArg2 i j) = BPrim2 p i j
 emitBP2 p a
-  = error $ "wrong number of args for binary boxed primop: "
-         ++ show (p,a)
+  = internalBug
+      $ "wrong number of args for binary boxed primop: "
+     ++ show (p,a)
 
 emitDataMatching
   :: Var v
-  => RefNums
+  => Reference
+  -> RefNums
   -> Word64
   -> RCtx v
   -> Ctx v
   -> EnumMap CTag ([Mem], ANormal v)
   -> Maybe (ANormal v)
   -> Emit Section
-emitDataMatching rns grpn rec ctx cs df
+emitDataMatching r rns grpn rec ctx cs df
   = MatchW 0 <$> edf <*> traverse (emitCase rns grpn rec ctx) (coerce cs)
   where
   -- Note: this is not really accurate. A default data case needs
   -- stack space corresponding to the actual data that shows up there.
   -- However, we currently don't use default cases for data.
   edf | Just co <- df = emitSection rns grpn rec ctx co
-      | otherwise = countCtx ctx $ Die "missing data case"
+      | otherwise = countCtx ctx $ Die ("missing data case for hash " <> show r)
 
 -- Emits code corresponding to an unboxed sum match.
 -- The match is against a tag on the stack, and cases introduce
@@ -1231,13 +1244,13 @@ emitClosures grpn rec ctx args k
     | Just n <- rctxResolve rec a
     = Ins (Name (Env grpn n) ZArgs) <$> allocate (Var a BX ctx) as k
     | otherwise
-    = error $ "emitClosures: unknown reference: " ++ show a
+    = internalBug $ "emitClosures: unknown reference: " ++ show a
 
 emitArgs :: Var v => Word64 -> Ctx v -> [v] -> Args
 emitArgs grpn ctx args
   | Just l <- traverse (ctxResolve ctx) args = demuxArgs l
   | otherwise
-  = error $ "emitArgs[" ++ show grpn ++ "]: "
+  = internalBug $ "emitArgs[" ++ show grpn ++ "]: "
   ++ "could not resolve argument variables: " ++ show args
 
 -- Turns a list of stack positions and calling conventions into the
@@ -1255,6 +1268,48 @@ demuxArgs as0
       (us,[]) -> UArgN $ primArrayFromList us
       -- TODO: handle ranges
       (us,bs) -> DArgN (primArrayFromList us) (primArrayFromList bs)
+
+combDeps :: Comb -> [Word64]
+combDeps (Lam _ _ _ _ s) = sectionDeps s
+
+combTypes :: Comb -> [Word64]
+combTypes (Lam _ _ _ _ s) = sectionTypes s
+
+sectionDeps :: Section -> [Word64]
+sectionDeps (App _ (Env w _) _) = [w]
+sectionDeps (Call _ w _) = [w]
+sectionDeps (Match _ br) = branchDeps br
+sectionDeps (Ins _ s) = sectionDeps s
+sectionDeps (Let s (CIx _ w _)) = w : sectionDeps s
+sectionDeps _ = []
+
+sectionTypes :: Section -> [Word64]
+sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
+sectionTypes (Let s _) = sectionTypes s
+sectionTypes (Match _ br) = branchTypes br
+sectionTypes _ = []
+
+instrTypes :: Instr -> [Word64]
+instrTypes (Pack _ w _) = [w]
+instrTypes _ = []
+
+branchDeps :: Branch -> [Word64]
+branchDeps (Test1 _ s1 d) = sectionDeps s1 ++ sectionDeps d
+branchDeps (Test2 _ s1 _ s2 d)
+  = sectionDeps s1 ++ sectionDeps s2 ++ sectionDeps d
+branchDeps (TestW d m)
+  = sectionDeps d ++ foldMap sectionDeps m
+branchDeps (TestT d m)
+  = sectionDeps d ++ foldMap sectionDeps m
+
+branchTypes :: Branch -> [Word64]
+branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
+branchTypes (Test2 _ s1 _ s2 d)
+  = sectionTypes s1 ++ sectionTypes s2 ++ sectionTypes d
+branchTypes (TestW d m)
+  = sectionTypes d ++ foldMap sectionTypes m
+branchTypes (TestT d m)
+  = sectionTypes d ++ foldMap sectionTypes m
 
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind*2) ' ')
@@ -1347,3 +1402,4 @@ prettyArgs (DArgN u b)
   = un . shows (primArrayToList u) . (' ':)
   . bx . shows (primArrayToList b)
 prettyArgs (DArgV i j) = ('V':) . shows [i,j]
+

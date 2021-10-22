@@ -4,7 +4,7 @@
 .> builtins.merge
 ```
 
-The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace.term` command helps resolve such conflicts.
+The `ucm` tool tracks edits to hashes in an object called a _patch_. When patches get merged, sometimes those patches will have conflicting edits. The `replace` command helps resolve such conflicts.
 
 First, let's make a new namespace, `example.resolve`:
 
@@ -81,7 +81,7 @@ Let's now merge these namespaces into `c`:
 
 The namespace `c` now has an edit conflict, since the term `foo` was edited in two different ways.
 
-```ucm
+```ucm:error
 .example.resolve> cd c
 .example.resolve.c> todo
 ```
@@ -91,7 +91,7 @@ We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace.term #44954ulpdf #8e68dvpr0a
+.example.resolve.c> replace #44954ulpdf #8e68dvpr0a
 ```
 
 This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e68dvpr0a remains:
@@ -102,7 +102,7 @@ This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e
 
 We still have a remaining _name conflict_ since it just so happened that both of the definitions in the edits were named `foo`.
 
-```ucm
+```ucm:error
 .example.resolve.c> todo
 ```
 
@@ -110,6 +110,7 @@ We can resolve the name conflict by deleting one of the names.
 
 ```ucm
 .example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> todo
 ```
 
 And that's how you resolve edit conflicts with UCM.

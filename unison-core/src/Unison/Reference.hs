@@ -57,8 +57,7 @@ data Reference
 pattern Derived :: H.Hash -> Pos -> Size -> Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
--- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
---{-# COMPLETE Builtin, Derived #-}
+{-# COMPLETE Builtin, Derived #-}
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos Size deriving (Generic)
@@ -80,7 +79,6 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
-toShortHash (DerivedId _) = error "this should be covered above"
 
 -- toShortHash . fromJust . fromShortHash == id and
 -- fromJust . fromShortHash . toShortHash == id
@@ -127,11 +125,9 @@ newtype Component = Component { members :: Set Reference }
 
 -- Gives the component (dependency cycle) that the reference is a part of
 componentFor :: Reference -> Component
-componentFor b@(Builtin        _         ) = Component (Set.singleton b)
-componentFor (  DerivedId (Id h _ n)) = Component
-  (Set.fromList
-    [ DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
-  )
+componentFor b@Builtin {} = Component (Set.singleton b)
+componentFor (Derived h _ n) =
+  Component $ Set.fromList [Derived h i n | i <- take (fromIntegral n) [0 ..]]
 
 derivedBase32Hex :: Text -> Pos -> Size -> Reference
 derivedBase32Hex b32Hex i n = DerivedId (Id (fromMaybe msg h) i n)
@@ -189,7 +185,12 @@ instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
-  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+  tokens (DerivedId (Id h i n)) =
+    [ Hashable.Tag 1
+    , Hashable.Bytes (H.toByteString h)
+    , Hashable.Nat i
+    , Hashable.Nat n
+    ]
 
 -- | Two references mustn't differ in cycle length only.
 instance Eq Id where x == y = compare x y == EQ

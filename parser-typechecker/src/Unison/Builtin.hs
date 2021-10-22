@@ -16,6 +16,7 @@ module Unison.Builtin
   ,intrinsicTermReferences
   ,intrinsicTypeReferences
   ,isBuiltinType
+  ,typeOf
   ,typeLookup
   ,termRefTypes
   ) where
@@ -32,7 +33,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Parser                  ( Ann(..) )
+import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
@@ -41,20 +42,21 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names3 (Names(Names), Names0)
-import qualified Unison.Names3 as Names3
+import           Unison.NamesWithHistory (NamesWithHistory(..))
+import           Unison.Names            (Names (Names))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
+import qualified Unison.Hashing.V2.Convert as H
 
 type DataDeclaration v = DD.DataDeclaration v Ann
 type EffectDeclaration v = DD.EffectDeclaration v Ann
 type Type v = Type.Type v ()
 
-names :: Names
-names = Names names0 mempty
+names :: NamesWithHistory
+names = NamesWithHistory names0 mempty
 
-names0 :: Names0
-names0 = Names3.names0 terms types where
+names0 :: Names
+names0 = Names terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.fromVar vc, Referent.Con (R.DerivedId r) cid ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
@@ -105,7 +107,7 @@ builtinDependencies =
 -- a relation whose domain is types and whose range is builtin terms with that type
 builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
-  Rel.fromList [ (Type.toReference ty, Referent.Ref r)
+  Rel.fromList [ (H.typeToReference ty, Referent.Ref r)
                | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
@@ -113,7 +115,7 @@ builtinTermsByType =
 builtinTermsByTypeMention :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByTypeMention =
   Rel.fromList [ (m, Referent.Ref r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
-                                     , m <- toList $ Type.toReferenceMentions ty ]
+                                     , m <- toList $ H.typeToReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
@@ -174,8 +176,12 @@ builtinTypesSrc =
   , B' "Tls.ServerConfig" CT.Data, Rename' "Tls.ServerConfig" "io2.Tls.ServerConfig"
   , B' "Tls.SignedCert" CT.Data, Rename' "Tls.SignedCert" "io2.Tls.SignedCert"
   , B' "Tls.PrivateKey" CT.Data, Rename' "Tls.PrivateKey" "io2.Tls.PrivateKey"
+  , B' "Tls.Version" CT.Data, Rename' "Tls.Version" "io2.Tls.Version"
+  , B' "Tls.Cipher" CT.Data, Rename' "Tls.Cipher" "io2.Tls.Cipher"
   , B' "TVar" CT.Data, Rename' "TVar" "io2.TVar"
   , B' "STM" CT.Effect, Rename' "STM" "io2.STM"
+  , B' "Ref" CT.Data
+  , B' "Scope" CT.Effect
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -245,9 +251,13 @@ termRefTypes = foldl' go mempty builtinsSrc where
     D r t -> Map.insert (R.Builtin r) t m
     _ -> m
 
+typeOf :: Var v => a -> (Type v -> a) -> R.Reference -> a
+typeOf a f r = maybe a f (Map.lookup r termRefTypes)
+
 builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
-  [ B "Int.+" $ int --> int --> int
+  [ B "Any.unsafeExtract" $ forall1 "a" (\a -> anyt --> a)
+  , B "Int.+" $ int --> int --> int
   , B "Int.-" $ int --> int --> int
   , B "Int.*" $ int --> int --> int
   , B "Int./" $ int --> int --> int
@@ -276,6 +286,8 @@ builtinsSrc =
   , B "Int.toFloat" $ int --> float
   , B "Int.trailingZeros" $ int --> nat
   , B "Int.popCount" $ int --> nat
+  , B "Int.fromRepresentation" $ nat --> int
+  , B "Int.toRepresentation" $ int --> nat
 
   , B "Nat.*" $ nat --> nat --> nat
   , B "Nat.+" $ nat --> nat --> nat
@@ -306,6 +318,20 @@ builtinsSrc =
   , B "Nat.trailingZeros" $ nat --> nat
   , B "Nat.popCount" $ nat --> nat
 
+  , B "Bytes.decodeNat64be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat64le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat32le" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16be" $ bytes --> optionalt (tuple [nat, bytes])
+  , B "Bytes.decodeNat16le" $ bytes --> optionalt (tuple [nat, bytes])
+
+  , B "Bytes.encodeNat64be" $ nat --> bytes
+  , B "Bytes.encodeNat64le" $ nat --> bytes
+  , B "Bytes.encodeNat32be" $ nat --> bytes
+  , B "Bytes.encodeNat32le" $ nat --> bytes
+  , B "Bytes.encodeNat16be" $ nat --> bytes
+  , B "Bytes.encodeNat16le" $ nat --> bytes
+
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
   , B "Float.*" $ float --> float --> float
@@ -315,6 +341,8 @@ builtinsSrc =
   , B "Float.<=" $ float --> float --> boolean
   , B "Float.>=" $ float --> float --> boolean
   , B "Float.==" $ float --> float --> boolean
+  , B "Float.fromRepresentation" $ nat --> float
+  , B "Float.toRepresentation" $ float --> nat
 
   -- Trigonmetric Functions
   , B "Float.acos" $ float --> float
@@ -408,6 +436,11 @@ builtinsSrc =
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
 
+  , B "Bytes.zlib.compress" $ bytes --> bytes
+  , B "Bytes.zlib.decompress" $ bytes --> eithert text bytes
+  , B "Bytes.gzip.compress" $ bytes --> bytes
+  , B "Bytes.gzip.decompress" $ bytes --> eithert text bytes
+
    {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
       This is intentional: it avoids a round trip to `Text` if all
       you are doing with the bytes is dumping them to a file or a
@@ -426,7 +459,7 @@ builtinsSrc =
   , B "Bytes.fromBase64" $ bytes --> eithert text bytes
   , B "Bytes.fromBase64UrlUnpadded" $ bytes --> eithert text bytes
 
-  , B "List.empty" $ forall1 "a" list
+  , D "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
   , Alias "List.cons" "List.+:"
   , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
@@ -438,6 +471,17 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "unsafe.coerceAbilities" $
+      forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
+        (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
+  , B "Scope.run" . forall2 "r" "g" $ \r g ->
+      (forall1 "s" $ \s -> unit --> Type.effect () [scopet s, g] r) --> Type.effect1 () g r
+  , B "Scope.ref" . forall2 "a" "s" $ \a s ->
+      a --> Type.effect1 () (scopet s) (reft (Type.effects () [scopet s]) a)
+  , B "Ref.read" . forall2 "a" "g" $ \a g ->
+      reft g a --> Type.effect1 () g a
+  , B "Ref.write" . forall2 "a" "g" $ \a g ->
+      reft g a --> a --> Type.effect1 () g unit
   ] ++
   -- avoid name conflicts with Universal == < > <= >=
   [ Rename (t <> "." <> old) (t <> "." <> new)
@@ -515,11 +559,14 @@ ioBuiltins =
   , ("IO.isSeekable.impl.v3", handle --> iof boolean)
   , ("IO.seekHandle.impl.v3", handle --> smode --> int --> iof unit)
   , ("IO.handlePosition.impl.v3", handle --> iof nat)
+  , ("IO.getEnv.impl.v1", text --> iof text)
   , ("IO.getBuffering.impl.v3", handle --> iof bmode)
   , ("IO.setBuffering.impl.v3", handle --> bmode --> iof unit)
   , ("IO.getBytes.impl.v3", handle --> nat --> iof bytes)
   , ("IO.putBytes.impl.v3", handle --> bytes --> iof unit)
+  , ("IO.getLine.impl.v1", handle --> iof text)
   , ("IO.systemTime.impl.v3", unit --> iof nat)
+  , ("IO.systemTimeMicroseconds.v1", unit --> io int)
   , ("IO.getTempDirectory.impl.v3", unit --> iof text)
   , ("IO.createTempDirectory.impl.v3", text --> iof text)
   , ("IO.getCurrentDirectory.impl.v3", unit --> iof text)
@@ -529,6 +576,7 @@ ioBuiltins =
   , ("IO.createDirectory.impl.v3", text --> iof unit)
   , ("IO.removeDirectory.impl.v3", text --> iof unit)
   , ("IO.renameDirectory.impl.v3", text --> text --> iof unit)
+  , ("IO.directoryContents.impl.v3", text --> iof (list text))
   , ("IO.removeFile.impl.v3", text --> iof unit)
   , ("IO.renameFile.impl.v3", text --> text --> iof unit)
   , ("IO.getFileTimestamp.impl.v3", text --> iof nat)
@@ -546,6 +594,8 @@ ioBuiltins =
 
   , ("IO.delay.impl.v3", nat --> iof unit)
   , ("IO.kill.impl.v3", threadId --> iof unit)
+  , ("IO.ref", forall1 "a" $ \a ->
+        a --> io (reft (Type.effects () [Type.builtinIO ()]) a))
   , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake.impl.v3", tls --> iof unit)
@@ -591,13 +641,16 @@ codeBuiltins =
   , ("Code.serialize", code --> bytes)
   , ("Code.deserialize", bytes --> eithert text code)
   , ("Code.cache_", list (tuple [termLink,code]) --> io (list termLink))
+  , ("Code.validate", list (tuple [termLink,code]) --> io (optionalt failure))
   , ("Code.lookup", termLink --> io (optionalt code))
+  , ("Code.display", text --> code --> text)
   , ("Value.dependencies", value --> list termLink)
   , ("Value.serialize", value --> bytes)
   , ("Value.deserialize", bytes --> eithert text value)
   , ("Value.value", forall1 "a" $ \a -> a --> value)
   , ("Value.load"
     , forall1 "a" $ \a -> value --> io (eithert (list termLink) a))
+  , ("Link.Term.toText", termLink --> text)
   ]
 
 stmBuiltins :: forall v. Var v => [(Text, Type v)]
@@ -617,6 +670,31 @@ forall1 name body =
   let
     a = Var.named name
   in Type.forall () a (body $ Type.var () a)
+
+forall2
+  :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+forall2 na nb body = Type.foralls () [a,b] (body ta tb)
+  where
+  a = Var.named na
+  b = Var.named nb
+  ta = Type.var () a
+  tb = Type.var () b
+
+forall4
+  :: Var v
+  => Text -> Text -> Text -> Text
+  -> (Type v -> Type v -> Type v -> Type v -> Type v)
+  -> Type v
+forall4 na nb nc nd body = Type.foralls () [a,b,c,d] (body ta tb tc td)
+  where
+  a = Var.named na
+  b = Var.named nb
+  c = Var.named nc
+  d = Var.named nd
+  ta = Type.var () a
+  tb = Type.var () b
+  tc = Type.var () c
+  td = Type.var () d
 
 app :: Ord v => Type v -> Type v -> Type v
 app = Type.app ()
@@ -647,6 +725,12 @@ failure = DD.failureType ()
 
 eithert :: Var v => Type v -> Type v -> Type v
 eithert l r = DD.eitherType () `app` l `app` r
+
+scopet :: Var v => Type v -> Type v
+scopet s = Type.scopeType () `app` s
+
+reft :: Var v => Type v -> Type v -> Type v
+reft s a = Type.refType () `app` s `app` a
 
 socket, threadId, handle, unit :: Var v => Type v
 socket = Type.socket ()

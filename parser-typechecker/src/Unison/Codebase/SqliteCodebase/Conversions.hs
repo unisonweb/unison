@@ -5,7 +5,6 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import qualified Data.ByteString.Short as SBS
 import Data.Either (fromRight)
 import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
@@ -48,8 +47,8 @@ import Unison.Hash (Hash)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import qualified Unison.NameSegment as V1
-import Unison.Parser (Ann)
-import qualified Unison.Parser as Ann
+import Unison.Parser.Ann (Ann)
+import qualified Unison.Parser.Ann as Ann
 import qualified Unison.Pattern as V1.Pattern
 import qualified Unison.Reference as V1
 import qualified Unison.Reference as V1.Reference
@@ -60,8 +59,8 @@ import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as V1.Star3
-import qualified Unison.Var as V1.Var
 import qualified Unison.Var as Var
+import qualified Unison.WatchKind as V1.WK
 
 sbh1to2 :: V1.ShortBranchHash -> V2.ShortBranchHash
 sbh1to2 (V1.ShortBranchHash b32) = V2.ShortBranchHash b32
@@ -76,16 +75,16 @@ decltype1to2 = \case
   CT.Data -> V2.Decl.Data
   CT.Effect -> V2.Decl.Effect
 
-watchKind1to2 :: V1.Var.WatchKind -> V2.WatchKind
+watchKind1to2 :: V1.WK.WatchKind -> V2.WatchKind
 watchKind1to2 = \case
-  V1.Var.RegularWatch -> V2.WatchKind.RegularWatch
-  V1.Var.TestWatch -> V2.WatchKind.TestWatch
+  V1.WK.RegularWatch -> V2.WatchKind.RegularWatch
+  V1.WK.TestWatch -> V2.WatchKind.TestWatch
   other -> error $ "What kind of watchkind is " ++ other ++ "?"
 
-watchKind2to1 :: V2.WatchKind -> V1.Var.WatchKind
+watchKind2to1 :: V2.WatchKind -> V1.WK.WatchKind
 watchKind2to1 = \case
-  V2.WatchKind.RegularWatch -> V1.Var.RegularWatch
-  V2.WatchKind.TestWatch -> V1.Var.TestWatch
+  V2.WatchKind.RegularWatch -> V1.WK.RegularWatch
+  V2.WatchKind.TestWatch -> V1.WK.TestWatch
 
 term1to2 :: Hash -> V1.Term.Term V1.Symbol Ann -> V2.Term.Term V2.Symbol
 term1to2 h =
@@ -242,8 +241,7 @@ symbol2to1 :: V2.Symbol -> V1.Symbol
 symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
 
 symbol1to2 :: V1.Symbol -> V2.Symbol
-symbol1to2 (V1.Symbol i (Var.User t)) = V2.Symbol i t
-symbol1to2 x = error $ "unimplemented: symbol1to2 " ++ show x
+symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
 
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
@@ -291,7 +289,7 @@ rreferenceid1to2 h (V1.Reference.Id h' i _n) = V2.Reference.Id oh i
     oh = if h == h' then Nothing else Just (hash1to2 h')
 
 hash1to2 :: Hash -> V2.Hash
-hash1to2 (V1.Hash bs) = V2.Hash.Hash (SBS.toShort bs)
+hash1to2 (V1.Hash bs) = V2.Hash.Hash bs
 
 branchHash1to2 :: V1.Branch.Hash -> V2.CausalHash
 branchHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
@@ -343,14 +341,14 @@ referent1to2 = \case
 
 referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupSize lookupCT = \case
-  V2.RefId r -> V1.Ref' <$> referenceid2to1 lookupSize r
+  V2.RefId r -> V1.RefId <$> referenceid2to1 lookupSize r
   V2.ConId r i ->
-    V1.Con' <$> referenceid2to1 lookupSize r
+    V1.ConId <$> referenceid2to1 lookupSize r
       <*> pure (fromIntegral i)
       <*> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
-hash2to1 (V2.Hash.Hash sbs) = V1.Hash (SBS.fromShort sbs)
+hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs
 
 causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
 causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash

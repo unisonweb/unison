@@ -31,11 +31,12 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.GitError
+import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Names3                  ( Names, Names0 )
-import           Unison.Parser                  ( Ann )
+import           Unison.NamesWithHistory        ( NamesWithHistory )
+import           Unison.Names                   ( Names )
+import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
@@ -60,6 +61,8 @@ import Unison.Name (Name)
 import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.WatchKind as WK
+import Unison.Codebase.Type (GitError)
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -72,11 +75,13 @@ data LoadSourceResult = InvalidSourceNameError
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (Either Names0 (UF.TypecheckedUnisonFile v Ann))
+         (Either Names (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
+
+  UI :: Command m i v ()
 
   HQNameQuery
     :: Maybe Path
@@ -120,13 +125,13 @@ data Command m i v a where
 
   BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
 
-  ParseType :: Names -> LexedSource
+  ParseType :: NamesWithHistory -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
 
   LoadSource :: SourceName -> Command m i v LoadSourceResult
 
   Typecheck :: AmbientAbilities v
-            -> Names
+            -> NamesWithHistory
             -> SourceName
             -> LexedSource
             -> Command m i v (TypecheckingResult v)
@@ -160,10 +165,10 @@ data Command m i v a where
   Evaluate1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
 
   -- Add a cached watch to the codebase
-  PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
+  PutWatch :: WK.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
 
   -- Loads any cached watches of the given kind
-  LoadWatches :: UF.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
+  LoadWatches :: WK.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
   -- Any definitions in the head of the requested root that aren't in the local
@@ -173,14 +178,17 @@ data Command m i v a where
   -- Like `LoadLocalRootBranch`.
   LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m)
 
+  -- Merge two branches, using the codebase for the LCA calculation where possible.
+  Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
+
   ViewRemoteBranch ::
-    RemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
-    RemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
+    ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -188,12 +196,12 @@ data Command m i v a where
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
   SyncRemoteRootBranch ::
-    RemoteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
   -- load the reflog in file (chronological) order
-  LoadReflog :: Command m i v [Reflog.Entry]
+  LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
@@ -228,11 +236,15 @@ data Command m i v a where
   RuntimeMain :: Command m i v (Type v Ann)
   RuntimeTest :: Command m i v (Type v Ann)
 
+  ClearWatchCache :: Command m i v ()
+
+  MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
+
 type UseCache = Bool
 
 type EvalResult v =
   ( [(v, Term v ())]
-  , Map v (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  , Map v (Ann, WK.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
@@ -241,6 +253,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
+  UI                          -> "UI"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
@@ -262,6 +275,7 @@ commandName = \case
   LoadWatches{}               -> "LoadWatches"
   LoadLocalRootBranch         -> "LoadLocalRootBranch"
   LoadLocalBranch{}           -> "LoadLocalBranch"
+  Merge{}                     -> "Merge"
   ViewRemoteBranch{}          -> "ViewRemoteBranch"
   ImportRemoteBranch{}        -> "ImportRemoteBranch"
   SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
@@ -286,3 +300,5 @@ commandName = \case
   LoadSearchResults{}         -> "LoadSearchResults"
   GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
   FindShallow{}               -> "FindShallow"
+  ClearWatchCache{}           -> "ClearWatchCache"
+  MakeStandalone{}            -> "MakeStandalone"

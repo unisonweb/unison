@@ -38,6 +38,7 @@ import           System.Directory               ( canonicalizePath
                                                 )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
+import Unison.Codebase.Type (GitError(GitSqliteCodebaseError, GitProtocolError, GitCodebaseError))
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
@@ -70,11 +71,13 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import           Unison.Names2                 (Names'(..), Names0)
-import qualified Unison.Names2                 as Names
-import qualified Unison.Names3                 as Names
-import           Unison.Parser                 (Ann, startingLine)
+import           Unison.Names                 (Names(..))
+import qualified Unison.Names                 as Names
+import qualified Unison.NamesWithHistory                 as Names
+import Unison.Parser.Ann (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.PrettyPrintEnv.Util as PPE
+import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
                                                 , printNoteWithSource
@@ -101,18 +104,20 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import Unison.Codebase.Editor.DisplayObject (DisplayObject(MissingObject, BuiltinObject, UserObject))
-import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
-import qualified Unison.Util.Monoid            as Monoid
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
 import Unison.LabeledDependency as LD
-import Unison.Codebase.Editor.RemoteRepo (RemoteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(UnrecognizedSchemaVersion, GitCouldntParseRootBranchHash))
+import qualified Unison.Referent' as Referent
+import qualified Unison.WatchKind as WK
+import qualified Unison.Codebase.Editor.Input as Input
 
 type Pretty = P.Pretty P.ColorText
 
@@ -243,7 +248,7 @@ notifyNumbered o = case o of
                  <> "or" <> IP.makeExample' IP.viewReflog
                  <> "to undo this change."
 
-prettyRemoteNamespace :: (RemoteRepo.RemoteRepo,
+prettyRemoteNamespace :: (RemoteRepo.ReadRepo,
                           Maybe ShortBranchHash, Path.Path)
                          -> P.Pretty P.ColorText
 prettyRemoteNamespace =
@@ -252,6 +257,8 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success         -> pure $ P.bold "Done."
+  PrintMessage pretty -> do 
+    pure pretty 
   BadRootBranch e -> case e of
     Codebase.NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"
@@ -267,7 +274,10 @@ notifyUser dir o = case o of
         $  "I couldn't find a root namespace with the hash "
         <> prettySBH (SBH.fullFromHash h)
         <> "."
-
+  CouldntLoadBranch h ->
+    pure . P.fatalCallout . P.wrap $ "I have reason to believe that"
+      <> P.shown h <> "exists in the codebase, but there was a failure"
+      <> "when I tried to load it."
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"
@@ -395,6 +405,13 @@ notifyUser dir o = case o of
     ]
 
   EvaluationFailure err -> pure err
+  TypeTermMismatch typeName termName ->
+    pure
+      $  P.warnCallout "I was expecting either two types or two terms but was given a type "
+      <> P.syntaxToColor (prettyHashQualified typeName)
+      <> " and a term "
+      <> P.syntaxToColor (prettyHashQualified termName)
+      <> "."
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure
@@ -663,75 +680,75 @@ notifyUser dir o = case o of
 
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError input e -> pure $ case e of
-    CouldntOpenCodebase repo localPath -> P.wrap $ "I couldn't open the repository at"
-      <> prettyRepoBranch repo <> "in the cache directory at"
-      <> P.backticked' (P.string localPath) "."
-    UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
-      $ "I don't know how to interpret schema version " <> P.shown v
-      <> "in the repository at" <> prettyRepoBranch repo
-      <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
-    CouldntParseRootBranch repo s -> P.wrap $ "I couldn't parse the string"
-      <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
-      <> P.group (prettyRepoBranch repo <> ".")
-    CouldntLoadSyncedBranch h -> P.wrap $ "I just finished importing the branch"
-      <> P.red (P.shown h) <> "but now I can't find it."
-    NoGit -> P.wrap $
-      "I couldn't find git. Make sure it's installed and on your path."
-    CloneException repo msg -> P.wrap $
-      "I couldn't clone the repository at" <> prettyRepoBranch repo <> ";"
-      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-    PushNoOp repo -> P.wrap $
-      "The repository at" <> prettyRepoBranch repo <> "is already up-to-date."
-    PushException repo msg -> P.wrap $
-      "I couldn't push to the repository at" <> prettyRepoRevision repo <> ";"
-      <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
-    UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
-      <> P.backticked (P.text uri) <> "already exists at"
-      <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
-      <> "be a git repository, so I'm not sure what to do next.  Delete it?"
-    UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
-      <> P.backticked (P.text uri) <> "into a cache directory at"
-      <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
-      <> "result as a git repository, so I'm not sure what to do next."
-    PushDestinationHasNewStuff repo ->
-      P.callout "⏸" . P.lines $ [
-      P.wrap $ "The repository at" <> prettyRepoRevision repo
-            <> "has some changes I don't know about.",
-      "",
-      P.wrap $ "If you want to " <> push <> "you can do:", "",
-       P.indentN 2 pull, "",
-       P.wrap $
-         "to merge these changes locally," <>
-         "then try your" <> push <> "again."
-      ]
-      where
-      push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
-      pull = P.group . P.backticked $ IP.inputStringFromInput input
-    CouldntLoadRootBranch repo hash -> P.wrap
-      $ "I couldn't load the designated root hash"
-      <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
-      <> "from the repository at" <> prettyRepoRevision repo
-    NoRemoteNamespaceWithHash repo sbh -> P.wrap
-      $ "The repository at" <> prettyRepoRevision repo
-      <> "doesn't contain a namespace with the hash prefix"
-      <> (P.blue . P.text . SBH.toText) sbh
-    RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
-      P.wrap $ "The namespace hash" <> prettySBH sbh
-            <> "at" <> prettyRepoRevision repo
-            <> "is ambiguous."
-            <> "Did you mean one of these hashes?",
-      "",
-      P.indentN 2 $ P.lines
-        (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
-          <$> Set.toList hashes),
-      "",
-      P.wrap "Try again with a few more hash characters to disambiguate."
-      ]
-    SomeOtherError msg -> P.callout "‼" . P.lines $ [
-      P.wrap "I ran into an error:", "",
-      P.indentN 2 (P.string msg), "",
-      P.wrap $ "Check the logging messages above for more info."
-      ]
+    GitSqliteCodebaseError e -> case e of
+      UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
+        $ "I don't know how to interpret schema version " <> P.shown v
+        <> "in the repository at" <> prettyReadRepo repo
+        <> "in the cache directory at" <> P.backticked' (P.string localPath) "."
+      GitCouldntParseRootBranchHash repo s -> P.wrap $ "I couldn't parse the string"
+        <> P.red (P.string s) <> "into a namespace hash, when opening the repository at"
+        <> P.group (prettyReadRepo repo <> ".")
+    GitProtocolError e -> case e of
+      NoGit -> P.wrap $
+        "I couldn't find git. Make sure it's installed and on your path."
+      CleanupError e -> P.wrap $
+        "I encountered an exception while trying to clean up a git cache directory:"
+        <> P.group (P.shown e)
+      CloneException repo msg -> P.wrap $
+        "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
+        <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      PushNoOp repo -> P.wrap $
+        "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."
+      PushException repo msg -> P.wrap $
+        "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
+        <> "the error was:" <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      UnrecognizableCacheDir uri localPath -> P.wrap $ "A cache directory for"
+        <> P.backticked (P.text $ RemoteRepo.printReadRepo uri) <> "already exists at"
+        <> P.backticked' (P.string localPath) "," <> "but it doesn't seem to"
+        <> "be a git repository, so I'm not sure what to do next.  Delete it?"
+      UnrecognizableCheckoutDir uri localPath -> P.wrap $ "I tried to clone"
+        <> P.backticked (P.text $ RemoteRepo.printReadRepo uri) <> "into a cache directory at"
+        <> P.backticked' (P.string localPath) "," <> "but I can't recognize the"
+        <> "result as a git repository, so I'm not sure what to do next."
+      PushDestinationHasNewStuff repo ->
+        P.callout "⏸" . P.lines $ [
+        P.wrap $ "The repository at" <> prettyWriteRepo repo
+              <> "has some changes I don't know about.",
+        "",
+        P.wrap $ "If you want to " <> push <> "you can do:", "",
+        P.indentN 2 pull, "",
+        P.wrap $
+          "to merge these changes locally," <>
+          "then try your" <> push <> "again."
+        ]
+        where
+        push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
+        pull = P.group . P.backticked $ IP.inputStringFromInput input
+    GitCodebaseError e -> case e of
+      CouldntLoadRootBranch repo hash -> P.wrap
+        $ "I couldn't load the designated root hash"
+        <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+        <> "from the repository at" <> prettyReadRepo repo
+      CouldntLoadSyncedBranch ns h -> P.wrap
+        $ "I just finished importing the branch" <> P.red (P.shown h)
+        <> "from" <> P.red (prettyRemoteNamespace ns)
+        <> "but now I can't find it."
+      NoRemoteNamespaceWithHash repo sbh -> P.wrap
+        $ "The repository at" <> prettyReadRepo repo
+        <> "doesn't contain a namespace with the hash prefix"
+        <> (P.blue . P.text . SBH.toText) sbh
+      RemoteNamespaceHashAmbiguous repo sbh hashes -> P.lines [
+        P.wrap $ "The namespace hash" <> prettySBH sbh
+              <> "at" <> prettyReadRepo repo
+              <> "is ambiguous."
+              <> "Did you mean one of these hashes?",
+        "",
+        P.indentN 2 $ P.lines
+          (prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+            <$> Set.toList hashes),
+        "",
+        P.wrap "Try again with a few more hash characters to disambiguate."
+        ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch
@@ -831,30 +848,6 @@ notifyUser dir o = case o of
       , P.wrap $ "Type" <> P.backticked ("help " <> pushPull "push" "pull" pp)
         <> "for more information."
       ]
---  | ConfiguredGitUrlIncludesShortBranchHash ShortBranchHash
-  ConfiguredGitUrlIncludesShortBranchHash pp repo sbh remotePath ->
-    pure . P.lines $
-    [ P.wrap
-    $ "The `GitUrl.` entry in .unisonConfig for the current path has the value"
-    <> (P.group . (<>",") . P.blue . P.text)
-        (RemoteRepo.printNamespace repo (Just sbh) remotePath)
-    <> "which specifies a namespace hash"
-    <> P.group (P.blue (prettySBH sbh) <> ".")
-    , ""
-    , P.wrap $
-      pushPull "I can't push to a specific hash, because it's immutable."
-      ("It's no use for repeated pulls,"
-      <> "because you would just get the same immutable namespace each time.")
-      pp
-    , ""
-    , P.wrap $ "You can use"
-    <> P.backticked (
-        pushPull "push" "pull" pp
-        <> " "
-        <> P.text (RemoteRepo.printNamespace repo Nothing remotePath))
-    <> "if you want to" <> pushPull "push onto" "pull from" pp
-    <> "the latest."
-    ]
   NoBranchWithHash _h -> pure . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
@@ -1134,8 +1127,8 @@ formatMissingStuff terms types =
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> Pretty
 displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
@@ -1149,15 +1142,17 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
   go ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject typ ->
+        P.hang ("builtin " <> prettyHashQualified n <> " :")
+               (TypePrinter.prettySyntax (ppeBody r) typ)
       UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
   go2 ((n, r), dt) =
     case dt of
       MissingObject r -> missing n r
-      BuiltinObject -> builtin n
+      BuiltinObject _ -> builtin n
       UserObject decl -> case decl of
         Left d  -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-        Right d -> DeclPrinter.prettyDataDecl (ppeBody r) r n d
+        Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe0 r) r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "
@@ -1192,8 +1187,8 @@ displayRendered outputLoc pp =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Term v a1))
+  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
   -> IO Pretty
 displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
   pure $ P.callout "😶" "No results to display."
@@ -1260,7 +1255,7 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
+  SR'.TermResult' name (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
@@ -1270,11 +1265,11 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSigFull' ppe = \case
-  SR'.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
+  SR'.TermResult' hq (Just typ) r aliases ->
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
-      P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+      P.commas (fmap greyHash $ hq : map HQ'.toHQ (toList aliases)) <> " : "
       <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ)
     , mempty
     ]
@@ -1282,7 +1277,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   where greyHash = styleHashQualified' id P.hiBlack
 
 prettyTypeResultHeader' :: Var v => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
+prettyTypeResultHeader' (SR'.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 -- produces:
@@ -1290,27 +1285,27 @@ prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
 -- type Optional
 -- type Maybe
 prettyTypeResultHeaderFull' :: Var v => SR'.TypeResult' v a -> Pretty
-prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
+prettyTypeResultHeaderFull' (SR'.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
   stuff =
     (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
       fmap (\name -> prettyDeclTriple (name, r, dt))
-           (name : toList aliases)
+           (name : map HQ'.toHQ (toList aliases))
     where greyHash = styleHashQualified' id P.hiBlack
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified Name, Reference.Reference, DisplayObject (DD.Decl v a))
+  (HQ.HashQualified Name, Reference.Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinObject -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
+   BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
    MissingObject _ -> mempty -- these need to be handled elsewhere
    UserObject decl -> case decl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 prettyDeclPair :: Var v =>
-  PPE.PrettyPrintEnv -> (Reference, DisplayObject (DD.Decl v a))
+  PPE.PrettyPrintEnv -> (Reference, DisplayObject () (DD.Decl v a))
   -> Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
@@ -1321,7 +1316,7 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
     showConflictedNames "terms" conflictedTermNames,
     tip $ "This occurs when merging branches that both independently introduce the same name. Use "
         <> makeExample IP.view (prettyName <$> take 3 allNames)
-        <> "to see the conflicting defintions, then use "
+        <> "to see the conflicting definitions, then use "
         <> makeExample' (if (not . null) conflictedTypeNames
                          then IP.renameType else IP.renameTerm)
         <> "to resolve the conflicts."
@@ -1387,7 +1382,7 @@ todoOutput ppe todo =
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
     -- conflicts section
-    c :: Names0
+    c :: Names
     c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
     conflictedTypeNames = (R.dom . Names.types) c
     conflictedTermNames = (R.dom . Names.terms) c
@@ -1402,7 +1397,7 @@ todoOutput ppe todo =
     -- edit conflict, so that the edit conflict will be dealt with first.
     -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
     -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
-    removeEditConflicts :: Ord n => Patch -> Names' n -> Names' n
+    removeEditConflicts :: Patch -> Names -> Names
     removeEditConflicts Patch{..} Names{..} = Names terms' types' where
       terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
       types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types
@@ -1877,18 +1872,18 @@ listOfDefinitions' ppe detailed results = if null results
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (HQ'.toHQ name, Reference.idToShortHash r)
+    [ (name, Reference.idToShortHash r)
     | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
     ]
   missingTypes =
     nubOrdOn snd
-      $  [ (HQ'.toHQ name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
-      <> [ (HQ'.toHQ name, Reference.toShortHash r)
+      $  [ (name, r) | SR'.Tp name (MissingObject r) _ _ <- results ]
+      <> [ (name, Reference.toShortHash r)
          | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
          ]
   missingBuiltins = results >>= \case
     SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ ->
-      [(HQ'.toHQ name, r)]
+      [(name, r)]
     _ -> []
 
 watchPrinter
@@ -1896,7 +1891,7 @@ watchPrinter
   => Text
   -> PPE.PrettyPrintEnv
   -> Ann
-  -> UF.WatchKind
+  -> WK.WatchKind
   -> Term v ()
   -> Runtime.IsCacheHit
   -> Pretty
@@ -1927,7 +1922,7 @@ watchPrinter src ppe ann kind term isHit =
         P.lines
           [ fromString (show lineNum) <> " | " <> P.text line
           , case (kind, term) of
-            (UF.TestWatch, Term.List' tests) -> foldMap renderTest tests
+            (WK.TestWatch, Term.List' tests) -> foldMap renderTest tests
             _ -> P.lines
               [ fromString (replicate lineNumWidth ' ')
               <> fromString extra
@@ -1947,21 +1942,21 @@ prettyDiff diff = let
   adds = Names.addedNames diff
   removes = Names.removedNames diff
 
-  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 adds)
-                       , not $ R.memberRan r (Names.terms0 removes) ]
-  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 adds)
-                       , not $ R.memberRan r (Names.types0 removes) ]
+  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms adds)
+                       , not $ R.memberRan r (Names.terms removes) ]
+  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types adds)
+                       , not $ R.memberRan r (Names.types removes) ]
   added = sort (hqTerms ++ hqTypes)
     where
       hqTerms = [ Names.hqName adds n (Right r) | (n, r) <- addedTerms ]
       hqTypes = [ Names.hqName adds n (Left r)  | (n, r) <- addedTypes ]
 
-  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 removes)
-                         , not $ R.memberRan r (Names.terms0 adds)
+  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms removes)
+                         , not $ R.memberRan r (Names.terms adds)
                          , Set.notMember n addedTermsSet ] where
     addedTermsSet = Set.fromList (map fst addedTerms)
-  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 removes)
-                         , not $ R.memberRan r (Names.types0 adds)
+  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types removes)
+                         , not $ R.memberRan r (Names.types adds)
                          , Set.notMember n addedTypesSet ] where
     addedTypesSet = Set.fromList (map fst addedTypes)
   removed = sort (hqTerms ++ hqTypes)
@@ -1969,20 +1964,20 @@ prettyDiff diff = let
       hqTerms = [ Names.hqName removes n (Right r) | (n, r) <- removedTerms ]
       hqTypes = [ Names.hqName removes n (Left r)  | (n, r) <- removedTypes ]
 
-  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
+  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms removes)
                         , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
   movedTypes = [ (n,n2) | (n,r) <- R.toList (Names.types removes)
                         , n2 <- toList (R.lookupRan r (Names.types adds)) ]
   moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
 
   copiedTerms = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
-           , not (R.memberRan r (Names.terms0 removes))
-           , n <- toList (R.lookupRan r (Names.terms0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.terms adds)
+           , not (R.memberRan r (Names.terms removes))
+           , n <- toList (R.lookupRan r (Names.terms orig)) ]
   copiedTypes = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
-           , not (R.memberRan r (Names.types0 removes))
-           , n <- toList (R.lookupRan r (Names.types0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.types adds)
+           , not (R.memberRan r (Names.types removes))
+           , n <- toList (R.lookupRan r (Names.types orig)) ]
   copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
   in
@@ -2027,21 +2022,11 @@ prettyTermName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 prettyTermName ppe r = P.syntaxToColor $
   prettyHashQualified (PPE.termName ppe r)
 
-prettyRepoRevision :: RemoteRepo -> Pretty
-prettyRepoRevision (RemoteRepo.GitRepo url treeish) =
-  P.blue (P.text url) <> prettyRevision treeish
-  where
-  prettyRevision treeish =
-    Monoid.fromMaybe $
-      treeish <&> \treeish -> "at revision" <> P.blue (P.text treeish)
+prettyReadRepo :: ReadRepo -> Pretty
+prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
 
-prettyRepoBranch :: RemoteRepo -> Pretty
-prettyRepoBranch (RemoteRepo.GitRepo url treeish) =
-  P.blue (P.text url) <> prettyRevision treeish
-  where
-  prettyRevision treeish =
-    Monoid.fromMaybe $
-      treeish <&> \treeish -> "at branch" <> P.blue (P.text treeish)
+prettyWriteRepo :: WriteRepo -> Pretty
+prettyWriteRepo (RemoteRepo.WriteGitRepo url) = P.blue (P.text url)
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

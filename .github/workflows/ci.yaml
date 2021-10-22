@@ -1,9 +1,16 @@
 name: CI
 
-# Build on every push and every pull request (which tests the merge commit).
 on:
+  # Build on every pull request (and new PR commit)
   pull_request:
+  # Build on new pushes to trunk (E.g. Merge commits)
+  # Without the branch filter, each commit on a branch with a PR is triggered twice.
+  # See: https://github.community/t/how-to-trigger-an-action-on-push-or-pull-request-but-not-both/16662
   push:
+    branches:
+      - trunk
+    tags:
+      - release/*
 
 jobs:
   build:
@@ -15,8 +22,6 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - ubuntu-18.04
-          # - ubuntu-16.04
           - macOS-11.0
           - macOS-10.15
     steps:
@@ -43,9 +48,9 @@ jobs:
             unison-core/.stack-work
             yaks/easytest/.stack-work
             # Main cache key: commit hash. This should always result in a cache miss...
-          key: stack-work-0_${{matrix.os}}-${{github.sha}}
+          key: stack-work-2_${{matrix.os}}-${{github.sha}}
           # ...but then fall back on the latest cache stored (on this branch)
-          restore-keys: stack-work-0_${{matrix.os}}-
+          restore-keys: stack-work-2_${{matrix.os}}-
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.
@@ -61,8 +66,10 @@ jobs:
           echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
       # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git username
-        run: git config --global user.name "GitHub Actions"
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
       - name: remove ~/.stack/setup-exe-cache on macOS
         if: runner.os == 'macOS'
@@ -83,3 +90,7 @@ jobs:
           stack --no-terminal exec transcripts
           git diff
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
+      - name: prettyprint-round-trip
+        run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      - name: other test suites
+        run: stack --no-terminal test unison-util-relation

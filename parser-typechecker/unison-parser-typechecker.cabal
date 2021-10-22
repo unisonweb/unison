@@ -19,7 +19,7 @@ source-repository head
 
 flag optimized
   manual: True
-  default: False
+  default: True
 
 library
   exposed-modules:
@@ -28,13 +28,15 @@ library
       Unison.Builtin.Terms
       Unison.Codebase
       Unison.Codebase.Branch
+      Unison.Codebase.Branch.Merge
+      Unison.Codebase.Branch.Names
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
+      Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
-      Unison.Codebase.Classes
+      Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.CodeLookup
-      Unison.Codebase.Conversion.Sync12
-      Unison.Codebase.Conversion.Upgrade12
+      Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
@@ -54,47 +56,65 @@ library
       Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
-      Unison.Codebase.FileCodebase.Branch.Dependencies
-      Unison.Codebase.FileCodebase.Common
-      Unison.Codebase.FileCodebase.SlimCopyRegenerateIndex
       Unison.Codebase.GitError
       Unison.Codebase.Init
+      Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
-      Unison.Codebase.NameEdit
       Unison.Codebase.Patch
       Unison.Codebase.Path
+      Unison.Codebase.Path.Parse
       Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
-      Unison.Codebase.Serialization.PutT
-      Unison.Codebase.Serialization.V1
       Unison.Codebase.ShortBranchHash
       Unison.Codebase.SqliteCodebase
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
+      Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
+      Unison.Codebase.TermEdit.Typing
       Unison.Codebase.TranscriptParser
+      Unison.Codebase.Type
       Unison.Codebase.TypeEdit
+      Unison.Codebase.Verbosity
       Unison.Codebase.Watch
-      Unison.Codecs
+      Unison.CodebasePath
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
+      Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
       Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
+      Unison.Hashing.V2.Convert
+      Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.LabeledDependency
+      Unison.Hashing.V2.Pattern
+      Unison.Hashing.V2.Reference
+      Unison.Hashing.V2.Reference.Util
+      Unison.Hashing.V2.Referent
+      Unison.Hashing.V2.Term
+      Unison.Hashing.V2.Type
       Unison.Lexer
+      Unison.Lexer.Pos
       Unison.NamePrinter
       Unison.Parser
+      Unison.Parser.Ann
       Unison.Parsers
-      Unison.Path
       Unison.PrettyPrintEnv
+      Unison.PrettyPrintEnv.FQN
+      Unison.PrettyPrintEnv.Names
+      Unison.PrettyPrintEnv.Util
+      Unison.PrettyPrintEnvDecl
+      Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyTerminal
       Unison.PrintError
       Unison.Result
@@ -110,15 +130,20 @@ library
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.MCode
+      Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.Vector
       Unison.Server.Backend
       Unison.Server.CodebaseServer
+      Unison.Server.Doc
+      Unison.Server.Doc.AsHtml
       Unison.Server.Endpoints.FuzzyFind
       Unison.Server.Endpoints.GetDefinitions
-      Unison.Server.Endpoints.ListNamespace
+      Unison.Server.Endpoints.NamespaceDetails
+      Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
@@ -137,9 +162,14 @@ library
       Unison.TypeParser
       Unison.TypePrinter
       Unison.UnisonFile
+      Unison.UnisonFile.Env
+      Unison.UnisonFile.Error
+      Unison.UnisonFile.Names
+      Unison.UnisonFile.Type
       Unison.Util.AnnotatedText
       Unison.Util.Bytes
       Unison.Util.ColorText
+      Unison.Util.Convert
       Unison.Util.CycleTable
       Unison.Util.CyclicEq
       Unison.Util.CyclicOrd
@@ -150,7 +180,6 @@ library
       Unison.Util.Less
       Unison.Util.Logger
       Unison.Util.Map
-      Unison.Util.Menu
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
@@ -158,7 +187,6 @@ library
       Unison.Util.Star3
       Unison.Util.SyntaxText
       Unison.Util.Text
-      Unison.Util.Timing
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   other-modules:
@@ -175,12 +203,16 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       ListLike
+    , NanoID
     , aeson
     , ansi-terminal
     , async
@@ -188,54 +220,50 @@ library
     , base16 >=0.2.1.0
     , base64-bytestring
     , basement
-    , bifunctors
+    , binary
     , bytes
     , bytestring
     , bytestring-to-vector
     , cereal
-    , comonad
-    , concurrent-supply
     , configurator
     , containers >=0.6.3
     , cryptonite
     , data-default
     , data-memocombinators
+    , deepseq
     , directory
-    , edit-distance
     , either
     , errors
     , exceptions
     , extra
     , filepath
-    , filepattern
     , fingertree
-    , free
     , fsnotify
     , fuzzyfind
     , generic-monoid
-    , guid
     , hashable
     , hashtables
     , haskeline
     , http-media
     , http-types
-    , io-streams
     , lens
+    , lucid
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mmorph
-    , monad-loops
     , monad-validate
     , mtl
-    , murmur-hash
     , mutable-containers
+    , mwc-random
     , natural-transformation
     , network
     , network-simple
     , nonempty-containers
+    , open-browser
     , openapi3
-    , optparse-applicative
+    , optparse-applicative >=0.16.1.0
     , pem
+    , prelude-extras
     , primitive
     , process
     , random >=1.2.0
@@ -245,12 +273,10 @@ library
     , safe
     , safe-exceptions
     , servant
-    , servant-auth-server
     , servant-docs
     , servant-openapi3
     , servant-server
     , shellmet
-    , split
     , sqlite-simple
     , stm
     , strings
@@ -268,18 +294,19 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
-    , unliftio-core
+    , uri-encode
     , utf8-string
-    , util
-    , validation
     , vector
     , wai
     , warp
     , x509
     , x509-store
     , x509-system
+    , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010
@@ -300,6 +327,9 @@ executable prettyprintdemo
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -319,18 +349,16 @@ executable tests
       Unison.Core.Test.Name
       Unison.Test.ABT
       Unison.Test.ANF
-      Unison.Test.BaseUpgradePushPullTest
       Unison.Test.Cache
-      Unison.Test.Codebase
+      Unison.Test.ClearCache
       Unison.Test.Codebase.Causal
-      Unison.Test.Codebase.FileCodebase
       Unison.Test.Codebase.Path
-      Unison.Test.Codebase.Upgrade12
+      Unison.Test.CodebaseInit
       Unison.Test.ColorText
+      Unison.Test.CommandLine
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
-      Unison.Test.Git
       Unison.Test.GitSync
       Unison.Test.Lexer
       Unison.Test.MCode
@@ -351,6 +379,7 @@ executable tests
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
+      Unison.Test.Util.Relation
       Unison.Test.Var
       Unison.Test.VersionParser
       Paths_unison_parser_typechecker
@@ -366,6 +395,9 @@ executable tests
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -382,6 +414,7 @@ executable tests
     , extra
     , filemanip
     , filepath
+    , haskeline
     , here
     , lens
     , megaparsec
@@ -395,93 +428,12 @@ executable tests
     , transformers
     , unison-core1
     , unison-parser-typechecker
+    , unison-prelude
     , unison-util
+    , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-executable transcripts
-  main-is: Transcripts.hs
-  other-modules:
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      transcripts
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
-  build-depends:
-      base
-    , directory
-    , easytest
-    , filepath
-    , process
-    , shellmet
-    , text
-    , unison-core1
-    , unison-parser-typechecker
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-executable unison
-  main-is: Main.hs
-  other-modules:
-      System.Path
-      Version
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      unison
-  default-extensions:
-      ApplicativeDo
-      BlockArguments
-      DeriveFunctor
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      LambdaCase
-      MultiParamTypeClasses
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-  build-depends:
-      base
-    , bytestring
-    , configurator
-    , containers
-    , directory
-    , errors
-    , filepath
-    , lens
-    , megaparsec
-    , mtl
-    , safe
-    , shellmet
-    , template-haskell
-    , temporary
-    , text
-    , unison-codebase-sync
-    , unison-core1
-    , unison-parser-typechecker
-    , uri-encode
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 benchmark runtime
@@ -501,6 +453,9 @@ benchmark runtime
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
       ScopedTypeVariables
       TupleSections
       TypeApplications

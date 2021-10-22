@@ -14,8 +14,8 @@ module U.Codebase.Sqlite.Operations where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
-import Control.Monad (MonadPlus (mzero), join, when, (<=<), unless)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT)
+import Control.Monad (MonadPlus (mzero), join, unless, when, (<=<))
+import Control.Monad.Except (ExceptT, MonadError, MonadIO (liftIO), runExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.State (MonadState, StateT, evalStateT)
@@ -29,7 +29,7 @@ import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
 import qualified Data.Bytes.Get as Get
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (traverse_)
 import qualified Data.Foldable as Foldable
 import Data.Functor (void, (<&>))
 import Data.Functor.Identity (Identity)
@@ -43,6 +43,7 @@ import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Traversable (for)
 import Data.Tuple.Extra (uncurry3)
 import qualified Data.Vector as Vector
@@ -69,6 +70,7 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
+import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
@@ -111,6 +113,7 @@ import qualified U.Codebase.TypeEdit as C
 import qualified U.Codebase.TypeEdit as C.TypeEdit
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Core.ABT as ABT
+import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Lens as Lens
 import qualified U.Util.Map as Map
@@ -119,7 +122,6 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
-import qualified U.Util.Type as TypeUtil
 
 -- * Error handling
 
@@ -128,9 +130,10 @@ throwError = if crashOnError then error . show else Except.throwError
 
 debug, crashOnError :: Bool
 debug = False
-crashOnError = False
+
 -- | crashOnError can be helpful for debugging.
 -- If it is False, the errors will be delivered to the user elsewhere.
+crashOnError = False
 
 type Err m = (MonadError Error m, HasCallStack)
 
@@ -224,6 +227,10 @@ loadValueHashByCausalHashId = loadValueHashById <=< liftQ . Q.loadCausalValueHas
 loadRootCausalHash :: EDB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
 
+loadMaybeRootCausalHash :: EDB m => m (Maybe CausalHash)
+loadMaybeRootCausalHash = runMaybeT $
+  loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
+
 -- * Reference transformations
 
 -- ** read existing references
@@ -254,6 +261,9 @@ s2cReferent = bitraverse s2cReference s2cReference
 
 s2cReferentId :: EDB m => S.Referent.Id -> m C.Referent.Id
 s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
+
+c2sReferentId :: EDB m => C.Referent.Id -> m S.Referent.Id
+c2sReferentId = bitraverse primaryHashToExistingObjectId primaryHashToExistingObjectId
 
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
@@ -392,7 +402,7 @@ decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
 getCycleLen :: EDB m => H.Hash -> m Word64
 getCycleLen h = do
-  when debug $ traceM $ "getCycleLen " ++ show h
+  when debug $ traceM $ "\ngetCycleLen " ++ (Text.unpack . Base32Hex.toText $ H.toBase32Hex h)
   runMaybeT (primaryHashToExistingObjectId h)
     >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
     >>= liftQ . Q.loadObjectById
@@ -419,7 +429,6 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
-
 saveTermComponent :: EDB m => H.Hash -> [(C.Term Symbol, C.Term.Type Symbol)] -> m Db.ObjectId
 saveTermComponent h terms = do
   when debug . traceM $ "Operations.saveTermComponent " ++ show h
@@ -454,17 +463,11 @@ saveTermComponent h terms = do
          in Set.map (,self) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
-  -- populate type indexes
-  for_ (terms `zip` [0 ..]) \((_tm, tp), i) -> do
-    let self = C.Referent.RefId (C.Reference.Id oId i)
-        typeForIndexing = TypeUtil.removeAllEffectVars tp
-        typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-        saveReferentH = bitraverse Q.saveText Q.saveHashHash
-    typeReferenceForIndexing <- saveReferentH $ TypeUtil.toReference typeForIndexing
-    Q.addToTypeIndex typeReferenceForIndexing self
-    traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
-
   pure oId
+
+-- | Save the text and hash parts of a Reference to the database and substitute their ids.
+saveReferenceH :: DB m => C.Reference' Text H.Hash -> m (C.Reference' Db.TextId Db.HashId)
+saveReferenceH = bitraverse Q.saveText Q.saveHashHash
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
@@ -709,6 +712,9 @@ saveWatch w r t = do
   let bytes = S.putBytes S.putWatchResultFormat (uncurry S.Term.WatchResult wterm)
   Q.saveWatch w rs bytes
 
+clearWatches :: DB m => m ()
+clearWatches = Q.clearWatches
+
 c2wTerm :: EDB m => C.Term Symbol -> m (WatchLocalIds, S.Term.Term)
 c2wTerm tm = c2xTerm Q.saveText Q.saveHashHash tm Nothing <&> \(w, tm, _) -> (w, tm)
 
@@ -719,7 +725,7 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
+saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol)] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
@@ -739,20 +745,6 @@ saveDeclComponent h decls = do
             getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
          in Set.mapMaybe (fmap (,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
-
-  -- populate type indexes
-  for_
-    (zip decls [0 ..])
-    \(C.DataDeclaration _ _ _ ctorTypes, i) -> for_
-      (zip ctorTypes [0 ..])
-      \(tp, j) -> do
-        let self = C.Referent.ConId (C.Reference.Id oId i) j
-            typeForIndexing :: C.Type.TypeT Symbol = TypeUtil.removeAllEffectVars (C.Type.typeD2T h tp)
-            typeReferenceForIndexing = TypeUtil.toReference typeForIndexing
-            typeMentionsForIndexing = TypeUtil.toReferenceMentions typeForIndexing
-            saveReferentH = bitraverse Q.saveText Q.saveHashHash
-        flip Q.addToTypeIndex self =<< saveReferentH typeReferenceForIndexing
-        traverse_ (flip Q.addToTypeMentionsIndex self <=< saveReferentH) typeMentionsForIndexing
 
   pure oId
 
@@ -1228,6 +1220,20 @@ deserializePatchObject id = do
   (liftQ . Q.loadObjectById) (Db.unPatchObjectId id)
     >>= getFromBytesOr (ErrPatch id) S.getPatchFormat
 
+lca :: EDB m => CausalHash -> CausalHash -> Connection -> Connection -> m (Maybe CausalHash)
+lca h1 h2 c1 c2 = runMaybeT do
+  chId1 <- MaybeT $ Q.loadCausalHashIdByCausalHash h1
+  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
+  chId3 <- MaybeT . liftIO $ Q.lca chId1 chId2 c1 c2
+  liftQ $ Q.loadCausalHash chId3
+
+before :: DB m => CausalHash -> CausalHash -> m (Maybe Bool)
+before h1 h2 = runMaybeT do
+  chId2 <- MaybeT $ Q.loadCausalHashIdByCausalHash h2
+  lift (Q.loadCausalHashIdByCausalHash h1) >>= \case
+    Just chId1 -> lift (Q.before chId1 chId2)
+    Nothing -> pure False
+
 -- * Searches
 
 termsHavingType :: EDB m => C.Reference -> m (Set C.Referent.Id)
@@ -1252,6 +1258,15 @@ termsMentioningType cTypeRef = do
   pure case maySet of
     Nothing -> mempty
     Just set -> Set.fromList set
+
+addTypeToIndexForTerm :: EDB m => S.Referent.Id -> C.Reference -> m ()
+addTypeToIndexForTerm sTermId cTypeRef = do
+  sTypeRef <- saveReferenceH cTypeRef
+  Q.addToTypeIndex sTypeRef sTermId
+
+addTypeMentionsToIndexForTerm :: EDB m => S.Referent.Id -> Set C.Reference -> m ()
+addTypeMentionsToIndexForTerm sTermId cTypeMentionRefs = do
+  traverse_ (flip Q.addToTypeMentionsIndex sTermId <=< saveReferenceH) cTypeMentionRefs
 
 -- something kind of funny here.  first, we don't need to enumerate all the reference pos if we're just picking one
 -- second, it would be nice if we could leave these as S.References a little longer

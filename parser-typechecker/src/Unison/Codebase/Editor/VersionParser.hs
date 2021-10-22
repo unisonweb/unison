@@ -11,17 +11,19 @@ import qualified Data.Text as Text
 import qualified Unison.Codebase.Path as Path
 import Data.Void (Void)
 
--- |"release/M1j.2" -> "releases._M1j"
---  "devel/*" -> "trunk"
-defaultBaseLib :: Parsec Void Text RemoteNamespace
-defaultBaseLib = fmap makeNS $ devel <|> release
+-- | Parse git version strings into valid unison namespaces.
+--   "release/M1j" -> "releases._M1j"
+--   "release/M1j.2" -> "releases._M1j_2"
+--   "latest-*" -> "trunk"
+defaultBaseLib :: Parsec Void Text ReadRemoteNamespace
+defaultBaseLib = fmap makeNS $ latest <|> release
   where
-  devel, release, version :: Parsec Void Text Text
-  devel = "devel/" *> many anyChar *> eof $> "trunk"
+  latest, release, version :: Parsec Void Text Text
+  latest = "latest-" *> many anyChar *> eof $> "trunk"
   release = fmap ("releases._" <>) $ "release/" *> version <* eof
-  version = fmap Text.pack $
-              try (someTill anyChar "." <* many anyChar) <|> many anyChar
-  makeNS :: Text -> RemoteNamespace
-  makeNS t = ( GitRepo "https://github.com/unisonweb/base" Nothing
+  version = do
+    Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
+  makeNS :: Text -> ReadRemoteNamespace
+  makeNS t = ( ReadGitRepo "https://github.com/unisonweb/base"
              , Nothing
              , Path.fromText t)

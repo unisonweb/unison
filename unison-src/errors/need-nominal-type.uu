@@ -1,5 +1,5 @@
-type Foo = Foo
-type Bar = Bar
+structural type Foo = Foo
+structural type Bar = Bar
 
 x : Foo
 x = Bar.Bar

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.HashQualified' where
@@ -19,7 +20,7 @@ import qualified Unison.ShortHash              as SH
 import qualified Unison.HashQualified          as HQ
 
 data HashQualified n = NameOnly n | HashQualified n ShortHash
-  deriving (Eq, Functor, Generic)
+  deriving (Eq, Functor, Generic, Foldable)
 
 type HQSegment = HashQualified NameSegment
 
@@ -34,12 +35,13 @@ fromHQ = \case
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
--- Like fromHQ, but turns hashes into hash-qualified empty names
-fromHQ' :: Monoid n => HQ.HashQualified n -> HashQualified n
-fromHQ' = \case
-  HQ.NameOnly n -> NameOnly n
-  HQ.HashQualified n sh -> HashQualified n sh
-  HQ.HashOnly h -> HashQualified mempty h
+-- | Like 'fromHQ', but if the 'HQ.HashQualified' is just a 'ShortHash', return it on the 'Left', rather than as a
+-- 'Nothing'.
+fromHQ2 :: HQ.HashQualified n -> Either ShortHash (HashQualified n)
+fromHQ2 = \case
+  HQ.NameOnly n -> Right $ NameOnly n
+  HQ.HashQualified n sh -> Right $ HashQualified n sh
+  HQ.HashOnly sh -> Left sh
 
 toName :: HashQualified n -> n
 toName = \case
@@ -112,10 +114,14 @@ requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
 
-instance Ord n => Ord (HashQualified n) where
-  compare a b = case compare (toName a) (toName b) of
-    EQ -> compare (toHash a) (toHash b)
-    o -> o
+-- `HashQualified` is usually used for display, so we sort it alphabetically
+instance Name.Alphabetical n => Ord (HashQualified n) where
+  compare (NameOnly n) (NameOnly n2) = Name.compareAlphabetical n n2
+  -- NameOnly comes first
+  compare NameOnly{} HashQualified{} = LT
+  compare HashQualified{} NameOnly{} = GT
+  compare (HashQualified n sh) (HashQualified n2 sh2) =
+    Name.compareAlphabetical n n2 <> compare sh sh2
 
 instance IsString (HashQualified Name) where
   fromString = unsafeFromText . Text.pack

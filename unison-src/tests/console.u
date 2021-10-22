@@ -1,8 +1,8 @@
-ability State s where
+structural ability State s where
   get : {State s} s
   set : s -> {State s} ()
 
-ability Console where
+structural ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 

@@ -61,11 +61,17 @@ expect :: HasCallStack => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok
 
-expectEqual :: (Eq a, Show a) => a -> a -> Test ()
-expectEqual expected actual = if expected == actual then ok
-                  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
+expectEqual' :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
+expectEqual' expected actual =
+  if expected == actual then pure ()
+  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
 
-expectNotEqual :: (Eq a, Show a) => a -> a -> Test ()
+expectEqual :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
+expectEqual expected actual =
+  if expected == actual then ok
+  else crash $ unlines ["", show actual, "** did not equal expected value **", show expected]
+
+expectNotEqual :: (HasCallStack, Eq a, Show a) => a -> a -> Test ()
 expectNotEqual forbidden actual =
   if forbidden /= actual then ok
   else crash $ unlines ["", show actual, "** did equal the forbidden value **", show forbidden]
@@ -175,9 +181,9 @@ scope :: String -> Test a -> Test a
 scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  let env' = env {messages = messages', allow = drop (length msg + 1) (allow env)}
   if null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env
-  then liftIO $
-    runReaderT t (env {messages = messages', allow = drop (length msg + 1) (allow env)})
+  then liftIO (runWrap env' t)
   else putResult Skipped >> pure Nothing
 
 -- | Log a message
@@ -261,7 +267,7 @@ word8' = random'
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
 pick as = let n = length as; ind = picker n as in do
-  _ <- if (n > 0) then ok else crash "pick called with empty list"
+  _ <- if (n > 0) then pure () else crash "pick called with empty list"
   i <- int' 0 (n - 1)
   Just a <- pure (ind i)
   pure a
@@ -289,6 +295,21 @@ listsOf sizes gen = sizes `forM` \n -> listOf n gen
 -- | Alias for `liftA2 (,)`.
 pair :: Test a -> Test b -> Test (a,b)
 pair = liftA2 (,)
+
+-- | Alias for 'pair'.
+tuple2 :: (Random a, Random b) => Test (a, b)
+tuple2 =
+  (,) <$> random <*> random
+
+-- | Generate a random 3-tuple.
+tuple3 :: (Random a, Random b, Random c) => Test (a, b, c)
+tuple3 =
+  (,,) <$> random <*> random <*> random
+
+-- | Generate a random 4-tuple.
+tuple4 :: (Random a, Random b, Random c, Random d) => Test (a, b, c, d)
+tuple4 =
+  (,,,) <$> random <*> random <*> random <*> random
 
 -- | Generate a `Data.Map k v` of the given size.
 mapOf :: Ord k => Int -> Test k -> Test v -> Test (Map k v)
@@ -357,7 +378,7 @@ crash msg = do
 nologging :: HasCallStack => Test a -> Test a
 nologging (Test t) = Test $ do
   env <- ask
-  liftIO $ runReaderT t (env {note_ = \_ -> pure ()})
+  liftIO $ runWrap (env {note_ = \_ -> pure ()}) t
 
 -- | Run a test under a new scope, without logs and suppressing all output
 attempt :: Test a -> Test (Maybe a)

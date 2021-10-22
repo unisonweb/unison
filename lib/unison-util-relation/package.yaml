@@ -1,0 +1,52 @@
+name: unison-util-relation
+github: unisonweb/unison
+copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+
+library:
+  source-dirs: src
+
+tests:
+  tests:
+    dependencies:
+      - easytest
+      - random
+      - unison-util-relation
+    main: Main.hs
+    source-dirs: test
+
+benchmarks:
+  relation:
+    source-dirs: benchmarks/relation
+    main: Main.hs
+    dependencies:
+      - base
+      - criterion
+      - containers
+      - unison-util-relation
+      - random
+
+dependencies:
+  - base
+  - containers
+  - extra
+  - unison-prelude
+  - deepseq
+
+ghc-options:
+  -Wall
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

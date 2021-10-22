@@ -18,6 +18,9 @@ module Unison.Runtime.Builtin
   ) where
 
 import Control.Monad.State.Strict (State, modify, execState)
+import qualified Control.Exception.Safe as Exception
+import Control.Monad.Catch (MonadCatch)
+import Control.DeepSeq (NFData)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -32,7 +35,6 @@ import Unison.Runtime.Foreign
     ( Foreign(Wrap), HashAlgorithm(..), pattern Failure)
 import qualified Unison.Runtime.Foreign as F
 import Unison.Runtime.Foreign.Function
-import Unison.Runtime.IOSource (ioFailureReference, tlsFailureReference, eitherReference, failureReference)
 
 import qualified Unison.Type as Ty
 import qualified Unison.Builtin as Ty (builtinTypes)
@@ -46,6 +48,7 @@ import Data.Default (def)
 import Data.ByteString (hGet, hPut)
 import Data.Text as Text (pack, unpack)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
@@ -57,7 +60,7 @@ import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
 
 import qualified Data.Map as Map
-import Unison.Prelude
+import Unison.Prelude hiding (some)
 import qualified Unison.Util.Bytes as Bytes
 import Network.Socket as SYS
   ( accept
@@ -76,6 +79,12 @@ import Network.Simple.TCP as SYS
 import Network.TLS as TLS
 import Network.TLS.Extra.Cipher as Cipher
 
+import Data.IORef as SYS
+  ( IORef
+  , newIORef
+  , readIORef
+  , writeIORef
+  )
 import System.IO as SYS
   ( IOMode(..)
   , openFile
@@ -102,7 +111,6 @@ import System.Directory as SYS
   ( getCurrentDirectory
   , setCurrentDirectory
   , getTemporaryDirectory
-  -- , getDirectoryContents
   , doesPathExist
   , doesDirectoryExist
   , renameDirectory
@@ -110,8 +118,12 @@ import System.Directory as SYS
   , renameFile
   , createDirectoryIfMissing
   , removeDirectoryRecursive
+  , getDirectoryContents
   , getModificationTime
   , getFileSize
+  )
+import System.Environment as SYS
+  ( getEnv
   )
 import System.IO.Temp (createTempDirectory)
 
@@ -171,6 +183,17 @@ fresh11 = (v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) where
 fls, tru :: Var v => ANormal v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
+
+none :: Var v => ANormal v
+none = TCon Ty.optionalRef (toEnum Ty.noneId) []
+some, left, right :: Var v => v -> ANormal v
+some a = TCon Ty.optionalRef (toEnum Ty.someId) [a]
+left x = TCon Ty.eitherRef (toEnum Ty.eitherLeftId) [x]
+right x = TCon Ty.eitherRef (toEnum Ty.eitherRightId) [x]
+seqViewEmpty :: Var v => ANormal v
+seqViewEmpty = TCon Ty.seqViewRef (toEnum Ty.seqViewEmpty) []
+seqViewElem :: Var v => v -> v -> ANormal v
+seqViewElem l r = TCon Ty.seqViewRef (toEnum Ty.seqViewElem) [l,r]
 
 boolift :: Var v => v -> ANormal v
 boolift v
@@ -430,30 +453,35 @@ sizet = unop0 1 $ \[x,r]
 unconst = unop0 7 $ \[x,t,c0,c,y,p,u,yp]
      -> TLetD t UN (TPrm UCNS [x])
       . TMatch t . MatchSum $ mapFromList
-      [ (0, ([], TCon Ty.optionalRef 0 []))
+      [ (0, ([], none))
       , (1, ([UN,BX], TAbss [c0,y]
                     . TLetD u BX (TCon Ty.unitRef 0 [])
                     . TLetD yp BX (TCon Ty.pairRef 0 [y,u])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
                     . TLetD p BX (TCon Ty.pairRef 0 [c,yp])
-                    $ TCon Ty.optionalRef 1 [p]))
+                    $ some p))
       ]
 unsnoct = unop0 7 $ \[x,t,c0,c,y,p,u,cp]
      -> TLetD t UN (TPrm USNC [x])
       . TMatch t . MatchSum $ mapFromList
-      [ (0, ([], TCon Ty.optionalRef 0 []))
+      [ (0, ([], none))
       , (1, ([BX,UN], TAbss [y,c0]
                     . TLetD u BX (TCon Ty.unitRef 0 [])
                     . TLetD c BX (TCon Ty.charRef 0 [c0])
                     . TLetD cp BX (TCon Ty.pairRef 0 [c,u])
                     . TLetD p BX (TCon Ty.pairRef 0 [y,cp])
-                    $ TCon Ty.optionalRef 1 [p]))
+                    $ some p))
       ]
 
 appends, conss, snocs :: Var v => SuperNormal v
 appends = binop0 0 $ \[x,y] -> TPrm CATS [x,y]
 conss = binop0 0 $ \[x,y] -> TPrm CONS [x,y]
 snocs = binop0 0 $ \[x,y] -> TPrm SNOC [x,y]
+
+coerceType :: Var v => Reference -> Reference -> SuperNormal v
+coerceType fromType toType = unop0 1 $ \[x,r]
+     -> unbox x fromType r
+      $ TCon toType 0 [r]
 
 takes, drops, sizes, ats, emptys :: Var v => SuperNormal v
 takes = binop0 1 $ \[x0,y,x]
@@ -469,8 +497,8 @@ ats = binop0 3 $ \[x0,y,x,t,r]
    -> unbox x0 Ty.natRef x
     . TLetD t UN (TPrm IDXS [x,y])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
-    , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+    [ (0, ([], none))
+    , (1, ([BX], TAbs r $ some r))
     ]
 emptys = Lambda [] $ TPrm BLDS []
 
@@ -478,14 +506,14 @@ viewls, viewrs :: Var v => SuperNormal v
 viewls = unop0 3 $ \[s,u,h,t]
       -> TLetD u UN (TPrm VWLS [s])
        . TMatch u . MatchSum $ mapFromList
-       [ (0, ([], TCon Ty.seqViewRef 0 []))
-       , (1, ([BX,BX], TAbss [h,t] $ TCon Ty.seqViewRef 1 [h,t]))
+       [ (0, ([], seqViewEmpty))
+       , (1, ([BX,BX], TAbss [h,t] $ seqViewElem h t))
        ]
 viewrs = unop0 3 $ \[s,u,i,l]
       -> TLetD u UN (TPrm VWRS [s])
        . TMatch u . MatchSum $ mapFromList
-       [ (0, ([], TCon Ty.seqViewRef 0 []))
-       , (1, ([BX,BX], TAbss [i,l] $ TCon Ty.seqViewRef 1 [i,l]))
+       [ (0, ([], seqViewEmpty))
+       , (1, ([BX,BX], TAbss [i,l] $ seqViewElem i l))
        ]
 
 eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
@@ -536,10 +564,10 @@ atb = binop0 4 $ \[n0,b,n,t,r0,r]
    -> unbox n0 Ty.natRef n
     . TLetD t UN (TPrm IDXB [n,b])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs r0
                . TLetD r BX (TCon Ty.natRef 0 [r0])
-               $ TCon Ty.optionalRef 1 [r]))
+               $ some r))
     ]
 
 sizeb = unop0 1 $ \[b,n]
@@ -563,26 +591,26 @@ t2i, t2n, t2f :: Var v => SuperNormal v
 t2i = unop0 3 $ \[x,t,n0,n]
    -> TLetD t UN (TPrm TTOI [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs n0
                . TLetD n BX (TCon Ty.intRef 0 [n0])
-               $ TCon Ty.optionalRef 1 [n]))
+               $ some n))
     ]
 t2n = unop0 3 $ \[x,t,n0,n]
    -> TLetD t UN (TPrm TTON [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs n0
                . TLetD n BX (TCon Ty.natRef 0 [n0])
-               $ TCon Ty.optionalRef 1 [n]))
+               $ some n))
     ]
 t2f = unop0 3 $ \[x,t,f0,f]
    -> TLetD t UN (TPrm TTOF [x])
     . TMatch t . MatchSum $ mapFromList
-    [ (0, ([], TCon Ty.optionalRef 0 []))
+    [ (0, ([], none))
     , (1, ([UN], TAbs f0
                . TLetD f BX (TCon Ty.floatRef 0 [f0])
-               $ TCon Ty.optionalRef 1 [f]))
+               $ some f))
     ]
 
 equ :: Var v => SuperNormal v
@@ -652,8 +680,22 @@ cast ri ro
  -> unbox x0 ri x
   $ TCon ro 0 [x]
 
+-- This version of unsafeCoerce is the identity function. It works
+-- only if the two types being coerced between are actually the same,
+-- because it keeps the same representation. It is not capable of
+-- e.g. correctly translating between two types with compatible bit
+-- representations, because tagging information will be retained.
+poly'coerce :: Var v => SuperNormal v
+poly'coerce = unop0 0 $ \[x] -> TVar x
+
 jumpk :: Var v => SuperNormal v
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
+
+scope'run :: Var v => SuperNormal v
+scope'run
+  = unop0 1 $ \[e, un]
+ -> TLetD un BX (TCon Ty.unitRef 0 [])
+  $ TApp (FVar e) [un]
 
 fork'comp :: Var v => SuperNormal v
 fork'comp
@@ -677,6 +719,20 @@ watch
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
 
+raise :: Var v => SuperNormal v
+raise
+  = unop0 4 $ \[r,f,n,j,k]
+ -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
+  [ (0, ([BX], TAbs f $ TVar f))
+  , (i, ([UN,BX]
+      , TAbss [j,f]
+      . TShift Ty.exceptionRef k
+      . TLetD n BX (TLit $ T "builtin.raise")
+      $ TPrm EROR [n, f]))
+  ]
+  where
+  i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+
 code'missing :: Var v => SuperNormal v
 code'missing
   = unop0 1 $ \[link,b]
@@ -691,17 +747,35 @@ code'lookup
   = unop0 2 $ \[link,t,r]
  -> TLetD t UN (TPrm LKUP [link])
   . TMatch t . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs r $ TCon Ty.optionalRef 1 [r]))
+  [ (0, ([], none))
+  , (1, ([BX], TAbs r $ some r))
   ]
+
+code'validate :: Var v => SuperNormal v
+code'validate
+  = unop0 5 $ \[item, t, ref, msg, extra, fail]
+ -> TLetD t UN (TPrm CVLD [item])
+  . TMatch t . MatchSum
+  $ mapFromList
+  [ (1, ([BX, BX, BX],)
+      . TAbss [ref, msg, extra]
+      . TLetD fail BX (TCon Ty.failureRef 0 [ref, msg, extra])
+      $ some fail)
+  , (0, ([],)
+      $ none)
+  ]
+
+term'link'to'text :: Var v => SuperNormal v
+term'link'to'text
+  = unop0 0 $ \[link] -> TPrm TLTT [link]
 
 value'load :: Var v => SuperNormal v
 value'load
   = unop0 2 $ \[vlu,t,r]
  -> TLetD t UN (TPrm LOAD [vlu])
   . TMatch t . MatchSum $ mapFromList
-  [ (0, ([BX], TAbs r $ TCon Ty.eitherRef 0 [r]))
-  , (1, ([BX], TAbs r $ TCon Ty.eitherRef 1 [r]))
+  [ (0, ([BX], TAbs r $ left r))
+  , (1, ([BX], TAbs r $ right r))
   ]
 
 value'create :: Var v => SuperNormal v
@@ -727,6 +801,17 @@ standard'handle instr
   $ TFOp instr [h]
   where
   (h0,h) = fresh2
+
+any'construct :: Var v => SuperNormal v
+any'construct
+  = unop0 0 $ \[v]
+ -> TCon Ty.anyRef 0 [v]
+
+any'extract :: Var v => SuperNormal v
+any'extract
+  = unop0 1
+  $ \[v,v1] -> TMatch v
+  $ MatchData Ty.anyRef (mapSingleton 0 $ ([BX], TAbs v1 (TVar v1))) Nothing
 
 seek'handle :: ForeignOp
 seek'handle instr
@@ -853,9 +938,9 @@ inMaybeBx arg1 arg2 arg3 mb result cont instr =
   . TAbss [arg1, arg2]
   . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
   $ mapFromList
-    [ (0, ([], TLetD mb UN (TLit $ I 0)
+    [ (toEnum Ty.noneId, ([], TLetD mb UN (TLit $ I 0)
                $ TLetD result UN (TFOp instr [mb, arg2]) cont))
-    , (1, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    , (toEnum Ty.someId, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
     ]
 
 -- a -> b -> ...
@@ -895,8 +980,20 @@ inBxIomr arg1 arg2 fm result cont instr
 outMaybe :: forall v. Var v => v -> v -> ANormal v
 outMaybe maybe result =
   TMatch result . MatchSum $ mapFromList
-  [ (0, ([], TCon Ty.optionalRef 0 []))
-  , (1, ([BX], TAbs maybe $ TCon Ty.optionalRef 1 [maybe]))
+  [ (0, ([], none))
+  , (1, ([BX], TAbs maybe $ some maybe))
+  ]
+
+outMaybeTup :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+outMaybeTup a b n u bp p result =
+  TMatch result . MatchSum $ mapFromList
+  [ (0, ([], none))
+  , (1, ([UN,BX], TAbss [a,b]
+                . TLetD u BX (TCon Ty.unitRef 0 [])
+                . TLetD bp BX (TCon Ty.pairRef 0 [b,u])
+                . TLetD n BX (TCon Ty.natRef 0 [a])
+                . TLetD p BX (TCon Ty.pairRef 0 [n,bp])
+                $ some p))
   ]
 
 outIoFail :: forall v. Var v => v -> v -> v -> v -> ANormal v
@@ -904,9 +1001,9 @@ outIoFail stack1 stack2 fail result =
   TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
-  , (1, ([BX], TAbs stack1 $ TCon eitherReference 1 [stack1]))
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left fail)
+  , (1, ([BX], TAbs stack1 $ right stack1))
   ]
 
 outIoFailNat :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -914,12 +1011,12 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
   TMatch result . MatchSum $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left fail)
   , (1, ([UN],)
         . TAbs stack3
         . TLetD nat BX (TCon Ty.natRef 0 [stack3])
-        $ TCon eitherReference 1 [nat])
+        $ right nat)
   ]
 
 outIoFailBox :: forall v. Var v => v -> v -> v -> v -> ANormal v
@@ -927,11 +1024,11 @@ outIoFailBox stack1 stack2 fail result =
   TMatch result . MatchSum  $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left fail)
   , (1, ([BX],)
         . TAbs stack1
-        $ TCon eitherReference 1 [stack1])
+        $ right stack1)
   ]
 
 outIoFailUnit :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -940,12 +1037,12 @@ outIoFailUnit stack1 stack2 stack3 unit fail result =
   $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left fail)
   , (1, ([BX],)
         . TAbss [stack3]
         . TLetD unit BX (TCon Ty.unitRef 0 [])
-        $ TCon eitherReference 1 [unit])
+        $ right unit)
   ]
 
 outIoFailBool :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
@@ -954,12 +1051,26 @@ outIoFailBool stack1 stack2 stack3 bool fail result =
   $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon failureReference 0 [stack1, stack2])
-        $ TCon eitherReference 0 [fail])
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left fail)
   , (1, ([UN],)
         . TAbs stack3
         . TLet (Indirect 1) bool BX (boolift stack3)
-        $ TCon eitherReference 1 [bool])
+        $ right bool)
+  ]
+
+outIoFailG
+  :: Var v => v -> v -> v -> v -> v
+  -> ((ANormal v -> ANormal v) -> ([Mem], ANormal v))
+  -> ANormal v
+outIoFailG stack1 stack2 fail result output k
+  = TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ left fail)
+  , (1, k $ \t -> TLetD output BX t
+                $ right output)
   ]
 
 -- Input / Output glue
@@ -992,6 +1103,12 @@ unitToEFNat = inUnit unit result
             $ outIoFailNat stack1 stack2 stack3 fail nat result
   where (unit, stack1, stack2, stack3, fail, nat, result) = fresh7
 
+-- () -> Int
+unitToInt :: ForeignOp
+unitToInt = inUnit unit result
+            $ TCon Ty.intRef 0 [result]
+  where (unit, result) = fresh2
+
 -- () -> Either Failure a
 unitToEFBox :: ForeignOp
 unitToEFBox = inUnit unit result
@@ -1021,10 +1138,10 @@ boxBoxTo0 instr
   (arg1, arg2) = fresh2
 
 -- Nat -> ()
-natToUnit :: ForeignOp
-natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
-  where
-    (arg, nat, result) = fresh3
+-- natToUnit :: ForeignOp
+-- natToUnit = inNat arg nat result (TCon Ty.unitRef 0 [])
+--   where
+--     (arg, nat, result) = fresh3
 
 -- a -> Bool
 boxToBool :: ForeignOp
@@ -1045,6 +1162,7 @@ wordDirect wordType instr
   $ TFOp instr [ub1]
   where
   (b1,ub1) = fresh2
+
 
 -- Nat -> a -> c
 -- Works for an type that's packed into a word, just
@@ -1085,12 +1203,33 @@ boxToEFBox =
   where
     (arg, result, stack1, stack2, fail) = fresh5
 
+-- a -> Either Failure (Maybe b)
+boxToEFMBox :: ForeignOp
+boxToEFMBox
+  = inBx arg result
+  . outIoFailG stack1 stack2 fail result output $ \k ->
+  ([UN], TAbs stack3 . TMatch stack3 . MatchSum $ mapFromList
+         [ (0, ([], k $ none))
+         , (1, ([BX], TAbs stack4 . k $ some stack4))
+         ])
+  where
+  (arg, result, stack1, stack2, stack3, stack4, fail, output) = fresh8
+
 -- a -> Maybe b
 boxToMaybeBox :: ForeignOp
 boxToMaybeBox =
   inBx arg result $ outMaybe maybe result
   where
     (arg, maybe, result) = fresh3
+
+-- a -> Maybe b
+boxToMaybeTup :: ForeignOp
+boxToMaybeTup =
+  inBx arg result $ outMaybeTup a b c u bp p result
+  where
+    (arg, a, b, c, u, bp, p, result) = fresh8
+
+
 
 -- a -> Either Failure Bool
 boxToEFBool :: ForeignOp
@@ -1142,11 +1281,28 @@ boxBoxToEFBox = inBxBx arg1 arg2 result
   where
     (arg1, arg2, result, stack1, stack2, fail) = fresh6
 
--- a -> Nat -> Either Failure
+-- a -> Nat -> Either Failure b
 boxNatToEFBox :: ForeignOp
 boxNatToEFBox = inBxNat arg1 arg2 nat result
            $ outIoFail stack1 stack2 fail result
   where (arg1, arg2, nat, stack1, stack2, fail, result) = fresh7
+
+-- Nat -> Either Failure ()
+natToEFUnit :: ForeignOp
+natToEFUnit
+  = inNat arg nat result
+  . TMatch result . MatchSum $ mapFromList
+  [ (0, ([BX, BX],)
+      . TAbss [stack1, stack2]
+      . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+      $ left fail)
+  , (1, ([],)
+      . TLetD unit BX (TCon Ty.unitRef 0 [])
+      $ right unit)
+
+  ]
+  where
+    (arg, nat, result, fail, stack1, stack2, unit) = fresh7
 
 -- a -> Either b c
 boxToEBoxBox :: ForeignOp
@@ -1156,8 +1312,8 @@ boxToEBoxBox instr
   . TLetD e UN (TFOp instr [b])
   . TMatch e . MatchSum
   $ mapFromList
-  [ (0, ([BX], TAbs ev $ TCon eitherReference 0 [ev]))
-  , (1, ([BX], TAbs ev $ TCon eitherReference 1 [ev]))
+  [ (0, ([BX], TAbs ev $ left ev))
+  , (1, ([BX], TAbs ev $ right ev))
   ]
   where
   (e,b,ev) = fresh3
@@ -1176,6 +1332,8 @@ builtinLookup
   , ("Int.<=", lei)
   , ("Int.>", gti)
   , ("Int.>=", gei)
+  , ("Int.fromRepresentation", coerceType Ty.natRef Ty.intRef)
+  , ("Int.toRepresentation", coerceType Ty.intRef Ty.natRef)
   , ("Int.increment", inci)
   , ("Int.signum", sgni)
   , ("Int.negate", negi)
@@ -1225,7 +1383,6 @@ builtinLookup
   , ("Nat.toText", n2t)
   , ("Nat.fromText", t2n)
   , ("Nat.popCount", popn)
-
   , ("Float.+", addf)
   , ("Float.-", subf)
   , ("Float.*", mulf)
@@ -1234,6 +1391,8 @@ builtinLookup
   , ("Float.log", logf)
   , ("Float.logBase", logbf)
   , ("Float.sqrt", sqrtf)
+  , ("Float.fromRepresentation", coerceType Ty.natRef Ty.floatRef)
+  , ("Float.toRepresentation", coerceType Ty.floatRef Ty.natRef)
 
   , ("Float.min", minf)
   , ("Float.max", maxf)
@@ -1295,6 +1454,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
   , ("Char.fromNat", cast Ty.natRef Ty.charRef)
@@ -1328,16 +1488,23 @@ builtinLookup
   , ("Universal.>=", geu)
   , ("Universal.<=", leu)
 
+  -- internal stuff
   , ("jumpCont", jumpk)
+  , ("raise", raise)
 
   , ("IO.forkComp.v2", fork'comp)
+
+  , ("Scope.run", scope'run)
 
   , ("Code.isMissing", code'missing)
   , ("Code.cache_", code'cache)
   , ("Code.lookup", code'lookup)
+  , ("Code.validate", code'validate)
   , ("Value.load", value'load)
   , ("Value.value", value'create)
-
+  , ("Any.Any", any'construct)
+  , ("Any.unsafeExtract", any'extract)
+  , ("Link.Term.toText", term'link'to'text)
   , ("STM.atomically", stm'atomic)
   ] ++ foreignWrappers
 
@@ -1358,7 +1525,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ Failure ioFailureReference (pack (show e)) unitValue
+  handleIOE (Left e) = Left $ Failure Ty.ioFailureRef (pack (show e)) unitValue
   handleIOE (Right a) = Right a
 
 unitValue :: Closure
@@ -1374,8 +1541,8 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
   tryIO2 = try
   flatten :: Either IOException (Either TLS.TLSException r) -> Either (Failure ) r
-  flatten (Left e) = Left (Failure ioFailureReference (pack (show e)) unitValue)
-  flatten (Right (Left e)) = Left (Failure tlsFailureReference (pack (show e)) (unitValue))
+  flatten (Left e) = Left (Failure Ty.ioFailureRef (pack (show e)) unitValue)
+  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (pack (show e)) (unitValue))
   flatten (Right (Right a)) = Right a
 
 declareForeigns :: Var v => FDecl v ()
@@ -1408,11 +1575,18 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF $ \(h,n) -> Bytes.fromByteString <$> hGet h n
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF Text.hGetLine
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEFBox .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toByteString bs)
+  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+    $ \(h,n) -> Bytes.fromArray <$> hGet h n
+
+  declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+
   declareForeign "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
+
+  declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
+    $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
   declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
@@ -1431,6 +1605,9 @@ declareForeigns = do
   declareForeign "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
 
+  declareForeign "IO.getEnv.impl.v1" boxToEFBox
+    $ mkForeignIOF getEnv
+
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
 
@@ -1442,6 +1619,9 @@ declareForeigns = do
 
   declareForeign "IO.renameDirectory.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
+
+  declareForeign "IO.directoryContents.impl.v3" boxToEFBox
+    $ mkForeignIOF $ (fmap pack <$>) . getDirectoryContents
 
   declareForeign "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
@@ -1487,7 +1667,8 @@ declareForeigns = do
 
   declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.impl.v3" natToUnit $ mkForeignIOF threadDelay
+  declareForeign "IO.delay.impl.v3" natToEFUnit
+    $ mkForeignIOF threadDelay
 
   declareForeign "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
@@ -1512,7 +1693,7 @@ declareForeigns = do
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
   declareForeign "MVar.tryPut.impl.v3" boxBoxToEFBool
-    . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
+    . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
@@ -1520,11 +1701,12 @@ declareForeigns = do
   declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.impl.v3" boxBoxToEFBox
+  declareForeign "MVar.read.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign "MVar.tryRead.impl.v3" boxToEFBox
+  declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
+
 
   declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
     \(ch :: Char) -> pure (Text.singleton ch)
@@ -1536,7 +1718,7 @@ declareForeigns = do
     $ pure . Bytes.fromArray . encodeUtf8
 
   declareForeign "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
-    $ pure . mapLeft (\t -> Failure ioFailureReference (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
+    $ pure . mapLeft (\t -> Failure Ty.ioFailureRef (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
 
   declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
     $ \(hostName::Text, serverId:: Bytes.Bytes) ->
@@ -1585,6 +1767,19 @@ declareForeigns = do
   declareForeign "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
 
+  -- Scope and Ref stuff
+  declareForeign "Scope.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "IO.ref" boxDirect
+    . mkForeign $ \(c :: Closure) -> newIORef c
+
+  declareForeign "Ref.read" boxDirect . mkForeign $
+    \(r :: IORef Closure) -> readIORef r
+
+  declareForeign "Ref.write" boxBoxTo0 . mkForeign $
+    \(r :: IORef Closure, c :: Closure) -> writeIORef r c
+
   let
     defaultSupported :: TLS.Supported
     defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
@@ -1615,7 +1810,7 @@ declareForeigns = do
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
-  let wrapFailure t = Failure tlsFailureReference (pack t) unitValue
+  let wrapFailure t = Failure Ty.tlsFailureRef (pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
       decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
       asCert :: PEM -> Either String X.SignedCertificate
@@ -1649,6 +1844,8 @@ declareForeigns = do
         -> pure . Bytes.fromArray $ serializeGroup sg
   declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
+  declareForeign "Code.display" boxBoxDirect . mkForeign
+    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Text.unpack nm) sg ""
   declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
@@ -1656,10 +1853,6 @@ declareForeigns = do
     . mkForeign $ pure . Bytes.fromArray . serializeValue
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
-
-  declareForeign "Any.Any" boxDirect . mkForeign $ \(a :: Closure) ->
-    pure $ Closure.DataB1 Ty.anyRef 0 a
-
   -- Hashing functions
   let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do
@@ -1678,8 +1871,7 @@ declareForeigns = do
   declareForeign "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
         let ctx = Hash.hashInitWith alg
-            bs = Bytes.chunkToArray @BA.Bytes <$> Bytes.chunks b
-        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx bs
+        in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.byteStringChunks b)
 
   declareForeign "crypto.hmacBytes" boxBoxBoxDirect
     . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
@@ -1708,6 +1900,21 @@ declareForeigns = do
       in pure . Bytes.fromArray . hmac alg $ serializeValueLazy x
 
 
+  let
+    catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Text a)
+    catchAll e = do
+      e <- Exception.tryAnyDeep e
+      pure $ case e of
+        Left se -> Left (Text.pack (show se))
+        Right a -> Right a
+
+  declareForeign "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
+  declareForeign "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
+  declareForeign "Bytes.zlib.decompress" boxToEBoxBox . mkForeign $ \bs ->
+    catchAll (pure (Bytes.zlibDecompress bs))
+  declareForeign "Bytes.gzip.decompress" boxToEBoxBox . mkForeign $ \bs ->
+    catchAll (pure (Bytes.gzipDecompress bs))
+
   declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
   declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
   declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
@@ -1717,6 +1924,20 @@ declareForeigns = do
   declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase32
   declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase64
   declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
+
+  declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
+  declareForeign "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
+
+  declareForeign "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
+  declareForeign "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
+  declareForeign "Bytes.encodeNat32be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32be
+  declareForeign "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
+  declareForeign "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
+  declareForeign "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
 
 hostPreference :: Maybe Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny

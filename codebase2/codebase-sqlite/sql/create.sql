@@ -91,6 +91,7 @@ CREATE TABLE causal (
   self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
   value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash(id)
 );
+-- Don't remember why this index exists —AI
 CREATE INDEX causal_value_hash_id ON causal(value_hash_id);
 
 -- We expect exactly 1 row, which we overwrite when we setRootNamespace.
@@ -105,10 +106,11 @@ CREATE TABLE causal_parent (
   parent_id INTEGER NOT NULL CONSTRAINT causal_parent_fk2 REFERENCES causal(self_hash_id),
   PRIMARY KEY (causal_id, parent_id)
 ) WITHOUT ROWID;
-CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id);
-CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id);
+CREATE INDEX causal_parent_causal_id ON causal_parent(causal_id); -- maybe redundant? covered by PK index? —AI
+CREATE INDEX causal_parent_parent_id ON causal_parent(parent_id); -- ?  Potentially allow a "redo" command?
 
 -- links reference.id to causals
+-- Currently unused.
 CREATE TABLE causal_metadata (
   causal_id INTEGER NOT NULL REFERENCES causal(self_hash_id),
   metadata_object_id INTEGER NOT NULL REFERENCES object(id),

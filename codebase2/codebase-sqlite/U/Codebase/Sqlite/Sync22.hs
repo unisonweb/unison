@@ -29,10 +29,10 @@ import Data.List.Extra (nubOrd)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Database.SQLite.Simple (Connection)
 import Debug.Trace (traceM, trace)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
+import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
@@ -104,10 +104,10 @@ sync22 = do
 trySync ::
   forall m.
   (MonadIO m, MonadError Error m, MonadReader Env m) =>
-  Cache m TextId TextId ->
-  Cache m HashId HashId ->
-  Cache m ObjectId ObjectId ->
-  Cache m CausalHashId CausalHashId ->
+  Cache TextId TextId ->
+  Cache HashId HashId ->
+  Cache ObjectId ObjectId ->
+  Cache CausalHashId CausalHashId ->
   Entity ->
   m (TrySyncResult Entity)
 trySync tCache hCache oCache cCache = \case
