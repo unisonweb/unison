@@ -5,9 +5,10 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- Duplicate of the Unison.Util.SyntaxText module, but we expect these to
--- evolve separately. This is the version which is outward facing
--- to the server frontend.
+{-| Duplicate of the Unison.Util.SyntaxText module, but we expect these to
+evolve separately. This is the version which is outward facing
+to the server frontend. 
+-}
 module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
@@ -94,7 +95,7 @@ type UnisonHash = Text
 
 type HashQualifiedName = Text
 
--- The elements of the Unison grammar, for syntax highlighting purposes
+{-| The elements of the Unison grammar, for syntax highlighting purposes -}
 data Element
   = NumericLiteral
   | TextLiteral
@@ -158,7 +159,7 @@ reference (Segment _ el) =
           _ -> Nothing
    in el >>= reference'
 
--- Convert a `SyntaxText` to a `String`, ignoring syntax markup
+{-| Convert a `SyntaxText` to a `String`, ignoring syntax markup -}
 toPlain :: SyntaxText -> String
 toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
@@ -278,8 +279,7 @@ elementToClassName el =
       "binding-equals"
     TypeAscriptionColon ->
       "type-ascription-colon"
-    DataTypeKeyword ->
-      "data-type-keyword"
+    DataTypeKeyword -> "data-type-keyword"
     DataTypeParams ->
       "data-type-params"
     Unit ->

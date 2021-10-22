@@ -1,6 +1,5 @@
---
--- Render Unison.Server.Doc and embedded source to Html
---
+{-| Render Unison.Server.Doc and embedded source to Html
+-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Server.Doc.AsHtml where
@@ -110,9 +109,10 @@ foldedToHtmlSource isFolded source =
             [codeBlock [] $ Syntax.toHtml details]
         
 
--- Merge adjacent Word elements in a list to 1 element with a string of words
--- separated by space— useful for rendering to the dom without creating dom
--- elements for each and every word in the doc, but instead rely on textNodes
+{-| Merge adjacent Word elements in a list to 1 element with a string of words
+separated by space— useful for rendering to the dom without creating dom
+elements for each and every word in the doc, but instead rely on textNodes 
+-}
 mergeWords :: [Doc] -> [Doc]
 mergeWords = foldr merge_ [] where
   merge_ :: Doc -> [Doc] -> [Doc]
@@ -317,11 +317,12 @@ toHtml document =
                 span_ [class_ "group"] $ currentSectionLevelToHtml content
    in article_ [class_ "unison-doc"] $ toHtml_ 1 document
 
--- HELPERS
+-- HELPERS --------------------------------------------------------------------
 
--- Unison Doc allows endlessly deep section nesting with
--- titles, but HTML only supports to h1-h6, so we clamp
--- the sectionLevel when converting
+{-| Unison Doc allows endlessly deep section nesting with
+titles, but HTML only supports to h1-h6, so we clamp
+the sectionLevel when converting
+-}
 h :: Nat -> (Html () -> Html ())
 h n =
   case n of
