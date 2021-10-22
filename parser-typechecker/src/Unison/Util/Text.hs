@@ -5,62 +5,24 @@
 module Unison.Util.Text where
 
 -- import Data.List (unfoldr)
--- import qualified Data.Text
+import qualified Data.Text as T
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
 -- import qualified Data.ByteString as ByteString
 -- import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.Vector.Primitive as V
-import Data.Word
-import Data.Char (chr)
 
 -- Text type represented as a `Rope` of chunks
 type Text = R.Rope Chunk
 
-data Chunk
-  = Word7s (V.Vector Word8)   -- All <= 127
-  | Word16s (V.Vector Word16) -- All <= maxBound
-  | Word32s (V.Vector Word32) -- All <= maxBound
+type Chunk = T.Text 
 
-instance R.Sized Chunk where
-  size (Word7s cs) = V.length cs
-  size (Word16s cs) = V.length cs
-  size (Word32s cs) = V.length cs
-
-instance R.Drop Chunk where
-  drop n (Word7s cs) = Word7s (V.drop n cs)
-  drop n (Word16s cs) = Word16s (V.drop n cs)
-  drop n (Word32s cs) = Word32s (V.drop n cs)
-
-instance R.Take Chunk where
-  take n (Word7s cs) = Word7s (V.take n cs)
-  take n (Word16s cs) = Word16s (V.take n cs)
-  take n (Word32s cs) = Word32s (V.take n cs)
-
-instance R.Index Chunk Char where
-  index n (Word7s cs) = chr . fromIntegral <$> (cs V.!? n)
-  index n (Word16s cs) = chr . fromIntegral <$> (cs V.!? n)
-  index n (Word32s cs) = chr . fromIntegral <$> (cs V.!? n)
-
-instance R.Reverse Chunk where
-  reverse (Word7s cs) = Word7s (V.reverse cs)
-  reverse (Word16s cs) = Word16s (V.reverse cs)
-  reverse (Word32s cs) = Word32s (V.reverse cs)
-
-instance Semigroup Chunk where (<>) = mappend
-instance Monoid Chunk where
-  mempty = Word7s V.empty
-  mappend (Word7s cs) (Word7s cs2) = Word7s (cs <> cs2)
-  mappend (Word7s cs) (Word16s cs2) = Word16s (V.map fromIntegral cs <> cs2)
-  mappend (Word7s cs) (Word32s cs2) = Word32s (V.map fromIntegral cs <> cs2)
-
-  mappend (Word16s cs) (Word7s cs2) = Word16s (cs <> V.map fromIntegral cs2)
-  mappend (Word16s cs) (Word16s cs2) = Word16s (cs <> cs2)
-  mappend (Word16s cs) (Word32s cs2) = Word32s (V.map fromIntegral cs <> cs2)
-
-  mappend (Word32s cs) (Word32s cs2) = Word32s (cs <> cs2)
-  mappend (Word32s cs) (Word16s cs2) = Word32s (cs <> V.map fromIntegral cs2)
-  mappend (Word32s cs) (Word7s cs2) = Word32s (cs <> V.map fromIntegral cs2)
+instance R.Sized Chunk where size = T.length 
+instance R.Drop Chunk where drop = T.drop
+instance R.Take Chunk where take = T.take
+instance R.Index Chunk Char where 
+  index n t | n < T.length t = Just (T.index t n)
+            | otherwise      = Nothing
+instance R.Reverse Chunk where reverse = T.reverse
 
 take :: Int -> Text -> Text
 take = R.take
@@ -75,9 +37,7 @@ reverse :: Text -> Text
 reverse = R.reverse
 
 fromUtf8 :: B.Bytes -> Maybe Text
-fromUtf8 bs =
-  if B.isAscii bs then Just (R.map Word7s bs)
-  else undefined
+fromUtf8 _bs = undefined
 
 -- toUtf8 :: Text -> B.Bytes
 -- toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
