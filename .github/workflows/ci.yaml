@@ -111,15 +111,17 @@ jobs:
           docs_root="$(stack path --local-doc-root)"
           mkdir -p /haddocks
           cp -r "${docs_root}"/* /haddocks
-      - name: Commit and push haddocks
+      - name: Checkout haddocks branch
         if: env.build_haddocks
         uses: actions/checkout@v2
         with:
           ref: 'haddocks'
+      - name: Commit and push haddocks to haddocks branch.
+        if: env.build_haddocks
         run: |
           # Erase any stale files
           rm -rf ./*
-          cp -r "${docs_root}"/* ./
+          cp -r /haddocks/* ./
           git add .
           git commit -m "Regenerate haddocks based on ${GITHUB_SHA}"
           git push
