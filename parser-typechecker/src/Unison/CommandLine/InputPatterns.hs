@@ -278,7 +278,7 @@ view :: InputPattern
 view = InputPattern
   "view"
   []
-  [(OnePlus, definitionQueryArg)]
+  [(ZeroPlus, definitionQueryArg)]
   "`view foo` prints the definition of `foo`."
   ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
   . traverse parseHashQualifiedName

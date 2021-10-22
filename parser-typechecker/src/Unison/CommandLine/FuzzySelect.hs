@@ -16,12 +16,11 @@ withTempScreen =
 
 fuzzySelect :: [Text] -> IO [Text]
 fuzzySelect choices = withTempScreen $ do
-  (Just stdin', Just stdout', _, ph) <- Proc.createProcess ((Proc.shell "fzf"){Proc.std_in=Proc.CreatePipe, Proc.std_out=Proc.CreatePipe})
+  (Just stdin', Just stdout', _, ph) <- Proc.createProcess ((Proc.shell "fzf -m"){Proc.std_in=Proc.CreatePipe, Proc.std_out=Proc.CreatePipe})
   hSetBuffering stdin NoBuffering
   hSetBuffering stdin' NoBuffering
   hSetBuffering stdout' NoBuffering
   traverse (Text.hPutStrLn stdin') choices
   hDuplicateTo stdin stdin'
   Proc.waitForProcess ph
-  putStrLn "You picked:"
   Text.lines <$> Text.hGetContents stdout'
