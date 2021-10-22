@@ -146,7 +146,7 @@ syntax = annotate
 
 foldl :: (b -> SyntaxSegment -> b) -> b -> SyntaxText -> b
 foldl f init (AnnotatedText segments) =
-  Prelude.foldl f init segments
+  Foldable.foldl' f init segments
 
 reference :: SyntaxSegment -> Maybe UnisonHash
 reference (Segment _ el) =
