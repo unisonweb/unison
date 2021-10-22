@@ -79,8 +79,15 @@ jobs:
       # takes.
       - name: build dependencies
         run: stack --no-terminal build --fast --only-dependencies
+
+      # We only build haddocks on Linux to save time.
+      - name: build (with haddocks)
+        if: runner.os == 'Linux'
+        run: stack --no-terminal build --fast --haddock
       - name: build
+        if: runner.os != 'Linux'
         run: stack --no-terminal build --fast
+
 
       # Run each test suite (tests and transcripts)
       - name: tests
@@ -94,3 +101,23 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: other test suites
         run: stack --no-terminal test unison-util-relation
+
+      # Haddocks
+      - name: Copy haddocks
+        if: runner.os == 'Linux'
+        run: |
+          docs_root="$(stack path --local-doc-root)"
+          mkdir -p /haddocks
+          cp -r "${docs_root}"/* /haddocks
+      - name: Commit and push haddocks
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v2
+        with:
+          ref: 'haddocks'
+        run: |
+          # Erase any stale files
+          rm -rf ./*
+          cp -r "${docs_root}"/* ./
+          git add .
+          git commit -m "Regenerate haddocks based on ${GITHUB_SHA}"
+          git push
