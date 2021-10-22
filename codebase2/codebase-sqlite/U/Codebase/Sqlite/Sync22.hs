@@ -167,18 +167,19 @@ trySync tCache hCache oCache cCache = \case
                   runPutS $
                     putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
             oId' <- runDest $ Q.saveObject hId' objType bytes'
-            -- copy reference-specific stuff
-            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-              -- sync watch results
-              for_ [WK.TestWatch] \wk ->
-                syncWatch wk (Reference.Id hId idx)
-              -- sync dependencies index
-              let ref = Reference.Id oId idx
-                  ref' = Reference.Id oId' idx
-              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-              runSrc (Q.getDependenciesForDependent ref)
-                >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+            lift do
+              -- copy reference-specific stuff
+              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                -- sync watch results
+                for_ [WK.TestWatch] \wk ->
+                  syncWatch wk (Reference.Id hId idx)
+                -- sync dependencies index
+                let ref = Reference.Id oId idx
+                    ref' = Reference.Id oId' idx
+                let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+                runSrc (Q.getDependenciesForDependent ref)
+                  >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                  >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
               -- sync type index
               runSrc (Q.getTypeReferencesForComponent oId)
                 >>= traverse (syncTypeIndexRow oId')
@@ -206,15 +207,16 @@ trySync tCache hCache oCache cCache = \case
                     putWord8 fmt
                       >> S.recomposeComponent (zip localIds' declBytes)
             oId' <- runDest $ Q.saveObject hId' objType bytes'
-            -- copy per-element-of-the-component stuff
-            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-              -- sync dependencies index
-              let ref = Reference.Id oId idx
-                  ref' = Reference.Id oId' idx
-              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-              runSrc (Q.getDependenciesForDependent ref)
-                >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+            lift do
+              -- copy per-element-of-the-component stuff
+              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                -- sync dependencies index
+                let ref = Reference.Id oId idx
+                    ref' = Reference.Id oId' idx
+                let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
+                runSrc (Q.getDependenciesForDependent ref)
+                  >>= traverse (fmap fromJust' . isSyncedObjectReference)
+                  >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
               -- sync type index
               runSrc (Q.getTypeReferencesForComponent oId)
                 >>= traverse (syncTypeIndexRow oId')
@@ -304,6 +306,10 @@ trySync tCache hCache oCache cCache = \case
       tIds' <- lift $ traverse syncTextLiteral tIds
       pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
 
+    syncTypeIndexRow ::
+      ObjectId ->
+      (Sqlite.Reference.ReferenceH, Sqlite.Referent.Id) ->
+      m (Sqlite.Reference.ReferenceH, Sqlite.Referent.Id)
     syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
 
     rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id
