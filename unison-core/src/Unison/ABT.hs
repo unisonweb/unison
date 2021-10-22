@@ -1,17 +1,20 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.ABT where
 
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
-import Control.Lens (Lens', use, (.=))
+import Control.Lens (Lens', use, (.=), Fold, folding, LensLike', Setter')
 import Control.Monad.State (MonadState, evalState)
 import qualified Data.Foldable as Foldable
 import Data.Functor.Identity (runIdentity)
@@ -25,11 +28,16 @@ data ABT f v r
   = Var v
   | Cycle r
   | Abs v r
-  | Tm (f r) deriving (Functor, Foldable, Traversable)
+  | Tm (f r) 
+  deriving (Functor, Foldable, Traversable)
+  -- deriving Data
+  
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+
+-- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
 
 -- | A class for variables.
 --
@@ -454,6 +462,9 @@ foreachSubterm f e = case out e of
 subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
 
+subterms_ :: (Ord v, Traversable f) => Fold (Term f v a) (Term f v a)
+subterms_ = folding subterms
+
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns
@@ -471,8 +482,22 @@ visit f t = flip fromMaybe (f t) $ case out t of
   Abs x e    -> abs' (annotation t) x <$> visit f e
   Tm body    -> tm' (annotation t) <$> traverse (visit f) body
 
+subTermsSetter_ :: (Traversable f, Ord v) => Setter' (Term f v a) (Term f v a)
+subTermsSetter_ f tm = visit (Just . f) tm
+
+visitT :: (Traversable f, Monad m, Ord v)
+       => (Term f v a) -> m (Term f v a)
+       -> Term f v a
+       -> m (Term f v a)
+visitT f tm = f tm >>= \(Term )
+  Var _ -> pure t
+  Cycle body -> cycle' (annotation t) <$> visit' f body
+  Abs x e -> abs' (annotation t) x <$> visit' f e
+  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
+      
+
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
-visit' :: (Traversable f, Applicative g, Monad g, Ord v)
+visit' :: (Traversable f, Monad g, Ord v)
        => (f (Term f v a) -> g (f (Term f v a)))
        -> Term f v a
        -> g (Term f v a)
@@ -491,11 +516,21 @@ rewriteDown :: (Traversable f, Ord v)
             => (Term f v a -> Term f v a)
             -> Term f v a
             -> Term f v a
-rewriteDown f t = let t' = f t in case out t' of
-  Var _ -> t'
-  Cycle body -> cycle' (annotation t) (rewriteDown f body)
-  Abs x e -> abs' (annotation t) x (rewriteDown f e)
-  Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
+rewriteDown f tm = runIdentity $ rewriteDown (Identity . f) tm
+
+
+-- | Setter' (Term f v a) (Term f v a)
+rewriteDown_ :: (Traversable f, Monad m, Ord v)
+            => (Term f v a -> m (Term f v a))
+            -> Term f v a
+            -> m (Term f v a)
+rewriteDown_ f t = do
+  t' <- f t
+  case out t' of
+    Var _ -> t'
+    Cycle body -> cycle' (annotation t') <$> rewriteDown' f body
+    Abs x e -> abs' (annotation t') x <$> rewriteDown' f e
+    Tm body -> tm' (annotation t') <$> (rewriteDown' f `fmap` body)
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'

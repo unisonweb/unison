@@ -44,6 +44,7 @@ import Data.Generics.Product
 import Data.Generics.Sum
 import qualified Unison.Hash as Unison
 import qualified Unison.Hashing.V2.Convert as Convert
+import Unison.Hashing.V1.Term (unhashComponent)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -112,7 +113,7 @@ data X = MkX Y
 data Y = MkY Int
 -}
 
-data Entity'
+data Entity
   = TComponent Unison.Hash
   | DComponent Unison.Hash
   | Patch ObjectId
@@ -210,10 +211,30 @@ migratePatch = error "not implemented"
 migrateNamespace :: HashId -> ByteString -> m _
 migrateNamespace = error "not implemented"
 
-migrateTermComponent :: HashId -> ByteString -> m _
-migrateTermComponent = error "not implemented"
+migrateTermComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity) 
+migrateTermComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
+  -- getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
+  component <- getTermComponentWithTypes hash >>= \case
+    Nothing -> error $ "Hash was missing from codebase: " <> show hash
+    Just component -> pure component
 
-migrateDeclComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity')
+  let componentIDMap :: Map Reference.Id (Term v a, Type v a)
+      componentIDMap = Map.fromList $ Reference.componentFor hash component
+  let unhashed :: Map Reference.Id (v, Term v a)
+      unhashed = unhashComponent (fst <$> componentIDMap)
+  let allContainedReferences :: [Reference.Id]
+      allContainedReferences = foldMap (ABT.find findReferenceIds) (snd <$> Map.elems)
+  when (not . null $ allContainedReferences) $ throwE $ Sync.Missing allContainedReferences
+
+    -- unhashComponent :: forall v a. Var v
+    --             => Map Reference.Id (Term v a)
+    --             -> Map Reference.Id (v, Term v a)
+  
+  undefined
+
+
+
+migrateDeclComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity)
 migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   declComponent :: [DD.Decl v a] <- lift (getDeclComponent hash) >>= \case
     Nothing -> error "handle this" -- not non-fatal!
@@ -275,34 +296,34 @@ migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   -- Map v (Memory.DD.DataDeclaration v a) ->
   -- ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 
-  let newComponent :: ([(v, Reference.Id, DD.DataDeclaration v a)])
+  let newComponent :: [(v, Reference.Id, DD.DataDeclaration v a)]
       newComponent = Convert.hashDecls (Map.fromList $ Map.elems remappedReferences)
-  for newComponent $ \(v, newReferenceId, dd) -> do
-    field @"declLookup" %= Map.insert (vToReference Map.! v) newReferenceId
+  for_ newComponent $ \(v, newReferenceId, dd) -> do
+    field @"declLookup" %= Map.insert (vToOldReference Map.! v) newReferenceId
     putTypeDeclaration newReference (_ d)
   pure Sync.Done
 
 
-structural type Ping x = P1 (Pong x)
-  P1 : forall x. Pong x -> Ping x
+-- structural type Ping x = P1 (Pong x)
+--   P1 : forall x. Pong x -> Ping x
 
-structural type Pong x = P2 (Ping x) | P3 Nat
-  P2 : forall x. Ping x -> Pong x
-  P3 : forall x. Nat -> Pong x
-
-
+-- structural type Pong x = P2 (Ping x) | P3 Nat
+--   P2 : forall x. Ping x -> Pong x
+--   P3 : forall x. Nat -> Pong x
 
 
-end up with
-decl Ping (Ref.Id #abc pos=0)
-decl Pong (Ref.Id #abc pos=1)
-ctor P1: #abc pos=0 cid=0
-ctor P2: #abc pos=1 cid=0
-ctor P3: #abc pos=1 cid=1
 
-we unhashComponent and get:
-{ X -> structural type X x = AAA (Y x)
-, Y -> structural type Y x = BBB (X x) | CCC Nat }
+
+-- end up with
+-- decl Ping (Ref.Id #abc pos=0)
+-- decl Pong (Ref.Id #abc pos=1)
+-- ctor P1: #abc pos=0 cid=0
+-- ctor P2: #abc pos=1 cid=0
+-- ctor P3: #abc pos=1 cid=1
+-- 
+-- we unhashComponent and get:
+-- { X -> structural type X x = AAA (Y x)
+-- , Y -> structural type Y x = BBB (X x) | CCC Nat }
 
 
 
@@ -339,13 +360,55 @@ remapReferences declMap = \case
 -- recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
 -- recordRefsInType = _
 
-findReferenceIds :: Type v a -> ABT.FindAction Reference.Id
-findReferenceIds = ABT.out >>> \case
+findTypeReferenceIds :: Type v a -> ABT.FindAction Reference.Id
+findTypeReferenceIds = ABT.out >>> \case
   ABT.Tm (Type.Ref (Reference.DerivedId r)) -> ABT.Found r
   x -> ABT.Continue
 
+findTermReferenceIds :: Term f v a -> [Reference.Id]
+findTermReferenceIds t = flip ABT.find (ABT.out t) \case
+  ABT.Tm f -> ABT.Found (findReferencesInTermF f)
+  x -> ABT.Continue
 
+findReferencesInTermF :: Unison.Term.F typeVar typeAnn patternAnn a -> [Reference.Id]
+findReferencesInTermF = ABT.find \case
+  Ref (Reference.DerivedId refId) -> ABT.Found [refId]
+  Constructor (Reference.DerivedId refId) _conID -> ABT.Found [refId]
+  Request (Reference.DerivedId refId) _conID -> ABT.Found [refId]
+  Ann _ typ -> ABT.Found (ABT.find findTypeReferenceIds typ)
+  TermLink referent -> case referent of
+    Ref' (Reference.DerivedId refId)  -> ABT.Found [refId]
+    -- Double check that ConType isn't part of the hash, remove it if it is.
+    Con' (Reference.DerivedId refId) _conID _conType -> ABT.Found [refId]
+  TypeLink (Reference.DerivedId refId) -> ABT.Found [refId]
+  Match _ matchCases -> foldMap (\MatchCase pat _ -> findReferencesInPattern pat) matchCases
+  _ -> ABT.Continue
 
+findReferencesInPattern :: Traversal' () -> Pattern loc -> [Reference.Id]
+findReferencesInPattern
+  = \case 
+       Unbound{} -> []
+       Var{} -> []
+       Boolean{} -> []
+       Int{} -> []
+       Nat{} -> []
+       Float{} -> []
+       Text{} -> []
+       Char{} -> []
+       Constructor _loc ref _constructorId ps -> 
+         let rs = case ref of 
+                    DerivedId refId -> [refId]
+                    Builtin{} -> []
+          in rs <> foldMap findReferencesInPattern ps
+       As _loc p -> findReferencesInPattern p
+       EffectPure _loc p -> findReferencesInPattern p
+       EffectBind _loc ref _constructorId ps p
+         -> let rs = case ref of 
+                      DerivedId refId -> [refId]
+                      Builtin{} -> []
+             in rs <> foldMap findReferencesInPattern (p:ps)
+       SequenceLiteral _loc ps -> foldMap findReferencesInPattern ps
+       SequenceOp _loc p _seqOp p' -> foldMap findReferencesInPattern [p, p']
 
 -- data DataDeclaration v a = DataDeclaration {
 --   modifier :: Modifier,
