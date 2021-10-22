@@ -24,11 +24,11 @@ jobs:
           - ubuntu-20.04
           - macOS-11.0
           - macOS-10.15
-    env:
-      # Build haddocks on trunk, and only need to build them on a single os.
-      build_haddocks: ${{runner.os == "Linux" && github.ref == "refs/heads/trunk"}}
     steps:
       - uses: actions/checkout@v2
+        env:
+          # Build haddocks on trunk, and only need to build them on a single os.
+          build_haddocks: ${{runner.os == "Linux" && github.ref == "refs/heads/trunk"}}
 
       # The random number towards the beginning of the cache keys below are meant to be bumped as a crude means to clear
       # a cache. GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
