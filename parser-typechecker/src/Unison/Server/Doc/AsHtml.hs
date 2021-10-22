@@ -1,19 +1,18 @@
-{-| Render Unison.Server.Doc and embedded source to Html
--}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Render Unison.Server.Doc and embedded source to Html
 module Unison.Server.Doc.AsHtml where
 
+import Data.Foldable
 import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Lucid
+import qualified Lucid as L
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Server.Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
-import Lucid
-import qualified Lucid as L
-import Data.Foldable
 
 data NamedLinkHref
   = Href Text
@@ -58,7 +57,6 @@ normalizeHref href doc =
       normalizeHref href d_
     Join ds ->
       foldl' normalizeHref href ds
-
     Special (Link syntax) ->
       let folder acc seg =
             case acc of
@@ -94,35 +92,34 @@ foldedToHtmlSource isFolded source =
         [class_ "rich source"]
         ( Disabled
             ( div_
-                [class_ "builtin-summary"] $ do
+                [class_ "builtin-summary"]
+                $ do
                   codeBlock [] $ Syntax.toHtml summary
                   badge $ do
                     span_ [] $ strong_ [] "Built-in"
                     span_ [] "provided by the Unison runtime"
-                
             )
         )
     EmbeddedSource summary details ->
-      foldedToHtml [class_ "rich source"] $ IsFolded
-            isFolded
-            [codeBlock [] $ Syntax.toHtml summary]
-            [codeBlock [] $ Syntax.toHtml details]
-        
+      foldedToHtml [class_ "rich source"] $
+        IsFolded
+          isFolded
+          [codeBlock [] $ Syntax.toHtml summary]
+          [codeBlock [] $ Syntax.toHtml details]
 
-{-| Merge adjacent Word elements in a list to 1 element with a string of words
-separated by space— useful for rendering to the dom without creating dom
-elements for each and every word in the doc, but instead rely on textNodes 
--}
+-- | Merge adjacent Word elements in a list to 1 element with a string of words
+-- separated by space— useful for rendering to the dom without creating dom
+-- elements for each and every word in the doc, but instead rely on textNodes
 mergeWords :: [Doc] -> [Doc]
-mergeWords = foldr merge_ [] where
-  merge_ :: Doc -> [Doc] -> [Doc]
-  merge_ d acc =
-    case (d, acc) of
-      (Word w, Word w_ : rest) ->
+mergeWords = foldr merge_ []
+  where
+    merge_ :: Doc -> [Doc] -> [Doc]
+    merge_ d acc =
+      case (d, acc) of
+        (Word w, Word w_ : rest) ->
           Word (w <> " " <> w_) : rest
-
-      _ ->
-            d : acc
+        _ ->
+          d : acc
 
 toHtml :: Doc -> Html ()
 toHtml document =
@@ -158,7 +155,7 @@ toHtml document =
               Blockquote d ->
                 blockquote_ [] $ currentSectionLevelToHtml d
               Blankline ->
-                div_ [] $ do 
+                div_ [] $ do
                   br_ []
                   br_ []
               Linebreak ->
@@ -167,15 +164,14 @@ toHtml document =
                 hr_ []
               Tooltip triggerContent tooltipContent ->
                 span_
-                  [class_ "tooltip below arrow-start"] $ do
+                  [class_ "tooltip below arrow-start"]
+                  $ do
                     span_ [class_ "tooltip-trigger"] $ currentSectionLevelToHtml triggerContent
                     div_ [class_ "tooltip-bubble", style_ "display: none"] $ currentSectionLevelToHtml tooltipContent
-                  
               Aside d ->
                 span_
-                  [class_ "aside-anchor"] $
-                    aside_ [] $ currentSectionLevelToHtml d
-                  
+                  [class_ "aside-anchor"]
+                  $ aside_ [] $ currentSectionLevelToHtml d
               Callout icon content ->
                 let (cls, ico) =
                       case icon of
@@ -209,15 +205,15 @@ toHtml document =
                   ds ->
                     span_ [class_ "span"] $ mapM_ currentSectionLevelToHtml $ mergeWords ds
               BulletedList items ->
-                let itemToHtml  =
+                let itemToHtml =
                       li_ [] . currentSectionLevelToHtml
                  in ul_ [] $ mapM_ itemToHtml $ mergeWords items
               NumberedList startNum items ->
-                let itemToHtml  =
+                let itemToHtml =
                       li_ [] . currentSectionLevelToHtml
                  in ol_ [start_ $ Text.pack $ show startNum] $ mapM_ itemToHtml $ mergeWords items
               Section title docs ->
-                let titleEl = 
+                let titleEl =
                       h sectionLevel $ currentSectionLevelToHtml title
                  in section_ [] $ sequence_ (titleEl : map (sectionContentToHtml (toHtml_ (sectionLevel + 1))) docs)
               NamedLink label href ->
@@ -239,34 +235,31 @@ toHtml document =
                     image =
                       case src of
                         Word s ->
-                          img_ (altAttr ++ [src_ s ])
+                          img_ (altAttr ++ [src_ s])
                         _ ->
                           ""
 
                     imageWithCaption c =
                       div_
-                        [class_ "image-with-caption"] $ do
+                        [class_ "image-with-caption"]
+                        $ do
                           image
                           div_ [class_ "caption"] $ currentSectionLevelToHtml c
                  in maybe image imageWithCaption caption
               Special specialForm ->
                 case specialForm of
                   Source sources ->
-                    let
-                      sources' =
-                        mapMaybe 
-                          (fmap (foldedToHtmlSource False) . embeddedSource)
-                          sources
-                    in
-                    div_ [class_ "folded-sources"] $ sequence_ sources'
+                    let sources' =
+                          mapMaybe
+                            (fmap (foldedToHtmlSource False) . embeddedSource)
+                            sources
+                     in div_ [class_ "folded-sources"] $ sequence_ sources'
                   FoldedSource sources ->
-                    let
-                      sources' =
-                        mapMaybe 
-                          (fmap (foldedToHtmlSource True) . embeddedSource)
-                          sources
-                    in
-                    div_ [class_ "folded-sources"] $ sequence_ sources'
+                    let sources' =
+                          mapMaybe
+                            (fmap (foldedToHtmlSource True) . embeddedSource)
+                            sources
+                     in div_ [class_ "folded-sources"] $ sequence_ sources'
                   Example syntax ->
                     span_ [class_ "source rich example-inline"] $ inlineCode [] (Syntax.toHtml syntax)
                   ExampleBlock syntax ->
@@ -285,7 +278,7 @@ toHtml document =
                   Eval source result ->
                     div_ [class_ "source rich eval"] $
                       codeBlock [] $
-                        div_ [] $ do 
+                        div_ [] $ do
                           Syntax.toHtml source
                           div_ [class_ "result"] $ do
                             "⧨"
@@ -319,10 +312,9 @@ toHtml document =
 
 -- HELPERS --------------------------------------------------------------------
 
-{-| Unison Doc allows endlessly deep section nesting with
-titles, but HTML only supports to h1-h6, so we clamp
-the sectionLevel when converting
--}
+-- | Unison Doc allows endlessly deep section nesting with
+-- titles, but HTML only supports to h1-h6, so we clamp
+-- the sectionLevel when converting
 h :: Nat -> (Html () -> Html ())
 h n =
   case n of

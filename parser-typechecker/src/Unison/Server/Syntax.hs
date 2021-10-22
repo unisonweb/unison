@@ -5,20 +5,21 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-| Duplicate of the Unison.Util.SyntaxText module, but we expect these to
-evolve separately. This is the version which is outward facing
-to the server frontend. 
--}
+-- | Duplicate of the Unison.Util.SyntaxText module, but we expect these to
+-- evolve separately. This is the version which is outward facing
+-- to the server frontend.
 module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
+import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
+import Lucid
+import qualified Lucid as L
 import qualified Unison.HashQualified as HashQualified
 import Unison.Name (Name)
-import qualified Data.Foldable as Foldable
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Pattern (SeqOp (..))
@@ -26,8 +27,6 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import Lucid
-import qualified Lucid as L
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
     Segment (..),
@@ -95,7 +94,7 @@ type UnisonHash = Text
 
 type HashQualifiedName = Text
 
-{-| The elements of the Unison grammar, for syntax highlighting purposes -}
+-- | The elements of the Unison grammar, for syntax highlighting purposes
 data Element
   = NumericLiteral
   | TextLiteral
@@ -159,7 +158,7 @@ reference (Segment _ el) =
           _ -> Nothing
    in el >>= reference'
 
-{-| Convert a `SyntaxText` to a `String`, ignoring syntax markup -}
+-- | Convert a `SyntaxText` to a `String`, ignoring syntax markup
 toPlain :: SyntaxText -> String
 toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
@@ -174,18 +173,18 @@ toHtml (AnnotatedText segments) =
 nameToHtml :: Name -> Html ()
 nameToHtml name =
   span_ [class_ "fqn"] $ sequence_ parts
-    where
-      segments = 
-        map (segment . L.toHtml . NameSegment.toText) $ Name.segments name
+  where
+    segments =
+      map (segment . L.toHtml . NameSegment.toText) $ Name.segments name
 
-      segment = 
-        span_ [class_ "segment"]
+    segment =
+      span_ [class_ "segment"]
 
-      sep = 
-        span_ [ class_ "sep "] "."
+    sep =
+      span_ [class_ "sep "] "."
 
-      parts = 
-        List.intersperse sep segments
+    parts =
+      List.intersperse sep segments
 
 segmentToHtml :: SyntaxSegment -> Html ()
 segmentToHtml (Segment segmentText element) =
