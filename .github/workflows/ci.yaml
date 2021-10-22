@@ -23,9 +23,9 @@ jobs:
        include:
          - os: ubuntu-20.04
            # Only bother building haddocks on trunk.
-           build_haddocks: ${{ github.ref == 'refs/heads/trunk' }}
+           build_haddocks: true
            # If on trunk, pass `--haddock`, otherwise just pass an empty argument.
-           haddock_flags: ${{ (github.ref == 'refs/heads/trunk' && '--haddock') || '' }}
+           haddock_flags: '--haddock'
          - os: macOS-11.0
            build_haddocks: false
            haddock_flags: ''
