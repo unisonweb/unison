@@ -402,7 +402,7 @@ and the rendered output using `display`:
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
     }}
 
@@ -432,7 +432,7 @@ and the rendered output using `display`:
     ``` Scala
     // A fenced code block which isn't parsed by Unison
     def reverse[A](xs: List[A]) = 
-     xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+      xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
     ```
 
 .> view otherElements
@@ -699,7 +699,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
   
     There are also asides, callouts, tables, tooltips, and more.
