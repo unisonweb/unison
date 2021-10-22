@@ -153,18 +153,15 @@ foldedToHtmlSource isFolded source =
 -- separated by space— useful for rendering to the dom without creating dom
 -- elements for each and every word in the doc, but instead rely on textNodes
 mergeWords :: [Doc] -> [Doc]
-mergeWords docs =
-  let merge_ acc d =
-        case d of
-          Word w ->
-            case unconsLast acc of
-              Just (Word w_, before) ->
-                before ++ [Word (w_ <> " " <> w)]
-              _ ->
-                acc ++ [d]
-          _ ->
-            acc ++ [d]
-   in foldl merge_ [] docs
+mergeWords = foldr merge_ [] where
+  merge_ :: Doc -> [Doc] -> [Doc]
+  merge_ d acc =
+    case (d, acc) of
+      (Word w, Word w_ : rest) ->
+          Word (w <> " " <> w_) : rest
+
+      _ ->
+            d : acc
 
 toHtml :: Doc -> Html
 toHtml document =
@@ -357,14 +354,6 @@ toHtml document =
 badge :: Html -> Html
 badge content =
   span_ [class_ "badge"] [content]
-
-unconsLast :: [a] -> Maybe (a, [a])
-unconsLast list =
-  case reverse list of
-    [] ->
-      Nothing
-    last_ : rest ->
-      Just (last_, reverse rest)
 
 textToClass :: Text -> Text
 textToClass =
