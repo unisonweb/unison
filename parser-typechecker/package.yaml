@@ -90,6 +90,7 @@ library:
     - safe-exceptions
     - mwc-random
     - NanoID
+    - lucid
     - servant
     - servant-docs
     - servant-openapi3

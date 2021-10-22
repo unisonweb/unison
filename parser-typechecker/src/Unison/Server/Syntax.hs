@@ -25,8 +25,8 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import Unison.Server.Html (Html, span_, text)
-import Unison.Server.Html.Attribute (class_, data_)
+import Lucid
+import qualified Lucid as L
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
     Segment (..),
@@ -164,19 +164,29 @@ toPlain (AnnotatedText at) = join (toList $ segment <$> at)
 
 -- HTML -----------------------------------------------------------------------
 
-toHtml :: SyntaxText -> Html
+toHtml :: SyntaxText -> Html ()
 toHtml (AnnotatedText segments) =
   let renderedSegments =
         fmap segmentToHtml segments
-   in span_ [class_ "syntax"] (toList renderedSegments)
+   in span_ [class_ "syntax"] $ sequence_ (toList renderedSegments)
 
-nameToHtml :: Name -> Html
-nameToHtml =
-  span_ [class_ "fqn"] . List.intersperse (span_ [class_ "sep"] [text "."])
-    . map ((\s -> span_ [class_ "segment"] [text s]) . NameSegment.toText)
-    . Name.segments
+nameToHtml :: Name -> Html ()
+nameToHtml name =
+  span_ [class_ "fqn"] $ sequence_ parts
+    where
+      segments = 
+        map (segment . L.toHtml . NameSegment.toText) $ Name.segments name
 
-segmentToHtml :: SyntaxSegment -> Html
+      segment = 
+        span_ [class_ "segment"]
+
+      sep = 
+        span_ [ class_ "sep "] "."
+
+      parts = 
+        List.intersperse sep segments
+
+segmentToHtml :: SyntaxSegment -> Html ()
 segmentToHtml (Segment segmentText element) =
   let sText = Text.pack segmentText
 
@@ -216,14 +226,14 @@ segmentToHtml (Segment segmentText element) =
         elementToClassName el
 
       content
-        | Text.isInfixOf "->" sText = span_ [class_ "arrow"] [text sText]
+        | Text.isInfixOf "->" sText = span_ [class_ "arrow"] $ L.toHtml sText
         | isFQN = nameToHtml (Name.unsafeFromText sText)
-        | otherwise = text sText
+        | otherwise = L.toHtml sText
    in case ref of
         Just r ->
-          span_ [class_ className, data_ "ref" r] [content]
+          span_ [class_ className, data_ "ref" r] content
         _ ->
-          span_ [class_ className] [content]
+          span_ [class_ className] content
 
 elementToClassName :: Element -> Text
 elementToClassName el =

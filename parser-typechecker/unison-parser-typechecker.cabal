@@ -152,8 +152,6 @@ library
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
       Unison.Server.Errors
-      Unison.Server.Html
-      Unison.Server.Html.Attribute
       Unison.Server.QueryResult
       Unison.Server.SearchResult
       Unison.Server.SearchResult'
@@ -252,6 +250,7 @@ library
     , http-media
     , http-types
     , lens
+    , lucid
     , megaparsec >=5.0.0 && <7.0.0
     , memory
     , mmorph
