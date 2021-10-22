@@ -17,6 +17,7 @@ import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import qualified Unison.HashQualified as HashQualified
 import Unison.Name (Name)
+import qualified Data.Foldable as Foldable
 import qualified Unison.Name as Name
 import qualified Unison.NameSegment as NameSegment
 import Unison.Pattern (SeqOp (..))
@@ -200,13 +201,13 @@ segmentToHtml (Segment segmentText element) =
          in case el of
               TypeReference {} ->
                 isFQN_
-              TermReference _ ->
+              TermReference {} ->
                 isFQN_
-              HashQualifier _ ->
+              HashQualifier {} ->
                 isFQN_
-              DataConstructorReference _ ->
+              DataConstructorReference {} ->
                 isFQN_
-              AbilityConstructorReference _ ->
+              AbilityConstructorReference {} ->
                 isFQN_
               _ ->
                 False
@@ -241,13 +242,13 @@ elementToClassName el =
       "blank"
     Var ->
       "var"
-    TypeReference _ ->
+    TypeReference {} ->
       "type-reference"
-    TermReference _ ->
+    TermReference {} ->
       "term-reference"
-    DataConstructorReference _ ->
+    DataConstructorReference {} ->
       "data-constructor-reference"
-    AbilityConstructorReference _ ->
+    AbilityConstructorReference {} ->
       "ability-constructor-reference"
     Op seqOp ->
       case seqOp of
@@ -281,7 +282,7 @@ elementToClassName el =
       "use-prefix"
     UseSuffix ->
       "use-suffix"
-    HashQualifier _ ->
+    HashQualifier {} ->
       "hash-qualifier"
     DelayForceChar ->
       "delay-force-char"
