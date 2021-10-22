@@ -87,7 +87,7 @@ jobs:
         if: env.build_haddocks
         run: stack --no-terminal build --fast --haddock
       - name: build
-        if: $${ !env.build_haddocks }}
+        if: ${{ !env.build_haddocks }}
         run: stack --no-terminal build --fast
 
 
