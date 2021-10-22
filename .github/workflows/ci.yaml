@@ -22,10 +22,10 @@ jobs:
       matrix:
        include:
          - os: ubuntu-20.04
-           build_haddocks: true
-           # build_haddocks: true
-           # ${{ github.ref == 'refs/heads/trunk' }}
-           haddock_flags: --haddock
+           # Only bother building haddocks on trunk.
+           build_haddocks: ${{ github.ref == 'refs/heads/trunk' }}
+           # If on trunk, pass `--haddock`, otherwise just pass an empty argument.
+           haddock_flags: ${{ (github.ref == 'refs/heads/trunk' && '--haddock') || '' }}
          - os: macOS-11.0
            build_haddocks: false
            haddock_flags: ''
@@ -92,10 +92,10 @@ jobs:
       # Build deps, then build local code. Splitting it into two steps just allows us to see how much time each step
       # takes.
       - name: build dependencies
-        run: stack --no-terminal build --fast --only-dependencies
+        run: stack --no-terminal build --fast --only-dependencies ${{ matrix.haddock_flags }}
 
       - name: build
-        run: stack --no-terminal build --fast ${{ (matrix.build_haddocks && '--haddock') || '' }}
+        run: stack --no-terminal build --fast ${{ matrix.haddock_flags }}
 
       # Run each test suite (tests and transcripts)
       - name: tests
