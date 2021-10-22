@@ -69,7 +69,7 @@ type New a = a
 data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
   { -- declLookup :: Map (Old ObjectId) (Map (Old Pos) (New Pos)),
-    declLookup :: Map (Old Reference.Id) (New Reference.Id),
+    referenceMapping :: Map (Old Reference.Id) (New Reference.Id),
     -- Mapping between contructor indexes for the type identified by (ObjectId, Pos)
     ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
     ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
@@ -130,6 +130,7 @@ data Entity
 --   deriving (Eq, Ord, Show)
 
 data Env = Env {db :: Connection}
+
 
 --  -> m (TrySyncResult h)
 migrationSync ::
@@ -218,18 +219,46 @@ migrateTermComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
     Nothing -> error $ "Hash was missing from codebase: " <> show hash
     Just component -> pure component
 
-  let componentIDMap :: Map Reference.Id (Term v a, Type v a)
+  let componentIDMap :: Map (Old Reference.Id) (Term v a, Type v a)
       componentIDMap = Map.fromList $ Reference.componentFor hash component
-  let unhashed :: Map Reference.Id (v, Term v a)
+  let unhashed :: Map (Old Reference.Id) (v, Term v a)
       unhashed = unhashComponent (fst <$> componentIDMap)
-  let allContainedReferences :: [Reference.Id]
+  let vToOldReferenceMapping :: Map v (Old Reference.Id)
+      vToOldReferenceMapping = unhashed
+        & Map.toList
+        & fmap (\(refId, (v, _trm)) -> (v, refId))
+        & Map.fromList
+  let allContainedReferences :: [Old Reference.Id]
       allContainedReferences = foldMap (ABT.find findReferenceIds) (snd <$> Map.elems)
+  -- performance nit: we should probably only `Missing` the unbuilt ones
   when (not . null $ allContainedReferences) $ throwE $ Sync.Missing allContainedReferences
 
-    -- unhashComponent :: forall v a. Var v
-    --             => Map Reference.Id (Term v a)
-    --             -> Map Reference.Id (v, Term v a)
+  let remappedReferences :: Map (Old Reference.Id) (v, Term v a, Type v a)
+        = Map.zipWith (\(v, trm) (_, typ) -> (v, trm, typ)) unhashed componentIDMap
+            & undefined -- do the remapping
+  let newTermComponents :: Map v (New Reference.Id, Term v a)
+      newTermComponents = 
+        remappedReferences
+        & Map.elems
+        & fmap (\(v, trm, _typ) -> (v, trm))
+        & Map.fromList
+        & Convert.hashTermComponents
   
+  ifor newTermComponents $ \v (newReferenceId, trm) -> do
+    let oldReferenceId = vToOldReference Map.! v
+    let (_, _, typ) = remappedReferences Map.! oldReferenceId
+    field @"referenceMap" %= Map.insert oldReferenceId newReferenceId
+    putTermDeclaration newReferenceId typ trm
+  -- what's this for?
+  -- let newTypeComponents :: Map v (Reference.Id, Type v a)
+      -- newTypeComponents = (Map.fromList $ Map.elems remappedReferences)
+
+-- on hold: incorporating term's type in term's hash
+
+-- hashTypeComponents :: Var v => Map v (Memory.Type.Type v a) -> Map v (Memory.Reference.Id, Memory.Type.Type v a)
+-- hashTermComponents :: Var v => Map v (Memory.Term.Term v a) -> Map v (Memory.Reference.Id, Memory.Term.Term v a)
+--
+-- hashTermComponents :: Var v => Map v (Memory.Term.Term v a) -> (Hash, [Memory.Term.Term v a])
   undefined
 
 
