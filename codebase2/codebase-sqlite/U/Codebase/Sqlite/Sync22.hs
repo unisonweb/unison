@@ -297,14 +297,18 @@ trySync tCache hCache oCache cCache = \case
     syncTypeIndex :: ObjectId -> ObjectId -> m ()
     syncTypeIndex oId oId' = do
       rows <- runSrc (Q.getTypeReferencesForComponent oId)
-      for_ rows \row -> do
+      -- defensively nubOrd to guard against syncing from codebases with duplicate rows in their type (mentions) indexes
+      -- alternatively, we could put a unique constraint on the whole 6-tuple of the index tables, and optimistically
+      -- insert with an `on conflict do nothing`.
+      for_ (nubOrd rows) \row -> do
         row' <- syncTypeIndexRow oId' row
         runDest (uncurry Q.addToTypeIndex row')
 
     syncTypeMentionsIndex :: ObjectId -> ObjectId -> m ()
     syncTypeMentionsIndex oId oId' = do
       rows <- runSrc (Q.getTypeMentionsReferencesForComponent oId)
-      for_ rows \row -> do
+      -- see "defensively nubOrd..." comment above in `syncTypeIndex`
+      for_ (nubOrd rows) \row -> do
         row' <- syncTypeIndexRow oId' row
         runDest (uncurry Q.addToTypeMentionsIndex row')
 
