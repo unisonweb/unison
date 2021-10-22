@@ -491,7 +491,7 @@ lexemes' eof = P.optional space >> do
           in intercalate "\n" $ skip column <$> lines s
 
         other = wrap "syntax.docCodeBlock" $ do
-          column <- toInteger . P.unPos <$> LP.indentLevel
+          column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
           tabWidth <- toInteger . P.unPos <$> P.getTabWidth
           fence  <- lit "```" <+> P.many (CP.satisfy (== '`'))
           name   <-
