@@ -180,14 +180,8 @@ trySync tCache hCache oCache cCache = \case
                 runSrc (Q.getDependenciesForDependent ref)
                   >>= traverse (fmap fromJust' . isSyncedObjectReference)
                   >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-              -- sync type index
-              runSrc (Q.getTypeReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-              -- sync type mentions index
-              runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+              syncTypeIndex oId oId'
+              syncTypeMentionsIndex oId oId'
             pure oId'
           OT.DeclComponent -> do
             -- split up the localIds (parsed), decl blobs
@@ -217,14 +211,8 @@ trySync tCache hCache oCache cCache = \case
                 runSrc (Q.getDependenciesForDependent ref)
                   >>= traverse (fmap fromJust' . isSyncedObjectReference)
                   >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-              -- sync type index
-              runSrc (Q.getTypeReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-              -- sync type mentions index
-              runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+              syncTypeIndex oId oId'
+              syncTypeMentionsIndex oId oId'
             pure oId'
           OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
             Right (BL.SyncFull ids body) -> do
@@ -305,6 +293,20 @@ trySync tCache hCache oCache cCache = \case
       chboIds' <- traverse (bitraverse syncBranchObjectId syncCausal) chboIds
       tIds' <- lift $ traverse syncTextLiteral tIds
       pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
+
+    syncTypeIndex :: ObjectId -> ObjectId -> m ()
+    syncTypeIndex oId oId' = do
+      rows <- runSrc (Q.getTypeReferencesForComponent oId)
+      for_ rows \row -> do
+        row' <- syncTypeIndexRow oId' row
+        runDest (uncurry Q.addToTypeIndex row')
+
+    syncTypeMentionsIndex :: ObjectId -> ObjectId -> m ()
+    syncTypeMentionsIndex oId oId' = do
+      rows <- runSrc (Q.getTypeMentionsReferencesForComponent oId)
+      for_ rows \row -> do
+        row' <- syncTypeIndexRow oId' row
+        runDest (uncurry Q.addToTypeMentionsIndex row')
 
     syncTypeIndexRow ::
       ObjectId ->
