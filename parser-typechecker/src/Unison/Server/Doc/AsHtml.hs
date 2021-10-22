@@ -98,7 +98,7 @@ normalizeHref href doc =
     Group d_ ->
       normalizeHref href d_
     Join ds ->
-      foldl normalizeHref href ds
+      foldl' normalizeHref href ds
     Special (Link syntax) ->
       let folder acc seg =
             case acc of
