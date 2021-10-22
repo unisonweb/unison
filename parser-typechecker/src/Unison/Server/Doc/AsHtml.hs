@@ -58,13 +58,7 @@ normalizeHref href doc =
     Join ds ->
       foldl' normalizeHref href ds
     Special (Link syntax) ->
-      let folder acc seg =
-            case acc of
-              Nothing ->
-                Syntax.reference seg
-              _ ->
-                acc
-       in maybe InvalidHref ReferenceHref (Syntax.foldl folder Nothing syntax)
+       maybe InvalidHref ReferenceHref (Syntax.firstReference syntax)
     _ ->
       href
 

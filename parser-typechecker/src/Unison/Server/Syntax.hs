@@ -11,7 +11,6 @@
 module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
-import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
@@ -34,6 +33,7 @@ import Unison.Util.AnnotatedText
     segment,
   )
 import qualified Unison.Util.SyntaxText as SyntaxText
+import Data.List.Extra
 
 type SyntaxText = AnnotatedText Element
 
@@ -145,9 +145,9 @@ data Element
 syntax :: Element -> SyntaxText -> SyntaxText
 syntax = annotate
 
-foldl :: (b -> SyntaxSegment -> b) -> b -> SyntaxText -> b
-foldl f init (AnnotatedText segments) =
-  Foldable.foldl' f init segments
+firstReference :: SyntaxText -> Maybe UnisonHash
+firstReference (AnnotatedText segments) =
+  firstJust reference (toList segments)
 
 reference :: SyntaxSegment -> Maybe UnisonHash
 reference (Segment _ el) =
