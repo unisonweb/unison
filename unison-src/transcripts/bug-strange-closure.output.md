@@ -150,7 +150,7 @@ We can display the guide before and after adding it to the codebase:
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
   
     There are also asides, callouts, tables, tooltips, and more.
@@ -351,7 +351,7 @@ We can display the guide before and after adding it to the codebase:
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
   
     There are also asides, callouts, tables, tooltips, and more.
@@ -558,7 +558,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
   
     There are also asides, callouts, tables, tooltips, and more.
@@ -752,7 +752,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       ``` Scala
       // A fenced code block which isn't parsed by Unison
       def reverse[A](xs: List[A]) = 
-        xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
+       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
       ```
   
     There are also asides, callouts, tables, tooltips, and more.
@@ -2411,7 +2411,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   !Lit
                                   (Right
                                     (Plain
-                                      "// A fenced code block which isn't parsed by Unison\ndef reverse[A](xs: List[A]) = \n  xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)")),
+                                      "// A fenced code block which isn't parsed by Unison\ndef reverse[A](xs: List[A]) = \n xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)")),
                                   !Lit (Right (Plain "\n")),
                                   !Lit (Right (Plain "```")) ]))) ])))),
                 !Lit (Right (Plain "\n")),
