@@ -20,22 +20,26 @@ jobs:
       # Run each build to completion, regardless of if any have failed
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-20.04
-          - macOS-11.0
-          - macOS-10.15
+       include:
+         - os: ubuntu-20.04
+           build_haddocks: true
+           # build_haddocks: true
+           # ${{ github.ref == 'refs/heads/trunk' }}
+           haddock_flags: --haddock
+         - os: macOS-11.0
+           build_haddocks: false
+           haddock_flags: ''
+         - os: macOS-10.15
+           build_haddocks: false
+           haddock_flags: ''
     steps:
       - uses: actions/checkout@v2
-        env:
-          # Build haddocks on trunk, and only need to build them on a single os.
-          # build_haddocks: ${{runner.os == 'Linux' && github.ref == 'refs/heads/trunk'}}
-          build_haddocks: ${{runner.os == 'Linux'}}
       - name: sanity check
         run: |
-          echo runner.os ${{ runner.os }} 
+          echo matrix.os ${{ matrix.os }}
+          echo matrix.build_haddocks ${{ matrix.build_haddocks }}
+          echo matrix.haddock_flags ${{ matrix.haddock_flags }}
           echo github.ref ${{ github.ref }}
-          echo build_haddocks ${{runner.os == 'Linux' && github.ref == 'refs/heads/trunk'}}
-          echo BUILD_HADDOCKS $BUILD_HADDOCKS
 
       # The random number towards the beginning of the cache keys below are meant to be bumped as a crude means to clear
       # a cache. GitHub will automatically delete caches that haven't been accessed in 7 days, but there is no way to
@@ -90,13 +94,8 @@ jobs:
       - name: build dependencies
         run: stack --no-terminal build --fast --only-dependencies
 
-      - name: build (with haddocks)
-        if: ${{ env.build_haddocks }}
-        run: stack --no-terminal build --fast --haddock
       - name: build
-        if: ${{ !env.build_haddocks }}
-        run: stack --no-terminal build --fast
-
+        run: stack --no-terminal build --fast ${{ (matrix.build_haddocks && '--haddock') || '' }}
 
       # Run each test suite (tests and transcripts)
       - name: tests
@@ -113,18 +112,18 @@ jobs:
 
       # Haddocks
       - name: Copy haddocks
-        if: env.build_haddocks
+        if: matrix.build_haddocks
         run: |
           docs_root="$(stack path --local-doc-root)"
           mkdir -p /haddocks
           cp -r "${docs_root}"/* /haddocks
       - name: Checkout haddocks branch
-        if: env.build_haddocks
+        if: matrix.build_haddocks
         uses: actions/checkout@v2
         with:
           ref: 'haddocks'
       - name: Commit and push haddocks to haddocks branch.
-        if: env.build_haddocks
+        if: matrix.build_haddocks
         run: |
           # Erase any stale files
           rm -rf ./*
