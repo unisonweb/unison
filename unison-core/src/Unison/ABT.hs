@@ -12,7 +12,7 @@ module Unison.ABT where
 
 import Unison.Prelude
 
-import Control.Lens (Lens', use, (.=), Fold, Lens, (%~), Prism, Prism', (%%~))
+import Control.Lens (Lens', use, (.=), Fold, Lens, (%~), Prism, (%%~))
 import Control.Monad.State (MonadState,evalState)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
@@ -31,6 +31,8 @@ import qualified Data.Monoid as Monoid
 import Data.Bifunctor (second)
 import Data.Generics.Sum (_Ctor)
 import Data.Tuple.Extra (uncurry3)
+import Data.Bifunctor (first)
+import Data.List.Extra (nubOrdOn)
 
 data ABT f v r
   = Var v
@@ -534,17 +536,13 @@ unabs t = ([], t)
 reabs :: Ord v => [v] -> Term f v () -> Term f v ()
 reabs vs t = foldr abs t vs
 
-transform :: (Ord v, Foldable g, Functor f)
+transform :: (Ord v, Functor f, Traversable g)
           => (forall a. f a -> g a) -> Term f v a -> Term g v a
 transform f = rewriteDown_ . abt_ . _Tm %~ f
 
 transformM :: (Ord v, Monad m, Traversable g)
           => (forall a. f a -> m (g a)) -> Term f v a -> m (Term g v a)
-transformM f t = case out t of
-  Var v -> pure $ annotatedVar (annotation t) v
-  Abs v body -> abs' (annotation t) v <$> (transformM f body)
-  Tm subterms -> tm' (annotation t) <$> (traverse (transformM f) =<< f subterms)
-  Cycle body -> cycle' (annotation t) <$> (transformM f body)
+transformM f = rewriteDown_ . abt_ . _Tm %%~ f
 
 -- Rebuild the tree annotations upward, starting from the leaves,
 -- using the Monoid to choose the annotation at intermediate nodes
@@ -573,15 +571,10 @@ find :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> FindAction x)
   -> Term f v a
   -> [x]
-find p t = case p t of
-    Found x -> x : go
-    Prune -> []
-    Continue -> go
-  where go = case out t of
-          Var _ -> []
-          Cycle body -> Unison.ABT.find p body
-          Abs _ body -> Unison.ABT.find p body
-          Tm body -> Foldable.concat (Unison.ABT.find p <$> body)
+find p = foldWithPruning $ p >>> \case
+  Found x -> ([x], CrawlChildren)
+  Prune -> ([], SkipChildren)
+  Continue -> ([], CrawlChildren)
 
 find' :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> Bool)
@@ -659,7 +652,7 @@ orderedComponents bs0 = tweak =<< orderedComponents' bs0 where
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h)
+  (Functor f, Hashable1 f, Eq v, Show v, Ord v, Ord h, Accumulate h, Traversable f)
   => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
 hashComponent byName = let
   ts = Map.toList byName
@@ -676,7 +669,7 @@ hashComponent byName = let
 -- components (using the `termFromHash` function). Requires that the
 -- overall component has no free variables.
 hashComponents
-  :: (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
+  :: (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h, Traversable f)
   => (h -> Word64 -> Word64 -> Term f v ())
   -> Map.Map v (Term f v a)
   -> [(h, [(v, Term f v a)])]
@@ -712,7 +705,7 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
+hash :: forall h f v a . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
      => Term f v a -> h
 hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
@@ -742,12 +735,10 @@ hash = hash' [] where
   hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
-distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
+distinct :: forall h f v a proxy . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a]
-distinct _ ts = fst <$> sortOn snd m
-  where m = Map.elems (Map.fromList (hashes `zip` (ts `zip` [0 :: Int .. 1])))
-        hashes = map hash ts :: [h]
+distinct _ = nubOrdOn (hash @h)
 
 -- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
 subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
@@ -840,8 +831,8 @@ foldWithPruning f t =
      (r, CrawlChildren) ->
        r <> foldMap (foldWithPruning f) (out t)
 
-foldWithPruning_ :: Foldable f => (Term f v a -> FoldPruning) -> Fold (Term f v a) (Term f v a)
-foldWithPruning_ f = Lens.folding (foldWithPruning (\t -> ([t], f t)))
+foldWithPruning_ :: Foldable f => (Term f v a -> (r, FoldPruning)) -> Fold (Term f v a) r
+foldWithPruning_ f = Lens.folding (foldWithPruning (first (pure @[]) . f))
 
 foldAllSubterms :: ((Monoid r, Foldable f) =>(Term f v a -> r) -> Term f v a -> r)
 foldAllSubterms f = foldWithPruning (\t -> (f t, CrawlChildren))
