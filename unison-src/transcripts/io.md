@@ -271,3 +271,70 @@ testHomeEnvVar _ =
 .> add
 .> io.test testHomeEnvVar
 ```
+
+### Read command line args
+
+```unison:hide
+testGetArgs.fail : Text -> Failure
+testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
+
+testGetArgs.runMeWithNoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithNoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> printLine "called with no args"
+    _ -> raise (fail "called with args")
+
+testGetArgs.runMeWithOneArg : '{io2.IO, Exception} ()
+testGetArgs.runMeWithOneArg = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> printLine "called with one arg"
+    _ -> raise (fail "called with too many args")
+
+testGetArgs.runMeWithTwoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithTwoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> raise (fail "called with one arg")
+    [_, _] -> printLine "called with two args"
+    _ -> raise (fail "called with too many args")
+```
+
+```ucm
+.> add
+.> cd testGetArgs
+.> run runMeWithNoArgs
+.> run runMeWithNoArgs --
+.> run runMeWithOneArg -- foo
+.> run runMeWithTwoArgs -- foo bar
+```
+
+```ucm:error
+.> run runMeWithNoArgs -- foo
+```
+
+```ucm:error
+.> run runMeWithOneArg
+```
+```ucm:error
+.> run runMeWithOneArg --
+```
+```ucm:error
+.> run runMeWithOneArg -- foo bar
+```
+
+```ucm:error
+.> run runMeWithTwoArgs
+```
+```ucm:error
+.> run runMeWithTwoArgs --
+```
+```ucm:error
+.> run runMeWithTwoArgs -- foo
+```
+```ucm:error
+.> run runMeWithTwoArgs -- foo bar baz
+```
