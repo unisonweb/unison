@@ -90,6 +90,7 @@ library
     , either
     , extra
     , fuzzyfind
+    , generic-lens
     , lens
     , memory
     , mtl

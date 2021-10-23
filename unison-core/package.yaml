@@ -14,6 +14,7 @@ library:
     - either
     - extra
     - fuzzyfind
+    - generic-lens
     - lens
     - prelude-extras
     - memory

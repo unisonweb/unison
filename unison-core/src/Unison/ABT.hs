@@ -5,12 +5,14 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.ABT where
 
 import Unison.Prelude
 
-import Control.Lens (Lens', use, (.=))
+import Control.Lens (Lens', use, (.=), Fold, Lens, (%~), Prism, Prism', (%%~))
 import Control.Monad.State (MonadState,evalState)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
@@ -24,16 +26,26 @@ import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Util.Components as Components
+import qualified Control.Lens as Lens
+import qualified Data.Monoid as Monoid
+import Data.Bifunctor (second)
+import Data.Generics.Sum (_Ctor)
+import Data.Tuple.Extra (uncurry3)
 
 data ABT f v r
   = Var v
   | Cycle r
   | Abs v r
-  | Tm (f r) deriving (Functor, Foldable, Traversable)
+  | Tm (f r)
+  deriving (Functor, Foldable, Traversable, Generic)
+
+_Tm :: Prism (ABT f v a) (ABT g v a) (f a) (g a)
+_Tm = _Ctor @"Tm"
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+  deriving Generic
 
 -- | A class for variables.
 --
@@ -400,14 +412,13 @@ substs
   -> Term f v a
 substs replacements body = foldr (uncurry subst) body (reverse replacements)
 
--- Count the number times the given variable appears free in the term
+-- | Count the number times the given variable appears free in the term
 occurrences :: (Foldable f, Var v) => v -> Term f v a -> Int
-occurrences v t | not (v `isFreeIn` t) = 0
-occurrences v t = case out t of
-  Var v2 -> if v == v2 then 1 else 0
-  Cycle t -> occurrences v t
-  Abs v2 t -> if v == v2 then 0 else occurrences v t
-  Tm t -> foldl' (\s t -> s + occurrences v t) 0 $ Foldable.toList t
+occurrences v term = Monoid.getSum . flip foldWithPruning term $ out >>> \case
+  Var v'   | v == v'   -> (1, CrawlChildren)
+ -- All occurrences of v inside a matching Abs subterm are bound.
+  Abs v' _ | v == v'   -> (0, SkipChildren)
+  _                    -> (0, CrawlChildren)
 
 rebuildUp :: (Ord v, Foldable f, Functor f)
           => (f (Term f v a) -> f (Term f v a))
@@ -442,21 +453,26 @@ freeVarOccurrences except t =
     Tm body -> foldMap go body
 
 foreachSubterm
-  :: (Traversable f, Applicative g, Ord v)
+  :: (Foldable f, Applicative g, Ord v)
   => (Term f v a -> g b)
   -> Term f v a
   -> g [b]
-foreachSubterm f e = case out e of
-  Var   _    -> pure <$> f e
-  Cycle body -> (:) <$> f e <*> foreachSubterm f body
-  Abs _ body -> (:) <$> f e <*> foreachSubterm f body
-  Tm body ->
-    (:)
-      <$> f e
-      <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
+foreachSubterm f =
+  Monoid.getAp . foldAllSubterms ((Monoid.Ap . fmap (pure @[]) . f))
 
-subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
-subterms t = runIdentity $ foreachSubterm pure t
+subterms :: (Ord v, Foldable f) => Term f v a -> [Term f v a]
+subterms = foldAllSubterms (pure @[])
+
+-- visit
+--   :: (Traversable f, Applicative g, Ord v)
+--   => (Term f v a -> Maybe (g (Term f v a)))
+--   -> Term f v a
+--   -> g (Term f v a)
+-- visit f t = flip fromMaybe (f t) $ case out t of
+--   Var   _    -> pure t
+--   Cycle body -> cycle' (annotation t) <$> visit f body
+--   Abs x e    -> abs' (annotation t) x <$> visit f e
+--   Tm body    -> tm' (annotation t) <$> traverse (visit f) body
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -465,26 +481,26 @@ subterms t = runIdentity $ foreachSubterm pure t
 -- `visit (const Nothing) t == pure t` and
 -- `visit (const (Just (pure t2))) t == pure t2`
 visit
-  :: (Traversable f, Applicative g, Ord v)
-  => (Term f v a -> Maybe (g (Term f v a)))
+  :: forall f m v a
+  . (Traversable f, Ord v, Monad m)
+  => (Term f v a -> Maybe (m (Term f v a)))
   -> Term f v a
-  -> g (Term f v a)
-visit f t = flip fromMaybe (f t) $ case out t of
-  Var   _    -> pure t
-  Cycle body -> cycle' (annotation t) <$> visit f body
-  Abs x e    -> abs' (annotation t) x <$> visit f e
-  Tm body    -> tm' (annotation t) <$> traverse (visit f) body
+  -> m (Term f v a)
+visit f t = rewriteDownWithPruning_ go t
+  where
+    go :: (Set v, a, ABT f v (Term f v a)) -> m (a, Either (ABT f v (Term f v a)) (ABT f v (Term f v a)))
+    go (freeVars, a, abt) =
+      case f (Term freeVars a abt) of
+        Nothing -> pure (a, Right (abt))
+        Just ft -> ft <&> \(Term _fv a' abt') -> (a', Left abt')
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
+
 visit' :: (Traversable f, Applicative g, Monad g, Ord v)
        => (f (Term f v a) -> g (f (Term f v a)))
        -> Term f v a
        -> g (Term f v a)
-visit' f t = case out t of
-  Var _ -> pure t
-  Cycle body -> cycle' (annotation t) <$> visit' f body
-  Abs x e -> abs' (annotation t) x <$> visit' f e
-  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
+visit' f = rewriteDown_ . abt_ . _Tm %%~ f
 
 -- | `visit` specialized to the `Identity` effect.
 visitPure :: (Traversable f, Ord v)
@@ -495,11 +511,7 @@ rewriteDown :: (Traversable f, Ord v)
             => (Term f v a -> Term f v a)
             -> Term f v a
             -> Term f v a
-rewriteDown f t = let t' = f t in case out t' of
-  Var _ -> t'
-  Cycle body -> cycle' (annotation t) (rewriteDown f body)
-  Abs x e -> abs' (annotation t) x (rewriteDown f e)
-  Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
+rewriteDown f = rewriteDown_ . term_ %~ f
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
@@ -524,13 +536,7 @@ reabs vs t = foldr abs t vs
 
 transform :: (Ord v, Foldable g, Functor f)
           => (forall a. f a -> g a) -> Term f v a -> Term g v a
-transform f tm = case out tm of
-  Var v -> annotatedVar (annotation tm) v
-  Abs v body -> abs' (annotation tm) v (transform f body)
-  Tm subterms ->
-    let subterms' = fmap (transform f) subterms
-    in tm' (annotation tm) (f subterms')
-  Cycle body -> cycle' (annotation tm) (transform f body)
+transform f = rewriteDown_ . abt_ . _Tm %~ f
 
 transformM :: (Ord v, Monad m, Traversable g)
           => (forall a. f a -> m (g a)) -> Term f v a -> m (Term g v a)
@@ -786,4 +792,56 @@ rewriteDownWithPruning_ f (Term vs a abt) =
         Tm ft -> traverse (rewriteDownWithPruning_ f) ft <&> \newFT -> into' a' (Tm newFT)
    in f (vs, a, abt) >>= rebuildTerm
 
+rewriteDown_
+  :: forall m f g v v' a a'
+  .  (Monad m, Ord v', Traversable g)
+  => ( (Set v, a, ABT f v (Term f v a)) -- (free variables, annotation, abt)
+        -> m (a', ABT g v' (Term f v a))
+     )
+  -> Term f v a
+  -> m (Term g v' a')
+rewriteDown_ f =
+  rewriteDownWithPruning_ $ f >>> (fmap (second Right))
 
+abt_ :: Lens (Set v, a, ABT f1 v1 (Term f2 v2 a2))
+             (a, ABT g1 v'1 (Term g2 v'2 a2))
+             (ABT f1 v1 (Term f2 v2 a2))
+             (ABT g1 v'1 (Term g2 v'2 a2))
+abt_ = Lens.lens getter setter
+  where
+    getter (_, _, abt) = abt
+    setter (_, a, _) abt = (a, abt)
+
+term_ :: Lens (Set v, a, ABT f v (Term f v a))
+             (a', ABT g v' (Term g v' a'))
+             (Term f v a)
+             (Term g v' a')
+term_ = Lens.lens (uncurry3 Term) setter
+  where
+    setter _ (Term _ a abt) = (a, abt)
+
+data FoldPruning = CrawlChildren | SkipChildren
+
+-- | Folds an ABT top-down, recursively folding every term.
+-- Each step of the fold returns children which will be recursed into.
+--
+-- This allows pruning a term's children from the fold,
+-- which is helpful for improving performance in certain cases.
+foldWithPruning
+  :: forall f v a r
+  .  (Monoid r, Foldable f)
+  => ( Term f v a -> (r, FoldPruning)
+     )
+  -> Term f v a
+  -> r
+foldWithPruning f t =
+   case f t of
+     (r, SkipChildren) -> r
+     (r, CrawlChildren) ->
+       r <> foldMap (foldWithPruning f) (out t)
+
+foldWithPruning_ :: Foldable f => (Term f v a -> FoldPruning) -> Fold (Term f v a) (Term f v a)
+foldWithPruning_ f = Lens.folding (foldWithPruning (\t -> ([t], f t)))
+
+foldAllSubterms :: ((Monoid r, Foldable f) =>(Term f v a -> r) -> Term f v a -> r)
+foldAllSubterms f = foldWithPruning (\t -> (f t, CrawlChildren))
