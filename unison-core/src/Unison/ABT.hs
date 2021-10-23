@@ -15,16 +15,13 @@ module Unison.ABT
   , Var(..)
 
   , V(..)
-  , unvar
-
   , Subst(..)
+
+  -- * Combinators & Traversals
   , fresh
+  , unvar
   , freshenS
   , freshInBoth
-
-  -- * Traversals & Utilities
-  , hash
-  , hashComponents
   , visit
   , visit'
   , visitPure
@@ -56,7 +53,7 @@ module Unison.ABT
   , find'
   , FindAction(..)
 
-  -- * Safe Term constructors
+  -- * Safe Term constructors & Patterns
   , annotate
   , annotatedVar
   , var
@@ -78,14 +75,17 @@ module Unison.ABT
   , pattern CycleA'
   , pattern Tm'
 
-    -- * algorithms
+    -- * Algorithms
   , components
   , orderedComponents
+  , hash
+  , hashComponents
   ) where
 
 import Unison.Prelude
-
-import Control.Lens hiding ( transform, transformM )
+import Control.Monad.State (MonadState)
+import Data.Functor.Identity (runIdentity)
+import Control.Lens (Lens', use, (.=))
 import qualified Data.Foldable as Foldable
 import Data.List hiding (cycle, find)
 import Data.Vector ((!))
@@ -97,7 +97,6 @@ import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Util.Components as Components
-import Control.Monad.State (MonadState)
 
 data ABT f v r
   = Var v
