@@ -465,17 +465,6 @@ foreachSubterm f =
 subterms :: (Ord v, Foldable f) => Term f v a -> [Term f v a]
 subterms = foldAllSubterms (pure @[])
 
--- visit
---   :: (Traversable f, Applicative g, Ord v)
---   => (Term f v a -> Maybe (g (Term f v a)))
---   -> Term f v a
---   -> g (Term f v a)
--- visit f t = flip fromMaybe (f t) $ case out t of
---   Var   _    -> pure t
---   Cycle body -> cycle' (annotation t) <$> visit f body
---   Abs x e    -> abs' (annotation t) x <$> visit f e
---   Tm body    -> tm' (annotation t) <$> traverse (visit f) body
-
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns
