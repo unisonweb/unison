@@ -1650,8 +1650,11 @@ noCompletions = ArgumentType
   }
 
 argSeparator :: ArgumentType
-argSeparator = ArgumentType "separator"
-  $ \_ _ _ _ -> pure [Completion "--" "--" False]
+argSeparator = ArgumentType 
+  { typeName = "separator"
+  , suggestions = \_ _ _ _ -> pure [Completion "--" "--" False]
+  , globTargets = mempty
+  }
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
