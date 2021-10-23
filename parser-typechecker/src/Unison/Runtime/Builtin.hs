@@ -1596,7 +1596,7 @@ declareForeigns = do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.impl.v3" direct
+  declareForeign "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF $ \() -> getCurrentDirectory
 
   declareForeign "IO.setCurrentDirectory.impl.v3" boxToEF0
