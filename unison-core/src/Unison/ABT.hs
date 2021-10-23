@@ -758,3 +758,32 @@ instance (Show1 f, Show v) => Show (Term f v a) where
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
+
+
+-- | Given a mapping from (set of free vars, annotation, abt) into a new annotation and abt,
+-- Rewrites a term from the top-down and re-computes free-variables after the transformation.
+--
+-- The mapping function returns an Either:
+--   * Left: Replace the abt at this term with the provided value, but don't recurse into it.
+--           This can also be used to prune braches of work for improved performance.
+--   * Right: Recurse into the provided ABT and continue rewriting it.
+rewriteDownWithPruning_
+  :: forall m f g v v' a a'
+  .  (Monad m, Ord v', Traversable g)
+  => ( (Set v, a, ABT f v (Term f v a)) -- (free variables, annotation, abt)
+        -> m (a', (Either (ABT g v' (Term g v' a')) -- m (new annotation, Either (finished subterm) (subterm to be recursed into))
+                          (ABT g v' (Term f v a))))
+     )
+  -> Term f v a
+  -> m (Term g v' a')
+rewriteDownWithPruning_ f (Term vs a abt) =
+  let rebuildTerm :: (a', (Either (ABT g v' (Term g v' a')) (ABT g v' (Term f v a)))) -> m (Term g v' a')
+      rebuildTerm (a', Left abt) = pure (into' a' abt)
+      rebuildTerm (a', Right abt) = case abt of
+        Var v -> pure $ into' a' (Var v)
+        Cycle t -> rewriteDownWithPruning_ f t <&> \newT -> into' a' (Cycle newT)
+        Abs v t -> rewriteDownWithPruning_ f t <&> \newT -> into' a' (Abs v newT)
+        Tm ft -> traverse (rewriteDownWithPruning_ f) ft <&> \newFT -> into' a' (Tm newFT)
+   in f (vs, a, abt) >>= rebuildTerm
+
+
