@@ -1367,9 +1367,14 @@ execute = InputPattern
   )
   (\case
     [w] -> pure $ Input.ExecuteI w []
-    (w : "--" : ws) -> pure $ Input.ExecuteI w ws --  TODO evan: maybe make the -- optional
-    _   -> Left $ showPatternHelp execute
-  )
+    (w : ws) -> pure $ Input.ExecuteI w (parseArgs ws)
+    _   -> Left $ showPatternHelp execute)
+  where
+    parseArgs :: [String] -> [String]
+    parseArgs = removeFirstSeparator []
+    removeFirstSeparator ret [] = ret
+    removeFirstSeparator ret ("--" : xs) = ret ++ xs
+    removeFirstSeparator ret (x : xs) = removeFirstSeparator (ret ++ [x]) xs
 
 ioTest :: InputPattern
 ioTest = InputPattern
