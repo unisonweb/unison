@@ -9,27 +9,19 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (when)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM)
-import Control.Monad.RWS (MonadIO, MonadReader, lift)
+import Control.Monad.RWS (MonadReader)
 import Control.Monad.Reader (ReaderT)
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
-import Data.ByteString (ByteString)
 import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
-import Data.Foldable (for_, toList, traverse_)
-import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
-import Data.Maybe (catMaybes, fromMaybe)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Debug.Trace (traceM, trace)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.Connection (Connection)
@@ -48,6 +40,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
+import Unison.Prelude
 
 data Entity
   = O ObjectId
@@ -170,16 +163,13 @@ trySync tCache hCache oCache cCache = \case
             lift do
               -- copy reference-specific stuff
               for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                let ref = Reference.Id oId idx
+                    refH = Reference.Id hId idx
+                    ref' = Reference.Id oId' idx
                 -- sync watch results
                 for_ [WK.TestWatch] \wk ->
-                  syncWatch wk (Reference.Id hId idx)
-                -- sync dependencies index
-                let ref = Reference.Id oId idx
-                    ref' = Reference.Id oId' idx
-                let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-                runSrc (Q.getDependenciesForDependent ref)
-                  >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                  >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+                  syncWatch wk refH
+                syncDependenciesIndex ref ref'
               syncTypeIndex oId oId'
               syncTypeMentionsIndex oId oId'
             pure oId'
@@ -204,13 +194,9 @@ trySync tCache hCache oCache cCache = \case
             lift do
               -- copy per-element-of-the-component stuff
               for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-                -- sync dependencies index
                 let ref = Reference.Id oId idx
                     ref' = Reference.Id oId' idx
-                let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-                runSrc (Q.getDependenciesForDependent ref)
-                  >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                  >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
+                syncDependenciesIndex ref ref'
               syncTypeIndex oId oId'
               syncTypeMentionsIndex oId oId'
             pure oId'
@@ -266,6 +252,13 @@ trySync tCache hCache oCache cCache = \case
       lift (isSyncedCausal chId) >>= \case
         Just chId' -> pure chId'
         Nothing -> Validate.refute . Set.singleton $ C chId
+
+    syncDependenciesIndex :: Sqlite.Reference.Id -> Sqlite.Reference.Id -> m ()
+    syncDependenciesIndex ref ref' = do
+      deps <- runSrc (Q.getDependenciesForDependent ref)
+      for_ deps \dep -> do
+        dep' <- expectSyncedObjectReference dep
+        runDest (Q.addToDependentsIndex dep' ref')
 
     syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds
     syncLocalIds (L.LocalIds tIds oIds) = do
@@ -345,6 +338,13 @@ trySync tCache hCache oCache cCache = \case
     isSyncedObjectReferenceId :: Sqlite.Reference.Id -> m (Maybe Sqlite.Reference.Id)
     isSyncedObjectReferenceId (Reference.Id oId idx) =
       isSyncedObject oId <&> fmap (\oId' -> Reference.Id oId' idx)
+
+    -- Assert that a reference's component is already synced, and return the corresponding reference.
+    expectSyncedObjectReference :: Sqlite.Reference -> m Sqlite.Reference
+    expectSyncedObjectReference ref = undefined
+      isSyncedObjectReference ref <&> \case
+        Nothing -> error (reportBug "E452280" ("unsynced object reference " ++ show ref))
+        Just ref' -> ref'
 
     syncHashReference :: Sqlite.ReferenceH -> m Sqlite.ReferenceH
     syncHashReference = bitraverse syncTextLiteral syncHashLiteral
