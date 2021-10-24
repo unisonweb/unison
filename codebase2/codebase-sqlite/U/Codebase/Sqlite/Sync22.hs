@@ -341,7 +341,7 @@ trySync tCache hCache oCache cCache = \case
 
     -- Assert that a reference's component is already synced, and return the corresponding reference.
     expectSyncedObjectReference :: Sqlite.Reference -> m Sqlite.Reference
-    expectSyncedObjectReference ref = undefined
+    expectSyncedObjectReference ref =
       isSyncedObjectReference ref <&> \case
         Nothing -> error (reportBug "E452280" ("unsynced object reference " ++ show ref))
         Just ref' -> ref'
