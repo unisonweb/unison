@@ -17,6 +17,7 @@ test =
   scope "name" $
     tests
       [ scope "compareSuffix" (tests testCompareSuffix),
+        scope "endsWithSegments" (tests testEndsWithSegments),
         scope "segments" (tests testSegments),
         scope "splitName" (tests testSplitName),
         scope "suffixSearch" (tests testSuffixSearch),
@@ -59,10 +60,6 @@ test =
               scope "countSegments" do
                 n1 <- rname
                 Name.countSegments n1 `expectEqual` Name.oldCountSegments (old n1),
-              scope "endsWithSegments" do
-                n1 <- rname
-                n2 <- rname
-                Name.endsWithSegments n1 n2 `expectEqual` Name.oldEndsWithSegments (old n1) (old n2),
               scope "isPrefixOf" do
                 n1 <- rname
                 n2 <- rname
@@ -132,6 +129,13 @@ testCompareSuffix =
     scope "[b.c a.b.b]" (expectEqual (compareSuffix "b.c" "a.b.b") LT),
     scope "[a.b.c b.c]" (expectEqual (compareSuffix "a.b.c" "b.c") LT),
     scope "[b.b a.b.c]" (expectEqual (compareSuffix "b.b" "a.b.c") GT)
+  ]
+
+testEndsWithSegments :: [Test ()]
+testEndsWithSegments =
+  [ scope "a.b.c ends with []" (expectEqual True (endsWithSegments "a.b.c" [])),
+    scope "a.b.c ends with [b, c]" (expectEqual True (endsWithSegments "a.b.c" ["b", "c"])),
+    scope "a.b.c doesn't end with [d]" (expectEqual False (endsWithSegments "a.b.c" ["d"]))
   ]
 
 testSegments :: [Test ()]

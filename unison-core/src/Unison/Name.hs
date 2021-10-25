@@ -145,20 +145,21 @@ countSegments :: Name -> Int
 countSegments (Name _ ss) =
   length ss
 
--- | @endsWithSegments x y@ returns whether @x@ ends with the segments of relative name @y@. If @y@ is absolute, returns
--- @False@.
+-- | @endsWithSegments x y@ returns whether @x@ ends with @y@.
 --
--- >>> endsWithSegments "a.b.c" "b.c"
+-- >>> endsWithSegments "a.b.c" ["b", "c"]
 -- True
 --
--- >>> endsWithSegments "a.b.c" ".b.c"
+-- >>> endsWithSegments "a.b.c" ["d"]
 -- False
 --
+-- >>> endsWithSegments "a.b.c" []
+-- True
+--
 -- /O(n)/, where /n/ is the number of name segments.
-endsWithSegments :: Name -> Name -> Bool
-endsWithSegments (Name _ ss0) = \case
-  Name Absolute _ -> False
-  Name Relative ss1 -> List.NonEmpty.isPrefixOf (toList ss1) ss0
+endsWithSegments :: Name -> [NameSegment] -> Bool
+endsWithSegments (Name _ ss0) ss1 =
+  List.NonEmpty.isPrefixOf ss1 ss0
 
 -- | Is this name absolute?
 --
