@@ -994,9 +994,6 @@ printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s (InvalidPath path term) =
-  fromString ("Invalid Path: " ++ show path ++ "\n")
-    <> annotatedAsErrorSite s term
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a

@@ -42,7 +42,6 @@ library
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.OldName
-      Unison.Paths
       Unison.Pattern
       Unison.Reference
       Unison.Reference.Util

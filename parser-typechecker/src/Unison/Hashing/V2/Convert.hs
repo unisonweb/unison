@@ -5,7 +5,6 @@ module Unison.Hashing.V2.Convert
     hashDecls,
     hashClosedTerm,
     hashTermComponents,
-    hashTypeComponents,
     typeToReference,
     typeToReferenceMentions,
   )
@@ -37,12 +36,6 @@ typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Typ
 
 typeToReferenceMentions :: Var v => Memory.Type.Type v a -> Set Memory.Reference.Reference
 typeToReferenceMentions = Set.map h2mReference . Hashing.Type.toReferenceMentions . m2hType . Memory.Type.removeAllEffectVars
-
-hashTypeComponents :: Var v => Map v (Memory.Type.Type v a) -> Map v (Memory.Reference.Id, Memory.Type.Type v a)
-hashTypeComponents = fmap h2mTypeResult . Hashing.Type.hashComponents . fmap m2hType
-  where
-    h2mTypeResult :: Ord v => (Hashing.Reference.Id, Hashing.Type.Type v a) -> (Memory.Reference.Id, Memory.Type.Type v a)
-    h2mTypeResult (id, tp) = (h2mReferenceId id, h2mType tp)
 
 hashTermComponents :: Var v => Map v (Memory.Term.Term v a) -> Map v (Memory.Reference.Id, Memory.Term.Term v a)
 hashTermComponents = fmap h2mTermResult . Hashing.Term.hashComponents . fmap m2hTerm

@@ -84,7 +84,7 @@ data Doc
 
 type UnisonHash = Text
 
-data Ref a = Term a | Type a deriving (Eq,Show,Generic,Functor,Foldable,Traversable)
+data Ref a = Term a | Type a deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
@@ -259,7 +259,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             acc' = case tm of
               Term.Ref' r | Set.notMember r seen -> (:acc) . Term . (Reference.toText r,) <$> case r of
                 Reference.Builtin _ -> typeOf (Referent.Ref r) <&> \case
-                  Nothing -> DO.BuiltinObject ("🆘 missing type signature")
+                  Nothing -> DO.BuiltinObject "🆘 missing type signature"
                   Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
                 ref -> terms ref >>= \case
                   Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
@@ -279,4 +279,3 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             -> (Set.insert ref seen,) . (:acc) <$> goType ref
           _ -> pure s1
     reverse . snd <$> foldM go mempty es
-
