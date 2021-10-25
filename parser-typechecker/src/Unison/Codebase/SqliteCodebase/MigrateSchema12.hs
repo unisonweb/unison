@@ -3,48 +3,43 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
 import Unison.Prelude
 import Control.Monad.Reader (MonadReader)
-import Control.Monad.State (MonadState)
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (CausalHashId, HashId, ObjectId)
+import U.Codebase.Sqlite.DbId (CausalHashId, ObjectId)
 import U.Codebase.Sqlite.ObjectType (ObjectType)
 import qualified U.Codebase.Sqlite.ObjectType as OT
-import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
-import Unison.Prelude (ByteString, Map, MonadIO)
 import Unison.Reference (Pos)
 import Unison.Referent (ConstructorId)
-import Data.Set (Set)
-import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.Codebase (Codebase (Codebase))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Data.Map as Map
 import Unison.Type (Type)
 import qualified Unison.ABT as ABT
-import Control.Monad.Trans.Writer.CPS (WriterT)
 import qualified Unison.Type as Type
-import qualified Data.List as List
-import Control.Lens
 import Control.Monad.State.Strict
-import Control.Monad.Except (runExceptT, ExceptT)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (throwE)
-import Data.Either.Extra (maybeToEither)
 import Data.Generics.Product
-import Data.Generics.Sum
 import qualified Unison.Hash as Unison
 import qualified Unison.Hashing.V2.Convert as Convert
-import Unison.Hashing.V1.Term (unhashComponent)
+import Control.Lens
+import qualified Data.Zip as Zip
+import qualified Unison.Term as Term
+import Data.List.Extra (nubOrd)
+import Unison.Hash (Hash)
+import Data.Tuple (swap)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -175,14 +170,16 @@ migrationSync = Sync \case
   --- * If we haven't yet synced its parents, push them onto the work queue
   --- * If we haven't yet synced the causal's value (namespace), push it onto the work queue.
   --- * Rehash the Causal's valueHash AND CausalHash, and add the new causal, its hashes, and hash objects to the codebase under a fresh object ID
-  O objId -> do
-    let alreadySynced :: m Bool
-        alreadySynced = undefined
-    alreadySynced >>= \case
-      False -> do
-        (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
-        migrateObject objType hId bytes
-      True -> pure Sync.PreviouslyDone
+  TComponent _hash -> undefined
+  DComponent _hash -> undefined
+  -- O objId -> do
+  --   let alreadySynced :: m Bool
+  --       alreadySynced = undefined
+  --   alreadySynced >>= \case
+  --     False -> do
+  --       (hId, objType, bytes) <- runSrc $ Q.loadObjectWithHashIdAndTypeById oId
+  --       migrateObject objType hId bytes
+  --     True -> pure Sync.PreviouslyDone
   -- result <- runValidateT @(Set Entity) @m @ObjectId case objType of
   -- To sync a causal,
   --   1. ???
@@ -193,62 +190,68 @@ migrationSync = Sync \case
   --   2. Synced
   W watchKind idH -> undefined
 
+  Patch{} -> undefined
+  NS{} -> undefined
+
 -- data ObjectType
 --   = TermComponent -- 0
 --   | DeclComponent -- 1
 --   | Namespace -- 2
 --   | Patch -- 3
 
-migrateObject :: Codebase m v a -> ObjectType -> HashId -> ByteString -> m _
+migrateObject :: Codebase m v a -> ObjectType -> Hash -> ByteString -> m _
 migrateObject codebase objType hash bytes = case objType of
-  OT.TermComponent -> migrateTermComponent hash bytes
+  OT.TermComponent -> migrateTermComponent codebase hash
   OT.DeclComponent -> migrateDeclComponent codebase hash
   OT.Namespace -> migrateNamespace hash bytes
   OT.Patch -> migratePatch hash bytes
 
-migratePatch :: HashId -> ByteString -> m _
+migratePatch :: Hash -> ByteString -> m _
 migratePatch = error "not implemented"
 
-migrateNamespace :: HashId -> ByteString -> m _
+migrateNamespace :: Hash -> ByteString -> m _
 migrateNamespace = error "not implemented"
 
-migrateTermComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity) 
+migrateTermComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity)
 migrateTermComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   -- getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
-  component <- getTermComponentWithTypes hash >>= \case
+  component <- lift (getTermComponentWithTypes hash) >>= \case
     Nothing -> error $ "Hash was missing from codebase: " <> show hash
     Just component -> pure component
 
-  let componentIDMap :: Map (Old Reference.Id) (Term v a, Type v a)
+  let componentIDMap :: Map (Old Reference.Id) (Term.Term v a, Type v a)
       componentIDMap = Map.fromList $ Reference.componentFor hash component
-  let unhashed :: Map (Old Reference.Id) (v, Term v a)
-      unhashed = unhashComponent (fst <$> componentIDMap)
+  let unhashed :: Map (Old Reference.Id) (v, Term.Term v a)
+      unhashed = Term.unhashComponent (fst <$> componentIDMap)
   let vToOldReferenceMapping :: Map v (Old Reference.Id)
       vToOldReferenceMapping = unhashed
         & Map.toList
         & fmap (\(refId, (v, _trm)) -> (v, refId))
         & Map.fromList
-  let allContainedReferences :: [Old Reference.Id]
-      allContainedReferences = foldMap (ABT.find findReferenceIds) (snd <$> Map.elems)
-  -- performance nit: we should probably only `Missing` the unbuilt ones
-  when (not . null $ allContainedReferences) $ throwE $ Sync.Missing allContainedReferences
+  referencesMap <- gets referenceMapping
+  let allMissingReferences :: [Old Reference.Id]
+      allMissingReferences = unhashed ^.. traversed . types @Reference.Id . filtered (\r -> Map.notMember r referencesMap)
+        -- foldMap (ABT.find findReferenceIds) (snd <$> Map.elems)
+  when (not . null $ allMissingReferences)
+    $ throwE $ Sync.Missing . nubOrd $ (TComponent . Reference.idToHash <$> allMissingReferences)
 
-  let remappedReferences :: Map (Old Reference.Id) (v, Term v a, Type v a)
-        = Map.zipWith (\(v, trm) (_, typ) -> (v, trm, typ)) unhashed componentIDMap
+  let remappedReferences :: Map (Old Reference.Id) (v, Term.Term v a, Type v a)
+        = Zip.zipWith (\(v, trm) (_, typ) -> (v, trm, typ)) unhashed componentIDMap
             & undefined -- do the remapping
-  let newTermComponents :: Map v (New Reference.Id, Term v a)
-      newTermComponents = 
+  let newTermComponents :: Map v (New Reference.Id, Term.Term v a)
+      newTermComponents =
         remappedReferences
         & Map.elems
         & fmap (\(v, trm, _typ) -> (v, trm))
         & Map.fromList
         & Convert.hashTermComponents
-  
+
   ifor newTermComponents $ \v (newReferenceId, trm) -> do
-    let oldReferenceId = vToOldReference Map.! v
+    let oldReferenceId = vToOldReferenceMapping Map.! v
     let (_, _, typ) = remappedReferences Map.! oldReferenceId
-    field @"referenceMap" %= Map.insert oldReferenceId newReferenceId
-    putTermDeclaration newReferenceId typ trm
+    field @"referenceMapping" %= Map.insert oldReferenceId newReferenceId
+    lift $ putTerm newReferenceId trm typ
+
   -- what's this for?
   -- let newTypeComponents :: Map v (Reference.Id, Type v a)
       -- newTypeComponents = (Map.fromList $ Map.elems remappedReferences)
@@ -263,7 +266,7 @@ migrateTermComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
 
 
 
-migrateDeclComponent :: forall m v a. Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity)
+migrateDeclComponent :: forall m v a. (Generic v, Generic a) => Codebase m v a -> Unison.Hash -> m (Sync.TrySyncResult Entity)
 migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   declComponent :: [DD.Decl v a] <- lift (getDeclComponent hash) >>= \case
     Nothing -> error "handle this" -- not non-fatal!
@@ -287,26 +290,31 @@ migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
         unhashed
         ^.. traversed
         . _2
-        . beside asDataDecl_ id
+        . beside DD.asDataDecl_ id
         . to DD.constructors'
         . traversed
         . _3
 
-  let allContainedReferences :: [Reference.Id]
-      allContainedReferences = foldMap (ABT.find findReferenceIds) allTypes
-  -- unmigratedIds :: [Reference.Id]
-  declMap <- gets declLookup
-  let unmigratedIds :: [Reference.Id]
-      unmigratedIds = filter (\ref -> not (Map.member ref declMap)) allContainedReferences
-  when (not . null $ unmigratedIds) do
-    let unmigratedHashes :: [Unison.Hash]
-        unmigratedHashes =
-          nubOrd (map Reference.idToHash unmigratedIds)
-    throwE (Sync.Missing (map DComponent unmigratedHashes))
+  migratedReferences <- gets referenceMapping
+  let unmigratedHashes :: [Hash]
+      unmigratedHashes =
+        allTypes
+        ^.. traversed -- Every type in the list
+        . ABT.subterms_ -- All subterms in each type
+        . ABT.baseFunctor_ -- Focus Type.F
+        . Type._Ref -- Only the Ref constructor has references
+        . Reference._DerivedId
+        . filtered (\r -> Map.notMember r migratedReferences)
+        . to Reference.idToHash
+        -- foldMap (ABT.find (findMissingTypeReferenceIds migratedReferences)) allTypes
+
+  when (not . null $ unmigratedHashes) do
+    throwE (Sync.Missing (map DComponent $ nubOrd unmigratedHashes))
 
   -- At this point we know we have all the required mappings from old references  to new ones.
   let remapTerm :: Type v a -> Type v a
-      remapTerm typ = runIdentity $ ABT.visit' (remapReferences declMap) typ
+      remapTerm = typeReferences %~ \ref -> Map.findWithDefault (error "unmigrated reference") ref migratedReferences
+        -- runIdentity $ ABT.visit' (remapReferences declMap) typ
 
   let remappedReferences :: Map (Old Reference.Id) (v, DD.Decl v a)
       remappedReferences = unhashed
@@ -326,11 +334,40 @@ migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   -- ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 
   let newComponent :: [(v, Reference.Id, DD.DataDeclaration v a)]
-      newComponent = Convert.hashDecls (Map.fromList $ Map.elems remappedReferences)
+      newComponent = remappedReferences
+                   & Map.elems
+                   & Map.fromList
+                   & fmap DD.asDataDecl
+                   & Convert.hashDecls
+                   & fromRight (error "unexpected resolution error")
   for_ newComponent $ \(v, newReferenceId, dd) -> do
-    field @"declLookup" %= Map.insert (vToOldReference Map.! v) newReferenceId
-    putTypeDeclaration newReference (_ d)
+    field @"referenceMapping" %= Map.insert (vToOldReference Map.! v) newReferenceId
+    lift $ putTypeDeclaration newReferenceId (_ dd) -- Need to somehow keep decl type through this transformation?
   pure Sync.Done
+
+
+typeReferences :: Traversal' (Type v a) (Reference.Id)
+typeReferences =
+          ABT.rewriteDown_ -- Focus all terms
+        . ABT.baseFunctor_ -- Focus Type.F
+        . Type._Ref -- Only the Ref constructor has references
+        . Reference._DerivedId
+
+termReferences :: (Monad m, Ord v) => LensLike' m (Term.Term v a) (Reference.Id)
+termReferences =
+          ABT.rewriteDown_ -- Focus all terms
+        . ABT.baseFunctor_ -- Focus Type.F
+        . _
+
+termFReferences :: Traversal' (Term.F tv ta pa a) (Reference.Id)
+termFReferences f t = 
+  t & Term._Ref %%~ f
+    & Term._Constructor . _1 %%~ f
+    & Term._Request . _1 %%~ f
+    & Term._Ann . _2 . typeReferences %%~ f
+    & Term._Match . _2 . _ %%~ f
+    & Term._TermLink %%~ f
+    & Term._TypeLink %%~ f
 
 
 -- structural type Ping x = P1 (Pong x)
@@ -349,7 +386,7 @@ migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
 -- ctor P1: #abc pos=0 cid=0
 -- ctor P2: #abc pos=1 cid=0
 -- ctor P3: #abc pos=1 cid=1
--- 
+--
 -- we unhashComponent and get:
 -- { X -> structural type X x = AAA (Y x)
 -- , Y -> structural type Y x = BBB (X x) | CCC Nat }
@@ -357,19 +394,15 @@ migrateDeclComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
 
 
 
-
-
-
-
 remapReferences :: Map (Old Reference.Id) (New Reference.Id)
                 -> Type.F (Type v a)
-                -> Identity Type.F (Type v a)
+                -> Type.F (Type v a)
 remapReferences declMap = \case
-  (Type.Ref (Reference.DerivedId refId)) ->
+  (Type.Ref (Reference.DerivedId refId)) -> Type.Ref . Reference.DerivedId $
     fromMaybe
       (error $ "Expected reference to exist in decl mapping, but it wasn't found: " <> show refId)
-      (Sync.Missing [DComponent Reference.idToHash refId]) (Map.lookup refId declMap)
-  x -> pure x
+      (Map.lookup refId declMap)
+  x -> x
 
 
 
@@ -389,63 +422,13 @@ remapReferences declMap = \case
 -- recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
 -- recordRefsInType = _
 
-findTypeReferenceIds :: Type v a -> ABT.FindAction Reference.Id
-findTypeReferenceIds = ABT.out >>> \case
-  ABT.Tm (Type.Ref (Reference.DerivedId r)) -> ABT.Found r
-  x -> ABT.Continue
-
-findTermReferenceIds :: Term f v a -> [Reference.Id]
-findTermReferenceIds t = flip ABT.find (ABT.out t) \case
-  ABT.Tm f -> ABT.Found (findReferencesInTermF f)
-  x -> ABT.Continue
-
-findReferencesInTermF :: Unison.Term.F typeVar typeAnn patternAnn a -> [Reference.Id]
-findReferencesInTermF = ABT.find \case
-  Ref (Reference.DerivedId refId) -> ABT.Found [refId]
-  Constructor (Reference.DerivedId refId) _conID -> ABT.Found [refId]
-  Request (Reference.DerivedId refId) _conID -> ABT.Found [refId]
-  Ann _ typ -> ABT.Found (ABT.find findTypeReferenceIds typ)
-  TermLink referent -> case referent of
-    Ref' (Reference.DerivedId refId)  -> ABT.Found [refId]
-    -- Double check that ConType isn't part of the hash, remove it if it is.
-    Con' (Reference.DerivedId refId) _conID _conType -> ABT.Found [refId]
-  TypeLink (Reference.DerivedId refId) -> ABT.Found [refId]
-  Match _ matchCases -> foldMap (\MatchCase pat _ -> findReferencesInPattern pat) matchCases
-  _ -> ABT.Continue
-
-findReferencesInPattern :: Traversal' () -> Pattern loc -> [Reference.Id]
-findReferencesInPattern
-  = \case 
-       Unbound{} -> []
-       Var{} -> []
-       Boolean{} -> []
-       Int{} -> []
-       Nat{} -> []
-       Float{} -> []
-       Text{} -> []
-       Char{} -> []
-       Constructor _loc ref _constructorId ps -> 
-         let rs = case ref of 
-                    DerivedId refId -> [refId]
-                    Builtin{} -> []
-          in rs <> foldMap findReferencesInPattern ps
-       As _loc p -> findReferencesInPattern p
-       EffectPure _loc p -> findReferencesInPattern p
-       EffectBind _loc ref _constructorId ps p
-         -> let rs = case ref of 
-                      DerivedId refId -> [refId]
-                      Builtin{} -> []
-             in rs <> foldMap findReferencesInPattern (p:ps)
-       SequenceLiteral _loc ps -> foldMap findReferencesInPattern ps
-       SequenceOp _loc p _seqOp p' -> foldMap findReferencesInPattern [p, p']
-
--- data DataDeclaration v a = DataDeclaration {
---   modifier :: Modifier,
---   annotation :: a,
---   bound :: [v],
---   constructors' :: [(a, v, Type v a)]
--- } deriving (Eq, Show, Functor)
-
+-- findMissingReferencesInTermF ::
+--   (Generic typeVar, Generic typeAnn, Generic patternAnn) =>
+--   Term.F typeVar typeAnn patternAnn () ->
+--   [Reference.Id]
+-- findMissingReferencesInTermF t =
+--   -- TODO: Test that this descends into Match cases and finds everything it needs to.
+--   t ^.. types @Reference.Id
 
 -- compute correspondence between `v`s in `fst <$> named` compared to `fst <$> new_references` to get a Reference.Id -> Reference.Id mapping
 -- mitchell tapped out before understanding the following line

@@ -14,6 +14,7 @@ library:
     - either
     - extra
     - fuzzyfind
+    - generic-lens
     - lens
     - prelude-extras
     - memory
@@ -32,6 +33,7 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts

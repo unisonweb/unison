@@ -14,10 +14,10 @@ module Unison.ABT where
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
-import Control.Lens (Lens', use, (.=), Fold, folding, LensLike', Setter')
+import Control.Lens (Lens', use, (.=), Fold, folding, Setter', lens, (%%~))
 import Control.Monad.State (MonadState, evalState)
 import qualified Data.Foldable as Foldable
-import Data.Functor.Identity (runIdentity)
+import Data.Functor.Identity (runIdentity, Identity (Identity))
 import Data.List hiding (cycle)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -28,14 +28,31 @@ data ABT f v r
   = Var v
   | Cycle r
   | Abs v r
-  | Tm (f r) 
-  deriving (Functor, Foldable, Traversable)
-  -- deriving Data
-  
+  | Tm (f r)
+  deriving (Functor, Foldable, Traversable, Generic)
+
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+  deriving Generic
+
+abt_ :: Lens' (Term f v a) (ABT f v (Term f v a))
+abt_ = lens out setter
+  where
+    setter (Term fv a _) abt = Term fv a abt
+
+-- a.k.a. baseFunctor_ :: Traversal' (Term f v a) (f _)
+baseFunctor_ ::
+  Applicative m =>
+  (f (Term f v a) -> m (f (Term f v a))) ->
+  Term f v a ->
+  m (Term f v a)
+baseFunctor_ f t =
+  t & abt_ %%~ \case
+    Tm fx -> Tm <$> f (fx)
+    x -> pure x
+
 
 -- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
 
@@ -446,7 +463,7 @@ freeVarOccurrences except t =
     Tm body -> foldMap go body
 
 foreachSubterm
-  :: (Traversable f, Applicative g, Ord v)
+  :: (Traversable f, Applicative g)
   => (Term f v a -> g b)
   -> Term f v a
   -> g [b]
@@ -459,10 +476,10 @@ foreachSubterm f e = case out e of
       <$> f e
       <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
 
-subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
+subterms :: (Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
 
-subterms_ :: (Ord v, Traversable f) => Fold (Term f v a) (Term f v a)
+subterms_ :: (Traversable f) => Fold (Term f v a) (Term f v a)
 subterms_ = folding subterms
 
 -- | `visit f t` applies an effectful function to each subtree of
@@ -485,17 +502,6 @@ visit f t = flip fromMaybe (f t) $ case out t of
 subTermsSetter_ :: (Traversable f, Ord v) => Setter' (Term f v a) (Term f v a)
 subTermsSetter_ f tm = visit (Just . f) tm
 
-visitT :: (Traversable f, Monad m, Ord v)
-       => (Term f v a) -> m (Term f v a)
-       -> Term f v a
-       -> m (Term f v a)
-visitT f tm = f tm >>= \(Term )
-  Var _ -> pure t
-  Cycle body -> cycle' (annotation t) <$> visit' f body
-  Abs x e -> abs' (annotation t) x <$> visit' f e
-  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
-      
-
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Monad g, Ord v)
        => (f (Term f v a) -> g (f (Term f v a)))
@@ -516,7 +522,7 @@ rewriteDown :: (Traversable f, Ord v)
             => (Term f v a -> Term f v a)
             -> Term f v a
             -> Term f v a
-rewriteDown f tm = runIdentity $ rewriteDown (Identity . f) tm
+rewriteDown f tm = runIdentity $ rewriteDown_ (Identity . f) tm
 
 
 -- | Setter' (Term f v a) (Term f v a)
@@ -527,10 +533,10 @@ rewriteDown_ :: (Traversable f, Monad m, Ord v)
 rewriteDown_ f t = do
   t' <- f t
   case out t' of
-    Var _ -> t'
-    Cycle body -> cycle' (annotation t') <$> rewriteDown' f body
-    Abs x e -> abs' (annotation t') x <$> rewriteDown' f e
-    Tm body -> tm' (annotation t') <$> (rewriteDown' f `fmap` body)
+    Var v -> pure (annotatedVar (annotation t') v)
+    Cycle body -> cycle' (annotation t') <$> rewriteDown_ f body
+    Abs x e -> abs' (annotation t') x <$> rewriteDown_ f e
+    Tm body -> tm' (annotation t') <$> (traverse (rewriteDown_ f) body)
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
@@ -593,7 +599,8 @@ reannotateUp g t = case out t of
 
 -- Find all subterms that match a predicate.  Prune the search for speed.
 -- (Some patterns of pruning can cut the complexity of the search.)
-data FindAction x = Found x | Prune | Continue deriving Show
+data FindAction x = Found x | Prune | Continue
+  deriving (Show, Functor)
 find :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> FindAction x)
   -> Term f v a

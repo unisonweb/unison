@@ -59,6 +59,7 @@ library:
     - fingertree
     - fsnotify
     - generic-monoid
+    - generic-lens
     - hashable
     - hashtables
     - haskeline
@@ -88,6 +89,7 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - semialign
     - mwc-random
     - NanoID
     - servant

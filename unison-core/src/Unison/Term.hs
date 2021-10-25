@@ -7,6 +7,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Term where
 
@@ -45,6 +46,8 @@ import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Data.Set.NonEmpty as NES
+import Data.Generics.Sum (_Ctor)
+import Control.Lens (Prism')
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -92,6 +95,27 @@ data F typeVar typeAnn patternAnn a
   | TermLink Referent
   | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
+
+_Ref :: Prism' (F tv ta pa a) Reference
+_Ref = _Ctor @"Ref"
+
+_Match :: Prism' (F tv ta pa a) (a, [MatchCase pa a])
+_Match = _Ctor @"Match"
+
+_Constructor :: Prism' (F tv ta pa a) (Reference, Int)
+_Constructor = _Ctor @"Constructor"
+
+_Request :: Prism' (F tv ta pa a) (Reference, Int)
+_Request = _Ctor @"Request"
+
+_Ann :: Prism' (F tv ta pa a) (a, ABT.Term Type.F tv ta)
+_Ann = _Ctor @"Ann"
+
+_TermLink :: Prism' (F tv ta pa a) Referent
+_TermLink = _Ctor @"TermLink"
+
+_TypeLink :: Prism' (F tv ta pa a) Reference
+_TypeLink = _Ctor @"TypeLink"
 
 type IsTop = Bool
 

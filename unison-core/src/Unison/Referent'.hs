@@ -7,7 +7,7 @@ import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashable (Hashable (tokens))
 import qualified Unison.Hashable as H
-import Unison.Prelude (Word64)
+import Unison.Prelude (Word64, Generic)
 
 -- | Specifies a term.
 --
@@ -20,7 +20,7 @@ import Unison.Prelude (Word64)
 --
 -- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' r ConstructorId ConstructorType
-  deriving (Show, Ord, Eq, Functor)
+  deriving (Show, Ord, Eq, Functor, Generic)
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True

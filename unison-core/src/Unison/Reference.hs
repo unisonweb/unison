@@ -2,12 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns   #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Reference
   (Reference,
      pattern Builtin,
      pattern Derived,
      pattern DerivedId,
+     _DerivedId,
    Id(..),
    Pos,
    CycleSize, Size,
@@ -28,7 +30,8 @@ module Unison.Reference
    unsafeId,
    toShortHash,
    idToHash,
-   idToShortHash) where
+   idToShortHash,
+  ) where
 
 import Unison.Prelude
 
@@ -38,6 +41,8 @@ import qualified Unison.Hash     as H
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
+import Control.Lens (Prism')
+import Data.Generics.Sum (_Ctor)
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.
 --
@@ -50,12 +55,15 @@ data Reference
   -- The `Pos` refers to a particular element of the component
   -- and the `Size` is the number of elements in the component.
   -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq, Ord)
+  | DerivedId Id deriving (Eq, Ord, Generic)
 
 pattern Derived :: H.Hash -> Pos -> Reference
 pattern Derived h i = DerivedId (Id h i)
 
 {-# COMPLETE Builtin, Derived #-}
+
+_DerivedId :: Prism' Reference Id
+_DerivedId = _Ctor @"DerivedId"
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
