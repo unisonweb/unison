@@ -42,7 +42,7 @@ import Unison.Hash (Hash)
 import Data.Tuple (swap)
 import Unison.Pattern (Pattern)
 import Unison.Var (Var)
-import Control.Monad.Trans.Writer.CPS (runWriterT, tell, execWriterT, execWriter)
+import Control.Monad.Trans.Writer.CPS (runWriterT, tell, execWriterT, execWriter, Writer)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -234,13 +234,13 @@ migrateTermComponent Codebase{..} hash = fmap (either id id) . runExceptT $ do
   referencesMap <- gets referenceMapping
   let allMissingReferences :: [Old Reference.Id]
       allMissingReferences =
-        execWriter $ unhashed 
-                   & traversed 
-                   & traversed 
-                   . _2 
-                   . termReferences_ 
-                   . filtered (\r -> Map.notMember r referencesMap) %%~ \r -> tell [r] *> pure r
-        -- unhashed ^.. traversed . types @Reference.Id . filtered (\r -> Map.notMember r referencesMap)
+        unhashed
+        & foldSetter
+          ( traversed
+          . _2
+          . termReferences_
+          . filtered (\r -> Map.notMember r referencesMap)
+          )
         -- foldMap (ABT.find findReferenceIds) (snd <$> Map.elems)
   when (not . null $ allMissingReferences)
     $ throwE $ Sync.Missing . nubOrd $ (TComponent . Reference.idToHash <$> allMissingReferences)
@@ -312,20 +312,18 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
         . _3
 
   migratedReferences <- gets referenceMapping
-  let unmigratedHashes :: [Hash]
-      unmigratedHashes =
+  let unmigratedRefIds :: [Reference.Id]
+      unmigratedRefIds =
         allTypes
-        ^.. traversed -- Every type in the list
-        . ABT.subterms_ -- All subterms in each type
-        . ABT.baseFunctor_ -- Focus Type.F
-        . Type._Ref -- Only the Ref constructor has references
-        . Reference._DerivedId
-        . filtered (\r -> Map.notMember r migratedReferences)
-        . to Reference.idToHash
+        & foldSetter 
+           ( traversed -- Every type in the list
+           . typeReferences
+           . filtered (\r -> Map.notMember r migratedReferences)
+           )
         -- foldMap (ABT.find (findMissingTypeReferenceIds migratedReferences)) allTypes
 
-  when (not . null $ unmigratedHashes) do
-    throwE (Sync.Missing (map DComponent $ nubOrd unmigratedHashes))
+  when (not . null $ unmigratedRefIds) do
+    throwE (Sync.Missing (map DComponent . nubOrd . fmap Reference.idToHash $ unmigratedRefIds))
 
   -- At this point we know we have all the required mappings from old references  to new ones.
   let remapTerm :: Type v a -> Type v a
@@ -548,3 +546,6 @@ migrateSchema12 db = do
 
 -- -- getConstructor :: ConstructorMappings -> ObjectId -> Pos -> ConstructorId
 -- -- getConstructor cm
+
+foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
+foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
