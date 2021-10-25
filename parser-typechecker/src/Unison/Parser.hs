@@ -273,7 +273,7 @@ matchToken x = P.satisfy ((==) x . L.payload)
 -- The package name that refers to the root, literally just `.`
 importDotId :: Ord v => P v (L.Token Name)
 importDotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromString ".") -- FIXME that's not a name
+  go (L.SymbolyId "." Nothing) = Just (Name.unsafeFromString ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
