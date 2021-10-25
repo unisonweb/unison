@@ -111,10 +111,10 @@ _Ref = _Ctor @"Ref"
 _Match :: Prism' (F tv ta pa a) (a, [MatchCase pa a])
 _Match = _Ctor @"Match"
 
-_Constructor :: Prism' (F tv ta pa a) (Reference, Int)
+_Constructor :: Prism' (F tv ta pa a) (Reference, ConstructorId)
 _Constructor = _Ctor @"Constructor"
 
-_Request :: Prism' (F tv ta pa a) (Reference, Int)
+_Request :: Prism' (F tv ta pa a) (Reference, ConstructorId)
 _Request = _Ctor @"Request"
 
 _Ann :: Prism' (F tv ta pa a) (a, ABT.Term Type.F tv ta)
