@@ -41,7 +41,6 @@ library
       Unison.Names.ResolutionResult
       Unison.NameSegment
       Unison.NamesWithHistory
-      Unison.Paths
       Unison.Pattern
       Unison.Reference
       Unison.Reference.Util
