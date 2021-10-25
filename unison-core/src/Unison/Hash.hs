@@ -31,7 +31,7 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash { toBytes :: SBS.ShortByteString } deriving (Eq,Ord,Generic)
+newtype Hash = Hash { toBytes :: SBS.ShortByteString } deriving (Eq,Ord,Generic, Data)
 
 instance Show Hash where
   show h = take 999 $ Text.unpack (base32Hex h)

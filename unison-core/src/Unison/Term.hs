@@ -47,10 +47,19 @@ import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Data.Set.NonEmpty as NES
 import Data.Generics.Sum (_Ctor)
-import Control.Lens (Prism')
+import Control.Lens (Prism', Lens', lens)
 
-data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
+data MatchCase loc a = MatchCase
+  { matchPattern :: Pattern loc,
+    matchGuard :: (Maybe a),
+    matchBody :: a
+  }
+  deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
+
+matchPattern_ :: Lens' (MatchCase loc a) (Pattern loc)
+matchPattern_ = lens matchPattern setter
+  where
+    setter m p = m {matchPattern = p}
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
