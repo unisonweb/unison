@@ -64,12 +64,19 @@ import qualified Unison.Names as Names
 
 type Env = PPE.PrettyPrintEnv
 
+pattern Code :: Color
 pattern Code = Color.Blue
+pattern Type1 :: Color
 pattern Type1 = Color.HiBlue
+pattern Type2 :: Color
 pattern Type2 = Color.Green
+pattern ErrorSite :: Color
 pattern ErrorSite = Color.HiRed
+pattern TypeKeyword :: Color
 pattern TypeKeyword = Color.Yellow
+pattern AbilityKeyword :: Color
 pattern AbilityKeyword = Color.Green
+pattern Identifier :: Color
 pattern Identifier = Color.Bold
 
 defaultWidth :: Pr.Width
@@ -1232,7 +1239,7 @@ prettyParseError s = \case
       , " here for a type signature?"
       , "\n\n"
       , tokenAsErrorSite s t
-      ]
+      ]  
   go (Parser.DidntExpectExpression tok _nextTok) = mconcat
     [ "This looks like the start of an expression here \n\n"
     , tokenAsErrorSite s tok
@@ -1252,6 +1259,12 @@ prettyParseError s = \case
     , "\n"
     ]
     where t = style Code (fromString (P.showTokens (pure tok)))
+  go (Parser.DidntExpectPattern {- tok _nextTok -})
+    = mconcat
+      [ "This looks like the start of a pattern match here but I was expecting an argument declaration."
+      , "\nDid you mean to use a variable here instead?\n\n"
+      -- , tokenAsErrorSite s tok
+      ]
   go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat
     [ "I was expecting an indented block following the " <>
       "`" <> fromString blockName <> "` keyword\n"
