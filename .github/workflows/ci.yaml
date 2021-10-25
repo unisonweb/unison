@@ -1,5 +1,9 @@
 name: CI
 
+defaults:
+  run:
+    working-directory: unison
+
 on:
   # Build on every pull request (and new PR commit)
   pull_request:
@@ -34,6 +38,9 @@ jobs:
            haddock_flags: ''
     steps:
       - uses: actions/checkout@v2
+        with:
+          path: unison
+
       - name: sanity check
         run: |
           echo matrix.os ${{ matrix.os }}
@@ -111,23 +118,22 @@ jobs:
         run: stack --no-terminal test unison-util-relation
 
       # Haddocks
-      - name: Copy haddocks
-        if: matrix.build_haddocks
-        run: |
-          docs_root="$(stack path --local-doc-root)"
-          mkdir -p /haddocks
-          cp -r "${docs_root}"/* /haddocks
       - name: Checkout haddocks branch
         if: matrix.build_haddocks
         uses: actions/checkout@v2
         with:
           ref: 'haddocks'
-      - name: Commit and push haddocks to haddocks branch.
+          path: 'haddocks'
+
+      - name: Copy haddocks
         if: matrix.build_haddocks
+        working-directory: 'unison'
         run: |
+          docs_root="$(stack path --local-doc-root)"
           # Erase any stale files
+          cd "$GITHUB_WORKSPACE"/haddocks
           rm -rf ./*
-          cp -r /haddocks/* ./
+          cp -r "${docs_root}"/* "$GITHUB_WORKSPACE"/haddocks
           git add .
           git commit -m "Regenerate haddocks based on ${GITHUB_SHA}"
           git push
