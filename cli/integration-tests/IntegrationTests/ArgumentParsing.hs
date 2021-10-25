@@ -21,46 +21,46 @@ tempCodebase = "tempcodebase"
 
 test :: Test ()
 test =
-  scope "argument-parsing" . tests $
-    map
-      (expectExitCode ExitSuccess)
-      [ ["--help"],
-        ["-h"],
-        ["version", "--help"],
-        ["init", "--help"],
-        ["run", "--help"],
-        -- ,["run.compile", "--help"] -- Invalid Argument?
-        ["run.file", "--help"],
-        ["run.pipe", "--help"],
-        ["transcript", "--help"],
-        ["transcript.fork", "--help"],
-        ["headless", "--help"],
-        ["version"],
-        ["init"], -- removed
-        -- ,["run"] -- how?
-        ,["run.file", uFile, "print"]
-        ,["transcript", transcriptFile]
-        ,["transcript.fork", transcriptFile]
-        -- ,["headless"] -- ?
-        -- options
-        ,["--port", "8000"]
-        ,["--host", "localhost"]
-        ,["--token", "MY_TOKEN"] -- ?
-        ,["--codebase-create", tempCodebase]
-        ,["--codebase", tempCodebase]
-        ,["--ui", tempCodebase]
-        ["--no-base"]
+  EasyTest.using (pure ()) clearTempCodebase \_ ->
+     scope "argument-parsing" . tests $
+      [ expectExitCode ExitSuccess ["--help"]
+      , expectExitCode ExitSuccess ["-h"]
+      , expectExitCode ExitSuccess ["version", "--help"]
+      , expectExitCode ExitSuccess ["init", "--help"]
+      , expectExitCode ExitSuccess ["run", "--help"]
+      -- , expectExitCode ExitSuccess ["run.compile", "--help"] -- Invalid Argument?
+      , expectExitCode ExitSuccess ["run.file", "--help"]
+      , expectExitCode ExitSuccess ["run.pipe", "--help"]
+      , expectExitCode ExitSuccess ["transcript", "--help"]
+      , expectExitCode ExitSuccess ["transcript.fork", "--help"]
+      , expectExitCode ExitSuccess ["headless", "--help"]
+      , expectExitCode ExitSuccess ["version"]
+      , expectExitCode ExitSuccess ["init"] -- removed
+      -- , expectExitCode ExitSuccess ["run"] -- how?
+      , expectExitCode ExitSuccess ["run.file", uFile, "print"]
+      , expectExitCode ExitSuccess ["transcript", transcriptFile]
+      , expectExitCode ExitSuccess ["transcript.fork", transcriptFile]
+      -- , expectExitCode ExitSuccess ["headless"] -- ?
+      -- options
+      , expectExitCode ExitSuccess ["--port", "8000"]
+      , expectExitCode ExitSuccess ["--host", "localhost"]
+      , expectExitCode ExitSuccess ["--token", "MY_TOKEN"] -- ?
+      , expectExitCode ExitSuccess ["--codebase-create", tempCodebase]
+      , expectExitCode ExitSuccess ["--codebase", tempCodebase]
+      , expectExitCode ExitSuccess ["--ui", tempCodebase]
+      , expectExitCode ExitSuccess ["--no-base"]
+
+      -- Failure
+      , expectExitCode (ExitFailure 1) ["--port", "x"] -- must be number
+      , expectExitCode (ExitFailure 1) ["run.compile", "--help"] -- ?
+      , expectExitCode (ExitFailure 1) ["run.file"] -- without file
+      , expectExitCode (ExitFailure 1) ["run.file", uFile] -- without SYMBOL
+      , expectExitCode (ExitFailure 1) ["transcript"] -- without file
+      , expectExitCode (ExitFailure 1) ["transcript.fork"] -- without file
+
+      -- others
+      , testRunPipe
       ]
-      ++ map
-        (expectExitCode (ExitFailure 1))
-        [ ["--port", "x"], -- must be number
-          ["run.compile", "--help"], -- ?
-          ["run.file"], -- without file
-          ["run.file", uFile], -- without SYMBOL
-          ["transcript"], -- without file
-          ["transcript.fork"] -- without file
-        ]
-      ++ [testRunPipe, clearTempCodebase]
 
 expectExitCode :: ExitCode -> [String] -> Test ()
 expectExitCode expected args = scope (intercalate " " args) do
@@ -75,15 +75,14 @@ testRunPipe = scope "run.pipe print" do
   (code, _, _) <- io $ readProcessWithExitCode "stack" fullargs stdin
   expectEqual code ExitSuccess
   where
-    stdin =
-      "print : '{IO, Exception} () \n\
-      \print _ = base.io.printLine \"ok\""
+    stdin = unlines [ "print : '{IO, Exception} ()"
+                    , "print _ = base.io.printLine \"ok\""
+                    ]
 
     fullargs :: [String]
     fullargs = ["exec", "--", "unison", "run.pipe", "print"]
 
-clearTempCodebase :: Test ()
-clearTempCodebase = scope "(clear)" do
-  _ <- io do
+clearTempCodebase :: () -> IO()
+clearTempCodebase _ = do
     "rm" $| (map pack ["-rf", tempCodebase])
-  ok
+    pure ()
