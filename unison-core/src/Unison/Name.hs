@@ -62,7 +62,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text (Builder)
 import qualified Data.Text.Lazy.Builder as Text.Builder
-import qualified Unison.Hashable as H
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
@@ -79,9 +78,6 @@ data Name
 instance Alphabetical Name where
   compareAlphabetical n1 n2 =
     compareAlphabetical (toText n1) (toText n2)
-
-instance H.Hashable Name where
-  tokens s = [H.Text (toText s)]
 
 instance IsString Name where
   fromString =
