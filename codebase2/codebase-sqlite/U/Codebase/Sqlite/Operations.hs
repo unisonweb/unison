@@ -1057,6 +1057,10 @@ loadBranchByCausalHashId id = do
   (liftQ . Q.loadBranchObjectIdByCausalHashId) id
     >>= traverse loadBranchByObjectId
 
+-- FIXME this doesn't belong in this module
+loadDbBranchByObjectId :: EDB m => Db.BranchObjectId -> m (S.DbBranch m)
+loadDbBranchByObjectId = undefined
+
 loadBranchByObjectId :: EDB m => Db.BranchObjectId -> m (C.Branch.Branch m)
 loadBranchByObjectId id = do
   deserializeBranchObject id >>= \case
