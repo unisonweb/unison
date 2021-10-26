@@ -5,10 +5,13 @@ defaults:
     working-directory: unison
 
 on:
+
+  # TODO: remove, only for testing
+  pull_request: {}
   push:
     branches:
       - trunk
-      # TODO: remove
+      # TODO: remove, only for testing
       - haddock-upload
 
 jobs:
