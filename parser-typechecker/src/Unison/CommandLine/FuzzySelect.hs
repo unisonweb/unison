@@ -2,6 +2,7 @@
 module Unison.CommandLine.FuzzySelect
   ( fuzzySelect
   , Options(..)
+  , defaultOptions
   ) where
 import Unison.Prelude
 import qualified UnliftIO.Process as Proc
@@ -17,17 +18,22 @@ data Options = Options
   { allowMultiSelect :: Bool
   }
 
+defaultOptions :: Options
+defaultOptions = Options
+  { allowMultiSelect = True
+  }
+
 defaultFZFCommand :: String
 defaultFZFCommand =
   unwords
   [ "fzf"
-  , "--with-nth=2.." -- Don't show or match on the first column of input. We use this to identify results.
+  , "--with-nth 2.." -- Don't show or match on the first column of input. We use this to identify results.
   ]
 
 optsToCommand :: Options -> String
-optsToCommand opts = defaultFZFCommand <> case opts of
-  Options {allowMultiSelect=True} -> "-m"
-  _ -> ""
+optsToCommand opts = defaultFZFCommand <> unwords case opts of
+  Options {allowMultiSelect=True} -> [" -m"]
+  _ -> []
 
 withTempScreen :: IO a -> IO a
 withTempScreen =
@@ -35,6 +41,7 @@ withTempScreen =
     (Proc.callCommand "tput smcup") -- Stash existing screen, create a new one
     (Proc.callCommand "tput rmcup") -- Delete the temporary screen, restore the original.
 
+-- | Allows prompting the user to interactively fuzzy-select a result from a list of options, currently shells out to `fzf` under the hood.
 fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO [a]
 fuzzySelect opts intoSearchText choices = withTempScreen $ do
   let command = optsToCommand opts

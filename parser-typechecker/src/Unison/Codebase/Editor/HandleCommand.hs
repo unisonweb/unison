@@ -47,6 +47,7 @@ import qualified Unison.Util.Free as Free
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 
 typecheck
   :: (Monad m, Var v)
@@ -188,6 +189,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       let cl = Codebase.toCodeLookup codebase
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
+    FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase WK.RegularWatch h

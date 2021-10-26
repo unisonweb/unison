@@ -151,6 +151,7 @@ import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 
 type F m i v = Free (Command m i v)
 
@@ -1161,7 +1162,14 @@ loop = do
 
       DisplayI outputLoc hq -> displayI outputLoc hq
 
-      ShowDefinitionI outputLoc query -> do
+      ShowDefinitionI outputLoc inputQuery -> do
+        -- If the query is empty, run a fuzzy search.
+        query <- case inputQuery of
+          [] -> do
+            let termsAndTypes = Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms currentBranch0))
+                            <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes currentBranch0))
+            eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+          q -> pure q
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
         case res of
           Left e -> handleBackendError e
@@ -3008,4 +3016,6 @@ declOrBuiltin r = case r of
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
+
+-- data CodebaseThings = Terms | Types | Namespaces
 

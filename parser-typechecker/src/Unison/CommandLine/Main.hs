@@ -48,10 +48,6 @@ import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
-import qualified Unison.Name as Name
-import qualified Data.Set as Set
-import qualified Unison.Util.Relation as Relation
-import Unison.CommandLine.FuzzySelect (fuzzySelect)
 
 getUserInput
   :: forall m v a
@@ -80,11 +76,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
       $ P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
-      Just l  -> do
-       ws <- case words l of
-          ["view"] -> ("view":) . fmap Text.unpack <$> (liftIO $ fuzzySelect (fmap Name.toText . Set.toList . Relation.ran . Branch.deepTerms . Branch.head $ rootBranch))
-          x -> pure x
-       case ws of
+      Just l  -> case words l of
         [] -> go
         ws ->
           case parseInput (Branch.head rootBranch) currentPath numberedArgs patterns $ ws of

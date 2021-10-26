@@ -63,6 +63,7 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -245,8 +246,8 @@ data Command
 
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
 
-  FuzzySelect :: (a -> Text) -- ^ Select the text to fuzzy find on
-              -> Fuzzy.Options -- ^ Configure the selection.
+  FuzzySelect :: Fuzzy.Options -- ^ Configure the selection.
+              -> (a -> Text) -- ^ Select the text to fuzzy find on
               -> [a] -- ^ The elements to select from
               -> Command m i v [a] -- ^ The selected results
 
@@ -312,3 +313,4 @@ commandName = \case
   FindShallow{}               -> "FindShallow"
   ClearWatchCache{}           -> "ClearWatchCache"
   MakeStandalone{}            -> "MakeStandalone"
+  FuzzySelect{}               -> "FuzzySelect"
