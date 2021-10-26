@@ -134,9 +134,8 @@ basicNames' root path = (parseNames0, prettyPrintNames0)
     -- than absolute; external names appear as absolute
     currentAndExternalNames =
       currentPathNames
-        `Names.unionLeft` absDot externalNames
+        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
       where
-        absDot = Names.prefix0 (Name.unsafeFromText "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
         pathPrefixed = case path of

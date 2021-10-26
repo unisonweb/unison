@@ -27,7 +27,7 @@ import Data.List.Extra (stripPrefix)
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Lexer as Lexer
-import qualified Unison.Name as Name
+import qualified Unison.NameSegment as NameSegment
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.ShortHash as SH
 
@@ -57,11 +57,11 @@ parsePathImpl' p = case p of
   p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
  where
   go f p = case f p of
-    Right (a, "") -> case Lens.unsnoc (Name.segments' $ Text.pack a) of
+    Right (a, "") -> case Lens.unsnoc (NameSegment.segments' $ Text.pack a) of
       Nothing           -> Left "empty path"
       Just (segs, last) -> Right (NameSegment <$> segs, Text.unpack last)
     Right (segs, '.' : rem) ->
-      let segs' = Name.segments' (Text.pack segs)
+      let segs' = NameSegment.segments' (Text.pack segs)
       in  Right (NameSegment <$> segs', rem)
     Right (segs, rem) ->
       Left $ "extra characters after " <> segs <> ": " <> show rem

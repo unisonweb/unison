@@ -12,6 +12,7 @@ module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -53,7 +54,7 @@ deriving instance ToSchema SeqOp
 
 instance ToJSON SyntaxText
 
-deriving instance ToSchema SyntaxText
+deriving anyclass instance ToSchema SyntaxText
 
 instance ToSchema r => ToSchema (Seq r) where
   declareNamedSchema _ = declareNamedSchema (Proxy @[r])
@@ -175,7 +176,7 @@ nameToHtml name =
   span_ [class_ "fqn"] $ sequence_ parts
   where
     segments =
-      map (segment . L.toHtml . NameSegment.toText) $ Name.segments name
+      map (segment . L.toHtml . NameSegment.toText) $ List.NonEmpty.toList $ Name.segments name
 
     segment =
       span_ [class_ "segment"]

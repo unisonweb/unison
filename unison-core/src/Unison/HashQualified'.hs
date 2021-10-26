@@ -49,7 +49,7 @@ toName = \case
   HashQualified name _ ->  name
 
 nameLength :: HashQualified Name -> Int
-nameLength = Text.length . toText
+nameLength = Text.length . toTextWith Name.toText
 
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
@@ -83,9 +83,13 @@ fromString :: String -> Maybe (HashQualified Name)
 fromString = fromText . Text.pack
 
 toText :: Show n => HashQualified n -> Text
-toText = \case
-  NameOnly name           -> Text.pack (show name)
-  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
+toText =
+  toTextWith (Text.pack . show)
+
+toTextWith :: (n -> Text) -> HashQualified n -> Text
+toTextWith f = \case
+  NameOnly name           -> f name
+  HashQualified name hash -> f name <> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: n -> Referent -> HashQualified n

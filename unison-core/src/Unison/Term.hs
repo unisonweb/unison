@@ -127,13 +127,13 @@ bindNames keepFreeTerms ns0 e = do
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
+      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.unsafeFromVar v) ns of
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
            | otherwise -> case NES.nonEmptySet rs of
                Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
                Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
-      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
+      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.unsafeFromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
            | otherwise -> case NES.nonEmptySet rs of
                Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
@@ -170,7 +170,7 @@ bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e where
   -- (if a free variable is being used as a typed hole).
   varsToTDNR = Set.filter notFound (freeVars e)
   notFound var =
-    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms ns)) /= 1
+    Set.size (Name.searchBySuffix (Name.unsafeFromVar var) (Names.terms ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR

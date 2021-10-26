@@ -1173,7 +1173,7 @@ prettyParseError s = \case
           Nothing -> useExamples
           Just parent -> Pr.wrap $
             "You can write" <>
-            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
+            Pr.group (Pr.blue $ "use " <> Pr.shown (Name.makeRelative parent) <> " "
                                        <> Pr.shown (Name.unqualified (L.payload tok))) <>
             "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
             "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))

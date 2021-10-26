@@ -12,7 +12,6 @@ import qualified Data.Text                    as Text
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
-import GHC.Stack (HasCallStack)
 import qualified Text.Regex.TDFA              as RE
 import           Unison.Server.SearchResult (SearchResult)
 import qualified Unison.Server.SearchResult as SR
