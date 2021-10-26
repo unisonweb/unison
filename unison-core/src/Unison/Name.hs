@@ -84,6 +84,8 @@ instance IsString Name where
     unsafeFromString
 
 instance Ord Name where
+  -- Note: there are currently parts of the code that rely on the monotonicity of `cons` wrt. this ordering. Do not
+  -- change this instance without auditing all `Map.mapMonotonic` and the like!
   compare (Name p0 ss0) (Name p1 ss1) =
     compare ss0 ss1 <> compare p0 p1
 
