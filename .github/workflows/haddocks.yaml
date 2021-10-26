@@ -29,8 +29,9 @@ jobs:
         name: cache ~/.stack
         with:
           path: ~/.stack
-          key: stack-0_Linux-${{hashFiles('stack.yaml')}}
-          # Fall-back to use the most recent cache for the OS from any stack.yaml
+          # Look for the most recent haddocks build
+          key: stack-0_haddocks
+          # Fall-back to a non-haddocks build
           restore-keys: stack-0_Linux
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
@@ -39,11 +40,9 @@ jobs:
         with:
           path: |
             **/.stack-work
-          # Use separate caches for each OS.
-          # Caches from this branch will be used first, then trunk caches will
-          # be used as a backup.
-          key: stack-work-2_Linux-haddocks
-          # Fall-back to use the most recent cache for the OS
+          # Look for the most recent haddocks build
+          key: stack-work-2_haddocks
+          # Fall-back to a non-haddocks build
           restore-keys: stack-work-2_Linux
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
