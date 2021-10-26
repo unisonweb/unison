@@ -71,6 +71,8 @@ jobs:
           # Caches from this branch will be used first, then trunk caches will
           # be used as a backup.
           key: stack-work-2_${{matrix.os}}-${{matrix.haddock_flags}}
+          # Fall-back to use the most recent cache for the OS
+          restore-keys: stack-work-2_${{matrix.os}}
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.
