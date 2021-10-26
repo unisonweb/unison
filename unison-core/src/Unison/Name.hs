@@ -18,6 +18,7 @@ module Unison.Name
     countSegments,
     isAbsolute,
     isPrefixOf,
+    endsWithReverseSegments,
     endsWithSegments,
     reverseSegments,
     segments,
@@ -173,7 +174,14 @@ countSegments (Name _ ss) =
 --
 -- /O(n)/, where /n/ is the number of name segments.
 endsWithSegments :: Name -> [NameSegment] -> Bool
-endsWithSegments (Name _ ss0) ss1 =
+endsWithSegments name ss =
+  endsWithReverseSegments name (reverse ss)
+
+-- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
+--
+-- Slightly more efficient than 'endsWithSegments'.
+endsWithReverseSegments :: Name -> [NameSegment] -> Bool
+endsWithReverseSegments (Name _ ss0) ss1 =
   List.NonEmpty.isPrefixOf ss1 ss0
 
 -- | Is this name absolute?

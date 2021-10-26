@@ -17,6 +17,7 @@ test =
   scope "name" $
     tests
       [ scope "compareSuffix" (tests testCompareSuffix),
+        scope "endsWithReverseSegments" (tests testEndsWithReverseSegments),
         scope "endsWithSegments" (tests testEndsWithSegments),
         scope "segments" (tests testSegments),
         scope "splitName" (tests testSplitName),
@@ -129,6 +130,13 @@ testCompareSuffix =
     scope "[b.c a.b.b]" (expectEqual (compareSuffix "b.c" "a.b.b") LT),
     scope "[a.b.c b.c]" (expectEqual (compareSuffix "a.b.c" "b.c") LT),
     scope "[b.b a.b.c]" (expectEqual (compareSuffix "b.b" "a.b.c") GT)
+  ]
+
+testEndsWithReverseSegments :: [Test ()]
+testEndsWithReverseSegments =
+  [ scope "a.b.c ends with []" (expectEqual True (endsWithReverseSegments "a.b.c" [])),
+    scope "a.b.c ends with [c, b]" (expectEqual True (endsWithReverseSegments "a.b.c" ["c", "b"])),
+    scope "a.b.c doesn't end with [d]" (expectEqual False (endsWithReverseSegments "a.b.c" ["d"]))
   ]
 
 testEndsWithSegments :: [Test ()]
