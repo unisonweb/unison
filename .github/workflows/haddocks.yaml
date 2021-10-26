@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - trunk
+      # TODO: remove
+      - haddock-upload
 
 jobs:
   build:
