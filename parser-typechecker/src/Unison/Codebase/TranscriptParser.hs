@@ -289,7 +289,7 @@ run dir configFile stanzas codebase = do
           "\128721", "",
           "The transcript failed due to an error in the stanza above. The error is:", "",
           Text.pack msg, "",
-          "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+          "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -302,7 +302,7 @@ run dir configFile stanzas codebase = do
           transcriptFailure out $ Text.unlines [
             "\128721", "",
             "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
-            "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)

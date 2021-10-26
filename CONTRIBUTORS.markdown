@@ -58,3 +58,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * David Smith (@shmish111)
 * Chris Penner (@ChrisPenner)
 * Rebecca Mark (@rlmark)
+* Evan Minsk (@iamevn)

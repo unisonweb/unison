@@ -32,13 +32,16 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedStrings
   - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections

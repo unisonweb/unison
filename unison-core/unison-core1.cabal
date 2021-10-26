@@ -41,7 +41,7 @@ library
       Unison.Names.ResolutionResult
       Unison.NameSegment
       Unison.NamesWithHistory
-      Unison.Paths
+      Unison.OldName
       Unison.Pattern
       Unison.Reference
       Unison.Reference.Util
@@ -69,13 +69,16 @@ library
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      OverloadedStrings
       PatternSynonyms
       ScopedTypeVariables
       TupleSections

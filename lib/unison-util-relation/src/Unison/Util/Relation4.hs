@@ -114,6 +114,16 @@ mapD2 f Relation4 {d1, d2, d3, d4} =
       d4 = Map.map (R3.mapD2 f) d4
     }
 
+-- | Like 'mapD2', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD2Monotonic :: (Ord a, Ord b, Ord b', Ord c, Ord d) => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
+mapD2Monotonic f Relation4 {d1, d2, d3, d4} =
+  Relation4
+    { d1 = Map.map (R3.mapD1Monotonic f) d1,
+      d2 = Map.mapKeysMonotonic f d2,
+      d3 = Map.map (R3.mapD2Monotonic f) d3,
+      d4 = Map.map (R3.mapD2Monotonic f) d4
+    }
+
 insertAll :: Foldable f => Ord a => Ord b => Ord c => Ord d
           => f (a,b,c,d) -> Relation4 a b c d -> Relation4 a b c d
 insertAll f r = foldl' (\r x -> uncurry4 insert x r) r f

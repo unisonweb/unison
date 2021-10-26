@@ -15,7 +15,6 @@ import           Control.Monad.Writer           ( WriterT(..)
                                                 )
 import           Unison.Name                    ( Name )
 import qualified Unison.Parser                 as Parser
-import           Unison.Paths                   ( Path )
 import           Unison.Term                    ( Term )
 import qualified Unison.Typechecker.Context    as Context
 import           Control.Error.Util             ( note)
@@ -28,7 +27,6 @@ type ResultT notes f = MaybeT (WriterT notes f)
 data Note v loc
   = Parsing (Parser.Err v)
   | NameResolutionFailures [Names.ResolutionFailure v loc]
-  | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)

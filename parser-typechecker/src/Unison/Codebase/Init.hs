@@ -138,7 +138,7 @@ openNewUcmCodebaseOrExit cbInit debugName path = do
       Codebase.installUcmDependencies codebase
       pure x
 
--- | try to init a codebase where none exists and then exit regardless (i.e. `ucm -codebase dir init`)
+-- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
 initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m () 
 initCodebaseAndExit i debugName mdir =
   void $ openNewUcmCodebaseOrExit i debugName =<< Codebase.getCodebaseDir mdir
