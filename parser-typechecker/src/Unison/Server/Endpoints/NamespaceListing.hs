@@ -123,20 +123,18 @@ instance ToJSON NamedNamespace where
 deriving instance ToSchema NamedNamespace
 
 newtype NamedPatch = NamedPatch { patchName :: HashQualifiedName }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON NamedPatch where
    toEncoding = genericToEncoding defaultOptions
 
-deriving instance ToSchema NamedPatch
-
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON KindExpression where
    toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema KindExpression
 
 backendListEntryToNamespaceObject
   :: Var v

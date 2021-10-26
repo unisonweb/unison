@@ -67,7 +67,7 @@ module Unison.Runtime.ANF
   , prettyGroup
   ) where
 
-import GHC.Stack (HasCallStack,CallStack,callStack)
+import GHC.Stack (CallStack,callStack)
 
 import Unison.Prelude
 

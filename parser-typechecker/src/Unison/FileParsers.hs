@@ -14,6 +14,7 @@ import           Data.Bifunctor             ( first )
 import qualified Data.Foldable              as Foldable
 import qualified Data.Map                   as Map
 import Data.List (partition)
+import qualified Data.List.NonEmpty as List.NonEmpty
 import qualified Data.Set                   as Set
 import qualified Data.Sequence              as Seq
 import           Data.Text                  (unpack)
@@ -95,7 +96,7 @@ resolveNames typeLookupf preexistingNames uf = do
       possibleDeps = [ (Name.toText name, Var.name v, r) |
         (name, r) <- Rel.toList (Names.terms preexistingNames),
         v <- Set.toList (Term.freeVars tm),
-        name `Name.endsWithSegments` Name.fromVar v ]
+        name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)) ]
       possibleRefs = Referent.toReference . view _3 <$> possibleDeps
   tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>)
       $ typeLookupf (deps <> Set.fromList possibleRefs)
@@ -118,7 +119,7 @@ resolveNames typeLookupf preexistingNames uf = do
         [ (Var.name v, nr) |
           (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
           v <- Set.toList (Term.freeVars tm),
-          name `Name.endsWithSegments` Name.fromVar v,
+          name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments (Name.unsafeFromVar v)),
           typ <- toList $ TL.typeOfReferent tl r,
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
   pure (tm, fqnsByShortName, tl)

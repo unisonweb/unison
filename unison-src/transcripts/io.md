@@ -201,6 +201,40 @@ testSystemTime _ =
 .> io.test testSystemTime
 ```
 
+### Get temp directory
+
+```unison:hide
+testGetTempDirectory : '{io2.IO} [Result]
+testGetTempDirectory _ =
+  test = 'let
+    tempDir = reraise !getTempDirectory.impl
+    check "Temp directory is directory" (isDirectory tempDir)
+    check "Temp directory should exist" (fileExists tempDir)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetTempDirectory
+```
+
+### Get current directory
+
+```unison:hide
+testGetCurrentDirectory : '{io2.IO} [Result]
+testGetCurrentDirectory _ =
+  test = 'let
+    currentDir = reraise !getCurrentDirectory.impl
+    check "Current directory is directory" (isDirectory currentDir)
+    check "Current directory should exist" (fileExists currentDir)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetCurrentDirectory
+```
+
 ### Get directory contents
 
 ```unison:hide

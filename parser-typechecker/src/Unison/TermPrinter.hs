@@ -966,15 +966,13 @@ countHQ :: HQ.HashQualified Name -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
 
 countName :: Name -> PrintAnnotation
-countName n = let f = \(p, s) -> (s, Map.singleton p 1)
-              in PrintAnnotation { usages = Map.fromList $ map f $ splitName n}
-
--- Generates all valid splits of a name into a prefix and suffix.
--- See examples in Unison.Test.TermPrinter
-splitName :: Name -> [(Prefix, Suffix)]
-splitName n =
-  let ns = NameSegment.toText <$> Name.segments n
-  in  filter (not . Text.null . snd) $ inits ns `zip` map dotConcat (tails ns)
+countName n =
+  PrintAnnotation
+    { usages =
+        Map.fromList do
+          (p, s) <- Name.splits n
+          pure (Name.toText s, Map.singleton (map NameSegment.toText p) 1)
+    }
 
 joinName :: Prefix -> Suffix -> Name
 joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]

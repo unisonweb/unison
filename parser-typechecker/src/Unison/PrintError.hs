@@ -994,9 +994,6 @@ printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s (InvalidPath path term) =
-  fromString ("Invalid Path: " ++ show path ++ "\n")
-    <> annotatedAsErrorSite s term
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
@@ -1176,7 +1173,7 @@ prettyParseError s = \case
           Nothing -> useExamples
           Just parent -> Pr.wrap $
             "You can write" <>
-            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
+            Pr.group (Pr.blue $ "use " <> Pr.shown (Name.makeRelative parent) <> " "
                                        <> Pr.shown (Name.unqualified (L.payload tok))) <>
             "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
             "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))

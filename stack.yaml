@@ -13,7 +13,7 @@ packages:
 - yaks/easytest
 - parser-typechecker
 - unison-core
-- cli
+- unison-cli
 - codebase2/codebase
 - codebase2/codebase-sqlite
 - codebase2/codebase-sync

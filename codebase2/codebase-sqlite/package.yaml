@@ -26,6 +26,7 @@ dependencies:
   - unison-codebase
   - unison-codebase-sync
   - unison-core
+  - unison-prelude
   - unison-util
   - unison-util-serialization
   - unison-util-term
