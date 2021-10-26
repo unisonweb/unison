@@ -49,8 +49,8 @@ jobs:
           # Use separate caches for each OS.
           # Caches from this branch will be used first, then trunk caches will
           # be used as a backup.
-          key: stack-work-2_${{matrix.os}}
-          # Fall-back to use the most recent cache for the OS
+          key: stack-work-2_${{matrix.os}}-${{hashFiles('stack.yaml')}}
+          # Fall-back to use the most recent cache for the OS, regardless of stack.yaml
           restore-keys: stack-work-2_${{matrix.os}}
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
