@@ -871,7 +871,14 @@ loop = do
                 . uncurry (ShowDiffAfterDeleteBranch
                             $ resolveToAbsolute (Path.unsplit' p))
           else handleFailedDelete failed failedDependents
-      SwitchBranchI path' -> do
+      SwitchBranchI maybePath' -> do
+        path' <- case maybePath' of
+          Nothing -> fuzzySelectNamespace currentBranch0 >>= \case
+                         [] -> empty
+                         -- Shouldn't be possible to get multiple paths here, we can just take
+                         -- the first.
+                         (p:_) -> pure p
+          Just p -> pure p
         let path = resolveToAbsolute path'
         currentPathStack %= Nel.cons path
         branch' <- getAt path
@@ -1165,10 +1172,7 @@ loop = do
       ShowDefinitionI outputLoc inputQuery -> do
         -- If the query is empty, run a fuzzy search.
         query <- case inputQuery of
-          [] -> do
-            let termsAndTypes = Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms currentBranch0))
-                            <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes currentBranch0))
-            eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+          [] -> fuzzySelectTermsAndTypes currentBranch0
           q -> pure q
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
         case res of
@@ -3017,5 +3021,19 @@ declOrBuiltin r = case r of
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
 
--- data CodebaseThings = Terms | Types | Namespaces
+fuzzySelectTermsAndTypes :: Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectTermsAndTypes searchBranch0 = do
+  let termsAndTypes =
+        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
+          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
 
+fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace searchBranch0 = do
+  fmap Path.toPath'
+    <$> eval
+      ( FuzzySelect
+          Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+          Path.toText
+          (Set.toList $ Branch.deepPaths searchBranch0)
+      )

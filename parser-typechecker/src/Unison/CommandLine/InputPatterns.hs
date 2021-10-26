@@ -587,7 +587,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, namespaceArg)]
       [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
-        pure . Input.SwitchBranchI $ p
+        pure . Input.SwitchBranchI $ Just p
       _ -> Left (I.help cd)
     )
 
