@@ -72,7 +72,19 @@ import qualified Unison.Var as Var
 
 -- | A name is an absolute-or-relative non-empty list of name segments.
 data Name
-  = Name Position (List.NonEmpty NameSegment)
+  -- A few example names:
+  --
+  --   "foo.bar"  --> Name Relative ["bar", "foo"]
+  --   ".foo.bar" --> Name Absolute ["bar", "foo"]
+  --   "|>.<|"    --> Name Relative ["<|", "|>"]
+  --   "."        --> Name Relative ["."]
+  --   ".."       --> Name Absolute ["."]
+  --
+  = Name
+      -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
+      Position
+      -- the name segments in reverse order
+      (List.NonEmpty NameSegment)
   deriving stock (Eq)
 
 instance Alphabetical Name where
@@ -93,6 +105,7 @@ instance Show Name where
   show =
     Text.unpack . toText
 
+-- Whether a name is absolute, e.g. ".foo.bar", or relative, e.g. "foo.bar"
 data Position
   = Absolute
   | Relative
