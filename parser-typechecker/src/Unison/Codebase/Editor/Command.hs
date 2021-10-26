@@ -77,7 +77,12 @@ type TypecheckingResult v =
   Result (Seq (Note v Ann))
          (Either Names (UF.TypecheckedUnisonFile v Ann))
 
-data Command m i v a where
+data Command
+       m -- Command monad
+       i -- Input type
+       v -- Type of variables in the codebase
+       a -- Result of running the command
+         where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
@@ -239,6 +244,11 @@ data Command m i v a where
   ClearWatchCache :: Command m i v ()
 
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
+
+  FuzzySelect :: (a -> Text) -- ^ Select the text to fuzzy find on
+              -> Fuzzy.Options -- ^ Configure the selection.
+              -> [a] -- ^ The elements to select from
+              -> Command m i v [a] -- ^ The selected results
 
 type UseCache = Bool
 

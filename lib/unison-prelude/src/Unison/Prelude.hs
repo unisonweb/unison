@@ -6,6 +6,7 @@ module Unison.Prelude
     writeUtf8,
     uncurry4,
     reportBug,
+    tShow,
   )
 where
 
@@ -41,6 +42,10 @@ import GHC.Generics as X (Generic, Generic1)
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
+import qualified Data.Text as Text
+
+tShow :: Show a => a -> Text
+tShow = Text.pack . show
 
 -- Read an entire file strictly assuming UTF8
 readUtf8 :: FilePath -> IO Text
