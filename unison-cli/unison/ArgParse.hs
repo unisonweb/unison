@@ -287,7 +287,7 @@ versionParser :: Parser Command
 versionParser = pure PrintVersion
 
 runArgumentParser :: Parser [String]
-runArgumentParser = many (argument str idm)
+runArgumentParser = many (strArgument (metavar "RUN-ARGS"))
 
 runSymbolParser :: Parser Command
 runSymbolParser =
