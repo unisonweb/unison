@@ -15,7 +15,108 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 {-# LANGUAGE TypeOperators #-}
-module U.Codebase.Sqlite.Queries where
+module U.Codebase.Sqlite.Queries (
+  -- * Constraint kinds
+  DB, Err,
+  -- * Error types
+  Integrity(..),
+
+  -- * text table
+  saveText,
+  loadText,
+  loadTextById,
+
+  -- * hash table
+  saveHash,
+  saveHashHash,
+  loadHashId,
+  loadHashById,
+  loadHashIdByHash,
+  expectHashIdByHash,
+  saveCausalHash,
+  loadCausalHash,
+  saveBranchHash,
+
+  -- * hash_object table
+  saveHashObject,
+  hashIdsForObject,
+  hashIdWithVersionForObject,
+  expectObjectIdForPrimaryHashId,
+  expectObjectIdForAnyHashId,
+  maybeObjectIdForPrimaryHashId,
+  maybeObjectIdForAnyHashId,
+
+  -- * object table
+  saveObject,
+  loadObjectById,
+  loadPrimaryHashByObjectId,
+  loadObjectWithTypeById,
+  loadObjectWithHashIdAndTypeById,
+  updateObjectBlob, -- unused
+
+  -- * namespace_root table
+  loadMaybeNamespaceRoot,
+  setNamespaceRoot,
+  loadNamespaceRoot,
+
+  -- * causals
+  -- ** causal table
+  saveCausal,
+  isCausalHash,
+  loadCausalHashIdByCausalHash,
+  loadCausalValueHashId,
+  loadCausalByCausalHash,
+  loadBranchObjectIdByCausalHashId,
+
+  -- ** causal_parent table
+  saveCausalParents,
+  loadCausalParents,
+  before,
+  lca,
+
+  -- * watch table
+  saveWatch,
+  loadWatch,
+  loadWatchesByWatchKind,
+  loadWatchKindsByReference,
+  clearWatches,
+
+  -- * indexes
+  -- ** dependents index
+  addToDependentsIndex,
+  getDependentsForDependency,
+  getDependenciesForDependent,
+  getDependencyIdsForDependent,
+  -- ** type index
+  addToTypeIndex,
+  getReferentsByType,
+  getTypeReferenceForReferent,
+  getTypeReferencesForComponent,
+  -- ** type mentions index
+  addToTypeMentionsIndex,
+  getReferentsByTypeMention,
+  getTypeMentionsReferencesForComponent,
+
+  -- * hash prefix lookup
+  objectIdByBase32Prefix,
+  namespaceHashIdByBase32Prefix,
+  causalHashIdByBase32Prefix,
+
+  -- * db misc
+  createSchema,
+  schemaVersion,
+  setFlags,
+
+  DataVersion,
+  dataVersion,
+
+  savepoint,
+  release,
+  rollbackRelease,
+
+  setJournalMode,
+  traceConnectionFile,
+) where
 
 import qualified Control.Exception as Exception
 import Control.Monad (when)
@@ -117,8 +218,6 @@ data Integrity
 
 orError :: Err m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure
-
-type TypeHashReference = Reference' TextId HashId
 
 -- * main squeeze
 createSchema :: (DB m, MonadUnliftIO m) => m ()
@@ -358,6 +457,8 @@ loadCausalParents h = queryAtoms sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
+-- | The data version will increase if there has been any external
+-- modification to the database since the last observed data version.
 newtype DataVersion = DataVersion Int
   deriving (Eq, Ord, Show)
   deriving FromField via Int
@@ -714,6 +815,7 @@ queryTrace_ title query m =
           throwIO e
     else m
 
+-- |print the active database filename
 traceConnectionFile :: DB m => m ()
 traceConnectionFile = do
   c <- Reader.reader Connection.underlying
@@ -769,4 +871,3 @@ instance FromField WatchKind where
     0 -> WatchKind.RegularWatch
     1 -> WatchKind.TestWatch
     tag -> error $ "Unknown WatchKind id " ++ show tag
-
