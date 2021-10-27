@@ -152,6 +152,7 @@ import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import Data.Either.Extra (eitherToMaybe)
 
 type F m i v = Free (Command m i v)
 
@@ -1032,7 +1033,14 @@ loop = do
           numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
-      DocsI srcs -> for_ srcs (docsI (show input) basicPrettyPrintNames )
+      DocsI srcs -> do
+        srcs' <- case srcs of
+          [] -> fuzzySelectTermsAndTypes currentBranch0
+                  -- HQ names should always parse as a valid split, so we just discard any
+                  -- that don't to satisfy the type-checker.
+                  <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
+          xs -> pure xs
+        for_ srcs' (docsI (show input) basicPrettyPrintNames )
 
       CreateAuthorI authorNameSegment authorFullName -> do
         initialBranch <- getAt currentPath'
@@ -2601,7 +2609,12 @@ displayI prettyPrintNames outputLoc hq = do
             doDisplay outputLoc ns tm
 
 
-docsI :: (Ord v, Monad m, Var v) => SrcLoc -> Names -> Path.HQSplit' -> Action m (Either Event Input) v ()
+docsI ::
+  (Ord v, Monad m, Var v) =>
+  SrcLoc ->
+  Names ->
+  Path.HQSplit' ->
+  Action m (Either Event Input) v ()
 docsI srcLoc prettyPrintNames src = do
     fileByName where
     {- Given `docs foo`, we look for docs in 3 places, in this order:

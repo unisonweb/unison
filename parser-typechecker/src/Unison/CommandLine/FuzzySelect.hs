@@ -29,7 +29,7 @@ defaultOptions = Options
 
 optsToArgs :: Options -> [String]
 optsToArgs opts = defaultArgs <> case opts of
-    Options {allowMultiSelect=True} -> [" -m"]
+    Options {allowMultiSelect=True} -> ["-m"]
     _ -> []
   where
     defaultArgs =
@@ -50,8 +50,8 @@ withTempScreen =
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
 fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO (Maybe [a])
 fuzzySelect opts intoSearchText choices = handleAny handler . handleError $ withTempScreen .  runExceptT $ do
-    fzfPath <- liftIO (findExecutable "fzf404") >>= \case
-      Nothing -> throwError "Consider installing fzf to improve your experience with unison."
+    fzfPath <- liftIO (findExecutable "fzf") >>= \case
+      Nothing -> throwError "fzf not found. Consider installing fzf to improve your experience with unison."
       Just fzfPath -> pure fzfPath
     let fzfArgs :: [String]
           = optsToArgs opts
