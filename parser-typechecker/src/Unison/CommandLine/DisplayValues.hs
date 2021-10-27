@@ -234,7 +234,7 @@ displayPretty pped terms typeOf eval types tm = go tm
     Just typ -> pure . P.group $
       TypePrinter.prettySignatures
         (PPE.suffixifiedPPE pped)
-        [(PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
+        [(r, PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
 
   goColor c = case c of
     DD.AnsiColorBlack -> P.black
@@ -295,7 +295,7 @@ displayDoc pped terms typeOf evaluated types = go
     Just typ -> pure . P.group $
       TypePrinter.prettySignatures
         (PPE.suffixifiedPPE pped)
-        [(PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
+        [(r, PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
   prettyEval terms r = case r of
     Referent.Ref (Reference.Builtin n) -> pure . P.syntaxToColor $ P.text n
     Referent.Ref ref ->
