@@ -1,13 +1,10 @@
 # Integration test: transcript
 
-Test
-
 ```unison
 use .builtin
 
-coolFunction x = x * 2
-
-coolFunction.doc = {{ This is a cool function. }}
+main : '{IO, Exception} ()
+main = '(printLine "Hello, world!")
 ```
 
 ```ucm
@@ -18,8 +15,7 @@ coolFunction.doc = {{ This is a cool function. }}
   
     ⍟ These new definitions are ok to `add`:
     
-      coolFunction     : Nat -> Nat
-      coolFunction.doc : Doc.Deprecated
+      main : '{IO, Exception} ()
 
 ```
 ```ucm
@@ -27,14 +23,8 @@ coolFunction.doc = {{ This is a cool function. }}
 
   ⍟ I've added these definitions:
   
-    coolFunction     : Nat -> Nat
-    coolFunction.doc : Doc.Deprecated
+    main : '{IO, Exception} ()
 
-.> link coolFunction.doc coolFunction
-
-  Updates:
-  
-    1. coolFunction : Nat -> Nat
-       + 2. coolFunction.doc : builtin.Doc
+.> compile.output main ./unison-cli/integration-tests/IntegrationTests/main
 
 ```

@@ -2,19 +2,23 @@
 
 ```ucm:hide
 .> builtins.mergeio
+.> load ./unison-src/transcripts-using-base/base.u
 ```
 
-Test
+```ucm:hide
+.> builtins.mergeio
+.> load ./unison-src/transcripts-using-base/base.u
+.> add
+```
 
 ```unison
 use .builtin
 
-coolFunction x = x * 2
-
-coolFunction.doc = {{ This is a cool function. }}
+main : '{IO, Exception} ()
+main = '(printLine "Hello, world!")
 ```
 
 ```ucm
 .> add
-.> link coolFunction.doc coolFunction
+.> compile.output main ./unison-cli/integration-tests/IntegrationTests/main
 ```
