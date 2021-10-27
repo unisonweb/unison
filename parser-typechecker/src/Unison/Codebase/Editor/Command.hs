@@ -249,7 +249,7 @@ data Command
   FuzzySelect :: Fuzzy.Options -- ^ Configure the selection.
               -> (a -> Text) -- ^ Select the text to fuzzy find on
               -> [a] -- ^ The elements to select from
-              -> Command m i v [a] -- ^ The selected results
+              -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
 
 type UseCache = Bool
 

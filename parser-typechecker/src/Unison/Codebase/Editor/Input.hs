@@ -127,8 +127,8 @@ data Input
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | DisplayI OutputLocation (HQ.HashQualified Name)
-  | DocsI Path.HQSplit'
+  | DisplayI OutputLocation [HQ.HashQualified Name]
+  | DocsI [Path.HQSplit']
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'

@@ -638,6 +638,9 @@ loop = do
                 respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
             else handleFailedDelete failed failedDependents
 
+        displayI :: OutputLocation
+                  -> HQ.HashQualified Name
+                  -> Action m (Either Event Input) v ()
         displayI outputLoc hq = do
           uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
           case uf of
@@ -872,17 +875,20 @@ loop = do
                             $ resolveToAbsolute (Path.unsplit' p))
           else handleFailedDelete failed failedDependents
       SwitchBranchI maybePath' -> do
-        path' <- case maybePath' of
-          Nothing -> fuzzySelectNamespace currentBranch0 >>= \case
-                         [] -> empty
+        mpath' <- case maybePath' of
+          Nothing -> fuzzySelectNamespace currentBranch0 <&> \case
+                         [] -> Nothing
                          -- Shouldn't be possible to get multiple paths here, we can just take
                          -- the first.
-                         (p:_) -> pure p
-          Just p -> pure p
-        let path = resolveToAbsolute path'
-        currentPathStack %= Nel.cons path
-        branch' <- getAt path
-        when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+                         (p:_) -> Just p
+          Just p -> pure $ Just p
+        case mpath' of
+          Nothing -> pure ()
+          Just path' -> do
+            let path = resolveToAbsolute path'
+            currentPathStack %= Nel.cons path
+            branch' <- getAt path
+            when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       UpI -> use currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
         Nothing -> pure ()
@@ -1167,7 +1173,11 @@ loop = do
       DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
-      DisplayI outputLoc hq -> displayI outputLoc hq
+      DisplayI outputLoc names' -> do
+        names <- case names' of
+          [] -> fuzzySelectTermsAndTypes currentBranch0
+          ns -> pure ns
+        traverse_ (displayI outputLoc) names
 
       ShowDefinitionI outputLoc inputQuery -> do
         -- If the query is empty, run a fuzzy search.
@@ -3026,11 +3036,13 @@ fuzzySelectTermsAndTypes searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+  fromMaybe [] <$> eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
 
 fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
-fuzzySelectNamespace searchBranch0 = do
-  fmap Path.toPath'
+fuzzySelectNamespace searchBranch0 =
+  do
+    fmap Path.toPath'
+    . fromMaybe []
     <$> eval
       ( FuzzySelect
           Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
