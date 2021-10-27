@@ -182,7 +182,7 @@ pretty0
     Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Reference r) name
+    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt $ S.Referent (Referent.Ref r)) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     TermLink' r -> paren (p >= 10) $
       fmt S.LinkKeyword "termLink " <>
