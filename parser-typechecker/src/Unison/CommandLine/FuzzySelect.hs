@@ -94,8 +94,7 @@ fuzzySelect opts intoSearchText choices =
     -- is prefixed with a number, we need to parse it and use it to select the matching
     -- value from our input list.
     let selectedNumbers = selections
-                        & fmap (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
-                        & catMaybes
+                        & mapMaybe (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
                         & Set.fromList
     pure $ mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing) numberedChoices
   where
