@@ -163,7 +163,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     Just types -> pure . fmap P.group $
       TypePrinter.prettySignatures''
         (PPE.suffixifiedPPE pped)
-        [ (PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
+        [ (r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
 
   goSpecial :: Term v () -> m SpecialForm
   goSpecial = \case
@@ -266,7 +266,8 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
                   Just tm -> do
                     typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
-                    let folded = formatPretty . P.lines $ TypePrinter.prettySignatures'' ppe [(name, typ)]
+                    let folded = formatPretty . P.lines 
+                               $ TypePrinter.prettySignatures'' ppe [(Referent.Ref ref, name, typ)]
                     let full tm@(Term.Ann' _ _) _ =
                           formatPretty (TermPrinter.prettyBinding ppe name tm)
                         full tm typ =

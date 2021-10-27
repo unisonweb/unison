@@ -21,6 +21,7 @@ import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
+import           Unison.Referent       (Referent)
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -148,23 +149,23 @@ fmt = PP.withSyntax
 -- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
+  -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
 
 prettySignatures''
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
+  -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty SyntaxText]
-prettySignatures'' env ts = PP.align
-  [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
-    , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
-      `PP.orElse` (  fmt S.TypeAscriptionColon ": "
-                  <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)
-                  )
-    )
-  | (name, typ) <- ts
-  ]
+prettySignatures'' env ts = 
+  PP.align [ (name r hq, sig typ) | (r, hq, typ) <- ts ]
+  where
+  name r hq = 
+    styleHashQualified'' (fmt $ S.TermReference r) hq
+  sig typ = 
+    (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
+    `PP.orElse` 
+    (fmt S.TypeAscriptionColon ": " <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ))
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
@@ -187,7 +188,7 @@ prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
+  -> [(Referent, HashQualified Name, Type v a)]
   -> Pretty ColorText
 prettySignatures env ts = PP.lines $
   PP.group <$> prettySignatures' env ts

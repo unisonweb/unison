@@ -1259,8 +1259,8 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' name (Just typ) _r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  SR'.TermResult' name (Just typ) r _aliases ->
+    head (TypePrinter.prettySignatures' ppe [(r,name,typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1379,7 +1379,7 @@ todoOutput ppe todo =
   corruptTypes =
     [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (Referent.Ref r, PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
