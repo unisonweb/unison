@@ -11,8 +11,9 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Operations (
-  -- *
+  -- * data version
   dataVersion,
+
   -- * branches
   saveRootBranch,
   loadMaybeRootCausalHash,
@@ -20,30 +21,35 @@ module U.Codebase.Sqlite.Operations (
   loadRootCausal,
   saveBranch,
   loadCausalBranchByCausalHash,
+
   -- * terms
   saveTermComponent,
   loadTermByReference,
   loadTypeOfTermByTermReference,
+
   -- * decls
   saveDeclComponent,
   loadDeclByReference,
   getDeclTypeByReference,
+
   -- * patches
   savePatch,
   loadPatchById,
-  -- ** load objects from codebase
+
   -- * test for stuff in codebase
   objectExistsForHash,
+
   -- * dubiously exported stuff involving database ids
-  -- lookupTextId,
   loadHashByObjectId,
   primaryHashToMaybeObjectId,
   primaryHashToMaybePatchObjectId,
+
   -- * watch expression cache
   saveWatch,
   loadWatch,
   listWatches,
   clearWatches,
+
   -- * indexes
   -- ** nearest common ancestor
   before,
@@ -61,13 +67,17 @@ module U.Codebase.Sqlite.Operations (
   -- ** type mentions index
   addTypeMentionsToIndexForTerm,
   termsMentioningType,
+
   -- * delete me
   getCycleLen,
+
   -- * Error types
   Error(..),
   DecodeError(..),
-  -- * Constraint kinds
+
+  -- ** Constraint kinds
   EDB,
+
   -- * somewhat unexpectedly unused definitions
   c2sReferenceId,
   c2sReferentId,
