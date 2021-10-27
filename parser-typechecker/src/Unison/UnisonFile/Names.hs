@@ -37,14 +37,14 @@ toNames uf = datas <> effects
 typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
 typecheckedToNames uf = Names (terms <> ctors) types where
   terms = Relation.fromList
-    [ (Name.fromVar v, Referent.Ref r)
+    [ (Name.unsafeFromVar v, Referent.Ref r)
     | (v, (r, wk, _, _)) <- Map.toList $ UF.hashTerms uf, wk == Nothing || wk == Just WK.TestWatch ]
   types = Relation.fromList
-    [ (Name.fromVar v, r)
+    [ (Name.unsafeFromVar v, r)
     | (v, r) <- Map.toList $ fmap fst (UF.dataDeclarations' uf)
                           <> fmap fst (UF.effectDeclarations' uf) ]
   ctors = Relation.fromMap
-        . Map.mapKeys Name.fromVar
+        . Map.mapKeys Name.unsafeFromVar
         . fmap (fmap Reference.DerivedId)
         . UF.hashConstructors
         $ uf

@@ -51,7 +51,7 @@ file = do
     Right (Right env) -> pure env
     Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
     Left es -> resolutionFailures (toList es)
-  let importNames = [(Name.fromVar v, Name.fromVar v2) | (v,v2) <- imports ]
+  let importNames = [(Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v,v2) <- imports ]
   let locals = Names.importing importNames (UF.names env)
   -- At this stage of the file parser, we've parsed all the type and ability
   -- declarations. The `Names.push (Names.suffixify0 locals)` here has the effect
@@ -91,7 +91,7 @@ file = do
           --     (zonk.bob, [zonk.bob]),
           --     (bob, [zonk.bob]) ]
           varsBySuffix :: Map Name.Name [v]
-          varsBySuffix = List.multimap [ (n, v) | v <- locals0, n <- Name.suffixes (Name.fromVar v) ]
+          varsBySuffix = List.multimap [ (n, v) | v <- locals0, n <- Name.suffixes (Name.unsafeFromVar v) ]
           -- Any unique suffix maps to the corresponding variable. Above, `alice` is not a unique
           -- suffix, but `bob` is. `foo.alice` and `bob.alice` are both unique suffixes but
           -- they map to themselves, so we ignore them. In our example, we'll just be left with

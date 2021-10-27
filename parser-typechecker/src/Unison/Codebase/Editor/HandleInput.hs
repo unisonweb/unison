@@ -530,7 +530,7 @@ loop = do
         addDefaultMetadata adds =
           when (not (SC.isEmpty adds)) do
             let addedVs = Set.toList $ SC.types adds <> SC.terms adds
-                addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
+                addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
             case addedNs of
               Nothing ->
                 error $ "I couldn't parse a name I just added to the codebase! "
@@ -1427,7 +1427,7 @@ loop = do
                   _ -> error $ "Expected unique matches for "
                                   ++ Var.nameStr v ++ " but got: "
                                   ++ show otherwise
-                  where n = Name.fromVar v
+                  where n = Name.unsafeFromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
                 hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
@@ -1439,7 +1439,7 @@ loop = do
                   _ -> error $ "Expected unique matches for "
                                  ++ Var.nameStr v ++ " but got: "
                                  ++ show otherwise
-                  where n = Name.fromVar v
+                  where n = Name.unsafeFromVar v
               termDeprecations :: [(Name, Referent)]
               termDeprecations =
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
@@ -1775,9 +1775,9 @@ loop = do
         Nothing -> respond NoUnisonFile
         Just uf -> let
           datas, effects, terms :: [(Name, Reference.Id)]
-          datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
-          effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
-          terms = [ (Name.fromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          datas = [ (Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
+          effects = [ (Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
+          terms = [ (Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
@@ -2664,17 +2664,17 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
     if Set.member v tests then Metadata.singleton isTestType isTestValue
     else Metadata.empty
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-  doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
+  doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
-    [r] -> case Path.splitFromName (Name.fromVar v) of
+    [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split r (md v)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-  doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
+  doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
-    [r] -> case Path.splitFromName (Name.fromVar v) of
+    [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r Metadata.empty
     wha -> error $ "Unison bug, typechecked file w/ multiple types named "

@@ -9,27 +9,19 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad (when)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM)
-import Control.Monad.RWS (MonadIO, MonadReader, lift)
+import Control.Monad.RWS (MonadReader)
 import Control.Monad.Reader (ReaderT)
 import qualified Control.Monad.Reader as Reader
 import Control.Monad.Validate (ValidateT, runValidateT)
 import qualified Control.Monad.Validate as Validate
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
-import Data.ByteString (ByteString)
 import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
-import Data.Foldable (for_, toList, traverse_)
-import Data.Functor ((<&>))
 import Data.List.Extra (nubOrd)
-import Data.Maybe (catMaybes, fromMaybe)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Debug.Trace (traceM, trace)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.Connection (Connection)
@@ -48,6 +40,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
+import Unison.Prelude
 
 data Entity
   = O ObjectId
@@ -167,26 +160,18 @@ trySync tCache hCache oCache cCache = \case
                   runPutS $
                     putWord8 fmt >> S.recomposeComponent (zip localIds' bytes)
             oId' <- runDest $ Q.saveObject hId' objType bytes'
-            -- copy reference-specific stuff
-            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-              -- sync watch results
-              for_ [WK.TestWatch] \wk ->
-                syncWatch wk (Reference.Id hId idx)
-              -- sync dependencies index
-              let ref = Reference.Id oId idx
-                  ref' = Reference.Id oId' idx
-              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-              runSrc (Q.getDependenciesForDependent ref)
-                >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-              -- sync type index
-              runSrc (Q.getTypeReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-              -- sync type mentions index
-              runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+            lift do
+              -- copy reference-specific stuff
+              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                let ref = Reference.Id oId idx
+                    refH = Reference.Id hId idx
+                    ref' = Reference.Id oId' idx
+                -- sync watch results
+                for_ [WK.TestWatch] \wk ->
+                  syncWatch wk refH
+                syncDependenciesIndex ref ref'
+              syncTypeIndex oId oId'
+              syncTypeMentionsIndex oId oId'
             pure oId'
           OT.DeclComponent -> do
             -- split up the localIds (parsed), decl blobs
@@ -206,23 +191,14 @@ trySync tCache hCache oCache cCache = \case
                     putWord8 fmt
                       >> S.recomposeComponent (zip localIds' declBytes)
             oId' <- runDest $ Q.saveObject hId' objType bytes'
-            -- copy per-element-of-the-component stuff
-            lift $ for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
-              -- sync dependencies index
-              let ref = Reference.Id oId idx
-                  ref' = Reference.Id oId' idx
-              let fromJust' = fromMaybe (error "missing objects should've been caught by `foldLocalIds` above")
-              runSrc (Q.getDependenciesForDependent ref)
-                >>= traverse (fmap fromJust' . isSyncedObjectReference)
-                >>= runDest . traverse_ (flip Q.addToDependentsIndex ref')
-              -- sync type index
-              runSrc (Q.getTypeReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeIndex)
-              -- sync type mentions index
-              runSrc (Q.getTypeMentionsReferencesForComponent oId)
-                >>= traverse (syncTypeIndexRow oId')
-                >>= traverse_ (runDest . uncurry Q.addToTypeMentionsIndex)
+            lift do
+              -- copy per-element-of-the-component stuff
+              for_ [0 .. length localIds - 1] \(fromIntegral -> idx) -> do
+                let ref = Reference.Id oId idx
+                    ref' = Reference.Id oId' idx
+                syncDependenciesIndex ref ref'
+              syncTypeIndex oId oId'
+              syncTypeMentionsIndex oId oId'
             pure oId'
           OT.Namespace -> case flip runGetS bytes S.decomposeBranchFormat of
             Right (BL.SyncFull ids body) -> do
@@ -277,6 +253,13 @@ trySync tCache hCache oCache cCache = \case
         Just chId' -> pure chId'
         Nothing -> Validate.refute . Set.singleton $ C chId
 
+    syncDependenciesIndex :: Sqlite.Reference.Id -> Sqlite.Reference.Id -> m ()
+    syncDependenciesIndex ref ref' = do
+      deps <- runSrc (Q.getDependenciesForDependent ref)
+      for_ deps \dep -> do
+        dep' <- expectSyncedObjectReference dep
+        runDest (Q.addToDependentsIndex dep' ref')
+
     syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds
     syncLocalIds (L.LocalIds tIds oIds) = do
       oIds' <- traverse syncLocalObjectId oIds
@@ -304,6 +287,28 @@ trySync tCache hCache oCache cCache = \case
       tIds' <- lift $ traverse syncTextLiteral tIds
       pure $ BL.LocalIds tIds' oIds' poIds' chboIds'
 
+    syncTypeIndex :: ObjectId -> ObjectId -> m ()
+    syncTypeIndex oId oId' = do
+      rows <- runSrc (Q.getTypeReferencesForComponent oId)
+      -- defensively nubOrd to guard against syncing from codebases with duplicate rows in their type (mentions) indexes
+      -- alternatively, we could put a unique constraint on the whole 6-tuple of the index tables, and optimistically
+      -- insert with an `on conflict do nothing`.
+      for_ (nubOrd rows) \row -> do
+        row' <- syncTypeIndexRow oId' row
+        runDest (uncurry Q.addToTypeIndex row')
+
+    syncTypeMentionsIndex :: ObjectId -> ObjectId -> m ()
+    syncTypeMentionsIndex oId oId' = do
+      rows <- runSrc (Q.getTypeMentionsReferencesForComponent oId)
+      -- see "defensively nubOrd..." comment above in `syncTypeIndex`
+      for_ (nubOrd rows) \row -> do
+        row' <- syncTypeIndexRow oId' row
+        runDest (uncurry Q.addToTypeMentionsIndex row')
+
+    syncTypeIndexRow ::
+      ObjectId ->
+      (Sqlite.Reference.ReferenceH, Sqlite.Referent.Id) ->
+      m (Sqlite.Reference.ReferenceH, Sqlite.Referent.Id)
     syncTypeIndexRow oId' = bitraverse syncHashReference (pure . rewriteTypeIndexReferent oId')
 
     rewriteTypeIndexReferent :: ObjectId -> Sqlite.Referent.Id -> Sqlite.Referent.Id
@@ -333,6 +338,13 @@ trySync tCache hCache oCache cCache = \case
     isSyncedObjectReferenceId :: Sqlite.Reference.Id -> m (Maybe Sqlite.Reference.Id)
     isSyncedObjectReferenceId (Reference.Id oId idx) =
       isSyncedObject oId <&> fmap (\oId' -> Reference.Id oId' idx)
+
+    -- Assert that a reference's component is already synced, and return the corresponding reference.
+    expectSyncedObjectReference :: Sqlite.Reference -> m Sqlite.Reference
+    expectSyncedObjectReference ref =
+      isSyncedObjectReference ref <&> \case
+        Nothing -> error (reportBug "E452280" ("unsynced object reference " ++ show ref))
+        Just ref' -> ref'
 
     syncHashReference :: Sqlite.ReferenceH -> m Sqlite.ReferenceH
     syncHashReference = bitraverse syncTextLiteral syncHashLiteral

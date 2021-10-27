@@ -25,7 +25,6 @@ import Control.Lens (over, _3)
 import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Prelude.Extras (Show1)
 import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
@@ -40,16 +39,9 @@ import qualified Unison.Hashing.V2.Type as Type
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
--- import qualified Unison.Referent as Referent
--- import qualified Unison.Referent' as Referent'
 import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
-
-data DeclOrBuiltin v a
-  = Builtin CT.ConstructorType
-  | Decl (Decl v a)
-  deriving (Eq, Show)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
@@ -71,12 +63,12 @@ data DataDeclaration v a = DataDeclaration
     bound :: [v],
     constructors' :: [(a, v, Type v a)]
   }
-  deriving (Eq, Show, Functor)
+  deriving (Functor)
 
 newtype EffectDeclaration v a = EffectDeclaration
   { toDataDecl :: DataDeclaration v a
   }
-  deriving (Eq, Show, Functor)
+  deriving (Functor)
 
 constructorTypes :: DataDeclaration v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
@@ -125,7 +117,7 @@ hashDecls decls = do
       varToRef' = second Reference.DerivedId <$> varToRef
       decls' = bindTypes <$> decls
       bindTypes dd = dd {constructors' = over _3 (Type.bindExternal varToRef') <$> constructors' dd}
-      typeReferences = Map.fromList (first Name.fromVar <$> varToRef')
+      typeReferences = Map.fromList (first Name.unsafeFromVar <$> varToRef')
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd {constructors' = sortOn hash3 $ constructors' dd}
       hash3 (_, _, typ) = ABT.hash typ :: Hash
@@ -148,7 +140,7 @@ data F a
   | LetRec [a] a
   | Constructors [a]
   | Modified Modifier a
-  deriving (Functor, Foldable, Show, Show1)
+  deriving (Functor, Foldable)
 
 instance Hashable1 F where
   hash1 hashCycle hash e =
