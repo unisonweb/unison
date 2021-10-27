@@ -5,6 +5,7 @@
 
 module Unison.Util.Bytes where
 
+import Control.DeepSeq (NFData(..))
 import Data.Bits (shiftR, shiftL, (.|.))
 import Data.Char
 import Unison.Prelude hiding (ByteString, empty)
@@ -24,13 +25,14 @@ import qualified Codec.Compression.GZip as GZip
 type ByteString = V.Vector Word8
 
 -- Bytes type represented as a rope of ByteStrings
-newtype Bytes = Bytes { underlying :: R.Rope ByteString } deriving (Semigroup,Monoid)
+newtype Bytes = Bytes { underlying :: R.Rope ByteString } deriving (Semigroup,Monoid,Eq,Ord)
 
 instance R.Sized ByteString where size = V.length
 instance R.Drop ByteString where drop = V.drop
 instance R.Take ByteString where take = V.take
 instance R.Index ByteString Word8 where index n bs = bs V.!? n
 instance R.Reverse ByteString where reverse = V.reverse
+instance NFData Bytes where rnf _ = ()
 
 null :: Bytes -> Bool
 null = R.null . underlying
