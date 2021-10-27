@@ -36,7 +36,7 @@ optsToArgs opts = defaultArgs <> case opts of
       -- Don't show or match on the first column of input.
       -- This allows us to prepend each line with a number, and use that number to determine
       -- which values from the input list were selected.
-      [ "--with-nth 2.."
+      [ "--with-nth", "2.."
       ]
 
 withTempScreen :: IO a -> IO a
