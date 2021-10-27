@@ -230,6 +230,7 @@ data CompilerBug v loc
 data PathElement v loc
   = InSynthesize (Term v loc)
   | InSubtype (Type v loc) (Type v loc)
+  | InEquate (Type v loc) (Type v loc)
   | InCheck (Term v loc) (Type v loc)
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
@@ -2030,7 +2031,72 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     _ -> False
 
 equate :: Var v => Ord loc => Type v loc -> Type v loc -> M v loc ()
-equate y1 y2 = do
+equate t1 t2 = scope (InEquate t1 t2) $ do
+    ctx <- getContext
+    guardWF ctx t1
+    guardWF ctx t2
+    equate0 t1 t2
+  where
+  guardWF ctx t@(Type.Var' _)
+    | not $ wellformedType ctx t
+    = failWith (TypeMismatch ctx)
+  guardWF _ _ = pure ()
+
+equate0
+  :: Var v
+  => Ord loc
+  => Type v loc
+  -> Type v loc
+  -> M v loc ()
+equate0 (Type.Ref' r1) (Type.Ref' r2) | r1 == r2 = pure ()
+equate0 t1@(Type.Var' tv1) t2@(Type.Var' tv2)
+  | TypeVar.Universal v1 <- tv1
+  , TypeVar.Universal v2 <- tv2
+  , v1 == v2
+  = pure ()
+
+  | TypeVar.Existential b1 v1 <- tv1
+  , TypeVar.Existential b2 v2 <- tv2
+  = if v1 == v2 then pure () else do
+    ctx <- getContext
+    if ordered ctx v1 v2
+    then instantiateL b2 v2 t1
+    else instantiateL b1 v1 t2
+
+  | TypeVar.Existential b v1 <- tv1
+  = instantiateL b v1 t2
+  | TypeVar.Existential b v2 <- tv2
+  = instantiateL b v2 t1
+equate0 (Type.Forall' t01) (Type.Forall' t02) = do
+  v <- ABT.freshen t02 freshenTypeVar
+  markThenRetract0 v $ do
+    v <- universal' () <$> extendUniversal v
+    let t1 = ABT.bindInheritAnnotation t01 v
+        t2 = ABT.bindInheritAnnotation t02 v
+    equate t1 t2
+equate0 (Type.App' x1 y1) (Type.App' x2 y2) = do
+  equate x1 x2
+  y1 <- applyM y1 ; y2 <- applyM y2
+  equate y1 y2
+equate0 (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do
+  equate i1 i2
+  o1 <- applyM o1 ; o2 <- applyM o2
+  equate o1 o2
+equate0 (Type.Effect1' e1 a1) (Type.Effect1' e2 a2) = do
+  equate e1 e2
+  a1 <- applyM a1 ; a2 <- applyM a2
+  equate a1 a2
+equate0 (Type.Var' (TypeVar.Existential b v)) t
+  | notMember v (Type.freeVars t)
+  -- subtyping relaxes here, should equality
+  = instantiateL b v t
+equate0 t (Type.Var' (TypeVar.Existential b v))
+  | notMember v (Type.freeVars t)
+  -- subtyping relaxes here, should equality
+  = instantiateL b v t
+equate0 (Type.Effects' es1) (Type.Effects' es2) =
+  equateAbilities es1 es2
+equate0 y1 y2 = do
   subtype y1 y2
   y1 <- applyM y1; y2 <- applyM y2
   -- performing the subtype check in both directions means
@@ -2224,6 +2290,27 @@ expandWanted
   = (fmap.concatMap) (\(l, es) -> (,) l <$> Type.flattenEffects es)
   . (traverse.traverse) applyM
 
+matchConcrete
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> [Type v loc]
+  -> [Type v loc]
+  -> M v loc ([Type v loc], [Type v loc])
+matchConcrete common acc [] _ = pure (reverse acc, common)
+matchConcrete common acc (l:ls) rs
+  | Just v <- find (headMatch l) common = do
+    equate v l
+    ls <- expandAbilities ls
+    rs <- expandAbilities rs
+    matchConcrete common acc ls rs
+  | Just v <- find (headMatch l) rs = do
+    equate v l
+    ls <- expandAbilities ls
+    rs <- expandAbilities rs
+    matchConcrete (l:common) acc ls rs
+  | otherwise = matchConcrete common (l:acc) ls rs
 
 pruneConcrete
   :: Var v
@@ -2241,6 +2328,23 @@ pruneConcrete missing acc ((loc, w):ws) have
     have <- expandAbilities have
     pruneConcrete missing acc ws have
   | otherwise = pruneConcrete missing ((loc,w):acc) ws have
+
+matchVariables
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> [Type v loc]
+  -> [Type v loc]
+  -> ([Type v loc], [Type v loc], [Type v loc])
+matchVariables com acc (l:ls) rs
+  | isExistential l && any (== l) rs
+  = matchVariables (l:com) acc (filter (/= l) ls) (filter (/= l) rs)
+  | otherwise = matchVariables com (l:acc) ls rs
+  where
+  isExistential (Type.Var' TypeVar.Existential{}) = True
+  isExistential _ = False
+matchVariables com acc [] rs = (com, reverse acc, rs)
 
 pruneVariables
   :: Var v
@@ -2276,9 +2380,6 @@ pruneAbilities want0 have0 = do
       then expandWanted =<< pruneVariables [] pwant
       else pure pwant
   where
-  isExistential (Type.Var' TypeVar.Existential{}) = True
-  isExistential _ = False
-
   missing loc w = maybe id (scope . InSynthesize) loc $ do
     ctx <- getContext
     failWith $ AbilityCheckFailure
@@ -2287,6 +2388,78 @@ pruneAbilities want0 have0 = do
                  ctx
 
   dflt = not $ any isExistential have0
+
+isExistential :: Type v loc -> Bool
+isExistential (Type.Var' TypeVar.Existential{}) = True
+isExistential _ = False
+
+matchAbilities
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> M v loc ([Type v loc], [Type v loc], [Type v loc])
+matchAbilities ls0 rs0 = do
+  (ls, com) <- matchConcrete [] [] ls0 rs0
+  rs <- expandAbilities rs0
+  (rs, _) <- matchConcrete com [] rs ls
+  ls <- expandAbilities ls
+  if ls /= ls0 || rs /= rs0
+  then matchAbilities ls rs
+  else pure $ matchVariables [] [] ls rs
+
+equateAbilities
+  :: Var v
+  => Ord loc
+  => [Type v loc]
+  -> [Type v loc]
+  -> M v loc ()
+equateAbilities abs1 abs2
+  | debugShow ("equateAbilities", abs1, abs2) = undefined
+equateAbilities ls rs = matchAbilities ls rs >>= \(com, ls, rs) ->
+  let (vls, cls) = partition isExistential ls
+      (vrs, crs) = partition isExistential rs
+      mlSlack
+        | [t@(Type.Var' (TypeVar.Existential b v))] <- vls
+        = Just (loc t, b, v)
+        | otherwise = Nothing
+      mrSlack
+        | [t@(Type.Var' (TypeVar.Existential b v))] <- vrs
+        = Just (loc t, b, v)
+        | otherwise = Nothing
+  in case liftA2 (,) mlSlack mrSlack of
+    Just ((ll, bl, lSlack), (lr, br, rSlack)) ->
+        refine True [(ll, bl, lSlack), (lr, br, rSlack)] [crs, cls]
+    _ | [t@(Type.Var' (TypeVar.Existential bc cv))] <- com
+      , null vls, null vrs ->
+        refine True [(loc t, bc, cv)] [cls ++ crs]
+      | otherwise -> do
+        for_ mlSlack $ \p -> refine False [p] [rs]
+        for_ mrSlack $ \p -> refine False [p] [ls]
+  where
+  refine common lbvs ess = do
+    cv <- traverse freshenVar cn
+    ctx <- getContext
+    let (_, _, early) = minimumBy (cmp ctx) lbvs
+        frsh e = freshenVar (nameFrom Var.inferAbility e)
+    vss <- (traverse.traverse) frsh ess
+    let evss = zipWith zip ess vss
+        p ((_, _, u), _) = u == early
+        bigList = case break p $ zip lbvs vss of
+          (l, x:r) -> x : l ++ r
+          _ -> error "impossible"
+    for_ bigList $ \((l, b, v), us) ->
+      let pre | v == early = fmap existential $ cv ++ join vss
+              | otherwise = []
+          t = Type.effects l (fmap (existentialp l) $ cv++us)
+          s = Solved b v (Type.Monotype t) in
+      replaceContext (existential v) (pre ++ [s])
+    Foldable.for_ evss $ \evs -> Foldable.for_ evs $ \(e,v) ->
+      getContext >>= \ctx -> instantiateR (apply ctx e) B.Blank v
+    where
+    cmp ctx (_, _, u) (_, _, v)
+      | u == v = EQ | ordered ctx u v = LT | otherwise = GT
+    cn | common = [Var.inferAbility] | otherwise = []
 
 subAbilities
   :: Var v
