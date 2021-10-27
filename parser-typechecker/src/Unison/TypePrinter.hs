@@ -84,7 +84,7 @@ prettyRaw n im p tp = go n im p tp
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
     DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas $ map (go n im 0) xs
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
-    Ref' r     -> styleHashQualified'' (fmt $ S.Reference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
+    Ref' r     -> styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"

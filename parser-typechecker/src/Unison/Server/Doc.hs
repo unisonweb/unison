@@ -189,9 +189,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     DD.Doc2SpecialFormLink e -> let
       ppe = PPE.suffixifiedPPE pped
       tm :: Referent -> P.Pretty SSyntaxText
-      tm r = (NP.styleHashQualified'' (NP.fmt (S.Referent r)) . PPE.termName ppe) r
+      tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
       ty :: Reference -> P.Pretty SSyntaxText
-      ty r = (NP.styleHashQualified'' (NP.fmt (S.Reference r)) . PPE.typeName ppe) r
+      ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
         DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
@@ -236,7 +236,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
         goType :: Reference -> m (Ref (UnisonHash, DisplayObject SyntaxText Src))
         goType r@(Reference.Builtin _) =
           pure (Type (Reference.toText r, DO.BuiltinObject name))
-          where name = formatPretty . NP.styleHashQualified (NP.fmt (S.Reference r))
+          where name = formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                      . PPE.typeName ppe $ r
         goType r = Type . (Reference.toText r,) <$> do
           d <- types r
