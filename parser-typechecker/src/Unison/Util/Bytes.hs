@@ -24,7 +24,7 @@ import qualified Codec.Compression.GZip as GZip
 type ByteString = V.Vector Word8
 
 -- Bytes type represented as a rope of ByteStrings
-type Bytes = R.Rope ByteString
+newtype Bytes = Bytes { underlying :: R.Rope ByteString } deriving (Semigroup,Monoid)
 
 instance R.Sized ByteString where size = V.length
 instance R.Drop ByteString where drop = V.drop
@@ -33,7 +33,7 @@ instance R.Index ByteString Word8 where index n bs = bs V.!? n
 instance R.Reverse ByteString where reverse = V.reverse
 
 null :: Bytes -> Bool
-null = R.null
+null = R.null . underlying
 
 empty :: Bytes
 empty = mempty
@@ -90,13 +90,13 @@ fromLazyByteString :: LB.ByteString -> Bytes
 fromLazyByteString b = fromChunks (byteStringToChunk <$> LB.toChunks b)
 
 size :: Bytes -> Int
-size = R.size
+size = R.size . underlying
 
 chunkSize :: ByteString -> Int
 chunkSize = V.length
 
 chunks :: Bytes -> [ByteString]
-chunks = toList
+chunks (Bytes bs) = toList bs
 
 byteStringChunks :: Bytes -> [B.ByteString]
 byteStringChunks bs = chunkToByteString <$> chunks bs 
@@ -105,30 +105,30 @@ fromChunks :: [ByteString] -> Bytes
 fromChunks = foldl' snoc empty
 
 cons :: ByteString -> Bytes -> Bytes
-cons = R.cons
+cons b (Bytes bs) = Bytes (R.cons b bs)
 
 snoc :: Bytes -> ByteString -> Bytes
-snoc = R.snoc
+snoc (Bytes bs) b = Bytes (R.snoc bs b)
 
 flatten :: Bytes -> Bytes
 flatten b = snoc mempty (V.concat (chunks b))
 
 take :: Int -> Bytes -> Bytes
-take = R.take
+take n (Bytes bs) = Bytes (R.take n bs)
 
 drop :: Int -> Bytes -> Bytes
-drop = R.drop
+drop n (Bytes bs) = Bytes (R.drop n bs)
 
 at, index :: Int -> Bytes -> Maybe Word8
-at = R.index
-index = R.index
+at n (Bytes bs) = R.index n bs
+index = at 
 
 dropBlock :: Int -> Bytes -> Maybe (ByteString, Bytes)
-dropBlock nBytes chunks = go mempty chunks
+dropBlock nBytes (Bytes chunks) = go mempty chunks
   where
   go acc chunks 
-    | V.length acc == nBytes = Just (acc, chunks)
-    | V.length acc >= nBytes, (hd,hd2) <- V.splitAt nBytes acc = Just (hd, hd2 `R.cons` chunks)
+    | V.length acc == nBytes = Just (acc, Bytes chunks)
+    | V.length acc >= nBytes, (hd,hd2) <- V.splitAt nBytes acc = Just (hd, Bytes (hd2 `R.cons` chunks))
     | Just (head, tail) <- R.uncons chunks = go (acc <> head) tail
     | otherwise = Nothing 
 
@@ -243,26 +243,26 @@ fillBE n k i = fromIntegral (shiftR n ((k-i) * 8))
 {-# inline fillBE #-}
 
 encodeNat64be :: Word64 -> Bytes
-encodeNat64be n = R.one (V.generate 8 (fillBE n 7))
+encodeNat64be n = Bytes (R.one (V.generate 8 (fillBE n 7)))
 
 encodeNat32be :: Word64 -> Bytes
-encodeNat32be n = R.one (V.generate 4 (fillBE n 3))
+encodeNat32be n = Bytes (R.one (V.generate 4 (fillBE n 3)))
 
 encodeNat16be :: Word64 -> Bytes
-encodeNat16be n = R.one (V.generate 2 (fillBE n 1))
+encodeNat16be n = Bytes (R.one (V.generate 2 (fillBE n 1)))
 
 fillLE :: Word64 -> Int -> Word8
 fillLE n i = fromIntegral (shiftR n (i*8))
 {-# inline fillLE #-}
 
 encodeNat64le :: Word64 -> Bytes
-encodeNat64le n = R.one (V.generate 8 (fillLE n))
+encodeNat64le n = Bytes (R.one (V.generate 8 (fillLE n)))
 
 encodeNat32le :: Word64 -> Bytes
-encodeNat32le n = R.one (V.generate 4 (fillLE n))
+encodeNat32le n = Bytes (R.one (V.generate 4 (fillLE n)))
 
 encodeNat16le :: Word64 -> Bytes
-encodeNat16le n = R.one (V.generate 2 (fillLE n))
+encodeNat16le n = Bytes (R.one (V.generate 2 (fillLE n)))
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs) where
@@ -303,12 +303,12 @@ fromBase64 = fromBase BE.Base64
 fromBase64UrlUnpadded = fromBase BE.Base64URLUnpadded
 
 fromBase :: BE.Base -> Bytes -> Either Text.Text Bytes
-fromBase e bs = case BE.convertFromBase e (chunkToArray @BA.Bytes $ R.flatten bs) of
+fromBase e (Bytes bs) = case BE.convertFromBase e (chunkToArray @BA.Bytes $ R.flatten bs) of
   Left e -> Left (Text.pack e)
   Right b -> Right $ snoc empty (chunkFromArray (b :: BA.Bytes))
 
 toBase :: BE.Base -> Bytes -> Bytes
-toBase e bs = snoc empty (arrayToChunk arr)
+toBase e (Bytes bs) = snoc empty (arrayToChunk arr)
   where
   arr :: BA.Bytes
   arr = BE.convertToBase e (chunkToArray @BA.Bytes $ R.flatten bs)
