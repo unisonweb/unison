@@ -67,8 +67,8 @@ convertElement = \case
   SyntaxText.BooleanLiteral -> BooleanLiteral
   SyntaxText.Blank -> Blank
   SyntaxText.Var -> Var
-  SyntaxText.Referent r -> TermReference $ Referent.toText r
-  SyntaxText.Reference r -> TypeReference $ Reference.toText r
+  SyntaxText.TermReference r -> TermReference $ Referent.toText r
+  SyntaxText.TypeReference r -> TypeReference $ Reference.toText r
   SyntaxText.Op s -> Op s
   SyntaxText.AbilityBraces -> AbilityBraces
   SyntaxText.ControlKeyword -> ControlKeyword
