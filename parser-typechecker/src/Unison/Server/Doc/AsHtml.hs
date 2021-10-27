@@ -223,12 +223,16 @@ toHtml document =
                       case altText of
                         Word t ->
                           [alt_ t]
+                        (Paragraph (Word t : _)) ->
+                          [alt_ t]
                         _ ->
                           []
 
                     image =
                       case src of
                         Word s ->
+                          img_ (altAttr ++ [src_ s])
+                        (Paragraph (Word s : _)) ->
                           img_ (altAttr ++ [src_ s])
                         _ ->
                           ""
