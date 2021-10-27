@@ -7,7 +7,7 @@ use .builtin
 
 coolFunction x = x * 2
 
-coolFunction.doc = [: This is a cool function. :]
+coolFunction.doc = {{ This is a cool function. }}
 ```
 
 ```ucm
