@@ -1161,28 +1161,7 @@ loop = do
 
       DisplayI outputLoc hq -> displayI outputLoc hq
 
-      ShowDefinitionI outputLoc query -> do
-        res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
-        case res of
-          Left e -> handleBackendError e
-          Right (Backend.DefinitionResults terms types misses) -> do
-            let loc = case outputLoc of
-                  ConsoleLocation    -> Nothing
-                  FileLocation path  -> Just path
-                  LatestFileLocation ->
-                    fmap fst latestFile' <|> Just "scratch.u"
-                printNames =
-                  Backend.getCurrentPrettyNames currentPath'' root'
-                ppe = PPE.fromNamesDecl hqLength printNames
-            unless (null types && null terms) $
-              eval . Notify $
-                DisplayDefinitions loc ppe types terms
-            unless (null misses) $
-              eval . Notify $ SearchTermsNotFound misses
-            -- We set latestFile to be programmatically generated, if we
-            -- are viewing these definitions to a file - this will skip the
-            -- next update for that file (which will happen immediately)
-            latestFile .= ((, True) <$> loc)
+      ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
@@ -1883,6 +1862,35 @@ loop = do
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
+
+handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition outputLoc query = do
+  currentPath' <- use currentPath
+  root' <- use root
+  latestFile' <- use latestFile
+  hqLength <- eval CodebaseHashLength
+  let currentPath'' = Path.unabsolute currentPath'
+  res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
+  case res of
+    Left e -> handleBackendError e
+    Right (Backend.DefinitionResults terms types misses) -> do
+      let loc = case outputLoc of
+            ConsoleLocation -> Nothing
+            FileLocation path -> Just path
+            LatestFileLocation ->
+              fmap fst latestFile' <|> Just "scratch.u"
+          printNames =
+            Backend.getCurrentPrettyNames currentPath'' root'
+          ppe = PPE.fromNamesDecl hqLength printNames
+      unless (null types && null terms) $
+        eval . Notify $
+          DisplayDefinitions loc ppe types terms
+      unless (null misses) $
+        eval . Notify $ SearchTermsNotFound misses
+      -- We set latestFile to be programmatically generated, if we
+      -- are viewing these definitions to a file - this will skip the
+      -- next update for that file (which will happen immediately)
+      latestFile .= ((,True) <$> loc)
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
