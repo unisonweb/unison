@@ -46,11 +46,13 @@ jobs:
         with:
           path: |
             **/.stack-work
-          # Use separate caches for each OS.
-          # Caches from this branch will be used first, then trunk caches will
-          # be used as a backup.
-          key: stack-work-2_${{matrix.os}}-${{hashFiles('stack.yaml')}}
-          # Fall-back to use the most recent cache for the OS, regardless of stack.yaml
+          # Main cache key: commit hash. This should always result in a cache miss...
+          # So when loading a cache we'll always fall back to the restore-keys,
+          # which should load the most recent cache via a prefix search on the most
+          # recent branch cache.
+          # Then it will save a new cache at this commit sha, which should be used by
+          # the next build on this branch.
+          key: stack-work-2_${{matrix.os}}-${{github.sha}}
           restore-keys: stack-work-2_${{matrix.os}}
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
