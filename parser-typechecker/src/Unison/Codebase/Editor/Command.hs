@@ -246,6 +246,8 @@ data Command
 
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
 
+  -- | Trigger an interactive fuzzy search over the provided options and return all
+  -- selected results.
   FuzzySelect :: Fuzzy.Options -- ^ Configure the selection.
               -> (a -> Text) -- ^ Select the text to fuzzy find on
               -> [a] -- ^ The elements to select from

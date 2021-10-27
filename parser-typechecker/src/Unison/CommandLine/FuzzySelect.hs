@@ -1,4 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+{- | Command-line fuzzy selection of arbitrary values.
+     Shells out to fzf for the actual selection.
+-}
 module Unison.CommandLine.FuzzySelect
   ( fuzzySelect
   , Options(..)
@@ -6,8 +10,8 @@ module Unison.CommandLine.FuzzySelect
   ) where
 import Unison.Prelude
 import qualified UnliftIO.Process as Proc
-import UnliftIO.Exception (bracket_)
-import UnliftIO.IO (hSetBuffering, stdin)
+import UnliftIO.Exception (bracket_, bracket)
+import UnliftIO.IO (hSetBuffering, stdin, hGetBuffering)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import GHC.IO.Handle (hDuplicateTo)
 import qualified Data.Text.IO as Text
@@ -18,15 +22,18 @@ import System.Exit (ExitCode(ExitSuccess, ExitFailure))
 import Control.Monad.Except (runExceptT, throwError)
 import UnliftIO.Directory (findExecutable)
 
+-- | Fuzzy Selection options
 data Options = Options
   { allowMultiSelect :: Bool
   }
 
+-- | Default 'Options'
 defaultOptions :: Options
 defaultOptions = Options
   { allowMultiSelect = True
   }
 
+-- | Convert options into command-line args for fzf
 optsToArgs :: Options -> [String]
 optsToArgs opts = defaultArgs <> case opts of
     Options {allowMultiSelect=True} -> ["-m"]
@@ -39,6 +46,8 @@ optsToArgs opts = defaultArgs <> case opts of
       [ "--with-nth", "2.."
       ]
 
+-- | Run the given IO block within a fresh terminal screen, clean it up and restore the
+-- previous screen after the block is finished.
 withTempScreen :: IO a -> IO a
 withTempScreen =
   bracket_
@@ -49,7 +58,12 @@ withTempScreen =
 -- | Allows prompting the user to interactively fuzzy-select a result from a list of options, currently shells out to `fzf` under the hood.
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
 fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO (Maybe [a])
-fuzzySelect opts intoSearchText choices = handleAny handler . handleError $ withTempScreen .  runExceptT $ do
+fuzzySelect opts intoSearchText choices =
+  handleAny handleException
+    . handleError
+    . withTempScreen
+    . restoreBuffering
+    . runExceptT $ do
     fzfPath <- liftIO (findExecutable "fzf") >>= \case
       Nothing -> throwError "fzf not found. Consider installing fzf to improve your experience with unison."
       Just fzfPath -> pure fzfPath
@@ -62,9 +76,12 @@ fuzzySelect opts intoSearchText choices = handleAny handler . handleError $ with
     let fzfProc :: Proc.CreateProcess
           = (Proc.proc fzfPath fzfArgs){Proc.std_in=Proc.CreatePipe, Proc.std_out=Proc.CreatePipe}
     (Just stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
+    -- Generally no-buffering is helpful for highly interactive processes.
     hSetBuffering stdin NoBuffering
     hSetBuffering stdin' NoBuffering
+    -- Dump the search terms into fzf's stdin
     liftIO $ traverse (Text.hPutStrLn stdin') searchTexts
+    -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
     liftIO $ hDuplicateTo stdin stdin'
     exitCode <- Proc.waitForProcess procHandle
     case exitCode of
@@ -73,17 +90,21 @@ fuzzySelect opts intoSearchText choices = handleAny handler . handleError $ with
       ExitFailure 130 -> pure () -- output handle will be empty and no results will be returned.
       ExitFailure _ -> throwError "Oops, something went wrong. No input selected."
     selections <- Text.lines <$> liftIO (Text.hGetContents stdout')
+    -- Since we prefixed every search term with its number earlier, we know each result
+    -- is prefixed with a number, we need to parse it and use it to select the matching
+    -- value from our input list.
     let selectedNumbers = selections
                         & fmap (readMaybe @Int . Text.unpack . Text.takeWhile (/= ' '))
                         & catMaybes
                         & Set.fromList
     pure $ mapMaybe (\(n, a) -> if n `Set.member` selectedNumbers then Just a else Nothing) numberedChoices
   where
-    -- If an error occurrs during fuzzy-finding we just return zero results
-    -- Since it's entirely possible the user just hit ctrl-c.
-    handler :: SomeException -> IO (Maybe [a])
-    handler _ = hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
+    handleException :: SomeException -> IO (Maybe [a])
+    handleException _ = hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
     handleError :: IO (Either Text [a]) -> IO (Maybe [a])
     handleError m = m >>= \case
       Left err -> Text.hPutStrLn stderr err *> pure Nothing
       Right as -> pure (Just as)
+    restoreBuffering :: IO c -> IO c
+    restoreBuffering action =
+      bracket (hGetBuffering stdin) (hSetBuffering stdin) (const action)
