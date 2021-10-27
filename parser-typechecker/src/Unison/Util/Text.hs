@@ -8,33 +8,54 @@ module Unison.Util.Text where
 import qualified Data.Text as T
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
--- import qualified Data.ByteString as ByteString
--- import qualified Data.ByteString.Lazy as LazyByteString
 
 -- Text type represented as a `Rope` of chunks
-type Text = R.Rope Chunk
+newtype Text = Text (R.Rope Chunk)
 
-type Chunk = T.Text 
+data Chunk = Chunk {-# unpack #-} !Int !T.Text Chunk Chunk 
 
-instance R.Sized Chunk where size = T.length 
-instance R.Drop Chunk where drop = T.drop
-instance R.Take Chunk where take = T.take
+chunkToText :: Chunk -> T.Text
+chunkToText (Chunk _ t _ _) = t
+
+chunk :: T.Text -> Chunk
+chunk t = sizedChunk (T.length t) t 
+
+sizedChunk :: Int -> T.Text -> Chunk
+sizedChunk 0 _ = Chunk 0 mempty mempty mempty
+sizedChunk n t = Chunk n t l r where
+  (lt,rt) = T.splitAt (n `div` 2) t
+  l = sizedChunk (n `div` 2) lt
+  r = sizedChunk (n - (n `div` 2)) rt
+
+instance Semigroup Chunk where (<>) = mappend
+instance Monoid Chunk where
+  mempty = Chunk 0 mempty mempty mempty
+  mappend l r = sizedChunk (R.size l + R.size r) (chunkToText l <> chunkToText r) 
+
+instance R.Sized Chunk where size (Chunk n _ _ _) = n 
+instance R.Drop Chunk where drop = undefined "todo"
+instance R.Take Chunk where take = undefined "todo"
 instance R.Index Chunk Char where 
-  index n t | n < T.length t = Just (T.index t n)
-            | otherwise      = Nothing
-instance R.Reverse Chunk where reverse = T.reverse
+  index i t = go i (R.size t) t where 
+     go !i !s (Chunk _ t l r) 
+        | i >= s = Nothing
+        | i <= 8 = Just (T.index t i)
+        | i < s `div` 2 = go i (s `div` 2) l
+        | otherwise = go (i - (s `div` 2)) (s `div` 2) r
+
+instance R.Reverse Chunk where reverse t = sizedChunk (R.size t) (T.reverse (chunkToText t))
 
 take :: Int -> Text -> Text
-take = R.take
+take n (Text t) = Text (R.take n t)
 
 drop :: Int -> Text -> Text
-drop = R.drop
+drop n (Text t) = Text (R.drop n t)
 
 at :: Int -> Text -> Maybe Char
-at = R.index
+at n (Text t) = R.index n t
 
 reverse :: Text -> Text
-reverse = R.reverse
+reverse (Text t) = Text (R.reverse t)
 
 fromUtf8 :: B.Bytes -> Maybe Text
 fromUtf8 _bs = undefined
