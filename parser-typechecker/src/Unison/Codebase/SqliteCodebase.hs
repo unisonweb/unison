@@ -821,7 +821,7 @@ sqliteCodebase debugName root = do
         )
   runReaderT Q.schemaVersion conn >>= \case
     SchemaVersion 2 -> startCodebase
-    SchemaVersion 1 -> _migrate12 conn >> startCodebase
+    SchemaVersion 1 -> undefined -- migrate12 conn >> startCodebase
     v -> shutdownConnection conn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide

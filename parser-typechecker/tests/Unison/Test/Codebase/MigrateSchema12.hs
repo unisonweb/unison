@@ -1,5 +1,6 @@
-module Unison.Test.Codebase.Migration12 where
+module Unison.Test.Codebase.MigrateSchema12 where
 
+{-
 testType :: Type v a
 testType = _
 
@@ -10,3 +11,4 @@ test =
     $ [ scope "threeWayMerge.ex1"
         .  expect $ Causal.head testThreeWay == Set.fromList [3, 4]
       ]
+-}

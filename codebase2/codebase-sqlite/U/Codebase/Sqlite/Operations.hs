@@ -913,6 +913,48 @@ saveRootBranch c = do
   Q.setNamespaceRoot chId
   pure (boId, chId)
 
+-- saveBranch is kind of a "deep save causal"
+
+-- we want a "shallow save causal" that could take a
+--   forall m e. Causal m CausalHash BranchHash e
+--
+-- data Identity a = Identity
+-- e == ()
+--
+-- data C.Branch m = Branch
+--   { terms    :: Map NameSegment (Map Referent (m MdValues)),
+--     types    :: Map NameSegment (Map Reference (m MdValues)),
+--     patches  :: Map NameSegment (PatchHash, m Patch),
+--     children :: Map NameSegment (Causal m)
+--   }
+-- 
+-- U.Codebase.Sqlite.Branch.Full.Branch'
+-- type ShallowBranch = Branch' NameSegment Hash PatchHash CausalHash
+-- data ShallowBranch causalHash patchHash = ShallowBranch
+--   { terms    :: Map NameSegment (Map Referent MdValues),
+--     types    :: Map NameSegment (Map Reference MdValues),
+--     patches  :: Map NameSegment patchHash,
+--     children :: Map NameSegment causalHash
+--   }
+--
+-- data Causal m hc he e = Causal
+--  { causalHash :: hc,
+--    valueHash :: he,
+--    parents :: Map hc (m (Causal m hc he e)),
+--    value :: m e
+--  }
+-- data ShallowCausal causalHash branchHash = ShallowCausal
+--  { causalHash :: causalHash,
+--    valueHash :: branchHash,
+--    parents :: Set causalHash,
+--  }
+--
+-- References, but also values
+-- Shallow - Hash? representation of the database relationships
+
+saveBranch' :: EDB m => C.Branch.Branch m -> m Db.BranchObjectId
+saveBranch' = undefined
+
 saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
@@ -1051,15 +1093,10 @@ loadCausalByCausalHashId id = do
     pure (h, loadCausalByCausalHashId hId)
   pure $ C.Causal hc hb (Map.fromList loadParents) loadNamespace
 
--- | is this even a thing?  loading a branch by causal hash?  yes I guess so.
 loadBranchByCausalHashId :: EDB m => Db.CausalHashId -> m (Maybe (C.Branch.Branch m))
 loadBranchByCausalHashId id = do
   (liftQ . Q.loadBranchObjectIdByCausalHashId) id
     >>= traverse loadBranchByObjectId
-
--- FIXME this doesn't belong in this module
-loadDbBranchByObjectId :: EDB m => Db.BranchObjectId -> m (S.DbBranch m)
-loadDbBranchByObjectId = undefined
 
 loadBranchByObjectId :: EDB m => Db.BranchObjectId -> m (C.Branch.Branch m)
 loadBranchByObjectId id = do

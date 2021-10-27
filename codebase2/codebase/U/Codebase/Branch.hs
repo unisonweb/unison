@@ -16,7 +16,7 @@ newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
 type MetadataType = Reference
 type MetadataValue = Reference
 data MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Show)
-
+ 
 type Causal m = C.Causal m CausalHash BranchHash (Branch m)
 
 -- | V2.Branch is like V1.Branch0; I would rename it, at least temporarily, but too hard.

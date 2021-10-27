@@ -5,9 +5,11 @@ module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     tokensBranch0,
     hashDecls,
+    hashDecls',
     hashPatch,
     hashClosedTerm,
     hashTermComponents,
+    hashTermComponents',
     hashTypeComponents,
     typeToReference,
     typeToReferenceMentions,
@@ -71,6 +73,11 @@ hashTermComponents = fmap h2mTermResult . Hashing.Term.hashComponents . fmap m2h
   where
     h2mTermResult :: Ord v => (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
     h2mTermResult (id, tm) = (h2mReferenceId id, h2mTerm tm)
+
+-- TODO: remove non-prime version
+-- include type in hash
+hashTermComponents' :: Var v => Map v (Memory.Term.Term v a, Memory.Type.Type v a) -> Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
+hashTermComponents' = undefined
 
 hashClosedTerm :: Var v => Memory.Term.Term v a -> Memory.Reference.Id
 hashClosedTerm = h2mReferenceId . Hashing.Term.hashClosedTerm . m2hTerm
@@ -200,6 +207,13 @@ hashDecls memDecls = do
   where
     h2mDeclResult :: Ord v => (v, Hashing.Reference.Id, Hashing.DD.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
     h2mDeclResult (v, id, dd) = (v, h2mReferenceId id, h2mDecl dd)
+
+-- TODO: rename hashDecls to hashDataDecls, remove tick from this
+hashDecls' ::
+  Var v =>
+  Map v (Memory.DD.Decl v a) ->
+  ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
+hashDecls' memDecls = undefined
 
 m2hDecl :: Ord v => Memory.DD.DataDeclaration v a -> Hashing.DD.DataDeclaration v a
 m2hDecl (Memory.DD.DataDeclaration mod ann bound ctors) =

@@ -31,7 +31,7 @@ import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Runtime.ANF (internalBug)
 import Unison.Symbol (Symbol)
-import Unison.Term hiding (Term)
+import Unison.Term hiding (Term, matchPattern)
 import qualified Unison.Term as Tm
 import Unison.Var (Var, typed, freshIn, freshenId, Type(Pattern))
 

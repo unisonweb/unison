@@ -8,8 +8,8 @@
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
 import Control.Lens
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Reader (MonadReader, ReaderT, ask)
+import Control.Monad.Except (runExceptT, ExceptT)
+import Control.Monad.Reader (MonadReader, ReaderT (runReaderT), ask)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, execWriterT, runWriterT, tell)
@@ -45,6 +45,8 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
+import U.Codebase.HashTags (CausalHash)
+import qualified U.Codebase.Causal as C
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -77,6 +79,7 @@ data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
   { -- declLookup :: Map (Old ObjectId) (Map (Old Pos) (New Pos)),
     referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
+    causalMapping :: Map (Old CausalHash) (New CausalHash),
     -- Mapping between contructor indexes for the type identified by (ObjectId, Pos)
     ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
     ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
@@ -123,10 +126,10 @@ data Y = MkY Int
 data Entity
   = TComponent Unison.Hash
   | DComponent Unison.Hash
-  | B ObjectId
+  | C CausalHash
   -- haven't proven we need these yet
+  | B ObjectId
   | Patch ObjectId
-  | C CausalHashId
   | W WK.WatchKind S.Reference.IdH -- Hash Reference.Id
   deriving (Eq, Ord, Show)
 
@@ -183,8 +186,10 @@ migrationSync = Sync \case
     lift (migrateDeclComponent codebase hash)
   B objectId -> do
     Env{db} <- ask
-    migrateBranch db objectId
-  C _causalHashID -> undefined
+    lift (migrateBranch db objectId)
+  C causalHash -> do
+    Env{db} <- ask
+    lift (migrateCausal db causalHash)
   -- To sync a watch result,
   --   1. ???
   --   2. Synced
@@ -194,10 +199,54 @@ migrationSync = Sync \case
 migratePatch :: Hash -> ByteString -> m (Sync.TrySyncResult Entity)
 migratePatch = error "not implemented"
 
-migrateBranch :: Connection -> ObjectId -> m (Sync.TrySyncResult Entity)
-migrateBranch conn objectId = do
+runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -> m a
+runDB conn = (runExceptT >=> err) . flip runReaderT conn
+  where
+    err = \case Left err -> error $ show err; Right a -> pure a
+
+-- loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
+migrateCausal :: MonadIO m => Connection -> CausalHash -> StateT MigrationState m (Sync.TrySyncResult Entity)
+migrateCausal conn causalHash = runDB conn $ do
+  C.Causal{..} <- Ops.loadCausalBranchByCausalHash causalHash >>= \case
+    Nothing -> error $ "Expected causal to exist but it didn't" <> show causalHash
+    Just c -> pure c
+  migratedCausals <- gets causalMapping
+  -- Plan:
+  --   * Load a C.Causal
+  --   * Ensure its parent causals and branch (value hash) have been migrated
+  --   * Rewrite the value-hash and parent causal hashes
+  --   * Save the new causal (Do we change the self-hash?)
+  --
+  -- let unMigratedParents = 
+        
+
+  
+  
+  
+  undefined
+
+-- data Causal m hc he e = Causal
+--   { causalHash :: hc,
+--     valueHash  :: he,
+--     parents    :: Map hc (m (Causal m hc he e)),
+--     value      :: m e
+--   }
+
+  -- data C.Branch m = Branch
+  -- { terms    :: Map NameSegment (Map Referent (m MdValues)),
+  --   types    :: Map NameSegment (Map Reference (m MdValues)),
+  --   patches  :: Map NameSegment (PatchHash, m Patch),
+  --   children :: Map NameSegment (Causal m)
+  -- }
+
+migrateBranch :: Monad m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
+migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
   -- note for tomorrow: we want to just load the (Branch m) instead, forget the DbBranch
-  dbBranch <- Ops.loadDbBranchByObjectId objectId
+  -- dbBranch <- Ops.loadDbBranchByObjectId objectId
+
+  -- Plan:
+  --   * Load a C.Branch by converting Branch Hash into a branch object ID 
+  --   * 
 
   let allMissingTypes = undefined
   let allMissingTerms = undefined

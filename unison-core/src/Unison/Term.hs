@@ -51,7 +51,7 @@ import Control.Lens (Prism', Lens', lens)
 
 data MatchCase loc a = MatchCase
   { matchPattern :: Pattern loc,
-    matchGuard :: (Maybe a),
+    matchGuard :: Maybe a,
     matchBody :: a
   }
   deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
