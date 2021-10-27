@@ -33,9 +33,9 @@ jobs:
         with:
           path: ~/.stack
           # Look for the most recent haddocks build
-          key: stack-0_haddocks
+          key: stack-0-haddocks
           # Fall-back to a non-haddocks build
-          restore-keys: stack-0_Linux
+          restore-keys: stack-0-Linux
 
       # Cache each local package's ~/.stack-work for fast incremental builds in CI.
       - uses: actions/cache@v2
@@ -44,7 +44,7 @@ jobs:
           path: |
             **/.stack-work
           # Look for the most recent haddocks build
-          key: stack-work-2_haddocks
+          key: stack-work-2-haddocks
           # Fall-back to a non-haddocks build
           restore-keys: stack-work-2_Linux
 
