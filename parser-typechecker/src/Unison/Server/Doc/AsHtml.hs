@@ -58,7 +58,7 @@ normalizeHref href doc =
     Join ds ->
       foldl' normalizeHref href ds
     Special (Link syntax) ->
-       maybe InvalidHref ReferenceHref (Syntax.firstReference syntax)
+      maybe InvalidHref ReferenceHref (Syntax.firstReference syntax)
     _ ->
       href
 
@@ -104,16 +104,55 @@ foldedToHtmlSource isFolded source =
 -- | Merge adjacent Word elements in a list to 1 element with a string of words
 -- separated by space— useful for rendering to the dom without creating dom
 -- elements for each and every word in the doc, but instead rely on textNodes
-mergeWords :: [Doc] -> [Doc]
-mergeWords = foldr merge_ []
+mergeWords :: Text -> [Doc] -> [Doc]
+mergeWords sep = foldr merge_ []
   where
     merge_ :: Doc -> [Doc] -> [Doc]
     merge_ d acc =
       case (d, acc) of
         (Word w, Word w_ : rest) ->
-          Word (w <> " " <> w_) : rest
+          Word (w <> sep <> w_) : rest
         _ ->
           d : acc
+
+-- | Merge down Doc to Text by merging Paragraphs and Words.
+-- Used for things like extract an src of an image. I.e something that has to
+-- be a Text and not a Doc
+toText :: Text -> Doc -> Text
+toText sep doc = 
+  case doc of
+  Paragraph ds ->
+    listToText ds
+  Group d ->
+    toText sep d
+  Join ds ->
+    listToText ds
+  Bold d ->
+    toText sep d
+  Italic d ->
+    toText sep d
+  Strikethrough d ->
+    toText sep d
+  Blockquote d ->
+    toText sep d
+  Section d ds ->
+    toText sep d <> sep <> listToText ds
+  UntitledSection ds ->
+    listToText ds
+  Column ds ->
+    listToText ds
+  Word w ->
+    w
+  _ ->
+    ""
+  where
+    isEmpty s =
+      s == Text.empty
+
+    listToText =
+      Text.intercalate sep
+        . filter (not . isEmpty)
+        . map (toText sep)
 
 toHtml :: Doc -> Html ()
 toHtml document =
@@ -181,7 +220,7 @@ toHtml document =
                       td_ [] . currentSectionLevelToHtml
 
                     rowToHtml cells =
-                      tr_ [] $ mapM_ cellToHtml $ mergeWords cells
+                      tr_ [] $ mapM_ cellToHtml $ mergeWords " " cells
                  in table_ [] $ tbody_ [] $ mapM_ rowToHtml rows
               Folded isFolded summary details ->
                 let content =
@@ -197,15 +236,15 @@ toHtml document =
                   [d] ->
                     currentSectionLevelToHtml d
                   ds ->
-                    span_ [class_ "span"] $ mapM_ currentSectionLevelToHtml $ mergeWords ds
+                    span_ [class_ "span"] $ mapM_ currentSectionLevelToHtml $ mergeWords " " ds
               BulletedList items ->
                 let itemToHtml =
                       li_ [] . currentSectionLevelToHtml
-                 in ul_ [] $ mapM_ itemToHtml $ mergeWords items
+                 in ul_ [] $ mapM_ itemToHtml $ mergeWords " " items
               NumberedList startNum items ->
                 let itemToHtml =
                       li_ [] . currentSectionLevelToHtml
-                 in ol_ [start_ $ Text.pack $ show startNum] $ mapM_ itemToHtml $ mergeWords items
+                 in ol_ [start_ $ Text.pack $ show startNum] $ mapM_ itemToHtml $ mergeWords " " items
               Section title docs ->
                 let titleEl =
                       h sectionLevel $ currentSectionLevelToHtml title
@@ -220,18 +259,10 @@ toHtml document =
                     span_ [class_ "named-link invalid-href"] $ currentSectionLevelToHtml label
               Image altText src caption ->
                 let altAttr =
-                      case altText of
-                        Word t ->
-                          [alt_ t]
-                        _ ->
-                          []
+                      [alt_ $ toText " " altText]
 
                     image =
-                      case src of
-                        Word s ->
-                          img_ (altAttr ++ [src_ s])
-                        _ ->
-                          ""
+                      img_ (altAttr ++ [src_ $ toText "" src])
 
                     imageWithCaption c =
                       div_
@@ -290,7 +321,7 @@ toHtml document =
                   EmbedInline syntax ->
                     span_ [class_ "source rich embed-inline"] $ inlineCode [] (Syntax.toHtml syntax)
               Join docs ->
-                span_ [class_ "join"] (mapM_ currentSectionLevelToHtml (mergeWords docs))
+                span_ [class_ "join"] (mapM_ currentSectionLevelToHtml (mergeWords " " docs))
               UntitledSection docs ->
                 section_ [] (mapM_ (sectionContentToHtml currentSectionLevelToHtml) docs)
               Column docs ->
@@ -298,7 +329,7 @@ toHtml document =
                   [class_ "column"]
                   ( mapM_
                       (li_ [] . currentSectionLevelToHtml)
-                      (mergeWords docs)
+                      (mergeWords " " docs)
                   )
               Group content ->
                 span_ [class_ "group"] $ currentSectionLevelToHtml content
