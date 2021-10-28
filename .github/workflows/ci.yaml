@@ -103,5 +103,7 @@ jobs:
           x=`git status --porcelain -uno` bash -c 'if [[ -n $x ]]; then echo "$x" && false; fi'
       - name: prettyprint-round-trip
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
+      - name: integration-tests
+        run: stack --no-terminal exec integration-tests
       - name: other test suites
         run: stack --no-terminal test unison-util-relation
