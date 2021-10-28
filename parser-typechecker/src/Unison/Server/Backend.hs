@@ -133,8 +133,8 @@ basicNames' root scope =
     path :: Path
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
-      AllNamesRelativeTo   path -> (path, True)
-      OnlyNamesContainedIn path -> (path, False)
+      AllNames   path -> (path, True)
+      Within path -> (path, False)
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
     absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
@@ -231,7 +231,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames branch (AllNamesRelativeTo path)
+      basicPrettyPrintNames branch (AllNames path)
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -277,7 +277,7 @@ findShallowReadmeInBranchAndRender ::
   Backend IO (Maybe Doc.Doc)
 findShallowReadmeInBranchAndRender width runtime codebase branch =
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
-      printNames = getCurrentPrettyNames (OnlyNamesContainedIn $ Path.fromList []) branch
+      printNames = getCurrentPrettyNames (Within $ Path.fromList []) branch
 
       renderReadme ppe r = do
         res <- renderDoc ppe width runtime codebase (Referent.toReference r)
@@ -453,16 +453,23 @@ termReferentsByShortHash codebase sh = do
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
 
+-- | Configure how names will be constructed and filtered.
+--   this is typically used when fetching names for printing source code or when finding
+--   definitions by name.
 data NameScoping =
-      AllNamesRelativeTo   Path
-    | OnlyNamesContainedIn Path
+      -- | Find all names, making any names which are children of this path,
+      -- otherwise leave them absolute.
+      AllNames Path
+      -- | Filter returned names to only include names within this path.
+    | Within   Path
 
 getCurrentPrettyNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentPrettyNames scope root =
   NamesWithHistory (basicPrettyPrintNames root scope) mempty
 
 getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
-getCurrentParseNames scope root = NamesWithHistory (basicParseNames root scope) mempty
+getCurrentParseNames scope root =
+  NamesWithHistory (basicParseNames root scope) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are

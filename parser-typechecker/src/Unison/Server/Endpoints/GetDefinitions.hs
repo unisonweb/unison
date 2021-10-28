@@ -126,7 +126,7 @@ serveDefinitions h rt codebase mayRoot relativePath hqns width suff =
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     ea <- liftIO . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      Backend.prettyDefinitionsBySuffixes rel
+      Backend.prettyDefinitionsBySuffixes (Backend.Within . fromMaybe Path.empty $ rel)
                                           root
                                           width
                                           (fromMaybe (Suffixify True) suff)
