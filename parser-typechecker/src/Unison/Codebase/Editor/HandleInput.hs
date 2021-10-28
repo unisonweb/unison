@@ -1870,24 +1870,22 @@ handleShowDefinition outputLoc query = do
   latestFile' <- use latestFile
   hqLength <- eval CodebaseHashLength
   let currentPath'' = Path.unabsolute currentPath'
-  eval (GetDefinitionsBySuffixes (Just currentPath'') root' query) >>= \case
-    Left e -> handleBackendError e
-    Right (Backend.DefinitionResults terms types misses) -> do
-      let loc = case outputLoc of
-            ConsoleLocation -> Nothing
-            FileLocation path -> Just path
-            LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-          printNames = Backend.getCurrentPrettyNames currentPath'' root'
-          ppe = PPE.fromNamesDecl hqLength printNames
-      unless (null types && null terms) $
-        eval . Notify $
-          DisplayDefinitions loc ppe types terms
-      unless (null misses) $
-        eval . Notify $ SearchTermsNotFound misses
-      -- We set latestFile to be programmatically generated, if we
-      -- are viewing these definitions to a file - this will skip the
-      -- next update for that file (which will happen immediately)
-      latestFile .= ((,True) <$> loc)
+  Backend.DefinitionResults terms types misses <- eval (GetDefinitionsBySuffixes (Just currentPath'') root' query)
+  let loc = case outputLoc of
+        ConsoleLocation -> Nothing
+        FileLocation path -> Just path
+        LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+      printNames = Backend.getCurrentPrettyNames currentPath'' root'
+      ppe = PPE.fromNamesDecl hqLength printNames
+  when (not (null types && null terms)) $
+    eval . Notify $
+      DisplayDefinitions loc ppe types terms
+  when (not (null misses)) $
+    eval . Notify $ SearchTermsNotFound misses
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((,True) <$> loc)
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)

@@ -181,8 +181,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     HQNameQuery mayPath branch query ->
       lift $ Backend.hqNameQuery mayPath branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
-    GetDefinitionsBySuffixes mayPath branch query ->
-      lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
+    GetDefinitionsBySuffixes mayPath branch query -> lift (Backend.definitionsBySuffixes mayPath branch codebase query)
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
     MakeStandalone ppe ref out -> lift $ do
       let cl = Codebase.toCodeLookup codebase

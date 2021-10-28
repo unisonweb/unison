@@ -96,7 +96,7 @@ data Command m i v a where
     :: Maybe Path
     -> Branch m
     -> [HQ.HashQualified Name]
-    -> Command m i v (Either BackendError (DefinitionResults v))
+    -> Command m i v (DefinitionResults v)
 
   FindShallow
     :: Path.Absolute
