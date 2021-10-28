@@ -230,7 +230,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames branch (AllNames path)
+      basicPrettyPrintNames branch (Within path)
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
