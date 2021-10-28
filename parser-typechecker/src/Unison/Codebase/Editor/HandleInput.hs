@@ -847,7 +847,7 @@ loop = do
           else handleFailedDelete failed failedDependents
       SwitchBranchI maybePath' -> do
         mpath' <- case maybePath' of
-          Nothing -> fuzzySelectNamespace currentBranch0 <&> \case
+          Nothing -> fuzzySelectNamespace root0 <&> \case
                          [] -> Nothing
                          -- Shouldn't be possible to get multiple paths here, we can just take
                          -- the first.
@@ -1035,7 +1035,7 @@ loop = do
 
       DocsI srcs -> do
         srcs' <- case srcs of
-          [] -> fuzzySelectTermsAndTypes currentBranch0
+          [] -> fuzzySelectTermsAndTypes root0
                   -- HQ names should always parse as a valid split, so we just discard any
                   -- that don't to satisfy the type-checker.
                   <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
@@ -1105,14 +1105,14 @@ loop = do
 
       DisplayI outputLoc names' -> do
         names <- case names' of
-          [] -> fuzzySelectTermsAndTypes currentBranch0
+          [] -> fuzzySelectTermsAndTypes root0
           ns -> pure ns
         traverse_ (displayI basicPrettyPrintNames outputLoc) names
 
       ShowDefinitionI outputLoc inputQuery -> do
         -- If the query is empty, run a fuzzy search.
         query <- case inputQuery of
-          [] -> fuzzySelectTermsAndTypes currentBranch0
+          [] -> fuzzySelectTermsAndTypes root0
           q -> pure q
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
         case res of
