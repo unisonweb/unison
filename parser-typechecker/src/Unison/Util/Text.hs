@@ -4,6 +4,7 @@
 
 module Unison.Util.Text where
 
+import Prelude hiding (take,drop)
 import Data.List (unfoldr)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -11,7 +12,7 @@ import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
 
 -- Text type represented as a `Rope` of chunks
-newtype Text = Text (R.Rope Chunk)
+newtype Text = Text (R.Rope Chunk) deriving (Eq,Ord,Semigroup,Monoid)
 
 data Chunk = Chunk {-# unpack #-} !Int {-# unpack #-} !T.Text
 
@@ -21,29 +22,6 @@ chunkToText (Chunk _ t) = t
 chunk :: T.Text -> Chunk
 chunk t = Chunk (T.length t) t 
 
-instance Semigroup Chunk where (<>) = mappend
-instance Monoid Chunk where
-  mempty = Chunk 0 mempty
-  mappend l r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r) 
-
-instance R.Sized Chunk where size (Chunk n _) = n 
-instance R.Drop Chunk where 
-  drop k c@(Chunk n t) 
-    | k >= n = mempty
-    | k <= 0 = c 
-    | otherwise = Chunk (n-k) (T.drop k t)
-instance R.Take Chunk where 
-  take k c@(Chunk n t)
-    | k >= n = c 
-    | k <= 0 = mempty 
-    | otherwise = Chunk k (T.take k t)
-instance R.Index Chunk Char where
-  index i (Chunk n t) | i < n     = Just (T.index t i)
-                      | otherwise = Nothing
-
-instance R.Reverse Chunk where 
-  reverse (Chunk n t) = Chunk n (T.reverse t)
-
 take :: Int -> Text -> Text
 take n (Text t) = Text (R.take n t)
 
@@ -52,6 +30,9 @@ drop n (Text t) = Text (R.drop n t)
 
 at :: Int -> Text -> Maybe Char
 at n (Text t) = R.index n t
+
+size :: Text -> Int
+size (Text t) = R.size t
 
 reverse :: Text -> Text
 reverse (Text t) = Text (R.reverse t)
@@ -66,11 +47,11 @@ toUtf8 :: Text -> B.Bytes
 toUtf8 (Text t) = B.Bytes (R.map (B.chunkFromByteString . T.encodeUtf8 . chunkToText) t)
 
 fromText :: T.Text -> Text
-fromText s = let
-  go !acc s = case T.splitAt 512 s of
-    (t,_) | T.null t -> acc
-    (hd,tl) -> go (acc `R.snoc` chunk hd) tl
-  in Text (go mempty s)
+fromText s = go (Text (R.one (chunk s)))
+  where
+  go t | n > 512        = go (take (n `div` 2) t) <> go (drop (n `div` 2) t)
+       | otherwise      = t
+       where n = size t
 
 fromString :: String -> Text
 fromString = fromText . T.pack
@@ -128,3 +109,33 @@ takeWhileEnd f = let
 
 
 -}
+
+instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
+instance Ord Chunk where (Chunk _ a) `compare` (Chunk _ a2) = compare a a2
+instance Semigroup Chunk where (<>) = mappend
+instance Monoid Chunk where
+  mempty = Chunk 0 mempty
+  mappend l r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r) 
+
+instance R.Sized Chunk where size (Chunk n _) = n 
+
+instance R.Drop Chunk where 
+  drop k c@(Chunk n t) 
+    | k >= n = mempty
+    | k <= 0 = c 
+    | otherwise = Chunk (n-k) (T.drop k t)
+
+instance R.Take Chunk where 
+  take k c@(Chunk n t)
+    | k >= n = c 
+    | k <= 0 = mempty 
+    | otherwise = Chunk k (T.take k t)
+
+instance R.Index Chunk Char where
+  index i (Chunk n t) | i < n     = Just (T.index t i)
+                      | otherwise = Nothing
+
+instance R.Reverse Chunk where 
+  reverse (Chunk n t) = Chunk n (T.reverse t)
+
+instance R.Sized Text where size (Text t) = R.size t
