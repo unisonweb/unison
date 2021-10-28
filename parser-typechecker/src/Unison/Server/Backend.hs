@@ -669,23 +669,30 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
     let
       printNames =
         getCurrentPrettyNames namesScope branch
+
       parseNames =
         getCurrentParseNames namesScope branch
-      ppe   = PPE.fromNamesDecl hqLength printNames
-      width = mayDefaultWidth renderWidth
-      isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
+
+      ppe =
+        PPE.fromNamesDecl hqLength printNames
+
+      width =
+        mayDefaultWidth renderWidth
+
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
         rel = Names.terms $ currentNames parseNames
-        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+        f k _ = Set.fromList . fmap Name.toText . toList
               $ R.lookupRan (Referent.Ref k) rel
+
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
         rel = Names.types $ currentNames parseNames
-        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+        f k _ = Set.fromList . fmap Name.toText . toList
               $ R.lookupRan k rel
+
       flatten = Set.toList . fromMaybe Set.empty
 
       docNames :: Set (HQ'.HashQualified Name) -> [Name]
