@@ -1153,11 +1153,14 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
       mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
       for_ mes $ \es -> applyM scrutType >>= \sty -> do
         v <- freshenVar Var.inferPatternPureV
+        g <- freshenVar Var.inferAbility
         let lo = loc scrutType
             vt = existentialp lo v
-        appendContext [existential v]
-        subtype (Type.effectV lo (lo, Type.effects lo es) (lo, vt)) sty
-      scrutType' <- ungeneralize scrutType
+            gt = existentialp lo g
+            es' = gt:es
+        appendContext [existential g, existential v]
+        subtype (Type.effectV lo (lo, Type.effects lo es') (lo, vt)) sty
+      scrutType' <- applyM =<< ungeneralize scrutType
       coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 getEffect
@@ -1362,10 +1365,10 @@ checkPattern scrutineeType p =
 
           st <- lift $ applyM scrutineeType
           case st of
-            Type.App' _ vt ->
+            Type.App' (Type.App' _ eff) vt ->
               let kt = Type.arrow (Pattern.loc k)
                                   it
-                                  (Type.effect (Pattern.loc k) [et] vt)
+                                  (Type.effect (Pattern.loc k) [eff] vt)
               in (vs ++) <$> checkPattern kt k
             _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
