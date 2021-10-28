@@ -1657,34 +1657,32 @@ markThenRetractWanted v m
 coalesceWanted'
   :: Var v
   => Ord loc
-  => Wanted v loc
+  => (TypeVar v loc -> Bool)
+  -> Wanted v loc
   -> Wanted v loc
   -> M v loc (Wanted v loc)
-coalesceWanted' [] old = pure old
-coalesceWanted' ((loc,n):new) old
+coalesceWanted' _    [] old = pure old
+coalesceWanted' keep ((loc,n):new) old
   | Just (_, o) <- find (headMatch n . snd) old = do
-    subtype n o
+    equate n o
     coalesceWanted new old
   | Type.Var' u <- n = do
-    ctx <- getContext
     (new, old) <-
       -- Only add existential variables to the wanted list if they
       -- occur in a type we're trying to infer in the context. If
       -- they don't, they were added as instantiations of polymorphic
       -- types that might as well just be instantiated to {}.
-      if keep ctx u
+      if keep u
         then pure (new, (loc, n):old)
         else do
           defaultAbility n
           pure (new, old)
     coalesceWanted new old
-  | otherwise = coalesceWanted' new ((loc, n):old)
-  where
-  keep ctx u@TypeVar.Existential{} = occursAnn u ctx
-  keep _ _ = True
+  | otherwise = coalesceWanted' keep new ((loc, n):old)
 
 -- Wrapper for coalesceWanted' that ensures both lists are fully
--- expanded.
+-- expanded and calculates some necessary information for the main
+-- procedure.
 coalesceWanted
   :: Var v
   => Ord loc
@@ -1694,7 +1692,13 @@ coalesceWanted
 coalesceWanted new old = do
   new <- expandWanted new
   old <- expandWanted old
-  coalesceWanted' new old
+  ctx <- getContext
+  let invars (Type.Var' _) = mempty
+      invars t = Type.freeVars t
+      ivs = (foldMap.foldMap) invars (new++old)
+      keep v@TypeVar.Existential{} = Set.member v ivs || occursAnn v ctx
+      keep _ = True
+  coalesceWanted' keep new old
 
 coalesceWanteds
   :: Var v => Ord loc => [Wanted v loc] -> M v loc (Wanted v loc)
