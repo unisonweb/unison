@@ -825,64 +825,54 @@ definitionsBySuffixes ::
   m (DefinitionResults v)
 definitionsBySuffixes relativeTo branch codebase includeCycles query = do
   QueryResult misses results <- hqNameQuery relativeTo branch codebase query
-  terms <- searchResultsToDisplayTerms results
-  types <- searchResultsToDisplayTypes results
+  terms <- do
+    let termRefs0 = searchResultsToTermRefs results
+    let termRefs =
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) termRefs0
+            DontIncludeCycles -> termRefs0
+    Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
+  types <- do
+    let typeRefs0 = searchResultsToTypeRefs results
+    let typeRefs =
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) typeRefs0
+            DontIncludeCycles -> typeRefs0
+    Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
-    searchResultsToDisplayTerms :: [SR.SearchResult] -> m (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
-    searchResultsToDisplayTerms results = do
-      Map.foldMapM (\ref -> (ref,) <$> display ref) nonConstructorTerms
+    searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
+    searchResultsToTermRefs results =
+      Set.fromList [r | SR.Tm' _ (Referent.Ref r) _ <- results]
+    searchResultsToTypeRefs :: [SR.SearchResult] -> Set Reference
+    searchResultsToTypeRefs results =
+      Set.fromList (mapMaybe f results)
       where
-        nonConstructorTerms :: Set Reference
-        nonConstructorTerms =
-          case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) nonConstructorTerms0
-            DontIncludeCycles -> nonConstructorTerms0
-          where
-            nonConstructorTerms0 :: Set Reference
-            nonConstructorTerms0 =
-              Set.fromList [r | SR.Tm' _ (Referent.Ref r) _ <- results]
-        display :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))
-        display = \case
-          ref@(Reference.Builtin _) -> do
-            pure case Map.lookup ref B.termRefTypes of
-              -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
-              -- misused here. Is `MissingObject` even possible anymore?
-              Nothing -> MissingObject $ Reference.toShortHash ref
-              Just typ -> BuiltinObject (mempty <$ typ)
-          Reference.DerivedId rid -> do
-            (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
-            pure case term of
-              Term.Ann' _ _ -> UserObject term
-              -- manually annotate if necessary
-              _ -> UserObject (Term.ann (ABT.annotation term) term ty)
-
-    searchResultsToDisplayTypes :: [SR.SearchResult] -> m (Map Reference (DisplayObject () (DD.Decl v Ann)))
-    searchResultsToDisplayTypes results = do
-      Map.foldMapM (\ref -> (ref,) <$> display ref) refs
-      where
-        refs :: Set Reference
-        refs =
-          case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) refs0
-            DontIncludeCycles -> refs0
-          where
-            refs0 :: Set Reference
-            refs0 =
-              Set.fromList (mapMaybe f results)
-              where
-                f :: SR.SearchResult -> Maybe Reference
-                f = \case
-                  SR.Tm' _ (Referent.Con r _ _) _ -> Just r
-                  SR.Tp' _ r _ -> Just r
-                  _ -> Nothing
-
-        display :: Reference -> m (DisplayObject () (DD.Decl v Ann))
-        display = \case
-          Reference.Builtin _ -> pure (BuiltinObject ())
-          Reference.DerivedId rid -> do
-            decl <- Codebase.unsafeGetTypeDeclaration codebase rid
-            pure (UserObject decl)
+        f :: SR.SearchResult -> Maybe Reference
+        f = \case
+          SR.Tm' _ (Referent.Con r _ _) _ -> Just r
+          SR.Tp' _ r _ -> Just r
+          _ -> Nothing
+    displayTerm :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))
+    displayTerm = \case
+      ref@(Reference.Builtin _) -> do
+        pure case Map.lookup ref B.termRefTypes of
+          -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
+          -- misused here. Is `MissingObject` even possible anymore?
+          Nothing -> MissingObject $ Reference.toShortHash ref
+          Just typ -> BuiltinObject (mempty <$ typ)
+      Reference.DerivedId rid -> do
+        (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
+        pure case term of
+          Term.Ann' _ _ -> UserObject term
+          -- manually annotate if necessary
+          _ -> UserObject (Term.ann (ABT.annotation term) term ty)
+    displayType :: Reference -> m (DisplayObject () (DD.Decl v Ann))
+    displayType = \case
+      Reference.Builtin _ -> pure (BuiltinObject ())
+      Reference.DerivedId rid -> do
+        decl <- Codebase.unsafeGetTypeDeclaration codebase rid
+        pure (UserObject decl)
 
 termsToSyntax
   :: Var v
