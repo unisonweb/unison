@@ -1051,7 +1051,9 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
                     Just b -> pure b
                     Nothing -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
                 _ -> throwError . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-          pure (closeCodebase, Branch.getAt' path branch, remotePath)
+          case Branch.getAt path branch of
+            Just b -> pure (closeCodebase, b, remotePath)
+            Nothing -> throwError . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.
     -- I'm thinking we should probably return an error value instead.
     (pure (pure (), Branch.empty, remotePath))
