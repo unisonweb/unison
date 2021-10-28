@@ -25,6 +25,10 @@ module Unison.Codebase
     dependents,
     isTerm,
     isType,
+
+    -- * Unsafe variants
+    unsafeGetTerm,
+    unsafeGetTypeOfTermById,
   )
 where
 
@@ -248,3 +252,15 @@ viewRemoteBranch ::
 viewRemoteBranch codebase ns = runExceptT do
   (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
   pure (cleanup, branch)
+
+unsafeGetTerm :: Monad m => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm codebase id =
+  getTerm codebase id >>= \case
+    Nothing -> undefined -- FIXME error message
+    Just term -> pure term
+
+unsafeGetTypeOfTermById :: Monad m => Codebase m v a -> Reference.Id -> m (Type v a)
+unsafeGetTypeOfTermById codebase id =
+  getTypeOfTermImpl codebase id >>= \case
+    Nothing -> undefined -- FIXME error message
+    Just ty -> pure ty

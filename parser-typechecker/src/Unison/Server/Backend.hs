@@ -21,6 +21,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Tuple as Tuple
 import Data.Tuple.Extra (dupe)
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
@@ -44,6 +45,7 @@ import Unison.Codebase.ShortBranchHash
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
+import Unison.Hash (Hash)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
@@ -82,6 +84,7 @@ import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker as Typechecker
 import Unison.Util.List (uniqueBy)
 import Unison.Util.Pretty (Width)
+import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
@@ -422,22 +425,22 @@ typeReferencesByShortHash codebase sh = do
                                 B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
-typeReferencesByShortHash
-  :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 termReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferencesByPrefix codebase sh
   let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
                                 B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+  pure (fromBuiltins <> Set.mapMonotonic Reference.DerivedId fromCodebase)
 
-termReferentsByShortHash
-  :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
+-- | Look up terms in the codebase by short hash, and include builtins.
+termReferentsByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
 termReferentsByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferentsByPrefix codebase sh
   let fromBuiltins = Set.map Referent.Ref $ Set.filter
         (\r -> sh == Reference.toShortHash r)
         B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
+  pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
 
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
@@ -575,9 +578,9 @@ hqNameQuery relativeTo root codebase hqs = do
 -- TODO: Move this to its own module
 data DefinitionResults v =
   DefinitionResults
-    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann))
-    , typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann))
-    , noResults :: [HQ.HashQualified Name]
+    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)),
+      typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
+      noResults :: [HQ.HashQualified Name]
     }
 
 -- Separates type references from term references and returns types and terms,
@@ -638,10 +641,7 @@ prettyDefinitionsBySuffixes
 prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
   = do
     branch                               <- resolveBranchHash root codebase
-    DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
-                                                                  branch
-                                                                  codebase
-                                                                  query
+    DefinitionResults terms types misses <- definitionsBySuffixes relativeTo branch codebase query
     hqLength <- lift $ Codebase.hashLength codebase
     -- We might like to make sure that the user search terms get used as
     -- the names in the pretty-printer, but the current implementation
@@ -809,61 +809,75 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase
 
-
-definitionsBySuffixes
-  :: forall m v
-   . (MonadIO m)
-  => Var v
-  => Maybe Path
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> Backend m (DefinitionResults v)
+definitionsBySuffixes ::
+  forall m v.
+  (MonadIO m) =>
+  Var v =>
+  Maybe Path ->
+  Branch m ->
+  Codebase m v Ann ->
+  [HQ.HashQualified Name] ->
+  Backend m (DefinitionResults v)
 definitionsBySuffixes relativeTo branch codebase query = do
+  let hydrate = True
+
   -- First find the hashes by name and note any query misses.
-  QueryResult misses results <- lift
-    $ hqNameQuery relativeTo branch codebase query
+  QueryResult misses results <-
+    lift $
+      hqNameQuery relativeTo branch codebase query
   -- Now load the terms/types for those hashes.
   results' <- lift $ loadSearchResults codebase results
   let termTypes :: Map.Map Reference (Type v Ann)
-      termTypes = Map.fromList
-        [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
-      (collatedTypes, collatedTerms) = collateReferences
-        (mapMaybe SR'.tpReference results')
-        (mapMaybe SR'.tmReferent results')
-  -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
-  -- for later
-  loadedDerivedTerms <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
-      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm codebase i
-      Reference.Builtin{}   -> pure Nothing
+      termTypes =
+        Map.fromList
+          [(r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results']
+      (collatedTypes, _collatedTerms) =
+        collateReferences
+          (mapMaybe SR'.tpReference results')
+          (mapMaybe SR'.tmReferent results')
+
+  aryaTerms :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)) <- do
+    let termRefs0 :: Set Reference
+        termRefs0 =
+          Set.fromList [r | SR.Tm' _ (Referent.Ref r) _ <- results]
+    let termRefs :: Set Reference
+        termRefs =
+          if hydrate
+            then foldMap (Reference.members . Reference.componentFor) termRefs0
+            else termRefs0
+    let f :: Reference -> m (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
+        f ref = do
+          obj <-
+            case ref of
+              Reference.Builtin _ -> do
+                pure case Map.lookup ref B.termRefTypes of
+                  -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
+                  -- misused here. Is `MissingObject` even possible anymore?
+                  Nothing -> MissingObject $ Reference.toShortHash ref
+                  Just typ -> BuiltinObject (mempty <$ typ)
+              Reference.DerivedId i -> do
+                term <- Codebase.unsafeGetTerm codebase i
+                case term of
+                  Term.Ann' _ _ -> pure (UserObject term)
+                  _ -> do
+                    ty <- Codebase.unsafeGetTypeOfTermById codebase i
+                    pure (UserObject (Term.ann (ABT.annotation term) term ty))
+          pure (Map.singleton ref obj)
+    lift (Monoid.foldMapM f termRefs)
+
   loadedDerivedTypes <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
-      Reference.DerivedId i ->
-        fmap (i, ) <$> Codebase.getTypeDeclaration codebase i
-      Reference.Builtin{} -> pure Nothing
-  -- Populate DisplayObjects for the search results, in anticipation of
-  -- rendering the definitions.
-  loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
-    r@(Reference.DerivedId i) -> do
-      let tm = Map.lookup i loadedDerivedTerms
-      -- We add a type annotation to the term using if it doesn't
-      -- already have one that the user provided
-      pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-        Nothing        -> MissingObject $ Reference.idToShortHash i
-        Just (tm, typ) -> case tm of
-          Term.Ann' _ _ -> UserObject tm
-          _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
-    r@(Reference.Builtin _) -> pure $ (r,) $ case Map.lookup r B.termRefTypes of
-      Nothing -> MissingObject $ Reference.toShortHash r
-      Just typ -> BuiltinObject (mempty <$ typ)
+    lift $
+      fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
+        Reference.DerivedId i ->
+          fmap (i,) <$> Codebase.getTypeDeclaration codebase i
+        Reference.Builtin {} -> pure Nothing
   let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
         r@(Reference.DerivedId i) ->
-          (r, )
+          (r,)
             . maybe (MissingObject $ Reference.idToShortHash i) UserObject
             $ Map.lookup i loadedDerivedTypes
         r@(Reference.Builtin _) -> (r, BuiltinObject ())
-  pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
+  pure $ DefinitionResults aryaTerms loadedDisplayTypes misses
 
 termsToSyntax
   :: Var v

@@ -1870,17 +1870,14 @@ handleShowDefinition outputLoc query = do
   latestFile' <- use latestFile
   hqLength <- eval CodebaseHashLength
   let currentPath'' = Path.unabsolute currentPath'
-  res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
-  case res of
+  eval (GetDefinitionsBySuffixes (Just currentPath'') root' query) >>= \case
     Left e -> handleBackendError e
     Right (Backend.DefinitionResults terms types misses) -> do
       let loc = case outputLoc of
             ConsoleLocation -> Nothing
             FileLocation path -> Just path
-            LatestFileLocation ->
-              fmap fst latestFile' <|> Just "scratch.u"
-          printNames =
-            Backend.getCurrentPrettyNames currentPath'' root'
+            LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+          printNames = Backend.getCurrentPrettyNames currentPath'' root'
           ppe = PPE.fromNamesDecl hqLength printNames
       unless (null types && null terms) $
         eval . Notify $

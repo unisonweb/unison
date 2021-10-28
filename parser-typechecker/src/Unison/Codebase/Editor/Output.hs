@@ -184,9 +184,6 @@ data Output v
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
-  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayObject () (Decl v Ann)))
-               (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -306,7 +303,6 @@ isFailure o = case o of
   ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
-  DisplayLinks{} -> False
   MetadataMissingType{} -> True
   MetadataAmbiguous{} -> True
   PatchNeedsToBeConflictFree{} -> True
