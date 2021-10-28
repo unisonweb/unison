@@ -140,8 +140,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
   addHeaders <$> do
     h
     rel <-
-      fromMaybe mempty
-      .   fmap Path.fromPath'
+      maybe mempty Path.fromPath'
       <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- liftIO $ Codebase.hashLength codebase
     ea         <- liftIO . runExceptT $ do
@@ -150,11 +149,12 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
       let b0 = Branch.head branch
           alignments =
             take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
-          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.Within rel)
+          -- Use AllNames to render source
+          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea
  where
-  loadEntry _root _rel ppe b0 (a, (HQ'.NameOnly . NameSegment) -> n, refs) =
+  loadEntry _root _rel ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
     for refs $
       \case
         Backend.FoundTermRef r ->

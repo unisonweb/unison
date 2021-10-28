@@ -462,6 +462,10 @@ data NameScoping =
       -- | Filter returned names to only include names within this path.
     | Within   Path
 
+toAllNames :: NameScoping -> NameScoping
+toAllNames (AllNames p) = AllNames p
+toAllNames (Within p) = AllNames p
+
 getCurrentPrettyNames :: NameScoping -> Branch m -> NamesWithHistory
 getCurrentPrettyNames scope root =
   NamesWithHistory (basicPrettyPrintNames root scope) mempty
@@ -667,8 +671,11 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
     -- the names in the pretty-printer, but the current implementation
     -- doesn't.
     let
+      -- We use printNames for names in source and parseNames to lookup
+      -- definitions, thus printNames use the allNames scope, to ensure
+      -- external references aren't hashes.
       printNames =
-        getCurrentPrettyNames namesScope branch
+        getCurrentPrettyNames (toAllNames namesScope) branch
 
       parseNames =
         getCurrentParseNames namesScope branch
