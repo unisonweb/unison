@@ -1870,7 +1870,14 @@ handleShowDefinition outputLoc query = do
   latestFile' <- use latestFile
   hqLength <- eval CodebaseHashLength
   let currentPath'' = Path.unabsolute currentPath'
-  Backend.DefinitionResults terms types misses <- eval (GetDefinitionsBySuffixes (Just currentPath'') root' query)
+  -- `view`: don't include cycles; `edit`: include cycles
+  let includeCycles =
+        case outputLoc of
+          ConsoleLocation -> Backend.DontIncludeCycles
+          FileLocation _ -> Backend.IncludeCycles
+          LatestFileLocation -> Backend.IncludeCycles
+  Backend.DefinitionResults terms types misses <-
+    eval (GetDefinitionsBySuffixes (Just currentPath'') root' includeCycles query)
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path

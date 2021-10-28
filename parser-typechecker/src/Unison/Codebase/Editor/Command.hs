@@ -22,6 +22,7 @@ import Control.Lens (_5,view)
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
+                                                , IncludeCycles
                                                 )
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
@@ -95,6 +96,7 @@ data Command m i v a where
   GetDefinitionsBySuffixes
     :: Maybe Path
     -> Branch m
+    -> IncludeCycles
     -> [HQ.HashQualified Name]
     -> Command m i v (DefinitionResults v)
 

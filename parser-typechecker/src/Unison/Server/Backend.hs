@@ -638,8 +638,9 @@ prettyDefinitionsBySuffixes
   -> Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
   = do
-    branch                               <- resolveBranchHash root codebase
-    DefinitionResults terms types misses <- lift (definitionsBySuffixes relativeTo branch codebase query)
+    branch <- resolveBranchHash root codebase
+    DefinitionResults terms types misses <-
+      lift (definitionsBySuffixes relativeTo branch codebase DontIncludeCycles query)
     hqLength <- lift $ Codebase.hashLength codebase
     -- We might like to make sure that the user search terms get used as
     -- the names in the pretty-printer, but the current implementation
@@ -807,6 +808,11 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase
 
+-- | Should we include full cycles in the results? (e.g. if I search for `isEven`, should I find `isOdd` too?)
+data IncludeCycles
+  = IncludeCycles
+  | DontIncludeCycles
+
 definitionsBySuffixes ::
   forall m v.
   MonadIO m =>
@@ -814,9 +820,10 @@ definitionsBySuffixes ::
   Maybe Path ->
   Branch m ->
   Codebase m v Ann ->
+  IncludeCycles ->
   [HQ.HashQualified Name] ->
   m (DefinitionResults v)
-definitionsBySuffixes relativeTo branch codebase query = do
+definitionsBySuffixes relativeTo branch codebase includeCycles query = do
   QueryResult misses results <- hqNameQuery relativeTo branch codebase query
   terms <- searchResultsToDisplayTerms results
   types <- searchResultsToDisplayTypes results
@@ -828,14 +835,13 @@ definitionsBySuffixes relativeTo branch codebase query = do
       where
         nonConstructorTerms :: Set Reference
         nonConstructorTerms =
-          if hydrate
-            then foldMap (Reference.members . Reference.componentFor) nonConstructorTerms0
-            else nonConstructorTerms0
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) nonConstructorTerms0
+            DontIncludeCycles -> nonConstructorTerms0
           where
             nonConstructorTerms0 :: Set Reference
             nonConstructorTerms0 =
               Set.fromList [r | SR.Tm' _ (Referent.Ref r) _ <- results]
-            hydrate = True
         display :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))
         display = \case
           ref@(Reference.Builtin _) -> do
@@ -857,11 +863,10 @@ definitionsBySuffixes relativeTo branch codebase query = do
       where
         refs :: Set Reference
         refs =
-          if hydrate
-            then foldMap (Reference.members . Reference.componentFor) refs0
-            else refs0
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) refs0
+            DontIncludeCycles -> refs0
           where
-            hydrate = True
             refs0 :: Set Reference
             refs0 =
               Set.fromList (mapMaybe f results)

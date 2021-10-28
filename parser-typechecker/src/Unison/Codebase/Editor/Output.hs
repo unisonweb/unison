@@ -34,7 +34,6 @@ import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.HashQualified as HQ
