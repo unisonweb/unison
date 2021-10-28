@@ -272,11 +272,11 @@ findShallowReadmeInBranchAndRender ::
   Width ->
   Rt.Runtime v ->
   Codebase IO v Ann ->
+  NamesWithHistory ->
   Branch IO ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender width runtime codebase branch =
+findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBranch =
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
-      printNames = getCurrentPrettyNames (Within $ Path.fromList []) branch
 
       renderReadme ppe r = do
         res <- renderDoc ppe width runtime codebase (Referent.toReference r)
@@ -289,7 +289,7 @@ findShallowReadmeInBranchAndRender width runtime codebase branch =
       readmes :: Set Referent
       readmes = foldMap lookup toCheck
         where lookup seg = R.lookupRan seg rel
-              rel = Star3.d1 (Branch._terms (Branch.head branch))
+              rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
         join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
