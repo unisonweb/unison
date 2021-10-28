@@ -14,7 +14,7 @@ import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchOb
 import qualified U.Util.Map as Map
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified Data.Set as Set
-import Control.Lens (Traversal)
+import Control.Lens (Traversal, Traversal')
 import Unison.Prelude
 
 type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranchChildId
@@ -36,9 +36,9 @@ branchHashes_ _f _ = undefined
   -- Branch <$> traverse (\m -> Map.mapKeys)
 
 branchCausalHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'
-branchCausalHashes_ f Branch{..} = 
+branchCausalHashes_ f Branch{..} =
   Branch terms types patches <$> traverse f children
-  
+
 
 -- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
 -- convertBranch dbBranch = _
@@ -73,11 +73,11 @@ branchCausalHashes_ f Branch{..} =
 -- function that writes (Hash, LocalBranch) to codebase
 
 -- database has a root CausalHashId
--- from CausalHashId, we can look up ValueHashId and 
--- 
+-- from CausalHashId, we can look up ValueHashId and
+--
 -- old object id --db--> old hash --mem--> new hash --db--> new object id
 
--- 
+--
 -- Branch
 --  { terms :: Map TextId (Map (Referent'' TextId ObjectId) (MetadataSetFormat' TextId ObjectId)),
 --    types :: Map TextId (Map (Reference' TextId ObjectId) (MetadataSetFormat' TextId ObjectId)),
@@ -92,6 +92,12 @@ type DbMetadataSet = MetadataSetFormat' TextId ObjectId
 
 data MetadataSetFormat' t h = Inline (Set (Reference' t h))
   deriving Show
+
+metadataSetFormatReferences_ ::
+  (Ord t, Ord h) =>
+  Traversal' (MetadataSetFormat' t h) (Reference' t h)
+metadataSetFormatReferences_ f (Inline refs) =
+  fmap (Inline . Set.fromList) . traverse f . Set.toList $ refs
 
 quadmap :: forall t h p c t' h' p' c'. (Ord t', Ord h') => (t -> t') -> (h -> h') -> (p -> p') -> (c -> c') -> Branch' t h p c -> Branch' t' h' p' c'
 quadmap ft fh fp fc (Branch terms types patches children) =

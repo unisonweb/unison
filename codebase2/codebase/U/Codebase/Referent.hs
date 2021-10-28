@@ -1,10 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
 
 module U.Codebase.Referent where
 
-import Data.Text (Text)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
@@ -12,14 +13,22 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.Bitraversable (Bitraversable(..))
 import U.Codebase.Decl (ConstructorId)
+import Control.Lens (Prism)
+import Data.Generics.Sum (_Ctor)
+import Unison.Prelude
 
 type Referent = Referent' Reference Reference
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
-data Referent' rTm rTp
-  = Ref rTm
-  | Con rTp ConstructorId
-  deriving (Eq, Ord, Show)
+data Referent' termRef typeRef
+  = Ref termRef
+  | Con typeRef ConstructorId
+  deriving (Eq, Ord, Show, Generic)
+
+_Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
+_Ref = _Ctor @"Ref" 
+_Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
+_Con = _Ctor @"Con" 
 
 type Id = Id' Hash Hash
 data Id' hTm hTp

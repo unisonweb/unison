@@ -10,7 +10,7 @@ module U.Codebase.Reference where
 import Data.Text (Text)
 import Data.Word (Word64)
 import U.Util.Hash (Hash)
-import Control.Lens (lens, Lens, Bifunctor(..), Traversal)
+import Control.Lens (lens, Lens, Bifunctor(..), Traversal, Prism, prism)
 import Data.Bitraversable (Bitraversable(..))
 import Data.Bifoldable (Bifoldable(..))
 
@@ -22,6 +22,13 @@ data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
   deriving (Eq, Ord, Show)
+
+_ReferenceDerived :: Prism (Reference' t h) (Reference' t h') (Id' h) (Id' h')
+_ReferenceDerived = prism embed project
+  where
+    embed (Id h pos) = ReferenceDerived (Id h pos)
+    project (ReferenceDerived id') = Right id'
+    project (ReferenceBuiltin t) = Left (ReferenceBuiltin t)
 
 pattern Derived :: h -> Pos -> Reference' t h
 pattern Derived h i = ReferenceDerived (Id h i)
