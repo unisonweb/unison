@@ -97,8 +97,6 @@ instance IsString Name where
     unsafeFromString
 
 instance Ord Name where
-  -- Note: there are currently parts of the code that rely on the monotonicity of `cons` wrt. this ordering. Do not
-  -- change this instance without auditing all `Map.mapMonotonic` and the like!
   compare (Name p0 ss0) (Name p1 ss1) =
     compare ss0 ss1 <> compare p0 p1
 
@@ -142,8 +140,8 @@ compareSuffix (Name _ ss0) =
       [] -> LT
       y : ys -> compare y x <> acc ys
 
--- | Cons a name segment onto the head of a relative name. Monotonic with respect to ordering: it is safe to use
--- @cons s@ as the first argument to @Map.mapKeysMonotonic@.
+-- | Cons a name segment onto the head of a relative name. Not monotonic with respect to ordering! It is not safe to use
+-- @cons s@ as the first argument to @Map.mapKeysMonotonic@!
 --
 -- /Precondition/: the name is relative
 --

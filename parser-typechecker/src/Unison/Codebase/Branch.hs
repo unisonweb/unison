@@ -232,40 +232,38 @@ branch0 terms types children edits =
       where
         go :: (NameSegment, Branch m) -> Relation Referent Name
         go (n, b) =
-          R.mapRanMonotonic (Name.cons n) (deepTerms $ head b)
+          R.mapRan (Name.cons n) (deepTerms $ head b)
     deepTypes' :: Relation Reference Name
     deepTypes' =
       R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> foldMap go children'
       where
         go :: (NameSegment, Branch m) -> Relation Reference Name
         go (n, b) =
-          R.mapRanMonotonic (Name.cons n) (deepTypes $ head b)
+          R.mapRan (Name.cons n) (deepTypes $ head b)
     deepTermMetadata' :: Metadata.R4 Referent Name
     deepTermMetadata' =
       R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> foldMap go children'
       where
         go (n, b) =
-          R4.mapD2Monotonic (Name.cons n) (deepTermMetadata $ head b)
+          R4.mapD2 (Name.cons n) (deepTermMetadata $ head b)
     deepTypeMetadata' :: Metadata.R4 Reference Name
     deepTypeMetadata' =
       R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> foldMap go children'
       where
         go (n, b) =
-          R4.mapD2Monotonic (Name.cons n) (deepTypeMetadata $ head b)
+          R4.mapD2 (Name.cons n) (deepTypeMetadata $ head b)
     deepPaths' :: Set Path
     deepPaths' =
       Set.mapMonotonic Path.singleton (Map.keysSet children) <> foldMap go children'
       where
         go (n, b) =
-          -- N.B. (Path.cons n) is not monotonic wrt. Path ordering, because Path, unlike Name, does not compare in
-          -- reverse segment order.
           Set.map (Path.cons n) (deepPaths $ head b)
     deepEdits' :: Map Name EditHash
     deepEdits' =
       Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> foldMap go children'
       where
         go (n, b) =
-          Map.mapKeysMonotonic (Name.cons n) (deepEdits $ head b)
+          Map.mapKeys (Name.cons n) (deepEdits $ head b)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -279,7 +277,7 @@ deepEdits' = go id where
   -- can change this to an actual prefix once Name is a [NameSegment]
   go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
   go addPrefix Branch0{_children, _edits} =
-    Map.mapKeysMonotonic (addPrefix . Name.fromSegment) _edits
+    Map.mapKeys (addPrefix . Name.fromSegment) _edits
       <> foldMap f (Map.toList _children)
     where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
