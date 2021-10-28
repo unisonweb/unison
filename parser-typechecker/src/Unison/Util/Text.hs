@@ -4,46 +4,45 @@
 
 module Unison.Util.Text where
 
--- import Data.List (unfoldr)
+import Data.List (unfoldr)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Unison.Util.Bytes as B
 import qualified Unison.Util.Rope as R
 
 -- Text type represented as a `Rope` of chunks
 newtype Text = Text (R.Rope Chunk)
 
-data Chunk = Chunk {-# unpack #-} !Int !T.Text Chunk Chunk 
+data Chunk = Chunk {-# unpack #-} !Int {-# unpack #-} !T.Text
 
 chunkToText :: Chunk -> T.Text
-chunkToText (Chunk _ t _ _) = t
+chunkToText (Chunk _ t) = t
 
 chunk :: T.Text -> Chunk
-chunk t = sizedChunk (T.length t) t 
-
-sizedChunk :: Int -> T.Text -> Chunk
-sizedChunk 0 _ = Chunk 0 mempty mempty mempty
-sizedChunk n t = Chunk n t l r where
-  (lt,rt) = T.splitAt (n `div` 2) t
-  l = sizedChunk (n `div` 2) lt
-  r = sizedChunk (n - (n `div` 2)) rt
+chunk t = Chunk (T.length t) t 
 
 instance Semigroup Chunk where (<>) = mappend
 instance Monoid Chunk where
-  mempty = Chunk 0 mempty mempty mempty
-  mappend l r = sizedChunk (R.size l + R.size r) (chunkToText l <> chunkToText r) 
+  mempty = Chunk 0 mempty
+  mappend l r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r) 
 
-instance R.Sized Chunk where size (Chunk n _ _ _) = n 
-instance R.Drop Chunk where drop = undefined "todo"
-instance R.Take Chunk where take = undefined "todo"
-instance R.Index Chunk Char where 
-  index i t = go i (R.size t) t where 
-     go !i !s (Chunk _ t l r) 
-        | i >= s = Nothing
-        | i <= 8 = Just (T.index t i)
-        | i < s `div` 2 = go i (s `div` 2) l
-        | otherwise = go (i - (s `div` 2)) (s `div` 2) r
+instance R.Sized Chunk where size (Chunk n _) = n 
+instance R.Drop Chunk where 
+  drop k c@(Chunk n t) 
+    | k >= n = mempty
+    | k <= 0 = c 
+    | otherwise = Chunk (n-k) (T.drop k t)
+instance R.Take Chunk where 
+  take k c@(Chunk n t)
+    | k >= n = c 
+    | k <= 0 = mempty 
+    | otherwise = Chunk k (T.take k t)
+instance R.Index Chunk Char where
+  index i (Chunk n t) | i < n     = Just (T.index t i)
+                      | otherwise = Nothing
 
-instance R.Reverse Chunk where reverse t = sizedChunk (R.size t) (T.reverse (chunkToText t))
+instance R.Reverse Chunk where 
+  reverse (Chunk n t) = Chunk n (T.reverse t)
 
 take :: Int -> Text -> Text
 take n (Text t) = Text (R.take n t)
@@ -57,11 +56,28 @@ at n (Text t) = R.index n t
 reverse :: Text -> Text
 reverse (Text t) = Text (R.reverse t)
 
-fromUtf8 :: B.Bytes -> Maybe Text
-fromUtf8 _bs = undefined
+fromUtf8 :: B.Bytes -> Either String Text
+fromUtf8 bs = 
+  case T.decodeUtf8' (B.toByteString bs) of
+    Right t -> Right (fromText t)
+    Left e -> Left (show e)
 
--- toUtf8 :: Text -> B.Bytes
--- toUtf8 t = B.Bytes (R.map (B.toView . T.toByteString) t)
+toUtf8 :: Text -> B.Bytes
+toUtf8 (Text t) = B.Bytes (R.map (B.chunkFromByteString . T.encodeUtf8 . chunkToText) t)
+
+fromText :: T.Text -> Text
+fromText s = let
+  go !acc s = case T.splitAt 512 s of
+    (t,_) | T.null t -> acc
+    (hd,tl) -> go (acc `R.snoc` chunk hd) tl
+  in Text (go mempty s)
+
+fromString :: String -> Text
+fromString = fromText . T.pack
+
+toText :: Text -> T.Text
+toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
+{-# inline toText #-}
 
 {-
 dropWhile :: (Char -> Bool) -> Text -> Text
@@ -110,20 +126,5 @@ takeWhileEnd f = let
   in go mempty
 {-# INLINE takeWhileEnd #-}
 
-fromString :: String -> Text
-fromString s = let
-  go !acc s = case splitAt R.threshold s of
-    ([],_) -> acc
-    (hd,tl) -> go (acc `R.snoc` T.fromString hd) tl
-  in go mempty s
 
-fromText :: Data.Text.Text -> Text
-fromText s = let
-  go !acc s = case Data.Text.splitAt R.threshold s of
-    (t,_) | Data.Text.null t -> acc
-    (hd,tl) -> go (acc `R.snoc` T.fromText hd) tl
-  in go mempty s
-
-toText :: Text -> Data.Text.Text
-toText t = Data.Text.concat (T.toText <$> unfoldr R.uncons t)
 -}

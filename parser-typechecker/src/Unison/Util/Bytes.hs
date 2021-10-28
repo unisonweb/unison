@@ -55,8 +55,9 @@ toArray b = chunkToArray $ V.concat (chunks b)
 fromArray :: BA.ByteArrayAccess b => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
-byteStringToChunk :: B.ByteString -> ByteString
+byteStringToChunk, chunkFromByteString :: B.ByteString -> ByteString
 byteStringToChunk = fromStorable . BSV.byteStringToVector
+chunkFromByteString = byteStringToChunk
 
 chunkToByteString :: ByteString -> B.ByteString
 chunkToByteString = BSV.vectorToByteString . toStorable
