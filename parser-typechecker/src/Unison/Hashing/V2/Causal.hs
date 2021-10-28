@@ -2,14 +2,23 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Hashing.V2.Causal (Causal (..)) where
+module Unison.Hashing.V2.Causal (Causal (..),
+ hashCausal) where
 
 import Data.Set (Set)
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
+import qualified Data.Set as Set
 
-data Causal e = Causal {current :: e, parents :: Set Hash}
+hashCausal :: H.Accumulate h => Causal -> [(H.Token h)]
+hashCausal c = H.tokens $
+  [ selfHash c
+  , branchHash c
+  ] ++ (Set.toList $ parents c)
 
-instance Hashable e => Hashable (Causal e) where
-  tokens c = H.tokens (current c, parents c)
+data Causal =
+  Causal { selfHash :: Hash, branchHash :: Hash, parents :: Set Hash }
+
+instance Hashable Causal where
+  tokens c = hashCausal c

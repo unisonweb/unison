@@ -6,6 +6,7 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts

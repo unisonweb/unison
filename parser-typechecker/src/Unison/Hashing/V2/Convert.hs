@@ -213,7 +213,7 @@ hashDecls' ::
   Var v =>
   Map v (Memory.DD.Decl v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
-hashDecls' memDecls = undefined
+hashDecls' = undefined
 
 m2hDecl :: Ord v => Memory.DD.DataDeclaration v a -> Hashing.DD.DataDeclaration v a
 m2hDecl (Memory.DD.DataDeclaration mod ann bound ctors) =
@@ -308,14 +308,15 @@ _hashBranch = H.accumulate . _tokensBranch
 _tokensBranch :: Accumulate h => Memory.Branch.Branch m -> [Token h]
 _tokensBranch = H.tokens . _m2hCausal . Memory.Branch._history
 
-_m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal Hashing.Branch.Raw
-_m2hCausal = \case
-  Memory.Causal.One _h e ->
-    Hashing.Causal.Causal (m2hBranch e) mempty
-  Memory.Causal.Cons _h e (ht, _) ->
-    Hashing.Causal.Causal (m2hBranch e) $ Set.singleton (Memory.Causal.unRawHash ht)
-  Memory.Causal.Merge _h e ts ->
-    Hashing.Causal.Causal (m2hBranch e) $ Set.map Memory.Causal.unRawHash (Map.keysSet ts)
+_m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal -- Hashing.Branch.Raw
+_m2hCausal = undefined -- TODO: re-implement
+  --  \case
+  --Memory.Causal.One _h e ->
+  --  Hashing.Causal.Causal (m2hBranch e) mempty
+  --Memory.Causal.Cons _h e (ht, _) ->
+  --  Hashing.Causal.Causal (m2hBranch e) $ Set.singleton (Memory.Causal.unRawHash ht)
+  --Memory.Causal.Merge _h e ts ->
+  --  Hashing.Causal.Causal (m2hBranch e) $ Set.map Memory.Causal.unRawHash (Map.keysSet ts)
 
 m2hBranch :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
 m2hBranch b =

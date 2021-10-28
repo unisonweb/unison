@@ -47,6 +47,7 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 import U.Codebase.HashTags (CausalHash)
 import qualified U.Codebase.Causal as C
+import qualified U.Codebase.Sqlite.Branch.Full as S
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -239,6 +240,13 @@ migrateCausal conn causalHash = runDB conn $ do
   --   children :: Map NameSegment (Causal m)
   -- }
 
+-- data Branch' t h p c = Branch
+--   { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
+--     types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
+--     patches :: Map t p,
+--     children :: Map t c
+--   }
+
 migrateBranch :: Monad m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
   -- note for tomorrow: we want to just load the (Branch m) instead, forget the DbBranch
@@ -268,7 +276,28 @@ migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
   
   -- Migrate branch
   
+
   error "not implemented"
+
+dbBranchObjRefs_ :: Traversal' S.DbBranch (SomeReference ObjectId)
+dbBranchObjRefs_ = _
+
+  -- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
+-- convertBranch dbBranch = _
+
+-- DbBranch -- migrate --> DbBranch -- hydrate for the hash --> Hashing.V2.Branch -- put (Hash, toBranchFormat(DbBranch)) --> COOL
+
+-- function that reads a DbBranch out of codebase
+
+-- Traversal' DbBranch SomeReferenceObjectId
+-- DB m => LensLike' m SomeReferenceObjectId SomeReferenceId
+-- MonadState MigrationState m => SomeReferenceId -> m SomeReferenceId
+
+-- Traversal' DbBranch (BranchId, CausalHashId)
+-- MonadState MigrationState m => (BranchId, CausalHashId) -> m (BranchId, CausalHashId)
+
+-- Traversal' DbBranch PatchId
+-- MonadState MigrationState m => PatchObjectId -> m PatchObjectId
 
 
 --   type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)

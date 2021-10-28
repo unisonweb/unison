@@ -202,6 +202,7 @@ library
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -324,6 +325,7 @@ executable prettyprintdemo
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -391,6 +393,7 @@ executable tests
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
@@ -447,6 +450,7 @@ benchmark runtime
       ApplicativeDo
       BlockArguments
       DeriveFunctor
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts

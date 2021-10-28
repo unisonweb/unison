@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3106bd32bedf162883882818669a81a3e1ca7c60af26ec9cd945fadb39f0d5aa
+-- hash: 4227133c6f1df043f279939d16c10379d28386b6b9604af6c8e17bd0a87748ce
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -23,6 +23,7 @@ library
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
+      U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.Connection
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
@@ -46,12 +47,28 @@ library
       Paths_unison_codebase_sqlite
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   build-depends:
       base
     , bytes
     , bytestring
     , containers
     , extra
+    , generic-lens
     , here
     , lens
     , monad-validate
@@ -63,6 +80,7 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-prelude
     , unison-util
     , unison-util-serialization
     , unison-util-term
