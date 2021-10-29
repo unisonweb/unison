@@ -259,19 +259,19 @@ viewRemoteBranch codebase ns = runExceptT do
 unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
 unsafeGetTerm codebase rid =
   getTerm codebase rid >>= \case
-    Nothing -> error (reportBug "E520818" ("id = " ++ show rid))
+    Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
     Just term -> pure term
 
 unsafeGetTypeDeclaration :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Decl v a)
 unsafeGetTypeDeclaration codebase rid =
   getTypeDeclaration codebase rid >>= \case
-    Nothing -> error (reportBug "E129043" ("id = " ++ show rid))
+    Nothing -> error (reportBug "E129043" ("type decl " ++ show rid ++ " not found"))
     Just decl -> pure decl
 
 unsafeGetTypeOfTermById :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Type v a)
 unsafeGetTypeOfTermById codebase rid =
   getTypeOfTermImpl codebase rid >>= \case
-    Nothing -> error (reportBug "E377910" ("id = " ++ show rid))
+    Nothing -> error (reportBug "E377910" ("type of term " ++ show rid ++ " not found"))
     Just ty -> pure ty
 
 -- | Get a term with its type.
