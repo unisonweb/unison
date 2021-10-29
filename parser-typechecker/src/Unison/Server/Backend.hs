@@ -859,7 +859,7 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
     docFilePath directory rawHqn =
       let
         (path, docName) =
-          fromRight (error "Broken path... make this better") $ PathParse.parseHQSplit $ Text.unpack rawHqn
+          fromRight (error "Could not parse doc name") $ PathParse.parseHQSplit $ Text.unpack rawHqn
 
         directoryPath =
           directory </> joinPath (map NameSegment.toString $ Path.toList path)
