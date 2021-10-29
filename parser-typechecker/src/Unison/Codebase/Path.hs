@@ -8,6 +8,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -62,6 +63,7 @@ module Unison.Codebase.Path
     Lens.snoc,
     Lens.unsnoc,
     unconsAbsolute,
+    segments_,
 
     pattern Lens.Empty,
 
@@ -104,6 +106,13 @@ instance Eq (Path pos) where
 
 instance Ord (Path pos) where
   compare = compare `on` (view segments_)
+
+-- Relative paths are the only safe monoid
+instance Semigroup (Path 'Relative) where
+  RelativeP l <> RelativeP r = RelativeP (l <> r)
+
+instance Monoid (Path 'Relative) where
+  mempty = RelativeP mempty
 
 unsafeToRelative :: Path pos -> Path 'Relative
 unsafeToRelative p = RelativeP $ p ^. segments_
@@ -180,10 +189,10 @@ unsplitHQ (p, a) = fmap (Lens.snoc p) a
 --   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
 
 asList_ :: Iso (Seq a) (Seq b) [a] [b]
-asList_ = iso Foldable.toList Seq.fromList 
+asList_ = iso Foldable.toList Seq.fromList
 
 stripPrefix :: Path 'Absolute -> Path any -> Path 'Relative
-stripPrefix p r = 
+stripPrefix p r =
   let prefixSegments = p ^. segments_ . asList_
       otherSegments = r ^. segments_ . asList_
    in RelativeP (Seq.fromList $ List.dropPrefix prefixSegments otherSegments)
@@ -293,13 +302,43 @@ instance AsEmpty (Path 'Relative) where
 --     snoc' :: Split' -> NameSegment -> Split'
 --     snoc' (p, a) n = (Lens.snoc p a, n)
 
-class Resolve l r o where
+class Resolve l r o | l r -> o where
   resolve :: l -> r -> o
 
-instance Resolve (Path any) (Path 'Absolute) (Path 'Absolute) where
-  resolve _ p = p
-instance Resolve (Path pref) (Path 'Relative) (Path pref) where
-  resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
+instance Resolve (Path 'Absolute) (Path any) (Path 'Absolute) where
+  resolve pref p = case p of
+    RelativePath rel -> AbsoluteP $ (pref ^. segments_ <> rel ^. segments_)
+    AbsolutePath a -> a
+
+instance Resolve (Path 'Relative) (Path any) (Path any) where
+  resolve pref p = case p of
+    RelativePath _ -> p & segments_ %~ (pref ^. segments_ <>)
+    AbsolutePath _ -> p
+
+instance Resolve (Path 'Unchecked) (Path 'Relative) (Path 'Unchecked) where
+  resolve pre p = case pre of
+    AbsolutePath abs -> unchecked $ resolve abs p
+    RelativePath rel -> unchecked $ resolve rel p
+
+instance Resolve (Path 'Unchecked) (Path 'Unchecked) (Path 'Unchecked) where
+  resolve pre p = case pre of
+    AbsolutePath abs -> unchecked $ resolve abs p
+    RelativePath rel -> unchecked $ resolve rel p
+
+instance Resolve (Path 'Unchecked) (Path 'Absolute) (Path 'Absolute) where
+  resolve pre p = case pre of
+    AbsolutePath abs -> resolve abs p
+    RelativePath rel -> resolve rel p
+
+
+-- instance Resolve (Path pref) (Path 'Relative) (Path pref) where
+--   resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
+-- instance Resolve (Path any) (Path 'Unchecked) (Path 'Unchecked) where
+--   resolve pref suff = case suff of
+--     AbsolutePath abs -> unchecked abs
+--     RelativePath rel -> match (\abs -> unchecked $ resolve abs rel)
+--                               (\rel' -> unchecked $ resolve rel' rel)
+--                               pref
 
 -- instance Resolve Relative Relative Relative where
 --   resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))

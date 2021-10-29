@@ -100,7 +100,7 @@ data Command
     :: [SR.SearchResult] -> Command m i v [SR'.SearchResult' v Ann]
 
   GetDefinitionsBySuffixes
-    :: Maybe (Path 'Relative)
+    :: Maybe (Path 'Absolute)
     -> Branch m
     -> [HQ.HashQualified Name]
     -> Command m i v (Either BackendError (DefinitionResults v))

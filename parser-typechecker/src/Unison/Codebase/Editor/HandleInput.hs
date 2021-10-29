@@ -153,6 +153,7 @@ import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
 import Unison.Codebase.Position
+import qualified Data.Sequence as Seq
 
 type F m i v = Free (Command m i v)
 
@@ -961,14 +962,14 @@ loop = do
            -> ([Path.HQSplit 'Absolute], [(Path 'Absolute, Branch0 m -> Branch0 m)])
         go (missingSrcs, actions) hqsrc =
           let
-            src :: Path.Split _
+            src :: Path.Split 'Absolute
             src = second HQ'.toName hqsrc
-            proposedDest :: Path.Split _
+            proposedDest :: Path.Split 'Absolute
             proposedDest = second HQ'.toName hqProposedDest
             hqProposedDest :: Path.HQSplit 'Absolute
             hqProposedDest = Path.resolve destAbs hqsrc
             -- `Nothing` if src doesn't exist
-            doType :: Maybe [(Path _, Branch0 m -> Branch0 m)]
+            doType :: Maybe [(Path 'Absolute, Branch0 m -> Branch0 m)]
             doType = case ( BranchUtil.getType hqsrc currentBranch0
                           , BranchUtil.getType hqProposedDest root0
                           ) of
@@ -978,7 +979,7 @@ loop = do
                 where
                 addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
                 oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
-            doTerm :: Maybe [(Path 'Relative, Branch0 m -> Branch0 m)]
+            doTerm :: Maybe [(Path 'Absolute, Branch0 m -> Branch0 m)]
             doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
                           , BranchUtil.getTerm hqProposedDest root0
                           ) of
@@ -1116,7 +1117,7 @@ loop = do
                   FileLocation{}  -> currentBranch0
             fuzzySelectTermsAndTypes fuzzyBranch
           q -> pure q
-        res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
+        res <- eval $ GetDefinitionsBySuffixes (Just currentPath') root' query
         case res of
           Left e -> handleBackendError e
           Right (Backend.DefinitionResults terms types misses) -> do
@@ -1126,7 +1127,7 @@ loop = do
                   LatestFileLocation ->
                     fmap fst latestFile' <|> Just "scratch.u"
                 printNames =
-                  Backend.getCurrentPrettyNames (Backend.AllNames currentPath'') root'
+                  Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
                 ppe = PPE.fromNamesDecl hqLength printNames
             unless (null types && null terms) $
               eval . Notify $
@@ -1150,7 +1151,7 @@ loop = do
             ppe = Backend.basicSuffixifiedNames
                            sbhLength
                            root'
-                           (Backend.AllNames pathArg)
+                           (Backend.AllNames . resolveToAbsolute $ pathArg)
         res <- eval $ FindShallow pathArgAbs
         case res of
           Left e -> handleBackendError e
@@ -1436,7 +1437,7 @@ loop = do
                 p' = foldl' step1 p typeEdits
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-              (p, seg) = first (resolve currentPath') patchPath
+              (p, seg) = resolveSplit patchPath
               updatePatches :: Branch0 m -> m (Branch0 m)
               updatePatches = Branch.modifyPatches seg updatePatch
 
@@ -1648,10 +1649,7 @@ loop = do
         success
 
       ListEditsI maybePath -> do
-        let (p, seg) =
-              maybe (first (resolve currentPath') defaultPatchPath)
-                    (resolve currentPath')
-                    maybePath
+        let (p, seg) = maybe defaultPatchPath resolveSplit maybePath
         patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
         ppe <- suffixifiedPPE =<<
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
@@ -1677,7 +1675,7 @@ loop = do
             -- We don't merge `srcb` with the remote namespace, `r`, we just
             -- replace it. The push will be rejected if this rewinds time
             -- or misses any new updates in `r` that aren't in `srcb` already.
-            let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
+            let newRemoteRoot = Branch.modifyAt (Path.unsafeToRelative remotePath) (const srcb) remoteRoot
             unsafeTime "Push syncRemoteRootBranch" $
               syncRemoteRootBranch repo newRemoteRoot syncMode
             lift . eval $ Eval cleanup
@@ -1806,7 +1804,8 @@ loop = do
           )
         pure . join $ toList xs
 
-      configKey k p = Path.toText $ Path.unsafeToRelative p
+      configKey k p =
+        Text.intercalate "." . toList $ k Seq.:<| (fmap NameSegment.toText (p ^. Path.segments_))
 
       -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
       -- otherwise, tries to load a value from .unisonConfig, and complains
@@ -1908,7 +1907,7 @@ getLinks' :: (Var v, Monad m)
 getLinks' src selection0 = do
   root0 <- Branch.head <$> use root
   currentPath' <- use currentPath
-  let resolveSplit = resolve currentPath'
+  let resolveSplit = Path.resolve currentPath'
       p = resolveSplit src -- ex: the (parent,hqsegment) of `List.map` - `List`
       -- all metadata (type+value) associated with name `src`
       allMd = R4.d34 (BranchUtil.getTermMetadataHQNamed p root0)
@@ -2144,7 +2143,7 @@ searchBranchScored names0 score queries =
 handleBackendError :: Backend.BackendError -> Action m i v ()
 handleBackendError = \case
   Backend.NoSuchNamespace path ->
-    respond . BranchNotFound $ path
+    respond . BranchNotFound . Path.unchecked $ path
   Backend.BadRootBranch   e -> respond $ BadRootBranch e
   Backend.NoBranchForHash h -> do
     sbhLength <- eval BranchHashLength

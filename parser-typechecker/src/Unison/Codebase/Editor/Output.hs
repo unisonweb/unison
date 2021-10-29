@@ -86,7 +86,7 @@ data NumberedOutput v
   | ShowDiffAfterPull (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   -- <authorIdentifier> <authorPath> <relativeBase>
-  | ShowDiffAfterCreateAuthor NameSegment (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreateAuthor NameSegment (Path 'Relative) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -184,7 +184,7 @@ data Output v
   | BustedBuiltins (Set Reference) (Set Reference)
   | GitError Input GitError
   | ConfiguredMetadataParseError (Path 'Unchecked) String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull (Path 'Absolute)
+  | NoConfiguredGitUrl PushPull (Path 'Unchecked)
   | ConfiguredGitUrlParseError PushPull (Path 'Unchecked) Text String
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayObject () (Decl v Ann)))
