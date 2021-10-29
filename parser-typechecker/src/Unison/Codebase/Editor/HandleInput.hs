@@ -960,17 +960,15 @@ loop = do
         go :: ([Path.HQSplit 'Absolute], [(Path 'Absolute, Branch0 m -> Branch0 m)])
            -> Path.HQSplit 'Absolute
            -> ([Path.HQSplit 'Absolute], [(Path 'Absolute, Branch0 m -> Branch0 m)])
-        go (missingSrcs, actions) hqsrc =
+        go (missingSrcs, actions) hqProposedDest =
           let
             src :: Path.Split 'Absolute
-            src = second HQ'.toName hqsrc
+            src = second HQ'.toName hqProposedDest
             proposedDest :: Path.Split 'Absolute
             proposedDest = second HQ'.toName hqProposedDest
-            hqProposedDest :: Path.HQSplit 'Absolute
-            hqProposedDest = Path.resolve destAbs hqsrc
             -- `Nothing` if src doesn't exist
             doType :: Maybe [(Path 'Absolute, Branch0 m -> Branch0 m)]
-            doType = case ( BranchUtil.getType hqsrc currentBranch0
+            doType = case ( BranchUtil.getType hqProposedDest currentBranch0
                           , BranchUtil.getType hqProposedDest root0
                           ) of
               (null -> True, _) -> Nothing -- missing src
@@ -980,7 +978,7 @@ loop = do
                 addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
                 oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
             doTerm :: Maybe [(Path 'Absolute, Branch0 m -> Branch0 m)]
-            doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
+            doTerm = case ( BranchUtil.getTerm hqProposedDest currentBranch0
                           , BranchUtil.getTerm hqProposedDest root0
                           ) of
               (null -> True, _) -> Nothing -- missing src
@@ -990,7 +988,7 @@ loop = do
                 addAlias r = BranchUtil.makeAddTermName proposedDest r (oldMD r)
                 oldMD r = BranchUtil.getTermMetadataAt src r currentBranch0
           in case (doType, doTerm) of
-            (Nothing, Nothing) -> (missingSrcs :> hqsrc, actions)
+            (Nothing, Nothing) -> (missingSrcs :> hqProposedDest, actions)
             (Just as, Nothing) -> (missingSrcs, actions ++ as)
             (Nothing, Just as) -> (missingSrcs, actions ++ as)
             (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)

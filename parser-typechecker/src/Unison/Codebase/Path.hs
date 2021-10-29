@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -294,13 +295,13 @@ instance AsEmpty (Path 'Relative) where
     RelativeP Lens.Empty -> Just ()
     _ -> Nothing
 
--- instance Snoc Split' Split' NameSegment NameSegment where
---   _Snoc = prism (uncurry snoc') $ \case -- unsnoc
---     (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
---     e -> Left e
---     where
---     snoc' :: Split' -> NameSegment -> Split'
---     snoc' (p, a) n = (Lens.snoc p a, n)
+instance Snoc (Split pos) (Split pos) NameSegment NameSegment where
+  _Snoc = prism (uncurry snoc') $ \case -- unsnoc
+    (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)
+    e -> Left e
+    where
+    snoc' :: Split pos -> NameSegment -> Split pos
+    snoc' (p, a) n = (Lens.snoc p a, n)
 
 class Resolve l r o | l r -> o where
   resolve :: l -> r -> o
@@ -330,6 +331,9 @@ instance Resolve (Path 'Unchecked) (Path 'Absolute) (Path 'Absolute) where
     AbsolutePath abs -> resolve abs p
     RelativePath rel -> resolve rel p
 
+instance Resolve (Path pl) (Path sp) (Path r) 
+  => Resolve (Path pl) (HQSplit sp) (HQSplit r) where
+    resolve l (p, a) = (resolve l p, a)
 
 -- instance Resolve (Path pref) (Path 'Relative) (Path pref) where
 --   resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
@@ -356,9 +360,6 @@ instance Resolve (Path 'Unchecked) (Path 'Absolute) (Path 'Absolute) where
 
 -- instance Resolve Path' Split' Split' where
 --   resolve l (r, ns) = (resolve l r, ns)
-
-instance Resolve (Path 'Absolute) (HQSplit 'Relative) (HQSplit 'Absolute) where
-  resolve l (r, hq) = (resolve l r, hq)
 
 -- instance Resolve Absolute Path' Absolute where
 --   resolve _ (Path' (Left a)) = a

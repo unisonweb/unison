@@ -66,13 +66,13 @@ getTerm (p, hq) b = case hq of
   terms = Branch._terms (Branch.getAt0 p b)
 
 getTermMetadataHQNamed
-  :: (Path.Path 'Relative, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
+  :: (Path.Path pos, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms
   where terms = Metadata.starToR4 . Branch._terms $ Branch.getAt0 path b
 
 getTypeMetadataHQNamed
-  :: (Path.Path 'Relative, HQ'.HQSegment)
+  :: (Path.Path pos, HQ'.HQSegment)
   -> Branch0 m
   -> Metadata.R4 Reference NameSegment
 getTypeMetadataHQNamed (path, hqseg) b =
