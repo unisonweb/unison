@@ -184,7 +184,7 @@ run dir configFile stanzas codebase = do
             curPath <- readIORef pathRef
             if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
-              pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
+              pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
             else case words . Text.unpack $ lineTxt of
               [] -> awaitInput
               args -> do

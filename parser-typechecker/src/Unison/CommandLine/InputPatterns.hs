@@ -10,7 +10,7 @@ module Unison.CommandLine.InputPatterns where
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, Bifunctor (bimap))
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
@@ -278,7 +278,7 @@ view :: InputPattern
 view = InputPattern
   "view"
   []
-  [(OnePlus, definitionQueryArg)]
+  [(ZeroPlus, definitionQueryArg)]
   "`view foo` prints the definition of `foo`."
   ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
   . traverse parseHashQualifiedName
@@ -288,11 +288,9 @@ display :: InputPattern
 display = InputPattern
   "display"
   []
-  [(Required, definitionQueryArg)]
+  [(ZeroPlus, definitionQueryArg)]
   "`display foo` prints a rendered version of the term `foo`."
-  (\case
-    [s] -> Input.DisplayI Input.ConsoleLocation <$> parseHashQualifiedName s
-    _   -> Left (I.help display)
+  (\ xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
   )
 
 
@@ -300,23 +298,21 @@ displayTo :: InputPattern
 displayTo = InputPattern
   "display.to"
   []
-  [(Required, noCompletions), (Required, definitionQueryArg)]
+  [(Required, noCompletions), (ZeroPlus, definitionQueryArg)]
   (  P.wrap
   $  makeExample displayTo ["<filename>", "foo"]
   <> "prints a rendered version of the term `foo` to the given file."
   )
   (\case
-    [file, s] ->
-      Input.DisplayI (Input.FileLocation file) <$> parseHashQualifiedName s
+    (file:xs) ->
+      Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
     _ -> Left (I.help displayTo)
   )
 
 docs :: InputPattern
-docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
+docs = InputPattern "docs" [] [(ZeroPlus, definitionQueryArg)]
       "`docs foo` shows documentation for the definition `foo`."
-      (\case
-        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
-        _ -> Left (I.help docs))
+      (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
 
 ui :: InputPattern
 ui = InputPattern "ui" [] []
@@ -587,7 +583,9 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, namespaceArg)]
       [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
-        pure . Input.SwitchBranchI $ p
+        pure . Input.SwitchBranchI $ Just p
+      -- No args will trigger a fuzzy find when handled.
+      [] -> pure (Input.SwitchBranchI Nothing)
       _ -> Left (I.help cd)
     )
 

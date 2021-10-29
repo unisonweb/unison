@@ -63,8 +63,8 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user 
     | CreateMessage (P.Pretty P.ColorText)  
-    -- change directory
-    | SwitchBranchI Path'
+    -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
+    | SwitchBranchI (Maybe Path')
     | UpI
     | PopBranchI
     -- > names foo
@@ -127,12 +127,15 @@ data Input
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | DisplayI OutputLocation (HQ.HashQualified Name)
-  | DocsI Path.HQSplit'
+    -- Display provided definitions. If list is empty, prompt a fuzzy search.
+  | DisplayI OutputLocation [HQ.HashQualified Name]
+    -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
+  | DocsI [Path.HQSplit']
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindShallowI Path'
   | FindPatchI
+    -- Show provided definitions. If list is empty, prompt a fuzzy search.
   | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
   | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
   | ShowReflogI

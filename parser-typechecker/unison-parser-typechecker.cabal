@@ -85,6 +85,7 @@ library
       Unison.CodebasePath
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
+      Unison.CommandLine.FuzzySelect
       Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
