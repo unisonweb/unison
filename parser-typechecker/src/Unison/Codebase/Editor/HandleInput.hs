@@ -1863,36 +1863,42 @@ loop = do
     Right input -> lastInput .= Just input
     _ -> pure ()
 
-handleShowDefinition :: OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+-- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
+handleShowDefinition :: forall m v. OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
 handleShowDefinition outputLoc query = do
-  currentPath' <- use currentPath
+  currentPath' <- Path.unabsolute <$> use currentPath
   root' <- use root
-  latestFile' <- use latestFile
   hqLength <- eval CodebaseHashLength
-  let currentPath'' = Path.unabsolute currentPath'
-  -- `view`: don't include cycles; `edit`: include cycles
-  let includeCycles =
-        case outputLoc of
-          ConsoleLocation -> Backend.DontIncludeCycles
-          FileLocation _ -> Backend.IncludeCycles
-          LatestFileLocation -> Backend.IncludeCycles
   Backend.DefinitionResults terms types misses <-
-    eval (GetDefinitionsBySuffixes (Just currentPath'') root' includeCycles query)
-  let loc = case outputLoc of
-        ConsoleLocation -> Nothing
-        FileLocation path -> Just path
-        LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-      printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath'') root'
-      ppe = PPE.fromNamesDecl hqLength printNames
-  when (not (null types && null terms)) $
-    eval . Notify $
-      DisplayDefinitions loc ppe types terms
-  when (not (null misses)) $
-    eval . Notify $ SearchTermsNotFound misses
+    eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
+  outputPath <- getOutputPath
+  when (not (null types && null terms)) do
+    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
+    let ppe = PPE.fromNamesDecl hqLength printNames
+    respond (DisplayDefinitions outputPath ppe types terms)
+  when (not (null misses)) (respond (SearchTermsNotFound misses))
   -- We set latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
   -- next update for that file (which will happen immediately)
-  latestFile .= ((,True) <$> loc)
+  latestFile .= ((,True) <$> outputPath)
+  where
+    -- `view`: don't include cycles; `edit`: include cycles
+    includeCycles =
+      case outputLoc of
+        ConsoleLocation -> Backend.DontIncludeCycles
+        FileLocation _ -> Backend.IncludeCycles
+        LatestFileLocation -> Backend.IncludeCycles
+
+    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
+    getOutputPath :: Action' m v (Maybe FilePath)
+    getOutputPath =
+      case outputLoc of
+        ConsoleLocation -> pure Nothing
+        FileLocation path -> pure (Just path)
+        LatestFileLocation ->
+          use latestFile <&> \case
+            Nothing -> Just "scratch.u"
+            Just (path, _) -> Just path
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
