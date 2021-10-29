@@ -6,33 +6,17 @@ module Unison.Hashing.V2.Referent
     pattern Ref,
     pattern Con,
     ConstructorId,
-    toReference,
-    Unison.Hashing.V2.Referent.fold,
   )
 where
 
-import Unison.Referent' ( Referent'(..), toReference' )
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Hashable (Hashable)
+import qualified Unison.Hashable as H
 import Unison.Hashing.V2.Reference (Reference)
-import Unison.ConstructorType (ConstructorType)
 
--- | Specifies a term.
---
--- Either a term 'Reference', a data constructor, or an effect constructor.
---
--- Slightly odd naming. This is the "referent of term name in the codebase",
--- rather than the target of a Reference.
-type Referent = Referent' Reference
-type ConstructorId = Int
-pattern Ref :: Reference -> Referent
-pattern Ref r = Ref' r
-pattern Con :: Reference -> ConstructorId -> ConstructorType -> Referent
-pattern Con r i t = Con' r i t
-{-# COMPLETE Ref, Con #-}
+data Referent = Ref Reference | Con Reference ConstructorId
+  deriving (Show, Ord, Eq)
 
-toReference :: Referent -> Reference
-toReference = toReference'
-
-fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
-fold fr fc = \case
-  Ref' r -> fr r
-  Con' r i ct -> fc r i ct
+instance Hashable Referent where
+  tokens (Ref r) = [H.Tag 0] ++ H.tokens r
+  tokens (Con r i) = [H.Tag 2] ++ H.tokens r ++ H.tokens i

@@ -19,7 +19,7 @@ import Unison.Hashing.V2.Convert (hashDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (ConstructorId, Referent)
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)
@@ -28,6 +28,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
@@ -79,10 +80,10 @@ pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con pairRef 0 CT.Data
 unitCtorRef = Referent.Con unitRef 0 CT.Data
 
-constructorId :: Reference -> Text -> Maybe Int
+constructorId :: Reference -> Text -> Maybe ConstructorId
 constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
-  elemIndex name $ DD.constructorNames dd
+  fmap fromIntegral . elemIndex name $ DD.constructorNames dd
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId

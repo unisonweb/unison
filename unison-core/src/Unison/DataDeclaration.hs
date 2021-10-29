@@ -180,7 +180,7 @@ declFields = bimap cf cf . first toDataDecl
   fields _ = 0
 
 typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
-typeOfConstructor dd i = constructorTypes dd `atMay` i
+typeOfConstructor dd i = constructorTypes dd `atMay` fromIntegral i
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
@@ -200,7 +200,7 @@ declConstructorReferents rid decl =
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. length (constructors dd) - 1]
+constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
@@ -287,4 +287,3 @@ unhashComponent m
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)
 amap f (Right d) = Right (f <$> d)
-

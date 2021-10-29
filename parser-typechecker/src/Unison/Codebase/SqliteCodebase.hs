@@ -301,12 +301,12 @@ sqliteCodebase debugName root = do
                       "I don't know about the builtin type ##"
                         ++ show t
                         ++ ", but I've been asked for it's ConstructorType."
-               in pure . fromMaybe err $
+              in pure . fromMaybe err $
                     Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
             C.Reference.ReferenceDerived i -> getDeclTypeById i
 
           getDeclTypeById :: EDB m => C.Reference.Id -> m CT.ConstructorType
-          getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeByReference
+          getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeById
 
           getTypeOfTermImpl :: MonadIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
           getTypeOfTermImpl id | debug && trace ("getTypeOfTermImpl " ++ show id) False = undefined

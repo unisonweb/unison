@@ -50,6 +50,7 @@ import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (G
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Parser.Ann as Parser
@@ -66,7 +67,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-
 -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
 -- If not found, attempt to find it in the Codebase (sqlite)
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -129,7 +129,7 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
+  (Monad m, Ord v) => Codebase m v a -> Reference -> ConstructorId -> m (Maybe (Type v a))
 getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of

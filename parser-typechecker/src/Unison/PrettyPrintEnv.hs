@@ -13,6 +13,7 @@ where
 
 import Unison.Prelude
 
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import           Unison.Reference               ( Reference )
@@ -27,7 +28,7 @@ data PrettyPrintEnv = PrettyPrintEnv {
   -- names for types
   types :: Reference -> Maybe (HashQualified Name) }
 
-patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe (HashQualified Name)
+patterns :: PrettyPrintEnv -> Reference -> ConstructorId -> Maybe (HashQualified Name)
 patterns ppe r cid = terms ppe (Referent.Con r cid CT.Data)
                   <|>terms ppe (Referent.Con r cid CT.Effect)
 
@@ -52,7 +53,7 @@ typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   fromMaybe (HQ.take todoHashLength $ HQ.fromReference r) (types env r)
 
-patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
+patternName :: PrettyPrintEnv -> Reference -> ConstructorId -> HashQualified Name
 patternName env r cid =
   case patterns env r cid of
     Just name -> name

@@ -39,7 +39,6 @@ import Unison.Pattern (Pattern)
 import Unison.Prelude
 import Unison.Reference (Pos)
 import qualified Unison.Reference as Reference
-import Unison.Referent (ConstructorId)
 import qualified Unison.Referent as Referent
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -291,12 +290,12 @@ migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ :: Traversal' (S.Referent'' t ObjectId) SomeReferenceObjId
 someReferent_ = (UReferent._Ref . someReference_)
-      `failing` (UReferent._Con 
+      `failing` (UReferent._Con
               . asPair_ -- Need to unpack the embedded reference AND remap between mismatched Constructor ID types.
               . unsafeInsidePrism _ConstructorReference
                )
   where
-    asPair_ f (UReference.ReferenceDerived id', conId) = f (id', fromIntegral conId) 
+    asPair_ f (UReference.ReferenceDerived id', conId) = f (id', fromIntegral conId)
           <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
@@ -306,7 +305,7 @@ someReference_ = UReference._ReferenceDerived . unsafeInsidePrism _TermReference
 someMetadataSetFormat :: Ord t => Traversal' (S.MetadataSetFormat' t ObjectId) SomeReferenceObjId
 someMetadataSetFormat = S.metadataSetFormatReferences_ . someReference_
 
-mapReferentMetadata :: (Ord k, Ord t) => 
+mapReferentMetadata :: (Ord k, Ord t) =>
   Traversal' k SomeReferenceObjId ->
   Traversal' (Map k (S.MetadataSetFormat' t ObjectId))
              (SomeReferenceObjId)
@@ -594,12 +593,12 @@ someRef_ :: Traversal (SomeReference ref) (SomeReference ref') ref ref'
 someRef_ = param @0
 
 _TermReference :: Prism (SomeReference ref) (SomeReference ref') ref ref'
-_TermReference = _Ctor @"TermReference"
+_TermReference = undefined -- _Ctor @"TermReference"
 _TypeReference :: Prism (SomeReference ref) (SomeReference ref') ref ref'
-_TypeReference = _Ctor @"TypeReference"
+_TypeReference = undefined --_Ctor @"TypeReference"
 
 _ConstructorReference :: Prism (SomeReference ref) (SomeReference ref') (ref, ConstructorId) (ref', ConstructorId)
-_ConstructorReference = _Ctor @"ConstructorReference"
+_ConstructorReference = undefined -- _Ctor @"ConstructorReference"
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
 someReferenceIdToEntity = undefined

@@ -18,8 +18,9 @@ module Unison.LabeledDependency
 import Unison.Prelude hiding (fold)
 
 import Unison.ConstructorType (ConstructorType(Data, Effect))
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con, ConstructorId)
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import qualified Data.Set as Set
 
 -- dumb constructor name is private

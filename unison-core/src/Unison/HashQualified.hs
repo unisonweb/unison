@@ -9,11 +9,12 @@ import Unison.Prelude hiding (fromString)
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent, ConstructorId )
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.ShortHash               ( ShortHash )
 import qualified Unison.ShortHash              as SH

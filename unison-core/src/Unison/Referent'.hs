@@ -5,9 +5,7 @@ module Unison.Referent' where
 
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashable (Hashable (tokens))
-import qualified Unison.Hashable as H
-import Unison.Prelude (Word64, Generic)
+import Unison.Prelude
 
 -- | Specifies a term.
 --
@@ -45,7 +43,3 @@ fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r 
 fold fr fc = \case
   Ref' r -> fr r
   Con' r i ct -> fc r i ct
-
-instance Hashable r => Hashable (Referent' r) where
-  tokens (Ref' r) = [H.Tag 0] ++ H.tokens r
-  tokens (Con' r i dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

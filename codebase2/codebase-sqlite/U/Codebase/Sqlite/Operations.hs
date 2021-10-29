@@ -428,8 +428,9 @@ getCycleLen h = do
     >>= decodeComponentLengthOnly
     >>= pure . fromIntegral
 
-getDeclTypeByReference :: EDB m => C.Reference.Id -> m C.Decl.DeclType
-getDeclTypeByReference r@(C.Reference.Id h pos) =
+-- | Get the 'C.DeclType.DeclType' of a 'C.Reference.Id'.
+getDeclTypeById :: EDB m => C.Reference.Id -> m C.Decl.DeclType
+getDeclTypeById r@(C.Reference.Id h pos) =
   runMaybeT (loadDeclByReference r)
     >>= maybe (throwError $ LegacyUnknownConstructorType h pos) pure
     >>= pure . C.Decl.declType
@@ -927,7 +928,7 @@ saveRootBranch c = do
 --     patches  :: Map NameSegment (PatchHash, m Patch),
 --     children :: Map NameSegment (Causal m)
 --   }
--- 
+--
 -- U.Codebase.Sqlite.Branch.Full.Branch'
 -- type ShallowBranch = Branch' NameSegment Hash PatchHash CausalHash
 -- data ShallowBranch causalHash patchHash = ShallowBranch
@@ -951,9 +952,6 @@ saveRootBranch c = do
 --
 -- References, but also values
 -- Shallow - Hash? representation of the database relationships
-
-saveBranch' :: EDB m => C.Branch.Branch m -> m Db.BranchObjectId
-saveBranch' = undefined
 
 saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
@@ -1098,11 +1096,11 @@ loadBranchByCausalHashId id = do
   (liftQ . Q.loadBranchObjectIdByCausalHashId) id
     >>= traverse loadBranchByObjectId
 
-loadBranchByObjectId :: EDB m => Db.BranchObjectId -> m (C.Branch.Branch m)
-loadBranchByObjectId id = do
+loadDbBranchByObjectId :: EDB m => Db.BranchObjectId -> m S.DbBranch
+loadDbBranchByObjectId id =
   deserializeBranchObject id >>= \case
-    S.BranchFormat.Full li f -> s2cBranch (l2sFull li f)
-    S.BranchFormat.Diff r li d -> doDiff r [l2sDiff li d]
+    S.BranchFormat.Full li f ->  pure (S.BranchFormat.localToDbBranch li f)
+    S.BranchFormat.Diff r li d -> doDiff r [S.BranchFormat.localToDbDiff li d]
   where
     deserializeBranchObject :: EDB m => Db.BranchObjectId -> m S.BranchFormat
     deserializeBranchObject id = do
@@ -1110,21 +1108,14 @@ loadBranchByObjectId id = do
       (liftQ . Q.loadObjectById) (Db.unBranchObjectId id)
         >>= getFromBytesOr (ErrBranch id) S.getBranchFormat
 
-    l2sFull :: S.BranchFormat.BranchLocalIds -> S.LocalBranch -> S.DbBranch
-    l2sFull li =
-      S.Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
-
-    l2sDiff :: S.BranchFormat.BranchLocalIds -> S.Branch.LocalDiff -> S.Branch.Diff
-    l2sDiff li = S.BranchDiff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
-
-    doDiff :: EDB m => Db.BranchObjectId -> [S.Branch.Diff] -> m (C.Branch.Branch m)
+    doDiff :: EDB m => Db.BranchObjectId -> [S.Branch.Diff] -> m S.DbBranch
     doDiff ref ds =
       deserializeBranchObject ref >>= \case
-        S.BranchFormat.Full li f -> joinFull (l2sFull li f) ds
-        S.BranchFormat.Diff ref' li' d' -> doDiff ref' (l2sDiff li' d' : ds)
+        S.BranchFormat.Full li f -> joinFull (S.BranchFormat.localToDbBranch li f) ds
+        S.BranchFormat.Diff ref' li' d' -> doDiff ref' (S.BranchFormat.localToDbDiff li' d' : ds)
       where
-        joinFull :: EDB m => S.DbBranch -> [S.Branch.Diff] -> m (C.Branch.Branch m)
-        joinFull f [] = s2cBranch f
+        joinFull :: EDB m => S.DbBranch -> [S.Branch.Diff] -> m S.DbBranch
+        joinFull f [] = pure f
         joinFull
           (S.Branch.Full.Branch tms tps patches children)
           (S.Branch.Diff tms' tps' patches' children' : ds) = joinFull f' ds
@@ -1212,17 +1203,9 @@ loadBranchByObjectId id = do
             let (Set.fromList -> adds, Set.fromList -> removes) = S.BranchDiff.addsRemoves md'
              in Just . S.MetadataSet.Inline $ (Set.union adds $ Set.difference md removes)
 
-    lookupBranchLocalText :: S.BranchLocalIds -> LocalTextId -> Db.TextId
-    lookupBranchLocalText li (LocalTextId w) = S.BranchFormat.branchTextLookup li Vector.! fromIntegral w
-
-    lookupBranchLocalDefn :: S.BranchLocalIds -> LocalDefnId -> Db.ObjectId
-    lookupBranchLocalDefn li (LocalDefnId w) = S.BranchFormat.branchDefnLookup li Vector.! fromIntegral w
-
-    lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> Db.PatchObjectId
-    lookupBranchLocalPatch li (LocalPatchObjectId w) = S.BranchFormat.branchPatchLookup li Vector.! fromIntegral w
-
-    lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (Db.BranchObjectId, Db.CausalHashId)
-    lookupBranchLocalChild li (LocalBranchChildId w) = S.BranchFormat.branchChildLookup li Vector.! fromIntegral w
+loadBranchByObjectId :: EDB m => Db.BranchObjectId -> m (C.Branch.Branch m)
+loadBranchByObjectId id =
+  loadDbBranchByObjectId id >>= s2cBranch
 
 -- * Patch transformation
 

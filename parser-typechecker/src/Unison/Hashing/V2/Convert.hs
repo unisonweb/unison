@@ -55,6 +55,9 @@ import qualified Unison.Type as Memory.Type
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Memory.Star3
 import Unison.Var (Var)
+import qualified Unison.ConstructorType as Memory.ConstructorType
+import Control.Monad.Trans.Writer.CPS (Writer)
+import qualified Control.Monad.Trans.Writer.CPS as Writer
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
 typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Type.removeAllEffectVars
@@ -69,10 +72,12 @@ hashTypeComponents = fmap h2mTypeResult . Hashing.Type.hashComponents . fmap m2h
     h2mTypeResult (id, tp) = (h2mReferenceId id, h2mType tp)
 
 hashTermComponents :: Var v => Map v (Memory.Term.Term v a) -> Map v (Memory.Reference.Id, Memory.Term.Term v a)
-hashTermComponents = fmap h2mTermResult . Hashing.Term.hashComponents . fmap m2hTerm
+hashTermComponents mTerms =
+  case Writer.runWriter (traverse m2hTerm mTerms) of
+    (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms
   where
-    h2mTermResult :: Ord v => (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
-    h2mTermResult (id, tm) = (h2mReferenceId id, h2mTerm tm)
+    h2mTermResult :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
+    h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
 
 -- TODO: remove non-prime version
 -- include type in hash
@@ -80,33 +85,33 @@ hashTermComponents' :: Var v => Map v (Memory.Term.Term v a, Memory.Type.Type v 
 hashTermComponents' = undefined
 
 hashClosedTerm :: Var v => Memory.Term.Term v a -> Memory.Reference.Id
-hashClosedTerm = h2mReferenceId . Hashing.Term.hashClosedTerm . m2hTerm
+hashClosedTerm = h2mReferenceId . Hashing.Term.hashClosedTerm . fst . Writer.runWriter . m2hTerm
 
-m2hTerm :: Ord v => Memory.Term.Term v a -> Hashing.Term.Term v a
-m2hTerm = ABT.transform \case
-  Memory.Term.Int i -> Hashing.Term.Int i
-  Memory.Term.Nat n -> Hashing.Term.Nat n
-  Memory.Term.Float d -> Hashing.Term.Float d
-  Memory.Term.Boolean b -> Hashing.Term.Boolean b
-  Memory.Term.Text t -> Hashing.Term.Text t
-  Memory.Term.Char c -> Hashing.Term.Char c
-  Memory.Term.Blank b -> Hashing.Term.Blank b
-  Memory.Term.Ref r -> Hashing.Term.Ref (m2hReference r)
-  Memory.Term.Constructor r i -> Hashing.Term.Constructor (m2hReference r) i
-  Memory.Term.Request r i -> Hashing.Term.Request (m2hReference r) i
-  Memory.Term.Handle x y -> Hashing.Term.Handle x y
-  Memory.Term.App f x -> Hashing.Term.App f x
-  Memory.Term.Ann e t -> Hashing.Term.Ann e (m2hType t)
-  Memory.Term.List as -> Hashing.Term.List as
-  Memory.Term.And p q -> Hashing.Term.And p q
-  Memory.Term.If c t f -> Hashing.Term.If c t f
-  Memory.Term.Or p q -> Hashing.Term.Or p q
-  Memory.Term.Lam a -> Hashing.Term.Lam a
-  Memory.Term.LetRec isTop bs body -> Hashing.Term.LetRec isTop bs body
-  Memory.Term.Let isTop b body -> Hashing.Term.Let isTop b body
-  Memory.Term.Match scr cases -> Hashing.Term.Match scr (fmap m2hMatchCase cases)
-  Memory.Term.TermLink r -> Hashing.Term.TermLink (m2hReferent r)
-  Memory.Term.TypeLink r -> Hashing.Term.TypeLink (m2hReference r)
+m2hTerm :: Ord v => Memory.Term.Term v a -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) (Hashing.Term.Term v a)
+m2hTerm = ABT.transformM \case
+  Memory.Term.Int i -> pure (Hashing.Term.Int i)
+  Memory.Term.Nat n -> pure (Hashing.Term.Nat n)
+  Memory.Term.Float d -> pure (Hashing.Term.Float d)
+  Memory.Term.Boolean b -> pure (Hashing.Term.Boolean b)
+  Memory.Term.Text t -> pure (Hashing.Term.Text t)
+  Memory.Term.Char c -> pure (Hashing.Term.Char c)
+  Memory.Term.Blank b -> pure (Hashing.Term.Blank b)
+  Memory.Term.Ref r -> pure (Hashing.Term.Ref (m2hReference r))
+  Memory.Term.Constructor r i -> pure (Hashing.Term.Constructor (m2hReference r) i)
+  Memory.Term.Request r i -> pure (Hashing.Term.Request (m2hReference r) i)
+  Memory.Term.Handle x y -> pure (Hashing.Term.Handle x y)
+  Memory.Term.App f x -> pure (Hashing.Term.App f x)
+  Memory.Term.Ann e t -> pure (Hashing.Term.Ann e (m2hType t))
+  Memory.Term.List as -> pure (Hashing.Term.List as)
+  Memory.Term.And p q -> pure (Hashing.Term.And p q)
+  Memory.Term.If c t f -> pure (Hashing.Term.If c t f)
+  Memory.Term.Or p q -> pure (Hashing.Term.Or p q)
+  Memory.Term.Lam a -> pure (Hashing.Term.Lam a)
+  Memory.Term.LetRec isTop bs body -> pure (Hashing.Term.LetRec isTop bs body)
+  Memory.Term.Let isTop b body -> pure (Hashing.Term.Let isTop b body)
+  Memory.Term.Match scr cases -> pure (Hashing.Term.Match scr (fmap m2hMatchCase cases))
+  Memory.Term.TermLink r -> Hashing.Term.TermLink <$> m2hReferent r
+  Memory.Term.TypeLink r -> pure (Hashing.Term.TypeLink (m2hReference r))
 
 m2hMatchCase :: Memory.Term.MatchCase a a1 -> Hashing.Term.MatchCase a a1
 m2hMatchCase (Memory.Term.MatchCase pat m_a1 a1) = Hashing.Term.MatchCase (m2hPattern pat) m_a1 a1
@@ -134,13 +139,15 @@ m2hSequenceOp = \case
   Memory.Pattern.Snoc -> Hashing.Pattern.Snoc
   Memory.Pattern.Concat -> Hashing.Pattern.Concat
 
-m2hReferent :: Memory.Referent.Referent -> Hashing.Referent.Referent
+m2hReferent :: Memory.Referent.Referent -> Writer (Map Memory.Reference.Reference Memory.ConstructorType.ConstructorType) Hashing.Referent.Referent
 m2hReferent = \case
-  Memory.Referent.Ref ref -> Hashing.Referent.Ref (m2hReference ref)
-  Memory.Referent.Con ref n ct -> Hashing.Referent.Con (m2hReference ref) n ct
+  Memory.Referent.Ref ref -> pure (Hashing.Referent.Ref (m2hReference ref))
+  Memory.Referent.Con ref n ct -> do
+    Writer.tell (Map.singleton ref ct)
+    pure (Hashing.Referent.Con (m2hReference ref) n)
 
-h2mTerm :: Ord v => Hashing.Term.Term v a -> Memory.Term.Term v a
-h2mTerm = ABT.transform \case
+h2mTerm :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Term.Term v a -> Memory.Term.Term v a
+h2mTerm getCT = ABT.transform \case
   Hashing.Term.Int i -> Memory.Term.Int i
   Hashing.Term.Nat n -> Memory.Term.Nat n
   Hashing.Term.Float d -> Memory.Term.Float d
@@ -162,7 +169,7 @@ h2mTerm = ABT.transform \case
   Hashing.Term.LetRec isTop bs body -> Memory.Term.LetRec isTop bs body
   Hashing.Term.Let isTop b body -> Memory.Term.Let isTop b body
   Hashing.Term.Match scr cases -> Memory.Term.Match scr (h2mMatchCase <$> cases)
-  Hashing.Term.TermLink r -> Memory.Term.TermLink (h2mReferent r)
+  Hashing.Term.TermLink r -> Memory.Term.TermLink (h2mReferent getCT r)
   Hashing.Term.TypeLink r -> Memory.Term.TypeLink (h2mReference r)
 
 h2mMatchCase :: Hashing.Term.MatchCase a b -> Memory.Term.MatchCase a b
@@ -191,10 +198,12 @@ h2mSequenceOp = \case
   Hashing.Pattern.Snoc -> Memory.Pattern.Snoc
   Hashing.Pattern.Concat -> Memory.Pattern.Concat
 
-h2mReferent :: Hashing.Referent.Referent -> Memory.Referent.Referent
-h2mReferent = \case
+h2mReferent :: (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> Hashing.Referent.Referent -> Memory.Referent.Referent
+h2mReferent getCT = \case
   Hashing.Referent.Ref ref -> Memory.Referent.Ref (h2mReference ref)
-  Hashing.Referent.Con ref n ct -> Memory.Referent.Con (h2mReference ref) n ct
+  Hashing.Referent.Con ref n ->
+    let mRef = h2mReference ref
+    in Memory.Referent.Con mRef n (getCT mRef)
 
 hashDecls ::
   Var v =>
@@ -334,7 +343,7 @@ m2hBranch b =
           | ns <- toList . Relation.ran $ Memory.Star3.d1 s,
             let m2 =
                   Map.fromList
-                    [ (m2hReferent r, md)
+                    [ (fst (Writer.runWriter (m2hReferent r)), md)
                       | r <- toList . Relation.lookupRan ns $ Memory.Star3.d1 s,
                         let mdrefs1to2 (_typeR1, valR1) = m2hReference valR1
                             md = Hashing.Branch.MdValues . Set.map mdrefs1to2 . Relation.lookupDom r $ Memory.Star3.d3 s

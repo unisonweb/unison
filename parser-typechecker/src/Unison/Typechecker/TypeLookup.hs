@@ -2,14 +2,15 @@ module Unison.Typechecker.TypeLookup where
 
 import Unison.Prelude
 
-import Unison.Reference (Reference)
-import Unison.Referent (Referent, ConstructorId)
-import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
-import Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import Unison.Type (Type)
 
 -- Used for typechecking.
 data TypeLookup v a =

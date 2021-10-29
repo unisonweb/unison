@@ -5,7 +5,6 @@ module Unison.Referent
   ( Referent,
     pattern Ref,
     pattern Con,
-    ConstructorId,
     Id,
     pattern RefId,
     pattern ConId,
@@ -71,7 +70,7 @@ toShortHash = \case
   Con r i _ -> patternShortHash r i
 
 -- also used by HashQualified.fromPattern
-patternShortHash :: Reference -> Int -> ShortHash
+patternShortHash :: Reference -> ConstructorId -> ShortHash
 patternShortHash r i = (R.toShortHash r) { SH.cid = Just . Text.pack $ show i }
 
 toText :: Referent -> Text
@@ -119,7 +118,7 @@ fromText t = either (const Nothing) Just $
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
 
-fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
+fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
   Con' r i ct -> fc r i ct

@@ -1,10 +1,28 @@
-module U.Codebase.Sqlite.Branch.Format where
+module U.Codebase.Sqlite.Branch.Format
+  ( BranchFormat (..),
+    BranchLocalIds (..),
+    SyncBranchFormat (..),
+    localToDbBranch,
+    dbToLocalBranch,
+    localToDbDiff,
+    -- dbToLocalDiff,
+  )
+where
 
-import Data.Vector (Vector)
-import U.Codebase.Sqlite.Branch.Diff (LocalDiff)
-import U.Codebase.Sqlite.Branch.Full (LocalBranch)
-import U.Codebase.Sqlite.DbId (CausalHashId, BranchObjectId, ObjectId, PatchObjectId, TextId)
 import Data.ByteString (ByteString)
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
+import U.Codebase.Sqlite.Branch.Diff (LocalDiff, Diff)
+import U.Codebase.Sqlite.Branch.Full (DbBranch, LocalBranch)
+import qualified U.Codebase.Sqlite.Branch.Full as Branch.Full
+import qualified U.Codebase.Sqlite.Branch.Diff as Branch.Diff
+import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
+import U.Codebase.Sqlite.LocalIds
+  ( LocalBranchChildId (..),
+    LocalDefnId (..),
+    LocalPatchObjectId (..),
+    LocalTextId (..),
+  )
 
 -- | A 'BranchFormat' is a deserialized namespace object (@object.bytes@).
 --
@@ -12,7 +30,7 @@ import Data.ByteString (ByteString)
 data BranchFormat
   = Full BranchLocalIds LocalBranch
   | Diff BranchObjectId BranchLocalIds LocalDiff
-  deriving Show
+  deriving (Show)
 
 -- | A 'BranchLocalIds' is a mapping between local ids (local to this object) encoded as offsets, and actual database ids.
 --
@@ -24,11 +42,34 @@ data BranchLocalIds = LocalIds
     branchPatchLookup :: Vector PatchObjectId,
     branchChildLookup :: Vector (BranchObjectId, CausalHashId)
   }
-  deriving Show
+  deriving (Show)
 
 data SyncBranchFormat
   = SyncFull BranchLocalIds ByteString
   | SyncDiff BranchObjectId BranchLocalIds ByteString
+
+localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
+localToDbBranch li =
+  Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
+
+dbToLocalBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
+dbToLocalBranch = undefined
+
+lookupBranchLocalText :: BranchLocalIds -> LocalTextId -> TextId
+lookupBranchLocalText li (LocalTextId w) = branchTextLookup li Vector.! fromIntegral w
+
+lookupBranchLocalDefn :: BranchLocalIds -> LocalDefnId -> ObjectId
+lookupBranchLocalDefn li (LocalDefnId w) = branchDefnLookup li Vector.! fromIntegral w
+
+lookupBranchLocalPatch :: BranchLocalIds -> LocalPatchObjectId -> PatchObjectId
+lookupBranchLocalPatch li (LocalPatchObjectId w) = branchPatchLookup li Vector.! fromIntegral w
+
+lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (BranchObjectId, CausalHashId)
+lookupBranchLocalChild li (LocalBranchChildId w) = branchChildLookup li Vector.! fromIntegral w
+
+localToDbDiff :: BranchLocalIds -> LocalDiff -> Diff
+localToDbDiff li = Branch.Diff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
+
 
 {-
 projects.arya.message = "hello, world"     -> <text constant> -> #abc
@@ -107,7 +148,5 @@ projects.arya {
     ...
   }
 }
-
-
 
 -}

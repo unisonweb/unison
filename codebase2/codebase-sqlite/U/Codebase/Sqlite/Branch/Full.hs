@@ -43,34 +43,21 @@ branchCausalHashes_ f Branch{..} =
 -- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
 -- convertBranch dbBranch = _
 
--- DbBranch -- migrate --> DbBranch -- hydrate for the hash --> Hashing.V2.Branch -- put (Hash, toBranchFormat(DbBranch)) --> COOL
-
--- function that reads a DbBranch out of codebase
-
--- Traversal' DbBranch SomeReferenceObjectId
--- DB m => LensLike' m SomeReferenceObjectId SomeReferenceId
--- MonadState MigrationState m => SomeReferenceId -> m SomeReferenceId
-
--- Traversal' DbBranch (BranchId, CausalHashId)
--- MonadState MigrationState m => (BranchId, CausalHashId) -> m (BranchId, CausalHashId)
-
--- Traversal' DbBranch PatchId
--- MonadState MigrationState m => PatchObjectId -> m PatchObjectId
-
--- totalThing :: (MonadState MigrationState DB m => LensLike' m DbBranch SomeReferenceId
--- totalThing = intoHashes . overSomeRefs
-
--- Store (Old ObjectId) -> (New ObjectId) sky map
--- Store (New ObjectId) -> (New Hash) map/cache
-
--- function which lifts a function over SomeReference's to run over a DBBranch by inflating Hashes
--- function which remaps references in a Branch
-
--- function that takes DbBranch to (LocalIds, LocalBranch)
-
--- function that takes a DbBranch to a Hashing.V2.Branch
-
--- function that writes (Hash, LocalBranch) to codebase
+-- branch plan
+-- ===========
+-- 1. function that reads a DbBranch out of codebase
+-- ==> loadDbBranchByObjectId
+-- 2. function which lifts a function over SomeReference's to run over a DBBranch by inflating Hashes
+-- 3. function which remaps references in a Branch
+-- ==> Chris's work
+-- 4. function that takes DbBranch to (LocalIds, LocalBranch)
+-- ==> dbToLocalBranch
+-- 5. function that takes a DbBranch to a Hashing.V2.Branch
+-- ==> Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers.dbBranchHash
+-- 6. saveBranchHash
+-- 7. saveBranchObject
+-- ===============
+-- end branch plan
 
 -- database has a root CausalHashId
 -- from CausalHashId, we can look up ValueHashId and

@@ -25,7 +25,7 @@ data Raw = Raw
   { terms :: Map NameSegment (Map Referent MdValues),
     types :: Map NameSegment (Map Reference MdValues),
     patches :: Map NameSegment Hash,
-    children :: Map NameSegment Hash
+    children :: Map NameSegment Hash -- the Causal Hash
   }
 
 instance Hashable Raw where

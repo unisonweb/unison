@@ -25,6 +25,7 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
 import qualified Unison.Names.ResolutionResult as Names
@@ -32,7 +33,7 @@ import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
-import           Unison.Referent (Referent, ConstructorId)
+import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
