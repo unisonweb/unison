@@ -26,7 +26,7 @@ module Unison.Codebase.Path
     currentPath,
     Resolve(..),
     -- This seems semantically invalid
-    -- unprefix,
+    stripPrefix,
     -- prefixName,
     -- unprefixName,
     HQSplit,
@@ -84,6 +84,8 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Util.Monoid (intercalateMap)
 import Data.Function (on)
 import Unison.Codebase.Position (Position(..))
+import qualified Data.List.Extra as List
+import qualified Data.Foldable as Foldable
 
 data Path (pos :: Position) where
   AbsoluteP :: Seq NameSegment -> Path 'Absolute
@@ -160,7 +162,7 @@ type Split pos = (Path pos, NameSegment)
 type HQSplit pos = (Path pos, HQ'.HQSegment)
 
 unsplit :: Split pos -> Path pos
-unsplit (p, a) = p & segments_ %~ Lens.cons a
+unsplit (p, a) = Lens.snoc p a
 
 unsplitHQ :: HQSplit pos -> HQ'.HashQualified (Path pos)
 unsplitHQ (p, a) = fmap (Lens.snoc p) a
@@ -174,24 +176,19 @@ unsplitHQ (p, a) = fmap (Lens.snoc p) a
 --   Left abs -> unabsolute abs
 --   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
 
--- unprefix :: Path 'Absolute -> Path 'Relative -> Path 'Relative'
+asList_ :: Iso (Seq a) (Seq b) [a] [b]
+asList_ = iso Foldable.toList Seq.fromList 
 
--- Attach a relative path to another path.
-prefix :: Path pos -> Path 'Relative -> Path pos
-prefix pref suff = pref & segments_ %~ (<> (suff ^. segments_))
-
--- tryPrefix :: Path pref -> Path suff -> Path 'Unchecked
--- tryPrefix pref suff = _
-  -- AbsolutePath p -> p
-  -- RelativePath p -> _
-
--- prefix (Absolute (Path prefix)) (Path' p) = case p of
---   Left (unabsolute -> abs) -> abs
---   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
-
+stripPrefix :: Path 'Absolute -> Path 'Relative -> Path 'Relative
+stripPrefix p r = r & segments_ . asList_ %~ List.dropPrefix (p ^. segments_ . asList_)
 
 -- toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 -- toAbsoluteSplit a (p, s) = (resolve a p, s)
+
+toSplit :: Path pos -> Maybe (Split pos)
+toSplit = \case
+  (p :> ns) -> Just (p, ns)
+  _ -> Nothing
 
 -- fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
 -- fromAbsoluteSplit (Absolute p, a) = (p, a)
@@ -219,8 +216,9 @@ splitFromName :: Name -> Maybe (Split 'Unchecked)
 splitFromName = Lens.unsnoc . fromName
 
 -- | what is this? —AI
--- unprefixName :: Absolute -> Name -> Name
--- unprefixName prefix = toName . unprefix prefix . fromName'
+unprefixName :: Path 'Absolute -> Name -> Name
+unprefixName prefix = toName . unprefix prefix . fromName
+
 
 -- prefixName :: Absolute -> Name -> Name
 -- prefixName p = toName . prefix p . fromName'
