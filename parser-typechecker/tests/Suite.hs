@@ -10,6 +10,7 @@ import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.ClearCache as ClearCache
+import qualified Unison.Test.Codebase.Branch as Branch
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
@@ -76,6 +77,7 @@ test = tests
   , PinBoard.test
   , CodebaseInit.test
   , CommandLine.test
+  , Branch.test
  ]
 
 main :: IO ()
