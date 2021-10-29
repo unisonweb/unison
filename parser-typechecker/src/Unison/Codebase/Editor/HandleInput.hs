@@ -1113,7 +1113,7 @@ loop = do
         -- If the query is empty, run a fuzzy search.
         query <- case inputQuery of
           [] -> do
-            let fuzzyBranch =case outputLoc of
+            let fuzzyBranch = case outputLoc of
                   -- fuzzy finding for 'view' is global
                   ConsoleLocation{} -> root0
                   -- fuzzy finding for 'edit's are local to the current branch
