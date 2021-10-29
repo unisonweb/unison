@@ -61,6 +61,7 @@ module Unison.Codebase.Path
     Lens.uncons,
     Lens.snoc,
     Lens.unsnoc,
+    unconsAbsolute,
 
     pattern Lens.Empty,
 
@@ -143,8 +144,10 @@ isCurrentPath = (== currentPath)
 currentPath :: Path 'Relative
 currentPath = RelativeP mempty
 
-isRoot :: Path 'Absolute -> Bool
-isRoot = (== root)
+isRoot :: Path any -> Bool
+isRoot = \case
+  AbsolutePath p -> p == AbsoluteP mempty
+  _ -> False
 
 root :: Path 'Absolute
 root = AbsoluteP mempty
@@ -188,10 +191,10 @@ stripPrefix p r =
 -- toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 -- toAbsoluteSplit a (p, s) = (resolve a p, s)
 
-toSplit :: Path pos -> Maybe (Split pos)
-toSplit = \case
-  (p :> ns) -> Just (p, ns)
-  _ -> Nothing
+-- toSplit :: Path pos -> Maybe (Split pos)
+-- toSplit = \case
+--   (p :> ns) -> Just (p, ns)
+--   _ -> Nothing
 
 -- fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
 -- fromAbsoluteSplit (Absolute p, a) = (p, a)
@@ -253,6 +256,11 @@ fromText t = case NameSegment.splitText t of
   (True, segments) -> unchecked . AbsoluteP $ Seq.fromList segments
   (False, segments)-> unchecked . RelativeP $ Seq.fromList segments
 
+unconsAbsolute :: Path 'Absolute -> Maybe (NameSegment, Path 'Relative)
+unconsAbsolute = \case
+  AbsoluteP (ns :< p) -> Just (ns, RelativeP p)
+  _ -> Nothing
+
 instance Cons (Path 'Relative) (Path 'Relative) NameSegment NameSegment where
   _Cons = prism (uncurry cons) uncons where
     cons :: NameSegment -> Path 'Relative -> Path 'Relative
@@ -286,11 +294,11 @@ instance AsEmpty (Path 'Relative) where
 --     snoc' (p, a) n = (Lens.snoc p a, n)
 
 class Resolve l r o where
-  resolve :: Path l -> Path r -> Path o
+  resolve :: l -> r -> o
 
-instance Resolve any 'Absolute 'Absolute where
+instance Resolve (Path any) (Path 'Absolute) (Path 'Absolute) where
   resolve _ p = p
-instance Resolve pref 'Relative pref where
+instance Resolve (Path pref) (Path 'Relative) (Path pref) where
   resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
 
 -- instance Resolve Relative Relative Relative where
@@ -310,8 +318,8 @@ instance Resolve pref 'Relative pref where
 -- instance Resolve Path' Split' Split' where
 --   resolve l (r, ns) = (resolve l r, ns)
 
--- instance Resolve Absolute HQSplit HQSplitAbsolute where
---   resolve l (r, hq) = (resolve l (Relative r), hq)
+instance Resolve (Path 'Absolute) (HQSplit 'Relative) (HQSplit 'Absolute) where
+  resolve l (r, hq) = (resolve l r, hq)
 
 -- instance Resolve Absolute Path' Absolute where
 --   resolve _ (Path' (Left a)) = a

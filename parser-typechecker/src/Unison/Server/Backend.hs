@@ -460,9 +460,9 @@ termReferentsByShortHash codebase sh = do
 data NameScoping =
       -- | Find all names, making any names which are children of this path,
       -- otherwise leave them absolute.
-      AllNames (Path 'Relative)
+      AllNames (Path 'Absolute)
       -- | Filter returned names to only include names within this path.
-    | Within   (Path 'Relative)
+    | Within   (Path 'Absolute)
 
 toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p

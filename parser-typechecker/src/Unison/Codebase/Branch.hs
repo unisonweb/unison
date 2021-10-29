@@ -85,7 +85,7 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
-import           Data.Bifunctor                 ( second )
+import           Data.Bifunctor                 ( second, Bifunctor (first) )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -393,20 +393,20 @@ toCausalRaw = \case
   Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
-getAt :: Path 'Path.Relative
+getAt :: Path pos
       -> Branch m
       -> Maybe (Branch m)
-getAt path root = case Path.uncons path of
+getAt path root = case Path.uncons (Path.unsafeToRelative path) of
   Nothing -> if isEmpty root then Nothing else Just root
   Just (seg, path) -> case Map.lookup seg (_children $ head root) of
     Just b -> getAt path b
     Nothing -> Nothing
 
-getAt' :: Path 'Path.Relative -> Branch m -> Branch m
+getAt' :: Path pos -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
-getAt0 :: Path 'Path.Relative -> Branch0 m -> Branch0 m
-getAt0 p b = case Path.uncons p of
+getAt0 :: Path pos -> Branch0 m -> Branch0 m
+getAt0 p b = case Path.uncons (Path.unsafeToRelative p) of
   Nothing -> b
   Just (seg, path) -> case Map.lookup seg (_children b) of
     Just c -> getAt0 path (head c)
@@ -450,11 +450,11 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 stepManyAt :: (Monad m, Foldable f)
-           => f (Path 'Path.Relative, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+           => f (Path 'Path.Absolute, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
 
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path 'Path.Relative, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+            => f (Path 'Path.Absolute, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
@@ -535,15 +535,15 @@ modifyAtM path f b = case Path.uncons path of
 
 -- stepManyAt0 consolidates several changes into a single step
 stepManyAt0 :: forall f m . (Monad m, Foldable f)
-           => f (Path 'Path.Relative, Branch0 m -> Branch0 m)
+           => f (Path 'Path.Absolute, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
 stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
-             => f (Path 'Relative, Branch0 m -> n (Branch0 m))
+             => f (Path 'Absolute, Branch0 m -> n (Branch0 m))
              -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = go (toList actions) b where
+stepManyAt0M actions b = go (fmap (first Path.unsafeToRelative) . toList $  actions) b where
   go :: [(Path 'Relative, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
   go actions b = let
     -- combines the functions that apply to this level of the tree

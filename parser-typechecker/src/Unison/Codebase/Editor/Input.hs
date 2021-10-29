@@ -36,9 +36,9 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type PatchPath = (Path.Split 'Relative)
+type PatchPath = (Path.Split 'Absolute)
 type BranchId = Either ShortBranchHash (Path 'Unchecked)
-type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Relative)
+type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Unchecked)
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -77,7 +77,7 @@ data Input
     | NamesI (HQ.HashQualified Name)
     | AliasTermI HashOrHQSplit' (Path.Split 'Unchecked)
     | AliasTypeI HashOrHQSplit' (Path.Split 'Unchecked)
-    | AliasManyI [Path.HQSplit 'Relative] (Path 'Unchecked)
+    | AliasManyI [Path.HQSplit 'Unchecked] (Path 'Unchecked)
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
     | MoveTypeI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
