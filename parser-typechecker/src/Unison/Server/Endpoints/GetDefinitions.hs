@@ -119,21 +119,26 @@ serveDefinitions
   -> Maybe Width
   -> Maybe Suffixify
   -> Handler (APIHeaders DefinitionDisplayResults)
-serveDefinitions h rt codebase mayRoot relativePath hqns width suff =
+serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
   addHeaders <$> do
     h
     rel <-
       fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
     ea <- liftIO . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
-      Backend.prettyDefinitionsBySuffixes rel
+      let hqns = HQ.unsafeFromText <$> rawHqns
+          scope = case hqns of
+            -- TODO: Change this API to support being queried by just 1 name/hash
+            HQ.HashOnly _ : _ -> Backend.AllNames . fromMaybe Path.empty $ rel
+            _ -> Backend.Within . fromMaybe Path.empty $ rel
+
+      Backend.prettyDefinitionsBySuffixes scope
                                           root
                                           width
                                           (fromMaybe (Suffixify True) suff)
                                           rt
                                           codebase
-        $   HQ.unsafeFromText
-        <$> hqns
+                                          hqns
     errFromEither backendError ea
  where
   parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p

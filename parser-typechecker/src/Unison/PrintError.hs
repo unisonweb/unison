@@ -596,6 +596,9 @@ renderTypeError e env src = case e of
   simplePath' :: C.PathElement v loc -> Pretty ColorText
   simplePath' = \case
     C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
+    C.InEquate t1 t2 ->
+      "InEquate t1=" <> renderType' env t1 <>
+      ", t2=" <> renderType' env t2
     C.InSubtype t1 t2 ->
       "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
     C.InCheck e t ->

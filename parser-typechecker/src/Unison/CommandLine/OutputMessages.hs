@@ -724,6 +724,10 @@ notifyUser dir o = case o of
         $ "I just finished importing the branch" <> P.red (P.shown h)
         <> "from" <> P.red (prettyRemoteNamespace ns)
         <> "but now I can't find it."
+      CouldntFindRemoteBranch repo path -> P.wrap
+        $ "I couldn't find the remote branch at"
+        <> P.shown path
+        <> "in the repository at" <> prettyReadRepo repo
       NoRemoteNamespaceWithHash repo sbh -> P.wrap
         $ "The repository at" <> prettyReadRepo repo
         <> "doesn't contain a namespace with the hash prefix"
@@ -1291,8 +1295,8 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' name (Just typ) _r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  SR'.TermResult' name (Just typ) r _aliases ->
+    head (TypePrinter.prettySignatures' ppe [(r,name,typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1411,7 +1415,7 @@ todoOutput ppe todo =
   corruptTypes =
     [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (Referent.Ref r, PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
