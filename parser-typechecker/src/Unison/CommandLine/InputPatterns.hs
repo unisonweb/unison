@@ -1349,6 +1349,26 @@ test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
     (const $ pure $ Input.TestI True True)
 
+docsToHtml :: InputPattern
+docsToHtml = InputPattern
+  "docs.to-html"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`"
+      , "Render all docs contained within a namespace, no matter how deep,"
+        <> "to html files on a file path"
+      )
+    ]
+  )
+  (\case
+    [namespacePath, destinationFilePath] -> first fromString $ do
+      np <- Path.parsePath' namespacePath
+      pure $ Input.DocsToHtmlI np destinationFilePath
+    _   -> Left $ showPatternHelp docsToHtml
+  )
+
+
 execute :: InputPattern
 execute = InputPattern
   "run"
@@ -1458,6 +1478,7 @@ validInputs =
   , displayTo
   , ui
   , docs
+  , docsToHtml
   , findPatch
   , viewPatch
   , undo

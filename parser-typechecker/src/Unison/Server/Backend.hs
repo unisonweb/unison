@@ -283,7 +283,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        res <- renderDoc ppe width runtime codebase (Referent.toReference r)
+        res <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
         pure $ case res of
           (_, _, doc) : _ -> Just doc
           _ -> Nothing
@@ -741,7 +741,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> traverse (renderDoc ppe width rt codebase) docs
+        join <$> liftIO (traverse (renderDoc ppe width rt codebase) docs)
 
       mkTermDefinition ::
         ( Reference ->
@@ -800,7 +800,7 @@ renderDoc ::
   Rt.Runtime v ->
   Codebase IO v Ann ->
   Reference ->
-  Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
@@ -810,15 +810,15 @@ renderDoc ppe width rt codebase r = do
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
-      fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+      fmap Term.unannotate <$> Codebase.getTerm codebase r
 
-    typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+    typeOf r = fmap void <$> Codebase.getTypeOfReferent codebase r
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPE.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
-      lift $ case r of
+      case r of
         Just tmr ->
           Codebase.putWatch
             codebase
@@ -828,7 +828,7 @@ renderDoc ppe width rt codebase r = do
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
-    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
     decls _ = pure Nothing
 
 docsInBranchToHtmlFiles
@@ -837,11 +837,11 @@ docsInBranchToHtmlFiles
   -> Codebase IO v Ann
   -> Branch IO
   -> FilePath
-  -> Backend IO ()
+  -> IO ()
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let deepTermRefs = (toList . R.range . Branch.deepTerms . Branch.head) currentBranch >>= toList
-  docRefs <- lift $ filterM (isDoc codebase) deepTermRefs
-  hqLength <- lift $ Codebase.hashLength codebase
+  docRefs <- filterM (isDoc codebase) deepTermRefs
+  hqLength <- Codebase.hashLength codebase
   let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
   let width = defaultWidth
   let ppe = PPE.fromNamesDecl hqLength printNames
@@ -875,7 +875,6 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
         docFilePath' = docFilePath directory docName
       in
       Lucid.renderToFile docFilePath' (DocHtml.toHtml doc)
-
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text

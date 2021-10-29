@@ -412,6 +412,7 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           UiI -> "ui"
+          DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
           ExecuteI s -> "execute " <> Text.pack s
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
@@ -904,6 +905,11 @@ loop = do
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
       UiI -> eval UI
+
+      DocsToHtmlI namespacePath' sourceDirectory -> do
+        let absPath = resolveToAbsolute namespacePath'
+        let namespaceBranch = Branch.getAt' (Path.unabsolute absPath) root'
+        eval (DocsToHtml namespaceBranch sourceDirectory)
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src

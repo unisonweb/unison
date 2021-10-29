@@ -208,7 +208,7 @@ segmentToHtml (Segment segmentText element) =
 
       isFQN =
         let isFQN_ =
-              Text.isInfixOf "." sText
+              Text.isInfixOf "." sText && not (Text.isInfixOf "#" sText)
          in case el of
               TypeReference {} ->
                 isFQN_
