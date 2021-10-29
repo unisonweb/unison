@@ -22,6 +22,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
+import System.FilePath
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -38,6 +39,7 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as PathParse
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
@@ -60,6 +62,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Lucid
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
@@ -88,6 +91,7 @@ import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
+import qualified Unison.Server.Doc.AsHtml as DocHtml
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv.Util as PPE
@@ -294,6 +298,18 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         hqLen <- liftIO $ Codebase.hashLength codebase
         join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
+isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
+isDoc codebase ref = do
+  ot <- loadReferentType codebase ref
+  pure $ isDoc' ot
+
+isDoc' :: (Var v, Monoid loc) => Maybe (Type v loc) -> Bool
+isDoc' typeOfTerm = do
+  -- A term is a dococ if its type conforms to the `Doc` type.
+  case typeOfTerm of
+    Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
+               Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+    Nothing -> False
 
 termListEntry
   :: Monad m
@@ -305,15 +321,17 @@ termListEntry
   -> Backend m (TermEntry v Ann)
 termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
-  -- A term is a doc if its type conforms to the `Doc` type.
-  let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
-                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
-        Nothing -> False
-      -- A term is a test if it has a link of type `IsTest`.
-      isTest =
-        Metadata.hasMetadataWithType' r (Decls.isTestRef) $ Branch.deepTermMetadata b0
-      tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+
+  -- A term is a test if it has a link of type `IsTest`.
+  let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+
+  let tag = if (isDoc' ot) then
+              Just Doc
+            else if isTest then
+              Just Test
+            else
+              Nothing
+
   pure $ TermEntry r n ot tag
 
 typeListEntry
@@ -812,6 +830,51 @@ renderDoc ppe width rt codebase r = do
 
     decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
     decls _ = pure Nothing
+
+docsInBranchToHtmlFiles
+  :: Var v
+  => Rt.Runtime v
+  -> Codebase IO v Ann
+  -> Branch IO
+  -> FilePath
+  -> Backend IO ()
+docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
+  let deepTermRefs = (toList . R.range . Branch.deepTerms . Branch.head) currentBranch >>= toList
+  docRefs <- lift $ filterM (isDoc codebase) deepTermRefs
+  hqLength <- lift $ Codebase.hashLength codebase
+  let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
+  let width = defaultWidth
+  let ppe = PPE.fromNamesDecl hqLength printNames
+  docs <- concat <$> for docRefs (renderDoc ppe width runtime codebase . Referent.toReference)
+  liftIO $ traverse_ (renderDocToHtmlFile directory) docs
+
+  where
+    cleanPath :: FilePath -> FilePath
+    cleanPath filePath =
+      filePath <&> \case
+        '#' -> '@'
+        c   -> c
+
+    docFilePath :: FilePath -> HashQualifiedName -> FilePath
+    docFilePath directory rawHqn =
+      let
+        (path, docName) =
+          fromRight (error "Broken path... make this better") $ PathParse.parseHQSplit $ Text.unpack rawHqn
+
+        directoryPath =
+          directory </> joinPath (map NameSegment.toString $ Path.toList path)
+
+        docFileName =
+          cleanPath $ HQ'.toString docName <> ".html"
+
+      in directoryPath </> docFileName
+
+    renderDocToHtmlFile :: FilePath -> (HashQualifiedName, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile directory (docName, _, doc) =
+      let
+        docFilePath' = docFilePath directory docName
+      in
+      Lucid.renderToFile docFilePath' (DocHtml.toHtml doc)
 
 
 bestNameForTerm
