@@ -214,6 +214,8 @@ data Output v
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
+    -- | Print help for the specified command.
+  | HelpForCommand String
   | NoOp
   deriving (Show)
 
