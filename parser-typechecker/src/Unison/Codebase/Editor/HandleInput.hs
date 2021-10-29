@@ -217,36 +217,36 @@ loop = do
   hqLength    <- eval CodebaseHashLength
   sbhLength   <- eval BranchHashLength
   let
-      hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
+      hqNameQuery q = eval $ HQNameQuery (Just $ Path.unsafeToRelative currentPath') root' q
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
-      defaultPatchPath = ((Path 'Unchecked) $ Left currentPath', defaultPatchNameSegment)
-      resolveSplit' :: ((Path p), a) -> (Path p, a)
-      resolveSplit' = fromAbsoluteSplit . first (resolve currentPath')
+      defaultPatchPath = (Path.unsafeToRelative currentPath', defaultPatchNameSegment)
+      resolveSplit' :: ((Path p), a) -> (Path 'Absolute, a)
+      resolveSplit' = first (Path.resolve currentPath')
       resolveToAbsolute :: (Path 'Unchecked) -> (Path 'Absolute)
       resolveToAbsolute = Path.resolve currentPath'
       getAtSplit :: Path.Split 'Relative -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
-      getAtSplit' :: Path.Split pos -> Maybe (Branch m)
+      getAtSplit' :: Path.Split 'Relative -> Maybe (Branch m)
       getAtSplit' = getAtSplit . resolveSplit'
       getPatchAtSplit' :: Path.Split pos -> Action' m v (Maybe Patch)
       getPatchAtSplit' s = do
-        let (p, seg) = first (resolve currentPath') s
+        let (p, seg) = first (Path.resolve currentPath') s
         b <- getAt p
         eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
       getHQ'TermsIncludingHistorical p =
         getTermsIncludingHistorical (resolveSplit' p) root0
 
-      getHQ'Terms :: Path.HQSplit pos -> Set Referent
+      getHQ'Terms :: Path.HQSplit 'Relative -> Set Referent
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
-      getHQ'Types :: Path.HQSplit pos -> Set Reference
+      getHQ'Types :: Path.HQSplit 'Relative -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
 
       basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Backend.AllNames currentPath')
+        Backend.basicPrettyPrintNames root' (Backend.AllNames . Path.unsafeToRelative $ currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -256,13 +256,13 @@ loop = do
       resolveHHQS'Referents = either
         (eval . TermReferentsByShortHash)
         (pure . getHQ'Terms)
-      getTypes :: Path.Split pos -> Set Reference
+      getTypes :: Path.Split 'Relative -> Set Reference
       getTypes = getHQ'Types . fmap HQ'.NameOnly
-      getTerms :: Path.Split pos -> Set Referent
+      getTerms :: Path.Split 'Relative -> Set Referent
       getTerms = getHQ'Terms . fmap HQ'.NameOnly
-      getPatchAt :: Path.Split pos -> Action' m v Patch
+      getPatchAt :: Path.Split 'Relative -> Action' m v Patch
       getPatchAt patchPath' = do
-        let (p, seg) = first (resolve currentPath') patchPath'
+        let (p, seg) = first (Path.resolve currentPath') patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
       withFile ambient sourceName lexed@(text, tokens) k = do
@@ -277,7 +277,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
+        let parseNames = Backend.getCurrentParseNames (Backend.AllNames . Path.unsafeToRelative $ currentPath') root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -328,9 +328,9 @@ loop = do
         ifConfirmed = ifM (confirmedCommand input)
         branchNotFound = respond . BranchNotFound
         branchNotFound' = respond . BranchNotFound . Path.unsplit
-        patchNotFound :: Path.Split pos -> Action' m v ()
+        patchNotFound :: Path.Split 'Unchecked -> Action' m v ()
         patchNotFound s = respond $ PatchNotFound s
-        patchExists :: Path.Split pos -> Action' m v ()
+        patchExists :: Path.Split 'Unchecked -> Action' m v ()
         patchExists s = respond $ PatchAlreadyExists s
         typeNotFound = respond . TypeNotFound
         typeNotFound' = respond . TypeNotFound'
@@ -632,8 +632,8 @@ loop = do
             (failed, failedDependents) <-
               getEndangeredDependents (eval . GetDependents) toDelete rootNames
             if failed == mempty then do
-              let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
-              let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
+              let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName (first Path.unsafeToRelative resolvedPath)) . toList $ tms
+              let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName (first Path.unsafeToRelative resolvedPath)) . toList $ tys
               stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
               root'' <- use root
               diffHelper (Branch.head root') (Branch.head root'') >>=
@@ -746,8 +746,9 @@ loop = do
             cleanupHead
 
       LoadPullRequestI baseRepo headRepo dest0 -> do
-        let dest = resolveToAbsolute dest0
-        destb <- getAt desta
+        let destAbs = resolveToAbsolute dest0
+        let destRel = Path.unsafeToRelative dest
+        destb <- getAt destAbs
         if Branch.isEmpty0 (Branch.head destb) then unlessGitError do
           baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
           headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
@@ -755,10 +756,10 @@ loop = do
             mergedb <- eval $ Merge Branch.RegularMerge baseb headb
             squashedb <- eval $ Merge Branch.SquashMerge headb baseb
             stepManyAt
-              [BranchUtil.makeSetBranch (dest, "base") baseb
-              ,BranchUtil.makeSetBranch (dest, "head") headb
-              ,BranchUtil.makeSetBranch (dest, "merged") mergedb
-              ,BranchUtil.makeSetBranch (dest, "squashed") squashedb]
+              [BranchUtil.makeSetBranch (destRel, "base") baseb
+              ,BranchUtil.makeSetBranch (destRel, "head") headb
+              ,BranchUtil.makeSetBranch (destRel, "merged") mergedb
+              ,BranchUtil.makeSetBranch (destRel, "squashed") squashedb]
             let base = snoc dest0 "base"
                 head = snoc dest0 "head"
                 merged = snoc dest0 "merged"
@@ -767,7 +768,7 @@ loop = do
             loadPropagateDiffDefaultPatch
               inputDescription
               (Just merged)
-              (snoc desta "merged")
+              (snoc dest "merged")
         else
           respond . BranchNotEmpty . (Path 'Unchecked) . Left $ currentPath'
 

@@ -36,9 +36,9 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type PatchPath = (Path.Split 'Unchecked)
+type PatchPath = (Path.Split 'Relative)
 type BranchId = Either ShortBranchHash (Path 'Unchecked)
-type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Unchecked)
+type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Relative)
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
