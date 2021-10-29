@@ -103,6 +103,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
+
+    DocsToHtml sourceBranch destination ->
+      liftIO $ Backend.docsInBranchToHtmlFiles rt codebase sourceBranch destination
+
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output

@@ -22,6 +22,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
+import System.FilePath
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -38,6 +39,7 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as PathParse
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
@@ -60,6 +62,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Lucid
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
@@ -88,6 +91,7 @@ import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
+import qualified Unison.Server.Doc.AsHtml as DocHtml
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv.Util as PPE
@@ -279,7 +283,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        res <- renderDoc ppe width runtime codebase (Referent.toReference r)
+        res <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
         pure $ case res of
           (_, _, doc) : _ -> Just doc
           _ -> Nothing
@@ -294,6 +298,18 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         hqLen <- liftIO $ Codebase.hashLength codebase
         join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
+isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
+isDoc codebase ref = do
+  ot <- loadReferentType codebase ref
+  pure $ isDoc' ot
+
+isDoc' :: (Var v, Monoid loc) => Maybe (Type v loc) -> Bool
+isDoc' typeOfTerm = do
+  -- A term is a dococ if its type conforms to the `Doc` type.
+  case typeOfTerm of
+    Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
+               Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+    Nothing -> False
 
 termListEntry
   :: Monad m
@@ -305,15 +321,17 @@ termListEntry
   -> Backend m (TermEntry v Ann)
 termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
-  -- A term is a doc if its type conforms to the `Doc` type.
-  let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
-                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
-        Nothing -> False
-      -- A term is a test if it has a link of type `IsTest`.
-      isTest =
-        Metadata.hasMetadataWithType' r (Decls.isTestRef) $ Branch.deepTermMetadata b0
-      tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+
+  -- A term is a test if it has a link of type `IsTest`.
+  let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+
+  let tag = if (isDoc' ot) then
+              Just Doc
+            else if isTest then
+              Just Test
+            else
+              Nothing
+
   pure $ TermEntry r n ot tag
 
 typeListEntry
@@ -723,7 +741,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> traverse (renderDoc ppe width rt codebase) docs
+        join <$> liftIO (traverse (renderDoc ppe width rt codebase) docs)
 
       mkTermDefinition ::
         ( Reference ->
@@ -782,7 +800,7 @@ renderDoc ::
   Rt.Runtime v ->
   Codebase IO v Ann ->
   Reference ->
-  Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
@@ -792,15 +810,15 @@ renderDoc ppe width rt codebase r = do
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
-      fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+      fmap Term.unannotate <$> Codebase.getTerm codebase r
 
-    typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+    typeOf r = fmap void <$> Codebase.getTypeOfReferent codebase r
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPE.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
-      lift $ case r of
+      case r of
         Just tmr ->
           Codebase.putWatch
             codebase
@@ -810,9 +828,53 @@ renderDoc ppe width rt codebase r = do
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
-    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
     decls _ = pure Nothing
 
+docsInBranchToHtmlFiles
+  :: Var v
+  => Rt.Runtime v
+  -> Codebase IO v Ann
+  -> Branch IO
+  -> FilePath
+  -> IO ()
+docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
+  let deepTermRefs = (toList . R.range . Branch.deepTerms . Branch.head) currentBranch >>= toList
+  docRefs <- filterM (isDoc codebase) deepTermRefs
+  hqLength <- Codebase.hashLength codebase
+  let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
+  let width = defaultWidth
+  let ppe = PPE.fromNamesDecl hqLength printNames
+  docs <- concat <$> for docRefs (renderDoc ppe width runtime codebase . Referent.toReference)
+  liftIO $ traverse_ (renderDocToHtmlFile directory) docs
+
+  where
+    cleanPath :: FilePath -> FilePath
+    cleanPath filePath =
+      filePath <&> \case
+        '#' -> '@'
+        c   -> c
+
+    docFilePath :: FilePath -> HashQualifiedName -> FilePath
+    docFilePath directory rawHqn =
+      let
+        (path, docName) =
+          fromRight (error "Could not parse doc name") $ PathParse.parseHQSplit $ Text.unpack rawHqn
+
+        directoryPath =
+          directory </> joinPath (map NameSegment.toString $ Path.toList path)
+
+        docFileName =
+          cleanPath $ HQ'.toString docName <> ".html"
+
+      in directoryPath </> docFileName
+
+    renderDocToHtmlFile :: FilePath -> (HashQualifiedName, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile directory (docName, _, doc) =
+      let
+        docFilePath' = docFilePath directory docName
+      in
+      Lucid.renderToFile docFilePath' (DocHtml.toHtml doc)
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text

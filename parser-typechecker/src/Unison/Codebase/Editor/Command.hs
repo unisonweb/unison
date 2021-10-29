@@ -89,6 +89,11 @@ data Command
 
   UI :: Command m i v ()
 
+  DocsToHtml
+    :: Branch m -- ^ namespace source
+    -> FilePath -- ^ file destination
+    -> Command m i v ()
+
   HQNameQuery
     :: Maybe Path
     -> Branch m
@@ -267,6 +272,7 @@ commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
   UI                          -> "UI"
+  DocsToHtml{}                -> "DocsToHtml"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
