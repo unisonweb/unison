@@ -246,7 +246,7 @@ loop = do
 
       basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Path.unabsolute currentPath')
+        Backend.basicPrettyPrintNames root' (Backend.AllNames $ Path.unabsolute currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -277,7 +277,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames currentPath'' root'
+        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -1131,7 +1131,7 @@ loop = do
                   LatestFileLocation ->
                     fmap fst latestFile' <|> Just "scratch.u"
                 printNames =
-                  Backend.getCurrentPrettyNames currentPath'' root'
+                  Backend.getCurrentPrettyNames (Backend.AllNames currentPath'') root'
                 ppe = PPE.fromNamesDecl hqLength printNames
             unless (null types && null terms) $
               eval . Notify $
@@ -1155,7 +1155,7 @@ loop = do
             ppe = Backend.basicSuffixifiedNames
                            sbhLength
                            root'
-                           (Path.fromPath' pathArg)
+                           (Backend.AllNames $ Path.fromPath' pathArg)
         res <- eval $ FindShallow pathArgAbs
         case res of
           Left e -> handleBackendError e
@@ -2240,7 +2240,7 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Path.unabsolute currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -2933,7 +2933,7 @@ basicNames' :: Functor m => Action' m v (Names, Names)
 basicNames' = do
   root' <- use root
   currentPath' <- use currentPath
-  pure $ Backend.basicNames' root' (Path.unabsolute currentPath')
+  pure $ Backend.basicNames' root' (Backend.AllNames $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName

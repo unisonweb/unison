@@ -48,6 +48,7 @@ import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import qualified Unison.Codebase.Path as Path
 
 typecheck
   :: (Monad m, Var v)
@@ -179,11 +180,13 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
-    HQNameQuery mayPath branch query ->
-      lift $ Backend.hqNameQuery mayPath branch codebase query
+    HQNameQuery mayPath branch query -> do
+      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      lift $ Backend.hqNameQuery namingScope branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
-    GetDefinitionsBySuffixes mayPath branch query ->
-      lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
+    GetDefinitionsBySuffixes mayPath branch query -> do
+      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      lift . runExceptT $ Backend.definitionsBySuffixes namingScope branch codebase query
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
     MakeStandalone ppe ref out -> lift $ do
       let cl = Codebase.toCodeLookup codebase

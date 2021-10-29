@@ -164,6 +164,7 @@ inSynthesize = asPathExtractor $ \case
 inSubtype :: SubseqExtractor v loc (C.Type v loc, C.Type v loc)
 inSubtype = asPathExtractor $ \case
   C.InSubtype found expected -> Just (found, expected)
+  C.InEquate  found expected -> Just (found, expected)
   _                          -> Nothing
 
 inCheck :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)

@@ -59,3 +59,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Chris Penner (@ChrisPenner)
 * Rebecca Mark (@rlmark)
 * Evan Minsk (@iamevn)
+* Karthik Ravikanti (@plumenator)
+* Alberto Flores (@albertoefguerrero)
