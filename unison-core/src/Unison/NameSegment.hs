@@ -27,6 +27,14 @@ segments' n = go split
     go ("" : z) = go z
     go (x : y) = x : go y
 
+
+-- | Splits a textual name into name segments, returns a boolean indicating whether the
+-- name was absolute.
+splitText :: Text -> (Bool, [NameSegment])
+splitText t = case Text.stripPrefix "." t of
+  Just absPath -> (True, NameSegment <$> Text.splitOn "." absPath)
+  Nothing -> (False, NameSegment <$> Text.splitOn "." t)
+
 -- Same as reverse . segments', but produces the output as a
 -- lazy list, suitable for suffix-based ordering purposes or
 -- building suffix tries. Examples:
