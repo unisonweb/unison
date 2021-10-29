@@ -12,6 +12,7 @@ module Unison.Codebase.Path
     pattern AbsolutePath,
     pattern RelativePath,
     Position(..),
+    match,
     -- Resolve (..),
     -- pattern Empty,
     singleton,
@@ -36,7 +37,7 @@ module Unison.Codebase.Path
 
     -- * things that could be replaced with `Convert` instances
     -- fromAbsoluteSplit,
-    -- fromList,
+    relativePathFromNameSegments,
     fromName,
     -- fromPath',
     fromText,
@@ -45,7 +46,8 @@ module Unison.Codebase.Path
     -- toList,
     toName,
     toText,
-    intoRelative,
+    unsafeToRelative,
+    unsafeToAbsolute,
     unsplit,
     unsplitHQ,
 
@@ -97,6 +99,11 @@ instance Eq (Path pos) where
 
 instance Ord (Path pos) where
   compare = compare `on` (view segments_)
+
+unsafeToRelative :: Path pos -> Path 'Relative
+unsafeToRelative p = RelativeP $ p ^. segments_
+unsafeToAbsolute :: Path pos -> Path 'Absolute
+unsafeToAbsolute p = AbsoluteP $ p ^. segments_
 
 unchecked :: Path pos -> Path 'Unchecked
 unchecked = match (UncheckedP . Left) (UncheckedP . Right)
@@ -191,8 +198,8 @@ prefix pref suff = pref & segments_ %~ (<> (suff ^. segments_))
 toList :: Path pos -> [NameSegment]
 toList p = Foldable.toList (p ^. segments_)
 
--- fromList :: [NameSegment] -> Path
--- fromList = Path . Seq.fromList
+relativePathFromNameSegments :: [NameSegment] -> Path 'Relative
+relativePathFromNameSegments = RelativeP . Seq.fromList
 
 ancestors :: Path 'Absolute -> Seq (Path 'Absolute)
 ancestors p = AbsoluteP <$> Seq.inits (view segments_ p)
@@ -202,9 +209,6 @@ hqSplitFromName = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName
 
 splitFromName :: Name -> Maybe (Split 'Unchecked)
 splitFromName = Lens.unsnoc . fromName
-
-intoRelative :: Path pos -> Path 'Relative
-intoRelative = match (\(AbsoluteP ns) -> RelativeP ns) id
 
 -- | what is this? —AI
 -- unprefixName :: Absolute -> Name -> Name

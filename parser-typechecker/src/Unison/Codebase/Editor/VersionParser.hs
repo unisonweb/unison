@@ -26,4 +26,4 @@ defaultBaseLib = fmap makeNS $ latest <|> release
   makeNS :: Text -> ReadRemoteNamespace
   makeNS t = ( ReadGitRepo "https://github.com/unisonweb/base"
              , Nothing
-             , Path.fromText t)
+             , Path.unsafeToAbsolute $ Path.fromText t)

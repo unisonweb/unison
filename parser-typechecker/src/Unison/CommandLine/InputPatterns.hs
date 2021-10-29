@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 {-
    This module defines 'InputPattern' values for every supported input command.
@@ -53,6 +54,8 @@ import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.Globbing as Globbing
 import Unison.NameSegment (NameSegment(NameSegment))
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Position
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -126,11 +129,11 @@ todo = InputPattern
     patchStr : ws -> mapLeft (warn . fromString) $ do
       patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
       branch <- case ws of
-        []        -> pure Path.relativeEmpty'
+        []        -> pure (Path.unchecked $ Path.root)
         [pathStr] -> Path.parsePath' pathStr
         _         -> Left "`todo` just takes a patch and one optional namespace"
-      Right $ Input.TodoI (Just patch) branch
-    [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
+      Right $ Input.TodoI (Just patch) (Path.unchecked branch)
+    [] -> Right $ Input.TodoI Nothing (Path.unchecked Path.currentPath)
   )
 
 load :: InputPattern
@@ -265,7 +268,7 @@ patch = InputPattern
       patch  <- Path.parseSplit' Path.definitionNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
-        _         -> pure Path.relativeEmpty'
+        _         -> pure (Path.unchecked Path.currentPath)
       pure $ Input.PropagatePatchI patch branch
     [] ->
       Left
@@ -365,7 +368,7 @@ findShallow = InputPattern
     ]
   )
   (\case
-    [] -> pure $ Input.FindShallowI Path.relativeEmpty'
+    [] -> pure $ Input.FindShallowI (Path.unchecked Path.currentPath)
     [path] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.FindShallowI p
@@ -684,7 +687,7 @@ history = InputPattern "history" []
       [src] -> first fromString $ do
         p <- Input.parseBranchId src
         pure $ Input.HistoryI (Just 10) (Just 10) p
-      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right $ Path.unchecked Path.currentPath)
       _ -> Left (I.help history)
     )
 
@@ -758,10 +761,10 @@ pullImpl name verbosity = do
       )
       (\case
         []    ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+          Right $ Input.PullRemoteBranchI Nothing (Path.unchecked Path.currentPath) SyncMode.ShortCircuit verbosity
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+          Right $ Input.PullRemoteBranchI (Just ns) (Path.unchecked Path.currentPath) SyncMode.ShortCircuit verbosity
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
@@ -784,10 +787,10 @@ pullExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+      Right $ Input.PullRemoteBranchI Nothing (Path.unchecked Path.currentPath) SyncMode.Complete Verbosity.Default
     [url] -> do
       ns <- parseUri "url" url
-      Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+      Right $ Input.PullRemoteBranchI (Just ns) (Path.unchecked Path.currentPath) SyncMode.Complete Verbosity.Default
     [url, path] -> do
       ns <- parseUri "url" url
       p <- first fromString $ Path.parsePath' path
@@ -827,11 +830,11 @@ push = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+      Right $ Input.PushRemoteBranchI Nothing (Path.unchecked Path.currentPath) SyncMode.ShortCircuit
     url : rest -> do
       (repo, path) <- parsePushPath "url" url
       p <- case rest of
-        [] -> Right Path.relativeEmpty'
+        [] -> Right (Path.unchecked Path.currentPath)
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
@@ -852,11 +855,11 @@ pushExhaustive = InputPattern
   )
   (\case
     []    ->
-      Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+      Right $ Input.PushRemoteBranchI Nothing (Path.unchecked Path.currentPath) SyncMode.Complete
     url : rest -> do
       (repo, path) <- parsePushPath "url" url
       p <- case rest of
-        [] -> Right Path.relativeEmpty'
+        [] -> Right (Path.unchecked Path.currentPath)
         [path] -> first fromString $ Path.parsePath' path
         _ -> Left (I.help push)
       Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
@@ -898,7 +901,7 @@ loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
     [baseUrl, headUrl] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
-      pure $ Input.LoadPullRequestI baseRepo headRepo Path.relativeEmpty'
+      pure $ Input.LoadPullRequestI baseRepo headRepo (Path.unchecked Path.currentPath)
     [baseUrl, headUrl, dest] -> do
       baseRepo <- parseUri "baseRepo" baseUrl
       headRepo <- parseUri "topicRepo" headUrl
@@ -946,7 +949,7 @@ mergeLocal = InputPattern "merge" [] [(Required, namespaceArg)
  (\case
       [src] -> first fromString $ do
         src <- Path.parsePath' src
-        pure $ Input.MergeLocalBranchI src Path.relativeEmpty' Branch.RegularMerge
+        pure $ Input.MergeLocalBranchI src (Path.unchecked Path.currentPath) Branch.RegularMerge
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
         dest <- Path.parsePath' dest
@@ -977,7 +980,7 @@ diffNamespace = InputPattern
       pure $ Input.DiffNamespaceI before after
     [before] -> first fromString $ do
       before <- Path.parsePath' before
-      pure $ Input.DiffNamespaceI before Path.currentPath
+      pure $ Input.DiffNamespaceI before (Path.unchecked Path.currentPath)
     _ -> Left $ I.help diffNamespace
   )
 
@@ -998,7 +1001,7 @@ previewMergeLocal = InputPattern
   (\case
     [src] -> first fromString $ do
       src <- Path.parsePath' src
-      pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
+      pure $ Input.PreviewMergeLocalBranchI src (Path.unchecked Path.currentPath)
     [src, dest] -> first fromString $ do
       src  <- Path.parsePath' src
       dest <- Path.parsePath' dest
@@ -1548,7 +1551,7 @@ typeCompletor :: Applicative m
               -> String
               -> Codebase m v a
               -> Branch.Branch m
-              -> Path.Absolute
+              -> Path 'Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
@@ -1558,7 +1561,7 @@ termCompletor :: Applicative m
               -> String
               -> Codebase m v a
               -> Branch.Branch m
-              -> Path.Absolute
+              -> Path 'Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
@@ -1573,8 +1576,8 @@ patchArg = ArgumentType
 
 
 allCompletors :: Monad m
-              => ([String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]]
-              -> (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]))
+              => ([String -> Codebase m v a -> Branch.Branch m -> Path 'Absolute -> m [Completion]]
+              -> (String -> Codebase m v a -> Branch.Branch m -> Path 'Absolute -> m [Completion]))
 allCompletors = foldl' bothCompletors I.noSuggestions
 
 bothCompletors
@@ -1601,11 +1604,11 @@ pathCompletor
      -- ^ The portion of this arg that the user has already typed.
   -> codebase
   -> Branch.Branch m
-  -> Path.Absolute
+  -> Path 'Absolute
   -> f [Completion]
 pathCompletor filterQuery getNames query _code b p = let
   b0root = Branch.head b
-  b0local = Branch.getAt0 (Path.unabsolute p) b0root
+  b0local = Branch.getAt0 (Path.unsafeToRelative p) b0root
   -- todo: if these sets are huge, maybe trim results
   in pure . filterQuery query . map Text.unpack $
        toList (getNames b0local) ++

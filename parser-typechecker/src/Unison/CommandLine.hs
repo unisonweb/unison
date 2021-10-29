@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 
 module Unison.CommandLine
@@ -76,10 +77,11 @@ import Control.Lens (ifoldMap)
 import qualified Unison.CommandLine.Globbing as Globbing
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Path as Path
 import Text.Regex.TDFA ((=~))
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Position
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -259,7 +261,7 @@ fixupCompletion q cs@(h:t) = let
 
 parseInput
   :: Branch0 m -- ^ Root branch, used to expand globs
-  -> Path.Absolute -- ^ Current path from root, used to expand globs
+  -> Path 'Absolute -- ^ Current path from root, used to expand globs
   -> [String] -- ^ Numbered arguments
   -> Map String InputPattern -- ^ Input Pattern Map
   -> [String] -- ^ command:arguments

@@ -109,6 +109,7 @@ import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
+import qualified Unison.Codebase.Path as Path
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -1051,7 +1052,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
                     Just b -> pure b
                     Nothing -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
                 _ -> throwError . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-          case Branch.getAt path branch of
+          case Branch.getAt (Path.unsafeToRelative path) branch of
             Just b -> pure (closeCodebase, b, remotePath)
             Nothing -> throwError . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
     -- else there's no initialized codebase at this repo; we pretend there's an empty one.

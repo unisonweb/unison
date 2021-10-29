@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
 
@@ -17,6 +18,7 @@ import qualified Unison.Lexer
 import Unison.NameSegment (NameSegment(..))
 import Data.Sequence as Seq
 import Data.Char (isAlphaNum, isSpace, isDigit)
+import Unison.Codebase.Position
 
 type P = P.Parsec () Text
 
@@ -42,7 +44,7 @@ repoPath = P.label "generic git repo" $ do
       let repo = ReadGitRepo (printProtocol protocol)
       nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
       case nshashPath of
-        Nothing -> pure (repo, Nothing, Path.empty)
+        Nothing -> pure (repo, Nothing, Path.root)
         Just (sbh, p) -> pure (repo, sbh, p)
 
 writeRepo :: P WriteRepo
@@ -53,7 +55,7 @@ writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
   repo <- writeRepo
   path <- P.optional (C.char ':' *> absolutePath)
-  pure (repo, fromMaybe Path.empty path)
+  pure (repo, fromMaybe Path.root path)
 
 -- does this not exist somewhere in megaparsec? yes in 7.0
 symbol :: Text -> P Text
@@ -151,16 +153,16 @@ parseProtocol = P.label "parseProtocol" $
     decOctet = P.count' 1 3 C.digitChar
 
 -- #nshashabc.path.foo.bar or .path.foo.bar
-namespaceHashPath :: P (Maybe ShortBranchHash, Path)
+namespaceHashPath :: P (Maybe ShortBranchHash, Path 'Absolute)
 namespaceHashPath = do
   sbh <- P.optional shortBranchHash
   p <- P.optional absolutePath
-  pure (sbh, fromMaybe Path.empty p)
+  pure (sbh, fromMaybe Path.root p)
 
-absolutePath :: P Path
+absolutePath :: P (Path 'Absolute)
 absolutePath = do
   void $ C.char '.'
-  Path . Seq.fromList . fmap (NameSegment . Text.pack) <$>
+  AbsoluteP . Seq.fromList . fmap (NameSegment . Text.pack) <$>
     P.sepBy1
       ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))

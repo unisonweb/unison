@@ -47,12 +47,12 @@ addFromNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
 --  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
   doTerm (n, r) = case Path.splitFromName n of
     Nothing -> errorEmptyName
-    Just (Path.intoRelative -> p, ns) ->
+    Just (Path.unsafeToRelative -> p, ns) ->
       makeAddTermName (p, ns) r mempty -- no metadata
 --  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
   doType (n, r) = case Path.splitFromName n of
              Nothing -> errorEmptyName
-             Just (Path.intoRelative -> p, ns) -> 
+             Just (Path.unsafeToRelative -> p, ns) -> 
                makeAddTypeName (p, ns) r mempty -- no metadata
   errorEmptyName = error "encountered an empty name"
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 {-| Provides Globbing for selecting types, terms and namespaces using wildcards.  -}
 module Unison.CommandLine.Globbing
@@ -23,6 +24,8 @@ import Data.Set (Set)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
 import Control.Monad (guard)
+import Unison.Codebase.Position
+import Unison.Codebase.Path (Path)
 
 -- | Possible targets which a glob may select.
 data TargetType
@@ -49,9 +52,9 @@ globPredicate globArg (NameSegment.toText -> ns') =
     Right (GlobArg prefix suffix) -> prefix `Text.isPrefixOf` ns' && suffix `Text.isSuffixOf` ns'
 
 -- | Expands a glob into a list of paths which lead to valid targets.
-expandGlobToPaths :: Set TargetType -> GlobPath -> Branch0 m -> [Path.Relative]
+expandGlobToPaths :: Set TargetType -> GlobPath -> Branch0 m -> [Path 'Relative]
 expandGlobToPaths targets globPath branch =
-  (Path.Relative . Path.fromList) <$> expandGlobToNameSegments targets branch globPath
+  Path.relativePathFromNameSegments <$> expandGlobToNameSegments targets branch globPath
 
 -- | Helper for 'expandGlobToPaths'
 expandGlobToNameSegments :: forall m. Set TargetType -> Branch0 m -> GlobPath -> [[NameSegment]]
@@ -95,7 +98,7 @@ matchingChildBranches keyPredicate = Branch.children0 . indices keyPredicate
 -- | Expand a single glob pattern into all matching targets of the specified types.
 expandGlobs :: forall m. Set TargetType
             -> Branch0 m -- ^ Root branch
-            -> Path.Absolute -- ^ UCM's current path
+            -> Path 'Absolute -- ^ UCM's current path
             -> String -- ^ The glob string, e.g. .base.List.?.doc
             -> [String] -- ^ Fully expanded, absolute paths. E.g. [".base.List.map"]
 expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
@@ -106,10 +109,10 @@ expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
   let currentBranch :: Branch0 m
       currentBranch
         | isAbsolute = rootBranch
-        | otherwise = Branch.getAt0 (Path.unabsolute currentPath) rootBranch
+        | otherwise = Branch.getAt0 (Path.unsafeToRelative currentPath) rootBranch
   let paths = expandGlobToPaths targets globPath currentBranch
-  let relocatedPaths | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
-                     | otherwise = Path.resolve currentPath <$> paths
+  let relocatedPaths | isAbsolute = Path.unsafeToAbsolute <$> paths
+                     | otherwise = Path.prefix currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
 
 

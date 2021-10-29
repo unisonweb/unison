@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Unison.Codebase.GitError where
 
 import Unison.Prelude
@@ -25,5 +26,5 @@ data GitCodebaseError h
   | RemoteNamespaceHashAmbiguous ReadRepo ShortBranchHash (Set h)
   | CouldntLoadRootBranch ReadRepo h
   | CouldntLoadSyncedBranch ReadRemoteNamespace h
-  | CouldntFindRemoteBranch ReadRepo Path
+  | CouldntFindRemoteBranch ReadRepo (Path 'Absolute)
   deriving Show

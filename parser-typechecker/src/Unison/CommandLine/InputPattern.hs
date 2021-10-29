@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 
 module Unison.CommandLine.InputPattern where
@@ -39,7 +40,7 @@ data ArgumentType = ArgumentType
                 => String
                 -> Codebase m v a
                 -> Branch m -- Root Branch
-                -> Path.Absolute -- Current path
+                -> Path 'Absolute -- Current path
                 -> m [Line.Completion]
   -- | Select which targets glob patterns may expand into for this argument.
   -- An empty set disables globbing.
@@ -91,7 +92,7 @@ noSuggestions
   => String
   -> Codebase m v a
   -> Branch m
-  -> Path.Absolute
+  -> Path 'Absolute
   -> m [Line.Completion]
 noSuggestions _ _ _ _ = pure []
 
