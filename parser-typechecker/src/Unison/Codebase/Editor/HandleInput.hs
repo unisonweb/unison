@@ -9,6 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Editor.HandleInput
   ( loop
@@ -68,8 +69,7 @@ import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Path           ( Path
-                                                , Path'(..) )
+import           Unison.Codebase.Path           ( Path )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Reflog        as Reflog
@@ -153,6 +153,7 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
+import Unison.Codebase.Position
 
 type F m i v = Free (Command m i v)
 
@@ -164,7 +165,7 @@ data LoopState m v
       { _root :: Branch m
       , _lastSavedRoot :: Branch m
       -- the current position in the namespace
-      , _currentPathStack :: NonEmpty Path.Absolute
+      , _currentPathStack :: NonEmpty (Path 'Absolute)
 
       -- TBD
       -- , _activeEdits :: Set Branch.EditGuid

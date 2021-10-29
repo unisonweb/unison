@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Server.Backend where
 
@@ -94,6 +95,7 @@ import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Util.AnnotatedText (AnnotatedText)
 import qualified Unison.Util.Monoid as Monoid
+import Unison.Codebase.Position
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -113,7 +115,7 @@ listEntryName = \case
   ShallowPatchEntry n      -> NameSegment.toText n
 
 data BackendError
-  = NoSuchNamespace Path.Absolute
+  = NoSuchNamespace (Path 'Absolute)
   | BadRootBranch Codebase.GetRootBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
@@ -129,7 +131,7 @@ basicNames' :: Branch m -> NameScoping -> (Names, Names)
 basicNames' root scope =
   (parseNames0, prettyPrintNames0)
   where
-    path :: Path
+    path :: Path 'Relative
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
       AllNames   path -> (path, True)
@@ -148,7 +150,7 @@ basicNames' root scope =
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
         pathPrefixed = case path of
-          Path.Path (toList -> []) -> const mempty
+          Path.Empty -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
     parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
@@ -223,7 +225,7 @@ data FoundRef = FoundTermRef Referent
 --      definition with different names in the result set.
 fuzzyFind
   :: Monad m
-  => Path
+  => Path 'Relative
   -> Branch m
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
@@ -257,10 +259,10 @@ fuzzyFind path branch query =
 findShallow
   :: (Monad m, Var v)
   => Codebase m v Ann
-  -> Path.Absolute
+  -> Path 'Absolute
   -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
-  let path = Path.unabsolute path'
+  let path = Path.unsafeToRelative path'
   root <- getRootBranch codebase
   let mayb = Branch.getAt path root
   case mayb of
@@ -458,9 +460,9 @@ termReferentsByShortHash codebase sh = do
 data NameScoping =
       -- | Find all names, making any names which are children of this path,
       -- otherwise leave them absolute.
-      AllNames Path
+      AllNames (Path 'Relative)
       -- | Filter returned names to only include names within this path.
-    | Within   Path
+    | Within   (Path 'Relative)
 
 toAllNames :: NameScoping -> NameScoping
 toAllNames (AllNames p) = AllNames p
@@ -481,10 +483,10 @@ getCurrentParseNames scope root =
 -- e.g. if currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names -> Names
+fixupNamesRelative :: Path 'Absolute -> Names -> Names
 fixupNamesRelative root = Names.map fixName where
-  prefix = Path.toName $ Path.unabsolute root
-  fixName n = if root == Path.absoluteEmpty
+  prefix = Path.toName root
+  fixName n = if Path.isRoot root
     then n
     else fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
 

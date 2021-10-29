@@ -12,11 +12,11 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Editor.Input
-import Data.Sequence (singleton)
 import Unison.NameSegment (NameSegment(NameSegment))
 
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Data.Sequence as Seq
 
 data Welcome = Welcome
   { onboarding :: Onboarding -- Onboarding States
@@ -51,9 +51,8 @@ welcome initStatus downloadBase filePath unisonVersion =
 pullBase :: ReadRemoteNamespace -> Either Event Input
 pullBase ns = let
     seg = NameSegment "base"
-    rootPath = Path.Path { Path.toSeq = singleton seg }
-    abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete Verbosity.Silent
+    rootPath = Path.AbsoluteP (Seq.singleton seg)
+    pullRemote = PullRemoteBranchI (Just ns) (Path.unchecked rootPath) SyncMode.Complete Verbosity.Silent
   in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
@@ -127,7 +126,7 @@ asciiartUnison =
     <> P.purple "_|_|"
 
 
-downloading :: Path -> P.Pretty P.ColorText
+downloading :: Path pos -> P.Pretty P.ColorText
 downloading path =
   P.lines
     [ P.group (P.wrap "🐣 Since this is a fresh codebase, let me download the base library for you." <> P.newline ), 

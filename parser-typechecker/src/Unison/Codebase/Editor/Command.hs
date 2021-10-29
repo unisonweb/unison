@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Editor.Command (
   Command(..),
@@ -55,7 +56,6 @@ import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
 import Unison.Codebase.Path (Path)
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.HashQualified as HQ
 import Unison.Name (Name)
 import Unison.Server.QueryResult (QueryResult)
@@ -64,6 +64,7 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import Unison.Codebase.Position
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -90,7 +91,7 @@ data Command
   UI :: Command m i v ()
 
   HQNameQuery
-    :: Maybe Path
+    :: Maybe (Path 'Relative)
     -> Branch m
     -> [HQ.HashQualified Name]
     -> Command m i v QueryResult
@@ -99,13 +100,13 @@ data Command
     :: [SR.SearchResult] -> Command m i v [SR'.SearchResult' v Ann]
 
   GetDefinitionsBySuffixes
-    :: Maybe Path
+    :: Maybe (Path 'Relative)
     -> Branch m
     -> [HQ.HashQualified Name]
     -> Command m i v (Either BackendError (DefinitionResults v))
 
   FindShallow
-    :: Path.Absolute
+    :: Path 'Absolute
     -> Command m i v (Either BackendError [ShallowListEntry v Ann])
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)

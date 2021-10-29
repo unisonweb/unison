@@ -112,7 +112,7 @@ expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
         | otherwise = Branch.getAt0 (Path.unsafeToRelative currentPath) rootBranch
   let paths = expandGlobToPaths targets globPath currentBranch
   let relocatedPaths | isAbsolute = Path.unsafeToAbsolute <$> paths
-                     | otherwise = Path.prefix currentPath <$> paths
+                     | otherwise = Path.resolve currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
 
 

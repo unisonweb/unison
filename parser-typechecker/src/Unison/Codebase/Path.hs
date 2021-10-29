@@ -6,6 +6,8 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 
 module Unison.Codebase.Path
   ( Path (..),
@@ -22,7 +24,7 @@ module Unison.Codebase.Path
     -- relativeEmpty',
     root,
     currentPath,
-    prefix,
+    Resolve(..),
     -- This seems semantically invalid
     -- unprefix,
     -- prefixName,
@@ -82,7 +84,6 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Util.Monoid (intercalateMap)
 import Data.Function (on)
 import Unison.Codebase.Position (Position(..))
-import qualified Data.Foldable as Foldable
 
 data Path (pos :: Position) where
   AbsoluteP :: Seq NameSegment -> Path 'Absolute
@@ -93,6 +94,7 @@ pattern AbsolutePath :: Path 'Absolute -> Path pos
 pattern AbsolutePath p <- (match Just (const Nothing) -> Just p)
 pattern RelativePath :: Path 'Relative -> Path pos
 pattern RelativePath p <- (match (const Nothing) Just -> Just p)
+{-# COMPLETE AbsolutePath, RelativePath #-}
 
 instance Eq (Path pos) where
   (==) = (==) `on` (view segments_)
@@ -177,6 +179,12 @@ unsplitHQ (p, a) = fmap (Lens.snoc p) a
 -- Attach a relative path to another path.
 prefix :: Path pos -> Path 'Relative -> Path pos
 prefix pref suff = pref & segments_ %~ (<> (suff ^. segments_))
+
+-- tryPrefix :: Path pref -> Path suff -> Path 'Unchecked
+-- tryPrefix pref suff = _
+  -- AbsolutePath p -> p
+  -- RelativePath p -> _
+
 -- prefix (Absolute (Path prefix)) (Path' p) = case p of
 --   Left (unabsolute -> abs) -> abs
 --   Right (unrelative -> rel) -> Path $ prefix <> toSeq rel
@@ -195,8 +203,8 @@ prefix pref suff = pref & segments_ %~ (<> (suff ^. segments_))
 -- relativeEmpty' = Path' (Right (Relative empty))
 
 -- Should these be exposed??
-toList :: Path pos -> [NameSegment]
-toList p = Foldable.toList (p ^. segments_)
+-- toList :: Path pos -> [NameSegment]
+-- toList p = Foldable.toList (p ^. segments_)
 
 relativePathFromNameSegments :: [NameSegment] -> Path 'Relative
 relativePathFromNameSegments = RelativeP . Seq.fromList
@@ -276,11 +284,13 @@ instance AsEmpty (Path 'Relative) where
 --     snoc' :: Split' -> NameSegment -> Split'
 --     snoc' (p, a) n = (Lens.snoc p a, n)
 
--- class Resolve l r o where
---   resolve :: l -> r -> o
+class Resolve l r o where
+  resolve :: Path l -> Path r -> Path o
 
--- instance Resolve Path Path Path where
---   resolve (Path l) (Path r) = Path (l <> r)
+instance Resolve any 'Absolute 'Absolute where
+  resolve _ p = p
+instance Resolve pref 'Relative pref where
+  resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
 
 -- instance Resolve Relative Relative Relative where
 --   resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))

@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Editor.Output
   ( Output(..)
@@ -21,7 +22,7 @@ import Unison.Server.Backend (ShallowListEntry(..))
 import Unison.Codebase.Editor.Input
 import Unison.Codebase (GetRootBranchError)
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
-import Unison.Codebase.Path (Path')
+import Unison.Codebase.Path (Path)
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Type (GitError)
 import Unison.Name ( Name )
@@ -60,6 +61,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.Codebase.Editor.Output.BranchDiff (BranchDiffOutput)
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.WatchKind as WK
+import Unison.Codebase.Position
 
 type ListDetailed = Bool
 type SourceName = Text
@@ -73,18 +75,18 @@ pushPull push pull p = case p of
   Pull -> pull
 
 data NumberedOutput v
-  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  = ShowDiffNamespace (Path 'Absolute) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMerge Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMergePropagate Path.Path' Path.Absolute Path.Path' PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterMergePreview Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
-  | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterDeleteBranch (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterModifyBranch (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMerge (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePropagate (Path 'Unchecked) (Path 'Absolute) (Path 'Unchecked) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterMergePreview (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterPull (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   -- <authorIdentifier> <authorPath> <relativeBase>
-  | ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | ShowDiffAfterCreateAuthor NameSegment (Path 'Unchecked) (Path 'Absolute) PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
 
 --  | ShowDiff
 
@@ -101,29 +103,29 @@ data Output v
   | NoMainFunction String PPE.PrettyPrintEnv [Type v Ann]
   -- Main function found, but has improper type
   | BadMainFunction String (Type v Ann) PPE.PrettyPrintEnv [Type v Ann]
-  | BranchEmpty (Either ShortBranchHash Path')
-  | BranchNotEmpty Path'
-  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace Path' Path' Path' Path'
-  | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Path'
-  | PatchAlreadyExists Path.Split'
+  | BranchEmpty (Either ShortBranchHash (Path 'Unchecked))
+  | BranchNotEmpty (Path 'Unchecked)
+  | LoadPullRequest ReadRemoteNamespace ReadRemoteNamespace (Path 'Unchecked) (Path 'Unchecked) (Path 'Unchecked) (Path 'Unchecked)
+  | CreatedNewBranch (Path 'Absolute)
+  | BranchAlreadyExists (Path 'Unchecked)
+  | PatchAlreadyExists (Path.Split 'Unchecked)
   | NoExactTypeMatches
-  | TypeAlreadyExists Path.Split' (Set Reference)
+  | TypeAlreadyExists (Path.Split 'Unchecked) (Set Reference)
   | TypeParseError String (Parser.Err v)
   | ParseResolutionFailures String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars (Type v Ann)
-  | TermAlreadyExists Path.Split' (Set Referent)
+  | TermAlreadyExists (Path.Split 'Unchecked) (Set Referent)
   | LabeledReferenceAmbiguous Int (HQ.HashQualified Name) (Set LabeledDependency)
   | LabeledReferenceNotFound (HQ.HashQualified Name)
-  | DeleteNameAmbiguous Int Path.HQSplit' (Set Referent) (Set Reference)
+  | DeleteNameAmbiguous Int (Path.HQSplit 'Unchecked) (Set Referent) (Set Reference)
   | TermAmbiguous (HQ.HashQualified Name) (Set Referent)
   | HashAmbiguous ShortHash (Set Referent)
   | BranchHashAmbiguous ShortBranchHash (Set ShortBranchHash)
-  | BranchNotFound Path'
-  | NameNotFound Path.HQSplit'
-  | PatchNotFound Path.Split'
-  | TypeNotFound Path.HQSplit'
-  | TermNotFound Path.HQSplit'
+  | BranchNotFound (Path 'Unchecked)
+  | NameNotFound (Path.HQSplit 'Unchecked)
+  | PatchNotFound (Path.Split 'Unchecked)
+  | TypeNotFound (Path.HQSplit 'Unchecked)
+  | TermNotFound (Path.HQSplit 'Unchecked)
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | TypeTermMismatch (HQ.HashQualified Name) (HQ.HashQualified Name)
@@ -133,7 +135,7 @@ data Output v
   -- with whatever named definitions would not have any remaining names if
   -- the path is deleted.
   | DeleteBranchConfirmation
-      [(Path', (Names, [SearchResult' v Ann]))]
+      [((Path 'Unchecked), (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
@@ -181,9 +183,9 @@ data Output v
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | GitError Input GitError
-  | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
-  | NoConfiguredGitUrl PushPull Path'
-  | ConfiguredGitUrlParseError PushPull Path' Text String
+  | ConfiguredMetadataParseError (Path 'Unchecked) String (P.Pretty P.ColorText)
+  | NoConfiguredGitUrl PushPull (Path 'Absolute)
+  | ConfiguredGitUrlParseError PushPull (Path 'Unchecked) Text String
   | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
                (Map Reference (DisplayObject () (Decl v Ann)))
                (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
@@ -191,16 +193,16 @@ data Output v
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
-  | NothingToPatch PatchPath Path'
+  | NothingToPatch PatchPath (Path 'Unchecked)
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
-  | PullAlreadyUpToDate ReadRemoteNamespace Path'
-  | MergeAlreadyUpToDate Path' Path'
-  | PreviewMergeAlreadyUpToDate Path' Path'
+  | PullAlreadyUpToDate ReadRemoteNamespace (Path 'Unchecked)
+  | MergeAlreadyUpToDate (Path 'Unchecked) (Path 'Unchecked)
+  | PreviewMergeAlreadyUpToDate (Path 'Unchecked) (Path 'Unchecked)
   -- | No conflicts or edits remain for the current patch.
   | NoConflictsOrEdits
   | NotImplemented
