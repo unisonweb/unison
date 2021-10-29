@@ -9,12 +9,17 @@
 
 module Unison.Codebase.Path
   ( Path (..),
+    pattern AbsolutePath,
+    pattern RelativePath,
+    Position(..),
     -- Resolve (..),
     -- pattern Empty,
-    -- singleton,
+    singleton,
+    unchecked,
     -- Unison.Codebase.Path.uncons,
     -- absoluteEmpty,
     -- relativeEmpty',
+    root,
     currentPath,
     prefix,
     -- This seems semantically invalid
@@ -44,15 +49,15 @@ module Unison.Codebase.Path
     unsplitHQ,
 
     -- * things that could be replaced with `Parse` instances
-    -- splitFromName,
+    splitFromName,
     hqSplitFromName,
 
-    -- * things that could be replaced with `Cons` instances
-    -- cons,
-
-    -- * things that could be replaced with `Snoc` instances
+    Lens.cons,
+    Lens.uncons,
     Lens.snoc,
     Lens.unsnoc,
+
+    pattern Lens.Empty,
 
   -- This should be moved to a common util module, or we could use the 'witch' package.
   Convert(..)
@@ -73,13 +78,18 @@ import Unison.NameSegment (NameSegment)
 import qualified Unison.NameSegment as NameSegment
 import Unison.Util.Monoid (intercalateMap)
 import Data.Function (on)
-
-data Position = Relative | Absolute | Unchecked
+import Unison.Codebase.Position (Position(..))
+import qualified Data.Foldable as Foldable
 
 data Path (pos :: Position) where
   AbsoluteP :: Seq NameSegment -> Path 'Absolute
   RelativeP :: Seq NameSegment -> Path 'Relative
   UncheckedP :: Either (Path 'Absolute) (Path 'Relative) -> Path 'Unchecked
+
+pattern AbsolutePath :: Path 'Absolute -> Path pos
+pattern AbsolutePath p <- (match Just (const Nothing) -> Just p)
+pattern RelativePath :: Path 'Relative -> Path pos
+pattern RelativePath p <- (match (const Nothing) Just -> Just p)
 
 instance Eq (Path pos) where
   (==) = (==) `on` (view segments_)
@@ -122,10 +132,10 @@ currentPath :: Path 'Relative
 currentPath = RelativeP mempty
 
 isRoot :: Path 'Absolute -> Bool
-isRoot = (== rootPath)
+isRoot = (== root)
 
-rootPath :: Path 'Absolute
-rootPath = AbsoluteP mempty
+root :: Path 'Absolute
+root = AbsoluteP mempty
 
 toText :: Path pos -> Text
 toText = match (("." <>) . segmentsToText)
@@ -177,8 +187,8 @@ prefix pref suff = pref & segments_ %~ (<> (suff ^. segments_))
 -- relativeEmpty' = Path' (Right (Relative empty))
 
 -- Should these be exposed??
--- toList :: Path -> [NameSegment]
--- toList = Foldable.toList . toSeq
+toList :: Path pos -> [NameSegment]
+toList p = Foldable.toList (p ^. segments_)
 
 -- fromList :: [NameSegment] -> Path
 -- fromList = Path . Seq.fromList
@@ -199,8 +209,8 @@ splitFromName = Lens.unsnoc . fromName
 -- prefixName :: Absolute -> Name -> Name
 -- prefixName p = toName . prefix p . fromName'
 
--- singleton :: NameSegment -> Path
--- singleton n = fromList [n]
+singleton :: NameSegment -> Path 'Relative
+singleton n = RelativeP (Seq.singleton n)
 
 -- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
 -- /Foo/bar
@@ -212,9 +222,9 @@ splitFromName = Lens.unsnoc . fromName
 -- todo: fromName needs to be a little more complicated if we want to allow
 --       identifiers called Function.(.)
 fromName :: Name -> Path 'Unchecked
-fromName n = 
+fromName n =
   let segments = Seq.fromList . List.NonEmpty.toList . Name.segments $ n
-   in if Name.isAbsolute n 
+   in if Name.isAbsolute n
          then unchecked $ AbsoluteP segments
          else unchecked $ RelativeP segments
 
@@ -244,6 +254,11 @@ instance Snoc (Path pos) (Path pos) NameSegment NameSegment where
       unsnoc p = case p ^. segments_ of
         (pref :> ns) -> Right (p & segments_ .~ pref, ns)
         _ -> Left p
+
+instance AsEmpty (Path 'Relative) where
+  _Empty = prism' (const $ RelativeP mempty) \case
+    RelativeP Lens.Empty -> Just ()
+    _ -> Nothing
 
 -- instance Snoc Split' Split' NameSegment NameSegment where
 --   _Snoc = prism (uncurry snoc') $ \case -- unsnoc

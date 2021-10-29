@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 module Unison.Codebase.Editor.RemoteRepo where
 
 import Unison.Prelude
@@ -22,19 +23,19 @@ printReadRepo ReadGitRepo{..} = url -- <> Monoid.fromMaybe (Text.cons ':' <$> co
 printWriteRepo :: WriteRepo -> Text
 printWriteRepo WriteGitRepo{..} = url' -- <> Monoid.fromMaybe (Text.cons ':' <$> branch)
 
-printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path -> Text
+printNamespace :: ReadRepo -> Maybe ShortBranchHash -> Path 'Path.Absolute -> Text
 printNamespace repo sbh path =
   printReadRepo repo <> case sbh of
-    Nothing -> if path == Path.empty then mempty
-      else ":." <> Path.toText path
+    Nothing -> if Path.isRoot path then mempty
+      else ":" <> Path.toText path
     Just sbh -> ":#" <> SBH.toText sbh <>
-      if path == Path.empty then mempty
+      if Path.isRoot path then mempty
       else "." <> Path.toText path
 
-printHead :: WriteRepo -> Path -> Text
+printHead :: WriteRepo -> Path 'Path.Absolute -> Text
 printHead repo path =
   printWriteRepo repo
-    <> if path == Path.empty then mempty else ":." <> Path.toText path
+    <> if Path.isRoot path then mempty else ":" <> Path.toText path
 
-type ReadRemoteNamespace = (ReadRepo, Maybe ShortBranchHash, Path)
-type WriteRemotePath = (WriteRepo, Path)
+type ReadRemoteNamespace = (ReadRepo, Maybe ShortBranchHash, Path 'Path.Absolute)
+type WriteRemotePath = (WriteRepo, Path 'Path.Absolute)

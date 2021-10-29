@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Codebase.Path.Parse
   ( parsePath',
@@ -30,16 +31,17 @@ import qualified Unison.Lexer as Lexer
 import qualified Unison.NameSegment as NameSegment
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.ShortHash as SH
+import qualified Data.Sequence as Seq
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
-parsePath' :: String -> Either String Path'
+parsePath' :: String -> Either String (Path 'Unchecked)
 parsePath' p = case parsePathImpl' p of
   Left  e        -> Left e
   Right (p, "" ) -> Right p
   Right (p, rem) -> case parseSegment rem of
-    Right (seg, "") -> Right (unsplit' (p, NameSegment . Text.pack $ seg))
+    Right (seg, "") -> Right (unsplit (p, NameSegment . Text.pack $ seg))
     Right (_, rem) ->
       Left ("extra characters after " <> show p <> ": " <> show rem)
     Left e -> Left e
@@ -50,11 +52,11 @@ parsePath' p = case parsePathImpl' p of
 -- baz            becomes `Right (, "baz")
 -- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
 -- TODO: Get rid of this thing.
-parsePathImpl' :: String -> Either String (Path', String)
+parsePathImpl' :: String -> Either String (Path 'Unchecked, String)
 parsePathImpl' p = case p of
-  "."     -> Right (Path' . Left $ absoluteEmpty, "")
-  '.' : p -> over _1 (Path' . Left . Absolute . fromList) <$> segs p
-  p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
+  "."     -> Right (unchecked root, "")
+  '.' : p -> over _1 (unchecked . AbsoluteP . Seq.fromList) <$> segs p
+  p       -> over _1 (unchecked . RelativeP . Seq.fromList) <$> segs p
  where
   go f p = case f p of
     Right (a, "") -> case Lens.unsnoc (NameSegment.segments' $ Text.pack a) of
@@ -109,13 +111,13 @@ definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s <> unit s
 -- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
 parseSplit' :: (String -> Either String NameSegment)
             -> String
-            -> Either String Split'
+            -> Either String (Split 'Unchecked)
 parseSplit' lastSegment p = do
   (p', rem) <- parsePathImpl' p
   seg <- lastSegment rem
   pure (p', seg)
 
-parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash (HQSplit 'Unchecked))
 parseShortHashOrHQSplit' s =
   case Text.breakOn "#" $ Text.pack s of
     ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
@@ -136,14 +138,13 @@ parseShortHashOrHQSplit' s =
   where
   shError s = "couldn't parse shorthash from " <> s
 
-parseHQSplit :: String -> Either String HQSplit
+parseHQSplit :: String -> Either String (HQSplit 'Relative)
 parseHQSplit s = case parseHQSplit' s of
-  Right (Path' (Right (Relative p)), hqseg) -> Right (p, hqseg)
-  Right (Path' Left{}, _) ->
-    Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
+  Right (RelativePath p, hqseg) -> Right (p, hqseg)
+  Right _ -> Left $ "Sorry, you can't use an absolute name like " <> s <> " here."
   Left e -> Left e
 
-parseHQSplit' :: String -> Either String HQSplit'
+parseHQSplit' :: String -> Either String (HQSplit 'Unchecked)
 parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
   ("", "") -> error $ "encountered empty string parsing '" <> s <> "'"
   ("", _ ) -> Left "Sorry, you can't use a hash-only reference here."
@@ -163,5 +164,6 @@ parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
   parsePath n = do
     x <- parsePathImpl' $ Text.unpack n
     pure $ case x of
-      (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
+      -- TODO: What is this doing?
+      -- (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
       x -> x

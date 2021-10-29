@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Unison.Codebase.BranchUtil where
 
 import Unison.Prelude
@@ -26,6 +27,7 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
+import Unison.Codebase.Position
 
 fromNames :: Monad m => Names -> Branch m
 fromNames names0 = Branch.one $ addFromNames names0 Branch.empty0
@@ -96,28 +98,28 @@ getTypeByShortHash sh b = filter sh $ Branch.deepTypeReferences b
   where
   filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
 
-getTypeMetadataAt :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
+getTypeMetadataAt :: (Path 'Relative, a) -> Reference -> Branch0 m -> Metadata
 getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ types
   types = Branch._types $ Branch.getAt0 path b
 
-getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
-getBranch (p, seg) b = case Path.toList p of
-  [] -> Map.lookup seg (Branch._children b)
-  h : p ->
+getBranch :: Path.Split 'Relative -> Branch0 m -> Maybe (Branch m)
+getBranch (p, seg) b = case Path.uncons p of
+  Nothing -> Map.lookup seg (Branch._children b)
+  Just (h, p) ->
     (Branch.head <$> Map.lookup h (Branch._children b)) >>=
-      getBranch (Path.fromList p, seg)
+      getBranch (p, seg)
 
 
-makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTermName :: Path.Split 'Relative -> Referent -> Metadata -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
-makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTermName :: Path.Split 'Relative -> Referent -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeReplacePatch :: Applicative m => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
+makeReplacePatch :: Applicative m => Path.Split 'Relative -> Patch -> (Path, Branch0 m -> Branch0 m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
 
 makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
