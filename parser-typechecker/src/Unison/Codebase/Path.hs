@@ -45,6 +45,7 @@ module Unison.Codebase.Path
     -- toList,
     toName,
     toText,
+    intoRelative,
     unsplit,
     unsplitHQ,
 
@@ -201,6 +202,9 @@ hqSplitFromName = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName
 
 splitFromName :: Name -> Maybe (Split 'Unchecked)
 splitFromName = Lens.unsnoc . fromName
+
+intoRelative :: Path pos -> Path 'Relative
+intoRelative = match (\(AbsoluteP ns) -> RelativeP ns) id
 
 -- | what is this? —AI
 -- unprefixName :: Absolute -> Name -> Name

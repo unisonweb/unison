@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Unison.Codebase.Editor.Input
   ( Input(..)
   , Event(..)
@@ -13,7 +14,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path' )
+import           Unison.Codebase.Path           ( Path )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import           Unison.Codebase.Editor.RemoteRepo
@@ -27,6 +28,7 @@ import qualified Unison.Util.Pretty as P
 import           Unison.Codebase.Verbosity
 
 import qualified Data.Text as Text
+import Unison.Codebase.Position
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -34,9 +36,9 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type PatchPath = Path.Split'
-type BranchId = Either ShortBranchHash Path'
-type HashOrHQSplit' = Either ShortHash Path.HQSplit'
+type PatchPath = (Path.Split 'Unchecked)
+type BranchId = Either ShortBranchHash (Path 'Unchecked)
+type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Unchecked)
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -49,22 +51,22 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI (Either ShortBranchHash Path') Path'
+    = ForkLocalBranchI (Either ShortBranchHash (Path 'Unchecked)) (Path 'Unchecked)
     -- merge first causal into destination
-    | MergeLocalBranchI Path' Path' Branch.MergeMode
-    | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity 
-    | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
+    | MergeLocalBranchI (Path 'Unchecked) (Path 'Unchecked) Branch.MergeMode
+    | PreviewMergeLocalBranchI (Path 'Unchecked) (Path 'Unchecked)
+    | DiffNamespaceI (Path 'Unchecked) (Path 'Unchecked) -- old new
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) (Path 'Unchecked) SyncMode Verbosity 
+    | PushRemoteBranchI (Maybe WriteRemotePath) (Path 'Unchecked) SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
-    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
-    | ResetRootI (Either ShortBranchHash Path')
+    | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace (Path 'Unchecked)
+    | ResetRootI (Either ShortBranchHash (Path 'Unchecked))
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user 
     | CreateMessage (P.Pretty P.ColorText)  
     -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
-    | SwitchBranchI (Maybe Path')
+    | SwitchBranchI (Maybe (Path 'Unchecked))
     | UpI
     | PopBranchI
     -- > names foo
@@ -73,38 +75,38 @@ data Input
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
     | NamesI (HQ.HashQualified Name)
-    | AliasTermI HashOrHQSplit' Path.Split'
-    | AliasTypeI HashOrHQSplit' Path.Split'
-    | AliasManyI [Path.HQSplit] Path'
+    | AliasTermI HashOrHQSplit' (Path.Split 'Unchecked)
+    | AliasTypeI HashOrHQSplit' (Path.Split 'Unchecked)
+    | AliasManyI [Path.HQSplit 'Relative] (Path 'Unchecked)
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
-    | MoveTermI Path.HQSplit' Path.Split'
-    | MoveTypeI Path.HQSplit' Path.Split'
-    | MoveBranchI (Maybe Path.Split') Path.Split'
-    | MovePatchI Path.Split' Path.Split'
-    | CopyPatchI Path.Split' Path.Split'
+    | MoveTermI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
+    | MoveTypeI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
+    | MoveBranchI (Maybe (Path.Split 'Unchecked)) (Path.Split 'Unchecked)
+    | MovePatchI (Path.Split 'Unchecked) (Path.Split 'Unchecked)
+    | CopyPatchI (Path.Split 'Unchecked) (Path.Split 'Unchecked)
     -- delete = unname
-    | DeleteI Path.HQSplit'
-    | DeleteTermI Path.HQSplit'
-    | DeleteTypeI Path.HQSplit'
-    | DeleteBranchI (Maybe Path.Split')
-    | DeletePatchI Path.Split'
+    | DeleteI (Path.HQSplit 'Unchecked)
+    | DeleteTermI (Path.HQSplit 'Unchecked)
+    | DeleteTypeI (Path.HQSplit 'Unchecked)
+    | DeleteBranchI (Maybe (Path.Split 'Unchecked))
+    | DeletePatchI (Path.Split 'Unchecked)
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
-    | ResolveTermNameI Path.HQSplit'
-    | ResolveTypeNameI Path.HQSplit'
+    | ResolveTermNameI (Path.HQSplit 'Unchecked)
+    | ResolveTypeNameI (Path.HQSplit 'Unchecked)
   -- edits stuff:
     | LoadI (Maybe FilePath)
     | AddI [HQ'.HashQualified Name]
     | PreviewAddI [HQ'.HashQualified Name]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
     | PreviewUpdateI [HQ'.HashQualified Name]
-    | TodoI (Maybe PatchPath) Path'
-    | PropagatePatchI PatchPath Path'
+    | TodoI (Maybe PatchPath) (Path 'Unchecked)
+    | PropagatePatchI PatchPath (Path 'Unchecked)
     | ListEditsI (Maybe PatchPath)
     -- -- create and remove update directives
-    | DeprecateTermI PatchPath Path.HQSplit'
-    | DeprecateTypeI PatchPath Path.HQSplit'
+    | DeprecateTermI PatchPath (Path.HQSplit 'Unchecked)
+    | DeprecateTypeI PatchPath (Path.HQSplit 'Unchecked)
     | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
@@ -121,19 +123,19 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | LinkI (HQ.HashQualified Name) [(Path.HQSplit 'Unchecked)]
   -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-  | UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
+  | UnlinkI (HQ.HashQualified Name) [(Path.HQSplit 'Unchecked)]
   -- links from <type>
-  | LinksI Path.HQSplit' (Maybe String)
+  | LinksI (Path.HQSplit 'Unchecked) (Maybe String)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
     -- Display provided definitions. If list is empty, prompt a fuzzy search.
   | DisplayI OutputLocation [HQ.HashQualified Name]
     -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
-  | DocsI [Path.HQSplit']
+  | DocsI [(Path.HQSplit 'Unchecked)]
   -- other
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
-  | FindShallowI Path'
+  | FindShallowI (Path 'Unchecked)
   | FindPatchI
     -- Show provided definitions. If list is empty, prompt a fuzzy search.
   | ShowDefinitionI OutputLocation [HQ.HashQualified Name]

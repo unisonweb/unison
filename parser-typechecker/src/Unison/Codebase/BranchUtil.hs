@@ -47,14 +47,16 @@ addFromNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
 --  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
   doTerm (n, r) = case Path.splitFromName n of
     Nothing -> errorEmptyName
-    Just split -> makeAddTermName split r mempty -- no metadata
+    Just (Path.intoRelative -> p, ns) ->
+      makeAddTermName (p, ns) r mempty -- no metadata
 --  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
   doType (n, r) = case Path.splitFromName n of
              Nothing -> errorEmptyName
-             Just split -> makeAddTypeName split r mempty -- no metadata
+             Just (Path.intoRelative -> p, ns) -> 
+               makeAddTypeName (p, ns) r mempty -- no metadata
   errorEmptyName = error "encountered an empty name"
 
-getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
+getTerm :: Path.HQSplit 'Relative -> Branch0 m -> Set Referent
 getTerm (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n terms
     HashQualified n sh -> filter sh $ Star3.lookupD1 n terms
@@ -63,13 +65,13 @@ getTerm (p, hq) b = case hq of
   terms = Branch._terms (Branch.getAt0 p b)
 
 getTermMetadataHQNamed
-  :: (Path.Path, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
+  :: (Path.Path 'Relative, HQ'.HQSegment) -> Branch0 m -> Metadata.R4 Referent NameSegment
 getTermMetadataHQNamed (path, hqseg) b =
   R4.filter (\(r,n,_t,_v) -> HQ'.matchesNamedReferent n r hqseg) terms
   where terms = Metadata.starToR4 . Branch._terms $ Branch.getAt0 path b
 
 getTypeMetadataHQNamed
-  :: (Path.Path, HQ'.HQSegment)
+  :: (Path.Path 'Relative, HQ'.HQSegment)
   -> Branch0 m
   -> Metadata.R4 Reference NameSegment
 getTypeMetadataHQNamed (path, hqseg) b =
@@ -78,14 +80,14 @@ getTypeMetadataHQNamed (path, hqseg) b =
 
 -- todo: audit usages and maybe eliminate!
 -- Only returns metadata for the term at the exact level given
-getTermMetadataAt :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
+getTermMetadataAt :: (Path.Path 'Relative, a) -> Referent -> Branch0 m -> Metadata
 getTermMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ terms
   terms = Branch._terms $ Branch.getAt0 path b
 
-getType :: Path.HQSplit -> Branch0 m -> Set Reference
+getType :: Path.HQSplit 'Relative -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
     NameOnly n -> Star3.lookupD1 n types
     HashQualified n sh -> filter sh $ Star3.lookupD1 n types
@@ -119,19 +121,19 @@ makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 makeDeleteTermName :: Path.Split 'Relative -> Referent -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeReplacePatch :: Applicative m => Path.Split 'Relative -> Patch -> (Path, Branch0 m -> Branch0 m)
+makeReplacePatch :: Applicative m => Path.Split 'Relative -> Patch -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
 
-makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeletePatch :: Path.Split 'Relative -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
-makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTypeName :: Path.Split 'Relative -> Reference -> Metadata -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
 
-makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
+makeDeleteTypeName :: Path.Split 'Relative -> Reference -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 -- to delete, just set with Branch.empty
 makeSetBranch ::
-  Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
+  Path.Split 'Relative -> Branch m -> (Path 'Relative, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
