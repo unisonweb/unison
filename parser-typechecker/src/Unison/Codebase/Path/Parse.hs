@@ -24,7 +24,7 @@ import Unison.Codebase.Path
 import Control.Lens (_1, over)
 import qualified Control.Lens as Lens
 import Data.Bifunctor (first)
-import Data.List.Extra (stripPrefix)
+import qualified Data.List.Extra as List
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Lexer as Lexer
@@ -87,7 +87,7 @@ wordyNameSegment s = case Lexer.wordyId0 s of
 
 -- Parse a name segment like "()"
 unit' :: String -> Either String (String, String)
-unit' s = case stripPrefix "()" s of
+unit' s = case List.stripPrefix "()" s of
   Nothing  -> Left $ "Expected () but found: " <> s
   Just rem -> Right ("()", rem)
 

@@ -28,7 +28,7 @@ module Unison.Codebase.Path
     -- This seems semantically invalid
     stripPrefix,
     -- prefixName,
-    -- unprefixName,
+    unprefixName,
     HQSplit,
     Split,
     ancestors,
@@ -179,8 +179,11 @@ unsplitHQ (p, a) = fmap (Lens.snoc p) a
 asList_ :: Iso (Seq a) (Seq b) [a] [b]
 asList_ = iso Foldable.toList Seq.fromList 
 
-stripPrefix :: Path 'Absolute -> Path 'Relative -> Path 'Relative
-stripPrefix p r = r & segments_ . asList_ %~ List.dropPrefix (p ^. segments_ . asList_)
+stripPrefix :: Path 'Absolute -> Path any -> Path 'Relative
+stripPrefix p r = 
+  let prefixSegments = p ^. segments_ . asList_
+      otherSegments = r ^. segments_ . asList_
+   in RelativeP (Seq.fromList $ List.dropPrefix prefixSegments otherSegments)
 
 -- toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 -- toAbsoluteSplit a (p, s) = (resolve a p, s)
@@ -217,7 +220,7 @@ splitFromName = Lens.unsnoc . fromName
 
 -- | what is this? —AI
 unprefixName :: Path 'Absolute -> Name -> Name
-unprefixName prefix = toName . unprefix prefix . fromName
+unprefixName prefix = toName . stripPrefix prefix . fromName
 
 
 -- prefixName :: Absolute -> Name -> Name

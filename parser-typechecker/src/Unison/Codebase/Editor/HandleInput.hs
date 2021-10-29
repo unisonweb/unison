@@ -192,10 +192,10 @@ type InputDescription = Text
 makeLenses ''LoopState
 
 -- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
-currentPath :: Getter (LoopState m v) Path.Absolute
+currentPath :: Getter (LoopState m v) (Path 'Absolute)
 currentPath = currentPathStack . to Nel.head
 
-loopState0 :: Branch m -> Path.Absolute -> LoopState m v
+loopState0 :: Branch m -> (Path 'Absolute) -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
@@ -225,9 +225,9 @@ loop = do
       defaultPatchPath = ((Path 'Unchecked) $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: ((Path p), a) -> (Path p, a)
       resolveSplit' = fromAbsoluteSplit . first (resolve currentPath')
-      resolveToAbsolute :: (Path 'Unchecked) -> Path.Absolute
+      resolveToAbsolute :: (Path 'Unchecked) -> (Path 'Absolute)
       resolveToAbsolute = Path.resolve currentPath'
-      getAtSplit :: Path.Split -> Maybe (Branch m)
+      getAtSplit :: Path.Split 'Relative -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split pos -> Maybe (Branch m)
       getAtSplit' = getAtSplit . resolveSplit'
@@ -862,7 +862,7 @@ loop = do
 
       UpI -> use currentPath >>= \p -> case Path.unsnoc p of
         Nothing -> pure ()
-        Just (path,_) -> currentPathStack %= Nel.cons (Path.Absolute path)
+        Just (path,_) -> currentPathStack %= Nel.cons ((Path 'Absolute) path)
 
       PopBranchI -> use (currentPathStack . to Nel.uncons) >>= \case
         (_, Nothing) -> respond StartOfCurrentPathHistory
@@ -959,19 +959,19 @@ loop = do
           respond . SearchTermsNotFound . fmap fixupOutput $ unknown
         where
         -- a list of missing sources (if any) and the actions that do the work
-        go :: ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
-           -> Path.HQSplit
-           -> ([Path.HQSplit], [(Path, Branch0 m -> Branch0 m)])
+        go :: ([Path.HQSplit 'Relative], [(Path 'Relative, Branch0 m -> Branch0 m)])
+           -> Path.HQSplit 'Relative
+           -> ([Path.HQSplit 'Relative], [(Path 'Relative, Branch0 m -> Branch0 m)])
         go (missingSrcs, actions) hqsrc =
           let
-            src :: Path.Split
+            src :: Path.Split 'Relative
             src = second HQ'.toName hqsrc
-            proposedDest :: Path.Split
+            proposedDest :: Path.Split 'Relative
             proposedDest = second HQ'.toName hqProposedDest
-            hqProposedDest :: Path.HQSplit
+            hqProposedDest :: Path.HQSplit 'Relative
             hqProposedDest = Path.resolve (resolveToAbsolute dest') hqsrc
             -- `Nothing` if src doesn't exist
-            doType :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doType :: Maybe [(Path 'Relative, Branch0 m -> Branch0 m)]
             doType = case ( BranchUtil.getType hqsrc currentBranch0
                           , BranchUtil.getType hqProposedDest root0
                           ) of
@@ -981,7 +981,7 @@ loop = do
                 where
                 addAlias r = BranchUtil.makeAddTypeName proposedDest r (oldMD r)
                 oldMD r = BranchUtil.getTypeMetadataAt src r currentBranch0
-            doTerm :: Maybe [(Path, Branch0 m -> Branch0 m)]
+            doTerm :: Maybe [(Path 'Relative, Branch0 m -> Branch0 m)]
             doTerm = case ( BranchUtil.getTerm hqsrc currentBranch0
                           , BranchUtil.getTerm hqProposedDest root0
                           ) of
@@ -997,7 +997,7 @@ loop = do
             (Nothing, Just as) -> (missingSrcs, actions ++ as)
             (Just as1, Just as2) -> (missingSrcs, actions ++ as1 ++ as2)
 
-        fixupOutput :: Path.HQSplit -> HQ.HashQualified Name
+        fixupOutput :: Path.HQSplit 'Relative -> HQ.HashQualified Name
         fixupOutput = fmap Path.toName . HQ'.toHQ . Path.unsplitHQ
 
       NamesI thing -> do
@@ -1797,7 +1797,7 @@ loop = do
       notImplemented = eval $ Notify NotImplemented
       success = respond Success
 
-      resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
+      resolveDefaultMetadata :: (Path 'Absolute) -> Action' m v [String]
       resolveDefaultMetadata path = do
         let superpaths = Path.ancestors path
         xs <- for
@@ -1942,7 +1942,7 @@ resolveShortBranchHash hash = ExceptT do
 propagatePatchNoSync
   :: (Monad m, Var v)
   => Patch
-  -> Path.Absolute
+  -> (Path 'Absolute)
   -> Action' m v Bool
 propagatePatchNoSync patch scopePath = do
   r <- use root
@@ -1952,7 +1952,7 @@ propagatePatchNoSync patch scopePath = do
 
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) =>
-  InputDescription -> Patch -> Path.Absolute -> Action' m v Bool
+  InputDescription -> Patch -> (Path 'Absolute) -> Action' m v Bool
 propagatePatch inputDescription patch scopePath = do
   r <- use root
   let nroot = Branch.toNames (Branch.head r)
@@ -1961,7 +1961,7 @@ propagatePatch inputDescription patch scopePath = do
               lift . lift . Propagate.propagateAndApply nroot patch)
 
 -- | Create the args needed for showTodoOutput and call it
-doShowTodoOutput :: Monad m => Patch -> Path.Absolute -> Action' m v ()
+doShowTodoOutput :: Monad m => Patch -> (Path 'Absolute) -> Action' m v ()
 doShowTodoOutput patch scopePath = do
   scope <- getAt scopePath
   let names0 = Branch.toNames (Branch.head scope)
@@ -2178,14 +2178,14 @@ unlessError' f ma = unlessError $ withExceptT f ma
 -- | supply `dest0` if you want to print diff messages
 --   supply unchangedMessage if you want to display it if merge had no effect
 mergeBranchAndPropagateDefaultPatch :: (Monad m, Var v) => Branch.MergeMode ->
-  InputDescription -> Maybe (Output v) -> Branch m -> Maybe (Path 'Unchecked) -> Path.Absolute -> Action' m v ()
+  InputDescription -> Maybe (Output v) -> Branch m -> Maybe (Path 'Unchecked) -> (Path 'Absolute) -> Action' m v ()
 mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb dest0 dest =
   ifM (mergeBranch mode inputDescription srcb dest0 dest)
       (loadPropagateDiffDefaultPatch inputDescription dest0 dest)
       (for_ unchangedMessage respond)
   where
   mergeBranch :: (Monad m, Var v) =>
-    Branch.MergeMode -> InputDescription -> Branch m -> Maybe (Path 'Unchecked) -> Path.Absolute -> Action' m v Bool
+    Branch.MergeMode -> InputDescription -> Branch m -> Maybe (Path 'Unchecked) -> (Path 'Absolute) -> Action' m v Bool
   mergeBranch mode inputDescription srcb dest0 dest = unsafeTime "Merge Branch" $ do
     destb <- getAt dest
     merged <- eval $ Merge mode srcb destb
@@ -2196,7 +2196,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     pure b
 
 loadPropagateDiffDefaultPatch :: (Monad m, Var v) =>
-  InputDescription -> Maybe (Path 'Unchecked) -> Path.Absolute -> Action' m v ()
+  InputDescription -> Maybe (Path 'Unchecked) -> (Path 'Absolute) -> Action' m v ()
 loadPropagateDiffDefaultPatch inputDescription dest0 dest = unsafeTime "Propagate Default Patch" $ do
     original <- getAt dest
     patch <- eval . Eval $ Branch.getPatch defaultPatchNameSegment (Branch.head original)
@@ -2256,18 +2256,18 @@ getHQTerms = \case
     hashOnly sh = eval $ TermReferentsByShortHash sh
 
 
-getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
-getAt (Path.Absolute p) =
+getAt :: Functor m => (Path 'Absolute) -> Action m i v (Branch m)
+getAt p =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
 
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM :: Applicative m
           => InputDescription
-          -> Path.Absolute
+          -> (Path 'Absolute)
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
-updateAtM reason (Path.Absolute p) f = do
+updateAtM reason p f = do
   b  <- use lastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
@@ -2277,18 +2277,18 @@ stepAt
   :: forall m i v
    . Monad m
   => InputDescription
-  -> (Path, Branch0 m -> Branch0 m)
+  -> (Path 'Relative, Branch0 m -> Branch0 m)
   -> Action m i v ()
 stepAt cause = stepManyAt @m @[] cause . pure
 
 stepAtNoSync :: forall m i v. Monad m
-       => (Path, Branch0 m -> Branch0 m)
+       => (Path 'Relative, Branch0 m -> Branch0 m)
        -> Action m i v ()
 stepAtNoSync = stepManyAtNoSync @m @[] . pure
 
 stepAtM :: forall m i v. Monad m
         => InputDescription
-        -> (Path, Branch0 m -> m (Branch0 m))
+        -> (Path 'Relative, Branch0 m -> m (Branch0 m))
         -> Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
 
@@ -2296,21 +2296,21 @@ stepAtM'
   :: forall m i v
    . Monad m
   => InputDescription
-  -> (Path, Branch0 m -> Action m i v (Branch0 m))
+  -> (Path 'Relative, Branch0 m -> Action m i v (Branch0 m))
   -> Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
 
 stepAtMNoSync'
   :: forall m i v
    . Monad m
-  => (Path, Branch0 m -> Action m i v (Branch0 m))
+  => (Path 'Relative, Branch0 m -> Action m i v (Branch0 m))
   -> Action m i v Bool
 stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
 
 stepManyAt
   :: (Monad m, Foldable f)
   => InputDescription
-  -> f (Path, Branch0 m -> Branch0 m)
+  -> f (Path 'Relative, Branch0 m -> Branch0 m)
   -> Action m i v ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
@@ -2320,7 +2320,7 @@ stepManyAt reason actions = do
 -- Like stepManyAt, but doesn't update the root
 stepManyAtNoSync
   :: (Monad m, Foldable f)
-  => f (Path, Branch0 m -> Branch0 m)
+  => f (Path 'Relative, Branch0 m -> Branch0 m)
   -> Action m i v ()
 stepManyAtNoSync actions = do
   b <- use root
@@ -2329,7 +2329,7 @@ stepManyAtNoSync actions = do
 
 stepManyAtM :: (Monad m, Foldable f)
            => InputDescription
-           -> f (Path, Branch0 m -> m (Branch0 m))
+           -> f (Path 'Relative, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
 stepManyAtM reason actions = do
     stepManyAtMNoSync actions
@@ -2337,7 +2337,7 @@ stepManyAtM reason actions = do
     updateRoot b reason
 
 stepManyAtMNoSync :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> m (Branch0 m))
+           => f (Path 'Relative, Branch0 m -> m (Branch0 m))
            -> Action m i v ()
 stepManyAtMNoSync actions = do
     b <- use root
@@ -2346,7 +2346,7 @@ stepManyAtMNoSync actions = do
 
 stepManyAtM' :: (Monad m, Foldable f)
            => InputDescription
-           -> f (Path, Branch0 m -> Action m i v (Branch0 m))
+           -> f (Path 'Relative, Branch0 m -> Action m i v (Branch0 m))
            -> Action m i v Bool
 stepManyAtM' reason actions = do
     b <- use root
@@ -2355,7 +2355,7 @@ stepManyAtM' reason actions = do
     pure (b /= b')
 
 stepManyAtMNoSync' :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Action m i v (Branch0 m))
+           => f (Path 'Relative, Branch0 m -> Action m i v (Branch0 m))
            -> Action m i v Bool
 stepManyAtMNoSync' actions = do
     b <- use root
@@ -2439,7 +2439,7 @@ var name = Var.named (Name.toText name)
 toSlurpResult
   :: forall v
    . Var v
-  => Path.Absolute
+  => (Path 'Absolute)
   -> UF.TypecheckedUnisonFile v Ann
   -> Names
   -> SlurpResult v
@@ -2707,7 +2707,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   md v =
     if Set.member v tests then Metadata.singleton isTestType isTestValue
     else Metadata.empty
-  doTerm :: v -> (Path, Branch0 m -> Branch0 m)
+  doTerm :: v -> (Path 'Relative, Branch0 m -> Branch0 m)
   doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
@@ -2715,7 +2715,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
       Just split -> BranchUtil.makeAddTermName split r (md v)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
-  doType :: v -> (Path, Branch0 m -> Branch0 m)
+  doType :: v -> (Path 'Relative, Branch0 m -> Branch0 m)
   doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
@@ -2745,7 +2745,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
   -- todo: if the thing being updated, m, is metadata for something x in b0
   -- update x's md to reference `m`
   doType, doTerm ::
-    (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
+    (Name, (Reference, Reference)) -> [(Path 'Relative, Branch0 m -> Branch0 m)]
   doType (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTypeName split old
@@ -2861,7 +2861,7 @@ makePrintNamesFromLabeled' deps = do
   pure $ NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames)
 
 getTermsIncludingHistorical
-  :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+  :: Monad m => Path.HQSplit 'Relative -> Branch0 m -> Action' m v (Set Referent)
 getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
   [] -> case hq of
     HQ'.HashQualified n hs -> do
