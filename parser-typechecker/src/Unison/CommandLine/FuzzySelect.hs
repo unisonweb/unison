@@ -74,7 +74,11 @@ fuzzySelect opts intoSearchText choices =
     let searchTexts :: [Text]
           = (\(n, ch) -> tShow (n) <> " " <> intoSearchText ch) <$> numberedChoices
     let fzfProc :: Proc.CreateProcess
-          = (Proc.proc fzfPath fzfArgs){Proc.std_in=Proc.CreatePipe, Proc.std_out=Proc.CreatePipe}
+          = (Proc.proc fzfPath fzfArgs)
+              { Proc.std_in=Proc.CreatePipe
+              , Proc.std_out=Proc.CreatePipe
+              , Proc.delegate_ctlc=True
+              }
     (Just stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
     -- Generally no-buffering is helpful for highly interactive processes.
     hSetBuffering stdin NoBuffering

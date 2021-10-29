@@ -847,12 +847,11 @@ loop = do
           else handleFailedDelete failed failedDependents
       SwitchBranchI maybePath' -> do
         mpath' <- case maybePath' of
-          Nothing -> fuzzySelectNamespace currentPath' root0 <&> \case
-                         Nothing -> _
-                         Just [] -> Nothing
+          Nothing -> fuzzySelectNamespace root0 <&> \case
+                         [] -> Nothing
                          -- Shouldn't be possible to get multiple paths here, we can just take
                          -- the first.
-                         Just (p:_) -> Just p
+                         (p:_) -> Just p
           Just p -> pure $ Just p
         case mpath' of
           Nothing -> pure ()
@@ -1036,7 +1035,7 @@ loop = do
 
       DocsI srcs -> do
         srcs' <- case srcs of
-          [] -> fuzzySelectTermsAndTypes currentPath' root0
+          [] -> fuzzySelectTermsAndTypes root0
                   -- HQ names should always parse as a valid split, so we just discard any
                   -- that don't to satisfy the type-checker.
                   <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
@@ -1106,14 +1105,21 @@ loop = do
 
       DisplayI outputLoc names' -> do
         names <- case names' of
-          [] -> fuzzySelectTermsAndTypes currentPath' root0
+          [] -> fuzzySelectTermsAndTypes root0
           ns -> pure ns
         traverse_ (displayI basicPrettyPrintNames outputLoc) names
 
       ShowDefinitionI outputLoc inputQuery -> do
         -- If the query is empty, run a fuzzy search.
         query <- case inputQuery of
-          [] -> fuzzySelectTermsAndTypes currentPath' root0
+          [] -> do
+            let fuzzyBranch =case outputLoc of
+                  -- fuzzy finding for 'view' is global
+                  ConsoleLocation{} -> root0
+                  -- fuzzy finding for 'edit's are local to the current branch
+                  LatestFileLocation{} -> currentBranch0
+                  FileLocation{}  -> currentBranch0
+            fuzzySelectTermsAndTypes fuzzyBranch
           q -> pure q
         res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
         case res of
@@ -3055,25 +3061,21 @@ declOrBuiltin r = case r of
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
 
-fuzzySelectTermsAndTypes :: Path.Absolute -> Branch0 m -> Action m (Either Event Input) v (Maybe [HQ.HashQualified Name])
-fuzzySelectTermsAndTypes currentPath searchBranch0 = do
+fuzzySelectTermsAndTypes :: Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectTermsAndTypes searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  let displayName = ((\t -> fromMaybe t $ Text.stripPrefix currentPathPrefix t) . HQ.toText)
-  eval (FuzzySelect Fuzzy.defaultOptions displayName (Set.toList termsAndTypes))
-  where
-    currentPathPrefix = Path.toText' . Path.absoluteToPath' $ currentPath
+  fromMaybe [] <$> eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
 
-fuzzySelectNamespace :: Path.Absolute-> Branch0 m -> Action m (Either Event Input) v (Maybe [Path'])
-fuzzySelectNamespace currentPath searchBranch0 =
+fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace searchBranch0 =
   do
-    fmap (fmap Path.toPath')
+    fmap Path.toPath'
+    . fromMaybe []
     <$> eval
       ( FuzzySelect
           Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-          ((\t -> fromMaybe t $ Text.stripPrefix currentPathPrefix t) . Path.toText)
+          Path.toText
           (Set.toList $ Branch.deepPaths searchBranch0)
       )
-  where
-    currentPathPrefix = Path.toText' . Path.absoluteToPath' $ currentPath
