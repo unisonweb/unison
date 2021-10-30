@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Test.UriParser where
 
@@ -8,10 +9,8 @@ import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Editor.UriParser as UriParser
-import qualified Data.Sequence as Seq
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Data.Text (Text)
-import Unison.NameSegment (NameSegment(..))
 import qualified Data.Text as Text
 
 test :: Test ()
@@ -24,11 +23,11 @@ testAugmented = scope "augmented" . tests $
 --  $ git clone /srv/git/project.git[:treeish][:[#hash][.path]]
   [ scope "local-protocol" . tests . map parseAugmented $
     [ ("/srv/git/project.git",
-      (ReadGitRepo "/srv/git/project.git", Nothing, Path.empty))
+      (ReadGitRepo "/srv/git/project.git", Nothing, Path.root))
     -- , ("/srv/git/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "/srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     , ("srv/git/project.git",
-      (ReadGitRepo "srv/git/project.git", Nothing, Path.empty))
+      (ReadGitRepo "srv/git/project.git", Nothing, Path.root))
     -- , ("srv/git/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     ],
@@ -36,11 +35,11 @@ testAugmented = scope "augmented" . tests $
 --  $ git clone file:///srv/git/project.git[:treeish][:[#hash][.path]] <- imagined
     scope "file-protocol" . tests . map parseAugmented $
     [ ("file:///srv/git/project.git",
-      (ReadGitRepo "file:///srv/git/project.git", Nothing, Path.empty))
+      (ReadGitRepo "file:///srv/git/project.git", Nothing, Path.root))
     -- , ("file:///srv/git/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "file:///srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     , ("file://srv/git/project.git",
-      (ReadGitRepo "file://srv/git/project.git", Nothing, Path.empty))
+      (ReadGitRepo "file://srv/git/project.git", Nothing, Path.root))
     -- , ("file://srv/git/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "file://srv/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     ],
@@ -48,7 +47,7 @@ testAugmented = scope "augmented" . tests $
 --  $ git clone https://example.com/gitproject.git[:treeish][:[#hash][.path]] <- imagined
     scope "http-protocol" . tests . map parseAugmented $
     [ ("https://example.com/git/project.git",
-      (ReadGitRepo "https://example.com/git/project.git", Nothing, Path.empty))
+      (ReadGitRepo "https://example.com/git/project.git", Nothing, Path.root))
     -- , ("https://user@example.com/git/project.git:abc:#def.hij.klm]",
     --   (ReadGitRepo "https://user@example.com/git/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     ],
@@ -56,29 +55,26 @@ testAugmented = scope "augmented" . tests $
 --  $ git clone ssh://[user@]server/project.git[:treeish][:[#hash][.path]]
     scope "ssh-protocol" . tests . map parseAugmented $
     [ ("ssh://git@8.8.8.8:222/user/project.git",
-      (ReadGitRepo "ssh://git@8.8.8.8:222/user/project.git", Nothing, Path.empty))
+      (ReadGitRepo "ssh://git@8.8.8.8:222/user/project.git", Nothing, Path.root))
     -- , ("ssh://git@github.com/user/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "ssh://git@github.com/user/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     ],
 --  $ git clone [user@]server:project.git[:treeish][:[#hash][.path]]
     scope "scp-protocol" . tests . map parseAugmented $
     [ ("git@github.com:user/project.git",
-      (ReadGitRepo "git@github.com:user/project.git", Nothing, Path.empty))
+      (ReadGitRepo "git@github.com:user/project.git", Nothing, Path.root))
     , ("github.com:user/project.git",
-      (ReadGitRepo "github.com:user/project.git", Nothing, Path.empty))
+      (ReadGitRepo "github.com:user/project.git", Nothing, Path.root))
     -- , ("git@github.com:user/project.git:abc:#def.hij.klm",
     --   (ReadGitRepo "git@github.com:user/project.git" (Just "abc"), sbh "def", path ["hij", "klm"]))
     ]
   ]
 
-parseAugmented :: (Text, (ReadRepo, Maybe ShortBranchHash, Path)) -> Test ()
+parseAugmented :: (Text, (ReadRepo, Maybe ShortBranchHash, Path 'Path.Absolute)) -> Test ()
 parseAugmented (s, r) = scope (Text.unpack s) $
   case P.parse UriParser.repoPath "test case" s of
     Left x -> crash $ show x
     Right x -> expectEqual x r
-
-path :: [Text] -> Path
-path = Path . Seq.fromList . fmap NameSegment
 
 sbh :: Text -> Maybe ShortBranchHash
 sbh = Just . ShortBranchHash

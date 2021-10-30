@@ -25,4 +25,4 @@ makeTest (version, path) =
     (Just
       ( ReadGitRepo "https://github.com/unisonweb/base"
       , Nothing
-      , Path.fromText path ))
+      , Path.unsafeToAbsolute . Path.fromText $ path ))

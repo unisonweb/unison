@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, OverloadedLists #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Test.Codebase.Path where
 
@@ -63,5 +64,5 @@ test = scope "path" . tests $
   ]
 
 
-relative :: Seq Text -> Path'
-relative = Path' . Right . Relative . Path . fmap NameSegment
+relative :: Seq Text -> Path 'Unchecked
+relative = unchecked . RelativeP . fmap NameSegment

@@ -16,20 +16,13 @@ module Unison.Codebase.Path
     pattern AbsolutePath,
     pattern RelativePath,
     Position(..),
-    match,
-    -- Resolve (..),
-    -- pattern Empty,
     singleton,
     unchecked,
-    -- Unison.Codebase.Path.uncons,
-    -- absoluteEmpty,
-    -- relativeEmpty',
     root,
     currentPath,
     Resolve(..),
     -- This seems semantically invalid
     stripPrefix,
-    -- prefixName,
     unprefixName,
     HQSplit,
     Split,
@@ -40,14 +33,9 @@ module Unison.Codebase.Path
     isRoot,
 
     -- * things that could be replaced with `Convert` instances
-    -- fromAbsoluteSplit,
     relativePathFromNameSegments,
     fromName,
-    -- fromPath',
     fromText,
-    -- toAbsoluteSplit,
-    -- Should this be exposed?
-    -- toList,
     toName,
     toText,
     unsafeToRelative,
@@ -123,13 +111,6 @@ unsafeToAbsolute p = AbsoluteP $ p ^. segments_
 unchecked :: Path pos -> Path 'Unchecked
 unchecked = match (UncheckedP . Left) (UncheckedP . Right)
 
-  -- = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord, Semigroup, Monoid)
-
--- newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
--- newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
--- newtype Path' = Path' { unPath' :: Either Absolute Relative }
-  -- deriving (Eq,Ord)
-
 segments_ :: Lens' (Path pos) (Seq NameSegment)
 segments_ = lens getter setter
   where
@@ -180,44 +161,18 @@ unsplit (p, a) = Lens.snoc p a
 unsplitHQ :: HQSplit pos -> HQ'.HashQualified (Path pos)
 unsplitHQ (p, a) = fmap (Lens.snoc p) a
 
--- | examples:
---   unprefix .foo.bar .blah == .blah (absolute paths left alone)
---   unprefix .foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
---   unprefix .foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
--- unprefix :: Path 'Absolute -> Path pos -> Path 'Unchecked
--- unprefix (Absolute prefix) (Path' p) = case p of
---   Left abs -> unabsolute abs
---   Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
-
 asList_ :: Iso (Seq a) (Seq b) [a] [b]
 asList_ = iso Foldable.toList Seq.fromList
 
+-- | examples:
+--   stripPrefix .foo.bar .blah == .blah (absolute paths left alone)
+--   stripPrefix .foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
+--   stripPrefix .foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
 stripPrefix :: Path 'Absolute -> Path any -> Path 'Relative
 stripPrefix p r =
   let prefixSegments = p ^. segments_ . asList_
       otherSegments = r ^. segments_ . asList_
    in RelativeP (Seq.fromList $ List.dropPrefix prefixSegments otherSegments)
-
--- toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
--- toAbsoluteSplit a (p, s) = (resolve a p, s)
-
--- toSplit :: Path pos -> Maybe (Split pos)
--- toSplit = \case
---   (p :> ns) -> Just (p, ns)
---   _ -> Nothing
-
--- fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
--- fromAbsoluteSplit (Absolute p, a) = (p, a)
-
--- absoluteEmpty :: Absolute
--- absoluteEmpty = Absolute empty
-
--- relativeEmpty' :: Path'
--- relativeEmpty' = Path' (Right (Relative empty))
-
--- Should these be exposed??
--- toList :: Path pos -> [NameSegment]
--- toList p = Foldable.toList (p ^. segments_)
 
 relativePathFromNameSegments :: [NameSegment] -> Path 'Relative
 relativePathFromNameSegments = RelativeP . Seq.fromList
@@ -234,10 +189,6 @@ splitFromName = Lens.unsnoc . fromName
 -- | what is this? —AI
 unprefixName :: Path 'Absolute -> Name -> Name
 unprefixName prefix = toName . stripPrefix prefix . fromName
-
-
--- prefixName :: Absolute -> Name -> Name
--- prefixName p = toName . prefix p . fromName'
 
 singleton :: NameSegment -> Path 'Relative
 singleton n = RelativeP (Seq.singleton n)
@@ -340,40 +291,8 @@ instance Resolve (Path pl) (Path sp) (Path r)
   => Resolve (Path pl) (HQSplit sp) (HQSplit r) where
     resolve l (p, a) = (resolve l p, a)
 
--- instance Resolve (Path pref) (Path 'Relative) (Path pref) where
---   resolve pref suff = pref & segments_ %~ (<> suff ^. segments_)
--- instance Resolve (Path any) (Path 'Unchecked) (Path 'Unchecked) where
---   resolve pref suff = case suff of
---     AbsolutePath abs -> unchecked abs
---     RelativePath rel -> match (\abs -> unchecked $ resolve abs rel)
---                               (\rel' -> unchecked $ resolve rel' rel)
---                               pref
-
--- instance Resolve Relative Relative Relative where
---   resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
-
--- instance Resolve Absolute Relative Absolute where
---   resolve (Absolute l) (Relative r) = Absolute (resolve l r)
-
--- instance Resolve Path' Path' Path' where
---   resolve _ a@(Path' Left{}) = a
---   resolve (Path' (Left a)) (Path' (Right r)) = Path' (Left (resolve a r))
---   resolve (Path' (Right r1)) (Path' (Right r2)) = Path' (Right (resolve r1 r2))
-
--- instance Resolve Path' Split' Path' where
---   resolve l r = resolve l (unsplit' r)
-
--- instance Resolve Path' Split' Split' where
---   resolve l (r, ns) = (resolve l r, ns)
-
--- instance Resolve Absolute Path' Absolute where
---   resolve _ (Path' (Left a)) = a
---   resolve a (Path' (Right r)) = resolve a r
-
 instance Convert (Path pos) Text where convert = toText
 instance Convert (Path pos) String where convert = show
--- instance Convert [NameSegment] Path where convert = fromList
--- instance Convert Path [NameSegment] where convert = toList
 instance Convert (Path pos) Name where convert = toName
 instance Convert (HQSplit pos) (HQ'.HashQualified (Path pos)) where convert = unsplitHQ
 instance Parse Name (HQSplit 'Unchecked) where parse = hqSplitFromName

@@ -3,8 +3,8 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Main where
 
@@ -62,6 +62,8 @@ import ArgParse
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
+import Unison.Codebase.Path (Path)
+import Unison.Codebase.Position
 
 main :: IO ()
 main = do
@@ -295,8 +297,8 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
           putStrLn (renderUsageInfo $ Just "transcript")
           Exit.exitWith (Exit.ExitFailure 1)
 
-initialPath :: Path.Absolute
-initialPath = Path.absoluteEmpty
+initialPath :: Path 'Absolute
+initialPath = Path.root
 
 launch
   :: FilePath
