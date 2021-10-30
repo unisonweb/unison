@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# Language OverloadedStrings #-}
 {-# Language BangPatterns #-}
 {-# Language ViewPatterns #-}
@@ -58,6 +59,8 @@ import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
 import Control.Error (rightMay)
+import Unison.Codebase.Position
+import Unison.Codebase.Path (Path)
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: P.Width
@@ -70,7 +73,7 @@ type FenceType = Text
 
 data Hidden = Shown | HideOutput | HideAll
             deriving (Eq, Show)
-data UcmCommand = UcmCommand Path.Absolute Text
+data UcmCommand = UcmCommand (Path 'Absolute) Text
 
 data Stanza
   = Ucm Hidden ExpectingError [UcmCommand]
@@ -122,7 +125,7 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
 
 run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
 run dir configFile stanzas codebase = do
-  let initialPath = Path.absoluteEmpty
+  let initialPath = Path.root
   putPrettyLn $ P.lines [
     asciiartUnison, "",
     "Running the provided transcript file...",
@@ -184,7 +187,7 @@ run dir configFile stanzas codebase = do
             curPath <- readIORef pathRef
             if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
-              pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
+              pure $ Right (SwitchBranchI $ Just (Path.unchecked path))
             else case words . Text.unpack $ lineTxt of
               [] -> awaitInput
               args -> do
@@ -350,7 +353,7 @@ ucmCommand = do
   void $ word ">"
   line <- P.takeWhileP Nothing (/= '\n') <* spaces
   path <- case Path.parsePath' (Text.unpack path) of
-    Right (Path.unPath' -> Left abs) -> pure abs
+    Right (Path.AbsolutePath abs) -> pure abs
     Right _ -> fail "expected absolute path"
     Left e -> fail e
   pure $ UcmCommand path line

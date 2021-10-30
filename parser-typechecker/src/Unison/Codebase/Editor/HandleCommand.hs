@@ -181,11 +181,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
     HQNameQuery mayPath branch query -> do
-      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      let namingScope = Backend.AllNames $ fromMaybe Path.currentPath mayPath
       lift $ Backend.hqNameQuery namingScope branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
     GetDefinitionsBySuffixes mayPath branch query -> do
-      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      let namingScope = Backend.AllNames $ maybe Path.currentPath Path.unsafeToRelative mayPath
       lift . runExceptT $ Backend.definitionsBySuffixes namingScope branch codebase query
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
     MakeStandalone ppe ref out -> lift $ do

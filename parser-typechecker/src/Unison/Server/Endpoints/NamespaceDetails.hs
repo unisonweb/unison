@@ -95,7 +95,7 @@ serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
       fqnToPath fqn = do
         let fqnS = Text.unpack fqn
         path' <- errFromEither (`badNamespace` fqnS) $ parsePath' fqnS
-        pure (Path.fromPath' path')
+        pure path'
 
       width = mayDefaultWidth mayWidth
    in do
@@ -109,7 +109,7 @@ serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
           -- Names used in the README should not be confined to the namespace
           -- of the README (since it could be referencing definitions from all
           -- over the codebase)
-          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames namespacePath) root
+          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames . Path.unsafeToRelative $ namespacePath) root
 
           readme <-
             Backend.findShallowReadmeInBranchAndRender

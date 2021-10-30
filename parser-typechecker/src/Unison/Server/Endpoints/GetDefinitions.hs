@@ -122,15 +122,14 @@ serveDefinitions
 serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
   addHeaders <$> do
     h
-    rel <-
-      fmap Path.fromPath' <$> traverse (parsePath . Text.unpack) relativePath
+    rel <- traverse (parsePath . Text.unpack) relativePath
     ea <- liftIO . runExceptT $ do
       root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       let hqns = HQ.unsafeFromText <$> rawHqns
           scope = case hqns of
             -- TODO: Change this API to support being queried by just 1 name/hash
-            HQ.HashOnly _ : _ -> Backend.AllNames . fromMaybe Path.empty $ rel
-            _ -> Backend.Within . fromMaybe Path.empty $ rel
+            HQ.HashOnly _ : _ -> Backend.AllNames . maybe Path.currentPath Path.unsafeToRelative $ rel
+            _ -> Backend.Within . maybe Path.currentPath Path.unsafeToRelative $ rel
 
       Backend.prettyDefinitionsBySuffixes scope
                                           root

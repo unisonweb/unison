@@ -27,7 +27,6 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
-import Unison.Codebase.Position
 import Basement.Compat.Bifunctor (first)
 
 fromNames :: Monad m => Names -> Branch m

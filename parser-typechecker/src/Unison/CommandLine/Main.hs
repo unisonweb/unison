@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.CommandLine.Main 
   ( main
@@ -36,7 +37,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import qualified Crypto.Random        as Random
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase as Codebase
 import qualified Unison.CommandLine.InputPattern as IP
@@ -48,6 +48,8 @@ import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
+import Unison.Codebase.Position
+import Unison.Codebase.Path (Path)
 
 getUserInput
   :: forall m v a
@@ -55,7 +57,7 @@ getUserInput
   => Map String InputPattern
   -> Codebase m v a
   -> Branch m
-  -> Path.Absolute
+  -> Path 'Absolute
   -> [String]
   -> m Input
 getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInputT
@@ -102,7 +104,7 @@ getUserInput patterns codebase rootBranch currentPath numberedArgs = Line.runInp
 main
   :: FilePath
   -> Welcome.Welcome
-  -> Path.Absolute
+  -> Path 'Absolute
   -> (Config, IO ())
   -> [Either Event Input]
   -> Runtime.Runtime Symbol

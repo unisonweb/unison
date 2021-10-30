@@ -209,16 +209,15 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
       relativeToPath' <- (parsePath . Text.unpack) $ fromMaybe "." mayRelativeTo
       namespacePath' <- (parsePath . Text.unpack) $ fromMaybe "." mayNamespaceName
 
-      let path = Path.fromPath' relativeToPath' <>  Path.fromPath' namespacePath'
-      let path' = Path.toPath' path
+      let path = Path.resolve relativeToPath' namespacePath'
 
       -- Actually construct the NamespaceListing
 
       let listingBranch = Branch.getAt' path root
       hashLength <- liftIO $ Codebase.hashLength codebase
 
-      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within $ Path.fromPath' path')
-      let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
+      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within . Path.unsafeToRelative $ path)
+      let listingFQN = Path.toText . Path.unsafeToAbsolute $ path
       let listingHash = branchToUnisonHash listingBranch
       listingEntries <- findShallow listingBranch
 

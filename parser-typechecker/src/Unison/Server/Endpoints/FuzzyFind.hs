@@ -140,7 +140,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
   addHeaders <$> do
     h
     rel <-
-      maybe mempty Path.fromPath'
+      fromMaybe (Path.unchecked Path.currentPath)
       <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- liftIO $ Codebase.hashLength codebase
     ea         <- liftIO . runExceptT $ do
@@ -150,7 +150,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
           alignments =
             take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
           -- Use AllNames to render source
-          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
+          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames . Path.unsafeToRelative $ rel)
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea
  where

@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 
 module Unison.Server.Backend where
 
@@ -127,11 +128,11 @@ type Backend m a = ExceptT BackendError m a
 
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: Branch m -> NameScoping -> (Names, Names)
+basicNames' :: Branch m -> NameScoping 'Relative -> (Names, Names)
 basicNames' root scope =
   (parseNames0, prettyPrintNames0)
   where
-    path :: Path 'Absolute
+    path :: Path 'Relative
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
       AllNames   path -> (path, True)
@@ -150,6 +151,8 @@ basicNames' root scope =
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
         rootNames = Branch.toNames root0
         pathPrefixed = case path of
+          -- TODO: This seems like a bug, if we have an empty path, we always return empty
+          -- names!
           Path.Empty -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
@@ -159,15 +162,15 @@ basicNames' root scope =
                            then currentAndExternalNames
                            else currentPathNames
 
-basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
+basicSuffixifiedNames :: Int -> Branch m -> NameScoping 'Relative -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root nameScope =
   let names0 = basicPrettyPrintNames root nameScope
    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-basicPrettyPrintNames :: Branch m -> NameScoping -> Names
+basicPrettyPrintNames :: Branch m -> NameScoping 'Relative -> Names
 basicPrettyPrintNames root = snd . basicNames' root
 
-basicParseNames :: Branch m -> NameScoping -> Names
+basicParseNames :: Branch m -> NameScoping  'Relative -> Names
 basicParseNames root = fst . basicNames' root
 
 loadReferentType ::
@@ -225,14 +228,14 @@ data FoundRef = FoundTermRef Referent
 --      definition with different names in the result set.
 fuzzyFind
   :: Monad m
-  => Path 'Absolute
+  => Path pos
   -> Branch m
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames branch (Within path)
+      basicPrettyPrintNames branch (Within . Path.unsafeToRelative $ path)
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -457,22 +460,22 @@ termReferentsByShortHash codebase sh = do
 -- | Configure how names will be constructed and filtered.
 --   this is typically used when fetching names for printing source code or when finding
 --   definitions by name.
-data NameScoping =
+data NameScoping (pos :: Position) =
       -- | Find all names, making any names which are children of this path,
       -- otherwise leave them absolute.
-      AllNames (Path 'Absolute)
+      AllNames (Path pos)
       -- | Filter returned names to only include names within this path.
-    | Within   (Path 'Absolute)
+    | Within   (Path pos)
 
-toAllNames :: NameScoping -> NameScoping
+toAllNames :: NameScoping pos -> NameScoping pos
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
 
-getCurrentPrettyNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentPrettyNames :: NameScoping 'Relative -> Branch m -> NamesWithHistory
 getCurrentPrettyNames scope root =
   NamesWithHistory (basicPrettyPrintNames root scope) mempty
 
-getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames :: NameScoping 'Relative -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
   NamesWithHistory (basicParseNames root scope) mempty
 
@@ -542,7 +545,7 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
 
 hqNameQuery
   :: Monad m
-  => NameScoping
+  => NameScoping 'Relative
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
@@ -653,7 +656,7 @@ mungeSyntaxText = fmap Syntax.convertElement
 prettyDefinitionsBySuffixes
   :: forall v
    . Var v
-  => NameScoping
+  => NameScoping 'Relative
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
@@ -857,7 +860,7 @@ definitionsBySuffixes
   :: forall m v
    . (MonadIO m)
   => Var v
-  => NameScoping
+  => NameScoping 'Relative
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
