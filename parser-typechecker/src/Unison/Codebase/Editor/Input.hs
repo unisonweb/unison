@@ -36,7 +36,7 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type PatchPath = (Path.Split 'Absolute)
+type PatchPath pos = (Path.Split pos)
 type BranchId = Either ShortBranchHash (Path 'Unchecked)
 type HashOrHQSplit' = Either ShortHash (Path.HQSplit 'Unchecked)
 
@@ -99,17 +99,17 @@ data Input
     | LoadI (Maybe FilePath)
     | AddI [HQ'.HashQualified Name]
     | PreviewAddI [HQ'.HashQualified Name]
-    | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
+    | UpdateI (Maybe (PatchPath 'Unchecked)) [HQ'.HashQualified Name]
     | PreviewUpdateI [HQ'.HashQualified Name]
-    | TodoI (Maybe PatchPath) (Path 'Unchecked)
-    | PropagatePatchI PatchPath (Path 'Unchecked)
-    | ListEditsI (Maybe PatchPath)
+    | TodoI (Maybe (PatchPath 'Unchecked)) (Path 'Unchecked)
+    | PropagatePatchI (PatchPath 'Unchecked) (Path 'Unchecked)
+    | ListEditsI (Maybe (PatchPath 'Unchecked))
     -- -- create and remove update directives
-    | DeprecateTermI PatchPath (Path.HQSplit 'Unchecked)
-    | DeprecateTypeI PatchPath (Path.HQSplit 'Unchecked)
-    | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
-    | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
-    | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
+    | DeprecateTermI (PatchPath 'Unchecked) (Path.HQSplit 'Unchecked)
+    | DeprecateTypeI (PatchPath 'Unchecked) (Path.HQSplit 'Unchecked)
+    | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe (PatchPath 'Unchecked))
+    | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe (PatchPath 'Unchecked))
+    | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe (PatchPath 'Unchecked))
   | UndoI
   -- First `Maybe Int` is cap on number of results, if any
   -- Second `Maybe Int` is cap on diff elements shown, if any

@@ -295,6 +295,11 @@ instance AsEmpty (Path 'Relative) where
     RelativeP Lens.Empty -> Just ()
     _ -> Nothing
 
+instance AsEmpty (Path 'Absolute) where
+  _Empty = prism' (const $ AbsoluteP mempty) \case
+    AbsoluteP Lens.Empty -> Just ()
+    _ -> Nothing
+
 instance Snoc (Split pos) (Split pos) NameSegment NameSegment where
   _Snoc = prism (uncurry snoc') $ \case -- unsnoc
     (Lens.unsnoc -> Just (s, a), ns) -> Right ((s, a), ns)

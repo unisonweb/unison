@@ -221,8 +221,8 @@ loop = do
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
-      defaultPatchPath :: PatchPath
-      defaultPatchPath = (currentPath', defaultPatchNameSegment)
+      defaultPatchPath :: PatchPath 'Unchecked
+      defaultPatchPath = (Path.unchecked currentPath', defaultPatchNameSegment)
       resolveSplit :: ((Path p), a) -> (Path 'Absolute, a)
       resolveSplit = first resolveToAbsolute
       resolveToAbsolute :: Path pos -> (Path 'Absolute)
@@ -258,7 +258,7 @@ loop = do
       getTypes = getHQ'Types . fmap HQ'.NameOnly
       getTerms :: Path.Split pos -> Set Referent
       getTerms = getHQ'Terms . fmap HQ'.NameOnly
-      getPatchAt :: Path.Split 'Absolute -> Action' m v Patch
+      getPatchAt :: Path.Split pos -> Action' m v Patch
       getPatchAt patchPath' = do
         let (p, seg) = first (Path.resolve currentPath') patchPath'
         b <- getAt p
@@ -347,7 +347,7 @@ loop = do
         termResults rs = [ r | SR.Tm r <- rs ]
         typeResults rs = [ r | SR.Tp r <- rs ]
         doRemoveReplacement from patchPath isTerm = do
-          let patchPath' = fromMaybe defaultPatchPath patchPath
+          let patchPath' = resolveSplit $ fromMaybe defaultPatchPath patchPath
           patch <- getPatchAt patchPath'
           QueryResult misses' hits <- hqNameQuery [from]
           let tpRefs = Set.fromList $ typeReferences hits
@@ -1647,8 +1647,8 @@ loop = do
         success
 
       ListEditsI maybePath -> do
-        let (p, seg) = maybe defaultPatchPath resolveSplit maybePath
-        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
+        let (p, seg) = fromMaybe defaultPatchPath maybePath
+        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt (resolveToAbsolute p)
         ppe <- suffixifiedPPE =<<
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe

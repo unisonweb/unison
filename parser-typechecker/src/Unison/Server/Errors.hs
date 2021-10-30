@@ -33,7 +33,7 @@ badHQN hqn = err400
 backendError :: Backend.BackendError -> ServerError
 backendError = \case
   Backend.NoSuchNamespace n ->
-    noSuchNamespace . Path.toText $ Path.unabsolute n
+    noSuchNamespace . Path.toText $ n
   Backend.BadRootBranch e -> rootBranchError e
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h

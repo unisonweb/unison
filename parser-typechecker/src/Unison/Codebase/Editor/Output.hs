@@ -193,7 +193,7 @@ data Output v
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
   -- todo: tell the user to run `todo` on the same patch they just used
-  | NothingToPatch PatchPath (Path 'Unchecked)
+  | NothingToPatch (PatchPath 'Unchecked) (Path 'Unchecked)
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)

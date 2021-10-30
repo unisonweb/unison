@@ -121,6 +121,7 @@ import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Position
 import Unison.Codebase.Path (Path)
+import qualified Control.Lens as Lens
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1108,9 +1109,9 @@ notifyUser dir o = case o of
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
 
-prettyPath' :: Path.Path 'Unchecked -> Pretty
+prettyPath' :: Path.Path any -> Pretty
 prettyPath' p' = case p' of
-  Path.Empty -> "the current namespace"
+  Path.RelativePath Lens.Empty -> "the current namespace"
   _ -> P.blue (P.shown p')
 
 prettyRelative :: Path 'Relative -> Pretty

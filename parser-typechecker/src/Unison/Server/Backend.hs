@@ -131,7 +131,7 @@ basicNames' :: Branch m -> NameScoping -> (Names, Names)
 basicNames' root scope =
   (parseNames0, prettyPrintNames0)
   where
-    path :: Path 'Relative
+    path :: Path 'Absolute
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
       AllNames   path -> (path, True)
@@ -225,7 +225,7 @@ data FoundRef = FoundTermRef Referent
 --      definition with different names in the result set.
 fuzzyFind
   :: Monad m
-  => Path 'Relative
+  => Path 'Absolute
   -> Branch m
   -> String
   -> [(FZF.Alignment, UnisonName, [FoundRef])]
