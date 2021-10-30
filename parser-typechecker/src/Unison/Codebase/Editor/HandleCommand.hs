@@ -47,6 +47,8 @@ import qualified Unison.Util.Free as Free
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import qualified Unison.Codebase.Path as Path
 
 typecheck
   :: (Monad m, Var v)
@@ -101,6 +103,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
+
+    DocsToHtml sourceBranch destination ->
+      liftIO $ Backend.docsInBranchToHtmlFiles rt codebase sourceBranch destination
+
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output
@@ -178,16 +184,19 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     AppendToReflog reason old new -> lift $ Codebase.appendReflog codebase reason old new
     LoadReflog -> lift $ Codebase.getReflog codebase
     CreateAuthorInfo t -> AuthorInfo.createAuthorInfo Ann.External t
-    HQNameQuery mayPath branch query ->
-      lift $ Backend.hqNameQuery mayPath branch codebase query
+    HQNameQuery mayPath branch query -> do
+      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      lift $ Backend.hqNameQuery namingScope branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
-    GetDefinitionsBySuffixes mayPath branch query ->
-      lift . runExceptT $ Backend.definitionsBySuffixes mayPath branch codebase query
+    GetDefinitionsBySuffixes mayPath branch query -> do
+      let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
+      lift . runExceptT $ Backend.definitionsBySuffixes namingScope branch codebase query
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
     MakeStandalone ppe ref out -> lift $ do
       let cl = Codebase.toCodeLookup codebase
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
+    FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase WK.RegularWatch h

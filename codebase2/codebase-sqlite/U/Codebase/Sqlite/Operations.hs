@@ -10,7 +10,85 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module U.Codebase.Sqlite.Operations where
+module U.Codebase.Sqlite.Operations (
+  -- * data version
+  dataVersion,
+
+  -- * branches
+  saveRootBranch,
+  loadMaybeRootCausalHash,
+  loadRootCausalHash,
+  loadRootCausal,
+  saveBranch,
+  loadCausalBranchByCausalHash,
+
+  -- * terms
+  saveTermComponent,
+  loadTermByReference,
+  loadTypeOfTermByTermReference,
+
+  -- * decls
+  saveDeclComponent,
+  loadDeclByReference,
+  getDeclTypeByReference,
+
+  -- * patches
+  savePatch,
+  loadPatchById,
+
+  -- * test for stuff in codebase
+  objectExistsForHash,
+
+  -- * dubiously exported stuff involving database ids
+  loadHashByObjectId,
+  primaryHashToMaybeObjectId,
+  primaryHashToMaybePatchObjectId,
+
+  -- * watch expression cache
+  saveWatch,
+  loadWatch,
+  listWatches,
+  clearWatches,
+
+  -- * indexes
+  -- ** nearest common ancestor
+  before,
+  lca,
+  -- ** prefix index
+  componentReferencesByPrefix,
+  termReferentsByPrefix,
+  declReferentsByPrefix,
+  causalHashesByPrefix,
+  -- ** dependents index
+  dependents,
+  -- ** type index
+  addTypeToIndexForTerm,
+  termsHavingType,
+  -- ** type mentions index
+  addTypeMentionsToIndexForTerm,
+  termsMentioningType,
+
+  -- * delete me
+  getCycleLen,
+
+  -- * Error types
+  Error(..),
+  DecodeError(..),
+
+  -- ** Constraint kinds
+  EDB,
+
+  -- * somewhat unexpectedly unused definitions
+  c2sReferenceId,
+  c2sReferentId,
+  diffPatch,
+  decodeTermElementWithType,
+  loadTermWithTypeByReference,
+  s2cTermWithType,
+  declReferencesByPrefix,
+  branchHashesByPrefix,
+  derivedDependencies,
+) where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
