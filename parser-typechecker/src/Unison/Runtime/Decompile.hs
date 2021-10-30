@@ -31,6 +31,7 @@ import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
 
 import qualified Unison.Util.Bytes as By
+import qualified Unison.Util.Text as Text
 import qualified Unison.Term as Term
 
 import Unsafe.Coerce -- for Int -> Double
@@ -101,7 +102,7 @@ decompileForeign
   -> Foreign
   -> Either Error (Term v ())
 decompileForeign topTerms f
-  | Just t <- maybeUnwrapBuiltin f = Right $ text () t
+  | Just t <- maybeUnwrapBuiltin f = Right $ text () (Text.toText t)
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
   | Just l <- maybeUnwrapForeign termLinkRef f

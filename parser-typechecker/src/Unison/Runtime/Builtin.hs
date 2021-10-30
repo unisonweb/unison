@@ -46,10 +46,6 @@ import Unison.Util.EnumContainers as EC
 
 import Data.Default (def)
 import Data.ByteString (hGet, hPut)
-import Data.Text as Text (pack, unpack)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import Data.Text.Encoding ( decodeUtf8', decodeUtf8' )
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString.Lazy as L
 import qualified System.X509 as X
@@ -60,8 +56,11 @@ import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
 
 import qualified Data.Map as Map
-import Unison.Prelude hiding (some)
+import Unison.Prelude hiding (some,Text)
 import qualified Unison.Util.Bytes as Bytes
+import qualified Data.Text
+import qualified Data.Text.IO as Text.IO
+import qualified Unison.Util.Text as Util.Text
 import Network.Socket as SYS
   ( accept
   , socketPort
@@ -707,7 +706,7 @@ fork'comp
   where
   (act,unit,lz) = fresh3
 
-bug :: Var v => Text -> SuperNormal v
+bug :: Var v => Util.Text.Text -> SuperNormal v
 bug name
   = unop0 1 $ \[x, n]
  -> TLetD n BX (TLit $ T name)
@@ -1509,10 +1508,10 @@ builtinLookup
   ] ++ foreignWrappers
 
 type FDecl v
-  = State (Word64, [(Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
+  = State (Word64, [(Data.Text.Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
 
 declareForeign
-  :: Var v => Text -> ForeignOp -> ForeignFunc -> FDecl v ()
+  :: Var v => Data.Text.Text -> ForeignOp -> ForeignFunc -> FDecl v ()
 declareForeign name op func
   = modify $ \(w, cs, fs)
       -> (w+1, (name, uncurry Lambda (op w)) : cs, mapInsert w func fs)
@@ -1525,7 +1524,7 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
   tryIOE :: IO a -> IO (Either Failure a)
   tryIOE = fmap handleIOE . try
   handleIOE :: Either IOException a -> Either Failure a
-  handleIOE (Left e) = Left $ Failure Ty.ioFailureRef (pack (show e)) unitValue
+  handleIOE (Left e) = Left $ Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
   handleIOE (Right a) = Right a
 
 unitValue :: Closure
@@ -1541,15 +1540,15 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   tryIO2 :: IO (Either TLS.TLSException r) -> IO (Either IOException (Either TLS.TLSException r))
   tryIO2 = try
   flatten :: Either IOException (Either TLS.TLSException r) -> Either (Failure ) r
-  flatten (Left e) = Left (Failure Ty.ioFailureRef (pack (show e)) unitValue)
-  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (pack (show e)) (unitValue))
+  flatten (Left e) = Left (Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue)
+  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (Util.Text.pack (show e)) (unitValue))
   flatten (Right (Right a)) = Right a
 
 declareForeigns :: Var v => FDecl v ()
 declareForeigns = do
   declareForeign "IO.openFile.impl.v3" boxIomrToEFBox $
-    mkForeignIOF $ \(fnameText :: Text, n :: Int) ->
-      let fname = (unpack fnameText)
+    mkForeignIOF $ \(fnameText :: Util.Text.Text, n :: Int) ->
+      let fname = Util.Text.toString fnameText
           mode = case n of
             0 -> ReadMode
             1 -> WriteMode
@@ -1575,7 +1574,8 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF Text.hGetLine
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $ 
+    fmap Util.Text.fromText . Text.IO.hGetLine
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
@@ -1621,7 +1621,7 @@ declareForeigns = do
     $ mkForeignIOF $ uncurry renameDirectory
 
   declareForeign "IO.directoryContents.impl.v3" boxToEFBox
-    $ mkForeignIOF $ (fmap pack <$>) . getDirectoryContents
+    $ mkForeignIOF $ (fmap Util.Text.pack <$>) . getDirectoryContents
 
   declareForeign "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
@@ -1637,7 +1637,7 @@ declareForeigns = do
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
   declareForeign "IO.serverSocket.impl.v3" maybeBoxToEFBox
-    . mkForeignIOF $ \(mhst :: Maybe Text
+    . mkForeignIOF $ \(mhst :: Maybe Util.Text.Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
 
@@ -1709,21 +1709,21 @@ declareForeigns = do
 
 
   declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
-    \(ch :: Char) -> pure (Text.singleton ch)
+    \(ch :: Char) -> pure (Util.Text.singleton ch)
 
   declareForeign "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
-    \(n :: Word64, txt :: Text) -> pure (Text.replicate (fromIntegral n) txt)
+    \(n :: Word64, txt :: Util.Text.Text) -> pure (Util.Text.replicate (fromIntegral n) txt)
 
   declareForeign "Text.toUtf8" boxDirect . mkForeign
-    $ pure . Bytes.fromArray . encodeUtf8
+    $ pure . Util.Text.toUtf8
 
   declareForeign "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
-    $ pure . mapLeft (\t -> Failure Ty.ioFailureRef (pack ( show t)) unitValue) . decodeUtf8' . Bytes.toArray
+    $ pure . mapLeft (\t -> Failure Ty.ioFailureRef (Util.Text.pack t) unitValue) . Util.Text.fromUtf8
 
   declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
-    $ \(hostName::Text, serverId:: Bytes.Bytes) ->
+    $ \(hostName :: Util.Text.Text, serverId:: Bytes.Bytes) ->
         fmap (\store ->
-              (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) {
+              (defaultParamsClient (Util.Text.unpack hostName) (Bytes.toArray serverId)) {
                  TLS.clientSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong },
                  TLS.clientShared = def { TLS.sharedCAStore = store }
                  }) X.getSystemCertificateStore
@@ -1785,11 +1785,11 @@ declareForeigns = do
     defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
 
   declareForeign "Tls.Config.defaultClient" boxBoxDirect
-    .  mkForeign $ \(hostName::Text, serverId:: Bytes.Bytes) -> do
+    .  mkForeign $ \(hostName :: Util.Text.Text, serverId:: Bytes.Bytes) -> do
        store <- X.getSystemCertificateStore
        let shared :: TLS.Shared
            shared = def { TLS.sharedCAStore = store }
-           defaultParams = (defaultParamsClient (unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
+           defaultParams = (defaultParamsClient (Util.Text.unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
        pure defaultParams
 
   declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
@@ -1810,7 +1810,7 @@ declareForeigns = do
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
-  let wrapFailure t = Failure Ty.tlsFailureRef (pack t) unitValue
+  let wrapFailure t = Failure Ty.tlsFailureRef (Util.Text.pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
       decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
       asCert :: PEM -> Either String X.SignedCertificate
@@ -1826,7 +1826,7 @@ declareForeigns = do
     \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
 
   declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
-    \(privateKey :: X.PrivKey) -> pure $ pack $ show privateKey
+    \(privateKey :: X.PrivKey) -> pure $ Util.Text.pack $ show privateKey
 
   declareForeign "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
@@ -1845,7 +1845,7 @@ declareForeigns = do
   declareForeign "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
   declareForeign "Code.display" boxBoxDirect . mkForeign
-    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Text.unpack nm) sg ""
+    $ \(nm,sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   declareForeign "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
@@ -1854,7 +1854,7 @@ declareForeigns = do
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
   -- Hashing functions
-  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Text -> alg -> FDecl v ()
+  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Data.Text.Text -> alg -> FDecl v ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
         declareForeign ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
@@ -1901,11 +1901,11 @@ declareForeigns = do
 
 
   let
-    catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Text a)
+    catchAll :: (MonadCatch m, MonadIO m, NFData a) => m a -> m (Either Util.Text.Text a)
     catchAll e = do
       e <- Exception.tryAnyDeep e
       pure $ case e of
-        Left se -> Left (Text.pack (show se))
+        Left se -> Left (Util.Text.pack (show se))
         Right a -> Right a
 
   declareForeign "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
@@ -1920,10 +1920,14 @@ declareForeigns = do
   declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
   declareForeign "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ pure . Bytes.fromBase64
-  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.fromBase64UrlUnpadded
+  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $ 
+    pure . mapLeft Util.Text.fromText . Bytes.fromBase16
+  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ 
+    pure . mapLeft Util.Text.fromText . Bytes.fromBase32
+  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ 
+    pure . mapLeft Util.Text.fromText . Bytes.fromBase64
+  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ 
+    pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
   declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
   declareForeign "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
@@ -1939,9 +1943,9 @@ declareForeigns = do
   declareForeign "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
   declareForeign "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
 
-hostPreference :: Maybe Text -> SYS.HostPreference
+hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
-hostPreference (Just host) = SYS.Host $ Text.unpack host
+hostPreference (Just host) = SYS.Host $ Util.Text.unpack host
 
 typeReferences :: [(Reference, Word64)]
 typeReferences = zip rs [1..]
@@ -1952,10 +1956,10 @@ typeReferences = zip rs [1..]
 
 foreignDeclResults
   :: Var v
-  => (Word64, [(Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
+  => (Word64, [(Data.Text.Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
 foreignDeclResults = execState declareForeigns (0, [], mempty)
 
-foreignWrappers :: Var v => [(Text, SuperNormal v)]
+foreignWrappers :: Var v => [(Data.Text.Text, SuperNormal v)]
 foreignWrappers | (_, l, _) <- foreignDeclResults = reverse l
 
 numberedTermLookup :: Var v => EnumMap Word64 (SuperNormal v)

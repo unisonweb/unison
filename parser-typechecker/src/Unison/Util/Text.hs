@@ -4,8 +4,10 @@
 
 module Unison.Util.Text where
 
-import Prelude hiding (take,drop)
+import Data.String (IsString(..))
+import Data.Foldable (toList)
 import Data.List (unfoldr)
+import Prelude hiding (take,drop,replicate)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Unison.Util.Bytes as B
@@ -15,6 +17,20 @@ import qualified Unison.Util.Rope as R
 newtype Text = Text (R.Rope Chunk) deriving (Eq,Ord,Semigroup,Monoid)
 
 data Chunk = Chunk {-# unpack #-} !Int {-# unpack #-} !T.Text
+
+one, singleton :: Char -> Text
+one ch = Text (R.one (chunk (T.singleton ch)))  
+singleton = one
+
+threshold :: Int
+threshold = 512
+
+replicate :: Int -> Text -> Text
+replicate n (Text (R.One c)) | R.size c * n < threshold = Text (R.One (chunk (T.replicate n (chunkToText c)))) 
+replicate 0 _ = mempty 
+replicate 1 t = t
+replicate n t = 
+  replicate (n `div` 2) t <> replicate (n - (n `div` 2)) t
 
 chunkToText :: Chunk -> T.Text
 chunkToText (Chunk _ t) = t
@@ -49,12 +65,20 @@ toUtf8 (Text t) = B.Bytes (R.map (B.chunkFromByteString . T.encodeUtf8 . chunkTo
 fromText :: T.Text -> Text
 fromText s = go (Text (R.one (chunk s)))
   where
-  go t | n > 512        = go (take (n `div` 2) t) <> go (drop (n `div` 2) t)
+  go t | n > threshold  = go (take (n `div` 2) t) <> go (drop (n `div` 2) t)
        | otherwise      = t
        where n = size t
 
-fromString :: String -> Text
-fromString = fromText . T.pack
+pack :: String -> Text
+pack = fromText . T.pack
+{-# inline pack #-}
+
+toString, unpack :: Text -> String
+toString (Text bs) = toList bs >>= (T.unpack . chunkToText)
+{-# inline toString #-}
+{-# inline unpack #-}
+
+unpack = toString
 
 toText :: Text -> T.Text
 toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
@@ -139,3 +163,9 @@ instance R.Reverse Chunk where
   reverse (Chunk n t) = Chunk n (T.reverse t)
 
 instance R.Sized Text where size (Text t) = R.size t
+
+instance Show Text where
+  show t = show (toText t)
+
+instance IsString Text where
+   fromString = pack

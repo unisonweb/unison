@@ -69,7 +69,7 @@ module Unison.Runtime.ANF
 
 import GHC.Stack (CallStack,callStack)
 
-import Unison.Prelude
+import Unison.Prelude hiding (Text)
 
 import Control.Exception (throw)
 import Control.Monad.Reader (ReaderT(..), ask, local)
@@ -91,7 +91,8 @@ import Unison.Util.Bytes (Bytes)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+import qualified Data.Text as Data.Text
+import qualified Unison.Util.Text as Util.Text
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Type as Ty
@@ -241,7 +242,7 @@ freshFloat avoid (Var.freshIn avoid -> v0)
         -> freshFloat (Set.insert v0 avoid) v0
       _ -> v0
   where
-  w = Text.pack . show $ Var.freshId v0
+  w = Data.Text.pack . show $ Var.freshId v0
 
 letFloater
   :: (Var v, Monoid a)
@@ -499,7 +500,7 @@ matchLit :: Term v a -> Maybe Lit
 matchLit (Int' i) = Just $ I i
 matchLit (Nat' n) = Just $ N n
 matchLit (Float' f) = Just $ F f
-matchLit (Text' t) = Just $ T t
+matchLit (Text' t) = Just $ T (Util.Text.fromText t)
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
@@ -571,7 +572,7 @@ data SeqEnd = SLeft | SRight
 
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
-  | MatchText (Map.Map Text e) (Maybe e)
+  | MatchText (Map.Map Util.Text.Text e) (Maybe e)
   | MatchRequest (Map Reference (EnumMap CTag ([Mem], e))) e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
@@ -589,7 +590,7 @@ data BranchAccum v
       (EnumMap Word64 (ANormal v))
   | AccumText
       (Maybe (ANormal v))
-      (Map.Map Text (ANormal v))
+      (Map.Map Util.Text.Text (ANormal v))
   | AccumDefault (ANormal v)
   | AccumPure (ANormal v)
   | AccumRequest
@@ -692,7 +693,7 @@ data Lit
   = I Int64
   | N Word64
   | F Double
-  | T Text
+  | T Util.Text.Text
   | C Char
   | LM Referent
   | LY Reference
@@ -818,7 +819,7 @@ data Cont
   deriving (Show)
 
 data BLit
-  = Text Text
+  = Text Util.Text.Text
   | List (Seq Value)
   | TmLink Referent
   | TyLink Reference
@@ -925,7 +926,7 @@ anfBlock (If' c t f) = do
   (dt, ct) <- anfTerm t
   (cx, v) <- contextualize cc
   let cases = MatchData
-                (Builtin $ Text.pack "Boolean")
+                (Builtin $ Data.Text.pack "Boolean")
                 (EC.mapSingleton 0 ([], cf))
                 (Just ct)
   pure (cctx <> cx, (Indirect () <> df <> dt, TMatch v cases))
@@ -1066,7 +1067,7 @@ anfBlock (Apps' (Blank' b) args) = do
        , pure $ TPrm EROR (nm : cas)
        )
   where
-  msg = Text.pack . fromMaybe "blank expression" $ nameb b
+  msg = Util.Text.pack . fromMaybe "blank expression" $ nameb b
 anfBlock (Apps' f args) = do
   (fctx, (d, cf)) <- anfFunc f
   (actx, cas) <- anfArgs args
@@ -1088,7 +1089,7 @@ anfBlock (Blank' b) = do
   nm <- fresh
   ev <- fresh
   pure ( pure [ ST1 Direct nm BX (TLit (T name))
-              , ST1 Direct ev BX (TLit (T $ Text.pack msg))]
+              , ST1 Direct ev BX (TLit (T $ Util.Text.pack msg))]
        , pure $ TPrm EROR [nm, ev])
   where
   name = "blank expression"
@@ -1132,7 +1133,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   . EC.mapSingleton t . ([],) <$> anfBody bd
   | P.Text _ t <- p
   , [] <- vs
-  = AccumText Nothing . Map.singleton t <$> anfBody bd
+  = AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
   | P.Constructor _ r t ps <- p = do
     (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us,bd)
       -> AccumData r Nothing
@@ -1327,7 +1328,7 @@ prettyGroup s (Rec grp ent)
              . prettySuperNormal 2 sn . showString "\n" . r
 
 pvar :: Var v => v -> ShowS
-pvar v = showString . Text.unpack $ Var.name v
+pvar v = showString . Data.Text.unpack $ Var.name v
 
 prettyVars :: Var v => [v] -> ShowS
 prettyVars
