@@ -144,8 +144,9 @@ root :: Path 'Absolute
 root = AbsoluteP mempty
 
 toText :: Path pos -> Text
-toText = match (("." <>) . segmentsToText)
-                segmentsToText
+toText = \case
+  AbsolutePath p -> ("." <> segmentsToText p)
+  RelativePath p -> segmentsToText p
   where
     segmentsToText = (intercalateMap "." NameSegment.toText . view segments_)
 
