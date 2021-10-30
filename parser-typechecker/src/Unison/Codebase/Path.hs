@@ -12,9 +12,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Unison.Codebase.Path
-  ( Path (..),
+  ( Path,
     pattern AbsolutePath,
     pattern RelativePath,
+    absoluteFromSegments,
+    relativeFromSegments,
     Position(..),
     singleton,
     unchecked,
@@ -88,6 +90,11 @@ pattern AbsolutePath p <- (match Just (const Nothing) -> Just p)
 pattern RelativePath :: Path 'Relative -> Path pos
 pattern RelativePath p <- (match (const Nothing) Just -> Just p)
 {-# COMPLETE AbsolutePath, RelativePath #-}
+
+absoluteFromSegments :: [NameSegment] -> Path 'Absolute
+absoluteFromSegments = AbsoluteP . Seq.fromList
+relativeFromSegments :: [NameSegment] -> Path 'Relative
+relativeFromSegments = RelativeP . Seq.fromList
 
 pattern Empty :: Path pos
 pattern Empty <- (match (nullOf segments_) (nullOf segments_) -> True)

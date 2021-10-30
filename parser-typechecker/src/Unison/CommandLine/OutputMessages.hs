@@ -1463,13 +1463,13 @@ listOfLinks ppe results = pure $ P.lines [
 
 data ShowNumbers = ShowNumbers | HideNumbers
 -- | `ppe` is just for rendering type signatures
---   `oldPath, newPath :: (Path 'Absolute)` are just for producing fully-qualified
+--   `oldPath, newPath :: Path 'Absolute` are just for producing fully-qualified
 --                                       numbered args
 showDiffNamespace :: forall v . Var v
                   => ShowNumbers
                   -> PPE.PrettyPrintEnv
                   -> Path 'Absolute
-                  -> (Path 'Absolute)
+                  -> Path 'Absolute
                   -> OBD.BranchDiffOutput v Ann
                   -> (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput | OBD.isEmpty diffOutput =
@@ -1686,7 +1686,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
         0 -> mempty
         c -> " (+" <> P.shown c <> " metadata)"
 
-  prettySummarizePatch, prettyNamePatch :: (Path 'Absolute) -> OBD.PatchDisplay -> Numbered Pretty
+  prettySummarizePatch, prettyNamePatch :: Path 'Absolute -> OBD.PatchDisplay -> Numbered Pretty
   --  12. patch p (added 3 updates, deleted 1)
   prettySummarizePatch prefix (name, patchDiff) = do
     n <- numPatch prefix name
@@ -1746,7 +1746,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
       pure (n, phq' hq, mempty)
 
   downArrow = P.bold "↓"
-  mdTypeLine :: (Path 'Absolute) -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
+  mdTypeLine :: Path 'Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
   mdTypeLine p (hq, r, odecl, mddiff) = do
     n <- numHQ' p hq (Referent.Ref r)
     fmap ((n,) . P.linesNonEmpty) . sequence $
@@ -1756,7 +1756,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   -- + 2. MIT               : License
   -- - 3. AllRightsReserved : License
   mdTermLine
-    :: (Path 'Absolute)
+    :: Path 'Absolute
     -> P.Width
     -> OBD.TermDisplay v a
     -> Numbered (Pretty, Pretty)
@@ -1805,16 +1805,16 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput{..} =
   phq  :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
   --
   -- DeclPrinter.prettyDeclHeader : HQ -> Either
-  numPatch :: (Path 'Absolute) -> Name -> Numbered Pretty
+  numPatch :: Path 'Absolute -> Name -> Numbered Pretty
   numPatch prefix name =
     addNumberedArg . Name.toString . Name.makeAbsolute . Path.toName . Path.resolve prefix . Path.fromName $ name
 
-  numHQ :: (Path 'Absolute) -> HQ.HashQualified Name -> Referent -> Numbered Pretty
+  numHQ :: Path 'Absolute -> HQ.HashQualified Name -> Referent -> Numbered Pretty
   numHQ prefix hq r = addNumberedArg (HQ.toString hq')
     where
     hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.toName . Path.resolve prefix . Path.fromName) hq) r
 
-  numHQ' :: (Path 'Absolute) -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
+  numHQ' :: Path 'Absolute -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
   numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
     where
     hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.toName . Path.resolve prefix . Path.fromName) hq) r

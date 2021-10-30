@@ -31,7 +31,6 @@ import qualified Unison.Lexer as Lexer
 import qualified Unison.NameSegment as NameSegment
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.ShortHash as SH
-import qualified Data.Sequence as Seq
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -55,8 +54,8 @@ parsePath' p = case parsePathImpl' p of
 parsePathImpl' :: String -> Either String (Path 'Unchecked, String)
 parsePathImpl' p = case p of
   "."     -> Right (unchecked root, "")
-  '.' : p -> over _1 (unchecked . AbsoluteP . Seq.fromList) <$> segs p
-  p       -> over _1 (unchecked . RelativeP . Seq.fromList) <$> segs p
+  '.' : p -> over _1 (unchecked . absoluteFromSegments) <$> segs p
+  p       -> over _1 (unchecked . relativeFromSegments) <$> segs p
  where
   go f p = case f p of
     Right (a, "") -> case Lens.unsnoc (NameSegment.segments' $ Text.pack a) of

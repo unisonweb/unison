@@ -109,7 +109,6 @@ import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import qualified Unison.Codebase.Path as Path
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False

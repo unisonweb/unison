@@ -16,7 +16,7 @@ import Unison.NameSegment (NameSegment(NameSegment))
 
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Verbosity as Verbosity
-import qualified Data.Sequence as Seq
+import qualified Control.Lens as Lens
 
 data Welcome = Welcome
   { onboarding :: Onboarding -- Onboarding States
@@ -51,7 +51,7 @@ welcome initStatus downloadBase filePath unisonVersion =
 pullBase :: ReadRemoteNamespace -> Either Event Input
 pullBase ns = let
     seg = NameSegment "base"
-    rootPath = Path.AbsoluteP (Seq.singleton seg)
+    rootPath = Path.root Lens.|> seg
     pullRemote = PullRemoteBranchI (Just ns) (Path.unchecked rootPath) SyncMode.Complete Verbosity.Silent
   in Right pullRemote
 

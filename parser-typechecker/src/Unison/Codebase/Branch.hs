@@ -98,7 +98,7 @@ import           Unison.Codebase.Causal         ( Causal
                                                 , pattern RawMerge
                                                 )
 import           Unison.Codebase.Position       ( Position(..) )
-import           Unison.Codebase.Path           ( Path(..) )
+import           Unison.Codebase.Path           ( Path )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.NameSegment             ( NameSegment )
 import qualified Unison.Codebase.Metadata      as Metadata

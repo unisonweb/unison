@@ -6,19 +6,19 @@ module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
-import Data.Text as Text
+import Data.Text as Text ( Text, unpack, pack, cons )
 
-import Unison.Codebase.Path (Path(..))
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadGitRepo), WriteRemotePath, WriteRepo (WriteGitRepo))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
-import Unison.Prelude
+import Unison.Prelude ( void, Alternative((<|>)), fromMaybe )
 import qualified Unison.Hash as Hash
 import qualified Unison.Lexer
 import Unison.NameSegment (NameSegment(..))
-import Data.Sequence as Seq
+import Data.Sequence as Seq ()
 import Data.Char (isAlphaNum, isSpace, isDigit)
-import Unison.Codebase.Position
+import Unison.Codebase.Position ( Position(Absolute) )
 
 type P = P.Parsec () Text
 
@@ -162,7 +162,7 @@ namespaceHashPath = do
 absolutePath :: P (Path 'Absolute)
 absolutePath = do
   void $ C.char '.'
-  AbsoluteP . Seq.fromList . fmap (NameSegment . Text.pack) <$>
+  Path.absoluteFromSegments . fmap (NameSegment . Text.pack) <$>
     P.sepBy1
       ((:) <$> C.satisfy Unison.Lexer.wordyIdStartChar
            <*> P.many (C.satisfy Unison.Lexer.wordyIdChar))
