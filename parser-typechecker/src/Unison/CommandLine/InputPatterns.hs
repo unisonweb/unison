@@ -563,7 +563,7 @@ aliasMany = InputPattern "alias.many" ["copy"]
     srcs@(_:_) Cons.:> dest -> first fromString $ do
       sourceDefinitions <- traverse Path.parseHQSplit srcs
       destNamespace <- Path.parsePath' dest
-      pure $ Input.AliasManyI (first Path.unchecked <$> sourceDefinitions) destNamespace
+      pure $ Input.AliasManyI sourceDefinitions destNamespace
     _ -> Left (I.help aliasMany)
   )
 

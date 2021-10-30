@@ -163,6 +163,5 @@ parseHQSplit' s = case Text.breakOn "#" $ Text.pack s of
   parsePath n = do
     x <- parsePathImpl' $ Text.unpack n
     pure $ case x of
-      -- TODO: What is this doing?
-      -- (Path' (Left e), "") | e == absoluteEmpty -> (relativeEmpty', ".")
+      (AbsolutePath Empty, "") -> (unchecked currentPath, ".")
       x -> x

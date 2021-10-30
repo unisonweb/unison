@@ -77,7 +77,7 @@ data Input
     | NamesI (HQ.HashQualified Name)
     | AliasTermI HashOrHQSplit' (Path.Split 'Unchecked)
     | AliasTypeI HashOrHQSplit' (Path.Split 'Unchecked)
-    | AliasManyI [Path.HQSplit 'Unchecked] (Path 'Unchecked)
+    | AliasManyI [Path.HQSplit 'Relative] (Path 'Unchecked)
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
     | MoveTypeI (Path.HQSplit 'Unchecked) (Path.Split 'Unchecked)
