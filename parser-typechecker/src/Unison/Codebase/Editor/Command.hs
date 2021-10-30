@@ -91,7 +91,7 @@ data Command
   UI :: Command m i v ()
 
   HQNameQuery
-    :: Maybe (Path 'Relative)
+    :: Maybe (Path 'Unchecked)
     -> Branch m
     -> [HQ.HashQualified Name]
     -> Command m i v QueryResult

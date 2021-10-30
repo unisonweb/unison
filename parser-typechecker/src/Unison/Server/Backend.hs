@@ -128,11 +128,11 @@ type Backend m a = ExceptT BackendError m a
 
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: Branch m -> NameScoping 'Relative -> (Names, Names)
+basicNames' :: forall m pos. Branch m -> NameScoping pos -> (Names, Names)
 basicNames' root scope =
   (parseNames0, prettyPrintNames0)
   where
-    path :: Path 'Relative
+    path :: Path pos
     includeAllNames :: Bool
     (path, includeAllNames) = case scope of
       AllNames   path -> (path, True)
@@ -170,7 +170,7 @@ basicSuffixifiedNames hashLength root nameScope =
 basicPrettyPrintNames :: Branch m -> NameScoping 'Relative -> Names
 basicPrettyPrintNames root = snd . basicNames' root
 
-basicParseNames :: Branch m -> NameScoping  'Relative -> Names
+basicParseNames :: Branch m -> NameScoping  pos -> Names
 basicParseNames root = fst . basicNames' root
 
 loadReferentType ::
@@ -262,7 +262,7 @@ fuzzyFind path branch query =
 findShallow
   :: (Monad m, Var v)
   => Codebase m v Ann
-  -> Path 'Absolute
+  -> Path pos
   -> Backend m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unsafeToRelative path'
@@ -475,7 +475,7 @@ getCurrentPrettyNames :: NameScoping 'Relative -> Branch m -> NamesWithHistory
 getCurrentPrettyNames scope root =
   NamesWithHistory (basicPrettyPrintNames root scope) mempty
 
-getCurrentParseNames :: NameScoping 'Relative -> Branch m -> NamesWithHistory
+getCurrentParseNames :: NameScoping pos -> Branch m -> NamesWithHistory
 getCurrentParseNames scope root =
   NamesWithHistory (basicParseNames root scope) mempty
 
@@ -545,7 +545,7 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
 
 hqNameQuery
   :: Monad m
-  => NameScoping 'Relative
+  => NameScoping pos
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
@@ -857,10 +857,10 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
 
 
 definitionsBySuffixes
-  :: forall m v
+  :: forall m v pos
    . (MonadIO m)
   => Var v
-  => NameScoping 'Relative
+  => NameScoping pos
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]

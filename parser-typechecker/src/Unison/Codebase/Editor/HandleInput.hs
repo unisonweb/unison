@@ -217,7 +217,7 @@ loop = do
   hqLength    <- eval CodebaseHashLength
   sbhLength   <- eval BranchHashLength
   let
-      hqNameQuery q = eval $ HQNameQuery (Just $ Path.unsafeToRelative currentPath') root' q
+      hqNameQuery q = eval $ HQNameQuery (Just $ Path.unchecked currentPath') root' q
       sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
