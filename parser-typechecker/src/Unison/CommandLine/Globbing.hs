@@ -54,7 +54,7 @@ globPredicate globArg (NameSegment.toText -> ns') =
 -- | Expands a glob into a list of paths which lead to valid targets.
 expandGlobToPaths :: Set TargetType -> GlobPath -> Branch0 m -> [Path 'Relative]
 expandGlobToPaths targets globPath branch =
-  Path.relativePathFromNameSegments <$> expandGlobToNameSegments targets branch globPath
+  Path.relativeFromSegments <$> expandGlobToNameSegments targets branch globPath
 
 -- | Helper for 'expandGlobToPaths'
 expandGlobToNameSegments :: forall m. Set TargetType -> Branch0 m -> GlobPath -> [[NameSegment]]
@@ -113,7 +113,7 @@ expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
   let paths = expandGlobToPaths targets globPath currentBranch
   let relocatedPaths | isAbsolute = Path.unsafeToAbsolute <$> paths
                      | otherwise = Path.resolve currentPath <$> paths
-  pure (Path.convert <$> relocatedPaths)
+  pure (Text.unpack . Path.toText <$> relocatedPaths)
 
 
 -- | Parses a single name segment into a GlobArg or a bare segment according to whether

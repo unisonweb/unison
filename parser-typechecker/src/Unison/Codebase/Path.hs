@@ -30,12 +30,11 @@ module Unison.Codebase.Path
     Split,
     ancestors,
 
-    -- * tests
+    -- * Tests
     isCurrentPath,
     isRoot,
 
-    -- * things that could be replaced with `Convert` instances
-    relativePathFromNameSegments,
+    -- * Conversions
     fromName,
     fromText,
     toName,
@@ -45,7 +44,6 @@ module Unison.Codebase.Path
     unsplit,
     unsplitHQ,
 
-    -- * things that could be replaced with `Parse` instances
     splitFromName,
     hqSplitFromName,
 
@@ -56,9 +54,6 @@ module Unison.Codebase.Path
     segments_,
 
     pattern Empty,
-
-  -- This should be moved to a common util module, or we could use the 'witch' package.
-  Convert(..)
   )
 where
 import Unison.Prelude hiding (empty, toList)
@@ -70,7 +65,7 @@ import Data.Sequence (Seq ((:<|)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
-import Unison.Name (Convert(..), Name, Parse)
+import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment)
 import qualified Unison.NameSegment as NameSegment
@@ -166,7 +161,7 @@ type Split pos = (Path pos, NameSegment)
 type HQSplit pos = (Path pos, HQ'.HQSegment)
 
 unsplit :: Split pos -> Path pos
-unsplit (p, a) = Lens.snoc p a
+unsplit (p, a) = p |> a
 
 unsplitHQ :: HQSplit pos -> HQ'.HashQualified (Path pos)
 unsplitHQ (p, a) = fmap (Lens.snoc p) a
@@ -178,14 +173,12 @@ asList_ = iso Foldable.toList Seq.fromList
 --   stripPrefix .foo.bar .blah == .blah (absolute paths left alone)
 --   stripPrefix .foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
 --   stripPrefix .foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
-stripPrefix :: Path 'Absolute -> Path any -> Path 'Relative
-stripPrefix p r =
-  let prefixSegments = p ^. segments_ . asList_
-      otherSegments = r ^. segments_ . asList_
-   in RelativeP (Seq.fromList $ List.dropPrefix prefixSegments otherSegments)
-
-relativePathFromNameSegments :: [NameSegment] -> Path 'Relative
-relativePathFromNameSegments = RelativeP . Seq.fromList
+stripPrefix :: Path 'Absolute -> Path any -> Path any
+stripPrefix pref p =
+  let prefixSegments = pref ^. segments_ . asList_
+   in case p of
+        AbsolutePath _ -> p
+        RelativePath _ -> p & segments_ . asList_ %~ List.dropPrefix prefixSegments
 
 ancestors :: Path 'Absolute -> Seq (Path 'Absolute)
 ancestors p = AbsoluteP <$> Seq.inits (view segments_ p)
@@ -292,13 +285,6 @@ instance Resolve (Path 'Unchecked) (Path 'Absolute) (Path 'Absolute) where
     AbsolutePath abs -> resolve abs p
     RelativePath rel -> resolve rel p
 
-instance Resolve (Path pl) (Path sp) (Path r) 
+instance Resolve (Path pl) (Path sp) (Path r)
   => Resolve (Path pl) (HQSplit sp) (HQSplit r) where
     resolve l (p, a) = (resolve l p, a)
-
-instance Convert (Path pos) Text where convert = toText
-instance Convert (Path pos) String where convert = show
-instance Convert (Path pos) Name where convert = toName
-instance Convert (HQSplit pos) (HQ'.HashQualified (Path pos)) where convert = unsplitHQ
-instance Parse Name (HQSplit 'Unchecked) where parse = hqSplitFromName
-instance Parse Name (Split 'Unchecked) where parse = splitFromName

@@ -2619,7 +2619,7 @@ docsI srcLoc prettyPrintNames src = do
     hq :: HQ.HashQualified Name
     hq = let
       hq' :: HQ'.HashQualified Name
-      hq' = Name.convert @(Path 'Unchecked) @Name <$> Name.convert src
+      hq' = Path.toName <$> Path.unsplitHQ src
       in Name.convert hq'
 
     dotDoc :: HQ.HashQualified Name
