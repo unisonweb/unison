@@ -27,7 +27,6 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
 import Control.Lens (view)
-import Basement.Compat.Bifunctor (first)
 
 fromNames :: Monad m => Names -> Branch m
 fromNames names0 = Branch.one $ addFromNames names0 Branch.empty0
@@ -40,7 +39,7 @@ hashesFromNames = deepHashes . fromNames where
     <> (foldMap deepHashes . view Branch.children . Branch.head) b
 
 addFromNames :: Monad m => Names -> Branch0 m -> Branch0 m
-addFromNames names0 = Branch.stepManyAt0 (first Path.unsafeToAbsolute <$> typeActions <> termActions)
+addFromNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . R.toList $ Names.types names0
   termActions = map doTerm . R.toList $ Names.terms names0
@@ -107,8 +106,8 @@ getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   mdList = Set.toList . R.ran . Star3.d3 . Star3.selectFact (Set.singleton r) $ types
   types = Branch._types $ Branch.getAt0 path b
 
-getBranch :: Path.Split any -> Branch0 m -> Maybe (Branch m)
-getBranch (p, seg) b = case Path.uncons (Path.unsafeToRelative p) of
+getBranch :: Path.Split pos -> Branch0 m -> Maybe (Branch m)
+getBranch (p, seg) b = case Path.uncons p of
   Nothing -> Map.lookup seg (Branch._children b)
   Just (h, p) ->
     (Branch.head <$> Map.lookup h (Branch._children b)) >>=

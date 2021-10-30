@@ -85,7 +85,7 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform, uncons )
 import qualified Control.Monad.State           as State
 import           Control.Monad.State            ( StateT )
-import           Data.Bifunctor                 ( second, Bifunctor (first) )
+import           Data.Bifunctor                 ( second )
 import qualified Data.Map                      as Map
 import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
@@ -450,11 +450,11 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 stepManyAt :: (Monad m, Foldable f)
-           => f (Path 'Path.Absolute, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+           => f (Path pos, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt actions = step (stepManyAt0 actions)
 
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path 'Path.Absolute, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+            => f (Path pos, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
@@ -512,16 +512,16 @@ updateChildren seg updatedChild =
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAt :: Applicative m
-  => Path 'Path.Relative -> (Branch m -> Branch m) -> Branch m -> Branch m
+  => Path pos -> (Branch m -> Branch m) -> Branch m -> Branch m
 modifyAt path f = runIdentity . modifyAtM path (pure . f)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM
-  :: forall n m
+  :: forall n m pos
    . Functor n
   => Applicative m -- because `Causal.cons` uses `pure`
-  => Path 'Path.Relative
+  => Path pos
   -> (Branch m -> n (Branch m))
   -> Branch m
   -> n (Branch m)
@@ -534,23 +534,23 @@ modifyAtM path f b = case Path.uncons path of
     pure $ step (setChildBranch seg child') b
 
 -- stepManyAt0 consolidates several changes into a single step
-stepManyAt0 :: forall f m . (Monad m, Foldable f)
-           => f (Path 'Path.Absolute, Branch0 m -> Branch0 m)
+stepManyAt0 :: forall f m pos. (Monad m, Foldable f)
+           => f (Path pos, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
-stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
-             => f (Path 'Absolute, Branch0 m -> n (Branch0 m))
+stepManyAt0M :: forall m n f pos. (Monad m, Monad n, Foldable f)
+             => f (Path pos, Branch0 m -> n (Branch0 m))
              -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = go (fmap (first Path.unsafeToRelative) . toList $  actions) b where
-  go :: [(Path 'Relative, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
+stepManyAt0M actions b = go (toList actions) b where
+  go :: [(Path pos, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
   go actions b = let
     -- combines the functions that apply to this level of the tree
     currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
 
     -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [(Path 'Relative, Branch0 m -> n (Branch0 m))]
+    childActions :: Map NameSegment [(Path pos, Branch0 m -> n (Branch0 m))]
     childActions =
       List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
 

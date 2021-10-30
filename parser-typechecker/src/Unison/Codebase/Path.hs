@@ -54,7 +54,7 @@ module Unison.Codebase.Path
     unconsAbsolute,
     segments_,
 
-    pattern Lens.Empty,
+    pattern Empty,
 
   -- This should be moved to a common util module, or we could use the 'witch' package.
   Convert(..)
@@ -89,6 +89,9 @@ pattern AbsolutePath p <- (match Just (const Nothing) -> Just p)
 pattern RelativePath :: Path 'Relative -> Path pos
 pattern RelativePath p <- (match (const Nothing) Just -> Just p)
 {-# COMPLETE AbsolutePath, RelativePath #-}
+
+pattern Empty :: Path pos
+pattern Empty <- (match (nullOf segments_) (nullOf segments_) -> True)
 
 instance Eq (Path pos) where
   (==) = (==) `on` (view segments_)
@@ -223,11 +226,11 @@ unconsAbsolute = \case
   AbsoluteP (ns :< p) -> Just (ns, RelativeP p)
   _ -> Nothing
 
-instance Cons (Path 'Relative) (Path 'Relative) NameSegment NameSegment where
+instance Cons (Path pos) (Path pos) NameSegment NameSegment where
   _Cons = prism (uncurry cons) uncons where
-    cons :: NameSegment -> Path 'Relative -> Path 'Relative
+    cons :: NameSegment -> Path pos -> Path pos
     cons ns = over segments_ (Lens.cons ns)
-    uncons :: Path 'Relative -> Either (Path 'Relative) (NameSegment, Path 'Relative)
+    uncons :: Path pos -> Either (Path pos) (NameSegment, Path pos)
     uncons p = case p ^. segments_ of
       (hd :<| tl) -> Right (hd, p & segments_ .~ tl)
       _ -> Left p
