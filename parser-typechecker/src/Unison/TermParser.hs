@@ -911,29 +911,21 @@ destructuringBind = do
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
-  -- a ++ b = ... OR
-  -- foo `mappend` bar = ...
-  let infixLhs = do
-        (arg1, op) <- P.try $
-          (,) <$> prefixDefinitionName <*> infixDefinitionName
-        arg2 <- prefixDefinitionName
-        pure (ann arg1, op, [arg1, arg2])
+  -- a ++ b = ...
   let prefixLhs = do
         v  <- prefixDefinitionName
         vs <- many prefixDefinitionName
         pure (ann v, v, vs)
-  let
-    lhs :: P v (Ann, L.Token v, [L.Token v])
-    lhs = infixLhs <|> prefixLhs
+
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+      (loc, name, args) <- P.try (prefixLhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
-      (_, name, args) <- lhs
+      (_, name, args) <- prefixLhs
       verifyRelativeName' (fmap Name.unsafeFromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
