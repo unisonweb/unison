@@ -20,6 +20,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import Unison.Builtin.Decls                   (pattern TupleType')
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -909,7 +910,7 @@ showTypeRef :: IsString s => Env -> R.Reference -> s
 showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
-showConstructor :: IsString s => Env -> R.Reference -> Int -> s
+showConstructor :: IsString s => Env -> R.Reference -> ConstructorId -> s
 showConstructor env r cid = fromString . HQ.toString $
   PPE.patternName env r cid
 

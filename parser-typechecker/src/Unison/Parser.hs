@@ -36,6 +36,7 @@ import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
@@ -106,8 +107,8 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
-  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, ConstructorId))
+  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, ConstructorId))
   | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)

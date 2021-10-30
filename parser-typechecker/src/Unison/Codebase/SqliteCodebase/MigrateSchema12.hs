@@ -1,29 +1,24 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
 import Control.Lens
 import Control.Monad.Except (runExceptT, ExceptT)
-import Control.Monad.Reader (MonadReader, ReaderT (runReaderT), ask)
+import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
-import Control.Monad.Trans.Writer.CPS (Writer, execWriter, execWriterT, runWriterT, tell)
+import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
 import Data.Generics.Product
-import Data.Generics.Sum
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import qualified U.Codebase.Sqlite.Operations as Ops
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (CausalHashId, ObjectId)
-import U.Codebase.Sqlite.ObjectType (ObjectType)
-import qualified U.Codebase.Sqlite.ObjectType as OT
+import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
@@ -32,6 +27,7 @@ import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
 import qualified Unison.DataDeclaration as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Unison
 import qualified Unison.Hashing.V2.Convert as Convert
@@ -49,8 +45,6 @@ import qualified U.Codebase.Causal as C
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
-import Numeric.Lens (integral)
-import Control.Lens.Unsound (adjoin)
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -212,10 +206,10 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
 -- loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
 migrateCausal :: MonadIO m => Connection -> CausalHash -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateCausal conn causalHash = runDB conn $ do
-  C.Causal{..} <- Ops.loadCausalBranchByCausalHash causalHash >>= \case
+  C.Causal{} <- Ops.loadCausalBranchByCausalHash causalHash >>= \case
     Nothing -> error $ "Expected causal to exist but it didn't" <> show causalHash
     Just c -> pure c
-  migratedCausals <- gets causalMapping
+  _migratedCausals <- gets causalMapping
   -- Plan:
   --   * Load a C.Causal
   --   * Ensure its parent causals and branch (value hash) have been migrated
@@ -252,7 +246,7 @@ migrateCausal conn causalHash = runDB conn $ do
 --   }
 
 migrateBranch :: Monad m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
+migrateBranch _conn _objectID = fmap (either id id) . runExceptT $ do
   -- note for tomorrow: we want to just load the (Branch m) instead, forget the DbBranch
   -- dbBranch <- Ops.loadDbBranchByObjectId objectId
 
@@ -280,7 +274,7 @@ migrateBranch conn objectID = fmap (either id id) . runExceptT $ do
   -- Migrate branch
   let oldDBBranch :: S.DbBranch = undefined
 
-  newBranch <- oldDBBranch & dbBranchObjRefs_ %%~ remapObjIdRefs
+  _newBranch <- oldDBBranch & dbBranchObjRefs_ %%~ remapObjIdRefs
   -- Need to generalize the traversal, and also generalize the Id backing "SomeReference"
   -- newBranch <- oldDBBranch & dbBranchObjRefs_ %%~ objIdsToHashed
 
@@ -482,10 +476,10 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           (componentIDMap Map.! oldReferenceId)
             & DD.asDataDecl
             & DD.constructors'
-            & imap (\constructorId (_ann, name, _type) -> (name, constructorId))
+            & imap (\(fromIntegral -> constructorId) (_ann, name, _type) -> (name, constructorId))
             & Map.fromList
 
-    ifor_ (DD.constructors' (DD.asDataDecl dd)) \newConstructorId (_ann, name, _type) -> do
+    ifor_ (DD.constructors' (DD.asDataDecl dd)) \(fromIntegral -> newConstructorId) (_ann, name, _type) -> do
       field @"referenceMapping"
         %= Map.insert
           (ConstructorReference oldReferenceId (oldConstructorIds Map.! name))
@@ -686,7 +680,7 @@ someReferenceIdToEntity = undefined
 
 -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
 migrateSchema12 :: Applicative m => Connection -> m Bool
-migrateSchema12 db = do
+migrateSchema12 _db = do
   -- todo: drop and recreate corrected type/mentions index schema
   -- do we want to garbage collect at this time? ✅
   -- or just convert everything without going in dependency order? ✅

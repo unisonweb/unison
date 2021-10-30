@@ -328,10 +328,10 @@ saturate
   :: (Var v, Monoid a)
   => Map (Reference,Int) Int -> Term v a -> Term v a
 saturate dat = ABT.visitPure $ \case
-  Apps' f@(Constructor' r t) args -> sat r t f args
-  Apps' f@(Request' r t) args -> sat r t f args
-  f@(Constructor' r t) -> sat r t f []
-  f@(Request' r t) -> sat r t f []
+  Apps' f@(Constructor' r t) args -> sat r (fromIntegral t) f args
+  Apps' f@(Request' r t) args -> sat r (fromIntegral t) f args
+  f@(Constructor' r t) -> sat r (fromIntegral t) f []
+  f@(Request' r t) -> sat r (fromIntegral t) f []
   _ -> Nothing
   where
   frsh avoid _ =
@@ -1022,8 +1022,8 @@ anfBlock (Match' scrut cas) = do
            , pure . TMatch r
            $ MatchDataCover Ty.seqViewRef
                (EC.mapFromList
-                  [ (toEnum Ty.seqViewEmpty, ([], em))
-                  , (toEnum Ty.seqViewElem, ([BX,BX], bd))
+                  [ (fromIntegral Ty.seqViewEmpty, ([], em))
+                  , (fromIntegral Ty.seqViewElem, ([BX,BX], bd))
                   ]
                )
            )
@@ -1072,9 +1072,9 @@ anfBlock (Apps' f args) = do
   (actx, cas) <- anfArgs args
   pure (fctx <> actx, (d, TApp cf cas))
 anfBlock (Constructor' r t)
-  = pure (mempty, pure $ TCon r (toEnum t) [])
+  = pure (mempty, pure $ TCon r (fromIntegral t) [])
 anfBlock (Request' r t)
-  = pure (mempty, (Indirect (), TReq r (toEnum t) []))
+  = pure (mempty, (Indirect (), TReq r (fromIntegral t) []))
 anfBlock (Boolean' b)
   = pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
 anfBlock (Lit' l@(T _)) =
@@ -1136,7 +1136,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.Constructor _ r t ps <- p = do
     (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us,bd)
       -> AccumData r Nothing
-       . EC.mapSingleton (toEnum t)
+       . EC.mapSingleton (fromIntegral t)
        . (BX<$us,)
        . ABTN.TAbss us
        $ bd
@@ -1154,7 +1154,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
             jn = Builtin "jumpCont"
          in flip AccumRequest Nothing
           . Map.singleton r
-          . EC.mapSingleton (toEnum t)
+          . EC.mapSingleton (fromIntegral t)
           . (BX<$us,)
           . ABTN.TAbss us
           . TShift r kf
@@ -1297,8 +1297,8 @@ anfCases u = getCompose . fmap fold . traverse (anfInitCase u)
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Directed () (Func v))
 anfFunc (Var' v) = pure (mempty, (Indirect (), FVar v))
 anfFunc (Ref' r) = pure (mempty, (Indirect (), FComb r))
-anfFunc (Constructor' r t) = pure (mempty, (Direct, FCon r $ toEnum t))
-anfFunc (Request' r t) = pure (mempty, (Indirect (), FReq r $ toEnum t))
+anfFunc (Constructor' r t) = pure (mempty, (Direct, FCon r $ fromIntegral t))
+anfFunc (Request' r t) = pure (mempty, (Indirect (), FReq r $ fromIntegral t))
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm

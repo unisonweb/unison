@@ -160,7 +160,7 @@ decomposePattern rf0 t _       (P.Boolean _ b)
   , t == if b then 1 else 0
   = [[]]
 decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
-  | t == u
+  | t == fromIntegral u
   , rf0 == rf
   = if length ps == nfields
     then [ps]
@@ -169,7 +169,7 @@ decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
 decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
-  | t == u
+  | t == fromIntegral u
   , rf0 == rf
   = if length ps + 1 == nfields
     then [ps ++ [pk]]
@@ -557,8 +557,8 @@ preparePattern p = prepareAs p =<< freshVar
 buildPattern :: Bool -> Reference -> ConstructorId -> [v] -> Int -> P.Pattern ()
 buildPattern effect r t vs nfields
   | effect, [] <- vps = internalBug "too few patterns for effect bind"
-  | effect = P.EffectBind () r t (init vps) (last vps)
-  | otherwise = P.Constructor () r t vps
+  | effect = P.EffectBind () r (fromIntegral t) (init vps) (last vps)
+  | otherwise = P.Constructor () r (fromIntegral t) vps
   where
   vps | length vs < nfields
       = replicate nfields $ P.Unbound ()
@@ -661,7 +661,7 @@ buildCase
 buildCase spec r eff cons ctx0 (t, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = buildPattern eff r t vs $ cons !! t
+  pat = buildPattern eff r (fromIntegral t) vs $ cons !! t
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 

@@ -68,6 +68,7 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Pattern                 ( Pattern )
 import qualified Unison.Pattern                as Pattern
 import           Unison.Reference               ( Reference )
@@ -107,7 +108,7 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 -- | Elements of an ordered algorithmic context
 data Element v loc
   -- | A variable declaration
-  = Var (TypeVar v loc) 
+  = Var (TypeVar v loc)
   -- | `v` is solved to some monotype
   | Solved (B.Blank loc) v (Monotype v loc)
   -- | `v` has type `a`, maybe quantified
@@ -210,7 +211,7 @@ data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
-  | UnknownConstructor Unknown Reference Int (DataDeclaration v loc)
+  | UnknownConstructor Unknown Reference ConstructorId (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -247,7 +248,6 @@ data PathElement v loc
 
 type ExpectedArgCount = Int
 type ActualArgCount = Int
-type ConstructorId = Int
 
 data SuggestionMatch = Exact | WrongType | WrongName
   deriving (Ord, Eq, Show)
@@ -708,10 +708,10 @@ getEffectDeclaration r = do
           liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
-getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getDataConstructorType :: (Var v, Ord loc) => Reference -> ConstructorId -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
-getEffectConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getEffectConstructorType :: (Var v, Ord loc) => Reference -> ConstructorId -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go where
   go r = DD.toDataDecl <$> getEffectDeclaration r
 
@@ -721,11 +721,11 @@ getConstructorType' :: Var v
                     => Unknown
                     -> (Reference -> M v loc (DataDeclaration v loc))
                     -> Reference
-                    -> Int
+                    -> ConstructorId
                     -> M v loc (Type v loc)
 getConstructorType' kind get r cid = do
   decl <- get r
-  case drop cid (DD.constructors decl) of
+  case drop (fromIntegral cid) (DD.constructors decl) of
     [] -> compilerCrash $ UnknownConstructor kind r cid decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
@@ -1160,7 +1160,7 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
       coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 getEffect
-  :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
+  :: Var v => Ord loc => Reference -> ConstructorId -> M v loc (Type v loc)
 getEffect ref cid = do
   ect <- getEffectConstructorType ref cid
   uect <- ungeneralize ect

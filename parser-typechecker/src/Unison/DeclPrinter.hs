@@ -12,6 +12,7 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 , toDataDecl
                                                 )
 import qualified Unison.DataDeclaration        as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.ConstructorType        as CT
 import qualified Unison.Hashing.V2.Convert as Hashing
 import           Unison.HashQualified           ( HashQualified )
@@ -77,7 +78,7 @@ prettyPattern
   -> CT.ConstructorType
   -> Reference
   -> HashQualified Name
-  -> Int
+  -> ConstructorId
   -> Pretty SyntaxText
 prettyPattern env ctorType ref namespace cid = styleHashQualified''
   (fmt (S.Referent conRef))

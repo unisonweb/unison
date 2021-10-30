@@ -34,6 +34,7 @@ import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
@@ -215,7 +216,7 @@ parsePattern = root
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, Int))
+  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, ConstructorId))
   ctor ct err = do
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
