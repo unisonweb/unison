@@ -51,7 +51,6 @@ module Unison.Codebase.Path
     Lens.uncons,
     Lens.snoc,
     Lens.unsnoc,
-    unconsAbsolute,
     segments_,
 
     pattern Empty,
@@ -220,11 +219,6 @@ fromText :: Text -> Path 'Unchecked
 fromText t = case NameSegment.splitText t of
   (True, segments) -> unchecked . AbsoluteP $ Seq.fromList segments
   (False, segments)-> unchecked . RelativeP $ Seq.fromList segments
-
-unconsAbsolute :: Path 'Absolute -> Maybe (NameSegment, Path 'Relative)
-unconsAbsolute = \case
-  AbsoluteP (ns :< p) -> Just (ns, RelativeP p)
-  _ -> Nothing
 
 instance Cons (Path pos) (Path pos) NameSegment NameSegment where
   _Cons = prism (uncurry cons) uncons where

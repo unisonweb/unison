@@ -162,12 +162,12 @@ basicNames' root scope =
                            then currentAndExternalNames
                            else currentPathNames
 
-basicSuffixifiedNames :: Int -> Branch m -> NameScoping 'Relative -> PPE.PrettyPrintEnv
+basicSuffixifiedNames :: Int -> Branch m -> NameScoping pos -> PPE.PrettyPrintEnv
 basicSuffixifiedNames hashLength root nameScope =
   let names0 = basicPrettyPrintNames root nameScope
    in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-basicPrettyPrintNames :: Branch m -> NameScoping 'Relative -> Names
+basicPrettyPrintNames :: Branch m -> NameScoping pos -> Names
 basicPrettyPrintNames root = snd . basicNames' root
 
 basicParseNames :: Branch m -> NameScoping  pos -> Names
@@ -235,7 +235,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames branch (Within . Path.unsafeToRelative $ path)
+      basicPrettyPrintNames branch (Within path)
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -264,8 +264,7 @@ findShallow
   => Codebase m v Ann
   -> Path pos
   -> Backend m [ShallowListEntry v Ann]
-findShallow codebase path' = do
-  let path = Path.unsafeToRelative path'
+findShallow codebase path = do
   root <- getRootBranch codebase
   let mayb = Branch.getAt path root
   case mayb of
@@ -471,7 +470,7 @@ toAllNames :: NameScoping pos -> NameScoping pos
 toAllNames (AllNames p) = AllNames p
 toAllNames (Within p) = AllNames p
 
-getCurrentPrettyNames :: NameScoping 'Relative -> Branch m -> NamesWithHistory
+getCurrentPrettyNames :: NameScoping pos -> Branch m -> NamesWithHistory
 getCurrentPrettyNames scope root =
   NamesWithHistory (basicPrettyPrintNames root scope) mempty
 
@@ -654,9 +653,9 @@ mungeSyntaxText
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
-  :: forall v
+  :: forall v pos
    . Var v
-  => NameScoping 'Relative
+  => NameScoping pos
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify

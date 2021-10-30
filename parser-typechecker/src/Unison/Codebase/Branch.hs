@@ -396,7 +396,7 @@ toCausalRaw = \case
 getAt :: Path pos
       -> Branch m
       -> Maybe (Branch m)
-getAt path root = case Path.uncons (Path.unsafeToRelative path) of
+getAt path root = case Path.uncons path of
   Nothing -> if isEmpty root then Nothing else Just root
   Just (seg, path) -> case Map.lookup seg (_children $ head root) of
     Just b -> getAt path b
@@ -406,7 +406,7 @@ getAt' :: Path pos -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
 getAt0 :: Path pos -> Branch0 m -> Branch0 m
-getAt0 p b = case Path.uncons (Path.unsafeToRelative p) of
+getAt0 p b = case Path.uncons p of
   Nothing -> b
   Just (seg, path) -> case Map.lookup seg (_children b) of
     Just c -> getAt0 path (head c)

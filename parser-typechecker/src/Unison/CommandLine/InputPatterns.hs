@@ -1608,7 +1608,7 @@ pathCompletor
   -> f [Completion]
 pathCompletor filterQuery getNames query _code b p = let
   b0root = Branch.head b
-  b0local = Branch.getAt0 (Path.unsafeToRelative p) b0root
+  b0local = Branch.getAt0 p b0root
   -- todo: if these sets are huge, maybe trim results
   in pure . filterQuery query . map Text.unpack $
        toList (getNames b0local) ++

@@ -216,8 +216,8 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
       let listingBranch = Branch.getAt' path root
       hashLength <- liftIO $ Codebase.hashLength codebase
 
-      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within . Path.unsafeToRelative $ path)
-      let listingFQN = Path.toText . Path.unsafeToAbsolute $ path
+      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within path)
+      let listingFQN = Path.toText path
       let listingHash = branchToUnisonHash listingBranch
       listingEntries <- findShallow listingBranch
 

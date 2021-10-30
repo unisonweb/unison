@@ -150,7 +150,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
           alignments =
             take (fromMaybe 10 limit) $ Backend.fuzzyFind rel branch (fromMaybe "" query)
           -- Use AllNames to render source
-          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames . Path.unsafeToRelative $ rel)
+          ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea
  where

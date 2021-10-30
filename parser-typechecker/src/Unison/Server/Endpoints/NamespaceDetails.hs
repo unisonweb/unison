@@ -19,7 +19,6 @@ import Servant.OpenApi ()
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.Path.Parse (parsePath')
 import qualified Unison.Codebase.Runtime as Rt
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -109,7 +108,7 @@ serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
           -- Names used in the README should not be confined to the namespace
           -- of the README (since it could be referencing definitions from all
           -- over the codebase)
-          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames . Path.unsafeToRelative $ namespacePath) root
+          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames namespacePath) root
 
           readme <-
             Backend.findShallowReadmeInBranchAndRender

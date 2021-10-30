@@ -244,7 +244,7 @@ loop = do
 
       basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Backend.AllNames . Path.unsafeToRelative $ currentPath')
+        Backend.basicPrettyPrintNames root' (Backend.AllNames currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -275,7 +275,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames (Backend.AllNames . Path.unsafeToRelative $ currentPath') root'
+        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath') root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -847,12 +847,11 @@ loop = do
                          [] -> Nothing
                          -- Shouldn't be possible to get multiple paths here, we can just take
                          -- the first.
-                         (p:_) -> Just (Path.unsafeToAbsolute p)
+                         (p:_) -> Just (resolveToAbsolute p)
           Just p -> pure $ Just (resolveToAbsolute p)
         case mpath' of
           Nothing -> pure ()
-          Just path' -> do
-            let path = resolveToAbsolute path'
+          Just path -> do
             currentPathStack %= Nel.cons path
             branch' <- getAt path
             when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
@@ -1125,7 +1124,7 @@ loop = do
                   LatestFileLocation ->
                     fmap fst latestFile' <|> Just "scratch.u"
                 printNames =
-                  Backend.getCurrentPrettyNames (Backend.AllNames . Path.unsafeToRelative $ currentPath') root'
+                  Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
                 ppe = PPE.fromNamesDecl hqLength printNames
             unless (null types && null terms) $
               eval . Notify $
@@ -1149,7 +1148,7 @@ loop = do
             ppe = Backend.basicSuffixifiedNames
                            sbhLength
                            root'
-                           (Backend.AllNames . Path.unsafeToRelative . resolveToAbsolute $ pathArg)
+                           (Backend.AllNames . resolveToAbsolute $ pathArg)
         res <- eval $ FindShallow pathArgAbs
         case res of
           Left e -> handleBackendError e
@@ -1673,7 +1672,7 @@ loop = do
             -- We don't merge `srcb` with the remote namespace, `r`, we just
             -- replace it. The push will be rejected if this rewinds time
             -- or misses any new updates in `r` that aren't in `srcb` already.
-            let newRemoteRoot = Branch.modifyAt (Path.unsafeToRelative remotePath) (const srcb) remoteRoot
+            let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
             unsafeTime "Push syncRemoteRootBranch" $
               syncRemoteRootBranch repo newRemoteRoot syncMode
             lift . eval $ Eval cleanup
@@ -2229,7 +2228,7 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Backend.AllNames . Path.unsafeToRelative $ currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Backend.AllNames currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -2258,12 +2257,12 @@ getAt p =
 -- an update occurred and false otherwise
 updateAtM :: Applicative m
           => InputDescription
-          -> (Path 'Absolute)
+          -> (Path pos)
           -> (Branch m -> Action m i v (Branch m))
           -> Action m i v Bool
 updateAtM reason p f = do
   b  <- use lastSavedRoot
-  b' <- Branch.modifyAtM (Path.unsafeToRelative p) f b
+  b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
 
@@ -2690,7 +2689,7 @@ doSlurpAdds :: forall m v. (Monad m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf = Branch.stepManyAt0 ((first Path.unsafeToAbsolute) <$> (typeActions <> termActions))
+doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $
@@ -2726,7 +2725,7 @@ doSlurpUpdates :: Monad m
                -> [(Name, Referent)]
                -> (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
-  Branch.stepManyAt0 (first Path.unsafeToAbsolute <$> typeActions <> termActions <> deprecateActions) b0
+  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
   where
   typeActions = join . map doType . Map.toList $ typeEdits
   termActions = join . map doTerm . Map.toList $ termEdits
@@ -2921,7 +2920,7 @@ basicNames' :: Functor m => Action' m v (Names, Names)
 basicNames' = do
   root' <- use root
   currentPath' <- use currentPath
-  pure $ Backend.basicNames' root' (Backend.AllNames . Path.unsafeToRelative $ currentPath')
+  pure $ Backend.basicNames' root' (Backend.AllNames currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName

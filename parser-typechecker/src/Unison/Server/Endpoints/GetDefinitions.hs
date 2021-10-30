@@ -128,8 +128,8 @@ serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
       let hqns = HQ.unsafeFromText <$> rawHqns
           scope = case hqns of
             -- TODO: Change this API to support being queried by just 1 name/hash
-            HQ.HashOnly _ : _ -> Backend.AllNames . maybe Path.currentPath Path.unsafeToRelative $ rel
-            _ -> Backend.Within . maybe Path.currentPath Path.unsafeToRelative $ rel
+            HQ.HashOnly _ : _ -> Backend.AllNames . fromMaybe (Path.unchecked Path.currentPath) $ rel
+            _ -> Backend.Within . fromMaybe (Path.unchecked Path.currentPath) $ rel
 
       Backend.prettyDefinitionsBySuffixes scope
                                           root
