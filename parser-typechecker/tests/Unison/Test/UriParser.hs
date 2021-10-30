@@ -5,7 +5,7 @@ module Unison.Test.UriParser where
 
 import EasyTest
 import Unison.Codebase.Editor.RemoteRepo (ReadRepo(..))
-import Unison.Codebase.Path (Path(..))
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Text.Megaparsec as P
 import qualified Unison.Codebase.Editor.UriParser as UriParser
