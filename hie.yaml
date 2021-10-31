@@ -65,3 +65,6 @@ cradle:
 
     - path: "yaks/easytest/tests"
       component: "easytest:test:tests"
+
+    - path: "json-diff"
+      component: "json-diff:lib"

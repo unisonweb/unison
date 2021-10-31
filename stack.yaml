@@ -10,6 +10,7 @@ build:
   interleaved-output: false
 
 packages:
+- json-diff
 - yaks/easytest
 - parser-typechecker
 - unison-core
@@ -28,6 +29,7 @@ packages:
 resolver: lts-18.13
 
 extra-deps:
+- aeson-extra-0.5.1@sha256:6070bf5aea22283acf72fa0252883e80f389613efb8f40ef928848d8f7b49f83,2829
 - github: unisonweb/configurator
   commit: e47e9e9fe1f576f8c835183b9def52d73c01327a
 - github: unisonweb/haskeline
