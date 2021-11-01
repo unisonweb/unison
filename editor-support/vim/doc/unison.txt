@@ -1,0 +1,90 @@
+*ft_unison.txt* Filetype plugin for the Unison programming language
+
+==============================================================================
+CONTENTS                                                              *unison*
+
+1. Installation                                          |unison-installation|
+2. Configuration                                        |unison-configuration|
+3. Recommended Settings                          |unison-recommended-settings|
+
+==============================================================================
+INSTALLATION                                           *unison-installation*
+
+Install with your plugin manager of choice.
+
+Make sure that you also set all of the required configuration fields:
+|unison-configuration-required|
+
+Note: This plugin requires both `curl` and `jq` to be installed.  If they are
+installed but not on the `PATH` of the running vim process, you can set them
+explicitly with |unison_curl_path| and |unison_jq_path|.
+
+==============================================================================
+CONFIGURATION                                           *unison-configuration*
+
+All Unison configuration values allow buffer-local settings (ex:
+`b:unison_api_port`) to override an global configuration (ex:
+`g:unison_api_port`).
+
+
+Required configuration values:                 *unison-configuration-required*
+
+                                                           *g:unison_api_port*
+g:unison_api_port~
+
+  Example: >
+    let g:unison_api_port='5862'
+<
+
+                                                          *g:unison_api_token*
+g:unison_api_token~
+
+  Example: >
+    let g:unison_api_token='z8123l_acv2'
+<
+
+Optional configuration values:                 *unison-configuration-optional*
+
+                                                           *g:unison_api_host*
+g:unison_api_host~
+
+  Example: >
+    let g:unison_api_host='localhost'
+<
+
+                                                 *g:unison_set_buffer_defaults*
+g:unison_set_buffer_defaults~
+  Set to 0 to disable default settings (such as 'omnifunc')
+
+  Example: >
+    let g:unison_set_buffer_defaults=0
+<
+                                                          *g:unison_curl_path*
+g:unison_curl_path~
+  The path to the `curl` executable.
+
+  Example: >
+    let g:unison_curl_path='/usr/bin/curl'
+<
+
+                                                            *g:unison_jq_path*
+g:unison_jq_path~
+  The path to the `jq` executable.
+
+  Example: >
+    let g:unison_jq_path='/usr/local/bin/jq'
+<
+
+==============================================================================
+RECOMMENDED SETTINGS                             *unison-recommended-settings*
+
+These settings aren't specific to Unison, but they will likely improve the
+experience of the Unison support.
+
+>
+  " close preview window when completion is finished
+  autocmd CompleteDone * silent! pclose!
+<
+
+==============================================================================
+ vim:tw=78:et:ft=help:norl:
