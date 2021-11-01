@@ -16,9 +16,9 @@ import qualified Unison.Hashable as H
 
 hashCausal :: H.Accumulate h => Causal -> [(H.Token h)]
 hashCausal c =
-  H.tokens $ [selfHash c, branchHash c] ++ (Set.toList $ parents c)
+  H.tokens $ [branchHash c] ++ (Set.toList $ parents c)
 
-data Causal = Causal {selfHash :: Hash, branchHash :: Hash, parents :: Set Hash}
+data Causal = Causal {branchHash :: Hash, parents :: Set Hash}
 
 instance Hashable Causal where
   tokens c = hashCausal c
