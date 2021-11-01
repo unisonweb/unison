@@ -47,6 +47,7 @@ import qualified Unison.Util.Free as Free
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.Codebase.Path as Path
 
 typecheck
@@ -102,6 +103,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
         Nothing -> lift (return ())
+
+    DocsToHtml sourceBranch destination ->
+      liftIO $ Backend.docsInBranchToHtmlFiles rt codebase sourceBranch destination
+
     Input         -> lift awaitInput
     Notify output -> lift $ notifyUser output
     NotifyNumbered output -> lift $ notifyNumbered output
@@ -191,6 +196,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       let cl = Codebase.toCodeLookup codebase
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
+    FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase WK.RegularWatch h

@@ -85,6 +85,7 @@ library
       Unison.CodebasePath
       Unison.CommandLine
       Unison.CommandLine.DisplayValues
+      Unison.CommandLine.FuzzySelect
       Unison.CommandLine.Globbing
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
@@ -193,6 +194,7 @@ library
       src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -206,6 +208,7 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -318,6 +321,7 @@ executable prettyprintdemo
       prettyprintdemo
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -331,6 +335,7 @@ executable prettyprintdemo
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -353,6 +358,7 @@ executable tests
       Unison.Test.ANF
       Unison.Test.Cache
       Unison.Test.ClearCache
+      Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
@@ -389,6 +395,7 @@ executable tests
       tests
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -402,6 +409,7 @@ executable tests
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -450,6 +458,7 @@ benchmark runtime
       benchmarks/runtime
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -463,6 +472,7 @@ benchmark runtime
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
