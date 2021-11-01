@@ -23,6 +23,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
 import System.FilePath
+import System.Directory
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -872,9 +873,12 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
     renderDocToHtmlFile :: FilePath -> (HashQualifiedName, UnisonHash, Doc.Doc) -> IO ()
     renderDocToHtmlFile directory (docName, _, doc) =
       let
-        docFilePath' = docFilePath directory docName
-      in
-      Lucid.renderToFile docFilePath' (DocHtml.toHtml doc)
+        fullPath = docFilePath directory docName
+        directoryPath = takeDirectory fullPath
+       in do
+        -- Ensure all directories exists
+        _ <- createDirectoryIfMissing True directoryPath
+        Lucid.renderToFile fullPath (DocHtml.toHtml doc)
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
