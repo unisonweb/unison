@@ -54,7 +54,7 @@ Globbing only expands to the appropriate argument type.
 E.g. `view` should not see glob expansions for namespaces.
 This should expand to the empty argument and silently succeed.
 
-```ucm
+```ucm:error
 .> view other?
 ```
 
