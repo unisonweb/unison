@@ -929,18 +929,18 @@ definitionsBySuffixes ::
 definitionsBySuffixes namesScope branch codebase includeCycles query = do
   QueryResult misses results <- hqNameQuery namesScope branch codebase query
   terms <- do
-    let termRefs0 = searchResultsToTermRefs results
+    let termRefsWithoutCycles = searchResultsToTermRefs results
     let termRefs =
           case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) termRefs0
-            DontIncludeCycles -> termRefs0
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) termRefsWithoutCycles
+            DontIncludeCycles -> termRefsWithoutCycles
     Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
   types <- do
-    let typeRefs0 = searchResultsToTypeRefs results
+    let typeRefsWithoutCycles = searchResultsToTypeRefs results
     let typeRefs =
           case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) typeRefs0
-            DontIncludeCycles -> typeRefs0
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) typeRefsWithoutCycles
+            DontIncludeCycles -> typeRefsWithoutCycles
     Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
