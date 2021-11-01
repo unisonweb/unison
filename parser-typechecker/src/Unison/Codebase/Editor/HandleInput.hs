@@ -907,9 +907,8 @@ loop = do
       UiI -> eval UI
 
       DocsToHtmlI namespacePath' sourceDirectory -> do
-        let absPath = resolveToAbsolute namespacePath'
-        let namespaceBranch = Branch.getAt' (Path.unabsolute absPath) root'
-        eval (DocsToHtml namespaceBranch sourceDirectory)
+        let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
+        eval (DocsToHtml root' absPath sourceDirectory)
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
