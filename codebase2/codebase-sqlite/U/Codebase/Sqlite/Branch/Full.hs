@@ -1,27 +1,27 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module U.Codebase.Sqlite.Branch.Full where
 
+import Control.Lens (Traversal, Traversal')
+import Data.Bifunctor (Bifunctor (bimap))
+import qualified Data.Set as Set
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import qualified U.Util.Map as Map
-import Data.Bifunctor (Bifunctor(bimap))
-import qualified Data.Set as Set
-import Control.Lens (Traversal, Traversal')
 import Unison.Prelude
 
 -- |
 -- @
 -- Branch
---   { terms :: Map LocalTextId (Map S.LocalReferent LocalMetadataSet),
---     types :: Map LocalTextId (Map S.LocalReference LocalMetadataSet),
+--   { terms :: Map LocalTextId (Map LocalReferent LocalMetadataSet),
+--     types :: Map LocalTextId (Map LocalReference LocalMetadataSet),
 --     patches :: Map LocalTextId LocalPatchObjectId,
 --     children :: Map LocalTextId LocalBranchChildId
 --   }
@@ -31,8 +31,8 @@ type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranc
 -- |
 -- @
 -- Branch
---   { terms :: Map TextId (Map S.Referent DbMetadataSet),
---     types :: Map TextId (Map S.Reference DbMetadataSet),
+--   { terms :: Map TextId (Map Referent DbMetadataSet),
+--     types :: Map TextId (Map Reference DbMetadataSet),
 --     patches :: Map TextId PatchObjectId,
 --     children :: Map TextId (BranchObjectId, CausalHashId)
 --   }
@@ -51,55 +51,19 @@ data Branch' t h p c = Branch
 
 branchHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
 branchHashes_ _f _ = undefined
-  -- Branch <$> traverse (\m -> Map.mapKeys)
+
+-- Branch <$> traverse (\m -> Map.mapKeys)
 
 branchCausalHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'
-branchCausalHashes_ f Branch{..} =
+branchCausalHashes_ f Branch {..} =
   Branch terms types patches <$> traverse f children
-
-
--- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
--- convertBranch dbBranch = _
-
--- branch plan
--- ===========
--- 1. function that reads a DbBranch out of codebase
--- ==> loadDbBranchByObjectId
--- 2. function which remaps references in a Branch ✅
--- ==> Chris's work
--- 3. function that takes DbBranch to (LocalIds, LocalBranch)
--- ==> dbToLocalBranch (todo)
--- 4. function that takes a DbBranch to a Hashing.V2.Branch
--- ==> Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers.dbBranchHash
--- 5. saveBranchHash
--- 6. saveBranchObject
--- ===============
--- end branch plan
-
--- causal plan'
--- ===========
--- 1.
-
--- database has a root CausalHashId
--- from CausalHashId, we can look up ValueHashId and
---
--- old object id --db--> old hash --mem--> new hash --db--> new object id
-
---
--- Branch
---  { terms :: Map TextId (Map (Referent'' TextId ObjectId) (MetadataSetFormat' TextId ObjectId)),
---    types :: Map TextId (Map (Reference' TextId ObjectId) (MetadataSetFormat' TextId ObjectId)),
---    patches :: Map TextId PatchObjectId,
---    children :: Map TextId (BranchObjectId, CausalHashId)
---  }
-
 
 type LocalMetadataSet = MetadataSetFormat' LocalTextId LocalDefnId
 
 type DbMetadataSet = MetadataSetFormat' TextId ObjectId
 
 data MetadataSetFormat' t h = Inline (Set (Reference' t h))
-  deriving Show
+  deriving (Show)
 
 metadataSetFormatReferences_ ::
   (Ord t, Ord h) =>

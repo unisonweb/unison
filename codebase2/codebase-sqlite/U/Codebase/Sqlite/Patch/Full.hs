@@ -15,8 +15,8 @@ import qualified U.Util.Map as Map
 -- |
 -- @
 -- LocalPatch
---   { termEdits :: Map Sqlite.ReferentH (Set TermEdit),
---     typeEdits :: Map Sqlite.ReferenceH (Set TypeEdit)
+--   { termEdits :: Map ReferentH (Set TermEdit),
+--     typeEdits :: Map ReferenceH (Set TypeEdit)
 --   }
 -- @
 type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
@@ -24,8 +24,8 @@ type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
 -- |
 -- @
 -- LocalPatch
---   { termEdits :: Map Sqlite.LocalReferentH (Set LocalTermEdit),
---     typeEdits :: Map Sqlite.LocalReferenceH (Set LocalTypeEdit)
+--   { termEdits :: Map LocalReferentH (Set LocalTermEdit),
+--     typeEdits :: Map LocalReferenceH (Set LocalTypeEdit)
 --   }
 -- @
 type LocalPatch = Patch' LocalTextId LocalHashId LocalDefnId
