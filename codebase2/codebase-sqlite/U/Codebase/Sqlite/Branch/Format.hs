@@ -9,12 +9,17 @@ module U.Codebase.Sqlite.Branch.Format
   )
 where
 
-import Data.ByteString (ByteString)
+import Control.Lens (Lens', zoom, _1, _2, _3, _4)
+import Control.Monad.Trans.State.Strict (State)
+import qualified Control.Monad.Trans.State.Strict as State
+import Data.Bitraversable (bitraverse)
+import Data.Coerce (Coercible, coerce)
+import qualified Data.Map.Strict as Map
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import U.Codebase.Sqlite.Branch.Diff (Diff, LocalDiff)
 import qualified U.Codebase.Sqlite.Branch.Diff as Branch.Diff
-import U.Codebase.Sqlite.Branch.Full (Branch' (types, terms, patches, children), DbBranch, LocalBranch)
+import U.Codebase.Sqlite.Branch.Full (DbBranch, LocalBranch)
 import qualified U.Codebase.Sqlite.Branch.Full as Branch.Full
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
@@ -23,6 +28,11 @@ import U.Codebase.Sqlite.LocalIds
     LocalPatchObjectId (..),
     LocalTextId (..),
   )
+import U.Codebase.Sqlite.Reference (LocalReference, Reference)
+import U.Codebase.Sqlite.Referent (LocalReferent, Referent)
+import qualified U.Util.Map as Map
+import qualified U.Util.Set as Set
+import Unison.Prelude
 
 -- | A 'BranchFormat' is a deserialized namespace object (@object.bytes@).
 --
@@ -52,38 +62,69 @@ localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
 localToDbBranch li =
   Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
+type DbToLocalBranchState =
+  ( Map TextId LocalTextId,
+    Map ObjectId LocalDefnId,
+    Map PatchObjectId LocalPatchObjectId,
+    Map (BranchObjectId, CausalHashId) LocalBranchChildId
+  )
+
 dbToLocalBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
 dbToLocalBranch (Branch.Full.Branch terms types patches children) =
-  let temp = Branch.Full.Branch
-          <$> Map.bitraverse localNameSegment (Map.bitraverse localReferent localMetadata) terms
-          <*> Map.bitraverse localNameSegment (Map.bitraverse localReference localMetadata) types
-          <*> Map.bitraverse localNameSegment localPatch patches
-          <*> Map.bitraverse localNameSegment localChild children
-  undefined
+  let (localBranch, (localTexts, localDefns, localPatches, localChildren)) =
+        (`State.runState` (mempty @DbToLocalBranchState)) do
+          Branch.Full.Branch
+            <$> Map.bitraverse (zoom _1 . localText) (Map.bitraverse (zoom _1_2 . localReferent) (zoom _1_2 . localMetadata)) terms
+            <*> Map.bitraverse (zoom _1 . localText) (Map.bitraverse (zoom _1_2 . localReference) (zoom _1_2 . localMetadata)) types
+            <*> Map.bitraverse (zoom _1 . localText) (zoom _3 . localPatch) patches
+            <*> Map.bitraverse (zoom _1 . localText) (zoom _4 . localChild) children
+      branchLocalIds :: BranchLocalIds
+      branchLocalIds =
+        LocalIds
+          { branchTextLookup = Map.valuesVector (Map.swap localTexts),
+            branchDefnLookup = Map.valuesVector (Map.swap localDefns),
+            branchPatchLookup = Map.valuesVector (Map.swap localPatches),
+            branchChildLookup = Map.valuesVector (Map.swap localChildren)
+          }
+   in (branchLocalIds, localBranch)
   where
-    localNameSegment :: State (Map TextId LocalTextId) LocalTextId
-    localNameSegment = undefined
+    localChild ::
+      (BranchObjectId, CausalHashId) ->
+      State (Map (BranchObjectId, CausalHashId) LocalBranchChildId) LocalBranchChildId
+    localChild = localize
 
-    localReferent :: State (Map TextId LocalTextId, Map ObjectId LocalDefnId) S.LocalReferent
-    localReferent = undefined
+    localDefn :: ObjectId -> State (Map ObjectId LocalDefnId) LocalDefnId
+    localDefn = localize
 
-    localMetadatata
+    localMetadata :: Branch.Full.DbMetadataSet -> State (Map TextId LocalTextId, Map ObjectId LocalDefnId) Branch.Full.LocalMetadataSet
+    localMetadata (Branch.Full.Inline vals) =
+      Branch.Full.Inline <$> Set.traverse localReference vals
 
-    -- Lens (A, B, C, D) (B, D) = alongside _2 _4
+    localText :: TextId -> State (Map TextId LocalTextId) LocalTextId
+    localText = localize
 
-  -- type BranchSavingState = (Map TextId LocalTextId, Map ObjectId LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
-  -- State (Map TextId LocalTextId)
+    localPatch :: PatchObjectId -> State (Map PatchObjectId LocalPatchObjectId) LocalPatchObjectId
+    localPatch = localize
 
-  --
+    localReference :: Reference -> State (Map TextId LocalTextId, Map ObjectId LocalDefnId) LocalReference
+    localReference = bitraverse (zoom _1 . localText) (zoom _2 . localDefn)
 
-  -- WriterT BranchLocalIds (State )
+    localReferent :: Referent -> State (Map TextId LocalTextId, Map ObjectId LocalDefnId) LocalReferent
+    localReferent = bitraverse localReference localReference
 
-      -- done =<< (runWriterT . flip evalStateT startState) do
-      --   S.Branch
-      --     <$> Map.bitraverse saveNameSegment (Map.bitraverse saveReferent saveMetadata) terms
-      --     <*> Map.bitraverse saveNameSegment (Map.bitraverse saveReference saveMetadata) types
-      --     <*> Map.bitraverse saveNameSegment savePatch' patches
-      --     <*> Map.bitraverse saveNameSegment saveChild children
+localize :: (Coercible local Word64, Ord real) => real -> State (Map real local) local
+localize real = do
+  mapping <- State.get
+  case Map.lookup real mapping of
+    Nothing -> do
+      let nextLocal = coerce @Word64 (fromIntegral (Map.size mapping))
+      State.put $! Map.insert real nextLocal mapping
+      pure nextLocal
+    Just local -> pure local
+
+_1_2 :: Lens' (a, b, c, d) (a, b)
+_1_2 f (a0, b0, c, d) =
+  (\(a, b) -> (a, b, c, d)) <$> f (a0, b0)
 
 lookupBranchLocalText :: BranchLocalIds -> LocalTextId -> TextId
 lookupBranchLocalText li (LocalTextId w) = branchTextLookup li Vector.! fromIntegral w
