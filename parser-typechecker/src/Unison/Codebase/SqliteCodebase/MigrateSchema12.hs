@@ -238,7 +238,7 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
 --   * Map over parent causal hash IDs
 --    ==> Queries.saveCausalParents
 migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateCausal conn _causalHashId = runDB conn . fmap (either id id) . runExceptT $ do
+migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExceptT $ do
   -- C.Causal{} <- lift $ Ops.loadCausalBranchByCausalHash causalHash >>= \case
   --   Nothing -> error $ "Expected causal to exist but it didn't" <> show causalHash
   --   Just c -> pure c
@@ -271,20 +271,23 @@ migrateCausal conn _causalHashId = runDB conn . fmap (either id id) . runExceptT
     Set.fromList <$> for (Set.toList . SC.parents $ oldCausal) \oldParentHashId -> do
       unCausalHash . fst <$> gets (\MigrationState {..} -> causalMapping Map.! oldParentHashId)
 
-  let newCausalHash :: Hash
-      newCausalHash = Hashable.accumulate $ Hashing.hashCausal (Hashing.Causal {branchHash = newBranchHash, parents = newParentHashes})
+  let newCausalHash :: CausalHash
+      newCausalHash = CausalHash . Cv.hash1to2 . Hashable.accumulate $ Hashing.hashCausal (Hashing.Causal {branchHash = newBranchHash, parents = Set.map Cv.hash2to1 newParentHashes})
+  newCausalHashId <- Q.saveCausalHash newCausalHash
   let newCausal =
         case oldCausal of
           DbCausal {..} ->
             DbCausal
-              { selfHash = undefined,
+              { selfHash = newCausalHashId,
                 valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
                 parents = Set.map (snd . (\old -> migratedCausals Map.! old)) $ parents
               }
-  -- let newCausalHash = ???
   Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
   Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
-  undefined
+
+  field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
+
+    -- causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
 
   -- Plan:
   --   * Load a C.Causal
