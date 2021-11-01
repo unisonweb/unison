@@ -911,7 +911,7 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase
 
--- | Should we include full cycles in the results? (e.g. if I search for `isEven`, should I find `isOdd` too?)
+-- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
 data IncludeCycles
   = IncludeCycles
   | DontIncludeCycles
