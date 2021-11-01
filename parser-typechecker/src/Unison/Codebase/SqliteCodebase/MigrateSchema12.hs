@@ -257,11 +257,14 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
           else []
 
   migratedCausals <- gets causalMapping
-  let unmigratedParents = map C . filter (`Map.member` migratedCausals) $ oldCausalParentHashIds
+  let unmigratedParents =
+        oldCausalParentHashIds
+          & filter (`Map.member` migratedCausals)
+          & fmap C
   let unmigratedEntities = unmigratedBranch <> unmigratedParents
   when (not . null $ unmigratedParents <> unmigratedBranch) (throwE $ Sync.Missing unmigratedEntities)
 
-  (_, _, newBranchHash) <- gets (\MigrationState {..} -> objLookup Map.! branchObjId)
+  (_, _, newBranchHash) <- gets (\MigrationState {objLookup} -> objLookup Map.! branchObjId)
 
   let newParentHashes =
         oldCausalParentHashIds
