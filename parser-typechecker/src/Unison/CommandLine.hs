@@ -72,7 +72,7 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
-import Control.Lens (ifoldMap)
+import Control.Lens (ifor)
 import qualified Unison.CommandLine.Globbing as Globbing
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Codebase.Branch (Branch0)
@@ -257,26 +257,35 @@ fixupCompletion q cs@(h:t) = let
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 
-parseInput
-  :: Branch0 m -- ^ Root branch, used to expand globs
-  -> Path.Absolute -- ^ Current path from root, used to expand globs
-  -> [String] -- ^ Numbered arguments
-  -> Map String InputPattern -- ^ Input Pattern Map
-  -> [String] -- ^ command:arguments
-  -> Either (P.Pretty CT.ColorText) Input
+parseInput ::
+  -- | Root branch, used to expand globs
+  Branch0 m ->
+  -- | Current path from root, used to expand globs
+  Path.Absolute ->
+  -- | Numbered arguments
+  [String] ->
+  -- | Input Pattern Map
+  Map String InputPattern ->
+  -- | command:arguments
+  [String] ->
+  Either (P.Pretty CT.ColorText) Input
 parseInput rootBranch currentPath numberedArgs patterns segments = do
   case segments of
     [] -> Left ""
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
-        let expandedArgs :: [String]
-            expandedArgs = foldMap (expandNumber numberedArgs) args
-        parse $
-          flip ifoldMap expandedArgs $ \i arg -> do
-            let targets = case InputPattern.argType pat i of
-                  Just argT -> InputPattern.globTargets argT
-                  Nothing -> mempty
-            Globbing.expandGlobs targets rootBranch currentPath arg
+        let expandedNumbers :: [String]
+            expandedNumbers = foldMap (expandNumber numberedArgs) args
+        expandedGlobs <- ifor expandedNumbers $ \i arg -> do
+          let targets = case InputPattern.argType pat i of
+                Just argT -> InputPattern.globTargets argT
+                Nothing -> mempty
+          case Globbing.expandGlobs targets rootBranch currentPath arg of
+            -- No globs encountered
+            Nothing -> pure [arg]
+            Just [] -> Left "No matches."
+            Just matches -> pure matches
+        parse (concat expandedGlobs)
       Nothing ->
         Left
           . warn
