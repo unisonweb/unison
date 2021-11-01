@@ -64,9 +64,14 @@ dbToLocalBranch (Branch.Full.Branch terms types patches children) =
     localNameSegment :: State (Map TextId LocalTextId) LocalTextId
     localNameSegment = undefined
 
-    localReferent :: State (Map TextId LocalTextId, Map
+    localReferent :: State (Map TextId LocalTextId, Map ObjectId LocalDefnId) S.LocalReferent
+    localReferent = undefined
 
-  -- type BranchSavingState = (Map TextId LocalTextId, Map HashId LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
+    localMetadatata
+
+    -- Lens (A, B, C, D) (B, D) = alongside _2 _4
+
+  -- type BranchSavingState = (Map TextId LocalTextId, Map ObjectId LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
   -- State (Map TextId LocalTextId)
 
   --
