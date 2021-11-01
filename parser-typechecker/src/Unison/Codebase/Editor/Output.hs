@@ -207,6 +207,8 @@ data Output v
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
+  -- | List all transitive dependencies used in a namespace
+  | ListNamespaceDependencies (Map Referent (Set Name)) (Map Referent (Set Name))
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -331,6 +333,7 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies{} -> False
   ListDependents{} -> False
+  ListNamespaceDependencies{} -> False
   TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
 

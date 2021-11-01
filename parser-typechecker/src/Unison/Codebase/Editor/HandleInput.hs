@@ -40,7 +40,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
-import           Control.Monad.State            ( StateT )
+import           Control.Monad.State            ( StateT, get, execStateT )
 import qualified Control.Monad.State as State
 import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
@@ -153,6 +153,8 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
+import Unison.Util.Relation (Relation)
+import qualified Control.Lens as Lens
 
 type F m i v = Free (Command m i v)
 
@@ -457,6 +459,7 @@ loop = do
           ListEditsI{} -> wat
           ListDependenciesI{} -> wat
           ListDependentsI{} -> wat
+          NamespaceDependenciesI{} -> wat
           HistoryI{} -> wat
           TestI{} -> wat
           LinksI{} -> wat
@@ -1734,6 +1737,12 @@ loop = do
             let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
+      NamespaceDependenciesI namespacePath' ->
+        case (Branch.getAt (Path.fromPath' namespacePath') root') of
+          Nothing -> respond $ BranchEmpty (Right namespacePath')
+          Just b -> do
+            (local, nonlocal) <- namespaceDependencies root0 (Branch.head b)
+            respond $ ListNamespaceDependencies local nonlocal
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
@@ -3084,3 +3093,40 @@ fuzzySelectNamespace searchBranch0 =
           Path.toText
           (Set.toList $ Branch.deepPaths searchBranch0)
       )
+
+
+data Residency = Local | NonLocal
+  deriving (Eq)
+
+-- TODO: filter out builtins, they're not really dependencies
+namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name), Map Referent (Set Name))
+namespaceDependencies root branch = do
+    let startingReferents = Relation.dom namespaceTerms
+    residencyMap <- flip execStateT mempty $ resolveRefs startingReferents
+    let (local, nonlocal) = Map.partition ((== Local) . fst) residencyMap
+    pure (fmap snd local, fmap snd nonlocal)
+  where
+    namespaceTerms :: Relation Referent Name
+    namespaceTerms = branch & Branch.deepTerms
+    rootTerms :: Relation Referent Name
+    rootTerms = root & Branch.deepTerms
+    storeName ::
+      Referent ->
+      StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
+    storeName referent = do
+      case Relation.lookupDom referent namespaceTerms of
+        Lens.Empty -> Lens.at referent Lens.?= (NonLocal, Relation.lookupDom referent rootTerms)
+        names -> at referent ?= (Local, names)
+    resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
+    resolveRefs todo = for_ todo $ \referent -> do
+      directDepReferences <- lift $ eval (GetDependents $ Referent.toReference referent)
+      let directDepReferents = Set.map Referent.fromReference directDepReferences
+      checked <- get
+      let uncheckedDeps = directDepReferents
+                        & Set.filter ((`Map.notMember` checked))
+      storeName referent
+      resolveRefs uncheckedDeps
+
+
+    -- eval $ GetDependents (Referent)
+    -- eval $ NamespaceDependencies branch

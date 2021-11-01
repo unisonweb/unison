@@ -118,6 +118,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(Unrecogni
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Input as Input
+import qualified Unison.Util.Monoid as Monoid
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1067,6 +1068,13 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
+  ListNamespaceDependencies local nonLocal -> pure $
+      prettyDeps local <> 
+      prettyDeps nonLocal <> 
+      Monoid.whenM (null nonLocal) ("This namespace has no external dependencies")
+    where
+      prettyDeps = ifoldMap \_ref names ->
+        P.commas . fmap (P.text . Name.toText) . Set.toList $ names
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>

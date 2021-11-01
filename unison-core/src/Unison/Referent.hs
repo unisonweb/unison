@@ -11,6 +11,7 @@ module Unison.Referent
     pattern ConId,
     fold,
     toReference,
+    fromReference,
     fromText,
 
     -- * ShortHash helpers
@@ -91,6 +92,10 @@ toString = Text.unpack . toText
 
 toReference :: Referent -> Reference
 toReference = toReference'
+
+-- | Inject a Reference into a Referent
+fromReference :: Reference -> Referent
+fromReference r = Ref r
 
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
