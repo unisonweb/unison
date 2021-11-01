@@ -9,6 +9,7 @@
 module Unison.Server.Backend where
 
 import Control.Lens (_2, over)
+import Control.Lens.Cons
 import Control.Error.Util ((??),hush)
 import Control.Monad.Except
   ( ExceptT (..),
@@ -40,7 +41,6 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as PathParse
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
@@ -284,10 +284,8 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        res <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
-        pure $ case res of
-          (_, _, doc) : _ -> Just doc
-          _ -> Nothing
+        (_, _, doc) <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
+        pure doc
 
       -- allow any of these capitalizations
       toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme" ]
@@ -297,7 +295,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
               rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
-        join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
+        traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
 isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
 isDoc codebase ref = do
@@ -742,7 +740,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> liftIO (traverse (renderDoc ppe width rt codebase) docs)
+        liftIO (traverse (renderDoc ppe width rt codebase) docs)
 
       mkTermDefinition ::
         ( Reference ->
@@ -801,11 +799,11 @@ renderDoc ::
   Rt.Runtime v ->
   Codebase IO v Ann ->
   Reference ->
-  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  IO (HashQualifiedName, UnisonHash, Doc.Doc)
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
-  map (name,hash,) . pure
+  (name,hash,)
     <$> let tm = Term.ref () r
          in Doc.renderDoc @v ppe terms typeOf eval decls tm
   where
@@ -840,40 +838,47 @@ docsInBranchToHtmlFiles
   -> FilePath
   -> IO ()
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
-  let deepTermRefs = (toList . R.range . Branch.deepTerms . Branch.head) currentBranch >>= toList
-  docRefs <- filterM (isDoc codebase) deepTermRefs
+  let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
+  docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   hqLength <- Codebase.hashLength codebase
   let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
-  let width = defaultWidth
   let ppe = PPE.fromNamesDecl hqLength printNames
-  docs <- concat <$> for docRefs (renderDoc ppe width runtime codebase . Referent.toReference)
+  docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile directory) docs
 
   where
+    renderDoc' ppe runtime codebase (ref, name) = do
+      (_, hash, doc) <- renderDoc ppe defaultWidth runtime codebase (Referent.toReference ref)
+      pure (name, hash, doc)
+
     cleanPath :: FilePath -> FilePath
     cleanPath filePath =
       filePath <&> \case
         '#' -> '@'
         c   -> c
 
-    docFilePath :: FilePath -> HashQualifiedName -> FilePath
-    docFilePath directory rawHqn =
+    docFilePath :: FilePath -> Name -> FilePath
+    docFilePath destination docFQN =
       let
-        (path, docName) =
-          fromRight (error "Could not parse doc name") $ PathParse.parseHQSplit $ Text.unpack rawHqn
+        (dir, fileName) =
+          case unsnoc . map NameSegment.toString . toList . Name.segments $ docFQN of
+            Just (path, leafName) ->
+              (directoryPath path , docFileName leafName)
+            Nothing ->
+              error "Could not parse doc name"
 
-        directoryPath =
-          directory </> joinPath (map NameSegment.toString $ Path.toList path)
+        directoryPath p =
+          destination </> joinPath p
 
-        docFileName =
-          cleanPath $ HQ'.toString docName <> ".html"
+        docFileName n =
+          cleanPath $ n <> ".html"
 
-      in directoryPath </> docFileName
+      in dir </> fileName
 
-    renderDocToHtmlFile :: FilePath -> (HashQualifiedName, UnisonHash, Doc.Doc) -> IO ()
-    renderDocToHtmlFile directory (docName, _, doc) =
+    renderDocToHtmlFile :: FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile destination (docName, _, doc) =
       let
-        fullPath = docFilePath directory docName
+        fullPath = docFilePath destination docName
         directoryPath = takeDirectory fullPath
        in do
         -- Ensure all directories exists
