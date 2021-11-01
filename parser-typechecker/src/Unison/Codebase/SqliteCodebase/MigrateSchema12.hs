@@ -7,7 +7,7 @@ module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
 import Control.Lens
 import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Reader (ReaderT (runReaderT), ask)
+import Control.Monad.Reader (ReaderT (runReaderT), ask, mapReaderT)
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
@@ -210,10 +210,14 @@ migrationSync = Sync \case
 migratePatch :: Hash -> ByteString -> m (Sync.TrySyncResult Entity)
 migratePatch = error "not implemented"
 
-runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -> m a
-runDB conn = (runExceptT >=> err) . flip runReaderT conn
+runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a -> m a
+runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
   where
+    err :: forall e x m. (Either e x -> m x)
     err = \case Left err -> error $ show err; Right a -> pure a
+
+liftQ :: ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a
+liftQ = mapReaderT lift
 
 -- loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
 --
@@ -239,20 +243,12 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
 --    ==> Queries.saveCausalParents
 migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExceptT $ do
-  -- C.Causal{} <- lift $ Ops.loadCausalBranchByCausalHash causalHash >>= \case
-  --   Nothing -> error $ "Expected causal to exist but it didn't" <> show causalHash
-  --   Just c -> pure c
-  let oldCausal :: SC.DbCausal
-      oldCausal = undefined
+  oldBranchHashId <- lift . liftQ $ Q.loadCausalValueHashId oldCausalHashId
+  oldCausalParentHashIds <- lift . liftQ $ Q.loadCausalParents oldCausalHashId
 
-  let branchHashId = (SC.valueHash oldCausal)
   -- This fails if the object for the branch doesn't exist, CHECK: we currently expect
   -- this to always be true?
-  branchObjId <-
-    Q.maybeObjectIdForPrimaryHashId (unBranchHashId branchHashId) >>= \case
-      Nothing -> error $ "Expected branch object ID but didn't exist for hashId:" <> show branchHashId
-      Just objId -> pure objId
-
+  branchObjId <- lift . liftQ $ Q.expectObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
@@ -261,49 +257,49 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
           else []
 
   migratedCausals <- gets causalMapping
-  let unmigratedParents = map C . filter (`Map.member` migratedCausals) . Set.toList . SC.parents $ oldCausal
+  let unmigratedParents = map C . filter (`Map.member` migratedCausals) $ oldCausalParentHashIds
   let unmigratedEntities = unmigratedBranch <> unmigratedParents
   when (not . null $ unmigratedParents <> unmigratedBranch) (throwE $ Sync.Missing unmigratedEntities)
 
-  (_newBranchObjId, _newBranchHashId, newBranchHash) <- gets (\MigrationState {..} -> objLookup Map.! branchObjId)
+  (_, _, newBranchHash) <- gets (\MigrationState {..} -> objLookup Map.! branchObjId)
 
-  newParentHashes <-
-    Set.fromList <$> for (Set.toList . SC.parents $ oldCausal) \oldParentHashId -> do
-      unCausalHash . fst <$> gets (\MigrationState {..} -> causalMapping Map.! oldParentHashId)
+  let newParentHashes =
+        oldCausalParentHashIds
+          & fmap
+            ( \oldParentHashId ->
+                let (CausalHash h, _) = migratedCausals Map.! oldParentHashId
+                 in h
+            )
+          & Set.fromList
 
   let newCausalHash :: CausalHash
-      newCausalHash = CausalHash . Cv.hash1to2 . Hashable.accumulate $ Hashing.hashCausal (Hashing.Causal {branchHash = newBranchHash, parents = Set.map Cv.hash2to1 newParentHashes})
+      newCausalHash =
+        CausalHash . Cv.hash1to2 . Hashable.accumulate $
+          Hashing.hashCausal
+            ( Hashing.Causal
+                { branchHash = newBranchHash,
+                  parents = Set.map Cv.hash2to1 newParentHashes
+                }
+            )
   newCausalHashId <- Q.saveCausalHash newCausalHash
   let newCausal =
-        case oldCausal of
-          DbCausal {..} ->
-            DbCausal
-              { selfHash = newCausalHashId,
-                valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
-                parents = Set.map (snd . (\old -> migratedCausals Map.! old)) $ parents
-              }
+        DbCausal
+          { selfHash = newCausalHashId,
+            valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
+            parents = Set.fromList . map (snd . (\old -> migratedCausals Map.! old)) $ oldCausalParentHashIds
+          }
   Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
   Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
 
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 
-    -- causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
-
+  pure Sync.Done
   -- Plan:
-  --   * Load a C.Causal
+  --   * Load the pieces of a Db.Causal ✅
   --   * Ensure its parent causals and branch (value hash) have been migrated ✅
-  --   * Rewrite the value-hash and parent causal hashes
-  --   * Save the new causal (Do we change the self-hash?)
-  --   * Save Causal Hash mapping to skymap
-
-  undefined
-
--- data Causal m hc he e = Causal
---   { causalHash :: hc,
---     valueHash  :: he,
---     parents    :: Map hc (m (Causal m hc he e)),
---     value      :: m e
---   }
+  --   * Rewrite the value-hash and parent causal hashes ✅
+  --   * Save the new causal ✅
+  --   * Save Causal Hash mapping to skymap ✅
 
 -- data C.Branch m = Branch
 -- { terms    :: Map NameSegment (Map Referent (m MdValues)),
