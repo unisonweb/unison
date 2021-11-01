@@ -144,7 +144,7 @@ data Input
     | MergeIOBuiltinsI
     | ListDependenciesI (HQ.HashQualified Name)
     | ListDependentsI (HQ.HashQualified Name)
-    | NamespaceDependenciesI Path'
+    | NamespaceDependenciesI (Maybe Path')
     | DebugNumberedArgsI
     | DebugTypecheckedUnisonFileI
     | DebugDumpNamespacesI

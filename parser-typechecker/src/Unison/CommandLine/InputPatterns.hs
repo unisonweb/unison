@@ -1316,6 +1316,17 @@ dependencies = InputPattern "dependencies" [] []
     [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
     _ -> Left (I.help dependencies))
 
+namespaceDependencies :: InputPattern
+namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
+  "List the dependencies of the specified namespace across all namespaces."
+  (\case
+    [p] -> first fromString $ do
+             p <- Path.parsePath' p
+             pure $ Input.NamespaceDependenciesI (Just p)
+    [] -> pure (Input.NamespaceDependenciesI Nothing)
+    _ -> Left (I.help namespaceDependencies)
+  )
+
 debugNumberedArgs :: InputPattern
 debugNumberedArgs = InputPattern "debug.numberedArgs" [] []
   "Dump the contents of the numbered args state."

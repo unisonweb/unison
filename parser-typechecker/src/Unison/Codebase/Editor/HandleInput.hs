@@ -1737,9 +1737,10 @@ loop = do
             let names = types <> terms
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
-      NamespaceDependenciesI namespacePath' ->
-        case (Branch.getAt (Path.fromPath' namespacePath') root') of
-          Nothing -> respond $ BranchEmpty (Right namespacePath')
+      NamespaceDependenciesI namespacePath' -> do
+        let path = maybe currentPath'' Path.fromPath' namespacePath'
+        case (Branch.getAt path root') of
+          Nothing -> respond $ BranchEmpty (Right (Path.toPath' path))
           Just b -> do
             (local, nonlocal) <- namespaceDependencies root0 (Branch.head b)
             respond $ ListNamespaceDependencies local nonlocal
