@@ -12,10 +12,10 @@ where
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
-import U.Codebase.Sqlite.Branch.Diff (LocalDiff, Diff)
-import U.Codebase.Sqlite.Branch.Full (DbBranch, LocalBranch)
-import qualified U.Codebase.Sqlite.Branch.Full as Branch.Full
+import U.Codebase.Sqlite.Branch.Diff (Diff, LocalDiff)
 import qualified U.Codebase.Sqlite.Branch.Diff as Branch.Diff
+import U.Codebase.Sqlite.Branch.Full (Branch' (types, terms, patches, children), DbBranch, LocalBranch)
+import qualified U.Codebase.Sqlite.Branch.Full as Branch.Full
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds
   ( LocalBranchChildId (..),
@@ -53,7 +53,32 @@ localToDbBranch li =
   Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
 dbToLocalBranch :: DbBranch -> (BranchLocalIds, LocalBranch)
-dbToLocalBranch = undefined
+dbToLocalBranch (Branch.Full.Branch terms types patches children) =
+  let temp = Branch.Full.Branch
+          <$> Map.bitraverse localNameSegment (Map.bitraverse localReferent localMetadata) terms
+          <*> Map.bitraverse localNameSegment (Map.bitraverse localReference localMetadata) types
+          <*> Map.bitraverse localNameSegment localPatch patches
+          <*> Map.bitraverse localNameSegment localChild children
+  undefined
+  where
+    localNameSegment :: State (Map TextId LocalTextId) LocalTextId
+    localNameSegment = undefined
+
+    localReferent :: State (Map TextId LocalTextId, Map
+
+  -- type BranchSavingState = (Map TextId LocalTextId, Map HashId LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
+  -- State (Map TextId LocalTextId)
+
+  --
+
+  -- WriterT BranchLocalIds (State )
+
+      -- done =<< (runWriterT . flip evalStateT startState) do
+      --   S.Branch
+      --     <$> Map.bitraverse saveNameSegment (Map.bitraverse saveReferent saveMetadata) terms
+      --     <*> Map.bitraverse saveNameSegment (Map.bitraverse saveReference saveMetadata) types
+      --     <*> Map.bitraverse saveNameSegment savePatch' patches
+      --     <*> Map.bitraverse saveNameSegment saveChild children
 
 lookupBranchLocalText :: BranchLocalIds -> LocalTextId -> TextId
 lookupBranchLocalText li (LocalTextId w) = branchTextLookup li Vector.! fromIntegral w
@@ -69,7 +94,6 @@ lookupBranchLocalChild li (LocalBranchChildId w) = branchChildLookup li Vector.!
 
 localToDbDiff :: BranchLocalIds -> LocalDiff -> Diff
 localToDbDiff li = Branch.Diff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
-
 
 {-
 projects.arya.message = "hello, world"     -> <text constant> -> #abc

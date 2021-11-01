@@ -47,17 +47,20 @@ branchCausalHashes_ f Branch{..} =
 -- ===========
 -- 1. function that reads a DbBranch out of codebase
 -- ==> loadDbBranchByObjectId
--- 2. function which lifts a function over SomeReference's to run over a DBBranch by inflating Hashes
--- 3. function which remaps references in a Branch
+-- 2. function which remaps references in a Branch ✅
 -- ==> Chris's work
--- 4. function that takes DbBranch to (LocalIds, LocalBranch)
--- ==> dbToLocalBranch
--- 5. function that takes a DbBranch to a Hashing.V2.Branch
+-- 3. function that takes DbBranch to (LocalIds, LocalBranch)
+-- ==> dbToLocalBranch (todo)
+-- 4. function that takes a DbBranch to a Hashing.V2.Branch
 -- ==> Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers.dbBranchHash
--- 6. saveBranchHash
--- 7. saveBranchObject
+-- 5. saveBranchHash
+-- 6. saveBranchObject
 -- ===============
 -- end branch plan
+
+-- causal plan'
+-- ===========
+-- 1.
 
 -- database has a root CausalHashId
 -- from CausalHashId, we can look up ValueHashId and

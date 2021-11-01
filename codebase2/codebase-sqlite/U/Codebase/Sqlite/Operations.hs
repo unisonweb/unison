@@ -1046,12 +1046,6 @@ saveBranch (C.Causal hc he parents me) = do
       m LocalBranchChildId
     lookupChild = lookup_ Lens._4 Lens._4 LocalBranchChildId
     startState = mempty @BranchSavingState
-    saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
-    saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
-      when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
-      let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
-      oId <- Q.saveObject hashId OT.Namespace bytes
-      pure $ Db.BranchObjectId oId
     done :: (EDB m, Show a) => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
     done (lBranch, written@(textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
       when debug $ traceM $ "saveBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written
@@ -1064,6 +1058,13 @@ saveBranch (C.Causal hc he parents me) = do
               (Vector.fromList (Foldable.toList patchObjectIds))
               (Vector.fromList (Foldable.toList branchCausalIds))
       pure (ids, lBranch)
+
+saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
+saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
+  when debug $ traceM $ "saveBranchObject\n\tid = " ++ show id ++ "\n\tli = " ++ show li ++ "\n\tlBranch = " ++ show lBranch
+  let bytes = S.putBytes S.putBranchFormat $ S.BranchFormat.Full li lBranch
+  oId <- Q.saveObject hashId OT.Namespace bytes
+  pure $ Db.BranchObjectId oId
 
 loadRootCausal :: EDB m => m (C.Branch.Causal m)
 loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId
