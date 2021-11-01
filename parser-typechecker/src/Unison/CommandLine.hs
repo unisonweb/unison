@@ -283,7 +283,7 @@ parseInput rootBranch currentPath numberedArgs patterns segments = do
           case Globbing.expandGlobs targets rootBranch currentPath arg of
             -- No globs encountered
             Nothing -> pure [arg]
-            Just [] -> Left "No matches."
+            Just [] -> Left $ "No matches for: " <> fromString arg
             Just matches -> pure matches
         parse (concat expandedGlobs)
       Nothing ->
