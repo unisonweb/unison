@@ -111,7 +111,7 @@ import qualified Unison.Util.List              as List
 import Data.Tuple (swap)
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.ShortHash as SH
-import Unison.LabeledDependency as LD
+import qualified Unison.LabeledDependency as LD
 import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
 import U.Codebase.Sqlite.DbId (SchemaVersion(SchemaVersion))
 import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(UnrecognizedSchemaVersion, GitCouldntParseRootBranchHash))
@@ -258,8 +258,8 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success         -> pure $ P.bold "Done."
-  PrintMessage pretty -> do 
-    pure pretty 
+  PrintMessage pretty -> do
+    pure pretty
   BadRootBranch e -> case e of
     Codebase.NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"
@@ -1068,13 +1068,14 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
-  ListNamespaceDependencies local nonLocal -> pure $
-      prettyDeps local <> 
-      prettyDeps nonLocal <> 
-      Monoid.whenM (null nonLocal) ("This namespace has no external dependencies")
+  ListNamespaceDependencies _local nonLocal -> pure $
+      P.bold "This namespace depends on the following external terms:" <>
+      P.indent "  " (
+        prettyDeps (fold nonLocal) <>
+        Monoid.whenM (null nonLocal) ("This namespace has no external dependencies")
+                    )
     where
-      prettyDeps = ifoldMap \_ref names ->
-        P.commas . fmap (P.text . Name.toText) . Set.toList $ names
+      prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>

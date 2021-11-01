@@ -3120,12 +3120,13 @@ namespaceDependencies root branch = do
         names -> at referent ?= (Local, names)
     resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
     resolveRefs todo = for_ todo $ \referent -> do
+      -- | TODO: I need 'GetDependencies', not GetDependents
       directDepReferences <- lift $ eval (GetDependents $ Referent.toReference referent)
       let directDepReferents = Set.map Referent.fromReference directDepReferences
+      storeName referent
       checked <- get
       let uncheckedDeps = directDepReferents
                         & Set.filter ((`Map.notMember` checked))
-      storeName referent
       resolveRefs uncheckedDeps
 
 

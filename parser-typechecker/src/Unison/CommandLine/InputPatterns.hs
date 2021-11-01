@@ -1522,6 +1522,7 @@ validInputs =
   , mergeBuiltins
   , mergeIOBuiltins
   , dependents, dependencies
+  , namespaceDependencies
   , debugNumberedArgs
   , debugFileHashes
   , debugDumpNamespace
