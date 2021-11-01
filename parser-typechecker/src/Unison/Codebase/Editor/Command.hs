@@ -90,7 +90,8 @@ data Command
   UI :: Command m i v ()
 
   DocsToHtml
-    :: Branch m -- ^ namespace source
+    :: Branch m -- Root branch
+    -> Path -- ^ namespace source
     -> FilePath -- ^ file destination
     -> Command m i v ()
 

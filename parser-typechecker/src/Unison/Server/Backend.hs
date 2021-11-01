@@ -835,13 +835,15 @@ docsInBranchToHtmlFiles
   => Rt.Runtime v
   -> Codebase IO v Ann
   -> Branch IO
+  -> Path
   -> FilePath
   -> IO ()
-docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
+docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
+  let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
   hqLength <- Codebase.hashLength codebase
-  let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
+  let printNames = getCurrentPrettyNames (AllNames currentPath) root
   let ppe = PPE.fromNamesDecl hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
   liftIO $ traverse_ (renderDocToHtmlFile directory) docs
