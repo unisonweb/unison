@@ -80,7 +80,6 @@ import qualified Unison.Codebase.Path as Path
 import Text.Regex.TDFA ((=~))
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
-import Unison.Codebase.Editor.Output (Output)
 
 disableWatchConfig :: Bool
 disableWatchConfig = False
@@ -269,7 +268,7 @@ parseInput ::
   Map String InputPattern ->
   -- | command:arguments
   [String] ->
-  Either (Output v) Input
+  Either (P.Pretty CT.ColorText) Input
 parseInput rootBranch currentPath numberedArgs patterns segments = do
   case segments of
     [] -> Left ""

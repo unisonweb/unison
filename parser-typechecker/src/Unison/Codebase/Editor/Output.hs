@@ -91,9 +91,6 @@ data NumberedOutput v
 data Output v
   -- Generic Success response; we might consider deleting this.
   = Success
-  -- A glob failed to match anything
-  --            v Glob pattern
-  | GlobFailure String
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
   -- Used in Welcome module to instruct user
@@ -246,7 +243,6 @@ type SourceFileContents = Text
 isFailure :: Ord v => Output v -> Bool
 isFailure o = case o of
   Success{} -> False
-  GlobFailure{} -> True
   PrintMessage{} -> False
   BadRootBranch{} -> True
   CouldntLoadBranch{} -> True
