@@ -17,8 +17,26 @@ import qualified Data.Set as Set
 import Control.Lens (Traversal, Traversal')
 import Unison.Prelude
 
+-- |
+-- @
+-- Branch
+--   { terms :: Map LocalTextId (Map S.LocalReferent LocalMetadataSet),
+--     types :: Map LocalTextId (Map S.LocalReference LocalMetadataSet),
+--     patches :: Map LocalTextId LocalPatchObjectId,
+--     children :: Map LocalTextId LocalBranchChildId
+--   }
+-- @
 type LocalBranch = Branch' LocalTextId LocalDefnId LocalPatchObjectId LocalBranchChildId
 
+-- |
+-- @
+-- Branch
+--   { terms :: Map TextId (Map S.Referent DbMetadataSet),
+--     types :: Map TextId (Map S.Reference DbMetadataSet),
+--     patches :: Map TextId PatchObjectId,
+--     children :: Map TextId (BranchObjectId, CausalHashId)
+--   }
+-- @
 type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 
 type Referent'' t h = Referent' (Reference' t h) (Reference' t h)

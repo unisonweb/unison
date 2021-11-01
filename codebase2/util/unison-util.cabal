@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 980485bb761ff6b020b6cc8caf8432753f3fed20b2f135efeded0fff0fbeaeb6
+-- hash: 31a8bc44e9e7254b4567e7d791f3dba17fb3a4a1feb0bdc33fd38413fddc2297
 
 name:           unison-util
 version:        0.0.0
@@ -47,4 +47,5 @@ library
     , time
     , unison-util-relation
     , unliftio
+    , vector
   default-language: Haskell2010
