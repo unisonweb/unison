@@ -52,6 +52,18 @@ data Branch' t h p c = Branch
 branchHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
 branchHashes_ _f _ = undefined
 
+termHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+termHashes_ _f _ = undefined
+
+typeHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+typeHashes_ _f _ = undefined
+
+patchHashes_ :: Traversal (Branch' t h p c) (Branch' t h p' c) p p'
+patchHashes_ = undefined
+
+childrenHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'
+childrenHashes_ = undefined
+
 -- Branch <$> traverse (\m -> Map.mapKeys)
 
 branchCausalHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'

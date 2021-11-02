@@ -1,8 +1,8 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
@@ -44,6 +44,7 @@ import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
+import qualified U.Util.Hash as U.Util
 import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
@@ -56,16 +57,16 @@ import qualified Unison.Hash as Unison
 import qualified Unison.Hashing.V2.Causal as Hashing
 import qualified Unison.Hashing.V2.Convert as Convert
 import Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
 import Unison.Prelude
 import Unison.Reference (Pos)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Referent' as Referent'
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
-import qualified Unison.Pattern as Pattern
-import qualified Unison.Referent' as Referent'
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -104,6 +105,7 @@ data MigrationState = MigrationState
     -- ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
     -- This provides the info needed for rewriting a term.  You'll access it with a function :: Old
     -- termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
+    -- TODO: Split up mappings for Branch ObjectIds vs Term & Type Object IDs
     objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash))
     --
     -- componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
@@ -147,8 +149,8 @@ data Entity
   | DeclComponent Unison.Hash
   | C CausalHashId
   | -- haven't proven we need these yet
-    B ObjectId
-  | Patch ObjectId
+    BranchE ObjectId
+  | PatchE ObjectId
   | W WK.WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
@@ -203,7 +205,7 @@ migrationSync = Sync \case
   DeclComponent hash -> do
     Env {codebase} <- ask
     lift (migrateDeclComponent codebase hash)
-  B objectId -> do
+  BranchE objectId -> do
     Env {db} <- ask
     lift (migrateBranch db objectId)
   C causalHashId -> do
@@ -212,7 +214,7 @@ migrationSync = Sync \case
   -- To sync a watch result,
   --   1. ???
   --   2. Synced
-  Patch objectId -> do
+  PatchE objectId -> do
     Env {db} <- ask
     lift (migratePatch db (PatchObjectId objectId))
   W watchKind watchId -> do
@@ -262,7 +264,7 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
         if (branchObjId `Map.notMember` migratedObjIds)
-          then [B branchObjId]
+          then [BranchE branchObjId]
           else []
 
   migratedCausals <- gets causalMapping
@@ -326,40 +328,71 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
 --     children :: Map t c
 --   }
 
+-- Chris: Remaining Plan:
+-- Convert all term & type object IDs in DbBranch into Hashes using database, can't use the skymap since they might not be migrated yet.
+-- Collect all unmigrated Reference Ids and require them
+-- Using the `objLookup` skymap, map over the original dbBranch, and use the objLookup table to convert all object id references.
+-- Save this branch.
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
-  -- note for tomorrow: we want to just load the (Branch m) instead, forget the DbBranch
-  -- dbBranch <- Ops.loadDbBranchByObjectId objectId
-
-  let allMissingTypes = undefined
-  let allMissingTerms = undefined
-  let allMissingPatches = undefined
-  let allMissingChildren = undefined
-  let allMissingPredecessors = undefined
+migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
+  -- Read the old branch
+  oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
+  -- let convertBranch :: S.DbBranch -> m (S.Branch' TextId Hash PatchObjectId (BranchObjectId, CausalHashId))
+  -- type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
+  oldBranchWithHashes <- traverseOf S.branchHashes_ (lift . Ops.loadHashByObjectId) oldBranch
+  _migratedRefs <- gets referenceMapping
+  let allMissingTypesAndTerms :: [Entity]
+      allMissingTypesAndTerms =
+        oldBranchWithHashes
+          ^.. branchSomeRefs_
+            . uRefIdAsRefId_
+            . undefined -- filtered (`Map.notMember` migratedRefs)
+            . to someReferenceIdToEntity
+  let allMissingPatches =
+        oldBranch
+          ^.. S.patchHashes_
+            . undefined -- filtered (`Map.notMember` migratedObjects)
+            . to PatchE
+  let allMissingChildren =
+        oldBranch
+          ^.. S.childrenHashes_
+            . undefined -- filtered (`Map.notMember` migratedObjects)
+            . to BranchE
 
   -- Identify dependencies and bail out if they aren't all built
   let allMissingReferences :: [Entity]
       allMissingReferences =
-        allMissingTypes
-          ++ allMissingTerms
+        allMissingTypesAndTerms
           ++ allMissingPatches
           ++ allMissingChildren
-          ++ allMissingPredecessors
 
   when (not . null $ allMissingReferences) $
     throwE $ Sync.Missing allMissingReferences
 
-  -- Read the old branch
-  oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
   -- Remap object id references
   -- TODO: remap sub-namespace causal hashes
-  newBranch <- oldBranch & dbBranchObjRefs_ %%~ remapObjIdRefs
-  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
-  hash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
+  -- TODO: Save term & decl SomeObjectID mappings in skymap
+  _newBranch <- oldBranch & branchSomeRefs_ %%~ remapObjIdRefs
+  let newBranchWithRemappedCausalsChildrenAndPatches = undefined
+  -- remember to remap the causals, children, and patches
+  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranchWithRemappedCausalsChildrenAndPatches
+  hash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranchWithRemappedCausalsChildrenAndPatches))
   newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 hash))))
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
   field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, hash)
   pure Sync.Done
+
+uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' U.Util.Hash)) SomeReferenceId
+uRefIdAsRefId_ = mapping uRefAsRef_
+
+uRefAsRef_ :: Iso' (UReference.Id' U.Util.Hash) Reference.Id
+uRefAsRef_ = iso intoRef intoURef
+  where
+    intoRef (UReference.Id hash pos) = Reference.Id (Cv.hash2to1 hash) pos
+    intoURef (Reference.Id hash pos) = UReference.Id (Cv.hash1to2 hash) pos
+
+-- branchSomeRefs_ :: Traversal' (S.Branch' t h p c) (SomeReference h)
+-- branchSomeRefs_ f b = _
 
 migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = do
@@ -414,7 +447,7 @@ migrateWatch Codebase {..} watchKind oldWatchId = fmap (either id id) . runExcep
       pure Sync.Done
 
 -- Project an S.Referent'' into its SomeReferenceObjId's
-someReferent_ :: Traversal' (S.Branch.Full.Referent'' t ObjectId) SomeReferenceObjId
+someReferent_ :: Traversal' (S.Branch.Full.Referent'' t h) (SomeReference (UReference.Id' h))
 someReferent_ =
   (UReferent._Ref . someReference_)
     `failing` ( UReferent._Con
@@ -427,28 +460,30 @@ someReferent_ =
         <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
-someReference_ :: Traversal' (UReference.Reference' t ObjectId) SomeReferenceObjId
+someReference_ :: Traversal' (UReference.Reference' t h) (SomeReference (UReference.Id' h))
 someReference_ = UReference._ReferenceDerived . unsafeInsidePrism _TermReference
 
-someMetadataSetFormat :: Ord t => Traversal' (S.Branch.Full.MetadataSetFormat' t ObjectId) SomeReferenceObjId
+someMetadataSetFormat :: (Ord t, Ord h) => Traversal' (S.Branch.Full.MetadataSetFormat' t h) (SomeReference (UReference.Id' h))
 someMetadataSetFormat = S.Branch.Full.metadataSetFormatReferences_ . someReference_
 
 mapReferentMetadata ::
-  (Ord k, Ord t) =>
-  Traversal' k SomeReferenceObjId ->
+  (Ord k, Ord t, Ord h) =>
+  Traversal' k (SomeReference (UReference.Id' h)) ->
   Traversal'
-    (Map k (S.Branch.Full.MetadataSetFormat' t ObjectId))
-    (SomeReferenceObjId)
+    (Map k (S.Branch.Full.MetadataSetFormat' t h))
+    (SomeReference (UReference.Id' h))
 mapReferentMetadata keyTraversal f m =
   Map.toList m
     & traversed . beside keyTraversal someMetadataSetFormat %%~ f
     <&> Map.fromList
 
-dbBranchObjRefs_ :: Traversal' S.DbBranch SomeReferenceObjId
-dbBranchObjRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
+branchSomeRefs_ :: (Ord t, Ord h) => Traversal' (S.Branch' t h p c) (SomeReference (UReference.Id' h))
+branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
   let newTypesMap = types & traversed . mapReferentMetadata someReference_ %%~ f
   let newTermsMap = terms & traversed . mapReferentMetadata someReferent_ %%~ f
   S.Branch.Full.Branch <$> newTermsMap <*> newTypesMap <*> pure patches <*> pure children
+
+-- convertUReferenceId :: _ -> _
 
 -- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
 -- convertBranch dbBranch = _
@@ -696,8 +731,8 @@ referentAsSomeTerm_ f = \case
     newRefId <- refId & unsafeInsidePrism _TermReference %%~ f
     pure (Referent'.Ref' (Reference.DerivedId newRefId))
   (Referent'.Con' (Reference.DerivedId refId) conId conType) ->
-    ((refId, conId) & unsafeInsidePrism _ConstructorReference %%~ f) <&>
-      (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
+    ((refId, conId) & unsafeInsidePrism _ConstructorReference %%~ f)
+      <&> (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
   r -> pure r
 
 -- structural type Ping x = P1 (Pong x)
@@ -742,22 +777,30 @@ objIdsToHashed =
       Nothing -> error $ "Expected object mapping for ID: " <> show objId
       Just (_, _, hash) -> pure (Reference.Id hash pos)
 
-remapObjIdRefs :: MonadState MigrationState m => SomeReferenceObjId -> m SomeReferenceObjId
-remapObjIdRefs =
-  someRef_ %%~ \(UReference.Id objId pos) -> do
-    objMapping <- gets objLookup
-    case Map.lookup objId objMapping of
-      Nothing -> error $ "Expected object mapping for ID: " <> show objId
-      Just (newObjId, _, _) -> pure (UReference.Id newObjId pos)
+remapObjIdRefs :: (MonadState MigrationState m) => SomeReferenceObjId -> m SomeReferenceObjId
+remapObjIdRefs someObjIdRef = do
+  objMapping <- gets objLookup
+  refMapping <- gets referenceMapping
+  let oldObjId = someObjIdRef ^. someRef_ . UReference.idH
+  let (newObjId, _, newHash) =
+        case Map.lookup oldObjId objMapping of
+          Nothing -> error $ "Expected object mapping for ID: " <> show oldObjId
+          Just found -> found
+  let someRefId = (someObjIdRef & someRef_ . UReference.idH .~ Cv.hash1to2 newHash) ^. uRefIdAsRefId_
+  let newRefId = case Map.lookup someRefId refMapping of
+        Nothing -> error $ "Expected reference mapping for ID: " <> show someRefId
+        Just r -> r
+  let newSomeObjId = (newRefId ^. from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
+  pure newSomeObjId
 
 data SomeReference ref
   = TermReference ref
   | TypeReference ref
   | ConstructorReference ref ConstructorId
-  deriving (Eq, Functor, Generic, Ord)
+  deriving (Eq, Functor, Generic, Ord, Show)
 
-someRef_ :: Traversal (SomeReference ref) (SomeReference ref') ref ref'
-someRef_ = param @0
+someRef_ :: Lens (SomeReference ref) (SomeReference ref') ref ref'
+someRef_ = undefined
 
 _TermReference :: Prism' (SomeReference ref) ref
 _TermReference = _Ctor @"TermReference"
@@ -765,11 +808,11 @@ _TermReference = _Ctor @"TermReference"
 _TypeReference :: Prism' (SomeReference ref) ref
 _TypeReference = _Ctor @"TypeReference"
 
-_ConstructorReference :: Prism' (SomeReference ref)  (ref, ConstructorId)
+_ConstructorReference :: Prism' (SomeReference ref) (ref, ConstructorId)
 _ConstructorReference = _Ctor @"ConstructorReference"
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
-someReferenceIdToEntity  = \case
+someReferenceIdToEntity = \case
   (TermReference ref) -> TermComponent (Reference.idToHash ref)
   (TypeReference ref) -> DeclComponent (Reference.idToHash ref)
   -- Constructors are migrated by their decl component.
