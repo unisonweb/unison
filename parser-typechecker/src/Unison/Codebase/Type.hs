@@ -47,7 +47,15 @@ data Codebase m v a = Codebase
     getPatch :: Branch.EditHash -> m (Maybe Patch),
     putPatch :: Branch.EditHash -> Patch -> m (),
     patchExists :: Branch.EditHash -> m Bool,
+    -- | Get non-transitive dependents of a reference (i.e. the terms which include the provided reference).
+    -- The dependents of a builtin type includes the set of builtin terms which
+    -- mention that type.
     dependentsImpl :: Reference -> m (Set Reference.Id),
+    -- | Get non-transitive dependencies of a reference (i.e. the references contained within a given
+    -- reference).
+    -- The dependents of a builtin type includes the set of builtin terms which
+    -- mention that type.
+    getDependencies :: Reference.Id -> m (Set Reference.Id),
     -- This copies all the dependencies of `b` from the specified Codebase into this one
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- This copies all the dependencies of `b` from this Codebase

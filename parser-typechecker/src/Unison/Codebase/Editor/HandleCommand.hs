@@ -152,6 +152,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     IsTerm r -> lift $ Codebase.isTerm codebase r
     IsType r -> lift $ Codebase.isType codebase r
     GetDependents r -> lift $ Codebase.dependents codebase r
+    GetDependencies r -> lift $ Codebase.getDependencies codebase r
     AddDefsToCodebase unisonFile -> lift $ Codebase.addDefsToCodebase codebase unisonFile
     GetTermsOfType ty -> lift $ Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> lift $ Codebase.termsMentioningType codebase ty

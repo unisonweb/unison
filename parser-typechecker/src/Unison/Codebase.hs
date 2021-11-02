@@ -178,13 +178,23 @@ getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
 getTypeOfReferent c (Referent.Con r cid _) =
   getTypeOfConstructor c r cid
 
--- | The dependents of a builtin type includes the set of builtin terms which
+-- | Get non-transitive dependents of a reference (i.e. the terms which include the provided reference).
+-- The dependents of a builtin type includes the set of builtin terms which
 -- mention that type.
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
 dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
+
+-- | Get non-transitive dependencies of a reference (i.e. the references contained within a given
+-- reference).
+-- The dependents of a builtin type includes the set of builtin terms which
+-- mention that type.
+dependencies :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+dependencies c r
+    = Set.map Reference.DerivedId
+  <$> getDependencies c r
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty =

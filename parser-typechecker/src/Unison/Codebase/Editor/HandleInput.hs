@@ -3119,15 +3119,18 @@ namespaceDependencies root branch = do
         Lens.Empty -> Lens.at referent Lens.?= (NonLocal, Relation.lookupDom referent rootTerms)
         names -> at referent ?= (Local, names)
     resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
-    resolveRefs todo = for_ todo $ \referent -> do
-      -- | TODO: I need 'GetDependencies', not GetDependents
-      directDepReferences <- lift $ eval (GetDependents $ Referent.toReference referent)
-      let directDepReferents = Set.map Referent.fromReference directDepReferences
-      storeName referent
-      checked <- get
-      let uncheckedDeps = directDepReferents
-                        & Set.filter ((`Map.notMember` checked))
-      resolveRefs uncheckedDeps
+    resolveRefs todo = for_ todo $ \case
+      r@(Referent.Ref (DerivedId refId)) -> do
+        -- TODO: I need 'GetDependencies', not GetDependents
+        directDepReferences <- lift $ eval (GetDependencies refId)
+        let directDepReferents = Set.map Referent.fromReference directDepReferences
+        storeName r
+        checked <- get
+        let uncheckedDeps = directDepReferents
+                          & Set.filter ((`Map.notMember` checked))
+        resolveRefs uncheckedDeps
+      -- Anything else?
+      _ -> pure ()
 
 
     -- eval $ GetDependents (Referent)

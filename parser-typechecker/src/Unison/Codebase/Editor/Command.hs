@@ -231,10 +231,15 @@ data Command
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
 
-  -- Get the immediate (not transitive) dependents of the given reference
+  -- | Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
+
+  -- | Get the immediate (not transitive) dependencies of the given reference
+  -- This might include historical definitions not in any current path; these
+  -- should be filtered by the caller of this command if that's not desired.
+  GetDependencies :: Reference.Id -> Command m i v (Set Reference.Id)
 
   GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
