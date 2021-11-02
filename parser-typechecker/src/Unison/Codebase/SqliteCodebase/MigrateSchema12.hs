@@ -18,37 +18,27 @@ import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
-<<<<<<< HEAD
-import qualified U.Codebase.Causal as C
-import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash, unCausalHash))
-||||||| 639b3d44c
 import qualified U.Codebase.Causal as C
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash), BranchHash (BranchHash), CausalHash)
-=======
 import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash))
->>>>>>> 2ed8e687adf2b2b4443add0545c2ba9a89c9e3ad
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
 import qualified U.Codebase.Sqlite.Branch.Format as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
-<<<<<<< HEAD
 import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
-||||||| 639b3d44c
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
 import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
-=======
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), BranchObjectId (BranchObjectId, unBranchObjectId), ObjectId, CausalHashId, HashId)
->>>>>>> 2ed8e687adf2b2b4443add0545c2ba9a89c9e3ad
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S.Reference
