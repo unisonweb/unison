@@ -3,6 +3,7 @@ github: unisonweb/unison
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - ConstraintKinds
   - DeriveFunctor

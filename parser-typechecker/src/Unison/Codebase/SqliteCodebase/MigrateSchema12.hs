@@ -34,7 +34,7 @@ import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
-import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
+import U.Codebase.Sqlite.DbId (PatchObjectId(..), BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
@@ -213,10 +213,9 @@ migrationSync = Sync \case
   --   1. ???
   --   2. Synced
   W _watchKind _idH -> undefined
-  Patch {} -> undefined
-
-migratePatch :: Hash -> ByteString -> m (Sync.TrySyncResult Entity)
-migratePatch = error "not implemented"
+  Patch objectId -> do
+    Env{db} <- ask
+    lift (migratePatch db (PatchObjectId objectId))
 
 runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a -> m a
 runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
@@ -361,6 +360,17 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
   field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, hash)
   pure Sync.Done
+
+migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
+migratePatch conn oldObjectId = do
+  -- 1. Read old patch out of the codebase.
+  -- 2. Determine whether all things the patch refers to are built.
+  -- 3. If not, return those as a `Missing`.
+  -- 4. Otherwise, update the things the patch references.
+  -- 5. Hash it.
+  -- 6. Store it.
+  -- 7. Update migratation state, recording old->new patch mapping.
+  undefined
 
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ :: Traversal' (S.Branch.Full.Referent'' t ObjectId) SomeReferenceObjId

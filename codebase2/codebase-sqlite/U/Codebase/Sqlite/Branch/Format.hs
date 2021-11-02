@@ -51,6 +51,10 @@ localToDbBranch :: BranchLocalIds -> LocalBranch -> DbBranch
 localToDbBranch li =
   Branch.Full.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
 
+localToDbDiff :: BranchLocalIds -> LocalDiff -> Diff
+localToDbDiff li =
+  Branch.Diff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)
+
 lookupBranchLocalText :: BranchLocalIds -> LocalTextId -> TextId
 lookupBranchLocalText li (LocalTextId w) = branchTextLookup li Vector.! fromIntegral w
 
@@ -62,6 +66,3 @@ lookupBranchLocalPatch li (LocalPatchObjectId w) = branchPatchLookup li Vector.!
 
 lookupBranchLocalChild :: BranchLocalIds -> LocalBranchChildId -> (BranchObjectId, CausalHashId)
 lookupBranchLocalChild li (LocalBranchChildId w) = branchChildLookup li Vector.! fromIntegral w
-
-localToDbDiff :: BranchLocalIds -> LocalDiff -> Diff
-localToDbDiff li = Branch.Diff.quadmap (lookupBranchLocalText li) (lookupBranchLocalDefn li) (lookupBranchLocalPatch li) (lookupBranchLocalChild li)

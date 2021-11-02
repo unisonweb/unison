@@ -48,6 +48,7 @@ library
       ./
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       ConstraintKinds
       DeriveFunctor

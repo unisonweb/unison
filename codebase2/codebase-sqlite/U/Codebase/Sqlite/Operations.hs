@@ -10,93 +10,99 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module U.Codebase.Sqlite.Operations (
-  -- * data version
-  dataVersion,
+module U.Codebase.Sqlite.Operations
+  ( -- * data version
+    dataVersion,
 
-  -- * branches
-  saveRootBranch,
-  loadMaybeRootCausalHash,
-  loadRootCausalHash,
-  loadRootCausal,
-  saveBranch,
-  loadCausalBranchByCausalHash,
+    -- * branches
+    saveRootBranch,
+    loadMaybeRootCausalHash,
+    loadRootCausalHash,
+    loadRootCausal,
+    saveBranch,
+    loadCausalBranchByCausalHash,
 
-  -- * terms
-  saveTermComponent,
-  loadTermComponent,
-  loadTermByReference,
-  loadTypeOfTermByTermReference,
+    -- * terms
+    saveTermComponent,
+    loadTermComponent,
+    loadTermByReference,
+    loadTypeOfTermByTermReference,
 
-  -- * decls
-  saveDeclComponent,
-  loadDeclComponent,
-  loadDeclByReference,
-  getDeclTypeById,
+    -- * decls
+    saveDeclComponent,
+    loadDeclComponent,
+    loadDeclByReference,
+    getDeclTypeById,
 
-  -- * patches
-  savePatch,
-  loadPatchById,
+    -- * patches
+    savePatch,
+    loadPatchById,
 
-  -- * test for stuff in codebase
-  objectExistsForHash,
+    -- * test for stuff in codebase
+    objectExistsForHash,
 
-  -- * dubiously exported stuff involving database ids
-  loadHashByObjectId,
-  primaryHashToMaybeObjectId,
-  primaryHashToMaybePatchObjectId,
+    -- * dubiously exported stuff involving database ids
+    loadHashByObjectId,
+    primaryHashToMaybeObjectId,
+    primaryHashToMaybePatchObjectId,
 
-  -- * watch expression cache
-  saveWatch,
-  loadWatch,
-  listWatches,
-  clearWatches,
+    -- * watch expression cache
+    saveWatch,
+    loadWatch,
+    listWatches,
+    clearWatches,
 
-  -- * indexes
-  -- ** nearest common ancestor
-  before,
-  lca,
-  -- ** prefix index
-  componentReferencesByPrefix,
-  termReferentsByPrefix,
-  declReferentsByPrefix,
-  causalHashesByPrefix,
-  -- ** dependents index
-  dependents,
-  dependentsOfComponent,
-  -- ** type index
-  addTypeToIndexForTerm,
-  termsHavingType,
-  -- ** type mentions index
-  addTypeMentionsToIndexForTerm,
-  termsMentioningType,
+    -- * indexes
 
-  -- * delete me
-  getCycleLen,
+    -- ** nearest common ancestor
+    before,
+    lca,
 
-  -- * low-level stuff
-  liftQ,
-  loadDbBranchByObjectId,
-  saveBranchObject,
+    -- ** prefix index
+    componentReferencesByPrefix,
+    termReferentsByPrefix,
+    declReferentsByPrefix,
+    causalHashesByPrefix,
 
-  -- * Error types
-  Error(..),
-  DecodeError(..),
+    -- ** dependents index
+    dependents,
+    dependentsOfComponent,
 
-  -- ** Constraint kinds
-  EDB,
+    -- ** type index
+    addTypeToIndexForTerm,
+    termsHavingType,
 
-  -- * somewhat unexpectedly unused definitions
-  c2sReferenceId,
-  c2sReferentId,
-  diffPatch,
-  decodeTermElementWithType,
-  loadTermWithTypeByReference,
-  s2cTermWithType,
-  declReferencesByPrefix,
-  branchHashesByPrefix,
-  derivedDependencies,
-) where
+    -- ** type mentions index
+    addTypeMentionsToIndexForTerm,
+    termsMentioningType,
+
+    -- * delete me
+    getCycleLen,
+
+    -- * low-level stuff
+    liftQ,
+    loadDbBranchByObjectId,
+    saveBranchObject,
+
+    -- * Error types
+    Error (..),
+    DecodeError (..),
+
+    -- ** Constraint kinds
+    EDB,
+
+    -- * somewhat unexpectedly unused definitions
+    c2sReferenceId,
+    c2sReferentId,
+    diffPatch,
+    decodeTermElementWithType,
+    loadTermWithTypeByReference,
+    s2cTermWithType,
+    declReferencesByPrefix,
+    branchHashesByPrefix,
+    derivedDependencies,
+  )
+where
 
 import Control.Lens (Lens')
 import qualified Control.Lens as Lens
@@ -172,11 +178,9 @@ import U.Codebase.Sqlite.LocalIds
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
-import qualified U.Codebase.Sqlite.Patch.Diff as S.PatchDiff
 import qualified U.Codebase.Sqlite.Patch.Format as S
-import qualified U.Codebase.Sqlite.Patch.Format as S.PatchFormat
-import qualified U.Codebase.Sqlite.Patch.Full as S
-import qualified U.Codebase.Sqlite.Patch.Full as S.Patch.Full
+import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
+import qualified U.Codebase.Sqlite.Patch.Full as S (LocalPatch, Patch, Patch' (..))
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S
 import qualified U.Codebase.Sqlite.Patch.TermEdit as S.TermEdit
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as S
@@ -322,8 +326,9 @@ loadRootCausalHash :: EDB m => m CausalHash
 loadRootCausalHash = loadCausalHashById =<< liftQ Q.loadNamespaceRoot
 
 loadMaybeRootCausalHash :: EDB m => m (Maybe CausalHash)
-loadMaybeRootCausalHash = runMaybeT $
-  loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
+loadMaybeRootCausalHash =
+  runMaybeT $
+    loadCausalHashById =<< MaybeT (liftQ Q.loadMaybeNamespaceRoot)
 
 -- * Reference transformations
 
@@ -398,13 +403,13 @@ c2lPatch (C.Branch.Patch termEdits typeEdits) =
     done ::
       EDB m =>
       (a, (Seq Text, Seq H.Hash, Seq H.Hash)) ->
-      m (S.PatchFormat.PatchLocalIds, a)
+      m (S.Patch.Format.PatchLocalIds, a)
     done (lPatch, (textValues, hashValues, defnValues)) = do
       textIds <- liftQ $ traverse Q.saveText textValues
       hashIds <- liftQ $ traverse Q.saveHashHash hashValues
       objectIds <- traverse primaryHashToExistingObjectId defnValues
       let ids =
-            S.PatchFormat.LocalIds
+            S.Patch.Format.LocalIds
               (Vector.fromList (Foldable.toList textIds))
               (Vector.fromList (Foldable.toList hashIds))
               (Vector.fromList (Foldable.toList objectIds))
@@ -530,6 +535,7 @@ componentByObjectId id = do
 -- * Codebase operations
 
 -- ** Saving & loading terms
+
 loadTermComponent :: EDB m => H.Hash -> MaybeT m [(C.Term Symbol, C.Term.Type Symbol)]
 loadTermComponent h = do
   MaybeT (anyHashToMaybeObjectId h)
@@ -1186,7 +1192,7 @@ loadBranchByCausalHashId id = do
 loadDbBranchByObjectId :: EDB m => Db.BranchObjectId -> m S.DbBranch
 loadDbBranchByObjectId id =
   deserializeBranchObject id >>= \case
-    S.BranchFormat.Full li f ->  pure (S.BranchFormat.localToDbBranch li f)
+    S.BranchFormat.Full li f -> pure (S.BranchFormat.localToDbBranch li f)
     S.BranchFormat.Diff r li d -> doDiff r [S.BranchFormat.localToDbDiff li d]
   where
     deserializeBranchObject :: EDB m => Db.BranchObjectId -> m S.BranchFormat
@@ -1298,57 +1304,25 @@ loadBranchByObjectId id =
 
 loadPatchById :: EDB m => Db.PatchObjectId -> m C.Branch.Patch
 loadPatchById patchId =
+  loadDbPatchById patchId >>= s2cPatch
+
+loadDbPatchById :: EDB m => Db.PatchObjectId -> m S.Patch
+loadDbPatchById patchId =
   deserializePatchObject patchId >>= \case
-    S.PatchFormat.Full li p -> s2cPatch (l2sPatchFull li p)
-    S.PatchFormat.Diff ref li d -> doDiff ref [l2sPatchDiff li d]
+    S.Patch.Format.Full li p -> pure (S.Patch.Format.localPatchToPatch li p)
+    S.Patch.Format.Diff ref li d -> doDiff ref [S.Patch.Format.localPatchDiffToPatchDiff li d]
   where
-    doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m C.Branch.Patch
+    doDiff :: EDB m => Db.PatchObjectId -> [S.PatchDiff] -> m S.Patch
     doDiff ref ds =
       deserializePatchObject ref >>= \case
-        S.PatchFormat.Full li f -> joinFull (l2sPatchFull li f) ds
-        S.PatchFormat.Diff ref' li' d' -> doDiff ref' (l2sPatchDiff li' d' : ds)
-    joinFull :: EDB m => S.Patch -> [S.PatchDiff] -> m C.Branch.Patch
-    joinFull f [] = s2cPatch f
-    joinFull (S.Patch termEdits typeEdits) (S.PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits : ds) = joinFull f' ds
-      where
-        f' = S.Patch (addRemove addedTermEdits removedTermEdits termEdits) (addRemove addedTypeEdits removedTypeEdits typeEdits)
-        addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
-        addRemove add del src =
-          (Map.unionWith (<>) add (Map.differenceWith remove src del))
-        remove :: Ord b => Set b -> Set b -> Maybe (Set b)
-        remove src del =
-          let diff = Set.difference src del
-           in if diff == mempty then Nothing else Just diff
-
-    -- implementation detail of loadPatchById?
-    lookupPatchLocalText :: S.PatchLocalIds -> LocalTextId -> Db.TextId
-    lookupPatchLocalText li (LocalTextId w) = S.PatchFormat.patchTextLookup li Vector.! fromIntegral w
-
-    lookupPatchLocalHash :: S.PatchLocalIds -> LocalHashId -> Db.HashId
-    lookupPatchLocalHash li (LocalHashId w) = S.PatchFormat.patchHashLookup li Vector.! fromIntegral w
-
-    lookupPatchLocalDefn :: S.PatchLocalIds -> LocalDefnId -> Db.ObjectId
-    lookupPatchLocalDefn li (LocalDefnId w) = S.PatchFormat.patchDefnLookup li Vector.! fromIntegral w
-
-    l2sPatchFull :: S.PatchFormat.PatchLocalIds -> S.LocalPatch -> S.Patch
-    l2sPatchFull li =
-      S.Patch.Full.trimap
-        (lookupPatchLocalText li)
-        (lookupPatchLocalHash li)
-        (lookupPatchLocalDefn li)
-
-    l2sPatchDiff :: S.PatchFormat.PatchLocalIds -> S.LocalPatchDiff -> S.PatchDiff
-    l2sPatchDiff li =
-      S.PatchDiff.trimap
-        (lookupPatchLocalText li)
-        (lookupPatchLocalHash li)
-        (lookupPatchLocalDefn li)
+        S.Patch.Format.Full li f -> pure (S.Patch.Format.applyPatchDiffs (S.Patch.Format.localPatchToPatch li f) ds)
+        S.Patch.Format.Diff ref' li' d' -> doDiff ref' (S.Patch.Format.localPatchDiffToPatchDiff li' d' : ds)
 
 savePatch :: EDB m => PatchHash -> C.Branch.Patch -> m Db.PatchObjectId
 savePatch h c = do
   (li, lPatch) <- c2lPatch c
   hashId <- Q.saveHashHash (unPatchHash h)
-  let bytes = S.putBytes S.putPatchFormat $ S.PatchFormat.Full li lPatch
+  let bytes = S.putBytes S.putPatchFormat $ S.Patch.Format.Full li lPatch
   Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
 
 s2cPatch :: EDB m => S.Patch -> m C.Branch.Patch
