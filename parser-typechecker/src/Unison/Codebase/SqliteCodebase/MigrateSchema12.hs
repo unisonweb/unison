@@ -63,6 +63,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Pattern as Pattern
+import qualified Unison.Referent' as Referent'
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -640,7 +641,7 @@ termFReferences_ f t =
     >>= Term._Request . someRefCon_ %%~ f
     >>= Term._Ann . _2 . typeReferences_ %%~ f
     >>= Term._Match . _2 . traversed . Term.matchPattern_ . patternReferences_ %%~ f
-    >>= Term._TermLink . referentReferences %%~ f
+    >>= Term._TermLink . referentAsSomeTerm_ %%~ f
     >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
 
 -- | Casts the left side of a reference/constructor pair into a Reference.Id
@@ -680,8 +681,15 @@ patternReferences_ f = \case
   Pattern.SequenceOp loc pat seqOp pat2 -> do
     Pattern.SequenceOp loc <$> patternReferences_ f pat <*> pure seqOp <*> patternReferences_ f pat2
 
-referentReferences :: Traversal' Referent.Referent SomeReferenceId
-referentReferences f = undefined
+referentAsSomeTerm_ :: Traversal' Referent.Referent SomeReferenceId
+referentAsSomeTerm_ f = \case
+  (Referent'.Ref' (Reference.DerivedId refId)) -> do
+    newRefId <- refId & unsafeInsidePrism _TermReference %%~ f
+    pure (Referent'.Ref' (Reference.DerivedId newRefId))
+  (Referent'.Con' (Reference.DerivedId refId) conId conType) ->
+    ((refId, conId) & unsafeInsidePrism _ConstructorReference %%~ f) <&>
+      (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
+  r -> pure r
 
 -- structural type Ping x = P1 (Pong x)
 --   P1 : forall x. Pong x -> Ping x
