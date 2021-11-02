@@ -21,16 +21,16 @@ import qualified Data.Zip as Zip
 import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
-import qualified U.Codebase.Sqlite.Branch.Format as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), BranchObjectId (BranchObjectId, unBranchObjectId), CausalHashId, HashId, ObjectId)
+import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), ObjectId, CausalHashId, HashId)
+import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
+import U.Codebase.Sqlite.DbId (BranchObjectId (BranchObjectId, unBranchObjectId))
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Reference as S.Reference
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
@@ -138,7 +138,7 @@ data Entity
   | -- haven't proven we need these yet
     B ObjectId
   | Patch ObjectId
-  | W WK.WatchKind S.Reference.IdH -- Hash Reference.Id
+  | W WK.WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
 data Env m v a = Env {db :: Connection, codebase :: Codebase m v a}
@@ -201,7 +201,7 @@ migrationSync = Sync \case
   -- To sync a watch result,
   --   1. ???
   --   2. Synced
-  W _watchKind _idH -> do
+  W watchKind watchId -> do
     Env {codebase} <- ask
     lift (migrateWatch codebase watchKind watchId)
   Patch {} -> undefined
@@ -295,6 +295,27 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
 
   pure Sync.Done
 
+-- Plan:
+--   * Load the pieces of a Db.Causal ✅
+--   * Ensure its parent causals and branch (value hash) have been migrated ✅
+--   * Rewrite the value-hash and parent causal hashes ✅
+--   * Save the new causal ✅
+--   * Save Causal Hash mapping to skymap ✅
+
+-- data C.Branch m = Branch
+-- { terms    :: Map NameSegment (Map Referent (m MdValues)),
+--   types    :: Map NameSegment (Map Reference (m MdValues)),
+--   patches  :: Map NameSegment (PatchHash, m Patch),
+--   children :: Map NameSegment (Causal m)
+-- }
+
+-- data Branch' t h p c = Branch
+--   { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
+--     types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
+--     patches :: Map t p,
+--     children :: Map t c
+--   }
+
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   -- note for tomorrow: we want to just load the (Branch m) instead, forget the DbBranch
@@ -323,7 +344,7 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   -- Remap object id references
   -- TODO: remap sub-namespace causal hashes
   newBranch <- oldBranch & dbBranchObjRefs_ %%~ remapObjIdRefs
-  let (localBranchIds, localBranch) = S.Branch.dbToLocalBranch newBranch
+  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
   hash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
   newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 hash))))
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
@@ -337,7 +358,7 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
 -- something that hasn't been migrated yet. If we do it last, we know that missing references are indeed just missing from the codebase.
 migrateWatch ::
   forall m v a.
-  MonadIO m =>
+  (MonadIO m, Ord v) =>
   Codebase m v a ->
   WatchKind ->
   Reference.Id ->
