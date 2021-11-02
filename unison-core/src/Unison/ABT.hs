@@ -540,10 +540,13 @@ data Subst f v a =
         , bindInheritAnnotation :: forall b . Term f v b -> Term f v a
         , variable :: v }
 
-unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
+unabs1 :: forall a f v. (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
 unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation v) where
+  freshen :: (v -> t) -> t
   freshen f = f v
+  bind :: Term f v a -> Term f v a
   bind x = subst v x body
+  bindInheritAnnotation :: Term f v b -> Term f v a
   bindInheritAnnotation x = substInheritAnnotation v x body
 unabs1 _ = Nothing
 

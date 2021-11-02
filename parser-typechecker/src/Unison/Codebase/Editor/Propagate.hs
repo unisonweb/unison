@@ -56,6 +56,7 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.WatchKind (WatchKind)
+import Unison.NameSegment (NameSegment)
 
 type F m i v = Free (Command m i v)
 
@@ -584,12 +585,20 @@ applyPropagate patch Edits {..} = do
     isPropagatedReferent (Referent.Con _ _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
+    terms0 :: Metadata.Star Referent NameSegment
     terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+    terms :: Branch.Star Referent NameSegment
     terms = updateMetadatas Referent.Ref
           $ Star3.replaceFacts replaceTerm termEdits terms0
+    types :: Branch.Star Reference NameSegment
     types = updateMetadatas id
           $ Star3.replaceFacts replaceType typeEdits _types
 
+    updateMetadatas :: 
+      Ord r =>
+      (Reference -> r) -> 
+      Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
+      Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
     updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
       where
       clearPropagated s = foldl' go s allPatchTargets where

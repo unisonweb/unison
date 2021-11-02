@@ -528,6 +528,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc
   typeRefs = foldMap Set.singleton trs
 
   restrictTmW m = restrictKeys m combKeys
+  restrictTmR :: Map Reference a -> Map Reference a
   restrictTmR m = Map.restrictKeys m termRefs
 
   restrictTyW m = restrictKeys m typeKeys
