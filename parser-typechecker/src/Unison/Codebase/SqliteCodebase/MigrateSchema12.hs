@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
@@ -61,6 +62,7 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
+import qualified Unison.Pattern as Pattern
 
 -- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
 -- lookupCtor (ConstructorMapping cm) oid pos cid =
@@ -634,25 +636,52 @@ termReferences_ =
 termFReferences_ :: (Ord tv, Monad m) => LensLike' m (Term.F tv ta pa a) SomeReferenceId
 termFReferences_ f t =
   (t & Term._Ref . Reference._DerivedId . unsafeInsidePrism _TermReference %%~ f)
-    >>= Term._Constructor . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
-    >>= Term._Request . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
+    >>= Term._Constructor . someRefCon_ %%~ f
+    >>= Term._Request . someRefCon_ %%~ f
     >>= Term._Ann . _2 . typeReferences_ %%~ f
     >>= Term._Match . _2 . traversed . Term.matchPattern_ . patternReferences_ %%~ f
     >>= Term._TermLink . referentReferences %%~ f
     >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
 
 -- | Casts the left side of a reference/constructor pair into a Reference.Id
-refConPain_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
-refConPain_ f s =
-  case s of
-    (Reference.Builtin _, _) -> pure s
-    (Reference.DerivedId n, c) -> (\(n', c') -> (Reference.DerivedId n', c')) <$> f (n, c)
+someRefCon_ :: Traversal' (Reference.Reference, ConstructorId) SomeReferenceId
+someRefCon_ = refConPair_ . unsafeInsidePrism _ConstructorReference
+  where
+    refConPair_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
+    refConPair_ f s =
+      case s of
+        (Reference.Builtin _, _) -> pure s
+        (Reference.DerivedId n, c) -> (\(n', c') -> (Reference.DerivedId n', c')) <$> f (n, c)
 
 patternReferences_ :: Traversal' (Pattern loc) SomeReferenceId
-patternReferences_ = undefined -- types @Reference.Id
+patternReferences_ f = \case
+  p@(Pattern.Unbound {}) -> pure p
+  p@(Pattern.Var {}) -> pure p
+  p@(Pattern.Boolean {}) -> pure p
+  p@(Pattern.Int {}) -> pure p
+  p@(Pattern.Nat {}) -> pure p
+  p@(Pattern.Float {}) -> pure p
+  p@(Pattern.Text {}) -> pure p
+  p@(Pattern.Char {}) -> pure p
+  (Pattern.Constructor loc ref conId patterns) ->
+    (\(newRef, newConId) newPatterns -> Pattern.Constructor loc newRef newConId newPatterns)
+      <$> ((ref, conId) & someRefCon_ %%~ f)
+      <*> (patterns & traversed . patternReferences_ %%~ f)
+  (Pattern.As loc pat) -> Pattern.As loc <$> patternReferences_ f pat
+  (Pattern.EffectPure loc pat) -> Pattern.EffectPure loc <$> patternReferences_ f pat
+  (Pattern.EffectBind loc ref conId patterns pat) ->
+    do
+      (\(newRef, newConId) newPatterns newPat -> Pattern.EffectBind loc newRef newConId newPatterns newPat)
+      <$> ((ref, conId) & someRefCon_ %%~ f)
+      <*> (patterns & traversed . patternReferences_ %%~ f)
+      <*> (patternReferences_ f pat)
+  (Pattern.SequenceLiteral loc patterns) ->
+    Pattern.SequenceLiteral loc <$> (patterns & traversed . patternReferences_ %%~ f)
+  Pattern.SequenceOp loc pat seqOp pat2 -> do
+    Pattern.SequenceOp loc <$> patternReferences_ f pat <*> pure seqOp <*> patternReferences_ f pat2
 
 referentReferences :: Traversal' Referent.Referent SomeReferenceId
-referentReferences = undefined
+referentReferences f = undefined
 
 -- structural type Ping x = P1 (Pong x)
 --   P1 : forall x. Pong x -> Ping x
