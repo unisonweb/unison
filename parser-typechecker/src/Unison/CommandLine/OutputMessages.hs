@@ -278,6 +278,22 @@ notifyUser dir o = case o of
     pure . P.fatalCallout . P.wrap $ "I have reason to believe that"
       <> P.shown h <> "exists in the codebase, but there was a failure"
       <> "when I tried to load it."
+  NamespaceEmpty p ->
+    case p of
+      Right (p0, p1) ->
+        pure
+          . P.warnCallout
+          $ "The namespaces "
+          <> P.string (show p0)
+          <> " and "
+          <> P.string (show p1)
+          <> " are empty. Was there a typo?"
+      Left p0 ->
+        pure
+          . P.warnCallout
+          $ "The namespace "
+          <> P.string (show p0)
+          <> " is empty. Was there a typo?"
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"
