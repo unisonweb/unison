@@ -43,6 +43,40 @@ filter :: (Ord a, Ord b, Ord c)
        => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
 filter f = fromList . Prelude.filter f . toList
 
+mapD1 :: (Ord a, Ord a', Ord b, Ord c) => (a -> a') -> Relation3 a b c -> Relation3 a' b c
+mapD1 f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.mapKeysWith R.union f d1,
+      d2 = Map.map (R.mapDom f) d2,
+      d3 = Map.map (R.mapDom f) d3
+    }
+
+-- | Like 'mapD1', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD1Monotonic :: (Ord a, Ord a', Ord b, Ord c) => (a -> a') -> Relation3 a b c -> Relation3 a' b c
+mapD1Monotonic f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.mapKeysMonotonic f d1,
+      d2 = Map.map (R.mapDomMonotonic f) d2,
+      d3 = Map.map (R.mapDomMonotonic f) d3
+    }
+
+mapD2 :: (Ord a, Ord b, Ord b', Ord c) => (b -> b') -> Relation3 a b c -> Relation3 a b' c
+mapD2 f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.map (R.mapDom f) d1,
+      d2 = Map.mapKeysWith R.union f d2,
+      d3 = Map.map (R.mapRan f) d3
+    }
+
+-- | Like 'mapD2', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD2Monotonic :: (Ord a, Ord b, Ord b', Ord c) => (b -> b') -> Relation3 a b c -> Relation3 a b' c
+mapD2Monotonic f Relation3 {d1, d2, d3} =
+  Relation3
+    { d1 = Map.map (R.mapDomMonotonic f) d1,
+      d2 = Map.mapKeysMonotonic f d2,
+      d3 = Map.map (R.mapRanMonotonic f) d3
+    }
+
 member :: (Ord a, Ord b, Ord c) => a -> b -> c -> Relation3 a b c -> Bool
 member a b c = R.member b c . lookupD1 a
 
@@ -103,6 +137,14 @@ difference (Relation3 a1 b1 c1) (Relation3 a2 b2 c2) =
     (Map.differenceWith R.difference1 a1 a2)
     (Map.differenceWith R.difference1 b1 b2)
     (Map.differenceWith R.difference1 c1 c2)
+
+-- | @union x y@ computes the union of @x@ and @y@.
+union :: (Ord a, Ord b, Ord c) => Relation3 a b c -> Relation3 a b c -> Relation3 a b c
+union (Relation3 a1 b1 c1) (Relation3 a2 b2 c2) =
+  Relation3
+    (Map.unionWith R.union a1 a2)
+    (Map.unionWith R.union b1 b2)
+    (Map.unionWith R.union c1 c2)
 
 delete a b c Relation3{..} =
   Relation3

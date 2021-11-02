@@ -18,26 +18,43 @@ import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
+<<<<<<< HEAD
 import qualified U.Codebase.Causal as C
 import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash, unCausalHash))
+||||||| 639b3d44c
+import qualified U.Codebase.Causal as C
+import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash), BranchHash (BranchHash), CausalHash)
+=======
+import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash))
+>>>>>>> 2ed8e687adf2b2b4443add0545c2ba9a89c9e3ad
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
 import qualified U.Codebase.Sqlite.Branch.Format as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Full as S
-import qualified U.Codebase.Sqlite.Branch.Full as S (DbBranch)
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
+<<<<<<< HEAD
 import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
+||||||| 639b3d44c
+import U.Codebase.Sqlite.Connection (Connection)
+import qualified U.Codebase.Sqlite.Causal as SC
+import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
+import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
+=======
+import U.Codebase.Sqlite.Causal (GDbCausal (..))
+import qualified U.Codebase.Sqlite.Causal as SC
+import U.Codebase.Sqlite.Connection (Connection)
+import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), BranchObjectId (BranchObjectId, unBranchObjectId), ObjectId, CausalHashId, HashId)
+>>>>>>> 2ed8e687adf2b2b4443add0545c2ba9a89c9e3ad
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S.Reference
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
-import qualified U.Util.Monoid as Monoid
 import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
@@ -214,10 +231,10 @@ migratePatch = error "not implemented"
 runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a -> m a
 runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
   where
-    err :: forall e x m. (Either e x -> m x)
+    err :: forall e x m. (Show e, Applicative m) => (Either e x -> m x)
     err = \case Left err -> error $ show err; Right a -> pure a
 
-liftQ :: ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a
+liftQ :: Monad m => ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a
 liftQ = mapReaderT lift
 
 -- loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
@@ -352,7 +369,8 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   hash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
   newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 hash))))
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
-  field @"objLookup" %= Map.insert oldObjectId newObjectId
+  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, hash)
+  pure Sync.Done
 
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ :: Traversal' (S.Branch.Full.Referent'' t ObjectId) SomeReferenceObjId

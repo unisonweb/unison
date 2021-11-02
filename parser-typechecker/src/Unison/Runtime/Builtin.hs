@@ -1596,7 +1596,7 @@ declareForeigns = do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.impl.v3" direct
+  declareForeign "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF $ \() -> getCurrentDirectory
 
   declareForeign "IO.setCurrentDirectory.impl.v3" boxToEF0
@@ -1693,7 +1693,7 @@ declareForeigns = do
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
   declareForeign "MVar.tryPut.impl.v3" boxBoxToEFBool
-    . mkForeign $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
+    . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
@@ -1701,7 +1701,7 @@ declareForeigns = do
   declareForeign "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.impl.v3" boxBoxToEFBox
+  declareForeign "MVar.read.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
   declareForeign "MVar.tryRead.impl.v3" boxToEFMBox

@@ -5,6 +5,8 @@ module Unison.NameSegment where
 import Unison.Prelude
 
 import qualified Data.Text                     as Text
+import qualified Data.Text.Lazy.Builder        as Text (Builder)
+import qualified Data.Text.Lazy.Builder        as Text.Builder
 import qualified Unison.Hashable               as H
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
@@ -55,6 +57,10 @@ isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
 
 toString :: NameSegment -> String
 toString = Text.unpack . toText
+
+toTextBuilder :: NameSegment -> Text.Builder
+toTextBuilder =
+  coerce Text.Builder.fromText
 
 instance Show NameSegment where
   show = Text.unpack . toText

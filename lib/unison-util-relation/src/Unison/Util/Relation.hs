@@ -55,7 +55,9 @@ module Unison.Util.Relation
     -- * General traversals
     map,
     mapDom,
+    mapDomMonotonic,
     mapRan,
+    mapRanMonotonic,
     bimap,
     bitraverse,
 
@@ -105,7 +107,6 @@ module Unison.Util.Relation
 where
 
 import qualified Control.Monad as Monad
-import Data.Bifunctor (first, second)
 import qualified Data.List as List
 import qualified Data.Map as M
 import qualified Data.Map as Map
@@ -628,11 +629,35 @@ map f = fromList . fmap f . toList
 
 -- aka first
 mapDom :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b
-mapDom f = fromList . fmap (first f) . toList
+mapDom f Relation {domain, range} =
+  Relation
+    { domain = Map.mapKeysWith S.union f domain,
+      range = Map.map (S.map f) range
+    }
+
+-- | Like 'mapDom', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapDomMonotonic :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b
+mapDomMonotonic f Relation {domain, range} =
+  Relation
+    { domain = Map.mapKeysMonotonic f domain,
+      range = Map.map (S.mapMonotonic f) range
+    }
 
 -- aka second
 mapRan :: (Ord a, Ord b, Ord b') => (b -> b') -> Relation a b -> Relation a b'
-mapRan f = fromList . fmap (second f) . toList
+mapRan f Relation {domain, range} =
+  Relation
+    { domain = Map.map (S.map f) domain,
+      range = Map.mapKeysWith S.union f range
+    }
+
+-- | Like 'mapRan', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapRanMonotonic :: (Ord a, Ord b, Ord b') => (b -> b') -> Relation a b -> Relation a b'
+mapRanMonotonic f Relation {domain, range} =
+  Relation
+    { domain = Map.map (S.mapMonotonic f) domain,
+      range = Map.mapKeysMonotonic f range
+    }
 
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList

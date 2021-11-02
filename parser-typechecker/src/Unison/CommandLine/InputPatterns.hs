@@ -2,12 +2,15 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+{-
+   This module defines 'InputPattern' values for every supported input command.
+-}
 module Unison.CommandLine.InputPatterns where
 
 import Unison.Prelude
 
 import qualified Control.Lens.Cons as Cons
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, Bifunctor (bimap))
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
 import qualified System.Console.Haskeline.Completion as Completion
@@ -37,7 +40,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
 import           Unison.Name ( Name )
-import qualified Unison.Names2 as Names
+import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -48,6 +51,8 @@ import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.Globbing as Globbing
+import Unison.NameSegment (NameSegment(NameSegment))
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -102,7 +107,7 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Optional, patchArg), (Optional, pathArg)]
+  [(Optional, patchArg), (Optional, namespaceArg)]
   (P.wrapColumn2
     [ ( makeExample' todo
       , "lists the refactor work remaining in the default patch for the current"
@@ -248,7 +253,7 @@ patch :: InputPattern
 patch = InputPattern
   "patch"
   []
-  [(Required, patchArg), (Optional, pathArg)]
+  [(Required, patchArg), (Optional, namespaceArg)]
   (  P.wrap
   $  makeExample' patch
   <> "rewrites any definitions that depend on "
@@ -273,7 +278,7 @@ view :: InputPattern
 view = InputPattern
   "view"
   []
-  [(OnePlus, definitionQueryArg)]
+  [(ZeroPlus, definitionQueryArg)]
   "`view foo` prints the definition of `foo`."
   ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
   . traverse parseHashQualifiedName
@@ -283,11 +288,9 @@ display :: InputPattern
 display = InputPattern
   "display"
   []
-  [(Required, definitionQueryArg)]
+  [(ZeroPlus, definitionQueryArg)]
   "`display foo` prints a rendered version of the term `foo`."
-  (\case
-    [s] -> Input.DisplayI Input.ConsoleLocation <$> parseHashQualifiedName s
-    _   -> Left (I.help display)
+  (\ xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
   )
 
 
@@ -295,23 +298,21 @@ displayTo :: InputPattern
 displayTo = InputPattern
   "display.to"
   []
-  [(Required, noCompletions), (Required, definitionQueryArg)]
+  [(Required, noCompletions), (ZeroPlus, definitionQueryArg)]
   (  P.wrap
   $  makeExample displayTo ["<filename>", "foo"]
   <> "prints a rendered version of the term `foo` to the given file."
   )
   (\case
-    [file, s] ->
-      Input.DisplayI (Input.FileLocation file) <$> parseHashQualifiedName s
+    (file:xs) ->
+      Input.DisplayI (Input.FileLocation file) <$> traverse parseHashQualifiedName xs
     _ -> Left (I.help displayTo)
   )
 
 docs :: InputPattern
-docs = InputPattern "docs" [] [(Required, definitionQueryArg)]
+docs = InputPattern "docs" [] [(ZeroPlus, definitionQueryArg)]
       "`docs foo` shows documentation for the definition `foo`."
-      (\case
-        [s] -> first fromString $ Input.DocsI <$> Path.parseHQSplit' s
-        _ -> Left (I.help docs))
+      (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
 
 ui :: InputPattern
 ui = InputPattern "ui" [] []
@@ -356,7 +357,7 @@ findShallow :: InputPattern
 findShallow = InputPattern
   "list"
   ["ls"]
-  [(Optional, pathArg)]
+  [(Optional, namespaceArg)]
   (P.wrapColumn2
     [ ("`list`", "lists definitions and namespaces at the current level of the current namespace.")
     , ( "`list foo`", "lists the 'foo' namespace." )
@@ -572,7 +573,7 @@ up = InputPattern "up" [] []
     )
 
 cd :: InputPattern
-cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
+cd = InputPattern "namespace" ["cd", "j"] [(Required, namespaceArg)]
     (P.wrapColumn2
       [ (makeExample cd ["foo.bar"],
           "descends into foo.bar from the current namespace.")
@@ -582,7 +583,9 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
       [".."] -> Right Input.UpI
       [p] -> first fromString $ do
         p <- Path.parsePath' p
-        pure . Input.SwitchBranchI $ p
+        pure . Input.SwitchBranchI $ Just p
+      -- No args will trigger a fuzzy find when handled.
+      [] -> pure (Input.SwitchBranchI Nothing)
       _ -> Left (I.help cd)
     )
 
@@ -598,7 +601,7 @@ back = InputPattern "back" ["popd"] []
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
+deleteBranch = InputPattern "delete.namespace" [] [(Required, namespaceArg)]
   "`delete.namespace <foo>` deletes the namespace `foo`"
    (\case
         ["."] -> first fromString .
@@ -654,7 +657,7 @@ renamePatch = InputPattern "move.patch"
 renameBranch :: InputPattern
 renameBranch = InputPattern "move.namespace"
    ["rename.namespace"]
-   [(Required, pathArg), (Required, newNameArg)]
+   [(Required, namespaceArg), (Required, newNameArg)]
    "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
@@ -669,7 +672,7 @@ renameBranch = InputPattern "move.namespace"
 
 history :: InputPattern
 history = InputPattern "history" []
-   [(Optional, pathArg)]
+   [(Optional, namespaceArg)]
    (P.wrapColumn2 [
      (makeExample history [], "Shows the history of the current path."),
      (makeExample history [".foo"], "Shows history of the path .foo."),
@@ -686,7 +689,7 @@ history = InputPattern "history" []
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
+forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, namespaceArg)
                                    ,(Required, newNameArg)]
     (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
@@ -698,7 +701,7 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
     )
 
 resetRoot :: InputPattern
-resetRoot = InputPattern "reset-root" [] [(Required, pathArg)]
+resetRoot = InputPattern "reset-root" [] [(Required, namespaceArg)]
   (P.wrapColumn2 [
     (makeExample resetRoot [".foo"],
       "Reset the root namespace (along with its history) to that of the `.foo` namespace."),
@@ -722,11 +725,11 @@ pullImpl :: String -> Verbosity -> InputPattern
 pullImpl name verbosity = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else "" 
+    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self = InputPattern
       name
       []
-      [(Optional, gitUrlArg), (Optional, pathArg)]
+      [(Optional, gitUrlArg), (Optional, namespaceArg)]
       (P.lines
         [ P.wrap
           "The" <> makeExample' self <> "command merges a remote namespace into a local namespace" <> addendum
@@ -770,7 +773,7 @@ pullExhaustive :: InputPattern
 pullExhaustive = InputPattern
   "debug.pull-exhaustive"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap $
       "The " <> makeExample' pullExhaustive <> "command can be used in place of"
@@ -796,7 +799,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap
       "The `push` command merges a local namespace into a remote namespace."
@@ -838,7 +841,7 @@ pushExhaustive :: InputPattern
 pushExhaustive = InputPattern
   "debug.push-exhaustive"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
     [ P.wrap $
       "The " <> makeExample' pushExhaustive <> "command can be used in place of"
@@ -861,7 +864,7 @@ pushExhaustive = InputPattern
 
 createPullRequest :: InputPattern
 createPullRequest = InputPattern "pull-request.create" ["pr.create"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
   (P.group $ P.lines
     [ P.wrap $ makeExample createPullRequest ["base", "head"]
         <> "will generate a request to merge the remote repo `head`"
@@ -881,7 +884,7 @@ createPullRequest = InputPattern "pull-request.create" ["pr.create"]
 
 loadPullRequest :: InputPattern
 loadPullRequest = InputPattern "pull-request.load" ["pr.load"]
-  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, pathArg)]
+  [(Required, gitUrlArg), (Required, gitUrlArg), (Optional, namespaceArg)]
   (P.lines
    [P.wrap $ makeExample loadPullRequest ["base", "head"]
     <> "will load a pull request for merging the remote repo `head` into the"
@@ -920,7 +923,7 @@ parsePushPath label input = do
 
 squashMerge :: InputPattern
 squashMerge =
-  InputPattern "merge.squash" ["squash"] [(Required, pathArg), (Required, pathArg)]
+  InputPattern "merge.squash" ["squash"] [(Required, namespaceArg), (Required, namespaceArg)]
   (P.wrap $ makeExample squashMerge ["src","dest"]
          <> "merges `src` namespace into `dest`,"
          <> "discarding the history of `src` in the process."
@@ -935,8 +938,8 @@ squashMerge =
   )
 
 mergeLocal :: InputPattern
-mergeLocal = InputPattern "merge" [] [(Required, pathArg)
-                                     ,(Optional, pathArg)]
+mergeLocal = InputPattern "merge" [] [(Required, namespaceArg)
+                                     ,(Optional, namespaceArg)]
  (P.column2 [
    ("`merge src`", "merges `src` namespace into the current namespace"),
    ("`merge src dest`", "merges `src` namespace into the `dest` namespace")])
@@ -955,7 +958,7 @@ diffNamespace :: InputPattern
 diffNamespace = InputPattern
   "diff.namespace"
   []
-  [(Required, pathArg), (Optional, pathArg)]
+  [(Required, namespaceArg), (Optional, namespaceArg)]
   (P.column2
     [ ( "`diff.namespace before after`"
       , P.wrap
@@ -982,7 +985,7 @@ previewMergeLocal :: InputPattern
 previewMergeLocal = InputPattern
   "merge.preview"
   []
-  [(Required, pathArg), (Optional, pathArg)]
+  [(Required, namespaceArg), (Optional, namespaceArg)]
   (P.column2
     [ ( "`merge.preview src`"
       , "shows how the current namespace will change after a `merge src`."
@@ -1067,8 +1070,11 @@ edit = InputPattern
   )
 
 topicNameArg :: ArgumentType
-topicNameArg =
-  ArgumentType "topic" $ \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+topicNameArg = ArgumentType
+  { typeName = "topic"
+  , suggestions = \q _ _ _ -> pure (exactComplete q $ Map.keys helpTopicsMap)
+  , globTargets = mempty
+  }
 
 helpTopics :: InputPattern
 helpTopics = InputPattern
@@ -1343,6 +1349,26 @@ test = InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
     (const $ pure $ Input.TestI True True)
 
+docsToHtml :: InputPattern
+docsToHtml = InputPattern
+  "docs.to-html"
+  []
+  []
+  (P.wrapColumn2
+    [ ( "`docs.to-html .path.to.namespace ~/path/to/file/output`"
+      , "Render all docs contained within a namespace, no matter how deep,"
+        <> "to html files on a file path"
+      )
+    ]
+  )
+  (\case
+    [namespacePath, destinationFilePath] -> first fromString $ do
+      np <- Path.parsePath' namespacePath
+      pure $ Input.DocsToHtmlI np destinationFilePath
+    _   -> Left $ showPatternHelp docsToHtml
+  )
+
+
 execute :: InputPattern
 execute = InputPattern
   "run"
@@ -1401,7 +1427,7 @@ createAuthor = InputPattern "create.author" []
   (makeExample createAuthor ["alicecoder", "\"Alice McGee\""]
     <> "creates" <> backtick "alicecoder" <> "values in"
     <> backtick "metadata.authors" <> "and"
-    <> backtickEOS "metadata.copyrightHolders")
+    <> backtick "metadata.copyrightHolders" <> ".")
   (\case
       symbolStr : authorStr@(_:_) -> first fromString $ do
         symbol <- Path.definitionNameSegment symbolStr
@@ -1452,6 +1478,7 @@ validInputs =
   , displayTo
   , ui
   , docs
+  , docsToHtml
   , findPatch
   , viewPatch
   , undo
@@ -1495,35 +1522,47 @@ commandNames :: [String]
 commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
-commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+commandNameArg = ArgumentType
+  { typeName = "command"
+  , suggestions = \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopicsMap))
+  , globTargets = mempty
+  }
 
 exactDefinitionOrPathArg :: ArgumentType
-exactDefinitionOrPathArg =
-  ArgumentType "definition or path" $
-    bothCompletors
-      (bothCompletors
-        (termCompletor exactComplete)
-        (typeCompletor exactComplete))
-      (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
+exactDefinitionOrPathArg = ArgumentType
+  { typeName = "definition or path"
+  , suggestions = allCompletors [ termCompletor exactComplete
+                                , typeCompletor exactComplete
+                                , pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+                                ]
+  , globTargets = Set.fromList [Globbing.Term, Globbing.Type, Globbing.Namespace]
+  }
 
+-- todo: improve this
 fuzzyDefinitionQueryArg :: ArgumentType
-fuzzyDefinitionQueryArg =
-  -- todo: improve this
-  ArgumentType "fuzzy definition query" $
-    bothCompletors (termCompletor fuzzyComplete)
-                   (typeCompletor fuzzyComplete)
+fuzzyDefinitionQueryArg = ArgumentType
+  { typeName = "fuzzy definition query"
+  , suggestions = bothCompletors (termCompletor fuzzyComplete)
+                                 (typeCompletor fuzzyComplete)
+  , globTargets = Set.fromList [Globbing.Term, Globbing.Type]
+  }
 
 definitionQueryArg :: ArgumentType
-definitionQueryArg = fuzzyDefinitionQueryArg { typeName = "definition query" }
+definitionQueryArg = fuzzyDefinitionQueryArg {typeName = "definition query"}
 
 exactDefinitionTypeQueryArg :: ArgumentType
-exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ typeCompletor exactComplete
+exactDefinitionTypeQueryArg = ArgumentType
+  { typeName = "type definition query"
+  , suggestions = typeCompletor exactComplete
+  , globTargets = Set.fromList [Globbing.Type]
+  }
 
 exactDefinitionTermQueryArg :: ArgumentType
-exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ termCompletor exactComplete
+exactDefinitionTermQueryArg = ArgumentType
+  { typeName = "term definition query"
+  , suggestions = termCompletor exactComplete
+  , globTargets = Set.fromList [Globbing.Term]
+  }
 
 typeCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1533,7 +1572,7 @@ typeCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 typeCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTypesRelation . Names.types . Branch.toNames
 
 termCompletor :: Applicative m
               => (String -> [String] -> [Completion])
@@ -1543,12 +1582,21 @@ termCompletor :: Applicative m
               -> Path.Absolute
               -> m [Completion]
 termCompletor filterQuery = pathCompletor filterQuery go where
-  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+  go = Set.map HQ.toText . R.dom . Names.hashQualifyTermsRelation . Names.terms . Branch.toNames
 
 patchArg :: ArgumentType
-patchArg = ArgumentType "patch" $ pathCompletor
-  exactComplete
-  (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+patchArg = ArgumentType
+  { typeName = "patch"
+  , suggestions = pathCompletor exactComplete
+                                (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
+  , globTargets = Set.fromList []
+  }
+
+
+allCompletors :: Monad m
+              => ([String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]]
+              -> (String -> Codebase m v a -> Branch.Branch m -> Path.Absolute -> m [Completion]))
+allCompletors = foldl' bothCompletors I.noSuggestions
 
 bothCompletors
   :: (Monad m)
@@ -1562,11 +1610,16 @@ bothCompletors c1 c2 q code b currentPath = do
        . nubOrdOn Completion.display
        $ suggestions1 ++ suggestions2
 
+-- |
 pathCompletor
   :: Applicative f
   => (String -> [String] -> [Completion])
+     -- ^ Turns a query and list of possible completions into a 'Completion'.
   -> (Branch.Branch0 m -> Set Text)
+     -- ^ Construct completions given ucm's current branch context, or the root namespace if
+     -- the query is absolute.
   -> String
+     -- ^ The portion of this arg that the user has already typed.
   -> codebase
   -> Branch.Branch m
   -> Path.Absolute
@@ -1582,29 +1635,51 @@ pathCompletor filterQuery getNames query _code b p = let
        else
          []
 
-pathArg :: ArgumentType
-pathArg = ArgumentType "namespace" $
-  pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
+namespaceArg :: ArgumentType
+namespaceArg = ArgumentType
+  { typeName = "namespace"
+  , suggestions = pathCompletor completeWithinQueryNamespace  (Set.fromList . allSubNamespaces)
+  , globTargets = Set.fromList [Globbing.Namespace]
+  }
+
+-- | Recursively collects all names of namespaces which are children of the branch.
+allSubNamespaces :: Branch.Branch0 m -> [Text]
+allSubNamespaces b =
+  flip Map.foldMapWithKey (Branch._children b) $
+    \(NameSegment k) (Branch.head -> b') ->
+      (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
 newNameArg :: ArgumentType
-newNameArg = ArgumentType "new-name" $
-  pathCompletor prefixIncomplete
-    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
+newNameArg = ArgumentType 
+  { typeName = "new-name"  
+  , suggestions = pathCompletor 
+                    prefixIncomplete
+                    (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
+  , globTargets = mempty
+  }
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType "word" I.noSuggestions
+noCompletions = ArgumentType 
+  { typeName = "word" 
+  , suggestions = I.noSuggestions
+  , globTargets = mempty
+  }
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = ArgumentType "git-url" $ \input _ _ _ -> case input of
-  "gh" -> complete "https://github.com/"
-  "gl" -> complete "https://gitlab.com/"
-  "bb" -> complete "https://bitbucket.com/"
-  "ghs" -> complete "git@github.com:"
-  "gls" -> complete "git@gitlab.com:"
-  "bbs" -> complete "git@bitbucket.com:"
-  _ -> pure []
-  where complete s = pure [Completion s s False]
+gitUrlArg = ArgumentType 
+  { typeName = "git-url" 
+  , suggestions = let complete s = pure [Completion s s False]
+      in \input _ _ _ -> case input of
+           "gh" -> complete "https://github.com/"
+           "gl" -> complete "https://gitlab.com/"
+           "bb" -> complete "https://bitbucket.com/"
+           "ghs" -> complete "git@github.com:"
+           "gls" -> complete "git@gitlab.com:"
+           "bbs" -> complete "git@bitbucket.com:"
+           _ -> pure []
+  , globTargets = mempty
+  }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]

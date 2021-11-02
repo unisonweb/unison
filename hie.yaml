@@ -12,7 +12,10 @@ cradle:
     - path: "codebase2/core"
       component: "unison-core:lib"
 
-    - path: "codebase2/util"
+    - path: "codebase2/util/bench"
+      component: "unison-util:bench:bench"
+
+    - path: "codebase2/util/src"
       component: "unison-util:lib"
 
     - path: "codebase2/util-serialization"
@@ -42,11 +45,11 @@ cradle:
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:exe:tests"
 
-    - path: "cli/transcripts"
+    - path: "unison-cli/transcripts"
       component: "unison-cli:exe:transcripts"
 
-    - path: "cli/unison"
-      component: "cli:exe:unison"
+    - path: "unison-cli/unison"
+      component: "unison-cli:exe:unison"
 
     - path: "parser-typechecker/benchmarks/runtime"
       component: "unison-parser-typechecker:bench:runtime"

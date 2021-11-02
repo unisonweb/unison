@@ -32,7 +32,6 @@ import Control.Lens
 import Control.Monad.Trans.State.Strict (StateT)
 import qualified Control.Monad.Trans.State.Strict as State
 import Data.Bitraversable (bitraverse)
-import Data.Coerce (Coercible, coerce)
 import Data.Generics.Product.Typed (HasType (typed))
 import qualified Data.Map.Strict as Map
 import U.Codebase.Sqlite.Branch.Format (BranchLocalIds)

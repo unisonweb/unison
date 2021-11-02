@@ -9,6 +9,7 @@
 module Unison.Server.Backend where
 
 import Control.Lens (_2, over)
+import Control.Lens.Cons
 import Control.Error.Util ((??),hush)
 import Control.Monad.Except
   ( ExceptT (..),
@@ -22,6 +23,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
+import System.FilePath
+import System.Directory
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -54,14 +57,13 @@ import qualified Unison.Name as Name
 import qualified Unison.NamePrinter as NP
 import Unison.NameSegment (NameSegment(..))
 import qualified Unison.NameSegment as NameSegment
-import qualified Unison.Names2 as Names
-import Unison.Names3
-  ( Names (..),
-    Names0,
-  )
-import qualified Unison.Names3 as Names3
+import qualified Unison.Names as Names
+import Unison.NamesWithHistory ( NamesWithHistory (..) )
+import qualified Unison.NamesWithHistory as NamesWithHistory
+import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Lucid
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.PrettyPrintEnvDecl as PPE
 import qualified Unison.PrettyPrintEnvDecl.Names as PPE
@@ -90,10 +92,13 @@ import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.SyntaxText as UST
 import Unison.Var (Var)
 import qualified Unison.Server.Doc as Doc
+import qualified Unison.Server.Doc.AsHtml as DocHtml
 import qualified Unison.Codebase.Editor.DisplayObject as DisplayObject
 import qualified Unison.WatchKind as WK
 import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Util.AnnotatedText (AnnotatedText)
+import qualified Unison.Util.Monoid as Monoid
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -123,42 +128,50 @@ data BackendError
 
 type Backend m a = ExceptT BackendError m a
 
--- implementation detail of basicParseNames0 and basicPrettyPrintNames0
-basicNames0' :: Branch m -> Path -> (Names0, Names0)
-basicNames0' root path = (parseNames00, prettyPrintNames00)
+
+-- implementation detail of basicParseNames and basicPrettyPrintNames
+basicNames' :: Branch m -> NameScoping -> (Names, Names)
+basicNames' root scope =
+  (parseNames0, prettyPrintNames0)
   where
+    path :: Path
+    includeAllNames :: Bool
+    (path, includeAllNames) = case scope of
+      AllNames   path -> (path, True)
+      Within path -> (path, False)
     root0 = Branch.head root
     currentBranch = fromMaybe Branch.empty $ Branch.getAt path root
-    absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
+    absoluteRootNames = Names.makeAbsolute (Branch.toNames root0)
     currentBranch0 = Branch.head currentBranch
-    currentPathNames0 = Branch.toNames0 currentBranch0
+    currentPathNames = Branch.toNames currentBranch0
     -- all names, but with local names in their relative form only, rather
     -- than absolute; external names appear as absolute
-    currentAndExternalNames0 =
-      currentPathNames0
-        `Names3.unionLeft0` absDot externalNames
+    currentAndExternalNames =
+      currentPathNames
+        `Names.unionLeft` Names.mapNames Name.makeAbsolute externalNames
       where
-        absDot = Names.prefix0 (Name.unsafeFromText "")
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-        rootNames = Branch.toNames0 root0
+        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames
+        rootNames = Branch.toNames root0
         pathPrefixed = case path of
           Path.Path (toList -> []) -> const mempty
           p -> Names.prefix0 (Path.toName p)
     -- parsing should respond to local and absolute names
-    parseNames00 = currentPathNames0 <> absoluteRootNames0
+    parseNames0 = currentPathNames <> Monoid.whenM includeAllNames absoluteRootNames
     -- pretty-printing should use local names where available
-    prettyPrintNames00 = currentAndExternalNames0
+    prettyPrintNames0 = if includeAllNames
+                           then currentAndExternalNames
+                           else currentPathNames
 
-basicSuffixifiedNames :: Int -> Branch m -> Path -> PPE.PrettyPrintEnv
-basicSuffixifiedNames hashLength root path =
-  let names0 = basicPrettyPrintNames0 root path
-   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ Names names0 mempty
+basicSuffixifiedNames :: Int -> Branch m -> NameScoping -> PPE.PrettyPrintEnv
+basicSuffixifiedNames hashLength root nameScope =
+  let names0 = basicPrettyPrintNames root nameScope
+   in PPE.suffixifiedPPE . PPE.fromNamesDecl hashLength $ NamesWithHistory names0 mempty
 
-basicPrettyPrintNames0 :: Branch m -> Path -> Names0
-basicPrettyPrintNames0 root = snd . basicNames0' root
+basicPrettyPrintNames :: Branch m -> NameScoping -> Names
+basicPrettyPrintNames root = snd . basicNames' root
 
-basicParseNames0 :: Branch m -> Path -> Names0
-basicParseNames0 root = fst . basicNames0' root
+basicParseNames :: Branch m -> NameScoping -> Names
+basicParseNames root = fst . basicNames' root
 
 loadReferentType ::
   (Applicative m, Var v) =>
@@ -222,7 +235,7 @@ fuzzyFind
 fuzzyFind path branch query =
   let
     printNames =
-      basicPrettyPrintNames0 branch path
+      basicPrettyPrintNames branch (Within path)
 
     fzfNames =
       Names.fuzzyFind (words query) printNames
@@ -264,29 +277,38 @@ findShallowReadmeInBranchAndRender ::
   Width ->
   Rt.Runtime v ->
   Codebase IO v Ann ->
+  NamesWithHistory ->
   Branch IO ->
   Backend IO (Maybe Doc.Doc)
-findShallowReadmeInBranchAndRender width runtime codebase branch =
+findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBranch =
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
-      printNames = getCurrentPrettyNames (Path.fromList []) branch
-
       renderReadme ppe r = do
-        res <- renderDoc ppe width runtime codebase (Referent.toReference r)
-        pure $ case res of
-          (_, _, doc) : _ -> Just doc
-          _ -> Nothing
+        (_, _, doc) <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
+        pure doc
 
       -- allow any of these capitalizations
       toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme" ]
       readmes :: Set Referent
       readmes = foldMap lookup toCheck
         where lookup seg = R.lookupRan seg rel
-              rel = Star3.d1 (Branch._terms (Branch.head branch))
+              rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
-        join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
+        traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
+isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
+isDoc codebase ref = do
+  ot <- loadReferentType codebase ref
+  pure $ isDoc' ot
+
+isDoc' :: (Var v, Monoid loc) => Maybe (Type v loc) -> Bool
+isDoc' typeOfTerm = do
+  -- A term is a dococ if its type conforms to the `Doc` type.
+  case typeOfTerm of
+    Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
+               Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
+    Nothing -> False
 
 termListEntry
   :: Monad m
@@ -298,15 +320,17 @@ termListEntry
   -> Backend m (TermEntry v Ann)
 termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
-  -- A term is a doc if its type conforms to the `Doc` type.
-  let isDoc = case ot of
-        Just t  -> Typechecker.isSubtype t (Type.ref mempty Decls.docRef) ||
-                   Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref)
-        Nothing -> False
-      -- A term is a test if it has a link of type `IsTest`.
-      isTest =
-        Metadata.hasMetadataWithType' r (Decls.isTestRef) $ Branch.deepTermMetadata b0
-      tag = if isDoc then Just Doc else if isTest then Just Test else Nothing
+
+  -- A term is a test if it has a link of type `IsTest`.
+  let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
+
+  let tag = if (isDoc' ot) then
+              Just Doc
+            else if isTest then
+              Just Test
+            else
+              Nothing
+
   pure $ TermEntry r n ot tag
 
 typeListEntry
@@ -442,15 +466,30 @@ termReferentsByShortHash codebase sh = do
         B.intrinsicTermReferences
   pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
 
--- currentPathNames0 :: Path -> Names0
--- currentPathNames0 = Branch.toNames0 . Branch.head . Branch.getAt
+-- currentPathNames :: Path -> Names
+-- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
 
-getCurrentPrettyNames :: Path -> Branch m -> Names
-getCurrentPrettyNames path root =
-  Names (basicPrettyPrintNames0 root path) mempty
+-- | Configure how names will be constructed and filtered.
+--   this is typically used when fetching names for printing source code or when finding
+--   definitions by name.
+data NameScoping =
+      -- | Find all names, making any names which are children of this path,
+      -- otherwise leave them absolute.
+      AllNames Path
+      -- | Filter returned names to only include names within this path.
+    | Within   Path
 
-getCurrentParseNames :: Path -> Branch m -> Names
-getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
+toAllNames :: NameScoping -> NameScoping
+toAllNames (AllNames p) = AllNames p
+toAllNames (Within p) = AllNames p
+
+getCurrentPrettyNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentPrettyNames scope root =
+  NamesWithHistory (basicPrettyPrintNames root scope) mempty
+
+getCurrentParseNames :: NameScoping -> Branch m -> NamesWithHistory
+getCurrentParseNames scope root =
+  NamesWithHistory (basicParseNames root scope) mempty
 
 -- Any absolute names in the input which have `root` as a prefix
 -- are converted to names relative to current path. All other names are
@@ -459,8 +498,8 @@ getCurrentParseNames path root = Names (basicParseNames0 root path) mempty
 -- e.g. if currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
-fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative root = Names3.map0 fixName where
+fixupNamesRelative :: Path.Absolute -> Names -> Names
+fixupNamesRelative root = Names.map fixName where
   prefix = Path.toName $ Path.unabsolute root
   fixName n = if root == Path.absoluteEmpty
     then n
@@ -477,21 +516,21 @@ data Search r = Search
   }
 
 -- | Make a type search, given a short hash length and names to search in.
-makeTypeSearch :: Int -> Names -> Search Reference
+makeTypeSearch :: Int -> NamesWithHistory -> Search Reference
 makeTypeSearch len names =
   Search
-    { lookupNames = \ref -> Names3.typeName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQType' name names,
+    { lookupNames = \ref -> NamesWithHistory.typeName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQType' name names,
       matchesNamedRef = HQ'.matchesNamedReference,
       makeResult = SR.typeResult
     }
 
 -- | Make a term search, given a short hash length and names to search in.
-makeTermSearch :: Int -> Names -> Search Referent
+makeTermSearch :: Int -> NamesWithHistory -> Search Referent
 makeTermSearch len names =
   Search
-    { lookupNames = \ref -> Names3.termName len ref names,
-      lookupRelativeHQRefs' = \name -> Names3.lookupRelativeHQTerm' name names,
+    { lookupNames = \ref -> NamesWithHistory.termName len ref names,
+      lookupRelativeHQRefs' = \name -> NamesWithHistory.lookupRelativeHQTerm' name names,
       matchesNamedRef = HQ'.matchesNamedReferent,
       makeResult = SR.termResult
     }
@@ -518,12 +557,12 @@ applySearch Search {lookupNames, lookupRelativeHQRefs', makeResult, matchesNamed
 
 hqNameQuery
   :: Monad m
-  => Maybe Path
+  => NameScoping
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> m QueryResult
-hqNameQuery relativeTo root codebase hqs = do
+hqNameQuery namesScope root codebase hqs = do
   -- Split the query into hash-only and hash-qualified-name queries.
   let (hashes, hqnames) = partitionEithers (map HQ'.fromHQ2 hqs)
   -- Find the terms with those hashes.
@@ -538,8 +577,7 @@ hqNameQuery relativeTo root codebase hqs = do
   -- The hq-name search needs a hash-qualifier length
   hqLength <- Codebase.hashLength codebase
   -- We need to construct the names that we want to use / search by.
-  let currentPath = fromMaybe Path.empty relativeTo
-      parseNames = getCurrentParseNames currentPath root
+  let parseNames = getCurrentParseNames namesScope root
       mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
       mkTypeResult sh r = SR.typeResult (HQ.HashOnly sh) r Set.empty
       -- Transform the hash results a bit
@@ -630,7 +668,7 @@ mungeSyntaxText = fmap Syntax.convertElement
 prettyDefinitionsBySuffixes
   :: forall v
    . Var v
-  => Maybe Path
+  => NameScoping
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
@@ -638,10 +676,10 @@ prettyDefinitionsBySuffixes
   -> Codebase IO v Ann
   -> [HQ.HashQualified Name]
   -> Backend IO DefinitionDisplayResults
-prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt codebase query
+prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query
   = do
     branch                               <- resolveBranchHash root codebase
-    DefinitionResults terms types misses <- definitionsBySuffixes relativeTo
+    DefinitionResults terms types misses <- definitionsBySuffixes namesScope
                                                                   branch
                                                                   codebase
                                                                   query
@@ -650,25 +688,35 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
     -- the names in the pretty-printer, but the current implementation
     -- doesn't.
     let
+      -- We use printNames for names in source and parseNames to lookup
+      -- definitions, thus printNames use the allNames scope, to ensure
+      -- external references aren't hashes.
       printNames =
-        getCurrentPrettyNames (fromMaybe Path.empty relativeTo) branch
+        getCurrentPrettyNames (toAllNames namesScope) branch
+
       parseNames =
-        getCurrentParseNames (fromMaybe Path.empty relativeTo) branch
-      ppe   = PPE.fromNamesDecl hqLength printNames
-      width = mayDefaultWidth renderWidth
-      isAbsolute (Name.toText -> n) = "." `Text.isPrefixOf` n && n /= "."
+        getCurrentParseNames namesScope branch
+
+      ppe =
+        PPE.fromNamesDecl hqLength printNames
+
+      width =
+        mayDefaultWidth renderWidth
+
       termFqns :: Map Reference (Set Text)
       termFqns = Map.mapWithKey f terms
        where
         rel = Names.terms $ currentNames parseNames
-        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+        f k _ = Set.fromList . fmap Name.toText . toList
               $ R.lookupRan (Referent.Ref k) rel
+
       typeFqns :: Map Reference (Set Text)
       typeFqns = Map.mapWithKey f types
        where
         rel = Names.types $ currentNames parseNames
-        f k _ = Set.fromList . fmap Name.toText . filter isAbsolute . toList
+        f k _ = Set.fromList . fmap Name.toText . toList
               $ R.lookupRan k rel
+
       flatten = Set.toList . fromMaybe Set.empty
 
       docNames :: Set (HQ'.HashQualified Name) -> [Name]
@@ -687,13 +735,20 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
       -- you get both its source and its rendered form
       docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
-        let refsFor n = Names3.lookupHQTerm (HQ.NameOnly n) parseNames
+        let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> traverse (renderDoc ppe width rt codebase) docs
+        liftIO (traverse (renderDoc ppe width rt codebase) docs)
 
+      mkTermDefinition ::
+        ( Reference ->
+          DisplayObject
+            (AnnotatedText (UST.Element Reference))
+            (AnnotatedText (UST.Element Reference)) ->
+          ExceptT BackendError IO TermDefinition
+        )
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
         let bn = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
@@ -701,7 +756,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [r] $ docNames (Names3.termName hqLength (Referent.Ref r) printNames)
+        docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
         mk docs ts bn tag
        where
         mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -719,7 +774,7 @@ prettyDefinitionsBySuffixes relativeTo root renderWidth suffixifyBindings rt cod
           codebase
           r
           (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [] $ docNames (Names3.typeName hqLength r printNames)
+        docs <- docResults [] $ docNames (NamesWithHistory.typeName hqLength r printNames)
         pure $ TypeDefinition (flatten $ Map.lookup r typeFqns)
                               bn
                               tag
@@ -744,25 +799,25 @@ renderDoc ::
   Rt.Runtime v ->
   Codebase IO v Ann ->
   Reference ->
-  Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  IO (HashQualifiedName, UnisonHash, Doc.Doc)
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
-  map (name,hash,) . pure
+  (name,hash,)
     <$> let tm = Term.ref () r
          in Doc.renderDoc @v ppe terms typeOf eval decls tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
-      fmap Term.unannotate <$> lift (Codebase.getTerm codebase r)
+      fmap Term.unannotate <$> Codebase.getTerm codebase r
 
-    typeOf r = fmap void <$> lift (Codebase.getTypeOfReferent codebase r)
+    typeOf r = fmap void <$> Codebase.getTypeOfReferent codebase r
     eval (Term.amap (const mempty) -> tm) = do
       let ppes = PPE.suffixifiedPPE ppe
       let codeLookup = Codebase.toCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.lookupWatchCache codebase r
       r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache ppes rt tm
-      lift $ case r of
+      case r of
         Just tmr ->
           Codebase.putWatch
             codebase
@@ -772,9 +827,65 @@ renderDoc ppe width rt codebase r = do
         Nothing -> pure ()
       pure $ r <&> Term.amap (const mempty)
 
-    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> lift (Codebase.getTypeDeclaration codebase r)
+    decls (Reference.DerivedId r) = fmap (DD.amap (const ())) <$> Codebase.getTypeDeclaration codebase r
     decls _ = pure Nothing
 
+docsInBranchToHtmlFiles
+  :: Var v
+  => Rt.Runtime v
+  -> Codebase IO v Ann
+  -> Branch IO
+  -> Path
+  -> FilePath
+  -> IO ()
+docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
+  let currentBranch = Branch.getAt' currentPath root
+  let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
+  docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
+  hqLength <- Codebase.hashLength codebase
+  let printNames = getCurrentPrettyNames (AllNames currentPath) root
+  let ppe = PPE.fromNamesDecl hqLength printNames
+  docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
+  liftIO $ traverse_ (renderDocToHtmlFile directory) docs
+
+  where
+    renderDoc' ppe runtime codebase (ref, name) = do
+      (_, hash, doc) <- renderDoc ppe defaultWidth runtime codebase (Referent.toReference ref)
+      pure (name, hash, doc)
+
+    cleanPath :: FilePath -> FilePath
+    cleanPath filePath =
+      filePath <&> \case
+        '#' -> '@'
+        c   -> c
+
+    docFilePath :: FilePath -> Name -> FilePath
+    docFilePath destination docFQN =
+      let
+        (dir, fileName) =
+          case unsnoc . map NameSegment.toString . toList . Name.segments $ docFQN of
+            Just (path, leafName) ->
+              (directoryPath path , docFileName leafName)
+            Nothing ->
+              error "Could not parse doc name"
+
+        directoryPath p =
+          destination </> joinPath p
+
+        docFileName n =
+          cleanPath $ n <> ".html"
+
+      in dir </> fileName
+
+    renderDocToHtmlFile :: FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile destination (docName, _, doc) =
+      let
+        fullPath = docFilePath destination docName
+        directoryPath = takeDirectory fullPath
+       in do
+        -- Ensure all directories exists
+        _ <- createDirectoryIfMissing True directoryPath
+        Lucid.renderToFile fullPath (DocHtml.toHtml doc)
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
@@ -817,15 +928,15 @@ definitionsBySuffixes
   :: forall m v
    . (MonadIO m)
   => Var v
-  => Maybe Path
+  => NameScoping
   -> Branch m
   -> Codebase m v Ann
   -> [HQ.HashQualified Name]
   -> Backend m (DefinitionResults v)
-definitionsBySuffixes relativeTo branch codebase query = do
+definitionsBySuffixes namesScope branch codebase query = do
   -- First find the hashes by name and note any query misses.
   QueryResult misses results <- lift
-    $ hqNameQuery relativeTo branch codebase query
+    $ hqNameQuery namesScope branch codebase query
   -- Now load the terms/types for those hashes.
   results' <- lift $ loadSearchResults codebase results
   let termTypes :: Map.Map Reference (Type v Ann)

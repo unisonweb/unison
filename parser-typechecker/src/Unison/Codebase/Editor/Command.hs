@@ -34,7 +34,8 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Reflog        as Reflog
 import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Names3                  ( Names, Names0 )
+import           Unison.NamesWithHistory        ( NamesWithHistory )
+import           Unison.Names                   ( Names )
 import Unison.Parser.Ann (Ann)
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
@@ -63,6 +64,7 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Hash as H
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -75,13 +77,24 @@ data LoadSourceResult = InvalidSourceNameError
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (Either Names0 (UF.TypecheckedUnisonFile v Ann))
+         (Either Names (UF.TypecheckedUnisonFile v Ann))
 
-data Command m i v a where
+data Command
+       m -- Command monad
+       i -- Input type
+       v -- Type of variables in the codebase
+       a -- Result of running the command
+         where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
   UI :: Command m i v ()
+
+  DocsToHtml
+    :: Branch m -- Root branch
+    -> Path -- ^ namespace source
+    -> FilePath -- ^ file destination
+    -> Command m i v ()
 
   HQNameQuery
     :: Maybe Path
@@ -125,13 +138,13 @@ data Command m i v a where
 
   BranchHashesByPrefix :: ShortBranchHash -> Command m i v (Set Branch.Hash)
 
-  ParseType :: Names -> LexedSource
+  ParseType :: NamesWithHistory -> LexedSource
             -> Command m i v (Either (Parser.Err v) (Type v Ann))
 
   LoadSource :: SourceName -> Command m i v LoadSourceResult
 
   Typecheck :: AmbientAbilities v
-            -> Names
+            -> NamesWithHistory
             -> SourceName
             -> LexedSource
             -> Command m i v (TypecheckingResult v)
@@ -246,6 +259,13 @@ data Command m i v a where
 
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
 
+  -- | Trigger an interactive fuzzy search over the provided options and return all
+  -- selected results.
+  FuzzySelect :: Fuzzy.Options -- ^ Configure the selection.
+              -> (a -> Text) -- ^ Select the text to fuzzy find on
+              -> [a] -- ^ The elements to select from
+              -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
+
 type UseCache = Bool
 
 type EvalResult v =
@@ -260,6 +280,7 @@ commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
   UI                          -> "UI"
+  DocsToHtml{}                -> "DocsToHtml"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
@@ -311,3 +332,4 @@ commandName = \case
   FindShallow{}               -> "FindShallow"
   ClearWatchCache{}           -> "ClearWatchCache"
   MakeStandalone{}            -> "MakeStandalone"
+  FuzzySelect{}               -> "FuzzySelect"

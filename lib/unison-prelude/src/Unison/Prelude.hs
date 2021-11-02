@@ -6,6 +6,7 @@ module Unison.Prelude
     writeUtf8,
     uncurry4,
     reportBug,
+    tShow,
   )
 where
 
@@ -19,6 +20,7 @@ import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
 import qualified Data.ByteString as BS
+import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
 import Data.Foldable as X (asum, fold, foldl', for_, toList, traverse_)
@@ -37,8 +39,13 @@ import Data.Traversable as X (for)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
+import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
+import qualified Data.Text as Text
+
+tShow :: Show a => a -> Text
+tShow = Text.pack . show
 
 -- Read an entire file strictly assuming UTF8
 readUtf8 :: FilePath -> IO Text

@@ -11,13 +11,16 @@ default-extensions:
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedStrings
   - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
@@ -93,6 +96,7 @@ library:
     - semialign
     - mwc-random
     - NanoID
+    - lucid
     - servant
     - servant-docs
     - servant-openapi3
@@ -157,6 +161,7 @@ executables:
       - extra
       - filepath
       - filemanip
+      - haskeline
       - here
       - lens
       - megaparsec

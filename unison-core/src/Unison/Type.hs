@@ -72,7 +72,7 @@ bindReferences
   -> Names.ResolutionResult v a (Type v a)
 bindReferences keepFree ns t = let
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
+  rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
   ok (v, _a, Just r) = pure (v, r)
   ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
   in List.validate ok rs <&> \es -> bindExternal es t
