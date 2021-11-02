@@ -105,9 +105,24 @@ delete a b c d Relation4{..} =
       let r' = R3.delete x y z r
       in if r' == mempty then Nothing else Just r'
 
-mapD2 :: (Ord a, Ord b, Ord b', Ord c, Ord d)
-      => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
-mapD2 f = fromList . fmap (\(a,b,c,d) -> (a, f b, c, d)) . toList
+mapD2 :: (Ord a, Ord b, Ord b', Ord c, Ord d) => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
+mapD2 f Relation4 {d1, d2, d3, d4} =
+  Relation4
+    { d1 = Map.map (R3.mapD1 f) d1,
+      d2 = Map.mapKeysWith R3.union f d2,
+      d3 = Map.map (R3.mapD2 f) d3,
+      d4 = Map.map (R3.mapD2 f) d4
+    }
+
+-- | Like 'mapD2', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD2Monotonic :: (Ord a, Ord b, Ord b', Ord c, Ord d) => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
+mapD2Monotonic f Relation4 {d1, d2, d3, d4} =
+  Relation4
+    { d1 = Map.map (R3.mapD1Monotonic f) d1,
+      d2 = Map.mapKeysMonotonic f d2,
+      d3 = Map.map (R3.mapD2Monotonic f) d3,
+      d4 = Map.map (R3.mapD2Monotonic f) d4
+    }
 
 insertAll :: Foldable f => Ord a => Ord b => Ord c => Ord d
           => f (a,b,c,d) -> Relation4 a b c d -> Relation4 a b c d

@@ -20,8 +20,8 @@ data Element r = NumericLiteral
              | BooleanLiteral
              | Blank
              | Var
-             | Reference r
-             | Referent (Referent' r)
+             | TypeReference r
+             | TermReference (Referent' r)
              | Op SeqOp
              | AbilityBraces
              -- let|handle|in|where|match|with|cases|->|if|then|else|and|or

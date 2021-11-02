@@ -103,8 +103,21 @@ serve tryAuth runtime codebase namespaceName mayRoot mayWidth =
 
         namespaceDetails <- doBackend $ do
           root <- Backend.resolveRootBranchHash mayRoot codebase
+
           let namespaceBranch = Branch.getAt' namespacePath root
-          readme <- Backend.findShallowReadmeInBranchAndRender width runtime codebase namespaceBranch
+
+          -- Names used in the README should not be confined to the namespace
+          -- of the README (since it could be referencing definitions from all
+          -- over the codebase)
+          let printNames = Backend.getCurrentPrettyNames (Backend.AllNames namespacePath) root
+
+          readme <-
+            Backend.findShallowReadmeInBranchAndRender
+              width
+              runtime
+              codebase
+              printNames
+              namespaceBranch
 
           pure $ NamespaceDetails namespaceName (branchToUnisonHash namespaceBranch) readme
 

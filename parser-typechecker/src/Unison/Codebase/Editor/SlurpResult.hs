@@ -18,7 +18,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
-import qualified Unison.Names2 as Names
+import qualified Unison.Names as Names
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
 import qualified Unison.TypePrinter as TP
@@ -72,8 +72,8 @@ data SlurpResult v = SlurpResult {
 -- Returns the set of constructor names for type names in the given `Set`.
 constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
 constructorsFor types uf = let
-  names = UF.typecheckedToNames0 uf
-  typesRefs = Set.unions $ Names.typesNamed names . Name.fromVar <$> toList types
+  names = UF.typecheckedToNames uf
+  typesRefs = Set.unions $ Names.typesNamed names . Name.unsafeFromVar <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
   isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
   isOkCtor _ = False

@@ -20,8 +20,6 @@ where
 
 import qualified Data.Sequence as Sequence
 import qualified Data.Text as Text
-import Prelude.Extras (Eq1 (..), Show1 (..))
-import Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -95,6 +93,7 @@ type Term v a = Term2 v a a v a
 -- to all differ
 type Term2 vt at ap v a = ABT.Term (F vt at ap) v a
 
+-- some smart constructors
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
@@ -184,88 +183,3 @@ instance Var v => Hashable1 (F v a p) where
                 Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                 TermLink r -> [tag 18, accumulateToken r]
                 TypeLink r -> [tag 19, accumulateToken r]
-
--- mostly boring serialization code below ...
-
-instance (Eq a, ABT.Var v) => Eq1 (F v a p) where (==#) = (==)
-
-instance (Show v) => Show1 (F v a p) where showsPrec1 = showsPrec
-
-instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
-  Int x == Int y = x == y
-  Nat x == Nat y = x == y
-  Float x == Float y = x == y
-  Boolean x == Boolean y = x == y
-  Text x == Text y = x == y
-  Char x == Char y = x == y
-  Blank b == Blank q = b == q
-  Ref x == Ref y = x == y
-  TermLink x == TermLink y = x == y
-  TypeLink x == TypeLink y = x == y
-  Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
-  Request r cid == Request r2 cid2 = r == r2 && cid == cid2
-  Handle h b == Handle h2 b2 = h == h2 && b == b2
-  App f a == App f2 a2 = f == f2 && a == a2
-  Ann e t == Ann e2 t2 = e == e2 && t == t2
-  List v == List v2 = v == v2
-  If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
-  And a b == And a2 b2 = a == a2 && b == b2
-  Or a b == Or a2 b2 = a == a2 && b == b2
-  Lam a == Lam b = a == b
-  LetRec _ bs body == LetRec _ bs2 body2 = bs == bs2 && body == body2
-  Let _ binding body == Let _ binding2 body2 =
-    binding == binding2 && body == body2
-  Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
-  _ == _ = False
-
-instance (Show v, Show a) => Show (F v a0 p a) where
-  showsPrec = go
-    where
-      go _ (Int n) = (if n >= 0 then s "+" else s "") <> shows n
-      go _ (Nat n) = shows n
-      go _ (Float n) = shows n
-      go _ (Boolean True) = s "true"
-      go _ (Boolean False) = s "false"
-      go p (Ann t k) = showParen (p > 1) $ shows t <> s ":" <> shows k
-      go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
-      go _ (Lam body) = showParen True (s "λ " <> shows body)
-      go _ (List vs) = showListWith shows (toList vs)
-      go _ (Blank b) = case b of
-        B.Blank -> s "_"
-        B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
-        B.Recorded (B.Resolve _ r) -> s r
-      go _ (Ref r) = s "Ref(" <> shows r <> s ")"
-      go _ (TermLink r) = s "TermLink(" <> shows r <> s ")"
-      go _ (TypeLink r) = s "TypeLink(" <> shows r <> s ")"
-      go _ (Let _ b body) =
-        showParen True (s "let " <> shows b <> s " in " <> shows body)
-      go _ (LetRec _ bs body) =
-        showParen
-          True
-          (s "let rec" <> shows bs <> s " in " <> shows body)
-      go _ (Handle b body) =
-        showParen
-          True
-          (s "handle " <> shows b <> s " in " <> shows body)
-      go _ (Constructor r n) = s "Con" <> shows r <> s "#" <> shows n
-      go _ (Match scrutinee cases) =
-        showParen
-          True
-          (s "case " <> shows scrutinee <> s " of " <> shows cases)
-      go _ (Text s) = shows s
-      go _ (Char c) = shows c
-      go _ (Request r n) = s "Req" <> shows r <> s "#" <> shows n
-      go p (If c t f) =
-        showParen (p > 0) $
-          s "if "
-            <> shows c
-            <> s " then "
-            <> shows t
-            <> s " else "
-            <> shows f
-      go p (And x y) =
-        showParen (p > 0) $ s "and " <> shows x <> s " " <> shows y
-      go p (Or x y) =
-        showParen (p > 0) $ s "or " <> shows x <> s " " <> shows y
-      (<>) = (.)
-      s = showString

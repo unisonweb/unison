@@ -1,17 +1,13 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveGeneric #-}
-
 module Unison.Codebase.ShortBranchHash where
 
 import Unison.Prelude
 import qualified Unison.Hash as Hash
 import qualified Data.Text as Text
 import qualified Data.Set as Set
-import Data.Coerce (Coercible, coerce)
 
 newtype ShortBranchHash =
   ShortBranchHash { toText :: Text } -- base32hex characters
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 toString :: ShortBranchHash -> String
 toString = Text.unpack . toText

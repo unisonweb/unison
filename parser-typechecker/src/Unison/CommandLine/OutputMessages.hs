@@ -71,9 +71,9 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified', prettyHashQualified')
-import           Unison.Names2                 (Names'(..), Names0)
-import qualified Unison.Names2                 as Names
-import qualified Unison.Names3                 as Names
+import           Unison.Names                 (Names(..))
+import qualified Unison.Names                 as Names
+import qualified Unison.NamesWithHistory                 as Names
 import Unison.Parser.Ann (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.PrettyPrintEnv.Util as PPE
@@ -733,6 +733,10 @@ notifyUser dir o = case o of
         $ "I just finished importing the branch" <> P.red (P.shown h)
         <> "from" <> P.red (prettyRemoteNamespace ns)
         <> "but now I can't find it."
+      CouldntFindRemoteBranch repo path -> P.wrap
+        $ "I couldn't find the remote branch at"
+        <> P.shown path
+        <> "in the repository at" <> prettyReadRepo repo
       NoRemoteNamespaceWithHash repo sbh -> P.wrap
         $ "The repository at" <> prettyReadRepo repo
         <> "doesn't contain a namespace with the hash prefix"
@@ -1255,8 +1259,8 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' name (Just typ) _r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  SR'.TermResult' name (Just typ) r _aliases ->
+    head (TypePrinter.prettySignatures' ppe [(r,name,typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1375,14 +1379,14 @@ todoOutput ppe todo =
   corruptTypes =
     [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (Referent.Ref r, PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
     -- conflicts section
-    c :: Names0
+    c :: Names
     c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
     conflictedTypeNames = (R.dom . Names.types) c
     conflictedTermNames = (R.dom . Names.terms) c
@@ -1397,7 +1401,7 @@ todoOutput ppe todo =
     -- edit conflict, so that the edit conflict will be dealt with first.
     -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
     -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
-    removeEditConflicts :: Ord n => Patch -> Names' n -> Names' n
+    removeEditConflicts :: Patch -> Names -> Names
     removeEditConflicts Patch{..} Names{..} = Names terms' types' where
       terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
       types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types
@@ -1942,21 +1946,21 @@ prettyDiff diff = let
   adds = Names.addedNames diff
   removes = Names.removedNames diff
 
-  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 adds)
-                       , not $ R.memberRan r (Names.terms0 removes) ]
-  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 adds)
-                       , not $ R.memberRan r (Names.types0 removes) ]
+  addedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms adds)
+                       , not $ R.memberRan r (Names.terms removes) ]
+  addedTypes = [ (n,r) | (n,r) <- R.toList (Names.types adds)
+                       , not $ R.memberRan r (Names.types removes) ]
   added = sort (hqTerms ++ hqTypes)
     where
       hqTerms = [ Names.hqName adds n (Right r) | (n, r) <- addedTerms ]
       hqTypes = [ Names.hqName adds n (Left r)  | (n, r) <- addedTypes ]
 
-  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms0 removes)
-                         , not $ R.memberRan r (Names.terms0 adds)
+  removedTerms = [ (n,r) | (n,r) <- R.toList (Names.terms removes)
+                         , not $ R.memberRan r (Names.terms adds)
                          , Set.notMember n addedTermsSet ] where
     addedTermsSet = Set.fromList (map fst addedTerms)
-  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types0 removes)
-                         , not $ R.memberRan r (Names.types0 adds)
+  removedTypes = [ (n,r) | (n,r) <- R.toList (Names.types removes)
+                         , not $ R.memberRan r (Names.types adds)
                          , Set.notMember n addedTypesSet ] where
     addedTypesSet = Set.fromList (map fst addedTypes)
   removed = sort (hqTerms ++ hqTypes)
@@ -1964,20 +1968,20 @@ prettyDiff diff = let
       hqTerms = [ Names.hqName removes n (Right r) | (n, r) <- removedTerms ]
       hqTypes = [ Names.hqName removes n (Left r)  | (n, r) <- removedTypes ]
 
-  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
+  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms removes)
                         , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
   movedTypes = [ (n,n2) | (n,r) <- R.toList (Names.types removes)
                         , n2 <- toList (R.lookupRan r (Names.types adds)) ]
   moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
 
   copiedTerms = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
-           , not (R.memberRan r (Names.terms0 removes))
-           , n <- toList (R.lookupRan r (Names.terms0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.terms adds)
+           , not (R.memberRan r (Names.terms removes))
+           , n <- toList (R.lookupRan r (Names.terms orig)) ]
   copiedTypes = List.multimap [
-    (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
-           , not (R.memberRan r (Names.types0 removes))
-           , n <- toList (R.lookupRan r (Names.types0 orig)) ]
+    (n,n2) | (n2,r) <- R.toList (Names.types adds)
+           , not (R.memberRan r (Names.types removes))
+           , n <- toList (R.lookupRan r (Names.types orig)) ]
   copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
   in

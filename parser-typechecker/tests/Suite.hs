@@ -10,6 +10,7 @@ import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.ClearCache as ClearCache
+import qualified Unison.Test.Codebase.Branch as Branch
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
@@ -38,6 +39,7 @@ import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.VersionParser as VersionParser
 import qualified Unison.Test.GitSync as GitSync
 import qualified Unison.Test.CodebaseInit as CodebaseInit
+import qualified Unison.Test.CommandLine as CommandLine
 -- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
@@ -74,6 +76,8 @@ test = tests
   , Pretty.test
   , PinBoard.test
   , CodebaseInit.test
+  , CommandLine.test
+  , Branch.test
  ]
 
 main :: IO ()

@@ -1,0 +1,35 @@
+docTest2 : Doc2
+docTest2 =
+  {{ # Full doc body indented
+  
+    ``` raw
+    myVal1 = 42 
+    myVal2 = 43
+    myVal4 = 44
+    ```
+    
+    ``` raw
+    indented1= "hi"
+    indented2="this is two indents"
+    ```
+    
+    I am two spaces over }}
+
+---- Anything below this line is ignored by Unison.
+
+
+docTest2 = {{
+  # Full doc body indented
+
+  ````raw 
+  myVal1 = 42 
+  myVal2 = 43
+  myVal4 = 44
+  ````
+
+    ````raw
+    indented1= "hi"
+    indented2="this is two indents"
+    ````
+  I am two spaces over
+}}

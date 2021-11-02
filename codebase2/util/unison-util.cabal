@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 31a8bc44e9e7254b4567e7d791f3dba17fb3a4a1feb0bdc33fd38413fddc2297
 
 name:           unison-util
 version:        0.0.0
@@ -33,11 +31,68 @@ library
   other-modules:
       Paths_unison_util
   hs-source-dirs:
-      ./
+      src
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
   build-depends:
       base
+    , base32
     , bytestring
     , containers
+    , cryptonite
+    , lens
+    , memory
+    , safe
+    , text
+    , time
+    , unison-util-relation
+    , unliftio
+    , vector
+  default-language: Haskell2010
+
+benchmark bench
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_unison_util
+  hs-source-dirs:
+      bench
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+  build-depends:
+      base
+    , base32
+    , bytestring
+    , containers
+    , criterion
     , cryptonite
     , lens
     , memory
@@ -45,6 +100,7 @@ library
     , sandi
     , text
     , time
+    , unison-util
     , unison-util-relation
     , unliftio
     , vector

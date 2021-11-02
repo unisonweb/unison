@@ -10,35 +10,32 @@ module Unison.Hashing.V2.Type (
   F(..),
   bindExternal,
   bindReferences,
-  hashComponents,
+  -- * find by type index stuff
   toReference,
   toReferenceMentions,
-  -- * builtin type references
-  effectRef,
-  listRef,
+  -- * builtin term references
   booleanRef,
-  intRef,
-  natRef,
-  floatRef,
   charRef,
+  effectRef,
+  floatRef,
+  intRef,
+  listRef,
+  natRef,
   textRef,
 ) where
 
-import Unison.Prelude
-
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
 import qualified Unison.ABT as ABT
 import Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
-import qualified Unison.Hashing.V2.Reference.Util as ReferenceUtil
 import qualified Unison.Kind as K
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
+import Unison.Prelude
 import qualified Unison.Util.List as List
 import Unison.Var (Var)
 
@@ -54,11 +51,7 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
                  -- bound by outer type signatures, to support scoped type
                  -- variables
-  deriving (Foldable,Functor,Eq,Ord,Traversable)
-
-instance Eq1 F where (==#) = (==)
-instance Ord1 F where compare1 = compare
-instance Show1 F where showsPrec1 = showsPrec
+  deriving (Foldable,Functor,Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
@@ -78,15 +71,10 @@ bindReferences
   -> Names.ResolutionResult v a (Type v a)
 bindReferences keepFree ns t = let
   fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Map.lookup (Name.fromVar v) ns) | (v, a) <- fvs]
+  rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
   ok (v, _a, Just r) = pure (v, r)
   ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
   in List.validate ok rs <&> \es -> bindExternal es t
-
-newtype Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
-
-instance (Show v) => Show (Monotype v a) where
-  show = show . getPolytype
 
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
@@ -100,12 +88,8 @@ unForalls t = go t []
         go body vs = Just(reverse vs, body)
 
 -- some smart constructors
-
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
-
-refId :: Ord v => a -> Reference.Id -> Type v a
-refId a = ref a . Reference.DerivedId
 
 intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, effectRef :: Reference
 intRef = Reference.Builtin "Int"
@@ -143,10 +127,6 @@ toReferenceMentions ty =
       gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
   in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
-hashComponents
-  :: Var v => Map v (Type v a) -> Map v (Reference.Id, Type v a)
-hashComponents = ReferenceUtil.hashComponents $ refId ()
-
 instance Hashable1 F where
   hash1 hashCycle hash e =
     let
@@ -168,25 +148,3 @@ instance Hashable1 F where
       Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
       Forall a -> [tag 6, hashed (hash a)]
       IntroOuter a -> [tag 7, hashed (hash a)]
-
-instance Show a => Show (F a) where
-  showsPrec = go where
-    go _ (Ref r) = shows r
-    go p (Arrow i o) =
-      showParen (p > 0) $ showsPrec (p+1) i <> s" -> " <> showsPrec p o
-    go p (Ann t k) =
-      showParen (p > 1) $ shows t <> s":" <> shows k
-    go p (App f x) =
-      showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Effects es) = showParen (p > 0) $
-      s"{" <> shows es <> s"}"
-    go p (Effect e t) = showParen (p > 0) $
-     showParen True $ shows e <> s" " <> showsPrec p t
-    go p (Forall body) = case p of
-      0 -> showsPrec p body
-      _ -> showParen True $ s"∀ " <> shows body
-    go p (IntroOuter body) = case p of
-      0 -> showsPrec p body
-      _ -> showParen True $ s"outer " <> shows body
-    (<>) = (.)
-    s = showString

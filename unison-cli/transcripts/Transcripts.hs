@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+{- This module kicks off the Transcript Tests.
+   It doesn't do the transcript parsing itself.
+-}
+module Main (main) where
 
 import           Unison.Prelude
 import           EasyTest

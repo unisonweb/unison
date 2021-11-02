@@ -480,12 +480,28 @@ lexemes' eof = P.optional space >> do
           local (\env -> env { inLayout = True, opening = Just "docExampleBlock" })
                 (restoreStack "docExampleBlock" $ lexemes' ([] <$ lit fence))
 
+        uncolumn column tabWidth s =
+          let
+            skip col r | col < 1 = r
+            skip col s@('\t' : _) | col < tabWidth = s
+            skip col ('\t' : r) = skip (col - tabWidth) r
+            skip col (c : r) | isSpace c && (not $ isControl c) =
+              skip (col - 1) r
+            skip _ s = s
+          in intercalate "\n" $ skip column <$> lines s
+
         other = wrap "syntax.docCodeBlock" $ do
-          fence <- lit "```" <+> P.many (CP.satisfy (== '`'))
-          name <- P.many (CP.satisfy nonNewlineSpace)
-               *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
-          _ <- CP.space
-          verbatim <- tok $ Textual . trim <$> P.someTill CP.anyChar ([] <$ lit fence)
+          column <- (\x -> x - 1) . toInteger . P.unPos <$> LP.indentLevel
+          tabWidth <- toInteger . P.unPos <$> P.getTabWidth
+          fence  <- lit "```" <+> P.many (CP.satisfy (== '`'))
+          name   <-
+            P.many (CP.satisfy nonNewlineSpace)
+            *> tok (Textual <$> P.takeWhile1P Nothing (not . isSpace))
+            <* P.many (CP.satisfy nonNewlineSpace)
+          _ <- void CP.eol
+          verbatim <-
+            tok $ Textual . uncolumn column tabWidth . trim <$>
+                    P.someTill CP.anyChar ([] <$ lit fence)
           pure (name <> verbatim)
 
     boldOrItalicOrStrikethrough closing = do
@@ -1083,7 +1099,7 @@ wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` ['_','!','\'']
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'

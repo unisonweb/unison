@@ -13,7 +13,6 @@ import Control.Lens (Lens', zoom, _1, _2, _3, _4)
 import Control.Monad.Trans.State.Strict (State)
 import qualified Control.Monad.Trans.State.Strict as State
 import Data.Bitraversable (bitraverse)
-import Data.Coerce (Coercible, coerce)
 import qualified Data.Map.Strict as Map
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector

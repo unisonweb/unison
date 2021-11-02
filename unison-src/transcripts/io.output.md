@@ -312,6 +312,70 @@ testSystemTime _ =
   Tip: Use view testSystemTime to view the source of a test.
 
 ```
+### Get temp directory
+
+```unison
+testGetTempDirectory : '{io2.IO} [Result]
+testGetTempDirectory _ =
+  test = 'let
+    tempDir = reraise !getTempDirectory.impl
+    check "Temp directory is directory" (isDirectory tempDir)
+    check "Temp directory should exist" (fileExists tempDir)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetTempDirectory : '{IO} [Result]
+
+.> io.test testGetTempDirectory
+
+    New test results:
+  
+  ◉ testGetTempDirectory   Temp directory is directory
+  ◉ testGetTempDirectory   Temp directory should exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetTempDirectory to view the source of a
+       test.
+
+```
+### Get current directory
+
+```unison
+testGetCurrentDirectory : '{io2.IO} [Result]
+testGetCurrentDirectory _ =
+  test = 'let
+    currentDir = reraise !getCurrentDirectory.impl
+    check "Current directory is directory" (isDirectory currentDir)
+    check "Current directory should exist" (fileExists currentDir)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetCurrentDirectory : '{IO} [Result]
+
+.> io.test testGetCurrentDirectory
+
+    New test results:
+  
+  ◉ testGetCurrentDirectory   Current directory is directory
+  ◉ testGetCurrentDirectory   Current directory should exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetCurrentDirectory to view the source of a
+       test.
+
+```
 ### Get directory contents
 
 ```unison

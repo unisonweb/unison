@@ -2,19 +2,45 @@ name: unison-util
 github: unisonweb/unison
 
 library:
-  source-dirs: .
+  source-dirs: src
+
+benchmarks:
+  bench:
+    dependencies:
+      - criterion
+      - sandi
+      - unison-util
+    main: Main.hs
+    source-dirs: bench
 
 dependencies:
   - base
+  - base32
   - bytestring
   - containers
   - cryptonite
   - lens
   - memory
   - safe
-  - sandi
   - text
   - time
   - unison-util-relation
   - unliftio
   - vector
+
+default-extensions:
+  - ApplicativeDo
+  - BlockArguments
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications

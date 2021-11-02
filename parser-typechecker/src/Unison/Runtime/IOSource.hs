@@ -28,7 +28,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
-import qualified Unison.Names3 as Names
+import qualified Unison.NamesWithHistory as Names
 
 debug :: Bool
 debug = False
@@ -41,7 +41,7 @@ typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
 typecheckedFile' = let
   tl :: a -> Identity (TL.TypeLookup v Ann)
   tl = const $ pure (External <$ Builtin.typeLookup)
-  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
+  env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
