@@ -14,11 +14,10 @@ import Unison.Hash (Hash)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 
-hashCausal :: H.Accumulate h => Causal -> [(H.Token h)]
-hashCausal c =
-  H.tokens $ [branchHash c] ++ (Set.toList $ parents c)
+hashCausal :: H.Accumulate h => Causal -> h
+hashCausal = H.accumulate'
 
 data Causal = Causal {branchHash :: Hash, parents :: Set Hash}
 
 instance Hashable Causal where
-  tokens c = hashCausal c
+  tokens c = H.tokens $ branchHash c : Set.toList (parents c)

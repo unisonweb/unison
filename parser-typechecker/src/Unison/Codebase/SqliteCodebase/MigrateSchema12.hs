@@ -18,32 +18,28 @@ import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
-import qualified U.Codebase.Causal as C
-import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash), BranchHash (BranchHash), CausalHash)
-import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash))
+import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
-import qualified U.Codebase.Sqlite.Branch.Format as S.Branch
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
-import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
-import qualified U.Codebase.Sqlite.Causal as SC
-import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
-import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
-import U.Codebase.Sqlite.Connection (Connection)
-import qualified U.Codebase.Sqlite.Causal as SC
-import U.Codebase.Sqlite.Causal (DbCausal, GDbCausal (..))
-import U.Codebase.Sqlite.DbId (PatchObjectId(..), BranchHashId (BranchHashId, unBranchHashId), CausalHashId (CausalHashId, unCausalHashId), HashId (HashId), ObjectId)
 import U.Codebase.Sqlite.Causal (GDbCausal (..))
 import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
-import U.Codebase.Sqlite.DbId (BranchHashId (BranchHashId, unBranchHashId), BranchObjectId (BranchObjectId, unBranchObjectId), ObjectId, CausalHashId, HashId)
+import U.Codebase.Sqlite.DbId
+  ( BranchHashId (..),
+    BranchObjectId (BranchObjectId, unBranchObjectId),
+    CausalHashId (..),
+    HashId,
+    ObjectId,
+    PatchObjectId (..),
+  )
+import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
-import qualified U.Codebase.Sqlite.Reference as S.Reference
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
+import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
@@ -54,7 +50,6 @@ import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hash as Unison
-import qualified Unison.Hashable as Hashable
 import qualified Unison.Hashing.V2.Causal as Hashing
 import qualified Unison.Hashing.V2.Convert as Convert
 import Unison.Pattern (Pattern)
@@ -100,15 +95,15 @@ data MigrationState = MigrationState
     referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
     causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
     -- Mapping between contructor indexes for the type identified by (ObjectId, Pos)
-    ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
-    ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
+    -- ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
+    -- ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
     -- This provides the info needed for rewriting a term.  You'll access it with a function :: Old
-    termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
-    objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash)),
+    -- termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
+    objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash))
     --
-    componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
-    constructorIDMapping :: Map ObjectId (Map (Old ConstructorId) (New ConstructorId)),
-    completed :: Set ObjectId
+    -- componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
+    -- constructorIDMapping :: Map ObjectId (Map (Old ConstructorId) (New ConstructorId)),
+    -- completed :: Set ObjectId
   }
   deriving (Generic)
 
@@ -149,7 +144,7 @@ data Entity
   | -- haven't proven we need these yet
     B ObjectId
   | Patch ObjectId
-  | W WK.WatchKind S.Reference.IdH -- Hash Reference.Id
+  | W WK.WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
 data Env m v a = Env {db :: Connection, codebase :: Codebase m v a}
@@ -212,10 +207,12 @@ migrationSync = Sync \case
   -- To sync a watch result,
   --   1. ???
   --   2. Synced
-  W _watchKind _idH -> undefined
   Patch objectId -> do
-    Env{db} <- ask
+    Env {db} <- ask
     lift (migratePatch db (PatchObjectId objectId))
+  W watchKind watchId -> do
+    Env {codebase} <- ask
+    lift (migrateWatch codebase watchKind watchId)
 
 runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a -> m a
 runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
@@ -273,22 +270,20 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
 
   (_, _, newBranchHash) <- gets (\MigrationState {objLookup} -> objLookup Map.! branchObjId)
 
-  let newParentHashes =
+  let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
           & fmap
-            ( \oldParentHashId ->
-                let (CausalHash h, _) = migratedCausals Map.! oldParentHashId
-                 in h
-            )
-          & Set.fromList
+            (\oldParentHashId -> migratedCausals Map.! oldParentHashId)
+          & unzip
+          & bimap (Set.fromList . map unCausalHash) Set.fromList
 
   let newCausalHash :: CausalHash
       newCausalHash =
-        CausalHash . Cv.hash1to2 . Hashable.accumulate $
+        CausalHash . Cv.hash1to2 $
           Hashing.hashCausal
             ( Hashing.Causal
                 { branchHash = newBranchHash,
-                  parents = Set.map Cv.hash2to1 newParentHashes
+                  parents = Set.mapMonotonic Cv.hash2to1 newParentHashes
                 }
             )
   newCausalHashId <- Q.saveCausalHash newCausalHash
@@ -296,7 +291,7 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
         DbCausal
           { selfHash = newCausalHashId,
             valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
-            parents = Set.fromList . map (snd . (\old -> migratedCausals Map.! old)) $ oldCausalParentHashIds
+            parents = newParentHashIds
           }
   Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
   Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
@@ -362,7 +357,7 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   pure Sync.Done
 
 migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migratePatch conn oldObjectId = do
+migratePatch _conn _oldObjectId = do
   -- 1. Read old patch out of the codebase.
   -- 2. Determine whether all things the patch refers to are built.
   -- 3. If not, return those as a `Missing`.
@@ -371,6 +366,40 @@ migratePatch conn oldObjectId = do
   -- 6. Store it.
   -- 7. Update migratation state, recording old->new patch mapping.
   undefined
+
+-- | PLAN
+-- *
+-- NOTE: this implementation assumes that watches will be migrated AFTER everything else is finished.
+-- This is because it's difficult for us to know otherwise whether a reference refers to something which doesn't exist, or just
+-- something that hasn't been migrated yet. If we do it last, we know that missing references are indeed just missing from the codebase.
+migrateWatch ::
+  forall m v a.
+  (MonadIO m, Ord v) =>
+  Codebase m v a ->
+  WatchKind ->
+  Reference.Id ->
+  StateT MigrationState m (Sync.TrySyncResult Entity)
+migrateWatch Codebase {..} watchKind oldWatchId = fmap (either id id) . runExceptT $ do
+  let watchKindV1 = Cv.watchKind2to1 watchKind
+  watchResultTerm <-
+    (lift . lift) (getWatch watchKindV1 oldWatchId) >>= \case
+      -- The hash which we're watching doesn't exist in the codebase, throw out this watch.
+      Nothing -> throwE Sync.Done
+      Just term -> pure term
+  migratedReferences <- gets referenceMapping
+  newWatchId <- case Map.lookup (TermReference oldWatchId) migratedReferences of
+    (Just (TermReference newRef)) -> pure newRef
+    _ -> throwE Sync.NonFatalError
+  let maybeRemappedTerm :: Maybe (Term.Term v a)
+      maybeRemappedTerm =
+        watchResultTerm
+          & termReferences_ %%~ \someRef -> Map.lookup someRef migratedReferences
+  case maybeRemappedTerm of
+    -- One or more references in the result didn't exist in our codebase.
+    Nothing -> pure Sync.NonFatalError
+    Just remappedTerm -> do
+      lift . lift $ putWatch watchKindV1 newWatchId remappedTerm
+      pure Sync.Done
 
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ :: Traversal' (S.Branch.Full.Referent'' t ObjectId) SomeReferenceObjId
@@ -605,16 +634,16 @@ termReferences_ =
 termFReferences_ :: (Ord tv, Monad m) => LensLike' m (Term.F tv ta pa a) SomeReferenceId
 termFReferences_ f t =
   (t & Term._Ref . Reference._DerivedId . unsafeInsidePrism _TermReference %%~ f)
-    >>= Term._Constructor . thing . unsafeInsidePrism _ConstructorReference %%~ f
-    >>= Term._Request . thing . unsafeInsidePrism _ConstructorReference %%~ f
+    >>= Term._Constructor . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
+    >>= Term._Request . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
     >>= Term._Ann . _2 . typeReferences_ %%~ f
     >>= Term._Match . _2 . traversed . Term.matchPattern_ . patternReferences_ %%~ f
     >>= Term._TermLink . referentReferences %%~ f
     >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
 
--- fixme rename
-thing :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
-thing f s =
+-- | Casts the left side of a reference/constructor pair into a Reference.Id
+refConPain_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
+refConPain_ f s =
   case s of
     (Reference.Builtin _, _) -> pure s
     (Reference.DerivedId n, c) -> (\(n', c') -> (Reference.DerivedId n', c')) <$> f (n, c)

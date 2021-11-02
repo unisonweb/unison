@@ -14,15 +14,15 @@ import qualified U.Codebase.Type as Type
 import qualified U.Codebase.Sqlite.Reference as Sqlite
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 
--- | 
+-- |
 -- * Builtin terms are represented as local text ids.
 -- * Non-builtin terms are represented as local definition ids, with an added distinguished element (here @Nothing@)
 --   which represents a self-reference.
 type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 
--- | 
+-- |
 -- * Builtin types are represented as a local text id.
--- * Non-builtin types are represented by a local definition id. 
+-- * Non-builtin types are represented by a local definition id.
 type TypeRef = Reference' LocalTextId LocalDefnId
 
 type TermLink = Referent' TermRef TypeRef
@@ -61,15 +61,15 @@ hash table =
   10    abc
   11    def
 
-hash_object table = 
+hash_object table =
   hash_id object_id hash_version
   ------- --------- ------------
        10        20            2
 
 object table =
-  { 20 -> 
+  { 20 ->
       LocallyIndexedComponent [
-        (localIds = LocalIds { 
+        (localIds = LocalIds {
             text = [1,4]
             defs = []
           },
@@ -80,7 +80,7 @@ object table =
 
     21 ->
       LocallyIndexedComponent [
-        (localIds = LocalIds { 
+        (localIds = LocalIds {
             text = [7,5,6]
             defs = [20]
           },
@@ -88,7 +88,7 @@ object table =
         type = ABT { ... { Term.FT.App (Term.FT.Ref (Builtin (LocalTextId 0))) (Term.FT.Ref (Builtin (LocalTextId 1))) } }
         )
       ],
-  }  
+  }
 -}
 
 type F =
