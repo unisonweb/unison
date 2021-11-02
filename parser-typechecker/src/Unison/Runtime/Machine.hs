@@ -31,7 +31,6 @@ import Control.Lens ((<&>))
 import Control.Concurrent (forkIO, ThreadId)
 
 import qualified Data.Primitive.PrimArray as PA
-import Data.Primitive.ByteArray (byteArrayFromList, indexByteArray)
 
 import Text.Read (readMaybe)
 
@@ -1713,13 +1712,35 @@ universalEq frn = eqc
     | otherwise = frn fl fr
   eqc c d = closureNum c == closureNum d
 
+-- IEEE floating point layout is such that comparison as integers
+-- somewhat works. Positive floating values map to positive integers
+-- and negatives map to negatives. The corner cases are:
+--
+--   1. If both numbers are negative, ordering is flipped.
+--   2. There is both +0 and -0, with -0 being represented as the
+--      minimum signed integer.
+--   3. NaN does weird things.
+--
+-- So, the strategy here is to compare normally if one argument is
+-- positive, since positive numbers compare normally to others.
+-- Otherwise, the sign bit is cleared and the numbers are compared
+-- backwards. Clearing the sign bit maps -0 to +0 and maps a negative
+-- number to its absolute value (including infinities). The multiple
+-- NaN values are just handled according to bit patterns, rather than
+-- IEEE specified behavior.
+--
+-- Transitivity is somewhat non-obvious for this implementation.
+--
+--   if i <= j and j <= k
+--     if j > 0 then k > 0, so all 3 comparisons use `compare`
+--     if k > 0 then k > i, since i <= j <= 0
+--     if all 3 are <= 0, all 3 comparisons use the alternate
+--       comparison, which is transitive via `compare`
 compareAsFloat :: Int -> Int -> Ordering
-compareAsFloat i j = compare fi fj
-  where
-  ba = byteArrayFromList [i,j]
-  fi, fj :: Double
-  fi = indexByteArray ba 0
-  fj = indexByteArray ba 1
+compareAsFloat i j
+  | i > 0 || j > 0 = compare i j
+  | otherwise = compare (clear j) (clear i)
+  where clear k = clearBit k 64
 
 compareAsNat :: Int -> Int -> Ordering
 compareAsNat i j = compare ni nj
