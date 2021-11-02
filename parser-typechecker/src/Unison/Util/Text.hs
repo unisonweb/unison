@@ -44,6 +44,12 @@ take n (Text t) = Text (R.take n t)
 drop :: Int -> Text -> Text
 drop n (Text t) = Text (R.drop n t)
 
+uncons :: Text -> Maybe (Char, Text)
+uncons t = (,drop 1 t) <$> at 0 t
+
+unsnoc :: Text -> Maybe (Text, Char)
+unsnoc t = (take (size t - 1) t,) <$> at (size t - 1) t
+
 at :: Int -> Text -> Maybe Char
 at n (Text t) = R.index n t
 
