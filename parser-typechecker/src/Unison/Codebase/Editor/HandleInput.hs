@@ -1,14 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ApplicativeDo       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Editor.HandleInput
   ( loop
@@ -648,8 +638,7 @@ loop = do
 
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
-        numberedArgs .=
-          fmap (('#':) . SBH.toString . Output.hash) entries
+        numberedArgs .= fmap (('#':) . SBH.toString . Output.hash) entries
         respond $ ShowReflog entries
         where
         -- reverses & formats entries, adds synthetic entries when there is a
@@ -886,9 +875,9 @@ loop = do
             else case Branch._history b of
               Causal.One{} ->
                 respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
-              Causal.Merge{..} ->
+              Causal.Merge{Causal.tails} ->
                 respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
-              Causal.Cons{..} -> do
+              Causal.Cons{Causal.tail} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
                 let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
@@ -1114,39 +1103,7 @@ loop = do
           ns -> pure ns
         traverse_ (displayI basicPrettyPrintNames outputLoc) names
 
-      ShowDefinitionI outputLoc inputQuery -> do
-        -- If the query is empty, run a fuzzy search.
-        query <- case inputQuery of
-          [] -> do
-            let fuzzyBranch = case outputLoc of
-                  -- fuzzy finding for 'view' is global
-                  ConsoleLocation{} -> root0
-                  -- fuzzy finding for 'edit's are local to the current branch
-                  LatestFileLocation{} -> currentBranch0
-                  FileLocation{}  -> currentBranch0
-            fuzzySelectTermsAndTypes fuzzyBranch
-          q -> pure q
-        res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
-        case res of
-          Left e -> handleBackendError e
-          Right (Backend.DefinitionResults terms types misses) -> do
-            let loc = case outputLoc of
-                  ConsoleLocation    -> Nothing
-                  FileLocation path  -> Just path
-                  LatestFileLocation ->
-                    fmap fst latestFile' <|> Just "scratch.u"
-                printNames =
-                  Backend.getCurrentPrettyNames (Backend.AllNames currentPath'') root'
-                ppe = PPE.fromNamesDecl hqLength printNames
-            unless (null types && null terms) $
-              eval . Notify $
-                DisplayDefinitions loc ppe types terms
-            unless (null misses) $
-              eval . Notify $ SearchTermsNotFound misses
-            -- We set latestFile to be programmatically generated, if we
-            -- are viewing these definitions to a file - this will skip the
-            -- next update for that file (which will happen immediately)
-            latestFile .= ((, True) <$> loc)
+      ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
@@ -1848,6 +1805,63 @@ loop = do
     Right input -> lastInput .= Just input
     _ -> pure ()
 
+-- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
+handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition outputLoc inputQuery = do
+  -- If the query is empty, run a fuzzy search.
+  query <-
+    if null inputQuery
+      then do
+        branch <- fuzzyBranch
+        fuzzySelectTermsAndTypes branch
+      else pure inputQuery
+  currentPath' <- Path.unabsolute <$> use currentPath
+  root' <- use root
+  hqLength <- eval CodebaseHashLength
+  Backend.DefinitionResults terms types misses <-
+    eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
+  outputPath <- getOutputPath
+  when (not (null types && null terms)) do
+    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
+    let ppe = PPE.fromNamesDecl hqLength printNames
+    respond (DisplayDefinitions outputPath ppe types terms)
+  when (not (null misses)) (respond (SearchTermsNotFound misses))
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((,True) <$> outputPath)
+  where
+    -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
+    fuzzyBranch :: Action' m v (Branch0 m)
+    fuzzyBranch =
+      case outputLoc of
+        ConsoleLocation {} -> Branch.head <$> use root
+        -- fuzzy finding for 'edit's are local to the current branch
+        LatestFileLocation {} -> currentBranch0
+        FileLocation {} -> currentBranch0
+      where
+        currentBranch0 = do
+          currentPath' <- use currentPath
+          currentBranch <- getAt currentPath'
+          pure (Branch.head currentBranch)
+    -- `view`: don't include cycles; `edit`: include cycles
+    includeCycles =
+      case outputLoc of
+        ConsoleLocation -> Backend.DontIncludeCycles
+        FileLocation _ -> Backend.IncludeCycles
+        LatestFileLocation -> Backend.IncludeCycles
+
+    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
+    getOutputPath :: Action' m v (Maybe FilePath)
+    getOutputPath =
+      case outputLoc of
+        ConsoleLocation -> pure Nothing
+        FileLocation path -> pure (Just path)
+        LatestFileLocation ->
+          use latestFile <&> \case
+            Nothing -> Just "scratch.u"
+            Just (path, _) -> Just path
+
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -2429,7 +2443,7 @@ applySelection
   -> SlurpResult v
   -> SlurpResult v
 applySelection [] _ = id
-applySelection hqs file = \sr@SlurpResult{..} ->
+applySelection hqs file = \sr@SlurpResult{adds, updates} ->
   sr { adds = adds `SC.intersection` closed
      , updates = updates `SC.intersection` closed
      , extraDefinitions = closed `SC.difference` selection
@@ -2683,7 +2697,7 @@ filterBySlurpResult :: Ord v
            => SlurpResult v
            -> UF.TypecheckedUnisonFile v Ann
            -> UF.TypecheckedUnisonFile v Ann
-filterBySlurpResult SlurpResult{..}
+filterBySlurpResult SlurpResult{adds, updates}
                     (UF.TypecheckedUnisonFileId
                       dataDeclarations'
                       effectDeclarations'

@@ -25,6 +25,12 @@ module Unison.Codebase
     dependents,
     isTerm,
     isType,
+
+    -- * Unsafe variants
+    unsafeGetTerm,
+    unsafeGetTermWithType,
+    unsafeGetTypeDeclaration,
+    unsafeGetTypeOfTermById,
   )
 where
 
@@ -57,6 +63,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.Type (Type)
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -248,3 +255,35 @@ viewRemoteBranch ::
 viewRemoteBranch codebase ns = runExceptT do
   (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
   pure (cleanup, branch)
+
+unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm codebase rid =
+  getTerm codebase rid >>= \case
+    Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
+    Just term -> pure term
+
+unsafeGetTypeDeclaration :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Decl v a)
+unsafeGetTypeDeclaration codebase rid =
+  getTypeDeclaration codebase rid >>= \case
+    Nothing -> error (reportBug "E129043" ("type decl " ++ show rid ++ " not found"))
+    Just decl -> pure decl
+
+unsafeGetTypeOfTermById :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Type v a)
+unsafeGetTypeOfTermById codebase rid =
+  getTypeOfTermImpl codebase rid >>= \case
+    Nothing -> error (reportBug "E377910" ("type of term " ++ show rid ++ " not found"))
+    Just ty -> pure ty
+
+-- | Get a term with its type.
+--
+-- Precondition: the term exists in the codebase.
+unsafeGetTermWithType :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType codebase rid = do
+  term <- unsafeGetTerm codebase rid
+  ty <-
+    -- A term is sometimes stored with a type annotation (specifically, when the annotation is different from the
+    -- inferred type). In this case, we can avoid looking up the type separately.
+    case term of
+      Term.Ann' _ ty -> pure ty
+      _ -> unsafeGetTypeOfTermById codebase rid
+  pure (term, ty)
