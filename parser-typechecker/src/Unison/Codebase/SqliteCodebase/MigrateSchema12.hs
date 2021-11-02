@@ -20,7 +20,7 @@ import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
-import U.Codebase.HashTags (BranchHash (BranchHash), CausalHash (CausalHash, unCausalHash))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
 import qualified U.Codebase.Sqlite.Branch.Full as S
@@ -30,7 +30,7 @@ import qualified U.Codebase.Sqlite.Causal as SC
 import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
-    BranchObjectId (BranchObjectId, unBranchObjectId),
+    BranchObjectId (..),
     CausalHashId (..),
     HashId,
     ObjectId,
@@ -38,6 +38,7 @@ import U.Codebase.Sqlite.DbId
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import qualified U.Codebase.Sqlite.Operations as Ops
+import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
@@ -361,15 +362,22 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   pure Sync.Done
 
 migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migratePatch _conn _oldObjectId = do
-  -- 1. Read old patch out of the codebase.
+migratePatch conn oldObjectId = do
+  oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   -- 2. Determine whether all things the patch refers to are built.
-  -- 3. If not, return those as a `Missing`.
-  -- 4. Otherwise, update the things the patch references.
-  -- 5. Hash it.
-  -- 6. Store it.
-  -- 7. Update migratation state, recording old->new patch mapping.
-  undefined
+  let dependencies :: [Entity]
+      dependencies = undefined
+  if null dependencies
+    then pure (Sync.Missing dependencies)
+    else do
+      let migrate = undefined
+      let newPatch = migrate oldPatch
+      let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatch
+      newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatch))
+      newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
+      newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
+      field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash)
+      pure Sync.Done
 
 -- | PLAN
 -- *

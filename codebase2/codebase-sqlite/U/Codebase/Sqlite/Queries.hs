@@ -32,6 +32,7 @@ module U.Codebase.Sqlite.Queries (
   saveHashHash,
   loadHashId,
   loadHashById,
+  loadHashHashById,
   loadHashIdByHash,
   expectHashIdByHash,
   saveCausalHash,

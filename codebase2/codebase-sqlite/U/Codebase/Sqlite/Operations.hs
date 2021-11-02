@@ -82,7 +82,9 @@ module U.Codebase.Sqlite.Operations
     -- * low-level stuff
     liftQ,
     loadDbBranchByObjectId,
+    loadDbPatchById,
     saveBranchObject,
+    saveDbPatch,
 
     -- * Error types
     Error (..),
@@ -1321,8 +1323,12 @@ loadDbPatchById patchId =
 savePatch :: EDB m => PatchHash -> C.Branch.Patch -> m Db.PatchObjectId
 savePatch h c = do
   (li, lPatch) <- c2lPatch c
-  hashId <- Q.saveHashHash (unPatchHash h)
-  let bytes = S.putBytes S.putPatchFormat $ S.Patch.Format.Full li lPatch
+  saveDbPatch h (S.Patch.Format.Full li lPatch)
+
+saveDbPatch :: EDB m => PatchHash -> S.PatchFormat -> m Db.PatchObjectId
+saveDbPatch hash patch = do
+  hashId <- Q.saveHashHash (unPatchHash hash)
+  let bytes = S.putBytes S.putPatchFormat patch
   Db.PatchObjectId <$> Q.saveObject hashId OT.Patch bytes
 
 s2cPatch :: EDB m => S.Patch -> m C.Branch.Patch

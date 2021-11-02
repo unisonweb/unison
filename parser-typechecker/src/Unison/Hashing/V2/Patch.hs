@@ -1,17 +1,17 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Hashing.V2.Patch (Patch(..)) where
+module Unison.Hashing.V2.Patch (Patch (..)) where
 
-import Unison.Hashing.V2.Reference (Reference)
 import Data.Map (Map)
-import Unison.Hashing.V2.Referent (Referent)
 import Data.Set (Set)
-import Unison.Hashing.V2.TermEdit (TermEdit)
-import Unison.Hashing.V2.TypeEdit (TypeEdit)
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
+import Unison.Hashing.V2.Reference (Reference)
+import Unison.Hashing.V2.Referent (Referent)
+import Unison.Hashing.V2.TermEdit (TermEdit)
+import Unison.Hashing.V2.TypeEdit (TypeEdit)
 
 data Patch = Patch
   { termEdits :: Map Referent (Set TermEdit),
@@ -23,4 +23,3 @@ instance Hashable Patch where
     [ H.accumulateToken (termEdits p),
       H.accumulateToken (typeEdits p)
     ]
-
