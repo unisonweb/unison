@@ -597,16 +597,16 @@ termReferences_ =
 termFReferences_ :: (Ord tv, Monad m) => LensLike' m (Term.F tv ta pa a) SomeReferenceId
 termFReferences_ f t =
   (t & Term._Ref . Reference._DerivedId . unsafeInsidePrism _TermReference %%~ f)
-    >>= Term._Constructor . thing . unsafeInsidePrism _ConstructorReference %%~ f
-    >>= Term._Request . thing . unsafeInsidePrism _ConstructorReference %%~ f
+    >>= Term._Constructor . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
+    >>= Term._Request . refConPain_ . unsafeInsidePrism _ConstructorReference %%~ f
     >>= Term._Ann . _2 . typeReferences_ %%~ f
     >>= Term._Match . _2 . traversed . Term.matchPattern_ . patternReferences_ %%~ f
     >>= Term._TermLink . referentReferences %%~ f
     >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
 
--- fixme rename
-thing :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
-thing f s =
+-- | Casts the left side of a reference/constructor pair into a Reference.Id
+refConPain_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
+refConPain_ f s =
   case s of
     (Reference.Builtin _, _) -> pure s
     (Reference.DerivedId n, c) -> (\(n', c') -> (Reference.DerivedId n', c')) <$> f (n, c)
