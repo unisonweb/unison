@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 4227133c6f1df043f279939d16c10379d28386b6b9604af6c8e17bd0a87748ce
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -29,6 +27,7 @@ library
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.JournalMode
       U.Codebase.Sqlite.LocalIds
+      U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Patch.Diff
@@ -50,11 +49,15 @@ library
   default-extensions:
       ApplicativeDo
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      InstanceSigs
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -62,6 +65,8 @@ library
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeFamilies
+      TypeFamilyDependencies
   build-depends:
       base
     , bytes
