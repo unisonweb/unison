@@ -92,6 +92,8 @@ term1to2 h =
   where
     termF1to2 :: V1.Term.F V1.Symbol Ann Ann a -> V2.Term.F V2.Symbol a
     termF1to2 = go
+
+    go :: V1.Term.F V1.Symbol Ann Ann a -> V2.Term.F V2.Symbol a
     go = \case
       V1.Term.Int i -> V2.Term.Int i
       V1.Term.Nat n -> V2.Term.Nat n
@@ -116,8 +118,10 @@ term1to2 h =
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
       V1.Term.Blank _ -> error "can't serialize term with blanks"
+
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
+
     goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference
     goPat = \case
       V1.Pattern.Unbound _ -> V2.Term.PUnbound
