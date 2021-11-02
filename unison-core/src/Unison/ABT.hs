@@ -88,7 +88,7 @@ module Unison.ABT
   , orderedComponents
   ) where
 
-import Control.Lens (Fold, Lens', Setter', folding, lens, use, (%%~), (.=))
+import Control.Lens (Lens', lens, use, (%%~), (.=))
 import Control.Monad.State (MonadState)
 import qualified Data.Foldable as Foldable
 import Data.Functor.Identity (Identity (Identity), runIdentity)
@@ -475,8 +475,8 @@ foreachSubterm f e = case out e of
 subterms :: (Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
 
-subterms_ :: (Traversable f) => Fold (Term f v a) (Term f v a)
-subterms_ = folding subterms
+-- subterms_ :: (Traversable f) => Fold (Term f v a) (Term f v a)
+-- subterms_ = folding subterms
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -495,8 +495,8 @@ visit f t = flip fromMaybe (f t) $ case out t of
   Abs x e    -> abs' (annotation t) x <$> visit f e
   Tm body    -> tm' (annotation t) <$> traverse (visit f) body
 
-subTermsSetter_ :: (Traversable f, Ord v) => Setter' (Term f v a) (Term f v a)
-subTermsSetter_ f tm = visit (Just . f) tm
+-- subTermsSetter_ :: (Traversable f, Ord v) => Setter' (Term f v a) (Term f v a)
+-- subTermsSetter_ f tm = visit (Just . f) tm
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Monad g, Ord v)
