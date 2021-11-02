@@ -13,6 +13,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Writer.CPS (Writer, execWriter, tell)
 import Data.Generics.Product
+import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -141,8 +142,8 @@ data Y = MkY Int
 -}
 
 data Entity
-  = TComponent Unison.Hash
-  | DComponent Unison.Hash
+  = TermComponent Unison.Hash
+  | DeclComponent Unison.Hash
   | C CausalHashId
   | -- haven't proven we need these yet
     B ObjectId
@@ -195,10 +196,10 @@ migrationSync = Sync \case
   --- * If we haven't yet synced its parents, push them onto the work queue
   --- * If we haven't yet synced the causal's value (namespace), push it onto the work queue.
   --- * Rehash the Causal's valueHash AND CausalHash, and add the new causal, its hashes, and hash objects to the codebase under a fresh object ID
-  TComponent hash -> do
+  TermComponent hash -> do
     Env {codebase} <- ask
     lift (migrateTermComponent codebase hash)
-  DComponent hash -> do
+  DeclComponent hash -> do
     Env {codebase} <- ask
     lift (migrateDeclComponent codebase hash)
   B objectId -> do
@@ -750,17 +751,21 @@ data SomeReference ref
 someRef_ :: Traversal (SomeReference ref) (SomeReference ref') ref ref'
 someRef_ = param @0
 
-_TermReference :: Prism (SomeReference ref) (SomeReference ref') ref ref'
-_TermReference = undefined -- _Ctor @"TermReference"
+_TermReference :: Prism' (SomeReference ref) ref
+_TermReference = _Ctor @"TermReference"
 
-_TypeReference :: Prism (SomeReference ref) (SomeReference ref') ref ref'
-_TypeReference = undefined --_Ctor @"TypeReference"
+_TypeReference :: Prism' (SomeReference ref) ref
+_TypeReference = _Ctor @"TypeReference"
 
-_ConstructorReference :: Prism (SomeReference ref) (SomeReference ref') (ref, ConstructorId) (ref', ConstructorId)
-_ConstructorReference = undefined -- _Ctor @"ConstructorReference"
+_ConstructorReference :: Prism' (SomeReference ref)  (ref, ConstructorId)
+_ConstructorReference = _Ctor @"ConstructorReference"
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
-someReferenceIdToEntity = undefined
+someReferenceIdToEntity  = \case
+  (TermReference ref) -> TermComponent (Reference.idToHash ref)
+  (TypeReference ref) -> DeclComponent (Reference.idToHash ref)
+  -- Constructors are migrated by their decl component.
+  (ConstructorReference ref _conId) -> DeclComponent (Reference.idToHash ref)
 
 -- get references:
 --
