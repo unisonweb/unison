@@ -135,7 +135,7 @@ runLocalizeBranch action = do
           }
   pure (branchLocalIds, result)
 
--- | The inner state of 'LocalizePatchT'.
+-- | The inner state of the localization of a patch object.
 type LocalizePatchState =
   ( Map TextId LocalTextId,
     Map HashId LocalHashId,
