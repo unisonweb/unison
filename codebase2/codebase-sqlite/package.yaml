@@ -4,11 +4,15 @@ github: unisonweb/unison
 default-extensions:
   - ApplicativeDo
   - BlockArguments
+  - ConstraintKinds
   - DeriveFunctor
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
@@ -16,6 +20,8 @@ default-extensions:
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
 
 library:
   source-dirs: .
