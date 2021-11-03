@@ -49,6 +49,9 @@ data Branch' t h p c = Branch
   }
   deriving (Show, Generic)
 
+branchHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+branchHashes_ _f _ = undefined
+
 patches_ :: Traversal (Branch' t h p c) (Branch' t h p' c) p p'
 patches_ f Branch {..} = (\newPatches -> Branch terms types newPatches children) <$> traverse f patches
 

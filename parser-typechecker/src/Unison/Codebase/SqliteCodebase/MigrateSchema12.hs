@@ -222,7 +222,7 @@ migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $
 
   let allMissingPatches :: [Entity] =
         oldBranch
-          ^.. S.patchHashes_
+          ^.. S.patches_
             . to unPatchObjectId
             . filtered (`Map.notMember` migratedObjects)
             . to PatchE
@@ -267,7 +267,7 @@ migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $
       newBranch =
         oldBranch
           & branchSomeRefs_ %~ remapObjIdRefs migratedObjects migratedRefs
-          & S.patchHashes_ %~ remapPatchObjectId
+          & S.patches_ %~ remapPatchObjectId
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
   let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
