@@ -9,6 +9,8 @@ import EasyTest
 import Shellmet (($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.Process (readProcessWithExitCode)
+import System.CPUTime
+import Text.Printf
 
 uFile :: String
 uFile = "unison-cli/integration-tests/IntegrationTests/print.u"
@@ -62,7 +64,11 @@ test =
 
 expectExitCode :: ExitCode -> FilePath -> [String] -> [String] -> String -> Test ()
 expectExitCode expected cmd defArgs args stdin = scope (intercalate " " (cmd : args <> defArgs)) do
+  start <- io $ getCPUTime
   (code, _, _) <- io $ readProcessWithExitCode cmd args stdin
+  end <- io $ getCPUTime
+  let diff = (fromIntegral (end - start)) / (10^12)
+  note $ printf "\n[Time: %0.3f sec]" (diff :: Double)
   expectEqual code expected
 
 defaultArgs :: [String]
