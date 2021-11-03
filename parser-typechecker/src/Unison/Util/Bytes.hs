@@ -6,6 +6,7 @@
 module Unison.Util.Bytes where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftR, shiftL, (.|.))
 import Data.Char
 import Unison.Prelude hiding (ByteString, empty)
@@ -16,11 +17,17 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as Text
 import qualified Unison.Util.Rope as R
 import qualified Data.Vector.Primitive as V
+import qualified Data.Vector.Primitive.Mutable as MV
 import qualified Data.Vector.Storable as SV
+import qualified Data.Vector.Storable.Mutable as MSV
 import qualified Data.Vector.Storable.ByteString as BSV
+import Data.Primitive.ByteArray (copyByteArrayToPtr)
+import Data.Primitive.Ptr (copyPtrToMutableByteArray)
 import Foreign.Storable (pokeByteOff)
+import Foreign.ForeignPtr (withForeignPtr)
 import qualified Codec.Compression.Zlib as Zlib
 import qualified Codec.Compression.GZip as GZip
+import Unsafe.Coerce (unsafeCoerce)
 
 type ByteString = V.Vector Word8
 
@@ -62,17 +69,22 @@ chunkFromByteString = byteStringToChunk
 chunkToByteString :: ByteString -> B.ByteString
 chunkToByteString = BSV.vectorToByteString . toStorable
 
-fromStorable :: (V.Prim a, SV.Storable a) => SV.Vector a -> V.Vector a
-fromStorable v =
-  -- is there a more efficient implementation of this
-  V.generate (SV.length v) (SV.unsafeIndex v)
-{-# inline fromStorable #-}
+fromStorable :: SV.Vector Word8 -> V.Vector Word8
+fromStorable sv
+  = V.create $ do
+      MSV.MVector l fp <- SV.unsafeThaw sv
+      v@(MV.MVector _ _ ba) <- MV.unsafeNew l
+      unsafeIOToPrim . withForeignPtr fp $ \p ->
+        -- Note: unsafeCoerce is for s -> RealWorld in byte array type
+        copyPtrToMutableByteArray (unsafeCoerce ba) 0 p l
+      pure v
 
-toStorable :: (V.Prim a, SV.Storable a) => V.Vector a -> SV.Vector a
-toStorable v =
-  -- is there a more efficient implementation of this
-  SV.generate (V.length v) (V.unsafeIndex v)
-{-# inline toStorable #-}
+toStorable :: V.Vector Word8 -> SV.Vector Word8
+toStorable (V.Vector o l ba) = SV.create $ do
+  v@(MSV.MVector _ fp) <- MSV.unsafeNew l
+  unsafeIOToPrim . withForeignPtr fp $ \p ->
+    copyByteArrayToPtr p ba o l
+  pure v
 
 zlibCompress :: Bytes -> Bytes
 zlibCompress = fromLazyByteString . Zlib.compress . toLazyByteString
