@@ -30,6 +30,7 @@ import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
 import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.Text as Text
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Util.Relation as Relation
@@ -58,6 +59,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , Text.test
   , Relation.test
   , Path.test
   , Causal.test

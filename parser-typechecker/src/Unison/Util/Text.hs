@@ -18,6 +18,9 @@ newtype Text = Text (R.Rope Chunk) deriving (Eq,Ord,Semigroup,Monoid)
 
 data Chunk = Chunk {-# unpack #-} !Int {-# unpack #-} !T.Text
 
+empty :: Text
+empty = Text mempty
+
 one, singleton :: Char -> Text
 one ch = Text (R.one (chunk (T.singleton ch)))  
 singleton = one
@@ -69,6 +72,7 @@ toUtf8 :: Text -> B.Bytes
 toUtf8 (Text t) = B.Bytes (R.map (B.chunkFromByteString . T.encodeUtf8 . chunkToText) t)
 
 fromText :: T.Text -> Text
+fromText s | T.null s = mempty
 fromText s = go (Text (R.one (chunk s)))
   where
   go t | n > threshold  = go (take (n `div` 2) t) <> go (drop (n `div` 2) t)

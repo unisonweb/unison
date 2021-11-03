@@ -86,22 +86,28 @@ snoc as a =
   else snoc' as (size a) a
 
 cons' :: (Sized a, Semigroup a) => Int -> a -> Rope a -> Rope a
-cons' sz0 a0 as = case as of
-  Empty -> One a0
-  One a1 -> case sz0 + size a1 of
-    n | n <= threshold -> One (a0 <> a1)
-      | otherwise      -> Two n (One a0) as
-  Two sz One{} _ -> Two (sz0+sz) (One a0) as
-  Two _ l r -> cons' sz0 a0 l <> r
+cons' 0 _ as = as 
+cons' sz0 a0 as = go a0 as
+  where
+  go a0 as = case as of
+    Empty -> One a0
+    One a1 -> case sz0 + size a1 of
+      n | n <= threshold -> One (a0 <> a1)
+        | otherwise      -> Two n (One a0) as
+    Two sz One{} _ -> Two (sz0+sz) (One a0) as
+    Two _ l r -> go a0 l <> r
 
 snoc' :: (Sized a, Semigroup a) => Rope a -> Int -> a -> Rope a
-snoc' as szN aN = case as of
-  Empty -> One aN
-  One a0 -> case size a0 + szN of
-    n | n <= threshold -> One (a0 <> aN)
-      | otherwise      -> Two n as (One aN)
-  Two sz One{} _ -> Two (sz+szN) as (One aN)
-  Two _ l r -> l <> snoc' r szN aN
+snoc' as 0 _ = as 
+snoc' as szN aN = go as aN 
+  where
+  go as aN = case as of
+    Empty -> One aN
+    One a0 -> case size a0 + szN of
+      n | n <= threshold -> One (a0 <> aN)
+        | otherwise      -> Two n as (One aN)
+    Two sz One{} _ -> Two (sz+szN) as (One aN)
+    Two _ l r -> l <> go r aN
 
 instance (Sized a, Index a ch) => Index (Rope a) ch where
   index i = \case
