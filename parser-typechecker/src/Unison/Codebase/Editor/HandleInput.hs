@@ -721,8 +721,13 @@ loop = do
               resolveToAbsolute <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        (ppe, outputDiff) <- diffHelper before after
-        respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
+        case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
+          (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
+          (True, False) -> respond . NamespaceEmpty $ Left beforep
+          (False, True) -> respond . NamespaceEmpty $ Left afterp
+          _ -> do
+            (ppe, outputDiff) <- diffHelper before after
+            respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
       CreatePullRequestI baseRepo headRepo -> unlessGitError do
         (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
