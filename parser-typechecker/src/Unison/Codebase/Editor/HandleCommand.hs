@@ -191,9 +191,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
       lift $ Backend.hqNameQuery namingScope branch codebase query
     LoadSearchResults srs -> lift $ Backend.loadSearchResults codebase srs
-    GetDefinitionsBySuffixes mayPath branch query -> do
+    GetDefinitionsBySuffixes mayPath branch includeCycles query ->  do
       let namingScope = Backend.AllNames $ fromMaybe Path.empty mayPath
-      lift . runExceptT $ Backend.definitionsBySuffixes namingScope branch codebase query
+      lift (Backend.definitionsBySuffixes namingScope branch codebase includeCycles query)
     FindShallow path -> lift . runExceptT $ Backend.findShallow codebase path
     MakeStandalone ppe ref out -> lift $ do
       let cl = Codebase.toCodeLookup codebase

@@ -204,6 +204,7 @@ library
       src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -217,6 +218,7 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -331,6 +333,7 @@ executable prettyprintdemo
       prettyprintdemo
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -344,6 +347,7 @@ executable prettyprintdemo
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -404,6 +408,7 @@ executable tests
       tests
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -417,6 +422,7 @@ executable tests
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -465,6 +471,7 @@ benchmark runtime
       benchmarks/runtime
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -478,6 +485,7 @@ benchmark runtime
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications

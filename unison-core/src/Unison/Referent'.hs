@@ -1,8 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Referent' where
+module Unison.Referent'
+  ( Referent' (..),
 
+    -- * Basic queries
+    isConstructor,
+    Unison.Referent'.fold,
+
+    -- * Lenses
+    reference_,
+
+    -- * Conversions
+    toReference',
+    toTermReference,
+    toTypeReference,
+  )
+where
+
+import Control.Lens (Lens, lens)
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude
@@ -19,6 +35,14 @@ import Unison.Prelude
 -- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' r ConstructorId ConstructorType
   deriving (Show, Ord, Eq, Functor, Generic)
+
+-- | A lens onto the reference in a referent.
+reference_ :: Lens (Referent' r) (Referent' r') r r'
+reference_ =
+  lens toReference' \rt rc ->
+    case rt of
+      Ref' _ -> Ref' rc
+      Con' _ cid ct -> Con' rc cid ct
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True

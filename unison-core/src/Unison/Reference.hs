@@ -14,9 +14,11 @@ module Unison.Reference
    Pos,
    CycleSize, Size,
    derivedBase32Hex,
+   component,
    components,
    groupByComponent,
    componentFor,
+   componentFromLength,
    unsafeFromText,
    idFromText,
    isPrefixOf,
@@ -25,6 +27,7 @@ module Unison.Reference
    readSuffix,
    showShort,
    showSuffix,
+   toHash,
    toId,
    toText,
    unsafeId,
@@ -43,6 +46,7 @@ import qualified Unison.ShortHash as SH
 import Data.Char (isDigit)
 import Control.Lens (Prism')
 import Data.Generics.Sum (_Ctor)
+import qualified Data.Set as Set
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.
 --
@@ -125,6 +129,9 @@ type CycleSize = Word64
 componentFor :: H.Hash -> [a] -> [(Id, a)]
 componentFor h as = [ (Id h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
 
+componentFromLength :: H.Hash -> CycleSize -> Set Id
+componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size -1]]
+
 derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
   where
@@ -143,6 +150,9 @@ idFromText s = case fromText s of
 toId :: Reference -> Maybe Id
 toId (DerivedId id) = Just id
 toId Builtin{} = Nothing
+
+toHash :: Reference -> Maybe H.Hash
+toHash r = idToHash <$> toId r
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles

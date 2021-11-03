@@ -331,6 +331,10 @@ sqliteCodebase debugName root = do
           getDeclComponent h1@(Cv.hash1to2 -> h2) =
             runDB' conn $  map (Cv.decl2to1 h1) <$> Ops.loadDeclComponent h2
 
+          getCycleLength :: MonadIO m => Hash -> m (Maybe Reference.CycleSize)
+          getCycleLength (Cv.hash1to2 -> h2) =
+            runDB conn $ Ops.getCycleLen h2
+
           --putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
           --putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
 
@@ -783,9 +787,8 @@ sqliteCodebase debugName root = do
             putTypeDeclaration
             -- _getTermComponent
             getTermComponentWithTypes
-            -- _getTermComponentLength
             getDeclComponent
-            -- _getDeclComponentLength
+            getCycleLength
             (getRootBranch rootBranchCache)
             (putRootBranch rootBranchCache)
             (rootBranchUpdates rootBranchCache)

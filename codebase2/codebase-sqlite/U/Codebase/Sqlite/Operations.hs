@@ -34,6 +34,9 @@ module U.Codebase.Sqlite.Operations
     loadDeclByReference,
     getDeclTypeById,
 
+    -- * terms/decls
+    getCycleLen,
+
     -- * patches
     savePatch,
     loadPatchById,
@@ -75,9 +78,6 @@ module U.Codebase.Sqlite.Operations
     -- ** type mentions index
     addTypeMentionsToIndexForTerm,
     termsMentioningType,
-
-    -- * delete me
-    getCycleLen,
 
     -- * low-level stuff
     liftQ,
@@ -505,21 +505,19 @@ decodeDeclFormat = getFromBytesOr ErrDeclFormat S.getDeclFormat
 decodeDeclElement :: Err m => Word64 -> ByteString -> m (LocalIds, S.Decl.Decl Symbol)
 decodeDeclElement i = getFromBytesOr (ErrDeclElement i) (S.lookupDeclElement i)
 
--- * legacy conversion helpers
-
-getCycleLen :: EDB m => H.Hash -> m Word64
+getCycleLen :: EDB m => H.Hash -> m (Maybe Word64)
 getCycleLen h = do
   when debug $ traceM $ "\ngetCycleLen " ++ (Text.unpack . Base32Hex.toText $ H.toBase32Hex h)
-  runMaybeT (primaryHashToExistingObjectId h)
-    >>= maybe (throwError $ LegacyUnknownCycleLen h) pure
-    >>= liftQ . Q.loadObjectById
-    -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on
-    -- the fact the two things that references can refer to (term and decl
-    -- components) have the same basic serialized structure: first a format
-    -- byte that is always 0 for now, followed by a framed array representing
-    -- the strongly-connected component. :grimace:
-    >>= decodeComponentLengthOnly
-    >>= pure . fromIntegral
+  runMaybeT $
+    -- actually want Nothing in case of non term/decl component hash
+    MaybeT (anyHashToMaybeObjectId h)
+      >>= liftQ . Q.loadObjectById
+      -- todo: decodeComponentLengthOnly is unintentionally a hack that relies on
+      -- the fact the two things that references can refer to (term and decl
+      -- components) have the same basic serialized structure: first a format
+      -- byte that is always 0 for now, followed by a framed array representing
+      -- the strongly-connected component. :grimace:
+      >>= decodeComponentLengthOnly
 
 -- | Get the 'C.DeclType.DeclType' of a 'C.Reference.Id'.
 getDeclTypeById :: EDB m => C.Reference.Id -> m C.Decl.DeclType
