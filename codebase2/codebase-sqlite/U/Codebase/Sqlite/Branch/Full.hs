@@ -49,22 +49,11 @@ data Branch' t h p c = Branch
   }
   deriving (Show, Generic)
 
-branchHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
-branchHashes_ _f _ = undefined
-
-termHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
-termHashes_ _f _ = undefined
-
-typeHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
-typeHashes_ _f _ = undefined
-
-patchHashes_ :: Traversal (Branch' t h p c) (Branch' t h p' c) p p'
-patchHashes_ = undefined
+patches_ :: Traversal (Branch' t h p c) (Branch' t h p' c) p p'
+patches_ f Branch {..} = (\newPatches -> Branch terms types newPatches children) <$> traverse f patches
 
 childrenHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'
-childrenHashes_ = undefined
-
--- Branch <$> traverse (\m -> Map.mapKeys)
+childrenHashes_ f Branch {..} = Branch terms types patches <$> traverse f children
 
 branchCausalHashes_ :: Traversal (Branch' t h p c) (Branch' t h p c') c c'
 branchCausalHashes_ f Branch {..} =

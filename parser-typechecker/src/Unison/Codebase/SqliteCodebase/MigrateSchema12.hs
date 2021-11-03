@@ -277,16 +277,11 @@ migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $
   field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, hash)
   pure Sync.Done
 
-uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' U.Util.Hash)) SomeReferenceId
-uRefIdAsRefId_ = mapping uRefAsRef_
-
-uRefAsRef_ :: Iso' (UReference.Id' U.Util.Hash) Reference.Id
-uRefAsRef_ = iso intoRef intoURef
-  where
-    intoRef (UReference.Id hash pos) = Reference.Id (Cv.hash2to1 hash) pos
-    intoURef (Reference.Id hash pos) = UReference.Id (Cv.hash1to2 hash) pos
-
-migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
+migratePatch ::
+  MonadIO m =>
+  Connection ->
+  Old PatchObjectId ->
+  StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = do
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   -- 2. Determine whether all things the patch refers to are built.
@@ -338,8 +333,20 @@ migrateWatch Codebase {..} watchKind oldWatchId = fmap (either id id) . runExcep
       lift . lift $ putWatch watchKindV1 newWatchId remappedTerm
       pure Sync.Done
 
+uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' U.Util.Hash)) SomeReferenceId
+uRefIdAsRefId_ = mapping uRefAsRef_
+
+uRefAsRef_ :: Iso' (UReference.Id' U.Util.Hash) Reference.Id
+uRefAsRef_ = iso intoRef intoURef
+  where
+    intoRef (UReference.Id hash pos) = Reference.Id (Cv.hash2to1 hash) pos
+    intoURef (Reference.Id hash pos) = UReference.Id (Cv.hash1to2 hash) pos
+
 -- Project an S.Referent'' into its SomeReferenceObjId's
-someReferent_ :: (forall ref. Prism' (SomeReference ref) ref) -> Traversal' (S.Branch.Full.Referent'' t h) (SomeReference (UReference.Id' h))
+someReferent_ ::
+  forall t h.
+  (forall ref. Prism' (SomeReference ref) ref) ->
+  Traversal' (S.Branch.Full.Referent'' t h) (SomeReference (UReference.Id' h))
 someReferent_ typeOrTermPrism =
   (UReferent._Ref . someReference_ typeOrTermPrism)
     `failing` ( UReferent._Con
@@ -352,23 +359,26 @@ someReferent_ typeOrTermPrism =
         <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
-someReference_ :: (forall ref. Prism' (SomeReference ref) ref) -> Traversal' (UReference.Reference' t h) (SomeReference (UReference.Id' h))
+someReference_ ::
+  (forall ref. Prism' (SomeReference ref) ref) ->
+  Traversal' (UReference.Reference' t h) (SomeReference (UReference.Id' h))
 someReference_ typeOrTermPrism = UReference._ReferenceDerived . unsafeInsidePrism typeOrTermPrism
 
 someMetadataSetFormat_ ::
   (Ord t, Ord h) =>
   (forall ref. Prism' (SomeReference ref) ref) ->
   Traversal' (S.Branch.Full.MetadataSetFormat' t h) (SomeReference (UReference.Id' h))
-someMetadataSetFormat_ typeOrTermPrism = S.Branch.Full.metadataSetFormatReferences_ . someReference_ typeOrTermPrism
+someMetadataSetFormat_ typeOrTermPrism =
+  S.Branch.Full.metadataSetFormatReferences_ . someReference_ typeOrTermPrism
 
-mapReferentMetadata ::
+someReferentMetadata_ ::
   (Ord k, Ord t, Ord h) =>
   (forall ref. Prism' (SomeReference ref) ref) ->
   Traversal' k (SomeReference (UReference.Id' h)) ->
   Traversal'
     (Map k (S.Branch.Full.MetadataSetFormat' t h))
     (SomeReference (UReference.Id' h))
-mapReferentMetadata typeOrTermPrism keyTraversal f m =
+someReferentMetadata_ typeOrTermPrism keyTraversal f m =
   Map.toList m
     & traversed . beside keyTraversal (someMetadataSetFormat_ typeOrTermPrism) %%~ f
     <&> Map.fromList
@@ -376,11 +386,16 @@ mapReferentMetadata typeOrTermPrism keyTraversal f m =
 branchSomeRefs_ :: (Ord t, Ord h) => Traversal' (S.Branch' t h p c) (SomeReference (UReference.Id' h))
 branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
   -- Chris: Chat with Arya about which of these undefined's match refs which are types vs terms, metadata is confusing
-  let newTypesMap = types & traversed . mapReferentMetadata undefined (someReference_ undefined) %%~ f
-  let newTermsMap = terms & traversed . mapReferentMetadata undefined (someReferent_ undefined) %%~ f
+  let newTypesMap = types & traversed . someReferentMetadata_ undefined (someReference_ undefined) %%~ f
+  let newTermsMap = terms & traversed . someReferentMetadata_ undefined (someReferent_ undefined) %%~ f
   S.Branch.Full.Branch <$> newTermsMap <*> newTypesMap <*> pure patches <*> pure children
 
-migrateTermComponent :: forall m v a. (Ord v, Var v, Monad m) => Codebase m v a -> Unison.Hash -> StateT MigrationState m (Sync.TrySyncResult Entity)
+migrateTermComponent ::
+  forall m v a.
+  (Ord v, Var v, Monad m) =>
+  Codebase m v a ->
+  Unison.Hash ->
+  StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   component <-
     (lift . lift $ getTermComponentWithTypes hash) >>= \case
@@ -410,7 +425,7 @@ migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
             ( traversed
                 . _2
                 . termReferences_
-                . filtered (\r -> Map.notMember r referencesMap)
+                . filtered (`Map.notMember` referencesMap)
             )
 
   when (not . null $ allMissingReferences) $
@@ -477,7 +492,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           & foldSetter
             ( traversed -- Every type in the list
                 . typeReferences_
-                . filtered (\r -> Map.notMember r migratedReferences)
+                . filtered (`Map.notMember` migratedReferences)
             )
 
   when (not . null $ unmigratedRefIds) do
@@ -518,7 +533,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           (componentIDMap Map.! oldReferenceId)
             & DD.asDataDecl
             & DD.constructors'
-            & imap (\(fromIntegral -> constructorId) (_ann, constructorName, _type) -> (constructorName, constructorId))
+            & imap (\constructorId (_ann, constructorName, _type) -> (constructorName, fromIntegral constructorId))
             & Map.fromList
 
     ifor_ (DD.constructors' (DD.asDataDecl dd)) \(fromIntegral -> newConstructorId) (_ann, constructorName, _type) -> do
@@ -559,7 +574,7 @@ termFReferences_ f t =
     >>= Term._TermLink . referentAsSomeTerm_ %%~ f
     >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
 
--- | Casts the left side of a reference/constructor pair into a Reference.Id
+-- | Build a SomeConstructorReference
 someRefCon_ :: Traversal' (Reference.Reference, ConstructorId) SomeReferenceId
 someRefCon_ = refConPair_ . unsafeInsidePrism _ConstructorReference
   where
