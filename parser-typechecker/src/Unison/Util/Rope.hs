@@ -1,9 +1,13 @@
 {-# Language FunctionalDependencies #-}
 {-# Language DeriveFoldable #-}
 
-module Unison.Util.Rope where
+module Unison.Util.Rope 
+  (chunks, singleton, one, map, traverse, null, flatten, two, cons, uncons, snoc, unsnoc, 
+   Sized(..), Take(..), Drop(..), Reverse(..), Index(..), Rope,
+   ) 
+where
 
-import Prelude hiding (drop,take,reverse,map,traverse)
+import Prelude hiding (drop,take,reverse,map,traverse,null)
 import Data.Foldable (toList)
 import Control.DeepSeq (NFData(..))
 
@@ -17,6 +21,7 @@ chunks :: Rope a -> [a]
 chunks = toList
 
 singleton, one :: Sized a => a -> Rope a
+one a | size a == 0 = Empty
 one a = One a
 singleton = one
 
@@ -122,7 +127,7 @@ instance (Sized a, Semigroup a, Take a) => Take (Rope a) where
   -- this avoids rebalancing the tree, which is more efficient
   -- when walking a large rope from left to right via take/drop
   take n as = case as of
-    One a -> if n <= 0 then Empty else One (take n a)
+    One a -> if n <= 0 then Empty else one (take n a)
     Two sz l r
       | n < size l -> take n l
       | n >= sz    -> as
@@ -133,7 +138,7 @@ instance (Sized a, Semigroup a, Drop a) => Drop (Rope a) where
   -- this avoids rebalancing the tree, which is more efficient
   -- when walking a large rope from left to right via take/drop
   drop n as = case as of
-    One a -> if n >= size a then Empty else One (drop n a)
+    One a -> if n >= size a then Empty else one (drop n a)
     Two sz l r
       | n >= size l -> drop (n - size l) r
       | n >= sz     -> Empty

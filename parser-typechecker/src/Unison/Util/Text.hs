@@ -29,7 +29,7 @@ threshold :: Int
 threshold = 512
 
 replicate :: Int -> Text -> Text
-replicate n (Text (R.One c)) | R.size c * n < threshold = Text (R.One (chunk (T.replicate n (chunkToText c)))) 
+replicate n t | size t * n < threshold = Text (R.one (chunk (T.replicate n (toText t)))) 
 replicate 0 _ = mempty 
 replicate 1 t = t
 replicate n t = 
@@ -48,9 +48,11 @@ drop :: Int -> Text -> Text
 drop n (Text t) = Text (R.drop n t)
 
 uncons :: Text -> Maybe (Char, Text)
+uncons t | size t == 0 = Nothing
 uncons t = (,drop 1 t) <$> at 0 t
 
 unsnoc :: Text -> Maybe (Text, Char)
+unsnoc t | size t == 0 = Nothing
 unsnoc t = (take (size t - 1) t,) <$> at (size t - 1) t
 
 at :: Int -> Text -> Maybe Char
