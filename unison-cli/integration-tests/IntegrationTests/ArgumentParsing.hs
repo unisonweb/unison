@@ -5,11 +5,11 @@ module IntegrationTests.ArgumentParsing where
 import Data.List (intercalate)
 
 import Data.Text (pack)
+import Data.Time (getCurrentTime, diffUTCTime)
 import EasyTest
 import Shellmet (($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.Process (readProcessWithExitCode)
-import System.CPUTime
 import Text.Printf
 
 uFile :: String
@@ -64,11 +64,11 @@ test =
 
 expectExitCode :: ExitCode -> FilePath -> [String] -> [String] -> String -> Test ()
 expectExitCode expected cmd defArgs args stdin = scope (intercalate " " (cmd : args <> defArgs)) do
-  start <- io $ getCPUTime
+  start <- io $ getCurrentTime
   (code, _, _) <- io $ readProcessWithExitCode cmd args stdin
-  end <- io $ getCPUTime
-  let diff = (fromIntegral (end - start)) / (10^12)
-  note $ printf "\n[Time: %0.3f sec]" (diff :: Double)
+  end <- io $ getCurrentTime
+  let diff = diffUTCTime end start
+  note $ printf "\n[Time: %s sec]" $ show diff 
   expectEqual code expected
 
 defaultArgs :: [String]
