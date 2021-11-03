@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
@@ -40,12 +41,16 @@ import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Patch.Format as S.Patch.Format
+import qualified U.Codebase.Sqlite.Patch.Full as S
+import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
+import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
 import qualified U.Codebase.Sqlite.Queries as Q
 import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Hash as U.Util
+import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
@@ -282,22 +287,40 @@ migratePatch ::
   Connection ->
   Old PatchObjectId ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
-migratePatch conn oldObjectId = do
+migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   -- 2. Determine whether all things the patch refers to are built.
   let dependencies :: [Entity]
       dependencies = undefined
-  if null dependencies
-    then pure (Sync.Missing dependencies)
-    else do
-      let migrate = undefined
-      let newPatch = migrate oldPatch
-      let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatch
-      newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatch))
-      newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
-      newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
-      field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash)
-      pure Sync.Done
+  when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
+  objMapping <- gets objLookup
+  let hydrate :: Q.DB m => HashId -> m Hash
+      hydrate = undefined
+  let dehydrate :: Q.DB m => Hash -> m HashId
+      dehydrate = undefined
+  let remapRef :: SomeReferenceId -> SomeReferenceId
+      remapRef = undefined
+  let remapObjectIds :: SomeReferenceObjId -> SomeReferenceObjId
+      remapObjectIds = undefined
+  newPatch <-
+    oldPatch
+      & patchSomeRefsH_
+        %%~ ( \someRef -> do
+                hydratedRef <- (someRef & (traverse . traverse) %%~ hydrate)
+                hydratedRefId :: SomeReferenceId <- undefined hydratedRef
+                -- Hrmm, we can't really use Reference.Id here since it's not parameterized
+                -- over Hash.
+                x <- (remapRef hydratedRefId & (traverse . _) %%~ dehydrate)
+                _ x
+            )
+      <&> (patchSomeRefsO_ %~ remapObjectIds)
+  -- & patchSomeRefsO_ . someRef_ %~ _
+  let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatch
+  newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatch))
+  newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
+  newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
+  field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash)
+  pure Sync.Done
 
 -- | PLAN
 -- *
@@ -389,6 +412,28 @@ branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
   let newTypesMap = types & traversed . someReferentMetadata_ undefined (someReference_ undefined) %%~ f
   let newTermsMap = terms & traversed . someReferentMetadata_ undefined (someReferent_ undefined) %%~ f
   S.Branch.Full.Branch <$> newTermsMap <*> newTypesMap <*> pure patches <*> pure children
+
+patchSomeRefsH_ :: (Ord t, Ord h) => Traversal (S.Patch' t h o) (S.Patch' t h o) (SomeReference (UReference.Id' h)) (SomeReference (UReference.Id' h))
+patchSomeRefsH_ f S.Patch {termEdits, typeEdits} = do
+  newTermEdits <- Map.fromList <$> (Map.toList termEdits & traversed . _1 . (someReferent_ _TermReference) %%~ f)
+  newTypeEdits <- Map.fromList <$> (Map.toList typeEdits & traversed . _1 . (someReference_ undefined) %%~ f)
+  pure S.Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
+
+patchSomeRefsO_ :: (Ord t, Ord h, Ord o) => Traversal' (S.Patch' t h o) (SomeReference (UReference.Id' o))
+patchSomeRefsO_ f S.Patch {termEdits, typeEdits} = do
+  newTermEdits <- (termEdits & traversed . Set.traverse . termEditRefs_ %%~ f)
+  newTypeEdits <- (typeEdits & traversed . Set.traverse . typeEditRefs_ %%~ f)
+  pure (S.Patch {termEdits = newTermEdits, typeEdits = newTypeEdits})
+
+termEditRefs_ :: Traversal' (TermEdit.TermEdit' t h) (SomeReference (UReference.Id' h))
+termEditRefs_ f (TermEdit.Replace ref typing) =
+  TermEdit.Replace <$> (ref & someReferent_ _TermReference %%~ f) <*> pure typing
+termEditRefs_ _f (TermEdit.Deprecate) = pure TermEdit.Deprecate
+
+typeEditRefs_ :: Traversal' (TypeEdit.TypeEdit' t h) (SomeReference (UReference.Id' h))
+typeEditRefs_ f (TypeEdit.Replace ref) =
+  TypeEdit.Replace <$> (ref & someReference_ undefined %%~ f)
+typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 
 migrateTermComponent ::
   forall m v a.
@@ -671,7 +716,7 @@ data SomeReference ref
   = TermReference ref
   | TypeReference ref
   | ConstructorReference ref ConstructorId
-  deriving (Eq, Functor, Generic, Ord, Show)
+  deriving (Eq, Functor, Generic, Ord, Show, Foldable, Traversable)
 
 someRef_ :: Lens (SomeReference ref) (SomeReference ref') ref ref'
 someRef_ = lens getter setter
