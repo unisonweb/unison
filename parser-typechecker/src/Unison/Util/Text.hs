@@ -96,56 +96,6 @@ toText :: Text -> T.Text
 toText (Text t) = T.concat (chunkToText <$> unfoldr R.uncons t)
 {-# inline toText #-}
 
-{-
-dropWhile :: (Char -> Bool) -> Text -> Text
-dropWhile f = let
-  go t = case R.uncons t of
-    Nothing -> mempty
-    Just (hd, t) ->
-      let hd' = T.dropWhile f hd in
-      if T.null hd' then go t
-      else hd' `R.cons` t
-  in go
-{-# INLINE dropWhile #-}
-
-dropWhileEnd :: (Char -> Bool) -> Text -> Text
-dropWhileEnd f = let
-  go t = case R.unsnoc t of
-    Nothing -> mempty
-    Just (t, last) ->
-      let last' = T.dropWhileEnd f last in
-      if T.null last' then go t
-      else t `R.snoc` last'
-  in go
-{-# INLINE dropWhileEnd #-}
-
-takeWhile :: (Char -> Bool) -> Text -> Text
-takeWhile f = let
-  go :: Text -> Text -> Text
-  go !acc t = case R.uncons t of
-    Nothing -> mempty
-    Just (hd, t) ->
-      let hd' = T.takeWhile f hd in
-      if R.size hd == R.size hd' then go (acc `R.snoc` hd) t
-      else acc `R.snoc` hd'
-  in go mempty
-{-# INLINE takeWhile #-}
-
-takeWhileEnd :: (Char -> Bool) -> Text -> Text
-takeWhileEnd f = let
-  go :: Text -> Text -> Text
-  go !acc t = case R.unsnoc t of
-    Nothing -> mempty
-    Just (t, last) ->
-      let last' = T.takeWhileEnd f last in
-      if R.size last == R.size last' then go (last `R.cons` acc) t
-      else last' `R.cons` acc
-  in go mempty
-{-# INLINE takeWhileEnd #-}
-
-
--}
-
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 instance Ord Chunk where (Chunk _ a) `compare` (Chunk _ a2) = compare a a2
 instance Semigroup Chunk where (<>) = mappend
