@@ -13,6 +13,9 @@ module Unison.Referent
     toReference,
     fromText,
 
+    -- * Lenses
+    reference_,
+
     -- * ShortHash helpers
     isPrefixOf,
     toShortHash,
@@ -30,7 +33,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as R
-import Unison.Referent' (Referent' (..), toReference')
+import Unison.Referent' (Referent' (..), toReference', reference_)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 

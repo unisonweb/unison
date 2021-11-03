@@ -13,6 +13,7 @@ module Unison.Reference
    Size,
    derivedBase32Hex,
    Component, members,
+   component,
    components,
    groupByComponent,
    componentFor,

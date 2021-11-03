@@ -1,3 +1,4 @@
+{-# language ViewPatterns #-}
 {-# language PatternGuards #-}
 {-# language TupleSections #-}
 {-# language PatternSynonyms #-}
@@ -21,6 +22,7 @@ import Unison.Type
 import Unison.Var (Var)
 import Unison.Reference (Reference)
 
+import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Foreign
   (Foreign, HashAlgorithm(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.MCode (CombIx(..))
@@ -47,14 +49,14 @@ decompile
   => (Word64 -> Word64 -> Maybe (Term v ()))
   -> Closure
   -> Either Error (Term v ())
-decompile _ (DataC rf ct [] [])
+decompile _ (DataC rf (maskTags -> ct) [] [])
   | rf == booleanRef
   = boolean () <$> tag2bool ct
-decompile _ (DataC rf ct [i] [])
+decompile _ (DataC rf (maskTags -> ct) [i] [])
   = decompileUnboxed rf ct i
 decompile topTerms (DataC rf _ [] [b]) | rf == anyRef
   = app () (builtin() "Any.Any") <$> decompile topTerms b
-decompile topTerms (DataC rf ct [] bs)
+decompile topTerms (DataC rf (maskTags -> ct) [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
 decompile topTerms (PApV (CIx rf rt k) [] bs)
   | Just t <- topTerms rt k

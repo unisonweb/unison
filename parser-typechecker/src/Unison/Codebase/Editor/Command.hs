@@ -22,6 +22,7 @@ import Control.Lens (_5,view)
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
+                                                , IncludeCycles
                                                 )
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
@@ -90,7 +91,8 @@ data Command
   UI :: Command m i v ()
 
   DocsToHtml
-    :: Branch m -- ^ namespace source
+    :: Branch m -- Root branch
+    -> Path -- ^ namespace source
     -> FilePath -- ^ file destination
     -> Command m i v ()
 
@@ -106,8 +108,9 @@ data Command
   GetDefinitionsBySuffixes
     :: Maybe Path
     -> Branch m
+    -> IncludeCycles
     -> [HQ.HashQualified Name]
-    -> Command m i v (Either BackendError (DefinitionResults v))
+    -> Command m i v (DefinitionResults v)
 
   FindShallow
     :: Path.Absolute

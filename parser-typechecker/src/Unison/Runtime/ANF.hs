@@ -54,6 +54,7 @@ module Unison.Runtime.ANF
   , BLit(..)
   , packTags
   , unpackTags
+  , maskTags
   , ANFM
   , Branched(.., MatchDataCover)
   , Func(..)
@@ -426,6 +427,10 @@ packTags (RTag rt) (CTag ct) = ri .|. ci
 
 unpackTags :: Word64 -> (RTag, CTag)
 unpackTags w = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+
+-- Masks a packed tag to extract just the constructor tag portion
+maskTags :: Word64 -> Word64
+maskTags w = w .&. 0xFFFF
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
