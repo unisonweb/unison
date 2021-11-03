@@ -11,6 +11,8 @@ import Prelude hiding (drop,take,reverse,map,traverse,null)
 import Data.Foldable (toList)
 import Control.DeepSeq (NFData(..))
 
+-- | Size-balanced binary tree of chunks. 
+-- The `Int` in the `Two` constructor is a cached size of that subtree.
 data Rope a
   = Empty
   | One {-# unpack #-} !a
@@ -37,6 +39,7 @@ traverse f = \case
   One a -> one <$> f a
   Two _ l r -> two <$> traverse f l <*> traverse f r
 
+-- typeclasses used for abstracting over the chunk type 
 class Sized a where size :: a -> Int
 class Take a  where take :: Int -> a -> a
 class Drop a  where drop :: Int -> a -> a
