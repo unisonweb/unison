@@ -68,22 +68,17 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 
--- lookupCtor :: ConstructorMapping -> ObjectId -> Pos -> ConstructorId -> Maybe (Pos, ConstructorId)
--- lookupCtor (ConstructorMapping cm) oid pos cid =
---   Map.lookup oid cm >>= (Vector.!? fromIntegral pos) >>= (Vector.!? cid)
+-- todo:
+--  * migrateBranch
+--  * migratePatch
 
--- lookupTermRef :: TermLookup -> S.Reference -> Maybe S.Reference
--- lookupTermRef _tl (ReferenceBuiltin t) = Just (ReferenceBuiltin t)
--- lookupTermRef tl (ReferenceDerived id) = ReferenceDerived <$> lookupTermRefId tl id
-
--- lookupTermRefId :: TermLookup -> S.Reference.Id -> Maybe S.Reference.Id
--- lookupTermRefId tl (Id oid pos) = Id oid <$> lookupTermPos tl oid pos
-
--- lookupTermPos :: TermLookup -> ObjectId -> Pos -> Maybe Pos
--- lookupTermPos (TermLookup tl) oid pos = Map.lookup oid tl >>= (Vector.!? fromIntegral pos)
-
--- newtype ConstructorMapping = ConstructorMapping (Map ObjectId (Vector (Vector (Pos, ConstructorId))))
--- newtype TermLookup = TermLookup (Map ObjectId (Vector Pos))
+--  * write a harness to call & seed algorithm, then do cleanup
+--    * may involve writing a `Progress`
+--    * raw DB things:
+--    * overwrite object_id column in hash_object table to point at new objects
+--    * delete references to old objects in index tables (where else?)
+--    * delete old objects
+--  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
 
 type TypeIdentifier = (ObjectId, Pos)
 
@@ -95,110 +90,31 @@ type ConstructorName v = v
 
 type ComponentName v = v
 
+type DeclName v = v
+
 data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
-  { -- declLookup :: Map (Old ObjectId) (Map (Old Pos) (New Pos)),
-    referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
+  { referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
     causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
-    -- Mapping between contructor indexes for the type identified by (ObjectId, Pos)
-    -- ctorLookup :: Map (Old TypeIdentifier) (Map (Old ConstructorId) (New ConstructorId)),
-    -- ctorLookup' :: Map (Old Referent.Id) (New Referent.Id),
-    -- This provides the info needed for rewriting a term.  You'll access it with a function :: Old
-    -- termLookup :: Map (Old ObjectId) (New ObjectId, Map (Old Pos) (New Pos)),
-    -- TODO: Split up mappings for Branch ObjectIds vs Term & Type Object IDs
     objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash))
-    --
-    -- componentPositionMapping :: Map ObjectId (Map (Old Pos) (New Pos)),
-    -- constructorIDMapping :: Map ObjectId (Map (Old ConstructorId) (New ConstructorId)),
-    -- completed :: Set ObjectId
   }
   deriving (Generic)
-
--- declLookup :: Map ObjectId (Map Pos (Pos, Map ConstructorId ConstructorId)),
-
-{-
-* Load entire codebase as a list
-* Pick a term from the codebase
-* Look up the references inside the term
-* If any haven't been processed, add them to the "to process" stack, push the term you were working on back onto that stack
-* Rebuild & rehash the term, store that
-* For any data constructor terms inside,
-  * Store a map from old ConstructorId to new, based on the old and new reference hashes
-* After rebuilding a cycle, map old Pos to new
--}
-
--- Q: can we plan to hold the whole mapping in memory? ✅
--- Q: a) update database in-place? or b) write to separate database and then overwrite? leaning (b).
--- note: we do need to rebuild namespaces, although we don't need to rehash them.
-
--- cycle position index `Pos`
--- constructor index `ConstructorId`
-
-{-
-data Maybe a = (Just Bar | Nothing X)
-
--- changes due to missing size from ref(Y)
-data X = MkX Y
-
--- know old hash and old cycle positions
-data Y = MkY Int
--}
 
 data Entity
   = TermComponent Unison.Hash
   | DeclComponent Unison.Hash
   | C CausalHashId
-  | -- haven't proven we need these yet
-    BranchE ObjectId
+  | BranchE ObjectId
   | PatchE ObjectId
   | W WK.WatchKind Reference.Id
   deriving (Eq, Ord, Show)
 
 data Env m v a = Env {db :: Connection, codebase :: Codebase m v a}
 
---  -> m (TrySyncResult h)
 migrationSync ::
   (MonadIO m, Var v) =>
   Sync (ReaderT (Env m v a) (StateT MigrationState m)) Entity
 migrationSync = Sync \case
-  -- To sync an object,
-  --   * If we have already synced it, we are done.
-  --   * Otherwise, read the object from the database and switch on its object type.
-  --   * See next steps below v
-  --
-  -- To sync a decl component object,
-  --   * If we have not already synced all dependencies, push syncing them onto the front of the work queue.
-  --   * Otherwise, ???
-  --
-  -- To sync a term component object,
-  --   * If we have not already synced all dependencies, push syncing them onto the front of the work queue.
-  --   * Otherwise, ???
-  --
-  -- To sync a namespace object,
-  --   * Deserialize it and compute its dependencies (terms, types, patches, children).
-  --   * If we have not already synced all of its dependencies, push syncing them onto the front of the work queue.
-  --   * To sync a 'BranchFull',
-  --     * We need to make a new 'BranchFull' in memory, then insert it into the database under a new object id.
-  --       * Wait, we need to preserve the ordering of the types/terms, either by not changing them (but the orderings of the
-  --         reference ids used in keys is definitely not preserved by this migration), or by permuting the local id vectors,
-  --         but we may be at a level too low or high for us to care?
-  --     * Its 'LocalBranch' must have all references changed in-place per the (old (object id, pos) => new (object id, pos)) mapping.
-  --     * The local IDs within the body _likely_ don't need to change. (why likely?)
-  --     * Its 'BranchLocalIds' must be translated from the old codebase object IDs to the new object IDs,
-  --       we can use our MigrationState to look these up, since they must have already been migrated.
-  --   * To sync a 'BranchDiff',
-  --     * These don't exist in schema v1; we can error if we encounter one.
-  --
-  -- To sync a patch object
-  --   * Rewrite all old hashes in the patch to the new hashes.
-  --
-  -- To sync a watch expression
-  --   * ???
-  --
-  -- To sync a Causal
-  --- * If we haven't yet synced its parents, push them onto the work queue
-  --- * If we haven't yet synced the causal's value (namespace), push it onto the work queue.
-  --- * Rehash the Causal's valueHash AND CausalHash, and add the new causal, its hashes, and hash objects to the codebase under a fresh object ID
   TermComponent hash -> do
     Env {codebase} <- ask
     lift (migrateTermComponent codebase hash)
@@ -211,9 +127,6 @@ migrationSync = Sync \case
   C causalHashId -> do
     Env {db} <- ask
     lift (migrateCausal db causalHashId)
-  -- To sync a watch result,
-  --   1. ???
-  --   2. Synced
   PatchE objectId -> do
     Env {db} <- ask
     lift (migratePatch db (PatchObjectId objectId))
@@ -230,35 +143,11 @@ runDB conn = (runExceptT >=> err) . (runExceptT >=> err) . flip runReaderT conn
 liftQ :: Monad m => ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Connection (ExceptT Ops.Error (ExceptT Q.Integrity m)) a
 liftQ = mapReaderT lift
 
--- loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
---
--- Causal Plan
-
--- * Load a DbCausal (how do we do this)
-
--- => new function Queries.localCausalByCausalHashId, can model after loadCausalByCausalHash or factor out of
-
--- * Add valueHashId's ObjectId as a dependency if unmigrated
-
--- * Add parent causal hash ids as dependencies if unmigrated
-
--- => Queries.loadCausalParents
-
--- * Map over Branch hash IDs
-
--- * Inside saveDBCausal (new / factored out of original)
-
---   * Save as a new self-hash
---    ==> Queries.saveCausal
---   * Map over parent causal hash IDs
---    ==> Queries.saveCausalParents
 migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExceptT $ do
   oldBranchHashId <- lift . liftQ $ Q.loadCausalValueHashId oldCausalHashId
   oldCausalParentHashIds <- lift . liftQ $ Q.loadCausalParents oldCausalHashId
 
-  -- This fails if the object for the branch doesn't exist, CHECK: we currently expect
-  -- this to always be true?
   branchObjId <- lift . liftQ $ Q.expectObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
@@ -306,27 +195,6 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 
   pure Sync.Done
-
--- Plan:
---   * Load the pieces of a Db.Causal ✅
---   * Ensure its parent causals and branch (value hash) have been migrated ✅
---   * Rewrite the value-hash and parent causal hashes ✅
---   * Save the new causal ✅
---   * Save Causal Hash mapping to skymap ✅
-
--- data C.Branch m = Branch
--- { terms    :: Map NameSegment (Map Referent (m MdValues)),
---   types    :: Map NameSegment (Map Reference (m MdValues)),
---   patches  :: Map NameSegment (PatchHash, m Patch),
---   children :: Map NameSegment (Causal m)
--- }
-
--- data Branch' t h p c = Branch
---   { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
---     types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
---     patches :: Map t p,
---     children :: Map t c
---   }
 
 -- Chris: Remaining Plan:
 -- Convert all term & type object IDs in DbBranch into Hashes using database, can't use the skymap since they might not be migrated yet.
@@ -390,9 +258,6 @@ uRefAsRef_ = iso intoRef intoURef
   where
     intoRef (UReference.Id hash pos) = Reference.Id (Cv.hash2to1 hash) pos
     intoURef (Reference.Id hash pos) = UReference.Id (Cv.hash1to2 hash) pos
-
--- branchSomeRefs_ :: Traversal' (S.Branch' t h p c) (SomeReference h)
--- branchSomeRefs_ f b = _
 
 migratePatch :: MonadIO m => Connection -> Old PatchObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = do
@@ -483,34 +348,6 @@ branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
   let newTermsMap = terms & traversed . mapReferentMetadata someReferent_ %%~ f
   S.Branch.Full.Branch <$> newTermsMap <*> newTypesMap <*> pure patches <*> pure children
 
--- convertUReferenceId :: _ -> _
-
--- convertBranch :: (DB m, MonadState MigrationState m) => DbBranch -> m DbBranch
--- convertBranch dbBranch = _
-
--- DbBranch -- migrate --> DbBranch -- hydrate for the hash --> Hashing.V2.Branch -- put (Hash, toBranchFormat(DbBranch)) --> COOL
-
--- function that reads a DbBranch out of codebase
-
--- Traversal' DbBranch SomeReferenceObjectId
--- DB m => LensLike' m SomeReferenceObjectId SomeReferenceId
--- MonadState MigrationState m => SomeReferenceId -> m SomeReferenceId
-
--- Traversal' DbBranch (BranchId, CausalHashId)
--- MonadState MigrationState m => (BranchId, CausalHashId) -> m (BranchId, CausalHashId)
-
--- Traversal' DbBranch PatchId
--- MonadState MigrationState m => PatchObjectId -> m PatchObjectId
-
---   type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
-
--- data Branch' t h p c = Branch
---   { terms :: Map t (Map (Referent'' t h) (MetadataSetFormat' t h)),
---     types :: Map t (Map (Reference' t h) (MetadataSetFormat' t h)),
---     patches :: Map t p,
---     children :: Map t c
---   }
-
 migrateTermComponent :: forall m v a. (Ord v, Var v, Monad m) => Codebase m v a -> Unison.Hash -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   component <-
@@ -582,7 +419,7 @@ migrateDeclComponent ::
 migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   declComponent :: [DD.Decl v a] <-
     (lift . lift $ getDeclComponent hash) >>= \case
-      Nothing -> error "handle this" -- not non-fatal!
+      Nothing -> error undefined -- not non-fatal!
       Just dc -> pure dc
 
   let componentIDMap :: Map (Old Reference.Id) (DD.Decl v a)
@@ -628,18 +465,20 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
             . traversed -- traverse the list of them
             . _3 -- Select the Type term.
           %~ remapTerm
-  let vToOldReference :: Map v (Old Reference.Id)
-      vToOldReference = Map.fromList . fmap swap . Map.toList . fmap fst $ remappedReferences
 
-  let newComponent :: [(v, Reference.Id, DD.Decl v a)]
+  let declNameToOldReference :: Map (DeclName v) (Old Reference.Id)
+      declNameToOldReference = Map.fromList . fmap swap . Map.toList . fmap fst $ remappedReferences
+
+  let newComponent :: [(DeclName v, Reference.Id, DD.Decl v a)]
       newComponent =
         remappedReferences
           & Map.elems
           & Map.fromList
           & Convert.hashDecls'
           & fromRight (error "unexpected resolution error")
-  for_ newComponent $ \(v, newReferenceId, dd) -> do
-    let oldReferenceId = vToOldReference Map.! v
+
+  for_ newComponent $ \(declName, newReferenceId, dd) -> do
+    let oldReferenceId = declNameToOldReference Map.! declName
     field @"referenceMapping" %= Map.insert (TypeReference oldReferenceId) (TypeReference newReferenceId)
 
     let oldConstructorIds :: Map (ConstructorName v) (Old ConstructorId)
@@ -647,13 +486,13 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           (componentIDMap Map.! oldReferenceId)
             & DD.asDataDecl
             & DD.constructors'
-            & imap (\(fromIntegral -> constructorId) (_ann, name, _type) -> (name, constructorId))
+            & imap (\(fromIntegral -> constructorId) (_ann, constructorName, _type) -> (constructorName, constructorId))
             & Map.fromList
 
-    ifor_ (DD.constructors' (DD.asDataDecl dd)) \(fromIntegral -> newConstructorId) (_ann, name, _type) -> do
+    ifor_ (DD.constructors' (DD.asDataDecl dd)) \(fromIntegral -> newConstructorId) (_ann, constructorName, _type) -> do
       field @"referenceMapping"
         %= Map.insert
-          (ConstructorReference oldReferenceId (oldConstructorIds Map.! name))
+          (ConstructorReference oldReferenceId (oldConstructorIds Map.! constructorName))
           (ConstructorReference newReferenceId newConstructorId)
 
     lift . lift $ putTypeDeclaration newReferenceId dd
@@ -735,24 +574,6 @@ referentAsSomeTerm_ f = \case
       <&> (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
   r -> pure r
 
--- structural type Ping x = P1 (Pong x)
---   P1 : forall x. Pong x -> Ping x
-
--- structural type Pong x = P2 (Ping x) | P3 Nat
---   P2 : forall x. Ping x -> Pong x
---   P3 : forall x. Nat -> Pong x
-
--- end up with
--- decl Ping (Ref.Id #abc pos=0)
--- decl Pong (Ref.Id #abc pos=1)
--- ctor P1: #abc pos=0 cid=0
--- ctor P2: #abc pos=1 cid=0
--- ctor P3: #abc pos=1 cid=1
---
--- we unhashComponent and get:
--- { X -> structural type X x = AAA (Y x)
--- , Y -> structural type Y x = BBB (X x) | CCC Nat }
-
 remapReferences ::
   Map (Old Reference.Id) (New Reference.Id) ->
   Type.F (Type v a) ->
@@ -818,87 +639,6 @@ someReferenceIdToEntity = \case
   -- Constructors are migrated by their decl component.
   (ConstructorReference ref _conId) -> DeclComponent (Reference.idToHash ref)
 
--- get references:
---
---   references :: Term f v a -> [Reference.Id]
---
--- are all those references keys in our skymap?
---   yes => migrate term
---   no => returh those references (as Entity, though) as more work to do
-
--- how to turn Reference.Id into Entity?
---   need its ObjectId,
-
--- Term f v a -> ValidateT (Seq Reference.Id) m (Term f v a)
---
--- recordRefsInType :: MonadState MigrationState m => Type v a -> WriterT [Reference.Id] m (Type v a)
--- recordRefsInType = _
-
--- findMissingReferencesInTermF ::
---   (Generic typeVar, Generic typeAnn, Generic patternAnn) =>
---   Term.F typeVar typeAnn patternAnn () ->
---   [Reference.Id]
--- findMissingReferencesInTermF t =
---   -- TODO: Test that this descends into Match cases and finds everything it needs to.
---   t ^.. types @Reference.Id
-
--- compute correspondence between `v`s in `fst <$> named` compared to `fst <$> new_references` to get a Reference.Id -> Reference.Id mapping
--- mitchell tapped out before understanding the following line
--- compute correspondence between constructors names & constructor indices in corresponding decls
--- submit/mappend these two correspondences to sky mapping
-
--- Swap the Reference positions according to our map of already computed swaps
--- Hydrate into the parser-typechecker version, get the new hash
--- reserialize it into the sqlite format
--- Compare the old and new sqlite versions to add those ConstructorID/Pos mappings to our context.
-
--- unrelated Q:
---   do we kinda have circular dependency issues here?
---   parser-typechecker depends on codebase2, but we are talking about doing things at the parser-typechecker level in this migration
---   answer: no
-
--- unhashComponent
--- :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
-
--- DD.unhashComponent
-
--- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
-
--- type List a = Nil | Cons (List a)
-
--- unique type Thunk = Thunk (Int ->{MakeThunk} Int)
--- ability MakeThunk where go : (Int -> Int) -> Thunk
-
--- What mitchell thinks unhashComponent is doing:
---
---  Take a recursive type like
---
---     Fix \myself -> Alternatives [Nil, Cons a myself]
---
---  And write it with variables in place of recursive mentions like
---
---     (Var 1, Alternatives [Nil, Cons a (Var 1)]
-
--- can derive `original` from Hash + [OldDecl]
--- original :: Map Reference.Id (Decl v a)
-
--- named, rewritten_dependencies :: Map (Reference.Id {old}) (v, Decl v a {old pos in references})
--- named = Decl.unhashComponent original
-
--- Mapping from the sky: (Reference.Id -> Reference.Id)
-
--- rewritten_dependencies = replace_dependency_pos's skymap named
-
--- new_references :: Map v (Reference.Id {new}, DataDeclaration v a)
--- new_references = Unison.Hashing.V2.Convert.hashDecls $ Map.toList $ Foldable.toList rewritten_dependencies
-
--- let DeclFormat locallyIndexedComponent = case runGetS S.getDeclFormat declFormatBytes of
---   Left err -> error "something went wrong"
---   Right declFormat -> declFormat
-
--- Operations.hs converts from S level to C level
--- SqliteCodebase.hs converts from C level to
-
 -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
 migrateSchema12 :: Applicative m => Connection -> m Bool
 migrateSchema12 _db = do
@@ -914,26 +654,6 @@ migrateSchema12 _db = do
   -- do we want to look at supporting multiple simultaneous representations of objects at this time?
   pure "todo: migrate12"
   pure True
-
--- -- remember that the component order might be different
--- rehashDeclComponent :: [Decl v a] -> (Hash, ConstructorMappings)
--- rehashDeclComponent decls = fmap decls <&> \case
---
---     --
---     error "todo: rehashDeclComponent"
-
--- rewriteDeclComponent :: DeclFormat.LocallyIndexedComponent -> (Hash, DeclFormat.LocallyIndexedComponent, ConstructorMappings)
--- rewriteDeclComponent =
---     --
---     error "todo: rehashDeclComponent"
-
--- rehashDeclComponent :: [Decl v a] -> (Hash, DeclFormat.LocallyIndexedComponent, ConstructorMappings)
-
--- rehashTermComponent :: ConstructorMappings -> TermFormat.LocallyIndexedComponent -> (Hash, TermFormat.LocallyIndexedComponent)
--- rehashTermComponent = error "todo: rehashTermComponent"
-
--- -- getConstructor :: ConstructorMappings -> ObjectId -> Pos -> ConstructorId
--- -- getConstructor cm
 
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
