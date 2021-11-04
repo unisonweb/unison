@@ -403,7 +403,7 @@ loop = do
           UndoI{} -> "undo"
           UiI -> "ui"
           DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
-          ExecuteI s args -> Text.unwords $ map Text.pack (["execute", s] ++ args)
+          ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s: args))
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
             "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
