@@ -54,12 +54,10 @@ test =
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "--token", "MY_TOKEN"] "" -- ?
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison"] ""
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "--ui", tempCodebase] ""
-      -- run.compiled appears to be broken at the moment, these should be added back once it's
-      -- fixed to ensure it keeps working.
-      -- , scope "can compile, then run compiled artifact" $ tests
-      --   [ expectExitCode ExitSuccess "stack" defaultArgs [] ["exec", "--", "unison", "transcript", transcriptFile] ""
-      --   , expectExitCode ExitSuccess "stack" defaultArgs [] ["exec", "--", "unison", "run.compiled", "./unison-cli/integration-tests/IntegrationTests/main"] ""
-      --   ]
+      , scope "can compile, then run compiled artifact" $ tests
+        [ expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "transcript", transcriptFile] ""
+        , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "run.compiled", "./unison-cli/integration-tests/IntegrationTests/main.uc"] ""
+        ]
       ]
 
 expectExitCode :: ExitCode -> FilePath -> [String] -> [String] -> String -> Test ()
