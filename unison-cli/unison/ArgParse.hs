@@ -19,7 +19,6 @@ import Options.Applicative
        , ParserInfo
        , ParserPrefs
        , action
-       , argument
        , auto
        , columns
        , command
@@ -32,7 +31,6 @@ import Options.Applicative
        , helpShowGlobals
        , helper
        , hsubparser
-       , idm
        , info
        , long
        , metavar
@@ -42,7 +40,6 @@ import Options.Applicative
        , progDesc
        , renderFailure
        , showHelpOnError
-       , str
        , strArgument
        , strOption
        )
