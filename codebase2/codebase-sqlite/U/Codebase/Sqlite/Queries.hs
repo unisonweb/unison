@@ -668,7 +668,7 @@ getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
   FROM dependents_index
   WHERE dependency_builtin IS NULL
     AND dependent_object_id = ?
-    AND dependen_component_index = ?
+    AND dependent_component_index = ?
 |]
 
 -- getTransitiveDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Id]

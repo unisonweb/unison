@@ -49,6 +49,8 @@ import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.Codebase.Path as Path
+import qualified Data.Set as Set
+import qualified Unison.Referent as Referent
 
 typecheck
   :: (Monad m, Var v)
@@ -199,7 +201,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
     ConstructorsOfType typeRef -> do
-      liftIO $ Codebase.termsOfTypeByReference codebase typeRef
+      allTermsOfType <- liftIO $ Codebase.termsOfTypeByReference codebase typeRef
+      -- Filter to only return the constructors of that type.
+      -- There should be a more efficient way to do this once
+      -- we track constructorIDs in sql.
+      pure $ allTermsOfType & Set.filter (\case
+         Referent.Ref{} -> False
+         Referent.Con{} -> True
+                                         )
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase WK.RegularWatch h
