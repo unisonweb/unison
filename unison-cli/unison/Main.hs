@@ -248,7 +248,7 @@ runTranscripts' mcodepath transcriptDir args = do
         configFilePath <- getConfigFilePath mcodepath
         -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
         ((closeCodebase, theCodebase),_) <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir))
-        mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+        mdOut <- TR.run Version.gitDescribeWithDate transcriptDir configFilePath stanzas theCodebase
         closeCodebase
         let out = currentDir FP.</>
                    FP.addExtension (FP.dropExtension fileName ++ ".output")
