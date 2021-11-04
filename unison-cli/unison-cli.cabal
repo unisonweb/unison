@@ -48,6 +48,7 @@ executable integration-tests
     , process
     , shellmet
     , text
+    , time
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
