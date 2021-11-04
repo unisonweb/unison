@@ -25,7 +25,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import Unison.Codebase.Editor.RemoteRepo (printNamespace, WriteRemotePath, writeToRead, writePathToRead)
+import Unison.Codebase.Editor.RemoteRepo (WriteRepo, ReadRemoteNamespace, printNamespace, WriteRemotePath, writeToRead, writePathToRead)
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
@@ -103,6 +103,7 @@ import           U.Util.Timing             (unsafeTime)
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import           Unison.Codebase.Type (GitError)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -491,9 +492,6 @@ loop = do
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
         unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
-        viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
-        syncRemoteRootBranch repo b mode =
-          ExceptT . eval $ SyncRemoteRootBranch repo b mode
         loadSearchResults = eval . LoadSearchResults
         handleFailedDelete failed failedDependents = do
           failed           <- loadSearchResults $ SR.fromNames failed
@@ -1638,22 +1636,7 @@ loop = do
           let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
           lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
 
-      PushRemoteBranchI mayRepo path syncMode -> do
-        let srcAbs = resolveToAbsolute path
-        srcb <- getAt srcAbs
-        unlessError do
-          (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-          lift $ unlessGitError do
-            (cleanup, remoteRoot) <- unsafeTime "Push viewRemoteBranch" $
-              viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-            -- We don't merge `srcb` with the remote namespace, `r`, we just
-            -- replace it. The push will be rejected if this rewinds time
-            -- or misses any new updates in `r` that aren't in `srcb` already.
-            let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
-            unsafeTime "Push syncRemoteRootBranch" $
-              syncRemoteRootBranch repo newRemoteRoot syncMode
-            lift . eval $ Eval cleanup
-            lift $ respond Success
+      PushRemoteBranchI mayRepo path syncMode -> handlePushRemoteBranch input mayRepo path syncMode
       ListDependentsI hq -> -- todo: add flag to handle transitive efficiently
         resolveHQToLabeledDependencies hq >>= \lds ->
           if null lds
@@ -1778,37 +1761,29 @@ loop = do
           )
         pure . join $ toList xs
 
-      configKey k p =
-        Text.intercalate "." . toList $ k :<| fmap
-          NameSegment.toText
-          (Path.toSeq $ Path.unabsolute p)
-
-      -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
-      -- otherwise, tries to load a value from .unisonConfig, and complains
-      -- if needed.
-      resolveConfiguredGitUrl
-        :: PushPull
-        -> Path'
-        -> ExceptT (Output v) (Action' m v) WriteRemotePath
-      resolveConfiguredGitUrl pushPull destPath' = ExceptT do
-        let destPath = resolveToAbsolute destPath'
-        let configKey = gitUrlKey destPath
-        (eval . ConfigLookup) configKey >>= \case
-          Just url ->
-            case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
-              Left e ->
-                pure . Left $
-                  ConfiguredGitUrlParseError pushPull destPath' url (show e)
-              Right ns ->
-                pure . Right $ ns
-          Nothing ->
-            pure . Left $ NoConfiguredGitUrl pushPull destPath'
-
-      gitUrlKey = configKey "GitUrl"
-
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
+
+handlePushRemoteBranch :: Applicative m => Input -> Maybe WriteRemotePath -> Path' -> SyncMode.SyncMode -> Action' m v ()
+handlePushRemoteBranch input mayRepo path syncMode = do
+  currentPath' <- use currentPath
+  let srcAbs = Path.resolve currentPath' path
+  srcb <- getAt srcAbs
+  unlessError do
+    (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
+    lift $ unlessError' (Output.GitError input) do
+      (cleanup, remoteRoot) <-
+        unsafeTime "Push viewRemoteBranch" $
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
+      -- We don't merge `srcb` with the remote namespace, `r`, we just
+      -- replace it. The push will be rejected if this rewinds time
+      -- or misses any new updates in `r` that aren't in `srcb` already.
+      let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
+      unsafeTime "Push syncRemoteRootBranch" $
+        syncRemoteRootBranch repo newRemoteRoot syncMode
+      lift . eval $ Eval cleanup
+      lift $ respond Success
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
@@ -1866,6 +1841,44 @@ handleShowDefinition outputLoc inputQuery = do
           use latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
+
+-- Takes a maybe (namespace address triple); returns it as-is if `Just`;
+-- otherwise, tries to load a value from .unisonConfig, and complains
+-- if needed.
+resolveConfiguredGitUrl
+  :: PushPull
+  -> Path'
+  -> ExceptT (Output v) (Action' m v) WriteRemotePath
+resolveConfiguredGitUrl pushPull destPath' = ExceptT do
+  currentPath' <- use currentPath
+  let destPath = Path.resolve currentPath' destPath'
+  let configKey = gitUrlKey destPath
+  (eval . ConfigLookup) configKey >>= \case
+    Just url ->
+      case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
+        Left e ->
+          pure . Left $
+            ConfiguredGitUrlParseError pushPull destPath' url (show e)
+        Right ns ->
+          pure . Right $ ns
+    Nothing ->
+      pure . Left $ NoConfiguredGitUrl pushPull destPath'
+
+gitUrlKey :: Path.Absolute -> Text
+gitUrlKey = configKey "GitUrl"
+
+configKey :: Text -> Path.Absolute -> Text
+configKey k p =
+  Text.intercalate "." . toList $ k :<| fmap
+    NameSegment.toText
+    (Path.toSeq $ Path.unabsolute p)
+
+viewRemoteBranch :: ReadRemoteNamespace -> ExceptT GitError (Action' m v) (m (), Branch m)
+viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
+
+syncRemoteRootBranch :: WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError (Action' m v) ()
+syncRemoteRootBranch repo b mode =
+  ExceptT . eval $ SyncRemoteRootBranch repo b mode
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
