@@ -112,10 +112,10 @@ import Control.Monad (MonadPlus (mzero), join, unless, when, (<=<))
 import Control.Monad.Except (ExceptT, MonadError, MonadIO (liftIO), runExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
-import Control.Monad.State (MonadState, StateT, evalStateT)
+import Control.Monad.State (MonadState, evalStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Control.Monad.Writer (MonadWriter, WriterT, runWriterT)
+import Control.Monad.Writer (MonadWriter, runWriterT)
 import qualified Control.Monad.Writer as Writer
 import Data.Bifoldable (bifoldMap)
 import Data.Bifunctor (Bifunctor (bimap))
@@ -168,16 +168,14 @@ import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
-  ( LocalBranchChildId (..),
-    LocalDefnId (..),
-    LocalHashId (..),
+  ( LocalDefnId (..),
     LocalIds,
     LocalIds' (..),
-    LocalPatchObjectId (..),
     LocalTextId (..),
     WatchLocalIds,
   )
 import qualified U.Codebase.Sqlite.LocalIds as LocalIds
+import qualified U.Codebase.Sqlite.LocalizeObject as LocalizeObject
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import qualified U.Codebase.Sqlite.Patch.Diff as S
 import qualified U.Codebase.Sqlite.Patch.Format as S
@@ -363,11 +361,22 @@ s2cReferent = bitraverse s2cReference s2cReference
 s2cReferentId :: EDB m => S.Referent.Id -> m C.Referent.Id
 s2cReferentId = bitraverse loadHashByObjectId loadHashByObjectId
 
+c2sReferent :: EDB m => C.Referent -> m S.Referent
+c2sReferent = bitraverse c2sReference c2sReference
+
 c2sReferentId :: EDB m => C.Referent.Id -> m S.Referent.Id
 c2sReferentId = bitraverse primaryHashToExistingObjectId primaryHashToExistingObjectId
 
 h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
+
+-- ** convert and save references
+-- | Save the text and hash parts of a Reference to the database and substitute their ids.
+saveReferenceH :: DB m => C.Reference -> m S.ReferenceH
+saveReferenceH = bitraverse Q.saveText Q.saveHashHash
+
+saveReferentH :: DB m => C.Referent -> m S.ReferentH
+saveReferentH = bitraverse saveReferenceH saveReferenceH
 
 -- ** Edits transformations
 
@@ -393,75 +402,20 @@ s2cTypeEdit = \case
   S.TypeEdit.Replace r -> C.TypeEdit.Replace <$> s2cReference r
   S.TypeEdit.Deprecate -> pure C.TypeEdit.Deprecate
 
--- | assumes that all relevant values are already in the DB
-c2lPatch :: EDB m => C.Branch.Patch -> m (S.PatchLocalIds, S.LocalPatch)
-c2lPatch (C.Branch.Patch termEdits typeEdits) =
-  done =<< (runWriterT . flip evalStateT startState) do
-    S.Patch
-      <$> Map.bitraverse saveReferentH (Set.traverse saveTermEdit) termEdits
-      <*> Map.bitraverse saveReferenceH (Set.traverse saveTypeEdit) typeEdits
+-- | assumes that all relevant defns are already in the DB
+c2sPatch :: EDB m => C.Branch.Patch -> m S.Patch
+c2sPatch (C.Branch.Patch termEdits typeEdits) =
+   S.Patch
+      <$> Map.bitraverse saveReferentH (Set.traverse c2sTermEdit) termEdits
+      <*> Map.bitraverse saveReferenceH (Set.traverse c2sTypeEdit) typeEdits
   where
-    startState = mempty @(Map Text LocalTextId, Map H.Hash LocalHashId, Map H.Hash LocalDefnId)
-    done ::
-      EDB m =>
-      (a, (Seq Text, Seq H.Hash, Seq H.Hash)) ->
-      m (S.Patch.Format.PatchLocalIds, a)
-    done (lPatch, (textValues, hashValues, defnValues)) = do
-      textIds <- liftQ $ traverse Q.saveText textValues
-      hashIds <- liftQ $ traverse Q.saveHashHash hashValues
-      objectIds <- traverse primaryHashToExistingObjectId defnValues
-      let ids =
-            S.Patch.Format.LocalIds
-              (Vector.fromList (Foldable.toList textIds))
-              (Vector.fromList (Foldable.toList hashIds))
-              (Vector.fromList (Foldable.toList objectIds))
-      pure (ids, lPatch)
-
-    lookupText ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field1' s (Map t LocalTextId),
-        Lens.Field1' w (Seq t),
-        Ord t
-      ) =>
-      t ->
-      m LocalTextId
-    lookupText = lookup_ Lens._1 Lens._1 LocalTextId
-
-    lookupHash ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field2' s (Map d LocalHashId),
-        Lens.Field2' w (Seq d),
-        Ord d
-      ) =>
-      d ->
-      m LocalHashId
-    lookupHash = lookup_ Lens._2 Lens._2 LocalHashId
-
-    lookupDefn ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field3' s (Map d LocalDefnId),
-        Lens.Field3' w (Seq d),
-        Ord d
-      ) =>
-      d ->
-      m LocalDefnId
-    lookupDefn = lookup_ Lens._3 Lens._3 LocalDefnId
-
-    saveTermEdit = \case
-      C.TermEdit.Replace r t -> S.TermEdit.Replace <$> saveReferent r <*> pure (c2sTyping t)
+    c2sTermEdit = \case
+      C.TermEdit.Replace r t -> S.TermEdit.Replace <$> c2sReferent r <*> pure (c2sTyping t)
       C.TermEdit.Deprecate -> pure S.TermEdit.Deprecate
 
-    saveTypeEdit = \case
-      C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> saveReference r
+    c2sTypeEdit = \case
+      C.TypeEdit.Replace r -> S.TypeEdit.Replace <$> c2sReference r
       C.TypeEdit.Deprecate -> pure S.TypeEdit.Deprecate
-
-    saveReference = bitraverse lookupText lookupDefn
-    saveReferenceH = bitraverse lookupText lookupHash
-    saveReferent = bitraverse saveReference saveReference
-    saveReferentH = bitraverse saveReferenceH saveReferenceH
 
 -- | produces a diff
 -- diff = full - ref; full = diff + ref
@@ -582,10 +536,6 @@ saveTermComponent h terms = do
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   pure oId
-
--- | Save the text and hash parts of a Reference to the database and substitute their ids.
-saveReferenceH :: DB m => C.Reference' Text H.Hash -> m (C.Reference' Db.TextId Db.HashId)
-saveReferenceH = bitraverse Q.saveText Q.saveHashHash
 
 -- | implementation detail of c2{s,w}Term
 --  The Type is optional, because we don't store them for watch expression results.
@@ -990,15 +940,6 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
             Nothing -> throwError (ExpectedBranch' chId)
             Just boId -> loadBranchByObjectId boId
 
--- this maps from the key used by C.Branch to a local id
-type BranchSavingState = (Map Text LocalTextId, Map H.Hash LocalDefnId, Map Db.PatchObjectId LocalPatchObjectId, Map (Db.BranchObjectId, Db.CausalHashId) LocalBranchChildId)
-
-type BranchSavingWriter = (Seq Text, Seq H.Hash, Seq Db.PatchObjectId, Seq (Db.BranchObjectId, Db.CausalHashId))
-
-type BranchSavingConstraint m = (MonadState BranchSavingState m, MonadWriter BranchSavingWriter m)
-
-type BranchSavingMonad m = StateT BranchSavingState (WriterT BranchSavingWriter m)
-
 saveRootBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveRootBranch c = do
   when debug $ traceM $ "Operations.saveRootBranch " ++ show (C.causalHash c)
@@ -1067,89 +1008,34 @@ saveBranch (C.Causal hc he parents me) = do
       liftQ (Q.saveCausalParents chId parentCausalHashIds)
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
-    (li, lBranch) <- c2lBranch =<< me
+    branch <- c2sBranch =<< me
+    let (li, lBranch) = LocalizeObject.localizeBranch branch
     saveBranchObject bhId li lBranch
   pure (boId, chId)
   where
-    c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
-    c2lBranch (C.Branch.Branch terms types patches children) =
-      done =<< (runWriterT . flip evalStateT startState) do
-        S.Branch
-          <$> Map.bitraverse saveNameSegment (Map.bitraverse saveReferent saveMetadata) terms
-          <*> Map.bitraverse saveNameSegment (Map.bitraverse saveReference saveMetadata) types
-          <*> Map.bitraverse saveNameSegment savePatch' patches
-          <*> Map.bitraverse saveNameSegment saveChild children
-    saveNameSegment (C.Branch.NameSegment t) = lookupText t
-    saveReference :: BranchSavingConstraint m => C.Reference.Reference -> m S.Reference.LocalReference
-    saveReference = bitraverse lookupText lookupDefn
-    saveReferent :: BranchSavingConstraint m => C.Referent.Referent -> m S.Referent.LocalReferent
-    saveReferent = bitraverse saveReference saveReference
-    saveMetadata :: Monad m => m C.Branch.MdValues -> BranchSavingMonad m S.Branch.Full.LocalMetadataSet
-    saveMetadata mm = do
-      C.Branch.MdValues m <- (lift . lift) mm
-      S.Branch.Full.Inline <$> Set.traverse saveReference (Map.keysSet m)
-    savePatch' :: EDB m => (PatchHash, m C.Branch.Patch) -> BranchSavingMonad m LocalPatchObjectId
-    savePatch' (h, mp) = do
-      patchOID <-
-        primaryHashToMaybePatchObjectId h >>= \case
-          Just patchOID -> pure patchOID
-          Nothing -> savePatch h =<< (lift . lift) mp
-      lookupPatch patchOID
-    saveChild :: EDB m => C.Branch.Causal m -> BranchSavingMonad m LocalBranchChildId
-    saveChild c = (lift . lift) (saveBranch c) >>= lookupChild
-    lookupText ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field1' s (Map t LocalTextId),
-        Lens.Field1' w (Seq t),
-        Ord t
-      ) =>
-      t ->
-      m LocalTextId
-    lookupText = lookup_ Lens._1 Lens._1 LocalTextId
-    lookupDefn ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field2' s (Map d LocalDefnId),
-        Lens.Field2' w (Seq d),
-        Ord d
-      ) =>
-      d ->
-      m LocalDefnId
-    lookupDefn = lookup_ Lens._2 Lens._2 LocalDefnId
-    lookupPatch ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field3' s (Map p LocalPatchObjectId),
-        Lens.Field3' w (Seq p),
-        Ord p
-      ) =>
-      p ->
-      m LocalPatchObjectId
-    lookupPatch = lookup_ Lens._3 Lens._3 LocalPatchObjectId
-    lookupChild ::
-      ( MonadState s m,
-        MonadWriter w m,
-        Lens.Field4' s (Map c LocalBranchChildId),
-        Lens.Field4' w (Seq c),
-        Ord c
-      ) =>
-      c ->
-      m LocalBranchChildId
-    lookupChild = lookup_ Lens._4 Lens._4 LocalBranchChildId
-    startState = mempty @BranchSavingState
-    done :: (EDB m, Show a) => (a, BranchSavingWriter) -> m (BranchLocalIds, a)
-    done (lBranch, written@(textValues, defnHashes, patchObjectIds, branchCausalIds)) = do
-      when debug $ traceM $ "saveBranch.done\n\tlBranch = " ++ show lBranch ++ "\n\twritten = " ++ show written
-      textIds <- liftQ $ traverse Q.saveText textValues
-      defnObjectIds <- traverse primaryHashToExistingObjectId defnHashes
-      let ids =
-            S.BranchFormat.LocalIds
-              (Vector.fromList (Foldable.toList textIds))
-              (Vector.fromList (Foldable.toList defnObjectIds))
-              (Vector.fromList (Foldable.toList patchObjectIds))
-              (Vector.fromList (Foldable.toList branchCausalIds))
-      pure (ids, lBranch)
+    c2sBranch :: EDB m => C.Branch.Branch m -> m S.DbBranch
+    c2sBranch (C.Branch.Branch terms types patches children) =
+      S.Branch
+        <$> Map.bitraverse saveNameSegment (Map.bitraverse c2sReferent c2sMetadata) terms
+        <*> Map.bitraverse saveNameSegment (Map.bitraverse c2sReference c2sMetadata) types
+        <*> Map.bitraverse saveNameSegment savePatchObjectId patches
+        <*> Map.bitraverse saveNameSegment saveBranch children
+
+    saveNameSegment :: EDB m => C.Branch.NameSegment -> m Db.TextId
+    saveNameSegment = liftQ . Q.saveText . C.Branch.unNameSegment
+
+    c2sMetadata :: EDB m => m C.Branch.MdValues -> m S.Branch.Full.DbMetadataSet
+    c2sMetadata mm = do
+      C.Branch.MdValues m <- mm
+      S.Branch.Full.Inline <$> Set.traverse c2sReference (Map.keysSet m)
+
+    savePatchObjectId :: EDB m => (PatchHash, m C.Branch.Patch) -> m Db.PatchObjectId
+    savePatchObjectId (h, mp) = do
+      primaryHashToMaybePatchObjectId h >>= \case
+        Just patchOID -> pure patchOID
+        Nothing -> do
+          patch <- mp
+          savePatch h patch
 
 saveBranchObject :: DB m => Db.BranchHashId -> BranchLocalIds -> S.Branch.Full.LocalBranch -> m Db.BranchObjectId
 saveBranchObject id@(Db.unBranchHashId -> hashId) li lBranch = do
@@ -1320,7 +1206,7 @@ loadDbPatchById patchId =
 
 savePatch :: EDB m => PatchHash -> C.Branch.Patch -> m Db.PatchObjectId
 savePatch h c = do
-  (li, lPatch) <- c2lPatch c
+  (li, lPatch) <- LocalizeObject.localizePatch <$> c2sPatch c
   saveDbPatch h (S.Patch.Format.Full li lPatch)
 
 saveDbPatch :: EDB m => PatchHash -> S.PatchFormat -> m Db.PatchObjectId
