@@ -1355,26 +1355,20 @@ execute :: InputPattern
 execute = InputPattern
   "run"
   []
-  [(Required, noCompletions), (Optional, argSeparator), (ZeroPlus, noCompletions)]
+  [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
   (P.wrapColumn2
-    [ ( "`run mymain`"
+    [ ( "`run mymain args...`"
       , "Runs `!mymain`, where `mymain` is searched for in the most recent"
-        <> "typechecked file, or in the codebase. Command line arguments"
-        <> "for `mymain` can optionally be supplied after `--`. E.g:"
-        <> "`run mymain -- --foo=bar baz`"
+        <> "typechecked file, or in the codebase."
+        <> "Any provided arguments will be passed as program arguments as though they were"
+        <> "provided at the command line when running mymain as an executable."
       )
     ]
   )
   (\case
     [w] -> pure $ Input.ExecuteI w []
-    (w : ws) -> pure $ Input.ExecuteI w (parseArgs ws)
+    (w : ws) -> pure $ Input.ExecuteI w ws
     _   -> Left $ showPatternHelp execute)
-  where
-    parseArgs :: [String] -> [String]
-    parseArgs = removeFirstSeparator []
-    removeFirstSeparator ret [] = ret
-    removeFirstSeparator ret ("--" : xs) = ret ++ xs
-    removeFirstSeparator ret (x : xs) = removeFirstSeparator (ret ++ [x]) xs
 
 ioTest :: InputPattern
 ioTest = InputPattern
@@ -1639,32 +1633,25 @@ allSubNamespaces b =
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
 newNameArg :: ArgumentType
-newNameArg = ArgumentType 
-  { typeName = "new-name"  
-  , suggestions = pathCompletor 
+newNameArg = ArgumentType
+  { typeName = "new-name"
+  , suggestions = pathCompletor
                     prefixIncomplete
                     (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
   , globTargets = mempty
   }
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType 
-  { typeName = "word" 
+noCompletions = ArgumentType
+  { typeName = "word"
   , suggestions = I.noSuggestions
-  , globTargets = mempty
-  }
-
-argSeparator :: ArgumentType
-argSeparator = ArgumentType 
-  { typeName = "separator"
-  , suggestions = \_ _ _ _ -> pure [Completion "--" "--" False]
   , globTargets = mempty
   }
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = ArgumentType 
-  { typeName = "git-url" 
+gitUrlArg = ArgumentType
+  { typeName = "git-url"
   , suggestions = let complete s = pure [Completion s s False]
       in \input _ _ _ -> case input of
            "gh" -> complete "https://github.com/"
