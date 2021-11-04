@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: a62b0e8dbabe51c01ebc0871290e2427a734c0fbf9e78aee138b2bdad34d2704
 
 name:           unison-codebase-sync
 version:        0.0.0
@@ -19,10 +17,78 @@ source-repository head
 library
   exposed-modules:
       U.Codebase.Sync
+      U.Codebase.Sync2
   other-modules:
       Paths_unison_codebase_sync
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      ConstraintKinds
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
   build-depends:
       base
+    , containers
+    , dependent-map
+    , some
+    , unison-prelude
+  default-language: Haskell2010
+
+benchmark bench
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_unison_codebase_sync
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      ConstraintKinds
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      KindSignatures
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  build-depends:
+      base
+    , containers
+    , dependent-map
+    , some
+    , tasty-bench
+    , unison-codebase-sync
+    , unison-prelude
   default-language: Haskell2010

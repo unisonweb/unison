@@ -1,8 +1,45 @@
 name: unison-codebase-sync
 github: unisonweb/unison
 
+dependencies:
+  - base
+  - containers
+  - dependent-map
+  - some
+  - unison-prelude
+
 library:
   source-dirs: .
 
-dependencies:
-  - base
+benchmarks:
+  bench:
+    source-dirs: benchmarks
+    main: Main.hs
+    dependencies:
+      - base
+      - tasty-bench
+      - unison-codebase-sync
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveFunctor
+  - DeriveGeneric
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

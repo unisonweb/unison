@@ -196,6 +196,7 @@ library
       ApplicativeDo
       BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DeriveGeneric
       DerivingStrategies
@@ -203,6 +204,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -323,6 +325,7 @@ executable prettyprintdemo
       ApplicativeDo
       BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DeriveGeneric
       DerivingStrategies
@@ -330,6 +333,7 @@ executable prettyprintdemo
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -397,6 +401,7 @@ executable tests
       ApplicativeDo
       BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DeriveGeneric
       DerivingStrategies
@@ -404,6 +409,7 @@ executable tests
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
@@ -460,6 +466,7 @@ benchmark runtime
       ApplicativeDo
       BangPatterns
       BlockArguments
+      ConstraintKinds
       DeriveFunctor
       DeriveGeneric
       DerivingStrategies
@@ -467,6 +474,7 @@ benchmark runtime
       FlexibleContexts
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      KindSignatures
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns

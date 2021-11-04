@@ -9,6 +9,9 @@ cradle:
     - path: "codebase2/codebase-sync"
       component: "unison-codebase-sync:lib"
 
+    - path: "codebase2/codebase-sync/benchmarks"
+      component: "unison-codebase-sync:bench:bench"
+
     - path: "codebase2/core"
       component: "unison-core:lib"
 
