@@ -118,7 +118,6 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(Unrecogni
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Util.Monoid as Monoid
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1068,11 +1067,12 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
+  ListNamespaceDependencies Empty -> pure $ "This namespace has no external dependencies"
   ListNamespaceDependencies nonLocalDeps -> pure $
       P.bold "This namespace depends on the following external terms:" <>
-      P.indent "  " (
-        prettyDeps (fold nonLocalDeps) <>
-        Monoid.whenM (null nonLocalDeps) ("This namespace has no external dependencies")
+      P.newline <> P.indent "  " (
+      -- TODO: group by reference and pretty-print constructor names
+        prettyDeps (ifoldMap _ nonLocalDeps)
                     )
     where
       prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
