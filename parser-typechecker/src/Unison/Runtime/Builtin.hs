@@ -1663,7 +1663,7 @@ declareForeigns = do
 
   declareForeign "IO.socketReceive.impl.v3" boxNatToEFBox
     . mkForeignIOF $ \(hs,n) ->
-    maybe Bytes.empty Bytes.fromArray <$> SYS.recv hs n
+    maybe mempty Bytes.fromArray <$> SYS.recv hs n
 
   declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 

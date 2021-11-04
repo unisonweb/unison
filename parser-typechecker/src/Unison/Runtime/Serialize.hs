@@ -140,10 +140,10 @@ getBytes = Bytes.fromChunks <$> getList getBlock
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
-getBlock :: MonadGet m => m Bytes.ByteString
+getBlock :: MonadGet m => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
-putBlock :: MonadPut m => Bytes.ByteString -> m ()
+putBlock :: MonadPut m => Bytes.Chunk -> m ()
 putBlock b = putLength (BA.length b) *> putByteString (Bytes.chunkToByteString b)
 
 putHash :: MonadPut m => Hash -> m ()

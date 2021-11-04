@@ -118,8 +118,7 @@ instance R.Take Chunk where
     | otherwise = Chunk k (T.take k t)
 
 instance R.Index Chunk Char where
-  index i (Chunk n t) | i < n     = Just (T.index t i)
-                      | otherwise = Nothing
+  unsafeIndex i (Chunk _ t) = T.index t i
 
 instance R.Reverse Chunk where 
   reverse (Chunk n t) = Chunk n (T.reverse t)

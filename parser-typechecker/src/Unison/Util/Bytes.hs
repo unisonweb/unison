@@ -2,14 +2,42 @@
 {-# Language GeneralizedNewtypeDeriving #-}
 {-# Language BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
-module Unison.Util.Bytes where
+module Unison.Util.Bytes (
+  Bytes(..), Chunk, 
+  fromByteString, toByteString, 
+  fromWord8s, toWord8s, 
+  fromBase16, toBase16, 
+  fromBase32, toBase32, 
+  fromBase64, toBase64, 
+  fromBase64UrlUnpadded, toBase64UrlUnpadded,
+
+  chunkFromByteString, byteStringToChunk, chunkToByteString,
+  fromChunks, chunks, byteStringChunks,
+  toArray, fromArray, toLazyByteString,
+  flatten,
+
+  at, take, drop, size, empty, 
+
+  encodeNat16be, decodeNat16be,
+  encodeNat32be, decodeNat32be,
+  encodeNat64be, decodeNat64be,
+  encodeNat16le, decodeNat16le,
+  encodeNat32le, decodeNat32le,
+  encodeNat64le, decodeNat64le,
+  decodeUtf8, encodeUtf8,
+
+  zlibCompress, zlibDecompress,
+  gzipCompress, gzipDecompress
+) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftR, shiftL, (.|.))
 import Data.Char
 import Unison.Prelude hiding (ByteString, empty)
+import Prelude hiding (take, drop)
 import qualified Data.ByteString as B
 import qualified Data.ByteArray as BA
 import qualified Data.ByteArray.Encoding as BE
@@ -29,16 +57,16 @@ import qualified Codec.Compression.Zlib as Zlib
 import qualified Codec.Compression.GZip as GZip
 import Unsafe.Coerce (unsafeCoerce)
 
-type ByteString = V.Vector Word8
+type Chunk = V.Vector Word8
 
 -- Bytes type represented as a rope of ByteStrings
-newtype Bytes = Bytes { underlying :: R.Rope ByteString } deriving (Semigroup,Monoid,Eq,Ord)
+newtype Bytes = Bytes { underlying :: R.Rope Chunk } deriving (Semigroup,Monoid,Eq,Ord)
 
-instance R.Sized ByteString where size = V.length
-instance R.Drop ByteString where drop = V.drop
-instance R.Take ByteString where take = V.take
-instance R.Index ByteString Word8 where index n bs = bs V.!? n
-instance R.Reverse ByteString where reverse = V.reverse
+instance R.Sized Chunk where size = V.length
+instance R.Drop Chunk where drop = V.drop
+instance R.Take Chunk where take = V.take
+instance R.Index Chunk Word8 where unsafeIndex n bs = bs `V.unsafeIndex` n
+instance R.Reverse Chunk where reverse = V.reverse
 instance NFData Bytes where rnf _ = ()
 
 null :: Bytes -> Bool
@@ -62,11 +90,11 @@ toArray b = chunkToArray $ V.concat (chunks b)
 fromArray :: BA.ByteArrayAccess b => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
-byteStringToChunk, chunkFromByteString :: B.ByteString -> ByteString
+byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
 byteStringToChunk = fromStorable . BSV.byteStringToVector
 chunkFromByteString = byteStringToChunk
 
-chunkToByteString :: ByteString -> B.ByteString
+chunkToByteString :: Chunk -> B.ByteString
 chunkToByteString = BSV.vectorToByteString . toStorable
 
 fromStorable :: SV.Vector Word8 -> V.Vector Word8
@@ -107,22 +135,22 @@ fromLazyByteString b = fromChunks (byteStringToChunk <$> LB.toChunks b)
 size :: Bytes -> Int
 size = R.size . underlying
 
-chunkSize :: ByteString -> Int
+chunkSize :: Chunk -> Int
 chunkSize = V.length
 
-chunks :: Bytes -> [ByteString]
+chunks :: Bytes -> [Chunk]
 chunks (Bytes bs) = toList bs
 
 byteStringChunks :: Bytes -> [B.ByteString]
 byteStringChunks bs = chunkToByteString <$> chunks bs 
 
-fromChunks :: [ByteString] -> Bytes
+fromChunks :: [Chunk] -> Bytes
 fromChunks = foldl' snoc empty
 
-cons :: ByteString -> Bytes -> Bytes
+cons :: Chunk -> Bytes -> Bytes
 cons b (Bytes bs) = Bytes (R.cons b bs)
 
-snoc :: Bytes -> ByteString -> Bytes
+snoc :: Bytes -> Chunk -> Bytes
 snoc (Bytes bs) b = Bytes (R.snoc bs b)
 
 flatten :: Bytes -> Bytes
@@ -138,7 +166,7 @@ at, index :: Int -> Bytes -> Maybe Word8
 at n (Bytes bs) = R.index n bs
 index = at 
 
-dropBlock :: Int -> Bytes -> Maybe (ByteString, Bytes)
+dropBlock :: Int -> Bytes -> Maybe (Chunk, Bytes)
 dropBlock nBytes (Bytes chunks) = go mempty chunks
   where
   go acc chunks 
@@ -284,7 +312,7 @@ toBase16 bs = foldl' step empty (chunks bs) where
   step bs b = snoc bs (arrayToChunk @BA.Bytes $
     BE.convertToBase BE.Base16 (chunkToArray @BA.Bytes b))
 
-chunkToArray, arrayFromChunk :: BA.ByteArray b => ByteString -> b
+chunkToArray, arrayFromChunk :: BA.ByteArray b => Chunk -> b
 chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
   let
     go !ind =
@@ -295,7 +323,7 @@ chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
 
 arrayFromChunk = chunkToArray
 
-arrayToChunk, chunkFromArray :: BA.ByteArrayAccess b => b -> ByteString
+arrayToChunk, chunkFromArray :: BA.ByteArrayAccess b => b -> Chunk
 arrayToChunk bs = V.generate (BA.length bs) (BA.index bs)
 chunkFromArray = arrayToChunk
 

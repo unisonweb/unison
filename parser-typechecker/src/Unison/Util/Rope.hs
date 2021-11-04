@@ -2,7 +2,8 @@
 {-# Language DeriveFoldable #-}
 
 module Unison.Util.Rope 
-  (chunks, singleton, one, map, traverse, null, flatten, two, cons, uncons, snoc, unsnoc, 
+  (chunks, singleton, one, map, traverse, null, 
+   flatten, two, cons, uncons, snoc, unsnoc, index,
    Sized(..), Take(..), Drop(..), Reverse(..), Index(..), Rope,
    ) 
 where
@@ -43,7 +44,7 @@ traverse f = \case
 class Sized a where size :: a -> Int
 class Take a  where take :: Int -> a -> a
 class Drop a  where drop :: Int -> a -> a
-class Index a elem where index :: Int -> a -> Maybe elem
+class Index a elem where unsafeIndex :: Int -> a -> elem
 class Reverse a where reverse :: a -> a
 
 instance Sized a => Sized (Rope a) where
@@ -84,14 +85,10 @@ threshold :: Int
 threshold = 32
 
 cons :: (Sized a, Semigroup a) => a -> Rope a -> Rope a
-cons a r =
-  if size a == 0 then r
-  else cons' (size a) a r
+cons a r = cons' (size a) a r
 
 snoc :: (Sized a, Semigroup a) => Rope a -> a -> Rope a
-snoc as a =
-  if size a == 0 then as
-  else snoc' as (size a) a
+snoc as a = snoc' as (size a) a
 
 cons' :: (Sized a, Semigroup a) => Int -> a -> Rope a -> Rope a
 cons' 0 _ as = as 
@@ -117,14 +114,19 @@ snoc' as szN aN = go as aN
     Two sz One{} _ -> Two (sz+szN) as (One aN)
     Two _ l r -> l <> go r aN
 
+index :: (Sized a, Index a ch) => Int -> Rope a -> Maybe ch 
+index i r | i >= 0 && i < size r = Just (unsafeIndex i r)
+          | otherwise            = Nothing
+{-# inline index #-}
+
 instance (Sized a, Index a ch) => Index (Rope a) ch where
-  index i = \case
-    One a -> index i a
+  unsafeIndex i = \case
+    One a -> unsafeIndex i a
     Two sz l r
-      | i < size l -> index i l
-      | i >= sz    -> Nothing
-      | otherwise  -> index (i - size l) r
-    Empty -> Nothing
+      | i < size l -> unsafeIndex i l
+      | i >= sz    -> error "out of bounds"
+      | otherwise  -> unsafeIndex (i - size l) r
+    Empty -> error "out of bounds"
 
 instance (Sized a, Semigroup a, Take a) => Take (Rope a) where
   -- this avoids rebalancing the tree, which is more efficient
