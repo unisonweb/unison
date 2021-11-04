@@ -1657,22 +1657,23 @@ docsToHtml =
     )
 
 execute :: InputPattern
-execute =
-  InputPattern
-    "run"
-    []
-    []
-    ( P.wrapColumn2
-        [ ( "`run mymain`",
-            "Runs `!mymain`, where `mymain` is searched for in the most recent"
-              <> "typechecked file, or in the codebase."
-          )
-        ]
-    )
-    ( \case
-        [w] -> pure . Input.ExecuteI $ w
-        _ -> Left $ showPatternHelp execute
-    )
+execute = InputPattern
+  "run"
+  []
+  [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+  (P.wrapColumn2
+    [ ( "`run mymain args...`"
+      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
+        <> "typechecked file, or in the codebase."
+        <> "Any provided arguments will be passed as program arguments as though they were"
+        <> "provided at the command line when running mymain as an executable."
+      )
+    ]
+  )
+  (\case
+    [w] -> pure $ Input.ExecuteI w []
+    (w : ws) -> pure $ Input.ExecuteI w ws
+    _   -> Left $ showPatternHelp execute)
 
 ioTest :: InputPattern
 ioTest =
