@@ -16,7 +16,6 @@ import Data.Generics.Product
 import Data.Generics.Sum (_Ctor)
 import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
-import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import qualified Data.Zip as Zip
@@ -425,7 +424,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   let componentIDMap :: Map (Old Reference.Id) (DD.Decl v a)
       componentIDMap = Map.fromList $ Reference.componentFor hash declComponent
 
-  let unhashed :: Map (Old Reference.Id) (v, DD.Decl v a)
+  let unhashed :: Map (Old Reference.Id) (DeclName v, DD.Decl v a)
       unhashed = DD.unhashComponent componentIDMap
 
   let allTypes :: [Type v a]
@@ -455,7 +454,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   let remapTerm :: Type v a -> Type v a
       remapTerm = typeReferences_ %~ \ref -> Map.findWithDefault (error "unmigrated reference") ref migratedReferences
 
-  let remappedReferences :: Map (Old Reference.Id) (v, DD.Decl v a)
+  let remappedReferences :: Map (Old Reference.Id) (DeclName v, DD.Decl v a)
       remappedReferences =
         unhashed
           & traversed -- Traverse map of reference IDs
@@ -496,6 +495,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           (ConstructorReference newReferenceId newConstructorId)
 
     lift . lift $ putTypeDeclaration newReferenceId dd
+
   pure Sync.Done
 
 typeReferences_ :: (Monad m, Ord v) => LensLike' m (Type v a) SomeReferenceId
