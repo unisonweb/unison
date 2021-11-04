@@ -207,8 +207,8 @@ data Output v
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
-  -- | List all transitive dependencies used in a namespace
-  | ListNamespaceDependencies (Map Referent (Set Name)) (Map Referent (Set Name))
+  -- | List all direct dependencies which don't have any names in the current branch
+  | ListNamespaceDependencies (Map Referent (Set Name))
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]

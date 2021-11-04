@@ -40,7 +40,7 @@ import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
 
 import           Control.Lens
-import           Control.Monad.State            ( StateT, get, execStateT )
+import           Control.Monad.State            ( StateT )
 import qualified Control.Monad.State as State
 import           Control.Monad.Except           ( ExceptT(..), runExceptT, withExceptT)
 import           Data.Bifunctor                 ( second, first )
@@ -153,8 +153,6 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
-import Unison.Util.Relation (Relation)
-import qualified Control.Lens as Lens
 import qualified U.Util.Set as Set
 
 type F m i v = Free (Command m i v)
@@ -1743,8 +1741,8 @@ loop = do
         case (Branch.getAt path root') of
           Nothing -> respond $ BranchEmpty (Right (Path.toPath' path))
           Just b -> do
-            (local, nonlocal) <- namespaceDependencies root0 (Branch.head b)
-            respond $ ListNamespaceDependencies local nonlocal
+            nonlocalDeps <- namespaceDependencies root0 (Branch.head b)
+            respond $ ListNamespaceDependencies nonlocalDeps
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
@@ -3101,45 +3099,44 @@ data Residency = Local | NonLocal
   deriving (Eq)
 
 -- TODO: filter out builtins, they're not really dependencies
-namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name), Map Referent (Set Name))
+-- namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name), Map Referent (Set Name))
+-- namespaceDependencies root branch = do
+--     let startingReferents = Relation.dom namespaceTerms
+--     residencyMap <- flip execStateT mempty $ resolveRefs startingReferents
+--     let (local, nonlocal) = Map.partition ((== Local) . fst) residencyMap
+--     pure (fmap snd local, fmap snd nonlocal)
+--   where
+--     namespaceTerms :: Relation Referent Name
+--     namespaceTerms = branch & Branch.deepTerms
+--     rootTerms :: Relation Referent Name
+--     rootTerms = root & Branch.deepTerms
+--     storeName ::
+--       Referent ->
+--       StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
+--     storeName referent = do
+--       case Relation.lookupDom referent namespaceTerms of
+--         Lens.Empty -> Lens.at referent Lens.?= (NonLocal, Relation.lookupDom referent rootTerms)
+--         names -> at referent ?= (Local, names)
+--     resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
+--     resolveRefs todo = for_ todo $ \case
+--       r@(Referent.Ref (DerivedId refId)) -> do
+--         -- TODO: I need 'GetDependencies', not GetDependents
+--         directDepReferences <- lift $ eval (GetDependencies refId)
+--         let directDepReferents = Set.map Referent.fromReference _directDepReferences
+--         storeName r
+--         checked <- get
+--         let uncheckedDeps = directDepReferents
+--                           & Set.filter ((`Map.notMember` checked))
+--         resolveRefs uncheckedDeps
+--       -- Anything else?
+--       _ -> pure ()
+
+namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name))
 namespaceDependencies root branch = do
-    let startingReferents = Relation.dom namespaceTerms
-    residencyMap <- flip execStateT mempty $ resolveRefs startingReferents
-    let (local, nonlocal) = Map.partition ((== Local) . fst) residencyMap
-    pure (fmap snd local, fmap snd nonlocal)
-  where
-    namespaceTerms :: Relation Referent Name
-    namespaceTerms = branch & Branch.deepTerms
-    rootTerms :: Relation Referent Name
-    rootTerms = root & Branch.deepTerms
-    storeName ::
-      Referent ->
-      StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
-    storeName referent = do
-      case Relation.lookupDom referent namespaceTerms of
-        Lens.Empty -> Lens.at referent Lens.?= (NonLocal, Relation.lookupDom referent rootTerms)
-        names -> at referent ?= (Local, names)
-    resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
-    resolveRefs todo = for_ todo $ \case
-      r@(Referent.Ref (DerivedId refId)) -> do
-        -- TODO: I need 'GetDependencies', not GetDependents
-        directDepReferences <- lift $ eval (GetDependencies refId)
-        let directDepReferents = Set.map Referent.fromReference _directDepReferences
-        storeName r
-        checked <- get
-        let uncheckedDeps = directDepReferents
-                          & Set.filter ((`Map.notMember` checked))
-        resolveRefs uncheckedDeps
-      -- Anything else?
-      _ -> pure ()
-
-
-namespaceDependencies' :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name))
-namespaceDependencies' root branch = do
   allBranchDependencies :: Set Reference.Id
     <- fold <$> traverse (eval . GetDependencies) (Set.toList allBranchReferences)
   depsWhichAreConstructors  :: Set Referent
-    <- fold <$> traverse (eval . ConstructorsOfType) (Set.toList allBranchDependencies)
+    <- fold <$> traverse (eval . ConstructorsOfType . Reference.fromId) (Set.toList allBranchDependencies)
   let externalDependencies :: Set Reference.Id
       externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
   let externalConstructors :: Set Referent

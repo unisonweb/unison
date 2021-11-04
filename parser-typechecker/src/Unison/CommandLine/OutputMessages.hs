@@ -1068,11 +1068,11 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
-  ListNamespaceDependencies _local nonLocal -> pure $
+  ListNamespaceDependencies nonLocalDeps -> pure $
       P.bold "This namespace depends on the following external terms:" <>
       P.indent "  " (
-        prettyDeps (fold nonLocal) <>
-        Monoid.whenM (null nonLocal) ("This namespace has no external dependencies")
+        prettyDeps (fold nonLocalDeps) <>
+        Monoid.whenM (null nonLocalDeps) ("This namespace has no external dependencies")
                     )
     where
       prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m

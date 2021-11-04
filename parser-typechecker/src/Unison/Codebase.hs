@@ -21,6 +21,7 @@ module Unison.Codebase
     importRemoteBranch,
     viewRemoteBranch,
     termsOfType,
+    termsOfTypeByReference,
     termsMentioningType,
     dependents,
     isTerm,
@@ -197,11 +198,13 @@ dependents c r
 --         -- <$> getDependencies c r
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
-termsOfType c ty =
+termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
+
+termsOfTypeByReference :: (Var v, Functor m) => Codebase m v a -> Reference -> m (Set Referent.Referent)
+termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
-  where r = Hashing.typeToReference ty
 
 termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsMentioningType c ty =

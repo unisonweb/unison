@@ -132,7 +132,7 @@ data Command
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
-  ConstructorsOfType :: Reference.Id -> Command m i v (Set Referent)
+  ConstructorsOfType :: Reference -> Command m i v (Set Referent)
 
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
@@ -317,6 +317,7 @@ commandName = \case
   IsTerm{}                    -> "IsTerm"
   IsType{}                    -> "IsType"
   GetDependents{}             -> "GetDependents"
+  GetDependencies{}           -> "GetDependencies"
   GetTermsOfType{}            -> "GetTermsOfType"
   GetTermsMentioningType{}    -> "GetTermsMentioningType"
   Execute{}                   -> "Execute"
@@ -330,3 +331,4 @@ commandName = \case
   ClearWatchCache{}           -> "ClearWatchCache"
   MakeStandalone{}            -> "MakeStandalone"
   FuzzySelect{}               -> "FuzzySelect"
+  ConstructorsOfType{}        -> "ConstructorsOfType"

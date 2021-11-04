@@ -198,6 +198,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
+    ConstructorsOfType typeRef -> do
+      liftIO $ Codebase.termsOfTypeByReference codebase typeRef
 
   watchCache (Reference.DerivedId h) = do
     m1 <- Codebase.getWatch codebase WK.RegularWatch h
