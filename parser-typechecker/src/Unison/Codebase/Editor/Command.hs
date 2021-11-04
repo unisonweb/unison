@@ -132,6 +132,8 @@ data Command
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
+  ConstructorsOfType :: Reference.Id -> Command m i v (Set Referent)
+
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
 

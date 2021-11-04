@@ -191,10 +191,10 @@ dependents c r
 -- reference).
 -- The dependents of a builtin type includes the set of builtin terms which
 -- mention that type.
-dependencies :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependencies c r
-    = Set.map Reference.DerivedId
-  <$> getDependencies c r
+-- dependencies :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+-- dependencies c r
+--     = undefined c r -- Set.map Reference.DerivedId
+--         -- <$> getDependencies c r
 
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty =

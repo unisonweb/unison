@@ -155,6 +155,7 @@ import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
 import Unison.Util.Relation (Relation)
 import qualified Control.Lens as Lens
+import qualified U.Util.Set as Set
 
 type F m i v = Free (Command m i v)
 
@@ -3123,7 +3124,7 @@ namespaceDependencies root branch = do
       r@(Referent.Ref (DerivedId refId)) -> do
         -- TODO: I need 'GetDependencies', not GetDependents
         directDepReferences <- lift $ eval (GetDependencies refId)
-        let directDepReferents = Set.map Referent.fromReference directDepReferences
+        let directDepReferents = Set.map Referent.fromReference _directDepReferences
         storeName r
         checked <- get
         let uncheckedDeps = directDepReferents
@@ -3131,6 +3132,53 @@ namespaceDependencies root branch = do
         resolveRefs uncheckedDeps
       -- Anything else?
       _ -> pure ()
+
+
+namespaceDependencies' :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name))
+namespaceDependencies' root branch = do
+  allBranchDependencies :: Set Reference.Id
+    <- fold <$> traverse (eval . GetDependencies) (Set.toList allBranchReferences)
+  depsWhichAreConstructors  :: Set Referent
+    <- fold <$> traverse (eval . ConstructorsOfType) (Set.toList allBranchDependencies)
+  let externalDependencies :: Set Reference.Id
+      externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
+  let externalConstructors :: Set Referent
+      externalConstructors = depsWhichAreConstructors `Set.difference` allBranchReferents
+  let namedExternalDeps :: Map Referent (Set Name)
+      namedExternalDeps =
+        (Set.map Referent.fromId externalDependencies <> externalConstructors)
+        & Set.toList
+        & map (\ref -> (ref, Map.findWithDefault mempty ref allRootNames))
+        & Map.fromListWith (<>)
+  pure namedExternalDeps
+  where
+    allRootNames :: Map Referent (Set Name)
+    allRootNames =
+      Map.unionsWith (<>)
+        [ Relation.domain (deepTerms root)
+        , Map.mapKeysWith (<>) Referent.fromReference $ Relation.domain (deepTypes root)
+        ]
+
+    allBranchReferents :: Set Referent
+    allBranchReferents = Relation.dom (deepTerms branch)
+    allBranchReferences :: Set Reference.Id
+    allBranchReferences = Set.mapMaybe Reference.toId $
+         Relation.dom (deepTypes branch)
+      <> Set.map Referent.toReference allBranchReferents
+      -- TODO:
+      -- <> _termMetadata
+      -- <> _typeMetadata
+
+-- Plan:
+--   As a compromise, we'll find all types depended on by terms, then ensure that the type and
+--   all of its constructors are named in the current namespace.
+--  For all dependencies of all terms and types
+--    - Check whether the reference is in the namespace somewhere, if it's not, add it to the
+--      output
+--    - Call Codebase.termsOfTypeImpl to get the set of all Referents of that type, then filter
+--        for only referents with constructors
+--        (things which aren't references to decls won't have any results, and that's fine)
+--    - search
 
 
     -- eval $ GetDependents (Referent)

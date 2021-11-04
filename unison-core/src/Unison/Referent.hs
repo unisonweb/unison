@@ -12,6 +12,7 @@ module Unison.Referent
     fold,
     toReference,
     fromReference,
+    fromId,
     fromText,
 
     -- * ShortHash helpers
@@ -34,6 +35,7 @@ import qualified Unison.Reference as R
 import Unison.Referent' (Referent' (..), toReference')
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Reference as Reference
 
 -- | Specifies a term.
 --
@@ -96,6 +98,9 @@ toReference = toReference'
 -- | Inject a Reference into a Referent
 fromReference :: Reference -> Referent
 fromReference r = Ref r
+
+fromId :: Reference.Id -> Referent
+fromId = fromReference . Reference.fromId
 
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
