@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module U.Codebase.Referent where
 
@@ -23,12 +24,12 @@ type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 data Referent' termRef typeRef
   = Ref termRef
   | Con typeRef ConstructorId
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
-_Ref = _Ctor @"Ref" 
+_Ref = _Ctor @"Ref"
 _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
-_Con = _Ctor @"Con" 
+_Con = _Ctor @"Con"
 
 type Id = Id' Hash Hash
 data Id' hTm hTp
