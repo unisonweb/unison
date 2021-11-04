@@ -1,14 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ApplicativeDo       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE PatternSynonyms     #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Editor.HandleInput
   ( loop
@@ -151,6 +141,8 @@ import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo(..))
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import Data.Either.Extra (eitherToMaybe)
 
 type F m i v = Free (Command m i v)
 
@@ -242,8 +234,9 @@ loop = do
       getHQ'Types :: Path.HQSplit' -> Set Reference
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
 
+      basicPrettyPrintNames :: Names
       basicPrettyPrintNames =
-        Backend.basicPrettyPrintNames root' (Path.unabsolute currentPath')
+        Backend.basicPrettyPrintNames root' (Backend.AllNames $ Path.unabsolute currentPath')
 
       resolveHHQS'Types :: HashOrHQSplit' -> Action' m v (Set Reference)
       resolveHHQS'Types = either
@@ -274,7 +267,7 @@ loop = do
             L.Hash sh -> Just (HQ.HashOnly sh)
             _         -> Nothing
           hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
-        let parseNames = Backend.getCurrentParseNames currentPath'' root'
+        let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
         latestFile .= Just (Text.unpack sourceName, False)
         latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
@@ -409,6 +402,7 @@ loop = do
           PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
           UndoI{} -> "undo"
           UiI -> "ui"
+          DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
           ExecuteI s args -> Text.unwords $ map Text.pack (["execute", s] ++ args)
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
@@ -530,7 +524,7 @@ loop = do
         addDefaultMetadata adds =
           when (not (SC.isEmpty adds)) do
             let addedVs = Set.toList $ SC.types adds <> SC.terms adds
-                addedNs = traverse (Path.hqSplitFromName' . Name.fromVar) addedVs
+                addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
             case addedNs of
               Nothing ->
                 error $ "I couldn't parse a name I just added to the codebase! "
@@ -637,34 +631,6 @@ loop = do
                 respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
             else handleFailedDelete failed failedDependents
 
-        displayI outputLoc hq = do
-          uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
-          case uf of
-            Nothing -> do
-              let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) basicPrettyPrintNames
-                  results = NamesWithHistory.lookupHQTerm hq parseNames
-              if Set.null results then
-                respond $ SearchTermsNotFound [hq]
-              else if Set.size results > 1 then
-                respond $ TermAmbiguous hq results
-              -- ... but use the unsuffixed names for display
-              else do
-                let tm = Term.fromReferent External $ Set.findMin results
-                pped <- prettyPrintEnvDecl parseNames
-                tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
-                case tm of
-                  Left e -> respond (EvaluationFailure e)
-                  Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
-            Just (toDisplay, unisonFile) -> do
-              ppe <- executePPE unisonFile
-              unlessError' EvaluationFailure do
-                evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
-                case Command.lookupEvalResult toDisplay evalResult of
-                  Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
-                  Just tm -> lift do
-                    ns <- displayNames unisonFile
-                    doDisplay outputLoc ns tm
-
       in case input of
 
       CreateMessage pretty ->
@@ -672,8 +638,7 @@ loop = do
 
       ShowReflogI -> do
         entries <- convertEntries Nothing [] <$> eval LoadReflog
-        numberedArgs .=
-          fmap (('#':) . SBH.toString . Output.hash) entries
+        numberedArgs .= fmap (('#':) . SBH.toString . Output.hash) entries
         respond $ ShowReflog entries
         where
         -- reverses & formats entries, adds synthetic entries when there is a
@@ -756,8 +721,13 @@ loop = do
               resolveToAbsolute <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        (ppe, outputDiff) <- diffHelper before after
-        respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
+        case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
+          (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
+          (True, False) -> respond . NamespaceEmpty $ Left beforep
+          (False, True) -> respond . NamespaceEmpty $ Left afterp
+          _ -> do
+            (ppe, outputDiff) <- diffHelper before after
+            respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
       CreatePullRequestI baseRepo headRepo -> unlessGitError do
         (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
@@ -870,11 +840,21 @@ loop = do
                 . uncurry (ShowDiffAfterDeleteBranch
                             $ resolveToAbsolute (Path.unsplit' p))
           else handleFailedDelete failed failedDependents
-      SwitchBranchI path' -> do
-        let path = resolveToAbsolute path'
-        currentPathStack %= Nel.cons path
-        branch' <- getAt path
-        when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+      SwitchBranchI maybePath' -> do
+        mpath' <- case maybePath' of
+          Nothing -> fuzzySelectNamespace root0 <&> \case
+                         [] -> Nothing
+                         -- Shouldn't be possible to get multiple paths here, we can just take
+                         -- the first.
+                         (p:_) -> Just p
+          Just p -> pure $ Just p
+        case mpath' of
+          Nothing -> pure ()
+          Just path' -> do
+            let path = resolveToAbsolute path'
+            currentPathStack %= Nel.cons path
+            branch' <- getAt path
+            when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       UpI -> use currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
         Nothing -> pure ()
@@ -900,9 +880,9 @@ loop = do
             else case Branch._history b of
               Causal.One{} ->
                 respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
-              Causal.Merge{..} ->
+              Causal.Merge{Causal.tails} ->
                 respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
-              Causal.Cons{..} -> do
+              Causal.Cons{Causal.tail} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
                 let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
@@ -919,6 +899,10 @@ loop = do
               respondNumbered . uncurry Output.ShowDiffAfterUndo
 
       UiI -> eval UI
+
+      DocsToHtmlI namespacePath' sourceDirectory -> do
+        let absPath = Path.unabsolute $ resolveToAbsolute namespacePath'
+        eval (DocsToHtml root' absPath sourceDirectory)
 
       AliasTermI src dest -> do
         referents <- resolveHHQS'Referents src
@@ -1043,60 +1027,19 @@ loop = do
       -- > links List.map -- give me all the
       -- > links Optional License
       LinksI src mdTypeStr -> unlessError do
-        (ppe, out) <- getLinks input src (Right mdTypeStr)
+        (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
         lift do
           numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
-      DocsI src -> fileByName where
-        {- Given `docs foo`, we look for docs in 3 places, in this order:
-           (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
-           (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
-           (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
-        -}
-        hq :: HQ.HashQualified Name
-        hq = let
-          hq' :: HQ'.HashQualified Name
-          hq' = Name.convert @Path.Path' @Name <$> Name.convert src
-          in Name.convert hq'
-
-        dotDoc :: HQ.HashQualified Name
-        dotDoc = hq <&> \n -> Name.joinDot n "doc"
-
-        fileByName = do
-          ns <- maybe mempty UF.typecheckedToNames <$> use latestTypecheckedFile
-          fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
-          case NamesWithHistory.lookupHQTerm dotDoc fnames of
-            s | Set.size s == 1 -> do
-              -- the displayI command expects full term names, so we resolve
-              -- the hash back to its full name in the file
-              fname' <- pure $ NamesWithHistory.longestTermName 10 (Set.findMin s) fnames
-              displayI ConsoleLocation fname'
-            _ -> codebaseByMetadata
-
-        codebaseByMetadata = unlessError do
-          (ppe, out) <- getLinks input src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
-          lift case out of
-            [] -> codebaseByName
-            [(_name, ref, _tm)] -> do
-              len <- eval BranchHashLength
-              let names = NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty
-              let tm = Term.ref External ref
-              tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
-              case tm of
-                Left e -> respond (EvaluationFailure e)
-                Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
-            out -> do
-              numberedArgs .= fmap (HQ.toString . view _1) out
-              respond $ ListOfLinks ppe out
-
-        codebaseByName = do
-          parseNames <- basicParseNames
-          case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
-            s | Set.size s == 1 -> displayI ConsoleLocation dotDoc
-              | Set.size s == 0 -> respond $ ListOfLinks mempty []
-              | otherwise       -> -- todo: return a list of links here too
-                respond $ ListOfLinks mempty []
+      DocsI srcs -> do
+        srcs' <- case srcs of
+          [] -> fuzzySelectTermsAndTypes root0
+                  -- HQ names should always parse as a valid split, so we just discard any
+                  -- that don't to satisfy the type-checker.
+                  <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
+          xs -> pure xs
+        for_ srcs' (docsI (show input) basicPrettyPrintNames )
 
       CreateAuthorI authorNameSegment authorFullName -> do
         initialBranch <- getAt currentPath'
@@ -1159,30 +1102,13 @@ loop = do
       DeleteTypeI hq -> delete (const Set.empty) getHQ'Types       hq
       DeleteTermI hq -> delete getHQ'Terms       (const Set.empty) hq
 
-      DisplayI outputLoc hq -> displayI outputLoc hq
+      DisplayI outputLoc names' -> do
+        names <- case names' of
+          [] -> fuzzySelectTermsAndTypes root0
+          ns -> pure ns
+        traverse_ (displayI basicPrettyPrintNames outputLoc) names
 
-      ShowDefinitionI outputLoc query -> do
-        res <- eval $ GetDefinitionsBySuffixes (Just currentPath'') root' query
-        case res of
-          Left e -> handleBackendError e
-          Right (Backend.DefinitionResults terms types misses) -> do
-            let loc = case outputLoc of
-                  ConsoleLocation    -> Nothing
-                  FileLocation path  -> Just path
-                  LatestFileLocation ->
-                    fmap fst latestFile' <|> Just "scratch.u"
-                printNames =
-                  Backend.getCurrentPrettyNames currentPath'' root'
-                ppe = PPE.fromNamesDecl hqLength printNames
-            unless (null types && null terms) $
-              eval . Notify $
-                DisplayDefinitions loc ppe types terms
-            unless (null misses) $
-              eval . Notify $ SearchTermsNotFound misses
-            -- We set latestFile to be programmatically generated, if we
-            -- are viewing these definitions to a file - this will skip the
-            -- next update for that file (which will happen immediately)
-            latestFile .= ((, True) <$> loc)
+      ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
       FindPatchI -> do
         let patches =
               [ Path.toName $ Path.snoc p seg
@@ -1196,7 +1122,7 @@ loop = do
             ppe = Backend.basicSuffixifiedNames
                            sbhLength
                            root'
-                           (Path.fromPath' pathArg)
+                           (Backend.AllNames $ Path.fromPath' pathArg)
         res <- eval $ FindShallow pathArgAbs
         case res of
           Left e -> handleBackendError e
@@ -1228,7 +1154,7 @@ loop = do
 
             -- type query
             ":" : ws ->
-              ExceptT (parseSearchType input (unwords ws)) >>= \typ ->
+              ExceptT (parseSearchType (show input) (unwords ws)) >>= \typ ->
                 ExceptT $ do
                   let named = Branch.deepReferents root0
                   matches <-
@@ -1427,7 +1353,7 @@ loop = do
                   _ -> error $ "Expected unique matches for "
                                   ++ Var.nameStr v ++ " but got: "
                                   ++ show otherwise
-                  where n = Name.fromVar v
+                  where n = Name.unsafeFromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
                 hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
@@ -1439,7 +1365,7 @@ loop = do
                   _ -> error $ "Expected unique matches for "
                                  ++ Var.nameStr v ++ " but got: "
                                  ++ show otherwise
-                  where n = Name.fromVar v
+                  where n = Name.unsafeFromVar v
               termDeprecations :: [(Name, Referent)]
               termDeprecations =
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
@@ -1775,9 +1701,9 @@ loop = do
         Nothing -> respond NoUnisonFile
         Just uf -> let
           datas, effects, terms :: [(Name, Reference.Id)]
-          datas = [ (Name.fromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
-          effects = [ (Name.fromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
-          terms = [ (Name.fromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
+          datas = [ (Name.unsafeFromVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf ]
+          effects = [ (Name.unsafeFromVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf ]
+          terms = [ (Name.unsafeFromVar v, r) | (v, (r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf ]
           in eval . Notify $ DumpUnisonFileHashes hqLength datas effects terms
       DebugDumpNamespacesI -> do
         let seen h = State.gets (Set.member h)
@@ -1884,6 +1810,63 @@ loop = do
     Right input -> lastInput .= Just input
     _ -> pure ()
 
+-- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
+handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition outputLoc inputQuery = do
+  -- If the query is empty, run a fuzzy search.
+  query <-
+    if null inputQuery
+      then do
+        branch <- fuzzyBranch
+        fuzzySelectTermsAndTypes branch
+      else pure inputQuery
+  currentPath' <- Path.unabsolute <$> use currentPath
+  root' <- use root
+  hqLength <- eval CodebaseHashLength
+  Backend.DefinitionResults terms types misses <-
+    eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
+  outputPath <- getOutputPath
+  when (not (null types && null terms)) do
+    let printNames = Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root'
+    let ppe = PPE.fromNamesDecl hqLength printNames
+    respond (DisplayDefinitions outputPath ppe types terms)
+  when (not (null misses)) (respond (SearchTermsNotFound misses))
+  -- We set latestFile to be programmatically generated, if we
+  -- are viewing these definitions to a file - this will skip the
+  -- next update for that file (which will happen immediately)
+  latestFile .= ((,True) <$> outputPath)
+  where
+    -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
+    fuzzyBranch :: Action' m v (Branch0 m)
+    fuzzyBranch =
+      case outputLoc of
+        ConsoleLocation {} -> Branch.head <$> use root
+        -- fuzzy finding for 'edit's are local to the current branch
+        LatestFileLocation {} -> currentBranch0
+        FileLocation {} -> currentBranch0
+      where
+        currentBranch0 = do
+          currentPath' <- use currentPath
+          currentBranch <- getAt currentPath'
+          pure (Branch.head currentBranch)
+    -- `view`: don't include cycles; `edit`: include cycles
+    includeCycles =
+      case outputLoc of
+        ConsoleLocation -> Backend.DontIncludeCycles
+        FileLocation _ -> Backend.IncludeCycles
+        LatestFileLocation -> Backend.IncludeCycles
+
+    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
+    getOutputPath :: Action' m v (Maybe FilePath)
+    getOutputPath =
+      case outputLoc of
+        ConsoleLocation -> pure Nothing
+        FileLocation path -> pure (Just path)
+        LatestFileLocation ->
+          use latestFile <&> \case
+            Nothing -> Just "scratch.u"
+            Just (path, _) -> Just path
+
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
 resolveHQToLabeledDependencies = \case
@@ -1931,7 +1914,7 @@ doDisplay outputLoc names tm = do
   respond $ DisplayRendered loc rendered
 
 getLinks :: (Var v, Monad m)
-         => Input
+         => SrcLoc
          -> Path.HQSplit'
          -> Either (Set Reference) (Maybe String)
          -> ExceptT (Output v)
@@ -1939,12 +1922,12 @@ getLinks :: (Var v, Monad m)
                     (PPE.PrettyPrintEnv,
                        --  e.g. ("Foo.doc", #foodoc, Just (#builtin.Doc)
                        [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))])
-getLinks input src mdTypeStr = ExceptT $ do
+getLinks srcLoc src mdTypeStr = ExceptT $ do
   let go = fmap Right . getLinks' src
   case mdTypeStr of
     Left s -> go (Just s)
     Right Nothing -> go Nothing
-    Right (Just mdTypeStr) -> parseType input mdTypeStr >>= \case
+    Right (Just mdTypeStr) -> parseType srcLoc mdTypeStr >>= \case
       Left e -> pure $ Left e
       Right typ -> go . Just . Set.singleton $ Hashing.typeToReference typ
 
@@ -2281,7 +2264,7 @@ getMetadataFromName name = do
     getPPE = do
       currentPath' <- use currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Path.unabsolute currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
@@ -2465,7 +2448,7 @@ applySelection
   -> SlurpResult v
   -> SlurpResult v
 applySelection [] _ = id
-applySelection hqs file = \sr@SlurpResult{..} ->
+applySelection hqs file = \sr@SlurpResult{adds, updates} ->
   sr { adds = adds `SC.intersection` closed
      , updates = updates `SC.intersection` closed
      , extraDefinitions = closed `SC.difference` selection
@@ -2624,11 +2607,102 @@ toSlurpResult currentPath uf existingNames =
     addTypes existingNames = R.filter go where
       go (n, _) = (not . R.memberDom n) existingNames
 
+displayI :: (Monad m, Var v) => Names
+          -> OutputLocation
+          -> HQ.HashQualified Name
+          -> Action m (Either Event Input) v ()
+displayI prettyPrintNames outputLoc hq = do
+  uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
+  case uf of
+    Nothing -> do
+      let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
+          results = NamesWithHistory.lookupHQTerm hq parseNames
+      if Set.null results then
+        respond $ SearchTermsNotFound [hq]
+      else if Set.size results > 1 then
+        respond $ TermAmbiguous hq results
+      -- ... but use the unsuffixed names for display
+      else do
+        let tm = Term.fromReferent External $ Set.findMin results
+        pped <- prettyPrintEnvDecl parseNames
+        tm <- eval $ Evaluate1 (PPE.suffixifiedPPE pped) True tm
+        case tm of
+          Left e -> respond (EvaluationFailure e)
+          Right tm -> doDisplay outputLoc parseNames (Term.unannotate tm)
+    Just (toDisplay, unisonFile) -> do
+      ppe <- executePPE unisonFile
+      unlessError' EvaluationFailure do
+        evalResult <- ExceptT . eval . Evaluate ppe $ unisonFile
+        case Command.lookupEvalResult toDisplay evalResult of
+          Nothing -> error $ "Evaluation dropped a watch expression: " <> HQ.toString hq
+          Just tm -> lift do
+            ns <- displayNames unisonFile
+            doDisplay outputLoc ns tm
+
+
+docsI ::
+  (Ord v, Monad m, Var v) =>
+  SrcLoc ->
+  Names ->
+  Path.HQSplit' ->
+  Action m (Either Event Input) v ()
+docsI srcLoc prettyPrintNames src = do
+    fileByName where
+    {- Given `docs foo`, we look for docs in 3 places, in this order:
+       (fileByName) First check the file for `foo.doc`, and if found do `display foo.doc`
+       (codebaseByMetadata) Next check for doc metadata linked to `foo` in the codebase
+       (codebaseByName) Lastly check for `foo.doc` in the codebase and if found do `display foo.doc`
+    -}
+    hq :: HQ.HashQualified Name
+    hq = let
+      hq' :: HQ'.HashQualified Name
+      hq' = Name.convert @Path.Path' @Name <$> Name.convert src
+      in Name.convert hq'
+
+    dotDoc :: HQ.HashQualified Name
+    dotDoc = hq <&> \n -> Name.joinDot n "doc"
+
+    fileByName = do
+      ns <- maybe mempty UF.typecheckedToNames <$> use latestTypecheckedFile
+      fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
+      case NamesWithHistory.lookupHQTerm dotDoc fnames of
+        s | Set.size s == 1 -> do
+          -- the displayI command expects full term names, so we resolve
+          -- the hash back to its full name in the file
+          fname' <- pure $ NamesWithHistory.longestTermName 10 (Set.findMin s) fnames
+          displayI prettyPrintNames ConsoleLocation fname'
+        _ -> codebaseByMetadata
+
+    codebaseByMetadata = unlessError do
+      (ppe, out) <- getLinks srcLoc src (Left $ Set.fromList [DD.docRef, DD.doc2Ref])
+      lift case out of
+        [] -> codebaseByName
+        [(_name, ref, _tm)] -> do
+          len <- eval BranchHashLength
+          let names = NamesWithHistory.NamesWithHistory prettyPrintNames mempty
+          let tm = Term.ref External ref
+          tm <- eval $ Evaluate1 (PPE.fromNames len names) True tm
+          case tm of
+            Left e -> respond (EvaluationFailure e)
+            Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
+        out -> do
+          numberedArgs .= fmap (HQ.toString . view _1) out
+          respond $ ListOfLinks ppe out
+
+    codebaseByName = do
+      parseNames <- basicParseNames
+      case NamesWithHistory.lookupHQTerm dotDoc (NamesWithHistory.NamesWithHistory parseNames mempty) of
+        s | Set.size s == 1 -> displayI prettyPrintNames ConsoleLocation dotDoc
+          | Set.size s == 0 -> respond $ ListOfLinks mempty []
+          | otherwise       -> -- todo: return a list of links here too
+            respond $ ListOfLinks mempty []
+
+
 filterBySlurpResult :: Ord v
            => SlurpResult v
            -> UF.TypecheckedUnisonFile v Ann
            -> UF.TypecheckedUnisonFile v Ann
-filterBySlurpResult SlurpResult{..}
+filterBySlurpResult SlurpResult{adds, updates}
                     (UF.TypecheckedUnisonFileId
                       dataDeclarations'
                       effectDeclarations'
@@ -2664,17 +2738,17 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
     if Set.member v tests then Metadata.singleton isTestType isTestValue
     else Metadata.empty
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-  doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
+  doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
-    [r] -> case Path.splitFromName (Name.fromVar v) of
+    [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split r (md v)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-  doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
+  doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
     [] -> errorMissingVar v
-    [r] -> case Path.splitFromName (Name.fromVar v) of
+    [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r Metadata.empty
     wha -> error $ "Unison bug, typechecked file w/ multiple types named "
@@ -2779,14 +2853,16 @@ fqnPPE :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnv
 fqnPPE ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: (Monad m, Var v)
-  => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
-parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
+  => SrcLoc -> String -> Action' m v (Either (Output v) (Type v Ann))
+parseSearchType srcLoc typ = fmap Type.removeAllEffectVars <$> parseType srcLoc typ
 
+-- | A description of where the given parse was triggered from, for error messaging purposes.
+type SrcLoc = String
 parseType :: (Monad m, Var v)
-  => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
+  => SrcLoc -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseType input src = do
   -- `show Input` is the name of the "file" being lexed
-  (names0, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  (names0, lexed) <- lexedSource (Text.pack input) (Text.pack src)
   parseNames <- basicParseNames
   let names = NamesWithHistory.push (NamesWithHistory.currentNames names0)
                           (NamesWithHistory.NamesWithHistory parseNames (NamesWithHistory.oldNames names0))
@@ -2881,7 +2957,7 @@ basicNames' :: Functor m => Action' m v (Names, Names)
 basicNames' = do
   root' <- use root
   currentPath' <- use currentPath
-  pure $ Backend.basicNames' root' (Path.unabsolute currentPath')
+  pure $ Backend.basicNames' root' (Backend.AllNames $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
   = NoTermWithThatName
@@ -3009,3 +3085,21 @@ declOrBuiltin r = case r of
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
 
+fuzzySelectTermsAndTypes :: Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectTermsAndTypes searchBranch0 = do
+  let termsAndTypes =
+        Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
+          <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
+  fromMaybe [] <$> eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+
+fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace searchBranch0 =
+  do
+    fmap Path.toPath'
+    . fromMaybe []
+    <$> eval
+      ( FuzzySelect
+          Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+          Path.toText
+          (Set.toList $ Branch.deepPaths searchBranch0)
+      )

@@ -123,20 +123,18 @@ instance ToJSON NamedNamespace where
 deriving instance ToSchema NamedNamespace
 
 newtype NamedPatch = NamedPatch { patchName :: HashQualifiedName }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON NamedPatch where
    toEncoding = genericToEncoding defaultOptions
 
-deriving instance ToSchema NamedPatch
-
 newtype KindExpression = KindExpression {kindExpressionText :: Text}
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON KindExpression where
    toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema KindExpression
 
 backendListEntryToNamespaceObject
   :: Var v
@@ -219,7 +217,7 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
       let listingBranch = Branch.getAt' path root
       hashLength <- liftIO $ Codebase.hashLength codebase
 
-      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ Path.fromPath' path'
+      let shallowPPE = Backend.basicSuffixifiedNames hashLength root $ (Backend.Within $ Path.fromPath' path')
       let listingFQN = Path.toText . Path.unabsolute . either id (Path.Absolute . Path.unrelative) $ Path.unPath' path'
       let listingHash = branchToUnisonHash listingBranch
       listingEntries <- findShallow listingBranch

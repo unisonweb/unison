@@ -184,7 +184,7 @@ run dir configFile stanzas codebase = do
             curPath <- readIORef pathRef
             if curPath /= path then do
               atomically $ Q.undequeue cmdQueue (Just p)
-              pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
+              pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
             else case words . Text.unpack $ lineTxt of
               [] -> awaitInput
               args -> do
@@ -289,7 +289,7 @@ run dir configFile stanzas codebase = do
           "\128721", "",
           "The transcript failed due to an error in the stanza above. The error is:", "",
           Text.pack msg, "",
-          "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+          "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -302,7 +302,7 @@ run dir configFile stanzas codebase = do
           transcriptFailure out $ Text.unlines [
             "\128721", "",
             "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
-            "Run `" <> Text.pack executable <> " -codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
         writeIORef pathRef (view HandleInput.currentPath state)

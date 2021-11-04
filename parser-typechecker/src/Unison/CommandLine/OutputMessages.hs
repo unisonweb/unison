@@ -257,8 +257,8 @@ prettyRemoteNamespace =
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
   Success         -> pure $ P.bold "Done."
-  PrintMessage pretty -> do 
-    pure pretty 
+  PrintMessage pretty -> do
+    pure pretty
   BadRootBranch e -> case e of
     Codebase.NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"
@@ -278,6 +278,22 @@ notifyUser dir o = case o of
     pure . P.fatalCallout . P.wrap $ "I have reason to believe that"
       <> P.shown h <> "exists in the codebase, but there was a failure"
       <> "when I tried to load it."
+  NamespaceEmpty p ->
+    case p of
+      Right (p0, p1) ->
+        pure
+          . P.warnCallout
+          $ "The namespaces "
+          <> P.string (show p0)
+          <> " and "
+          <> P.string (show p1)
+          <> " are empty. Was there a typo?"
+      Left p0 ->
+        pure
+          . P.warnCallout
+          $ "The namespace "
+          <> P.string (show p0)
+          <> " is empty. Was there a typo?"
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"
@@ -337,15 +353,6 @@ notifyUser dir o = case o of
     displayDefinitions outputLoc ppe types terms
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
-  DisplayLinks ppe md types terms ->
-    if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
-      <> IP.makeExample' IP.link <> " command to add links from this definition."
-    else
-      pure $ intercalateMap "\n\n" go (Map.toList md)
-      where
-      go (_key, rs) =
-        displayDefinitions' ppe (Map.restrictKeys types rs)
-                                (Map.restrictKeys terms rs)
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> pure $
@@ -733,6 +740,10 @@ notifyUser dir o = case o of
         $ "I just finished importing the branch" <> P.red (P.shown h)
         <> "from" <> P.red (prettyRemoteNamespace ns)
         <> "but now I can't find it."
+      CouldntFindRemoteBranch repo path -> P.wrap
+        $ "I couldn't find the remote branch at"
+        <> P.shown path
+        <> "in the repository at" <> prettyReadRepo repo
       NoRemoteNamespaceWithHash repo sbh -> P.wrap
         $ "The repository at" <> prettyReadRepo repo
         <> "doesn't contain a namespace with the hash prefix"
@@ -1184,43 +1195,88 @@ displayRendered outputLoc pp =
         P.indentN 2 pp
       ]
 
-displayDefinitions :: Var v => Ord a1 =>
-  Maybe FilePath
-  -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
-  -> IO Pretty
-displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
-  pure $ P.callout "😶" "No results to display."
+displayDefinitions ::
+  Var v =>
+  Ord a1 =>
+  Maybe FilePath ->
+  PPE.PrettyPrintEnvDecl ->
+  Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
+  Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
+  IO Pretty
+displayDefinitions _outputLoc _ppe types terms
+  | Map.null types && Map.null terms =
+    pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
-  displayOnly = pure code
-  scratchAndDisplay path = do
-    path' <- canonicalizePath path
-    prependToFile code path'
-    pure (message code path')
-    where
-    prependToFile code path = do
-      existingContents <- do
-        exists <- doesFileExist path
-        if exists then readFile path
-        else pure ""
-      writeFile path . Text.pack . P.toPlain 80 $
-        P.lines [ code, ""
-                , "---- " <> "Anything below this line is ignored by Unison."
-                , "", P.text existingContents ]
-    message code path =
-      P.callout "☝️" $ P.lines [
-        P.wrap $ "I added these definitions to the top of " <> fromString path,
-        "",
-        P.indentN 2 code,
-        "",
-        P.wrap $
-          "You can edit them there, then do" <> makeExample' IP.update <>
-          "to replace the definitions currently in this namespace."
-      ]
-  code = displayDefinitions' ppe types terms
+    displayOnly = pure code
+    scratchAndDisplay path = do
+      path' <- canonicalizePath path
+      prependToFile code path'
+      pure (message code path')
+      where
+        prependToFile code path = do
+          existingContents <- do
+            exists <- doesFileExist path
+            if exists
+              then readFile path
+              else pure ""
+          writeFile path . Text.pack . P.toPlain 80 $
+            P.lines
+              [ code,
+                "",
+                "---- " <> "Anything below this line is ignored by Unison.",
+                "",
+                P.text existingContents
+              ]
+        message code path =
+          P.callout "☝️" $
+            P.lines
+              [ P.wrap $ "I added these definitions to the top of " <> fromString path,
+                "",
+                P.indentN 2 code,
+                "",
+                P.wrap $
+                  "You can edit them there, then do" <> makeExample' IP.update
+                    <> "to replace the definitions currently in this namespace."
+              ]
+    code =
+      P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
+      where
+        ppeBody r = PPE.declarationPPE ppe r
+        ppeDecl = PPE.unsuffixifiedPPE ppe
+        prettyTerms =
+          map go . Map.toList $
+            -- sort by name
+            Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
+        prettyTypes =
+          map go2 . Map.toList $
+            Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
+        go ((n, r), dt) =
+          case dt of
+            MissingObject r -> missing n r
+            BuiltinObject typ ->
+              P.hang
+                ("builtin " <> prettyHashQualified n <> " :")
+                (TypePrinter.prettySyntax (ppeBody r) typ)
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+        go2 ((n, r), dt) =
+          case dt of
+            MissingObject r -> missing n r
+            BuiltinObject _ -> builtin n
+            UserObject decl -> case decl of
+              Left d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+              Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe r) r n d
+        builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
+        missing n r =
+          P.wrap
+            ( "-- The name " <> prettyHashQualified n <> " is assigned to the "
+                <> "reference "
+                <> fromString (show r ++ ",")
+                <> "which is missing from the codebase."
+            )
+            <> P.newline
+            <> tip "You might need to repair the codebase manually."
 
 displayTestResults :: Bool -- whether to show the tip
                    -> PPE.PrettyPrintEnv
@@ -1255,8 +1311,8 @@ displayTestResults showTip ppe oksUnsorted failsUnsorted = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
-  SR'.TermResult' name (Just typ) _r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  SR'.TermResult' name (Just typ) r _aliases ->
+    head (TypePrinter.prettySignatures' ppe [(r,name,typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1375,7 +1431,7 @@ todoOutput ppe todo =
   corruptTypes =
     [ (PPE.typeName ppeu r, r) | (r, MissingObject _) <- frontierTypes ]
   goodTerms ts =
-    [ (PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
+    [ (Referent.Ref r, PPE.termName ppeu (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if TO.noConflicts todo then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppeu (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]

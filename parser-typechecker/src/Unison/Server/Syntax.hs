@@ -12,6 +12,8 @@ module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
 import qualified Data.List as List
+import Data.List.Extra
+import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -33,7 +35,6 @@ import Unison.Util.AnnotatedText
     segment,
   )
 import qualified Unison.Util.SyntaxText as SyntaxText
-import Data.List.Extra
 
 type SyntaxText = AnnotatedText Element
 
@@ -53,7 +54,7 @@ deriving instance ToSchema SeqOp
 
 instance ToJSON SyntaxText
 
-deriving instance ToSchema SyntaxText
+deriving anyclass instance ToSchema SyntaxText
 
 instance ToSchema r => ToSchema (Seq r) where
   declareNamedSchema _ = declareNamedSchema (Proxy @[r])
@@ -67,8 +68,8 @@ convertElement = \case
   SyntaxText.BooleanLiteral -> BooleanLiteral
   SyntaxText.Blank -> Blank
   SyntaxText.Var -> Var
-  SyntaxText.Referent r -> TermReference $ Referent.toText r
-  SyntaxText.Reference r -> TypeReference $ Reference.toText r
+  SyntaxText.TermReference r -> TermReference $ Referent.toText r
+  SyntaxText.TypeReference r -> TypeReference $ Reference.toText r
   SyntaxText.Op s -> Op s
   SyntaxText.AbilityBraces -> AbilityBraces
   SyntaxText.ControlKeyword -> ControlKeyword
@@ -175,7 +176,7 @@ nameToHtml name =
   span_ [class_ "fqn"] $ sequence_ parts
   where
     segments =
-      map (segment . L.toHtml . NameSegment.toText) $ Name.segments name
+      map (segment . L.toHtml . NameSegment.toText) $ List.NonEmpty.toList $ Name.segments name
 
     segment =
       span_ [class_ "segment"]
@@ -195,19 +196,19 @@ segmentToHtml (Segment segmentText element) =
       ref =
         case el of
           TypeReference h ->
-            Just h
+            Just (h, "type")
           TermReference h ->
-            Just h
+            Just (h, "term")
           AbilityConstructorReference h ->
-            Just h
+            Just (h, "ability-constructor")
           DataConstructorReference h ->
-            Just h
+            Just (h, "data-constructor")
           _ ->
             Nothing
 
       isFQN =
         let isFQN_ =
-              Text.isInfixOf "." sText
+              Text.isInfixOf "." sText && not (Text.isInfixOf "#" sText)
          in case el of
               TypeReference {} ->
                 isFQN_
@@ -230,8 +231,8 @@ segmentToHtml (Segment segmentText element) =
         | isFQN = nameToHtml (Name.unsafeFromText sText)
         | otherwise = L.toHtml sText
    in case ref of
-        Just r ->
-          span_ [class_ className, data_ "ref" r] content
+        Just (r, refType) ->
+          span_ [class_ className, data_ "ref" r, data_ "ref-type" refType] content
         _ ->
           span_ [class_ className] content
 

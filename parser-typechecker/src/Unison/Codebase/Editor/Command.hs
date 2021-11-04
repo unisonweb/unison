@@ -22,6 +22,7 @@ import Control.Lens (_5,view)
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
+                                                , IncludeCycles
                                                 )
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
@@ -63,6 +64,7 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
+import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -77,11 +79,22 @@ type TypecheckingResult v =
   Result (Seq (Note v Ann))
          (Either Names (UF.TypecheckedUnisonFile v Ann))
 
-data Command m i v a where
+data Command
+       m -- Command monad
+       i -- Input type
+       v -- Type of variables in the codebase
+       a -- Result of running the command
+         where
   -- Escape hatch.
   Eval :: m a -> Command m i v a
 
   UI :: Command m i v ()
+
+  DocsToHtml
+    :: Branch m -- Root branch
+    -> Path -- ^ namespace source
+    -> FilePath -- ^ file destination
+    -> Command m i v ()
 
   HQNameQuery
     :: Maybe Path
@@ -95,8 +108,9 @@ data Command m i v a where
   GetDefinitionsBySuffixes
     :: Maybe Path
     -> Branch m
+    -> IncludeCycles
     -> [HQ.HashQualified Name]
-    -> Command m i v (Either BackendError (DefinitionResults v))
+    -> Command m i v (DefinitionResults v)
 
   FindShallow
     :: Path.Absolute
@@ -240,6 +254,13 @@ data Command m i v a where
 
   MakeStandalone :: PPE.PrettyPrintEnv -> Reference -> String -> Command m i v (Maybe Runtime.Error)
 
+  -- | Trigger an interactive fuzzy search over the provided options and return all
+  -- selected results.
+  FuzzySelect :: Fuzzy.Options -- ^ Configure the selection.
+              -> (a -> Text) -- ^ Select the text to fuzzy find on
+              -> [a] -- ^ The elements to select from
+              -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
+
 type UseCache = Bool
 
 type EvalResult v =
@@ -254,6 +275,7 @@ commandName :: Command m i v a -> String
 commandName = \case
   Eval{}                      -> "Eval"
   UI                          -> "UI"
+  DocsToHtml{}                -> "DocsToHtml"
   ConfigLookup{}              -> "ConfigLookup"
   Input                       -> "Input"
   Notify{}                    -> "Notify"
@@ -302,3 +324,4 @@ commandName = \case
   FindShallow{}               -> "FindShallow"
   ClearWatchCache{}           -> "ClearWatchCache"
   MakeStandalone{}            -> "MakeStandalone"
+  FuzzySelect{}               -> "FuzzySelect"

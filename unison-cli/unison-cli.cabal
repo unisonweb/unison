@@ -21,6 +21,41 @@ flag optimized
   manual: True
   default: False
 
+executable integration-tests
+  main-is: Suite.hs
+  other-modules:
+      IntegrationTests.ArgumentParsing
+      Paths_unison_cli
+  hs-source-dirs:
+      integration-tests
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+  ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-depends:
+      base
+    , easytest
+    , process
+    , shellmet
+    , text
+    , time
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
+  default-language: Haskell2010
+
 executable transcripts
   main-is: Transcripts.hs
   other-modules:

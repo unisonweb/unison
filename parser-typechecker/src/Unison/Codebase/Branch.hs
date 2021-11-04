@@ -99,12 +99,11 @@ import           Unison.Codebase.Causal         ( Causal
 import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.NameSegment            as NameSegment
 import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name(..) )
+import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
@@ -203,46 +202,68 @@ children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
 -- creates a Branch0 from the primary fields and derives the others.
-branch0 :: Metadata.Star Referent NameSegment
-        -> Metadata.Star Reference NameSegment
-        -> Map NameSegment (Branch m)
-        -> Map NameSegment (EditHash, m Patch)
-        -> Branch0 m
+branch0 ::
+  forall m.
+  Metadata.Star Referent NameSegment ->
+  Metadata.Star Reference NameSegment ->
+  Map NameSegment (Branch m) ->
+  Map NameSegment (EditHash, m Patch) ->
+  Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits
-          deepTerms' deepTypes'
-          deepTermMetadata' deepTypeMetadata'
-          deepPaths' deepEdits'
+  Branch0
+    { _terms = terms,
+      _types = types,
+      _children = children,
+      _edits = edits,
+      deepTerms = deepTerms',
+      deepTypes = deepTypes',
+      deepTermMetadata = deepTermMetadata',
+      deepTypeMetadata = deepTypeMetadata',
+      deepPaths = deepPaths',
+      deepEdits = deepEdits'
+    }
   where
-  nameSegToName = Name.unsafeFromText . NameSegment.toText
-  deepTerms' = (R.mapRan nameSegToName . Star3.d1) terms
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSegToName -> n, b) =
-      R.mapRan (Name.joinDot n) (deepTerms $ head b) -- could use mapKeysMonotonic
-  deepTypes' = (R.mapRan nameSegToName . Star3.d1) types
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSegToName -> n, b) =
-      R.mapRan (Name.joinDot n) (deepTypes $ head b) -- could use mapKeysMonotonic
-  deepTermMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 terms)
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSegToName -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTermMetadata $ head b)
-  deepTypeMetadata' = R4.mapD2 nameSegToName (Metadata.starToR4 types)
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSegToName -> n, b) =
-      R4.mapD2 (Name.joinDot n) (deepTypeMetadata $ head b)
-  deepPaths' = Set.map Path.singleton (Map.keysSet children)
-    <> foldMap go (Map.toList children)
-    where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
-  deepEdits' = Map.mapKeys nameSegToName (Map.map fst edits)
-    <> foldMap go (Map.toList children)
-   where
-    go (nameSeg, b) =
-      Map.mapKeys (nameSegToName nameSeg `Name.joinDot`) . deepEdits $ head b
+    children' :: [(NameSegment, Branch m)]
+    children' =
+      Map.toList children
+    deepTerms' :: Relation Referent Name
+    deepTerms' =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 terms) <> foldMap go children'
+      where
+        go :: (NameSegment, Branch m) -> Relation Referent Name
+        go (n, b) =
+          R.mapRan (Name.cons n) (deepTerms $ head b)
+    deepTypes' :: Relation Reference Name
+    deepTypes' =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> foldMap go children'
+      where
+        go :: (NameSegment, Branch m) -> Relation Reference Name
+        go (n, b) =
+          R.mapRan (Name.cons n) (deepTypes $ head b)
+    deepTermMetadata' :: Metadata.R4 Referent Name
+    deepTermMetadata' =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> foldMap go children'
+      where
+        go (n, b) =
+          R4.mapD2 (Name.cons n) (deepTermMetadata $ head b)
+    deepTypeMetadata' :: Metadata.R4 Reference Name
+    deepTypeMetadata' =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> foldMap go children'
+      where
+        go (n, b) =
+          R4.mapD2 (Name.cons n) (deepTypeMetadata $ head b)
+    deepPaths' :: Set Path
+    deepPaths' =
+      Set.mapMonotonic Path.singleton (Map.keysSet children) <> foldMap go children'
+      where
+        go (n, b) =
+          Set.map (Path.cons n) (deepPaths $ head b)
+    deepEdits' :: Map Name EditHash
+    deepEdits' =
+      Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> foldMap go children'
+      where
+        go (n, b) =
+          Map.mapKeys (Name.cons n) (deepEdits $ head b)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -252,15 +273,15 @@ headHash (Branch c) = Causal.currentHash c
 
 -- | a version of `deepEdits` that returns the `m Patch` as well.
 deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
-deepEdits' b = go id b where
+deepEdits' = go id where
   -- can change this to an actual prefix once Name is a [NameSegment]
   go :: (Name -> Name) -> Branch0 m -> Map Name (EditHash, m Patch)
-  go addPrefix Branch0{..} =
-    Map.mapKeysMonotonic (addPrefix . Name.fromSegment) _edits
+  go addPrefix Branch0{_children, _edits} =
+    Map.mapKeys (addPrefix . Name.fromSegment) _edits
       <> foldMap f (Map.toList _children)
     where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
-    f (c, b) =  go (addPrefix . Name.joinDot (Name.fromSegment c)) (head b)
+    f (c, b) =  go (addPrefix . Name.cons c) (head b)
 
 -- Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m

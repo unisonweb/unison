@@ -105,9 +105,13 @@ unsafeFromText txt = fromMaybe msg . fromText $ txt where
   msg = error $ "HashQualified.unsafeFromText " <> show txt
 
 toText :: Show n => HashQualified n -> Text
-toText = \case
-  NameOnly name           -> Text.pack (show name)
-  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
+toText =
+  toTextWith (Text.pack . show)
+
+toTextWith :: (n -> Text) -> HashQualified n -> Text
+toTextWith f = \case
+  NameOnly name           -> f name
+  HashQualified name hash -> f name <> SH.toText hash
   HashOnly hash           -> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
@@ -137,7 +141,7 @@ fromVar :: Var v => v -> Maybe (HashQualified Name)
 fromVar = fromText . Var.name
 
 toVar :: Var v => HashQualified Name -> v
-toVar = Var.named . toText
+toVar = Var.named . toTextWith Name.toText
 
 -- todo: find this logic elsewhere and replace with call to this
 matchesNamedReferent :: Name -> Referent -> HashQualified Name -> Bool

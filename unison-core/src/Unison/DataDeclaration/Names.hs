@@ -31,10 +31,10 @@ toNames ct typeSymbol (Reference.DerivedId -> r) dd =
   -- constructor names
   foldMap names (DD.constructorVars dd `zip` [0 ..])
   -- name of the type itself
-  <> Names mempty (Rel.singleton (Name.fromVar typeSymbol) r)
+  <> Names mempty (Rel.singleton (Name.unsafeFromVar typeSymbol) r)
   where
   names (ctor, i) =
-    Names (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
+    Names (Rel.singleton (Name.unsafeFromVar ctor) (Referent.Con r i ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names
 dataDeclToNames = toNames CT.Data

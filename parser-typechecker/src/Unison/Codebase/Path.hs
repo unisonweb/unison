@@ -46,6 +46,7 @@ module Unison.Codebase.Path
     toName',
     toPath',
     toText,
+    toText',
     unsplit,
     unsplit',
     unsplitHQ,
@@ -72,6 +73,7 @@ import Control.Lens hiding (Empty, cons, snoc, unsnoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
+import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -227,7 +229,7 @@ uncons = Lens.uncons
 -- todo: fromName needs to be a little more complicated if we want to allow
 --       identifiers called Function.(.)
 fromName :: Name -> Path
-fromName = fromList . Name.segments
+fromName = fromList . List.NonEmpty.toList . Name.segments
 
 fromName' :: Name -> Path'
 fromName' n = case take 1 (Name.toString n) of
@@ -259,7 +261,7 @@ toText (Path nss) = intercalateMap "." NameSegment.toText nss
 fromText :: Text -> Path
 fromText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> Name.segments' t
+  t -> fromList $ NameSegment <$> NameSegment.segments' t
 
 toText' :: Path' -> Text
 toText' = \case

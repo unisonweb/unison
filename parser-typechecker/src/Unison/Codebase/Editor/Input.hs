@@ -63,8 +63,8 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- used in Welcome module to give directions to user 
     | CreateMessage (P.Pretty P.ColorText)  
-    -- change directory
-    | SwitchBranchI Path'
+    -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
+    | SwitchBranchI (Maybe Path')
     | UpI
     | PopBranchI
     -- > names foo
@@ -108,47 +108,51 @@ data Input
     | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
-  | UndoI
-  -- First `Maybe Int` is cap on number of results, if any
-  -- Second `Maybe Int` is cap on diff elements shown, if any
-  | HistoryI (Maybe Int) (Maybe Int) BranchId
-  -- execute an IO thunk with args
-  | ExecuteI String [String]
-  -- execute an IO [Result]
-  | IOTestI (HQ.HashQualified Name)
-  -- make a standalone binary file
-  | MakeStandaloneI String (HQ.HashQualified Name)
-  | TestI Bool Bool -- TestI showSuccesses showFailures
-  -- metadata
-  -- `link metadata definitions` (adds metadata to all of `definitions`)
-  | LinkI (HQ.HashQualified Name) [Path.HQSplit']
-  -- `unlink metadata definitions` (removes metadata from all of `definitions`)
-  | UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
-  -- links from <type>
-  | LinksI Path.HQSplit' (Maybe String)
-  | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | DisplayI OutputLocation (HQ.HashQualified Name)
-  | DocsI Path.HQSplit'
-  -- other
-  | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
-  | FindShallowI Path'
-  | FindPatchI
-  | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
-  | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
-  | ShowReflogI
-  | UpdateBuiltinsI
-  | MergeBuiltinsI
-  | MergeIOBuiltinsI
-  | ListDependenciesI (HQ.HashQualified Name)
-  | ListDependentsI (HQ.HashQualified Name)
-  | DebugNumberedArgsI
-  | DebugTypecheckedUnisonFileI
-  | DebugDumpNamespacesI
-  | DebugDumpNamespaceSimpleI
-  | DebugClearWatchI
-  | QuitI
-  | UiI
-  deriving (Eq, Show)
+    | UndoI
+    -- First `Maybe Int` is cap on number of results, if any
+    -- Second `Maybe Int` is cap on diff elements shown, if any
+    | HistoryI (Maybe Int) (Maybe Int) BranchId
+    -- execute an IO thunk with args
+    | ExecuteI String [String]
+    -- execute an IO [Result]
+    | IOTestI (HQ.HashQualified Name)
+    -- make a standalone binary file
+    | MakeStandaloneI String (HQ.HashQualified Name)
+    | TestI Bool Bool -- TestI showSuccesses showFailures
+    -- metadata
+    -- `link metadata definitions` (adds metadata to all of `definitions`)
+    | LinkI (HQ.HashQualified Name) [Path.HQSplit']
+    -- `unlink metadata definitions` (removes metadata from all of `definitions`)
+    | UnlinkI (HQ.HashQualified Name) [Path.HQSplit']
+    -- links from <type>
+    | LinksI Path.HQSplit' (Maybe String)
+    | CreateAuthorI NameSegment {- identifier -} Text {- name -}
+      -- Display provided definitions. If list is empty, prompt a fuzzy search.
+    | DisplayI OutputLocation [HQ.HashQualified Name]
+      -- Display docs for provided terms. If list is empty, prompt a fuzzy search.
+    | DocsI [Path.HQSplit']
+    -- other
+    | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
+    | FindShallowI Path'
+    | FindPatchI
+      -- Show provided definitions. If list is empty, prompt a fuzzy search.
+    | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
+    | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
+    | ShowReflogI
+    | UpdateBuiltinsI
+    | MergeBuiltinsI
+    | MergeIOBuiltinsI
+    | ListDependenciesI (HQ.HashQualified Name)
+    | ListDependentsI (HQ.HashQualified Name)
+    | DebugNumberedArgsI
+    | DebugTypecheckedUnisonFileI
+    | DebugDumpNamespacesI
+    | DebugDumpNamespaceSimpleI
+    | DebugClearWatchI
+    | QuitI
+    | UiI
+    | DocsToHtmlI Path' FilePath
+    deriving (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation

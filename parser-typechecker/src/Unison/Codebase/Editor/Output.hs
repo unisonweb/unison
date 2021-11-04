@@ -34,7 +34,6 @@ import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.HashQualified as HQ
@@ -184,9 +183,6 @@ data Output v
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String
-  | DisplayLinks PPE.PrettyPrintEnvDecl Metadata.Metadata
-               (Map Reference (DisplayObject () (Decl v Ann)))
-               (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
   | MetadataMissingType PPE.PrettyPrintEnv Referent
   | TermMissingType Reference
   | MetadataAmbiguous (HQ.HashQualified Name) PPE.PrettyPrintEnv [Referent]
@@ -214,6 +210,7 @@ data Output v
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
+  | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
   | NoOp
   deriving (Show)
 
@@ -306,7 +303,6 @@ isFailure o = case o of
   ConfiguredMetadataParseError{} -> True
   NoConfiguredGitUrl{} -> True
   ConfiguredGitUrlParseError{} -> True
-  DisplayLinks{} -> False
   MetadataMissingType{} -> True
   MetadataAmbiguous{} -> True
   PatchNeedsToBeConflictFree{} -> True
@@ -333,6 +329,7 @@ isFailure o = case o of
   ListDependents{} -> False
   TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
+  NamespaceEmpty _ -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

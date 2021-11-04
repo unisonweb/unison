@@ -67,6 +67,20 @@ executables:
     build-tools:
       - unison-cli:unison
 
+  integration-tests:
+    source-dirs: integration-tests
+    main: Suite.hs
+    ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+    dependencies:
+      - base
+      - easytest
+      - process
+      - shellmet
+      - text
+      - time
+      - unison-core1
+      - unison-parser-typechecker
+      - unison-prelude
 
 when:
   - condition: flag(optimized)
