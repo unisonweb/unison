@@ -315,23 +315,8 @@ Test that they can be run with the right number of args.
 .> run runMeWithTwoArgs foo bar
 ```
 
-For consistency with the command line interface, `--` can optionally appear at any point in the argument list.
-The first `--` gets filtered out and any remaining arguments passed in without any processing.
-
-```ucm
-.> run runMeWithNoArgs --
-.> run runMeWithOneArg foo --
-.> run runMeWithOneArg -- foo
-.> run runMeWithTwoArgs foo bar --
-.> run runMeWithTwoArgs foo -- bar
-.> run runMeWithTwoArgs -- foo bar
-```
-
 Calling our examples with the wrong number of args will error.
 
-```ucm:error
-.> run runMeWithNoArgs -- foo
-```
 ```ucm:error
 .> run runMeWithNoArgs foo
 ```
@@ -340,59 +325,9 @@ Calling our examples with the wrong number of args will error.
 .> run runMeWithOneArg
 ```
 ```ucm:error
-.> run runMeWithOneArg --
-```
-```ucm:error
-.> run runMeWithOneArg -- foo bar
+.> run runMeWithOneArg foo bar
 ```
 
 ```ucm:error
 .> run runMeWithTwoArgs
 ```
-```ucm:error
-.> run runMeWithTwoArgs --
-```
-```ucm:error
-.> run runMeWithTwoArgs -- foo
-```
-```ucm:error
-.> run runMeWithTwoArgs -- foo bar baz
-```
-
-Check that only the first `--` is filtered out:
-
-```unison:hide
-testGetArgs.rawSeparatorFirst : '{io2.IO, Exception} ()
-testGetArgs.rawSeparatorFirst = 'let
-  args = reraise !getArgs.impl
-  match args with
-    "--" +: _ -> printLine "first arg is --"
-    _ -> raise (fail "first arg is not --")
-
-testGetArgs.rawSeparatorSecond : '{io2.IO, Exception} ()
-testGetArgs.rawSeparatorSecond = 'let
-  args = reraise !getArgs.impl
-  match args with
-    _ +: ("--" +: _) -> printLine "second arg is --"
-    _ -> raise (fail "second arg is not --")
-```
-
-```ucm
-.> add
-.> run rawSeparatorFirst -- --
-.> run rawSeparatorFirst -- -- foo
-.> run rawSeparatorFirst -- -- --
-.> run rawSeparatorSecond -- foo --
-.> run rawSeparatorSecond foo -- --
-.> run rawSeparatorSecond -- -- --
-.> run rawSeparatorSecond -- foo -- bar
-.> run rawSeparatorSecond foo -- -- bar
-```
-
-```ucm:error
-.> run rawSeparatorFirst -- bar
-```
-```ucm:error
-.> run rawSeparatorSecond foo --
-```
-

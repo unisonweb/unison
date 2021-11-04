@@ -496,35 +496,8 @@ Test that they can be run with the right number of args.
 .> run runMeWithTwoArgs foo bar
 
 ```
-For consistency with the command line interface, `--` can optionally appear at any point in the argument list.
-The first `--` gets filtered out and any remaining arguments passed in without any processing.
-
-```ucm
-.> run runMeWithNoArgs --
-
-.> run runMeWithOneArg foo --
-
-.> run runMeWithOneArg -- foo
-
-.> run runMeWithTwoArgs foo bar --
-
-.> run runMeWithTwoArgs foo -- bar
-
-.> run runMeWithTwoArgs -- foo bar
-
-```
 Calling our examples with the wrong number of args will error.
 
-```ucm
-.> run runMeWithNoArgs -- foo
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "called with args" !Any
-
-```
 ```ucm
 .> run runMeWithNoArgs foo
 
@@ -546,17 +519,7 @@ Calling our examples with the wrong number of args will error.
 
 ```
 ```ucm
-.> run runMeWithOneArg --
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "called with no args" !Any
-
-```
-```ucm
-.> run runMeWithOneArg -- foo bar
+.> run runMeWithOneArg foo bar
 
   💔💥
   
@@ -574,99 +537,5 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure (typeLink IOFailure) "called with no args" !Any
-
-```
-```ucm
-.> run runMeWithTwoArgs --
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "called with no args" !Any
-
-```
-```ucm
-.> run runMeWithTwoArgs -- foo
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "called with one arg" !Any
-
-```
-```ucm
-.> run runMeWithTwoArgs -- foo bar baz
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure
-      (typeLink IOFailure) "called with too many args" !Any
-
-```
-Check that only the first `--` is filtered out:
-
-```unison
-testGetArgs.rawSeparatorFirst : '{io2.IO, Exception} ()
-testGetArgs.rawSeparatorFirst = 'let
-  args = reraise !getArgs.impl
-  match args with
-    "--" +: _ -> printLine "first arg is --"
-    _ -> raise (fail "first arg is not --")
-
-testGetArgs.rawSeparatorSecond : '{io2.IO, Exception} ()
-testGetArgs.rawSeparatorSecond = 'let
-  args = reraise !getArgs.impl
-  match args with
-    _ +: ("--" +: _) -> printLine "second arg is --"
-    _ -> raise (fail "second arg is not --")
-```
-
-```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    testGetArgs.rawSeparatorFirst  : '{IO, Exception} ()
-    testGetArgs.rawSeparatorSecond : '{IO, Exception} ()
-
-.> run rawSeparatorFirst -- --
-
-.> run rawSeparatorFirst -- -- foo
-
-.> run rawSeparatorFirst -- -- --
-
-.> run rawSeparatorSecond -- foo --
-
-.> run rawSeparatorSecond foo -- --
-
-.> run rawSeparatorSecond -- -- --
-
-.> run rawSeparatorSecond -- foo -- bar
-
-.> run rawSeparatorSecond foo -- -- bar
-
-```
-```ucm
-.> run rawSeparatorFirst -- bar
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "first arg is not --" !Any
-
-```
-```ucm
-.> run rawSeparatorSecond foo --
-
-  💔💥
-  
-  The program halted with an unhandled exception:
-  
-    Failure (typeLink IOFailure) "second arg is not --" !Any
 
 ```
