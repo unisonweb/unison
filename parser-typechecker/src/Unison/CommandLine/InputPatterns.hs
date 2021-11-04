@@ -987,6 +987,51 @@ push =
           Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
     )
 
+pushCreate :: InputPattern
+pushCreate =
+  InputPattern
+    "push.create"
+    []
+    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    ( P.lines
+        [ P.wrap
+            "The `push.create` command pushes a local namespace to an empty remote namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`push.create remote local`",
+                "pushes the contents of the local namespace `local`"
+                  <> "into the empty remote namespace `remote`."
+              ),
+              ( "`push remote`",
+                "publishes the current namespace into the empty remote namespace `remote`"
+              ),
+              ( "`push`",
+                "publishes the current namespace"
+                  <> "into the empty remote namespace configured in `.unisonConfig`"
+                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+              )
+            ],
+          "",
+          P.wrap "where `remote` is a git repository, optionally followed by `:`"
+            <> "and an absolute remote path, such as:",
+          P.indentN 2 . P.lines $
+            [ P.backticked "https://github.com/org/repo",
+              P.backticked "https://github.com/org/repo:.some.remote.path"
+            ]
+        ]
+    )
+    ( \case
+        [] ->
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+        url : rest -> do
+          (repo, path) <- parsePushPath "url" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+    )
+
 pushExhaustive :: InputPattern
 pushExhaustive =
   InputPattern
