@@ -301,10 +301,11 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
           <> oldPatchWithHashes ^.. patchSomeRefsO_ . uRefIdAsRefId_ . to someReferenceIdToEntity
   when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
 
-  let dehydrateHashesToHashId :: forall m. Q.DB m => Hash -> m HashId
-      dehydrateHashesToHashId = undefined
-  let dehydrateHashesToObjectId :: forall m. Q.DB m => Hash -> m ObjectId
-      dehydrateHashesToObjectId = undefined
+  let hashToHashId :: forall m. Q.EDB m => Hash -> m HashId
+      hashToHashId h =
+        fromMaybe (error $ "expected hashId for hash: " <> show h) <$> (Q.loadHashIdByHash (Cv.hash1to2 h))
+  let hashToObjectId :: forall m. Q.EDB m => Hash -> m ObjectId
+      hashToObjectId = hashToHashId >=> Q.expectObjectIdForPrimaryHashId
 
   migratedReferences <- gets referenceMapping
   let remapRef :: SomeReferenceId -> SomeReferenceId
@@ -315,9 +316,9 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
           & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
 
   newPatchWithIds :: S.Patch <-
-    lift $ do
-      (newPatch & S.patchH_ %%~ dehydrateHashesToHashId)
-        >>= (S.patchO_ %%~ dehydrateHashesToObjectId)
+    lift . liftQ $ do
+      (newPatch & S.patchH_ %%~ hashToHashId)
+        >>= (S.patchO_ %%~ hashToObjectId)
 
   let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatchWithIds
   newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatchWithIds))
@@ -518,7 +519,7 @@ migrateDeclComponent ::
 migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
   declComponent :: [DD.Decl v a] <-
     (lift . lift $ getDeclComponent hash) >>= \case
-      Nothing -> error undefined -- not non-fatal!
+      Nothing -> error $ "Expected decl component for hash:" <> show hash
       Just dc -> pure dc
 
   let componentIDMap :: Map (Old Reference.Id) (DD.Decl v a)
