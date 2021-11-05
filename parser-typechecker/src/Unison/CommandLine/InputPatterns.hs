@@ -47,8 +47,6 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
-import Data.Tuple.Extra (uncurry3)
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.Globbing as Globbing
@@ -1683,24 +1681,3 @@ gitUrlArg = ArgumentType
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
-
-patternFromInput :: Input -> InputPattern
-patternFromInput = \case
-  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
-  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Default -> pull
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Silent -> pullSilent
-  Input.PullRemoteBranchI _ _ SyncMode.Complete _ -> pushExhaustive
-  _ -> error "todo: finish this function"
-
-inputStringFromInput :: IsString s => Input -> P.Pretty s
-inputStringFromInput = \case
-  i@(Input.PushRemoteBranchI rh p' _) ->
-    (P.string . I.patternName $ patternFromInput i)
-      <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
-      <> " " <> P.shown p'
-  i@(Input.PullRemoteBranchI ns p' _ _) ->
-    (P.string . I.patternName $ patternFromInput i)
-      <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
-      <> " " <> P.shown p'
-  _ -> error "todo: finish this function"
