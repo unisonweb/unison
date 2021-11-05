@@ -37,23 +37,9 @@ library
       Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
-      Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.Git
-      Unison.Codebase.Editor.HandleCommand
-      Unison.Codebase.Editor.HandleInput
-      Unison.Codebase.Editor.Input
-      Unison.Codebase.Editor.Output
-      Unison.Codebase.Editor.Output.BranchDiff
-      Unison.Codebase.Editor.Output.DumpNamespace
-      Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.RemoteRepo
-      Unison.Codebase.Editor.SlurpComponent
-      Unison.Codebase.Editor.SlurpResult
-      Unison.Codebase.Editor.TodoOutput
-      Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
       Unison.Codebase.GitError
@@ -77,21 +63,11 @@ library
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
-      Unison.Codebase.TranscriptParser
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
       Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
-      Unison.CommandLine
-      Unison.CommandLine.DisplayValues
-      Unison.CommandLine.FuzzySelect
-      Unison.CommandLine.Globbing
-      Unison.CommandLine.InputPattern
-      Unison.CommandLine.InputPatterns
-      Unison.CommandLine.Main
-      Unison.CommandLine.OutputMessages
-      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
@@ -357,17 +333,14 @@ executable tests
       Unison.Test.ABT
       Unison.Test.ANF
       Unison.Test.Cache
-      Unison.Test.ClearCache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.ColorText
-      Unison.Test.CommandLine
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
-      Unison.Test.GitSync
       Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Range
@@ -381,15 +354,12 @@ executable tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.TypePrinter
-      Unison.Test.Ucm
       Unison.Test.UnisonSources
-      Unison.Test.UriParser
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
       Unison.Test.Var
-      Unison.Test.VersionParser
       Paths_unison_parser_typechecker
   hs-source-dirs:
       tests

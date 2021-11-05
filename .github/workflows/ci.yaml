@@ -91,11 +91,15 @@ jobs:
       - name: build dependencies
         run: stack --no-terminal build --fast --only-dependencies
       - name: build
-        run: stack --no-terminal build --fast
+        run: stack --no-terminal build --fast --no-run-tests --test
 
       # Run each test suite (tests and transcripts)
-      - name: tests
+      - name: unison-cli tests
+        run: stack --no-terminal test unison-cli
+      - name: unison-parser-typechecker tests
         run: stack --no-terminal exec tests
+      - name: unison-util-relation tests
+        run: stack --no-terminal test unison-util-relation
       - name: transcripts
         run: |
           stack --no-terminal exec transcripts
@@ -105,5 +109,3 @@ jobs:
         run: stack --no-terminal exec unison transcript unison-src/transcripts-round-trip/main.md
       - name: integration-tests
         run: stack --no-terminal exec integration-tests
-      - name: other test suites
-        run: stack --no-terminal test unison-util-relation
