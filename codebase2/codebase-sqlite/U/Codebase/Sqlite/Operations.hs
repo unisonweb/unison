@@ -88,6 +88,7 @@ module U.Codebase.Sqlite.Operations (
   declReferencesByPrefix,
   branchHashesByPrefix,
   derivedDependencies,
+  dependencies,
 ) where
 
 import Control.Lens (Lens')
@@ -1421,7 +1422,9 @@ dependents r = do
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 
--- | returns empty set for unknown inputs; doesn't distinguish between term and decl
+-- | Returns empty set for unknown inputs;
+-- Doesn't distinguish between term and decl
+-- Doesn't include builtins
 derivedDependencies :: EDB m => C.Reference.Id -> m (Set C.Reference.Id)
 derivedDependencies cid = do
   sid <- c2sReferenceId cid
@@ -1429,4 +1432,10 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- lca              :: (forall he e. [Causal m CausalHash he e] -> m (Maybe BranchHash)),
+-- | Includes builtins.
+dependencies :: EDB m => C.Reference.Id -> m (Set C.Reference)
+dependencies cid = do
+  sid <- c2sReferenceId cid
+  sids <- Q.getDependenciesForDependent sid
+  cids <- traverse s2cReference sids
+  pure $ Set.fromList cids

@@ -1068,8 +1068,8 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
-  ListNamespaceDependencies Empty -> pure $ "This namespace has no external dependencies"
-  ListNamespaceDependencies nonLocalDeps -> pure $
+  ListNamespaceDependencies _ppe Empty -> pure $ "This namespace has no external dependencies"
+  ListNamespaceDependencies _ppe nonLocalDeps -> pure $
       P.bold "This namespace depends on the following external terms:" <>
       P.newline <> P.indent "  " (
       -- TODO: group by reference and pretty-print constructor names
@@ -1080,13 +1080,14 @@ notifyUser dir o = case o of
                    & Map.toList
                    & sort
                    & List.groupOn (Referent.toReference . fst)
-                   & foldMap prettyDefinitionGroup
-      prettyDefinitionGroup [(_, k)] = prettyNames k
+                   & P.lines . fmap prettyDefinitionGroup
+      prettyDefinitionGroup [(_, k)] = prettyName k
       prettyDefinitionGroup ((_, typeNames):constructors) =
-        (prettyNames typeNames)
-        <> (P.indent "  " . foldMap prettyNames $ fmap snd constructors)
+        (prettyName typeNames)
+        <> P.newline <> P.bold "Constructors" <> P.newline
+        <> (P.indentAfterNewline "  " . P.lines . fmap prettyName $ fmap snd constructors)
       prettyDefinitionGroup [] = mempty
-      prettyNames = P.lines . fmap (P.text . Name.toText) . toList
+      prettyName = P.text . Name.toText . head . toList
       -- prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $

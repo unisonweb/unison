@@ -610,11 +610,17 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
-          getDependencies :: MonadIO m => Reference.Id -> m (Set Reference.Id)
-          getDependencies r =
+          getDerivedDependencies :: MonadIO m => Reference.Id -> m (Set Reference.Id)
+          getDerivedDependencies r =
             runDB conn $ do
               refs <- Ops.derivedDependencies (Cv.referenceid1to2 r)
-              Set.traverse (Cv.referenceid2to1 (getCycleLen "getDependencies")) refs
+              Set.traverse (Cv.referenceid2to1 (getCycleLen "getDerivedDependencies")) refs
+
+          getDependencies :: MonadIO m => Reference.Id -> m (Set Reference)
+          getDependencies r =
+            runDB conn $ do
+              refs <- Ops.dependencies (Cv.referenceid1to2 r)
+              Set.traverse (Cv.reference2to1 (getCycleLen "getDependencies")) refs
 
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
@@ -783,6 +789,7 @@ sqliteCodebase debugName root = do
                 putPatch = putPatch,
                 patchExists = patchExists,
                 dependentsImpl = dependentsImpl,
+                getDerivedDependencies = getDerivedDependencies,
                 getDependencies = getDependencies,
                 syncFromDirectory = syncFromDirectory,
                 syncToDirectory = syncToDirectory,

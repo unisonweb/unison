@@ -153,7 +153,6 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import Data.Either.Extra (eitherToMaybe)
-import qualified U.Util.Set as Set
 
 type F m i v = Free (Command m i v)
 
@@ -1737,12 +1736,12 @@ loop = do
             numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
             respond $ ListDependencies hqLength ld names missing
       NamespaceDependenciesI namespacePath' -> do
-        let path = maybe currentPath'' Path.fromPath' namespacePath'
-        case (Branch.getAt path root') of
-          Nothing -> respond $ BranchEmpty (Right (Path.toPath' path))
+        let path = maybe currentPath' resolveToAbsolute namespacePath'
+        case (Branch.getAt (Path.unabsolute path) root') of
+          Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
           Just b -> do
             nonlocalDeps <- namespaceDependencies root0 (Branch.head b)
-            respond $ ListNamespaceDependencies nonlocalDeps
+            respond $ ListNamespaceDependencies undefined nonlocalDeps
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
@@ -3133,17 +3132,17 @@ data Residency = Local | NonLocal
 
 namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name))
 namespaceDependencies root branch = do
-  allBranchDependencies :: Set Reference.Id
-    <- fold <$> traverse (eval . GetDependencies) (Set.toList allBranchReferences)
+  allBranchDependencies :: Set Reference
+    <- fold <$> traverse (eval . GetDependencies) (mapMaybe Reference.toId $ Set.toList allBranchReferences)
   depsWhichAreConstructors  :: Set Referent
-    <- fold <$> traverse (eval . ConstructorsOfType . Reference.fromId) (Set.toList allBranchDependencies)
-  let externalDependencies :: Set Reference.Id
+    <- fold <$> traverse (eval . ConstructorsOfType) (Set.toList allBranchDependencies)
+  let externalDependencies :: Set Reference
       externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
   let externalConstructors :: Set Referent
       externalConstructors = depsWhichAreConstructors `Set.difference` allBranchReferents
   let namedExternalDeps :: Map Referent (Set Name)
       namedExternalDeps =
-        (Set.map Referent.fromId externalDependencies <> externalConstructors)
+        (Set.map Referent.fromReference externalDependencies <> externalConstructors)
         & Set.toList
         & map (\ref -> (ref, Map.findWithDefault mempty ref allRootNames))
         & Map.fromListWith (<>)
@@ -3158,8 +3157,8 @@ namespaceDependencies root branch = do
 
     allBranchReferents :: Set Referent
     allBranchReferents = Relation.dom (deepTerms branch)
-    allBranchReferences :: Set Reference.Id
-    allBranchReferences = Set.mapMaybe Reference.toId $
+    allBranchReferences :: Set Reference
+    allBranchReferences =
          Relation.dom (deepTypes branch)
       <> Set.map Referent.toReference allBranchReferents
       -- TODO:
