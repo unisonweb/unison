@@ -3131,8 +3131,8 @@ data Residency = Local | NonLocal
 --       -- Anything else?
 --       _ -> pure ()
 
-namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name))
-namespaceDependencies root branch = do
+namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Maybe (Type v Ann)))
+namespaceDependencies _root branch = do
   allBranchDependencies :: Set Reference
     <- fold <$> traverse (eval . GetDependencies) (mapMaybe Reference.toId $ Set.toList allBranchReferences)
   depsWhichAreConstructors  :: Set Referent
@@ -3141,20 +3141,18 @@ namespaceDependencies root branch = do
       externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
   let externalConstructors :: Set Referent
       externalConstructors = depsWhichAreConstructors `Set.difference` allBranchReferents
-  let namedExternalDeps :: Map Referent (Set Name)
-      namedExternalDeps =
-        (Set.map Referent.fromReference externalDependencies <> externalConstructors)
-        & Set.toList
-        & map (\ref -> (ref, Map.findWithDefault mempty ref allRootNames))
-        & Map.fromListWith (<>)
+  namedExternalDeps :: Map Referent (Maybe (Type v Ann))
+    <- Map.fromList <$> traverse (\ref -> (ref,) <$> eval (LoadTypeOfTerm (Referent.toReference ref))) (Set.toList $ Set.map Referent.fromReference externalDependencies <> externalConstructors)
+        -- & map (\ref -> (ref, Map.findWithDefault mempty ref allRootNames))
+        -- & Map.fromListWith (<>)
   pure namedExternalDeps
   where
-    allRootNames :: Map Referent (Set Name)
-    allRootNames =
-      Map.unionsWith (<>)
-        [ Relation.domain (deepTerms root)
-        , Map.mapKeysWith (<>) Referent.fromReference $ Relation.domain (deepTypes root)
-        ]
+    -- allRootNames :: Map Referent (Set Name)
+    -- allRootNames =
+    --   Map.unionsWith (<>)
+    --     [ Relation.domain (deepTerms root)
+    --     , Map.mapKeysWith (<>) Referent.fromReference $ Relation.domain (deepTypes root)
+    --     ]
 
     allBranchReferents :: Set Referent
     allBranchReferents = Relation.dom (deepTerms branch)

@@ -1071,20 +1071,22 @@ notifyUser dir o = case o of
   ListNamespaceDependencies _ppe Empty -> pure $ "This namespace has no external dependencies"
   ListNamespaceDependencies ppe externalDeps -> pure $
       P.bold "This namespace depends on the following external terms:" <>
-      P.newline <> P.indent "  " (
-      -- TODO: group by reference and pretty-print constructor names
-        prettyDeps externalDeps
-                    )
+      P.newline <> P.indent "  " (prettyDeps externalDeps)
     where
-      prettyDeps :: Map Referent (Type v Ann) -> _
+      prettyDeps :: Map Referent (Maybe (Type v Ann)) -> _
       prettyDeps m = m
                    & Map.toList
                    & groupByReference
                    & P.lines . fmap prettyDefinitionGroup
-      groupByReference :: [(Referent, Type v Ann)] -> [[(Referent, Type v Ann)]]
+      groupByReference :: Ord t => [(Referent, t)] -> [[(Referent, t)]]
       groupByReference = List.groupOn (Referent.toReference . fst) . sort
-      prettyDefinitionGroup :: [(Referent, Type v Ann)] -> _
-      prettyDefinitionGroup [(r, k)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r) <> ":" <> TypePrinter.pretty ppe k
+      prettyDefinitionGroup :: [(Referent, (Maybe (Type v Ann)))] -> _
+      -- prettyDefinitionGroup [(r, Nothing)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r)
+      -- prettyDefinitionGroup [(r, Just k)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r) <> ":" <> TypePrinter.pretty ppe k
+      prettyDefinitionGroup [(r, Nothing)] =
+        P.text (HQ.toText $ PPE.typeOrTermName ppe r)
+      prettyDefinitionGroup [(referent, Just k)] =
+        TypePrinter.prettySignaturesCTMultiline ppe [(referent, PPE.typeOrTermName ppe referent, k)]
       prettyDefinitionGroup ((_, _typeNames):_constructors) = mempty
         -- (prettyName typeNames)
         -- <> P.newline
@@ -1285,7 +1287,7 @@ unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> SR'.TermResult' v a -> Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(r,name,typ)])
+    head (TypePrinter.prettySignaturesCT ppe [(r,name,typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1447,13 +1449,13 @@ todoOutput ppe todo =
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
           (prettyDeclPair ppeu <$> toList frontierTypes) ++
-          TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
+          TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.numberedList $
           let unscore (_score,a,b) = (a,b)
           in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes) ++
-             TypePrinter.prettySignatures'
+             TypePrinter.prettySignaturesCT
                 ppes
                 (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
