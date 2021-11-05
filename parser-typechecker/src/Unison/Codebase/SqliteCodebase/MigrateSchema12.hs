@@ -52,7 +52,6 @@ import U.Codebase.Sync (Sync (Sync))
 import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
-import qualified U.Util.Hash as U.Util
 import U.Util.Monoid (foldMapM)
 import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
@@ -69,7 +68,6 @@ import qualified Unison.Hashing.V2.Convert as Convert
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import Unison.Prelude
-import Unison.Reference (Pos)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent'
@@ -113,15 +111,11 @@ migrateSchema12 conn codebase = do
           allDone = undefined
        in Sync.Progress {need, done, error, allDone}
 
-type TypeIdentifier = (ObjectId, Pos)
-
 type Old a = a
 
 type New a = a
 
 type ConstructorName v = v
-
-type ComponentName v = v
 
 type DeclName v = v
 
@@ -388,9 +382,6 @@ migrateWatch Codebase {getWatch, putWatch} watchKind oldWatchId = fmap (either i
       lift . lift $ putWatch watchKindV1 newWatchId remappedTerm
       pure Sync.Done
 
-uHash_ :: Iso' U.Util.Hash Hash
-uHash_ = iso Cv.hash2to1 Cv.hash1to2
-
 uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' Hash)) SomeReferenceId
 uRefIdAsRefId_ = mapping uRefAsRef_
 
@@ -403,13 +394,13 @@ uRefAsRef_ = iso intoRef intoURef
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ ::
   forall t h.
-  (forall ref. Prism' (SomeReference ref) ref) ->
+  (forall ref. Traversal' ref (SomeReference ref)) ->
   Traversal' (S.Branch.Full.Referent'' t h) (SomeReference (UReference.Id' h))
-someReferent_ typeOrTermPrism =
-  (UReferent._Ref . someReference_ typeOrTermPrism)
+someReferent_ typeOrTermTraversal_ =
+  (UReferent._Ref . someReference_ typeOrTermTraversal_)
     `failing` ( UReferent._Con
                   . asPair_ -- Need to unpack the embedded reference AND remap between mismatched Constructor ID types.
-                  . unsafeInsidePrism _ConstructorReference
+                  . asConstructorReference_
               )
   where
     asPair_ f (UReference.ReferenceDerived id', conId) =
@@ -418,27 +409,27 @@ someReferent_ typeOrTermPrism =
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
 someReference_ ::
-  (forall ref. Prism' (SomeReference ref) ref) ->
+  (forall ref. Traversal' ref (SomeReference ref)) ->
   Traversal' (UReference.Reference' t h) (SomeReference (UReference.Id' h))
-someReference_ typeOrTermPrism = UReference._ReferenceDerived . unsafeInsidePrism typeOrTermPrism
+someReference_ typeOrTermTraversal_ = UReference._ReferenceDerived . typeOrTermTraversal_
 
 someMetadataSetFormat_ ::
   (Ord t, Ord h) =>
-  (forall ref. Prism' (SomeReference ref) ref) ->
+  (forall ref. Traversal' ref (SomeReference ref)) ->
   Traversal' (S.Branch.Full.MetadataSetFormat' t h) (SomeReference (UReference.Id' h))
-someMetadataSetFormat_ typeOrTermPrism =
-  S.Branch.Full.metadataSetFormatReferences_ . someReference_ typeOrTermPrism
+someMetadataSetFormat_ typeOrTermTraversal_ =
+  S.Branch.Full.metadataSetFormatReferences_ . someReference_ typeOrTermTraversal_
 
 someReferentMetadata_ ::
   (Ord k, Ord t, Ord h) =>
-  (forall ref. Prism' (SomeReference ref) ref) ->
+  (forall ref. Traversal' ref (SomeReference ref)) ->
   Traversal' k (SomeReference (UReference.Id' h)) ->
   Traversal'
     (Map k (S.Branch.Full.MetadataSetFormat' t h))
     (SomeReference (UReference.Id' h))
-someReferentMetadata_ typeOrTermPrism keyTraversal f m =
+someReferentMetadata_ typeOrTermTraversal_ keyTraversal f m =
   Map.toList m
-    & traversed . beside keyTraversal (someMetadataSetFormat_ typeOrTermPrism) %%~ f
+    & traversed . beside keyTraversal (someMetadataSetFormat_ typeOrTermTraversal_) %%~ f
     <&> Map.fromList
 
 branchSomeRefs_ :: (Ord t, Ord h) => Traversal' (S.Branch' t h p c) (SomeReference (UReference.Id' h))
@@ -450,7 +441,7 @@ branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
 
 patchSomeRefsH_ :: (Ord t, Ord h) => Traversal (S.Patch' t h o) (S.Patch' t h o) (SomeReference (UReference.Id' h)) (SomeReference (UReference.Id' h))
 patchSomeRefsH_ f S.Patch {termEdits, typeEdits} = do
-  newTermEdits <- Map.fromList <$> (Map.toList termEdits & traversed . _1 . (someReferent_ _TermReference) %%~ f)
+  newTermEdits <- Map.fromList <$> (Map.toList termEdits & traversed . _1 . (someReferent_ asTermReference_) %%~ f)
   newTypeEdits <- Map.fromList <$> (Map.toList typeEdits & traversed . _1 . (someReference_ undefined) %%~ f)
   pure S.Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
 
@@ -462,7 +453,7 @@ patchSomeRefsO_ f S.Patch {termEdits, typeEdits} = do
 
 termEditRefs_ :: Traversal' (TermEdit.TermEdit' t h) (SomeReference (UReference.Id' h))
 termEditRefs_ f (TermEdit.Replace ref typing) =
-  TermEdit.Replace <$> (ref & someReferent_ _TermReference %%~ f) <*> pure typing
+  TermEdit.Replace <$> (ref & someReferent_ asTermReference_ %%~ f) <*> pure typing
 termEditRefs_ _f (TermEdit.Deprecate) = pure TermEdit.Deprecate
 
 typeEditRefs_ :: Traversal' (TypeEdit.TypeEdit' t h) (SomeReference (UReference.Id' h))
@@ -632,12 +623,7 @@ typeReferences_ =
     . ABT.baseFunctor_ -- Focus Type.F
     . Type._Ref -- Only the Ref constructor has references
     . Reference._DerivedId
-    . unsafeInsidePrism _TypeReference
-
--- | This is only lawful so long as your changes to 's' won't cause the prism to fail to match.
-unsafeInsidePrism :: Prism' s a -> Lens' a s
-unsafeInsidePrism p f a = do
-  fromMaybe a . preview p <$> f (review p a)
+    . asTypeReference_
 
 termReferences_ :: (Monad m, Ord v) => LensLike' m (Term.Term v a) SomeReferenceId
 termReferences_ =
@@ -647,17 +633,17 @@ termReferences_ =
 
 termFReferences_ :: (Ord tv, Monad m) => LensLike' m (Term.F tv ta pa a) SomeReferenceId
 termFReferences_ f t =
-  (t & Term._Ref . Reference._DerivedId . unsafeInsidePrism _TermReference %%~ f)
+  (t & Term._Ref . Reference._DerivedId . asTermReference_ %%~ f)
     >>= Term._Constructor . someRefCon_ %%~ f
     >>= Term._Request . someRefCon_ %%~ f
     >>= Term._Ann . _2 . typeReferences_ %%~ f
     >>= Term._Match . _2 . traversed . Term.matchPattern_ . patternReferences_ %%~ f
-    >>= Term._TermLink . referentAsSomeTerm_ %%~ f
-    >>= Term._TypeLink . Reference._DerivedId . unsafeInsidePrism _TypeReference %%~ f
+    >>= Term._TermLink . referentAsSomeTermReference_ %%~ f
+    >>= Term._TypeLink . Reference._DerivedId . asTypeReference_ %%~ f
 
 -- | Build a SomeConstructorReference
 someRefCon_ :: Traversal' (Reference.Reference, ConstructorId) SomeReferenceId
-someRefCon_ = refConPair_ . unsafeInsidePrism _ConstructorReference
+someRefCon_ = refConPair_ . asConstructorReference_
   where
     refConPair_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
     refConPair_ f s =
@@ -692,13 +678,13 @@ patternReferences_ f = \case
   Pattern.SequenceOp loc pat seqOp pat2 -> do
     Pattern.SequenceOp loc <$> patternReferences_ f pat <*> pure seqOp <*> patternReferences_ f pat2
 
-referentAsSomeTerm_ :: Traversal' Referent.Referent SomeReferenceId
-referentAsSomeTerm_ f = \case
+referentAsSomeTermReference_ :: Traversal' Referent.Referent SomeReferenceId
+referentAsSomeTermReference_ f = \case
   (Referent'.Ref' (Reference.DerivedId refId)) -> do
-    newRefId <- refId & unsafeInsidePrism _TermReference %%~ f
+    newRefId <- refId & asTermReference_ %%~ f
     pure (Referent'.Ref' (Reference.DerivedId newRefId))
   (Referent'.Con' (Reference.DerivedId refId) conId conType) ->
-    ((refId, conId) & unsafeInsidePrism _ConstructorReference %%~ f)
+    ((refId, conId) & asConstructorReference_ %%~ f)
       <&> (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
   r -> pure r
 
@@ -768,11 +754,23 @@ someRef_ = lens getter setter
 _TermReference :: Prism' (SomeReference ref) ref
 _TermReference = _Ctor @"TermReference"
 
-_TypeReference :: Prism' (SomeReference ref) ref
-_TypeReference = _Ctor @"TypeReference"
+-- | This is only safe as long as you don't change the constructor of your SomeReference
+asTermReference_ :: Traversal' ref (SomeReference ref)
+asTermReference_ f ref = f (TermReference ref) <&> \case
+  TermReference ref' -> ref'
+  _ -> error "asTermReference_: SomeReferenceId constructor was changed."
 
-_ConstructorReference :: Prism' (SomeReference ref) (ref, ConstructorId)
-_ConstructorReference = _Ctor @"ConstructorReference"
+-- | This is only safe as long as you don't change the constructor of your SomeReference
+asTypeReference_ :: Traversal' ref (SomeReference ref)
+asTypeReference_ f ref = f (TypeReference ref) <&> \case
+  TypeReference ref' -> ref'
+  _ -> error "asTypeReference_: SomeReferenceId constructor was changed."
+
+-- | This is only safe as long as you don't change the constructor of your SomeReference
+asConstructorReference_ :: Traversal' (ref, ConstructorId) (SomeReference ref)
+asConstructorReference_ f (ref, cId) = f (ConstructorReference ref cId) <&> \case
+  (ConstructorReference ref' cId) -> (ref', cId)
+  _ -> error "asConstructorReference_: SomeReferenceId constructor was changed."
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
 someReferenceIdToEntity = \case
