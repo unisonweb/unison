@@ -415,7 +415,8 @@ loop = do
           MakeStandaloneI out nm ->
             "compile.output " <> Text.pack out <> " " <> HQ.toText nm
           PullRemoteBranchI orepo dest _syncMode _ ->
-            (Text.pack . InputPattern.patternName $ InputPatterns.pull)
+            (Text.pack . InputPattern.patternName
+              $ InputPatterns.patternFromInput input)
               <> " "
               -- todo: show the actual config-loaded namespace
               <> maybe "(remote namespace from .unisonConfig)"
@@ -488,7 +489,7 @@ loop = do
         updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
         syncRoot = use root >>= updateRoot
         updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-        unlessGitError = unlessError' Output.GitError
+        unlessGitError = unlessError' (Output.GitError input)
         importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
         viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
         syncRemoteRootBranch repo b mode =
