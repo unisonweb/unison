@@ -179,7 +179,7 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
-  | GitError Input GitError
+  | GitError GitError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String

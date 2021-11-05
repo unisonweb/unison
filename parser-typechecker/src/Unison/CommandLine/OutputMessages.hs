@@ -53,7 +53,6 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 )
-import qualified Unison.CommandLine.InputPattern as IP1
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.Builtin.Decls          as DD
@@ -686,7 +685,7 @@ notifyUser dir o = case o of
     else pure mempty
 
   TodoOutput names todo -> pure (todoOutput names todo)
-  GitError input e -> pure $ case e of
+  GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
         $ "I don't know how to interpret schema version " <> P.shown v
@@ -722,15 +721,11 @@ notifyUser dir o = case o of
         P.wrap $ "The repository at" <> prettyWriteRepo repo
               <> "has some changes I don't know about.",
         "",
-        P.wrap $ "If you want to " <> push <> "you can do:", "",
-        P.indentN 2 pull, "",
-        P.wrap $
-          "to merge these changes locally," <>
-          "then try your" <> push <> "again."
+        P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
         ]
         where
-        push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
-        pull = P.group . P.backticked $ IP.inputStringFromInput input
+        push = P.group . P.backticked . IP.patternName $ IP.push
+        pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
       CouldntLoadRootBranch repo hash -> P.wrap
         $ "I couldn't load the designated root hash"
