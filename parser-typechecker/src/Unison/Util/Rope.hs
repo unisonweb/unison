@@ -3,7 +3,7 @@
 
 module Unison.Util.Rope 
   (chunks, singleton, one, map, traverse, null, 
-   flatten, two, cons, uncons, snoc, unsnoc, index,
+   flatten, two, cons, uncons, snoc, unsnoc, index, debugDepth,
    Sized(..), Take(..), Drop(..), Reverse(..), Index(..), Rope,
    ) 
 where
@@ -12,7 +12,10 @@ import Prelude hiding (drop,take,reverse,map,traverse,null)
 import Data.Foldable (toList)
 import Control.DeepSeq (NFData(..))
 
--- | Size-balanced binary tree of chunks. 
+-- | Roughly size-balanced binary tree of chunks. There are 
+-- a few operations that are sloppier about rebalancing as long
+-- as that can't lead to trees of more than logarithmic depth.
+-- 
 -- The `Int` in the `Two` constructor is a cached size of that subtree.
 data Rope a
   = Empty
@@ -28,12 +31,17 @@ one a | size a == 0 = Empty
 one a = One a
 singleton = one
 
+-- Note: this function doesn't do rebalancing, so it shouldn't
+-- be used unless the function is "roughly" size-preserving.
+-- So converting from text to utf-8 encoded text chunks is okay,
+-- wherease filtering out 95% of the chunks will lead to a size-unbalanced tree
 map :: Sized b => (a -> b) -> Rope a -> Rope b
 map f = \case
   Empty -> Empty
   One a -> one (f a)
   Two _ l r -> two (map f l) (map f r)
 
+-- Like `map`, this doesn't do rebalancing
 traverse :: (Applicative f, Sized b) => (a -> f b) -> Rope a -> f (Rope b)
 traverse f = \case
   Empty -> pure Empty
@@ -69,8 +77,57 @@ instance (Sized a, Semigroup a) => Monoid (Rope a) where
     (k1, One aN) -> snoc' k1 (size aN) aN
     (k1@(Two sz1 l1 r1), k2@(Two sz2 l2 r2))
       | sz1 * 2 >= sz2 && sz2 * 2 >= sz1 -> Two (sz1 + sz2) k1 k2
-      | sz1 > sz2                        ->  l1 <> (r1 <> k2)
-      | otherwise                        -> (k1 <> l2) <> r2
+      | sz1 > sz2                        -> appendL (size l1) l1 (r1 <> k2)
+      | otherwise                        -> appendR (k1 <> l2) (size r2) r2
+
+-- size-balanced append, leaving the left tree as is
+appendL :: Sized a => Int -> Rope a -> Rope a -> Rope a
+appendL 0 _ a = a 
+appendL _ l Empty = l
+appendL szl l r@(One a) = Two (szl + size a) l r
+appendL szl l r@(Two szr r1 r2) | szl >= szr = Two (szl+szr) l r
+                                | otherwise  = Two (szl+szr) (appendL szl l r1) r2
+
+-- size-balanced append, leaving the right tree as is
+appendR :: Sized a => Rope a -> Int -> Rope a -> Rope a
+appendR a 0 _ = a 
+appendR Empty _ r = r
+appendR l@(One a) szr r = Two (size a + szr) l r
+appendR l@(Two szl l1 l2) szr r
+  | szr >= szl = Two (szl + szr) l r
+  | otherwise  = Two (szl + szr) l1 (appendR l2 szr r)
+
+cons :: (Sized a, Semigroup a) => a -> Rope a -> Rope a
+cons a r = cons' (size a) a r
+
+snoc :: (Sized a, Semigroup a) => Rope a -> a -> Rope a
+snoc as a = snoc' as (size a) a
+
+cons' :: (Sized a, Semigroup a) => Int -> a -> Rope a -> Rope a
+cons' 0 _ as = as 
+cons' sz0 a0 as = go as
+  where
+  go as = case as of
+    Empty -> One a0
+    One a1 -> case sz0 + size a1 of 
+      n | n <= threshold -> One (a0 <> a1)
+        | otherwise      -> Two n (One a0) as
+    Two sz l r 
+      | sz0 >= sz    -> Two (sz0+sz) (One a0) as
+      | otherwise    -> appendR (go l) (size r) r
+
+snoc' :: (Sized a, Semigroup a) => Rope a -> Int -> a -> Rope a
+snoc' as 0 _ = as 
+snoc' as szN aN = go as
+  where
+  go as = case as of
+    Empty -> One aN
+    One a0 -> case size a0 + szN of 
+      n | n <= threshold -> One (a0 <> aN)
+        | otherwise      -> Two n as (One aN)
+    Two sz l r 
+      | szN >= sz    -> Two (sz+szN) as (One aN)
+      | otherwise    -> appendL (size l) l (go r)
 
 instance Reverse a => Reverse (Rope a) where
   reverse = \case
@@ -81,38 +138,13 @@ instance Reverse a => Reverse (Rope a) where
 two :: Sized a => Rope a -> Rope a -> Rope a
 two r1 r2 = Two (size r1 + size r2) r1 r2
 
+-- Cutoff for when `snoc` or `cons` will create a new subtree
+-- rather than just snoc/cons-ing onto the underlying chunk.
+-- 
+-- See https://github.com/unisonweb/unison/pull/1899#discussion_r742953469 
 threshold :: Int
 threshold = 32
 
-cons :: (Sized a, Semigroup a) => a -> Rope a -> Rope a
-cons a r = cons' (size a) a r
-
-snoc :: (Sized a, Semigroup a) => Rope a -> a -> Rope a
-snoc as a = snoc' as (size a) a
-
-cons' :: (Sized a, Semigroup a) => Int -> a -> Rope a -> Rope a
-cons' 0 _ as = as 
-cons' sz0 a0 as = go a0 as
-  where
-  go a0 as = case as of
-    Empty -> One a0
-    One a1 -> case sz0 + size a1 of
-      n | n <= threshold -> One (a0 <> a1)
-        | otherwise      -> Two n (One a0) as
-    Two sz One{} _ -> Two (sz0+sz) (One a0) as
-    Two _ l r -> go a0 l <> r
-
-snoc' :: (Sized a, Semigroup a) => Rope a -> Int -> a -> Rope a
-snoc' as 0 _ = as 
-snoc' as szN aN = go as aN 
-  where
-  go as aN = case as of
-    Empty -> One aN
-    One a0 -> case size a0 + szN of
-      n | n <= threshold -> One (a0 <> aN)
-        | otherwise      -> Two n as (One aN)
-    Two sz One{} _ -> Two (sz+szN) as (One aN)
-    Two _ l r -> l <> go r aN
 
 index :: (Sized a, Index a ch) => Int -> Rope a -> Maybe ch 
 index i r | i >= 0 && i < size r = Just (unsafeIndex i r)
@@ -197,3 +229,8 @@ instance NFData a => NFData (Rope a) where
   rnf Empty = ()
   rnf (One a) = rnf a
   rnf (Two _ l r) = rnf l `seq` rnf r
+
+debugDepth :: Rope a -> Int
+debugDepth Empty = 0
+debugDepth One{} = 0
+debugDepth (Two _ l r) = 1 + (debugDepth l `max` debugDepth r)

@@ -6,7 +6,7 @@ module Unison.Util.Text where
 
 import Data.String (IsString(..))
 import Data.Foldable (toList)
-import Data.List (unfoldr)
+import Data.List (unfoldr,foldl')
 import Prelude hiding (take,drop,replicate)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -75,11 +75,9 @@ toUtf8 (Text t) = B.Bytes (R.map (B.chunkFromByteString . T.encodeUtf8 . chunkTo
 
 fromText :: T.Text -> Text
 fromText s | T.null s = mempty
-fromText s = go (Text (R.one (chunk s)))
+fromText s = Text (go (chunk <$> T.chunksOf threshold s))
   where
-  go t | n > threshold  = go (take (n `div` 2) t) <> go (drop (n `div` 2) t)
-       | otherwise      = t
-       where n = size t
+  go = foldl' R.snoc mempty
 
 pack :: String -> Text
 pack = fromText . T.pack

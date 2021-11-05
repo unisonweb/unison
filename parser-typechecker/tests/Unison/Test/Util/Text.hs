@@ -5,6 +5,7 @@ import EasyTest
 import Control.Monad
 import Data.List (foldl', unfoldr)
 import qualified Unison.Util.Text as Text
+import qualified Unison.Util.Rope as R
 import qualified Data.Text as T
 
 test :: Test ()
@@ -78,5 +79,29 @@ test = scope "util.text" . tests $ [
        expect' $ Text.toText b1 == b
        expect' $ Text.toText b2 == b
        expect' $ Text.toText b3 == b
+     ok,
+
+   scope "depth checks" $ do
+     chunk <- Text.pack <$> replicateM 1000 char
+     forM_ [100,200,400] $ \i0 -> do
+       n <- int' 200 400
+       i <- (i0+) <$> int' (-10) 10
+       let chunks = replicate i chunk
+           t1 = foldMap id chunks 
+           t2 = foldr (<>) mempty chunks
+           t3 = foldl' (<>) mempty chunks
+           moarChunks = join (replicate n chunks)
+           ts = [t1, t2, t3, foldMap id (replicate n t3), 
+                             foldr (<>) mempty moarChunks, 
+                             foldl' (<>) mempty moarChunks ]
+           maxDepth = maximum depths 
+           depths = map depth ts
+       note ("maximum depth for tree with " <> show (i*n) <> " chunks was " <> show maxDepth)
+       expect' (maxDepth < log2 (i*n) * 2)
      ok
   ]
+  where
+    log2 :: Int -> Int
+    log2 n | n <= 1 = 0
+           | otherwise = 1 + log2 (div n 2)
+    depth (Text.Text t) = R.debugDepth t
