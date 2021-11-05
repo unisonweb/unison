@@ -1,9 +1,9 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveTraversable #-}
 
 module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
 
@@ -204,7 +204,7 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
   oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
-  oldBranchWithHashes <- traverseOf S.branchHashes_ (lift . Ops.loadHashByObjectId) oldBranch
+  oldBranchWithHashes <- traverseOf S.branchHashes_ (lift . fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
   migratedCausals <- gets causalMapping
@@ -281,48 +281,44 @@ migratePatch ::
   StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
-  let hydrateHashes :: forall m. Q.DB m => HashId -> m Hash
+  let hydrateHashes :: forall m. Q.EDB m => HashId -> m Hash
       hydrateHashes hashId = do
         Cv.hash2to1 <$> Q.loadHashHashById hashId
-  let hydrateObjectIds :: Q.DB m => ObjectId -> m Hash
+  let hydrateObjectIds :: forall m. Ops.EDB m => ObjectId -> m Hash
       hydrateObjectIds objId = do
         Cv.hash2to1 <$> Ops.loadHashByObjectId objId
 
-  oldPatchWithHashes :: S.Patch' TextId Hash ObjectId
-    <- lift . lift $ do
+  oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
+    lift . lift $ do
       (oldPatch & S.patchH_ %%~ hydrateHashes)
-      >>= S.patchO_ %%~ hydrateObjectIds
+        >>= (S.patchO_ %%~ hydrateObjectIds)
 
   -- 2. Determine whether all things the patch refers to are built.
   let dependencies :: [Entity]
       dependencies =
-        oldPatch
-          ^.. patchSomeRefsH_ . to someReferenceIdToEntity
-        <> oldPatch
-          ^.. patchSomeRefsO_ . to _
-
-  let dehydrate :: Q.DB m => Hash -> m HashId
-      dehydrate = undefined
-  let remapRef :: SomeReferenceId -> SomeReferenceId
-      remapRef = undefined
-  let remapObjectIds :: SomeReferenceObjId -> SomeReferenceObjId
-      remapObjectIds = undefined
-
+        oldPatchWithHashes ^.. patchSomeRefsH_ . uRefIdAsRefId_ . to someReferenceIdToEntity
+          <> oldPatchWithHashes ^.. patchSomeRefsO_ . uRefIdAsRefId_ . to someReferenceIdToEntity
   when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
-  newPatch <-
-    oldPatch
-      & patchSomeRefsH_
-        %%~ ( \someRef -> do
-                hydratedRef <- (someRef & (traverse . traverse) %%~ hydrate)
-                hydratedRefId :: SomeReferenceId <- undefined hydratedRef
-                -- Hrmm, we can't really use Reference.Id here since it's not parameterized
-                -- over Hash.
-                x <- (remapRef hydratedRefId & (traverse . undefined) %%~ dehydrate)
-                undefined x
-            )
-      <&> (patchSomeRefsO_ %~ remapObjectIds)
-  let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatch
-  newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatch))
+
+  let dehydrateHashesToHashId :: forall m. Q.DB m => Hash -> m HashId
+      dehydrateHashesToHashId = undefined
+  let dehydrateHashesToObjectId :: forall m. Q.DB m => Hash -> m ObjectId
+      dehydrateHashesToObjectId = undefined
+  migratedReferences <- gets referenceMapping
+  let remapRef :: SomeReferenceId -> SomeReferenceId
+      remapRef ref = Map.findWithDefault ref ref migratedReferences
+
+  let newPatch =
+        oldPatchWithHashes & patchSomeRefsH_ . uRefIdAsRefId_ %~ remapRef
+          & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
+
+  newPatchWithIds :: S.Patch <-
+    lift . lift $ do
+      (newPatch & S.patchH_ %%~ dehydrateHashesToHashId)
+        >>= (S.patchO_ %%~ dehydrateHashesToObjectId)
+
+  let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatchWithIds
+  newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatchWithIds))
   newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
   newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
   field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash)
@@ -362,14 +358,17 @@ migrateWatch Codebase {..} watchKind oldWatchId = fmap (either id id) . runExcep
       lift . lift $ putWatch watchKindV1 newWatchId remappedTerm
       pure Sync.Done
 
-uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' U.Util.Hash)) SomeReferenceId
+uHash_ :: Iso' U.Util.Hash Hash
+uHash_ = iso Cv.hash2to1 Cv.hash1to2
+
+uRefIdAsRefId_ :: Iso' (SomeReference (UReference.Id' Hash)) SomeReferenceId
 uRefIdAsRefId_ = mapping uRefAsRef_
 
-uRefAsRef_ :: Iso' (UReference.Id' U.Util.Hash) Reference.Id
+uRefAsRef_ :: Iso' (UReference.Id' Hash) Reference.Id
 uRefAsRef_ = iso intoRef intoURef
   where
-    intoRef (UReference.Id hash pos) = Reference.Id (Cv.hash2to1 hash) pos
-    intoURef (Reference.Id hash pos) = UReference.Id (Cv.hash1to2 hash) pos
+    intoRef (UReference.Id hash pos) = Reference.Id hash pos
+    intoURef (Reference.Id hash pos) = UReference.Id hash pos
 
 -- Project an S.Referent'' into its SomeReferenceObjId's
 someReferent_ ::
@@ -711,7 +710,7 @@ remapObjIdRefs objMapping refMapping someObjIdRef = newSomeObjId
         Nothing -> error $ "Expected object mapping for ID: " <> show oldObjId
         Just found -> found
     someRefId :: SomeReferenceId
-    someRefId = (someObjIdRef & someRef_ . UReference.idH .~ Cv.hash1to2 newHash) ^. uRefIdAsRefId_
+    someRefId = (someObjIdRef & someRef_ . UReference.idH .~ newHash) ^. uRefIdAsRefId_
     newRefId :: SomeReferenceId
     newRefId = case Map.lookup someRefId refMapping of
       Nothing -> error $ "Expected reference mapping for ID: " <> show someRefId

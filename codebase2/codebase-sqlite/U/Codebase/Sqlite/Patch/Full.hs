@@ -54,7 +54,6 @@ patchO_ f Patch {termEdits, typeEdits} = do
   newTypeEdits <- typeEdits & traversed . Set.traverse . TypeEdit.h_ %%~ f
   pure Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
 
-
 trimap ::
   (Ord t', Ord h', Ord o') =>
   (t -> t') ->
