@@ -35,7 +35,8 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId,
     ObjectId,
-    PatchObjectId (..), TextId (TextId)
+    PatchObjectId (..),
+    TextId,
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -289,8 +290,8 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
         Cv.hash2to1 <$> Ops.loadHashByObjectId objId
 
   oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
-    lift . lift $ do
-      (oldPatch & S.patchH_ %%~ hydrateHashes)
+    lift $ do
+      (oldPatch & S.patchH_ %%~ liftQ . hydrateHashes)
         >>= (S.patchO_ %%~ hydrateObjectIds)
 
   -- 2. Determine whether all things the patch refers to are built.
@@ -304,6 +305,7 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
       dehydrateHashesToHashId = undefined
   let dehydrateHashesToObjectId :: forall m. Q.DB m => Hash -> m ObjectId
       dehydrateHashesToObjectId = undefined
+
   migratedReferences <- gets referenceMapping
   let remapRef :: SomeReferenceId -> SomeReferenceId
       remapRef ref = Map.findWithDefault ref ref migratedReferences
@@ -313,7 +315,7 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
           & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
 
   newPatchWithIds :: S.Patch <-
-    lift . lift $ do
+    lift $ do
       (newPatch & S.patchH_ %%~ dehydrateHashesToHashId)
         >>= (S.patchO_ %%~ dehydrateHashesToObjectId)
 
