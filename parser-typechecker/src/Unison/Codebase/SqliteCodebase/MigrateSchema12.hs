@@ -5,7 +5,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase.MigrateSchema12 where
+module Unison.Codebase.SqliteCodebase.MigrateSchema12
+  ( migrateSchema12,
+  )
+where
 
 import Control.Lens
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -50,6 +53,7 @@ import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Hash as U.Util
+import U.Util.Monoid (foldMapM)
 import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
 import Unison.Codebase (Codebase (Codebase))
@@ -85,6 +89,29 @@ import Unison.Var (Var)
 --    * delete references to old objects in index tables (where else?)
 --    * delete old objects
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
+
+migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
+migrateSchema12 conn codebase = do
+  rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
+  watches <-
+    foldMapM
+      (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
+      [WK.RegularWatch, WK.TestWatch]
+  (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+    `runReaderT` Env {db = conn, codebase}
+    `evalStateT` MigrationState Map.empty Map.empty Map.empty
+  where
+    progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
+    progress =
+      let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          need = undefined
+          done :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          done = undefined
+          error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          error = undefined
+          allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
+          allDone = undefined
+       in Sync.Progress {need, done, error, allDone}
 
 type TypeIdentifier = (ObjectId, Pos)
 
@@ -338,7 +365,7 @@ migrateWatch ::
   WatchKind ->
   Reference.Id ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateWatch Codebase {..} watchKind oldWatchId = fmap (either id id) . runExceptT $ do
+migrateWatch Codebase {getWatch, putWatch} watchKind oldWatchId = fmap (either id id) . runExceptT $ do
   let watchKindV1 = Cv.watchKind2to1 watchKind
   watchResultTerm <-
     (lift . lift) (getWatch watchKindV1 oldWatchId) >>= \case
@@ -753,21 +780,21 @@ someReferenceIdToEntity = \case
   -- Constructors are migrated by their decl component.
   (ConstructorReference ref _conId) -> DeclComponent (Reference.idToHash ref)
 
--- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
-migrateSchema12 :: Applicative m => Connection -> m Bool
-migrateSchema12 _db = do
-  -- todo: drop and recreate corrected type/mentions index schema
-  -- do we want to garbage collect at this time? ✅
-  -- or just convert everything without going in dependency order? ✅
-  error "todo: go through "
-  -- todo: double-hash all the types and produce an constructor mapping
-  -- object ids will stay the same
-  -- todo: rehash all the terms using the new constructor mapping
-  -- and adding the type to the term
-  -- do we want to diff namespaces at this time? ❌
-  -- do we want to look at supporting multiple simultaneous representations of objects at this time?
-  pure "todo: migrate12"
-  pure True
+-- -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
+-- migrateSchema12 :: Applicative m => Connection -> m Bool
+-- migrateSchema12 _db = do
+--   -- todo: drop and recreate corrected type/mentions index schema
+--   -- do we want to garbage collect at this time? ✅
+--   -- or just convert everything without going in dependency order? ✅
+--   error "todo: go through "
+--   -- todo: double-hash all the types and produce an constructor mapping
+--   -- object ids will stay the same
+--   -- todo: rehash all the terms using the new constructor mapping
+--   -- and adding the type to the term
+--   -- do we want to diff namespaces at this time? ❌
+--   -- do we want to look at supporting multiple simultaneous representations of objects at this time?
+--   pure "todo: migrate12"
+--   pure True
 
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)

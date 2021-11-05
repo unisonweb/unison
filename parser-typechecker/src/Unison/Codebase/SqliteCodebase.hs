@@ -86,6 +86,7 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
+import Unison.Codebase.SqliteCodebase.MigrateSchema12 (migrateSchema12)
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.Type as C
@@ -271,7 +272,12 @@ shutdownConnection conn = do
   Monad.when debug $ traceM $ "shutdown connection " ++ show conn
   liftIO $ Sqlite.close (Connection.underlying conn)
 
-sqliteCodebase :: (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
+sqliteCodebase ::
+  forall m.
+  (MonadIO m, MonadCatch m) =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  m (Either SchemaVersion (m (), Codebase m Symbol Ann))
 sqliteCodebase debugName root = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
   conn <- unsafeGetConnection debugName root
@@ -279,6 +285,7 @@ sqliteCodebase debugName root = do
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
   let
+    startCodebase :: m (m (), Codebase m Symbol Ann)
     startCodebase = do
       rootBranchCache <- newTVarIO Nothing
       -- The v1 codebase interface has operations to read and write individual definitions
@@ -293,7 +300,7 @@ sqliteCodebase debugName root = do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
               Cv.term2to1 h1 getDeclType term2
 
-          getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
+          getDeclType :: forall m. EDB m => C.Reference.Reference -> m CT.ConstructorType
           getDeclType = Cache.apply declTypeCache \case
             C.Reference.ReferenceBuiltin t ->
               let err =
@@ -305,7 +312,7 @@ sqliteCodebase debugName root = do
                     Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
             C.Reference.ReferenceDerived i -> getDeclTypeById i
 
-          getDeclTypeById :: EDB m => C.Reference.Id -> m CT.ConstructorType
+          getDeclTypeById :: forall m. EDB m => C.Reference.Id -> m CT.ConstructorType
           getDeclTypeById = fmap Cv.decltype2to1 . Ops.getDeclTypeById
 
           getTypeOfTermImpl :: MonadIO m => Reference.Id -> m (Maybe (Type Symbol Ann))
@@ -373,12 +380,12 @@ sqliteCodebase debugName root = do
                     tryFlushTermBuffer h
                 )
 
-          putBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
+          putBuffer :: forall a m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> BufferEntry a -> m ()
           putBuffer tv h e = do
             Monad.when debug $ traceM $ "putBuffer " ++ prettyBufferEntry h e
             atomically $ modifyTVar tv (Map.insert h e)
 
-          withBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
+          withBuffer :: forall a b m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> (BufferEntry a -> m b) -> m b
           withBuffer tv h f = do
             Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "tv = " ++ show tv
             Map.lookup h <$> readTVarIO tv >>= \case
@@ -389,17 +396,18 @@ sqliteCodebase debugName root = do
                 Monad.when debug $ traceM $ "SqliteCodebase.with(new)Buffer " ++ show h
                 f (BufferEntry Nothing Map.empty Set.empty Set.empty)
 
-          removeBuffer :: (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+          removeBuffer :: forall a m. (MonadIO m, Show a) => TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
           removeBuffer _tv h | debug && trace ("removeBuffer " ++ show h) False = undefined
           removeBuffer tv h = do
             Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "before delete: " ++ show tv
             atomically $ modifyTVar tv (Map.delete h)
             Monad.when debug $ readTVarIO tv >>= \tv -> traceM $ "after delete: " ++ show tv
 
-          addBufferDependent :: (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
+          addBufferDependent :: forall a m. (MonadIO m, Show a) => Hash -> TVar (Map Hash (BufferEntry a)) -> Hash -> m ()
           addBufferDependent dependent tv dependency = withBuffer tv dependency \be -> do
             putBuffer tv dependency be {beWaitingDependents = Set.insert dependent $ beWaitingDependents be}
           tryFlushBuffer ::
+            forall a m.
             (EDB m, Show a) =>
             TVar (Map Hash (BufferEntry a)) ->
             (H2.Hash -> [a] -> m ()) ->
@@ -435,7 +443,7 @@ sqliteCodebase debugName root = do
                   -- it's never even been added, so there's nothing to do.
                   pure ()
 
-          addTermComponentTypeIndex :: EDB m => ObjectId -> [Type Symbol Ann] -> m ()
+          addTermComponentTypeIndex :: forall m. EDB m => ObjectId -> [Type Symbol Ann] -> m ()
           addTermComponentTypeIndex oId types = for_ (types `zip` [0..]) \(tp, i) -> do
             let self = C.Referent.RefId (C.Reference.Id oId i)
                 typeForIndexing = Hashing.typeToReference tp
@@ -443,7 +451,7 @@ sqliteCodebase debugName root = do
             Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
             Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
-          addDeclComponentTypeIndex :: EDB m => ObjectId -> [[Type Symbol Ann]] -> m ()
+          addDeclComponentTypeIndex :: forall m. EDB m => ObjectId -> [[Type Symbol Ann]] -> m ()
           addDeclComponentTypeIndex oId ctorss =
             for_ (ctorss `zip` [0..]) \(ctors, i) ->
               for_ (ctors `zip` [0..]) \(tp, j) -> do
@@ -453,7 +461,7 @@ sqliteCodebase debugName root = do
                 Ops.addTypeToIndexForTerm self (Cv.reference1to2 typeForIndexing)
                 Ops.addTypeMentionsToIndexForTerm self (Set.map Cv.reference1to2 typeMentionsForIndexing)
 
-          tryFlushTermBuffer :: EDB m => Hash -> m ()
+          tryFlushTermBuffer :: forall m. EDB m => Hash -> m ()
           tryFlushTermBuffer h | debug && trace ("tryFlushTermBuffer " ++ show h) False = undefined
           tryFlushTermBuffer h =
             tryFlushBuffer
@@ -466,7 +474,7 @@ sqliteCodebase debugName root = do
               tryFlushTermBuffer
               h
 
-          tryFlushDeclBuffer :: EDB m => Hash -> m ()
+          tryFlushDeclBuffer :: forall m. EDB m => Hash -> m ()
           tryFlushDeclBuffer h | debug && trace ("tryFlushDeclBuffer " ++ show h) False = undefined
           tryFlushDeclBuffer h =
             tryFlushBuffer
@@ -776,7 +784,7 @@ sqliteCodebase debugName root = do
             printBuffer "Decls:" decls
             printBuffer "Terms:" terms
 
-      pure . Right $
+      pure $
         ( finalizer,
           let
            code = Codebase1.Codebase
@@ -823,8 +831,12 @@ sqliteCodebase debugName root = do
           in code
         )
   runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 2 -> startCodebase
-    SchemaVersion 1 -> undefined -- migrate12 conn >> startCodebase
+    SchemaVersion 2 -> Right <$> startCodebase
+    SchemaVersion 1 -> do
+      (cleanup, codebase) <- startCodebase
+      migrateSchema12 conn codebase
+      -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
+      pure (Right (cleanup, codebase))
     v -> shutdownConnection conn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
