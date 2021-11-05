@@ -686,6 +686,7 @@ notifyUser dir o = case o of
     else pure mempty
 
   TodoOutput names todo -> pure (todoOutput names todo)
+  RefusedToPush _ -> undefined
   GitError input e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
