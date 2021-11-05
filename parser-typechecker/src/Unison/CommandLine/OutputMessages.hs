@@ -118,6 +118,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(Unrecogni
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Input as Input
+import qualified Data.List.Extra as List
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1072,10 +1073,21 @@ notifyUser dir o = case o of
       P.bold "This namespace depends on the following external terms:" <>
       P.newline <> P.indent "  " (
       -- TODO: group by reference and pretty-print constructor names
-        prettyDeps (ifoldMap _ nonLocalDeps)
+        prettyDeps nonLocalDeps
                     )
     where
-      prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
+      prettyDeps m = m
+                   & Map.toList
+                   & sort
+                   & List.groupOn (Referent.toReference . fst)
+                   & foldMap prettyDefinitionGroup
+      prettyDefinitionGroup [(_, k)] = prettyNames k
+      prettyDefinitionGroup ((_, typeNames):constructors) =
+        (prettyNames typeNames)
+        <> (P.indent "  " . foldMap prettyNames $ fmap snd constructors)
+      prettyDefinitionGroup [] = mempty
+      prettyNames = P.lines . fmap (P.text . Name.toText) . toList
+      -- prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>
