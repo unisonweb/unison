@@ -372,7 +372,6 @@ executable tests
       Unison.Test.ClearCache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
-      Unison.Test.Codebase.MigrateSchema12
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.ColorText

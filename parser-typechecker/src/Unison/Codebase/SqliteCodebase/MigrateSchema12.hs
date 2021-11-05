@@ -35,7 +35,7 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId,
     ObjectId,
-    PatchObjectId (..),
+    PatchObjectId (..), TextId (TextId)
   )
 import qualified U.Codebase.Sqlite.LocalizeObject as S.LocalizeObject
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -201,17 +201,9 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
 
   pure Sync.Done
 
--- Chris: Remaining Plan:
--- Convert all term & type object IDs in DbBranch into Hashes using database, can't use the skymap since they might not be migrated yet.
--- Collect all unmigrated Reference Ids and require them
--- Using the `objLookup` skymap, map over the original dbBranch, and use the objLookup table to convert all object id references.
--- Save this branch.
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
-  -- Read the old branch
   oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
-  -- let convertBranch :: S.DbBranch -> m (S.Branch' TextId Hash PatchObjectId (BranchObjectId, CausalHashId))
-  -- type DbBranch = Branch' TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
   oldBranchWithHashes <- traverseOf S.branchHashes_ (lift . Ops.loadHashByObjectId) oldBranch
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
@@ -282,25 +274,41 @@ migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $
   pure Sync.Done
 
 migratePatch ::
+  forall m.
   MonadIO m =>
   Connection ->
   Old PatchObjectId ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
+  let hydrateHashes :: forall m. Q.DB m => HashId -> m Hash
+      hydrateHashes hashId = do
+        Cv.hash2to1 <$> Q.loadHashHashById hashId
+  let hydrateObjectIds :: Q.DB m => ObjectId -> m Hash
+      hydrateObjectIds objId = do
+        Cv.hash2to1 <$> Ops.loadHashByObjectId objId
+
+  oldPatchWithHashes :: S.Patch' TextId Hash ObjectId
+    <- lift . lift $ do
+      (oldPatch & S.patchH_ %%~ hydrateHashes)
+      >>= S.patchO_ %%~ hydrateObjectIds
+
   -- 2. Determine whether all things the patch refers to are built.
   let dependencies :: [Entity]
-      dependencies = undefined
-  when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
-  --objMapping <- gets objLookup
-  let hydrate :: Q.DB m => HashId -> m Hash
-      hydrate = undefined
+      dependencies =
+        oldPatch
+          ^.. patchSomeRefsH_ . to someReferenceIdToEntity
+        <> oldPatch
+          ^.. patchSomeRefsO_ . to _
+
   let dehydrate :: Q.DB m => Hash -> m HashId
       dehydrate = undefined
   let remapRef :: SomeReferenceId -> SomeReferenceId
       remapRef = undefined
   let remapObjectIds :: SomeReferenceObjId -> SomeReferenceObjId
       remapObjectIds = undefined
+
+  when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
   newPatch <-
     oldPatch
       & patchSomeRefsH_
@@ -313,7 +321,6 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
                 undefined x
             )
       <&> (patchSomeRefsO_ %~ remapObjectIds)
-  -- & patchSomeRefsO_ . someRef_ %~ _
   let (localPatchIds, localPatch) = S.LocalizeObject.localizePatch newPatch
   newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatch))
   newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))

@@ -39,13 +39,13 @@ type Pos = Word64
 data Id' h = Id h Pos
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-t :: Traversal (Reference' t h) (Reference' t' h) t t'
-t f = \case
+t_ :: Traversal (Reference' t h) (Reference' t' h) t t'
+t_ f = \case
   ReferenceBuiltin t -> ReferenceBuiltin <$> f t
   ReferenceDerived id -> pure (ReferenceDerived id)
 
-h :: Traversal (Reference' t h) (Reference' t h') h h'
-h f = \case
+h_ :: Traversal (Reference' t h) (Reference' t h') h h'
+h_ f = \case
   ReferenceBuiltin t -> pure (ReferenceBuiltin t)
   Derived h i -> Derived <$> f h <*> pure i
 

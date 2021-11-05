@@ -14,7 +14,7 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Bifoldable (Bifoldable(..))
 import Data.Bitraversable (Bitraversable(..))
 import U.Codebase.Decl (ConstructorId)
-import Control.Lens (Prism)
+import Control.Lens (Prism, Traversal)
 import Data.Generics.Sum (_Ctor)
 import Unison.Prelude
 
@@ -25,6 +25,15 @@ data Referent' termRef typeRef
   = Ref termRef
   | Con typeRef ConstructorId
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+refs_ :: Traversal (Referent' ref ref) (Referent' ref' ref') ref ref'
+refs_ f r = bitraverse f f r
+
+typeRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef' termRef) typeRef typeRef'
+typeRef_ f = bitraverse f pure
+
+termRef_ :: Traversal (Referent' typeRef termRef) (Referent' typeRef termRef') termRef termRef'
+termRef_ f = bitraverse pure f
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"

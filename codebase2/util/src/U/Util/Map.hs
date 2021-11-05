@@ -3,9 +3,12 @@ module U.Util.Map
     bitraverse,
     swap,
     valuesVector,
+    traverseKeys,
+    traverseKeysWith,
   )
 where
 
+import Control.Lens (traversed, (%%~), (&), _1)
 import qualified Data.Bifunctor as B
 import qualified Data.Bitraversable as B
 import Data.Map (Map)
@@ -27,3 +30,11 @@ swap =
 valuesVector :: Map k v -> Vector v
 valuesVector =
   Vector.fromList . Map.elems
+
+traverseKeys :: (Applicative f, Ord k') => (k -> f k') -> Map k v -> f (Map k' v)
+traverseKeys f m =
+  Map.fromList <$> (Map.toList m & traversed . _1 %%~ f)
+
+traverseKeysWith :: (Applicative f, Ord k') => (v -> v -> v) -> (k -> f k') -> Map k v -> f (Map k' v)
+traverseKeysWith combine f m =
+  Map.fromListWith combine <$> (Map.toList m & traversed . _1 %%~ f)
