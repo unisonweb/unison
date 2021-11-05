@@ -24,6 +24,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
@@ -975,16 +976,17 @@ push =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
     )
 
+-- FIXME share more code with push
 pushCreate :: InputPattern
 pushCreate =
   InputPattern
@@ -1020,14 +1022,14 @@ pushCreate =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1047,14 +1049,14 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern
@@ -1700,23 +1702,25 @@ docsToHtml =
     )
 
 execute :: InputPattern
-execute = InputPattern
-  "run"
-  []
-  [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
-  (P.wrapColumn2
-    [ ( "`run mymain args...`"
-      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
-        <> "typechecked file, or in the codebase."
-        <> "Any provided arguments will be passed as program arguments as though they were"
-        <> "provided at the command line when running mymain as an executable."
-      )
-    ]
-  )
-  (\case
-    [w] -> pure $ Input.ExecuteI w []
-    (w : ws) -> pure $ Input.ExecuteI w ws
-    _   -> Left $ showPatternHelp execute)
+execute =
+  InputPattern
+    "run"
+    []
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    ( P.wrapColumn2
+        [ ( "`run mymain args...`",
+            "Runs `!mymain`, where `mymain` is searched for in the most recent"
+              <> "typechecked file, or in the codebase."
+              <> "Any provided arguments will be passed as program arguments as though they were"
+              <> "provided at the command line when running mymain as an executable."
+          )
+        ]
+    )
+    ( \case
+        [w] -> pure $ Input.ExecuteI w []
+        (w : ws) -> pure $ Input.ExecuteI w ws
+        _ -> Left $ showPatternHelp execute
+    )
 
 ioTest :: InputPattern
 ioTest =
@@ -1993,8 +1997,8 @@ pathCompletor ::
 pathCompletor filterQuery getNames query _code b p =
   let b0root = Branch.head b
       b0local = Branch.getAt0 (Path.unabsolute p) b0root
-      -- todo: if these sets are huge, maybe trim results
-   in pure . filterQuery query . map Text.unpack $
+   in -- todo: if these sets are huge, maybe trim results
+      pure . filterQuery query . map Text.unpack $
         toList (getNames b0local)
           ++ if "." `isPrefixOf` query
             then map ("." <>) (toList (getNames b0root))
@@ -2053,4 +2057,4 @@ gitUrlArg =
     }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
-collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
+collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]

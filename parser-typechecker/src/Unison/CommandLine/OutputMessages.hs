@@ -1361,7 +1361,7 @@ notifyUser dir o = case o of
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush _ -> undefined
+  RefusedToPush pushBehavior -> undefined
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 

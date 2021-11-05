@@ -65,6 +65,8 @@ import qualified Unison.Codebase.Patch as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.PushBehavior (PushBehavior)
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -1691,7 +1693,7 @@ loop = do
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
-            PushRemoteBranchI mayRepo path syncMode -> handlePushRemoteBranch mayRepo path syncMode
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
             ListDependentsI hq ->
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1859,10 +1861,6 @@ loop = do
     Right input -> lastInput .= Just input
     _ -> pure ()
 
-data PushBehavior
-  = PushBehavior'RequireEmpty
-  | PushBehavior'RequireNonEmpty
-
 handlePushRemoteBranch ::
   forall m v.
   Applicative m =>
@@ -1870,11 +1868,12 @@ handlePushRemoteBranch ::
   Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
+  -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+  PushBehavior ->
   -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch mayRepo path syncMode = do
-  let behavior = PushBehavior'RequireNonEmpty
+handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
   srcb <- do
     currentPath' <- use currentPath
     getAt (Path.resolve currentPath' path)
@@ -1894,13 +1893,12 @@ handlePushRemoteBranch mayRepo path syncMode = do
       let update :: Branch m -> Maybe (Branch m)
           update branch =
             srcb
-              <$ case behavior of
-                PushBehavior'RequireEmpty -> guard (Branch.isEmpty branch)
-                PushBehavior'RequireNonEmpty -> guard (not (Branch.isEmpty branch))
+              <$ case pushBehavior of
+                PushBehavior.RequireEmpty -> guard (Branch.isEmpty branch)
+                PushBehavior.RequireNonEmpty -> guard (not (Branch.isEmpty branch))
       result <-
         case Branch.modifyAtM remotePath update remoteRoot of
-          Nothing -> do
-            undefined
+          Nothing -> pure (RefusedToPush pushBehavior)
           Just newRemoteRoot -> do
             unsafeTime "Push syncRemoteRootBranch" $
               syncRemoteRootBranch repo newRemoteRoot syncMode
