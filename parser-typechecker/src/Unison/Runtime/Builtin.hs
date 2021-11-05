@@ -1610,7 +1610,7 @@ declareForeigns = do
     $ mkForeignIOF getEnv
 
   declareForeign "IO.getArgs.impl.v1" unitToEFBox
-    $ mkForeignIOF $ \() -> fmap pack <$> SYS.getArgs
+    $ mkForeignIOF $ \() -> fmap Util.Text.pack <$> SYS.getArgs
 
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
