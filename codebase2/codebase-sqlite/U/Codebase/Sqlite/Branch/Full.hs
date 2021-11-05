@@ -7,8 +7,7 @@
 
 module U.Codebase.Sqlite.Branch.Full where
 
-import Control.Lens (Traversal, Traversal')
-import Data.Bifunctor (Bifunctor (bimap))
+import Control.Lens
 import qualified Data.Set as Set
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
@@ -16,6 +15,7 @@ import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObje
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import qualified U.Util.Map as Map
 import Unison.Prelude
+import qualified U.Codebase.Reference as Reference
 
 -- |
 -- @
@@ -49,8 +49,11 @@ data Branch' t h p c = Branch
   }
   deriving (Show, Generic)
 
-branchHashes_ :: Traversal (Branch' t h p c) (Branch' t h' p c) h h'
-branchHashes_ _f _ = undefined
+branchHashes_ :: (Ord h', Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h' p c) h h'
+branchHashes_ f Branch{..}= do
+  newTerms <- for terms (Map.bitraversed both metadataSetFormatReferences_ . Reference.h_ %%~ f)
+  newTypes <- for types (Map.bitraversed id metadataSetFormatReferences_ . Reference.h_ %%~ f)
+  pure Branch{terms=newTerms, types=newTypes, patches, children}
 
 patches_ :: Traversal (Branch' t h p c) (Branch' t h p' c) p p'
 patches_ f Branch {..} = (\newPatches -> Branch terms types newPatches children) <$> traverse f patches
@@ -71,7 +74,7 @@ data MetadataSetFormat' t h = Inline (Set (Reference' t h))
 
 metadataSetFormatReferences_ ::
   (Ord t, Ord h) =>
-  Traversal' (MetadataSetFormat' t h) (Reference' t h)
+  Traversal (MetadataSetFormat' t h) (MetadataSetFormat' t h') (Reference' t h) (Reference' t h')
 metadataSetFormatReferences_ f (Inline refs) =
   fmap (Inline . Set.fromList) . traverse f . Set.toList $ refs
 
