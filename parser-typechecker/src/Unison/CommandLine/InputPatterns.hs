@@ -1804,6 +1804,7 @@ validInputs =
     diffNamespace,
     names,
     push,
+    pushCreate,
     pull,
     pullSilent,
     pushExhaustive,

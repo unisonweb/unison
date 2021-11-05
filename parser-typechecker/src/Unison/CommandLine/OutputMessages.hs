@@ -43,6 +43,7 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -1361,7 +1362,18 @@ notifyUser dir o = case o of
         <> ( terms <&> \(n, r) ->
                prettyHashQualified' (HQ'.take hqLength . HQ'.fromNamedReference n $ Reference.DerivedId r)
            )
-  RefusedToPush pushBehavior -> undefined
+  RefusedToPush pushBehavior ->
+    (pure . P.warnCallout . P.lines) case pushBehavior of
+      PushBehavior.RequireEmpty ->
+        [ "The remote namespace is not empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.push <> " instead?"
+        ]
+      PushBehavior.RequireNonEmpty ->
+        [ "The remote namespace is empty.",
+          "",
+          "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
+        ]
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
