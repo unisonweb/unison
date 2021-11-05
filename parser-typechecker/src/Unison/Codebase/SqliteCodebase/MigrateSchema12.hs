@@ -77,9 +77,6 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 
 -- todo:
---  * migrateBranch
---  * migratePatch
-
 --  * write a harness to call & seed algorithm, then do cleanup
 --    * may involve writing a `Progress`
 --    * raw DB things:
@@ -756,21 +753,24 @@ _TermReference = _Ctor @"TermReference"
 
 -- | This is only safe as long as you don't change the constructor of your SomeReference
 asTermReference_ :: Traversal' ref (SomeReference ref)
-asTermReference_ f ref = f (TermReference ref) <&> \case
-  TermReference ref' -> ref'
-  _ -> error "asTermReference_: SomeReferenceId constructor was changed."
+asTermReference_ f ref =
+  f (TermReference ref) <&> \case
+    TermReference ref' -> ref'
+    _ -> error "asTermReference_: SomeReferenceId constructor was changed."
 
 -- | This is only safe as long as you don't change the constructor of your SomeReference
 asTypeReference_ :: Traversal' ref (SomeReference ref)
-asTypeReference_ f ref = f (TypeReference ref) <&> \case
-  TypeReference ref' -> ref'
-  _ -> error "asTypeReference_: SomeReferenceId constructor was changed."
+asTypeReference_ f ref =
+  f (TypeReference ref) <&> \case
+    TypeReference ref' -> ref'
+    _ -> error "asTypeReference_: SomeReferenceId constructor was changed."
 
 -- | This is only safe as long as you don't change the constructor of your SomeReference
 asConstructorReference_ :: Traversal' (ref, ConstructorId) (SomeReference ref)
-asConstructorReference_ f (ref, cId) = f (ConstructorReference ref cId) <&> \case
-  (ConstructorReference ref' cId) -> (ref', cId)
-  _ -> error "asConstructorReference_: SomeReferenceId constructor was changed."
+asConstructorReference_ f (ref, cId) =
+  f (ConstructorReference ref cId) <&> \case
+    (ConstructorReference ref' cId) -> (ref', cId)
+    _ -> error "asConstructorReference_: SomeReferenceId constructor was changed."
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
 someReferenceIdToEntity = \case
