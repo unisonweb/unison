@@ -4,6 +4,7 @@
 {-# language PatternGuards #-}
 {-# language EmptyDataDecls #-}
 {-# language PatternSynonyms #-}
+{-# language OverloadedStrings #-}
 
 module Unison.Runtime.MCode
   ( Args'(..)
@@ -48,7 +49,7 @@ import Data.Primitive.PrimArray
 import qualified Data.Map.Strict as M
 import Unison.Util.EnumContainers as EC
 
-import Data.Text (Text,pack)
+import Unison.Util.Text (Text)
 
 import Unison.Var (Var)
 import Unison.ABT.Normalized (pattern TAbss)
@@ -933,7 +934,7 @@ emitLet rns grp rec d vcs ctx bnd
   f s w = Let s (CIx contRef grp w)
 
 contRef :: Reference
-contRef = Builtin (pack "Continuation")
+contRef = Builtin "Continuation"
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed

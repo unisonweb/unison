@@ -48,6 +48,7 @@ library:
     - binary
     - bytes
     - bytestring
+    - bytestring-to-vector
     - cereal
     - containers >= 0.6.3
     - configurator
@@ -109,6 +110,7 @@ library:
     - temporary
     - terminal-size
     - text
+    - text-short
     - time
     - tls
     - transformers

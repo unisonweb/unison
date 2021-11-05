@@ -20,7 +20,8 @@ import Data.Ord (comparing)
 import Data.Traversable
 import Data.Word (Word64)
 
-import qualified Data.Text as Tx
+import qualified Data.Text as DTx
+import qualified Unison.Util.Text as Util.Text
 import qualified Data.Text.IO as Tx
 import qualified Data.Sequence as Sq
 import qualified Data.Map.Strict as M
@@ -141,7 +142,7 @@ topDEnv
   -> (DEnv, K -> K)
 topDEnv rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy
-  , rcrf <- Builtin (Tx.pack "raise")
+  , rcrf <- Builtin (DTx.pack "raise")
   , Just j <- M.lookup rcrf rfTm
   = ( EC.mapSingleton n (PAp (CIx rcrf j 0) unull bnull)
     , Mark (EC.setSingleton n) mempty
@@ -260,7 +261,7 @@ exec !env !denv !ustk !bstk !k (BPrim1 LKUP i) = do
 exec !_ !denv !ustk !bstk !k (BPrim1 TLTT i) = do
   clink <- peekOff bstk i
   let Ref link = unwrapForeign $ marshalToForeign clink
-  let sh = SH.toText $ toShortHash link
+  let sh = Util.Text.fromText . SH.toText $ toShortHash link
   bstk <- bump bstk
   pokeBi bstk sh
   pure (denv, ustk, bstk, k)
@@ -311,7 +312,7 @@ exec !_   !denv !ustk !bstk !k (Unpack r i) = do
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (Print i) = do
   t <- peekOffBi bstk i
-  Tx.putStrLn t
+  Tx.putStrLn (Util.Text.toText t)
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (Lit (MI n)) = do
   ustk <- bump ustk
@@ -1061,7 +1062,7 @@ bprim1
 bprim1 !ustk !bstk SIZT i = do
   t <- peekOffBi bstk i
   ustk <- bump ustk
-  poke ustk $ Tx.length t
+  poke ustk $ Util.Text.size t
   pure (ustk, bstk)
 bprim1 !ustk !bstk SIZS i = do
   s <- peekOffS bstk i
@@ -1071,20 +1072,20 @@ bprim1 !ustk !bstk SIZS i = do
 bprim1 !ustk !bstk ITOT i = do
   n <- peekOff ustk i
   bstk <- bump bstk
-  pokeBi bstk . Tx.pack $ show n
+  pokeBi bstk . Util.Text.pack $ show n
   pure (ustk, bstk)
 bprim1 !ustk !bstk NTOT i = do
   n <- peekOffN ustk i
   bstk <- bump bstk
-  pokeBi bstk . Tx.pack $ show n
+  pokeBi bstk . Util.Text.pack $ show n
   pure (ustk, bstk)
 bprim1 !ustk !bstk FTOT i = do
   f <- peekOffD ustk i
   bstk <- bump bstk
-  pokeBi bstk . Tx.pack $ show f
+  pokeBi bstk . Util.Text.pack $ show f
   pure (ustk, bstk)
 bprim1 !ustk !bstk USNC i
-  = peekOffBi bstk i >>= \t -> case Tx.unsnoc t of
+  = peekOffBi bstk i >>= \t -> case Util.Text.unsnoc t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -1097,7 +1098,7 @@ bprim1 !ustk !bstk USNC i
         pokeBi bstk t
         pure (ustk, bstk)
 bprim1 !ustk !bstk UCNS i
-  = peekOffBi bstk i >>= \t -> case Tx.uncons t of
+  = peekOffBi bstk i >>= \t -> case Util.Text.uncons t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -1110,7 +1111,7 @@ bprim1 !ustk !bstk UCNS i
         pokeBi bstk t
         pure (ustk, bstk)
 bprim1 !ustk !bstk TTOI i
-  = peekOffBi bstk i >>= \t -> case readm $ Tx.unpack t of
+  = peekOffBi bstk i >>= \t -> case readm $ Util.Text.unpack t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -1124,7 +1125,7 @@ bprim1 !ustk !bstk TTOI i
   readm ('+':s) = readMaybe s
   readm s = readMaybe s
 bprim1 !ustk !bstk TTON i
-  = peekOffBi bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+  = peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -1135,7 +1136,7 @@ bprim1 !ustk !bstk TTON i
         pokeOffN ustk 1 n
         pure (ustk, bstk)
 bprim1 !ustk !bstk TTOF i
-  = peekOffBi bstk i >>= \t -> case readMaybe $ Tx.unpack t of
+  = peekOffBi bstk i >>= \t -> case readMaybe $ Util.Text.unpack t of
       Nothing -> do
         ustk <- bump ustk
         poke ustk 0
@@ -1174,7 +1175,7 @@ bprim1 !ustk !bstk VWRS i
 bprim1 !ustk !bstk PAKT i = do
   s <- peekOffS bstk i
   bstk <- bump bstk
-  pokeBi bstk . Tx.pack . toList $ clo2char <$> s
+  pokeBi bstk . Util.Text.pack . toList $ clo2char <$> s
   pure (ustk, bstk)
   where
   clo2char (DataU1 _ t i) | t == charTag = toEnum i
@@ -1183,7 +1184,7 @@ bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
   bstk <- bump bstk
   pokeS bstk . Sq.fromList
-    . fmap (DataU1 Rf.charRef charTag . fromEnum) . Tx.unpack $ t
+    . fmap (DataU1 Rf.charRef charTag . fromEnum) . Util.Text.unpack $ t
   pure (ustk, bstk)
 bprim1 !ustk !bstk PAKB i = do
   s <- peekOffS bstk i
@@ -1232,34 +1233,34 @@ bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Tx.drop n t
+  pokeBi bstk $ Util.Text.drop n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk CATT i j = do
   x <- peekOffBi bstk i
   y <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Tx.append x y
+  pokeBi bstk $ (x <> y :: Util.Text.Text)
   pure (ustk, bstk)
 bprim2 !ustk !bstk TAKT i j = do
   n <- peekOff ustk i
   t <- peekOffBi bstk j
   bstk <- bump bstk
-  pokeBi bstk $ Tx.take n t
+  pokeBi bstk $ Util.Text.take n t
   pure (ustk, bstk)
 bprim2 !ustk !bstk EQLT i j = do
-  x <- peekOffBi @Tx.Text bstk i
+  x <- peekOffBi @Util.Text.Text bstk i
   y <- peekOffBi bstk j
   ustk <- bump ustk
   poke ustk $ if x == y then 1 else 0
   pure (ustk, bstk)
 bprim2 !ustk !bstk LEQT i j = do
-  x <- peekOffBi @Tx.Text bstk i
+  x <- peekOffBi @Util.Text.Text bstk i
   y <- peekOffBi bstk j
   ustk <- bump ustk
   poke ustk $ if x <= y then 1 else 0
   pure (ustk, bstk)
 bprim2 !ustk !bstk LEST i j = do
-  x <- peekOffBi @Tx.Text bstk i
+  x <- peekOffBi @Util.Text.Text bstk i
   y <- peekOffBi bstk j
   ustk <- bump ustk
   poke ustk $ if x < y then 1 else 0
@@ -1368,9 +1369,9 @@ bprim2 !ustk !bstk CATB i j = do
   pokeBi bstk (l <> r :: By.Bytes)
   pure (ustk, bstk)
 bprim2 !_    !bstk THRO i j = do
-  name <- peekOffBi bstk i
+  name <- peekOffBi @Util.Text.Text bstk i
   x <- peekOff bstk j
-  throwIO (BU name x)
+  throwIO (BU (Util.Text.toText name) x)
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
@@ -1396,7 +1397,7 @@ yield !env !denv !ustk !bstk !k = leap denv k
 {-# inline yield #-}
 
 selectTextBranch
-  :: Tx.Text -> Section -> M.Map Tx.Text Section -> Section
+  :: Util.Text.Text -> Section -> M.Map Util.Text.Text Section -> Section
 selectTextBranch t df cs = M.findWithDefault df t cs
 {-# inline selectTextBranch #-}
 
@@ -1466,7 +1467,7 @@ combSection env (CIx _ n i) =
     Nothing -> die $ "unknown combinator `" ++ show n ++ "`."
 
 dummyRef :: Reference
-dummyRef = Builtin (Tx.pack "dummy")
+dummyRef = Builtin (DTx.pack "dummy")
 
 reserveIds :: Word64 -> TVar Word64 -> IO Word64
 reserveIds n free = atomically . stateTVar free $ \i -> (i, i+n)
@@ -1528,8 +1529,8 @@ codeValidate tml cc = do
       combinate (n, g) = evaluate $ emitCombs rns n g
   (Nothing <$ traverse_ combinate (zip [ftm..] gs))
     `catch` \(CE cs perr) -> let
-      msg = Tx.pack $ toPlainUnbroken perr
-      extra = Foreign . Wrap Rf.textRef . Tx.pack $ show cs in
+      msg = Util.Text.pack $ toPlainUnbroken perr
+      extra = Foreign . Wrap Rf.textRef . Util.Text.pack $ show cs in
       pure . Just $ Failure ioFailureRef msg extra
 
 cacheAdd0
