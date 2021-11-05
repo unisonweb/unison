@@ -1740,8 +1740,9 @@ loop = do
         case (Branch.getAt (Path.unabsolute path) root') of
           Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
           Just b -> do
-            nonlocalDeps <- namespaceDependencies root0 (Branch.head b)
-            respond $ ListNamespaceDependencies undefined nonlocalDeps
+            externalDeps <- namespaceDependencies root0 (Branch.head b)
+            ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+            respond $ ListNamespaceDependencies ppe externalDeps
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile

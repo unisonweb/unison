@@ -1069,25 +1069,28 @@ notifyUser dir o = case o of
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
   ListNamespaceDependencies _ppe Empty -> pure $ "This namespace has no external dependencies"
-  ListNamespaceDependencies _ppe nonLocalDeps -> pure $
+  ListNamespaceDependencies ppe externalDeps -> pure $
       P.bold "This namespace depends on the following external terms:" <>
       P.newline <> P.indent "  " (
       -- TODO: group by reference and pretty-print constructor names
-        prettyDeps nonLocalDeps
+        prettyDeps externalDeps
                     )
     where
+      prettyDeps :: Map Referent (Type v Ann) -> _
       prettyDeps m = m
                    & Map.toList
-                   & sort
-                   & List.groupOn (Referent.toReference . fst)
+                   & groupByReference
                    & P.lines . fmap prettyDefinitionGroup
-      prettyDefinitionGroup [(_, k)] = prettyName k
-      prettyDefinitionGroup ((_, typeNames):constructors) =
-        (prettyName typeNames)
-        <> P.newline <> P.bold "Constructors" <> P.newline
-        <> (P.indentAfterNewline "  " . P.lines . fmap prettyName $ fmap snd constructors)
+      groupByReference :: [(Referent, Type v Ann)] -> [[(Referent, Type v Ann)]]
+      groupByReference = List.groupOn (Referent.toReference . fst) . sort
+      prettyDefinitionGroup :: [(Referent, Type v Ann)] -> _
+      prettyDefinitionGroup [(r, k)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r) <> ":" <> TypePrinter.pretty ppe k
+      prettyDefinitionGroup ((_, _typeNames):_constructors) = mempty
+        -- (prettyName typeNames)
+        -- <> P.newline
+        -- <> (P.indent "  " . P.lines . fmap prettyName $ fmap snd constructors)
       prettyDefinitionGroup [] = mempty
-      prettyName = P.text . Name.toText . head . toList
+      -- prettyName = P.text . Name.toText . head . toList
       -- prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $

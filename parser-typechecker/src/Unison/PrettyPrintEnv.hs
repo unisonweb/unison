@@ -6,6 +6,7 @@ module Unison.PrettyPrintEnv
     patternName,
     termName,
     typeName,
+    typeOrTermName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
   )
@@ -20,6 +21,7 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
+import qualified Unison.Referent' as Referent'
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -51,6 +53,11 @@ termName env r =
 typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   fromMaybe (HQ.take todoHashLength $ HQ.fromReference r) (types env r)
+
+-- | Find a name for this referent (or embedded reference) in either the types or terms.
+typeOrTermName :: PrettyPrintEnv -> Referent -> HashQualified Name
+typeOrTermName env r =
+  fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) ((Referent'.toTermReference r >>= types env)  <|> terms env r)
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
 patternName env r cid =
