@@ -35,10 +35,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase.Branch
-  ( Branch (..),
-    Branch0 (..),
-  )
+import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -65,10 +62,7 @@ import qualified Unison.Codebase.MainTerm as MainTerm
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
-import Unison.Codebase.Path
-  ( Path,
-    Path' (..),
-  )
+import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Reflog as Reflog
@@ -410,7 +404,7 @@ loop = do
             UndoI {} -> "undo"
             UiI -> "ui"
             DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
-            ExecuteI s -> "execute " <> Text.pack s
+            ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s : args))
             IOTestI hq -> "io.test " <> HQ.toText hq
             LinkI md defs ->
               "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
@@ -422,9 +416,7 @@ loop = do
             MakeStandaloneI out nm ->
               "compile.output " <> Text.pack out <> " " <> HQ.toText nm
             PullRemoteBranchI orepo dest _syncMode _ ->
-              ( Text.pack . InputPattern.patternName $
-                  InputPatterns.patternFromInput input
-              )
+              (Text.pack . InputPattern.patternName $ InputPatterns.pull)
                 <> " "
                 -- todo: show the actual config-loaded namespace
                 <> maybe
@@ -499,8 +491,9 @@ loop = do
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use root >>= updateRoot
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-          unlessGitError = unlessError' (Output.GitError input)
+          unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
+          viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
           loadSearchResults = eval . LoadSearchResults
           handleFailedDelete failed failedDependents = do
             failed <- loadSearchResults $ SR.fromNames failed
@@ -1563,7 +1556,7 @@ loop = do
               patch <- getPatchAt patchPath
               updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
               unless updated (respond $ NothingToPatch patchPath scopePath)
-            ExecuteI main ->
+            ExecuteI main args ->
               addRunMain main uf >>= \case
                 NoTermWithThatName -> do
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
@@ -1575,7 +1568,7 @@ loop = do
                   respond $ BadMainFunction main ty ppe [mainType]
                 RunMainSuccess unisonFile -> do
                   ppe <- executePPE unisonFile
-                  e <- eval $ Execute ppe unisonFile
+                  e <- eval $ Execute ppe unisonFile args
 
                   case e of
                     Left e -> respond $ EvaluationFailure e
@@ -1698,7 +1691,7 @@ loop = do
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
-            PushRemoteBranchI mayRepo path syncMode -> handlePushRemoteBranch input mayRepo path syncMode
+            PushRemoteBranchI mayRepo path syncMode -> handlePushRemoteBranch mayRepo path syncMode
             ListDependentsI hq ->
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1832,6 +1825,36 @@ loop = do
               )
           pure . join $ toList xs
 
+        configKey k p =
+          Text.intercalate "." . toList $
+            k
+              :<| fmap
+                NameSegment.toText
+                (Path.toSeq $ Path.unabsolute p)
+
+        -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
+        -- otherwise, tries to load a value from .unisonConfig, and complains
+        -- if needed.
+        resolveConfiguredGitUrl ::
+          PushPull ->
+          Path' ->
+          ExceptT (Output v) (Action' m v) WriteRemotePath
+        resolveConfiguredGitUrl pushPull destPath' = ExceptT do
+          let destPath = resolveToAbsolute destPath'
+          let configKey = gitUrlKey destPath
+          (eval . ConfigLookup) configKey >>= \case
+            Just url ->
+              case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
+                Left e ->
+                  pure . Left $
+                    ConfiguredGitUrlParseError pushPull destPath' url (show e)
+                Right ns ->
+                  pure . Right $ ns
+            Nothing ->
+              pure . Left $ NoConfiguredGitUrl pushPull destPath'
+
+        gitUrlKey = configKey "GitUrl"
+
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
@@ -1843,8 +1866,6 @@ data PushBehavior
 handlePushRemoteBranch ::
   forall m v.
   Applicative m =>
-  -- | The entire input, which is only needed to pass along to error outputs.
-  Input ->
   -- | The URL to push to. If missing, it is looked up in `.unisonConfig`.
   Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
@@ -1852,14 +1873,14 @@ handlePushRemoteBranch ::
   -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch input mayRepo path syncMode = do
+handlePushRemoteBranch mayRepo path syncMode = do
   let behavior = PushBehavior'RequireNonEmpty
   srcb <- do
     currentPath' <- use currentPath
     getAt (Path.resolve currentPath' path)
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    lift $ unlessError' (Output.GitError input) do
+    lift $ unlessError' Output.GitError do
       (cleanup, remoteRoot) <-
         unsafeTime "Push viewRemoteBranch" $
           viewRemoteBranch (writeToRead repo, Nothing, Path.empty)

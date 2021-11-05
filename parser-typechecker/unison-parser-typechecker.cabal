@@ -184,8 +184,10 @@ library
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
+      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.SyntaxText
+      Unison.Util.Text
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   other-modules:
@@ -227,6 +229,7 @@ library
     , binary
     , bytes
     , bytestring
+    , bytestring-to-vector
     , cereal
     , configurator
     , containers >=0.6.3
@@ -287,6 +290,7 @@ library
     , temporary
     , terminal-size
     , text
+    , text-short
     , time
     , tls
     , transformers
@@ -388,6 +392,7 @@ executable tests
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
+      Unison.Test.Util.Text
       Unison.Test.Var
       Unison.Test.VersionParser
       Paths_unison_parser_typechecker
