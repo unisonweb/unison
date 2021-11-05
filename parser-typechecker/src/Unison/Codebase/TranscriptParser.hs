@@ -120,8 +120,8 @@ parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
   Left e -> Left (show e)
 
-run :: FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run dir configFile stanzas codebase = do
+run :: String -> FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
+run version dir configFile stanzas codebase = do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $ P.lines [
     asciiartUnison, "",
@@ -144,7 +144,7 @@ run dir configFile stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- RTI.startRuntime ""
+    runtime                  <- RTI.startRuntime version
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList

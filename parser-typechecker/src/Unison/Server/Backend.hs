@@ -841,11 +841,12 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
   let currentBranch = Branch.getAt' currentPath root
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
+  let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
   let printNames = getCurrentPrettyNames (AllNames currentPath) root
   let ppe = PPE.fromNamesDecl hqLength printNames
   docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
-  liftIO $ traverse_ (renderDocToHtmlFile directory) docs
+  liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
 
   where
     renderDoc' ppe runtime codebase (ref, name) = do
@@ -876,15 +877,15 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
 
       in dir </> fileName
 
-    renderDocToHtmlFile :: FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
-    renderDocToHtmlFile destination (docName, _, doc) =
+    renderDocToHtmlFile :: Map Referent Name -> FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile docNamesByRef destination (docName, _, doc) =
       let
         fullPath = docFilePath destination docName
         directoryPath = takeDirectory fullPath
        in do
         -- Ensure all directories exists
         _ <- createDirectoryIfMissing True directoryPath
-        Lucid.renderToFile fullPath (DocHtml.toHtml doc)
+        Lucid.renderToFile fullPath (DocHtml.toHtml docNamesByRef doc)
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text

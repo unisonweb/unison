@@ -210,6 +210,7 @@ data Output v
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
+  | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
   | NoOp
   deriving (Show)
 
@@ -328,6 +329,7 @@ isFailure o = case o of
   ListDependents{} -> False
   TermMissingType{} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
+  NamespaceEmpty _ -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case

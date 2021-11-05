@@ -403,7 +403,7 @@ loop = do
           UndoI{} -> "undo"
           UiI -> "ui"
           DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
-          ExecuteI s -> "execute " <> Text.pack s
+          ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s: args))
           IOTestI hq -> "io.test " <> HQ.toText hq
           LinkI md defs ->
             "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
@@ -720,8 +720,13 @@ loop = do
               resolveToAbsolute <$> [before0, after0]
         before <- Branch.head <$> getAt beforep
         after <- Branch.head <$> getAt afterp
-        (ppe, outputDiff) <- diffHelper before after
-        respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
+        case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
+          (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
+          (True, False) -> respond . NamespaceEmpty $ Left beforep
+          (False, True) -> respond . NamespaceEmpty $ Left afterp
+          _ -> do
+            (ppe, outputDiff) <- diffHelper before after
+            respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
 
       CreatePullRequestI baseRepo headRepo -> unlessGitError do
         (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
@@ -1502,7 +1507,7 @@ loop = do
         updated <- propagatePatch inputDescription patch (resolveToAbsolute scopePath)
         unless updated (respond $ NothingToPatch patchPath scopePath)
 
-      ExecuteI main -> addRunMain main uf >>= \case
+      ExecuteI main args -> addRunMain main uf >>= \case
         NoTermWithThatName -> do
           ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
           mainType <- eval RuntimeMain
@@ -1513,7 +1518,7 @@ loop = do
           respond $ BadMainFunction main ty ppe [mainType]
         RunMainSuccess unisonFile -> do
           ppe <- executePPE unisonFile
-          e <- eval $ Execute ppe unisonFile
+          e <- eval $ Execute ppe unisonFile args
 
           case e of
             Left e -> respond $ EvaluationFailure e

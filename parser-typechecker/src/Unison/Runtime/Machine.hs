@@ -1183,7 +1183,7 @@ bprim1 !ustk !bstk UPKT i = do
   t <- peekOffBi bstk i
   bstk <- bump bstk
   pokeS bstk . Sq.fromList
-    . fmap (DataU1 Rf.charRef 0 . fromEnum) . Tx.unpack $ t
+    . fmap (DataU1 Rf.charRef charTag . fromEnum) . Tx.unpack $ t
   pure (ustk, bstk)
 bprim1 !ustk !bstk PAKB i = do
   s <- peekOffS bstk i
@@ -1196,7 +1196,7 @@ bprim1 !ustk !bstk PAKB i = do
 bprim1 !ustk !bstk UPKB i = do
   b <- peekOffBi bstk i
   bstk <- bump bstk
-  pokeS bstk . Sq.fromList . fmap (DataU1 Rf.natRef 0 . fromEnum)
+  pokeS bstk . Sq.fromList . fmap (DataU1 Rf.natRef natTag . fromEnum)
     $ By.toWord8s b
   pure (ustk, bstk)
 bprim1 !ustk !bstk SIZB i = do
