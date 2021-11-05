@@ -123,6 +123,7 @@ import System.Directory as SYS
   )
 import System.Environment as SYS
   ( getEnv
+  , getArgs
   )
 import System.IO.Temp (createTempDirectory)
 
@@ -1607,6 +1608,9 @@ declareForeigns = do
 
   declareForeign "IO.getEnv.impl.v1" boxToEFBox
     $ mkForeignIOF getEnv
+
+  declareForeign "IO.getArgs.impl.v1" unitToEFBox
+    $ mkForeignIOF $ \() -> fmap pack <$> SYS.getArgs
 
   declareForeign "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
