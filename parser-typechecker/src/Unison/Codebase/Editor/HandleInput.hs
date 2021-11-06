@@ -495,7 +495,6 @@ loop = do
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
-          viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
           loadSearchResults = eval . LoadSearchResults
           handleFailedDelete failed failedDependents = do
             failed <- loadSearchResults $ SR.fromNames failed
@@ -1826,36 +1825,6 @@ loop = do
                   pure . join $ toList mayNames
               )
           pure . join $ toList xs
-
-        configKey k p =
-          Text.intercalate "." . toList $
-            k
-              :<| fmap
-                NameSegment.toText
-                (Path.toSeq $ Path.unabsolute p)
-
-        -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
-        -- otherwise, tries to load a value from .unisonConfig, and complains
-        -- if needed.
-        resolveConfiguredGitUrl ::
-          PushPull ->
-          Path' ->
-          ExceptT (Output v) (Action' m v) WriteRemotePath
-        resolveConfiguredGitUrl pushPull destPath' = ExceptT do
-          let destPath = resolveToAbsolute destPath'
-          let configKey = gitUrlKey destPath
-          (eval . ConfigLookup) configKey >>= \case
-            Just url ->
-              case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
-                Left e ->
-                  pure . Left $
-                    ConfiguredGitUrlParseError pushPull destPath' url (show e)
-                Right ns ->
-                  pure . Right $ ns
-            Nothing ->
-              pure . Left $ NoConfiguredGitUrl pushPull destPath'
-
-        gitUrlKey = configKey "GitUrl"
 
   case e of
     Right input -> lastInput .= Just input

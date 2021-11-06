@@ -986,7 +986,6 @@ push =
           Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
     )
 
--- FIXME share more code with push
 pushCreate :: InputPattern
 pushCreate =
   InputPattern
