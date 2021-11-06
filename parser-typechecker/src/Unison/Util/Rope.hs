@@ -19,7 +19,7 @@ import Control.DeepSeq (NFData(..))
 -- The `Int` in the `Two` constructor is a cached size of that subtree.
 data Rope a
   = Empty
-  | One {-# unpack #-} !a
+  | One !a
   | Two {-# unpack #-} !Int !(Rope a) !(Rope a)
   deriving Foldable
 
