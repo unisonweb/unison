@@ -1879,32 +1879,33 @@ handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
     getAt (Path.resolve currentPath' path)
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    lift $ unlessError' Output.GitError do
-      (cleanup, remoteRoot) <-
-        unsafeTime "Push viewRemoteBranch" $
+    (cleanup, remoteRoot) <-
+      unsafeTime "Push viewRemoteBranch" do
+        withExceptT Output.GitError do
           viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-      -- Per `behavior`, we are either:
-      --
-      --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
-      --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
-      --
-      -- In both cases, but especially interesting when performing (2), we don't merge `srcb` with the remote branch, we just replace it.
-      -- This push will be rejected if this rewinds time or misses any new updates in the remote branch that aren't in `srcb` already.
-      let update :: Branch m -> Maybe (Branch m)
-          update branch =
-            srcb
-              <$ case pushBehavior of
-                PushBehavior.RequireEmpty -> guard (Branch.isEmpty branch)
-                PushBehavior.RequireNonEmpty -> guard (not (Branch.isEmpty branch))
-      result <-
-        case Branch.modifyAtM remotePath update remoteRoot of
-          Nothing -> pure (RefusedToPush pushBehavior)
-          Just newRemoteRoot -> do
-            unsafeTime "Push syncRemoteRootBranch" $
-              syncRemoteRootBranch repo newRemoteRoot syncMode
-            pure Success
-      lift . eval $ Eval cleanup
-      lift (respond result)
+    -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
+    -- updates in the remote branch that aren't in `srcb` already.
+    case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
+      Nothing -> lift do
+        eval (Eval cleanup)
+        respond (RefusedToPush pushBehavior)
+      Just newRemoteRoot -> do
+        unsafeTime "Push syncRemoteRootBranch" do
+          withExceptT Output.GitError do
+            syncRemoteRootBranch repo newRemoteRoot syncMode
+        lift do
+          eval (Eval cleanup)
+          respond Success
+  where
+    -- Per `pushBehavior`, we are either:
+    --
+    --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
+    --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
+    shouldPushTo :: Branch m -> Bool
+    shouldPushTo remoteBranch = do
+      case pushBehavior of
+        PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
+        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
@@ -2365,7 +2366,7 @@ respondNumbered output = do
     numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
-unlessError ma = runExceptT ma >>= either (eval . Notify) pure
+unlessError ma = runExceptT ma >>= either respond pure
 
 unlessError' :: (e -> Output v) -> ExceptT e (Action' m v) () -> Action' m v ()
 unlessError' f ma = unlessError $ withExceptT f ma
