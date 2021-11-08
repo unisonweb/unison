@@ -1715,23 +1715,7 @@ loop = do
                     syncRemoteRootBranch repo newRemoteRoot syncMode
                   lift . eval $ Eval cleanup
                   lift $ respond Success
-            ListDependentsI hq ->
-              -- todo: add flag to handle transitive efficiently
-              resolveHQToLabeledDependencies hq >>= \lds ->
-                if null lds
-                  then respond $ LabeledReferenceNotFound hq
-                  else for_ lds $ \ld -> do
-                    dependents <-
-                      let tp r = eval $ GetDependents r
-                          tm (Referent.Ref r) = eval $ GetDependents r
-                          tm (Referent.Con r _i _ct) = eval $ GetDependents r
-                       in LD.fold tp tm ld
-                    (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-                    let types = R.toList $ Names.types names0
-                    let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-                    let names = types <> terms
-                    numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-                    respond $ ListDependents hqLength ld names missing
+            ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1881,6 +1865,27 @@ loop = do
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
+
+handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
+handleDependents hq = do
+  root' <- use root
+  hqLength <- eval CodebaseHashLength
+  -- todo: add flag to handle transitive efficiently
+  resolveHQToLabeledDependencies hq >>= \lds ->
+    if null lds
+      then respond $ LabeledReferenceNotFound hq
+      else for_ lds $ \ld -> do
+        dependents <-
+          let tp r = eval $ GetDependents r
+              tm (Referent.Ref r) = eval $ GetDependents r
+              tm (Referent.Con r _i _ct) = eval $ GetDependents r
+           in LD.fold tp tm ld
+        (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
+        let types = R.toList $ Names.types names0
+        let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
+        let names = types <> terms
+        numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+        respond $ ListDependents hqLength ld names missing
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
