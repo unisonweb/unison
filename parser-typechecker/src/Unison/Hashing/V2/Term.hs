@@ -36,6 +36,7 @@ import Unison.Hashing.V2.Type (Type)
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (and, or)
+import qualified Data.Zip as Zip
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
@@ -101,8 +102,29 @@ refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
 refId a = ref a . Reference.DerivedId
 
 hashComponents ::
-  Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
-hashComponents = ReferenceUtil.hashComponents $ refId ()
+  forall v a.
+  Var v => Map v (Term v a, Type v a) -> Map v (Reference.Id, Term v a, Type v a)
+hashComponents terms =
+  Zip.zipWith keepType terms (ReferenceUtil.hashComponents (refId ()) terms')
+   where
+    terms' :: Map v (Term v a)
+    terms' = uncurry incorporateType <$> terms
+
+    keepType :: ((Term v a, Type v a) -> (Reference.Id, Term v a) -> (Reference.Id, Term v a, Type v a))
+    keepType (_, typ) (refId, trm) = (refId, trm, typ)
+
+    incorporateType :: Term v a -> Type v a -> Term v a
+    incorporateType a@(ABT.out -> ABT.Tm (Ann e _tp)) typ = ABT.tm' (ABT.annotation a) (Ann e typ)
+    incorporateType e typ = ABT.tm' (ABT.annotation e) (Ann e typ)
+
+    -- keep these until we decide if we want to add the appropriate smart constructors back into this module
+    -- incorporateType (Term.Ann' e _) typ = Term.ann () e typ
+    -- incorporateType e typ = Term.ann () e typ
+
+      -- Need to insert an "Ann" node inside the 'Tm' ABT wrapper
+      -- iff there isn't already a top-level annotation.
+      -- What if there's a top-level Annotation but it doesn't match
+      -- the type that was provided?
 
 hashClosedTerm :: Var v => Term v a -> Reference.Id
 hashClosedTerm tm = Reference.Id (ABT.hash tm) 0
