@@ -32,6 +32,7 @@ import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.Term as Term
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -139,10 +140,13 @@ fieldNames env r name dd = case DD.constructors dd of
   [(_, typ)] -> let
     vars :: [v]
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
+    accessorTypes :: [Type.Type v ()]
+    accessorTypes = () -- error "TODO: get types for accessors"
+    accessors :: [(v, Term.Term v ())]
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-    hashes = Hashing.hashTermComponents (Map.fromList accessors)
+    hashes = Hashing.hashTermComponents (Map.fromList (zipWith (\(v, trm) typ -> (v, (trm, typ))) accessors accessorTypes))
     names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-            | r <- fst <$> Map.elems hashes ]
+            | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes ]
     fieldNames = Map.fromList
       [ (r, f) | (r, n) <- names
                , typename <- pure (HQ.toString name)
@@ -153,7 +157,7 @@ fieldNames env r name dd = case DD.constructors dd of
     in if Map.size fieldNames == length names then
          Just [ HQ.unsafeFromString name
               | v <- vars
-              , Just (ref, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
+              , Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
               , Just name <- [Map.lookup ref fieldNames] ]
        else Nothing
   _ -> Nothing
