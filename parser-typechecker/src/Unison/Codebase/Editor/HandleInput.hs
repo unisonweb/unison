@@ -1083,7 +1083,8 @@ loop = do
                     ( ShowDiffAfterCreateAuthor
                         authorNameSegment
                         (Path.unsplit' base)
-                        currentPath')
+                        currentPath'
+                    )
               where
                 d :: Reference.Id -> Referent
                 d = Referent.Ref . Reference.DerivedId
@@ -1677,7 +1678,6 @@ loop = do
               let srcb = BranchUtil.fromNames names0
               _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                 eval $ Merge Branch.RegularMerge srcb destb
-
               success
             ListEditsI maybePath -> do
               let (p, seg) =
