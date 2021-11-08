@@ -685,29 +685,9 @@ referentAsSomeTermReference_ f = \case
       <&> (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
   r -> pure r
 
-remapReferences ::
-  Map (Old Reference.Id) (New Reference.Id) ->
-  Type.F (Type v a) ->
-  Type.F (Type v a)
-remapReferences declMap = \case
-  (Type.Ref (Reference.DerivedId refId)) ->
-    Type.Ref . Reference.DerivedId $
-      fromMaybe
-        (error $ "Expected reference to exist in decl mapping, but it wasn't found: " <> show refId)
-        (Map.lookup refId declMap)
-  x -> x
-
 type SomeReferenceId = SomeReference Reference.Id
 
 type SomeReferenceObjId = SomeReference (UReference.Id' ObjectId)
-
-objIdsToHashed :: MonadState MigrationState m => SomeReferenceObjId -> m SomeReferenceId
-objIdsToHashed =
-  someRef_ %%~ \(UReference.Id objId pos) -> do
-    objMapping <- gets objLookup
-    case Map.lookup objId objMapping of
-      Nothing -> error $ "Expected object mapping for ID: " <> show objId
-      Just (_, _, hash) -> pure (Reference.Id hash pos)
 
 remapObjIdRefs ::
   (Map (Old ObjectId) (New ObjectId, New HashId, New Hash)) ->
