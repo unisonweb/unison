@@ -539,7 +539,7 @@ migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           & Map.elems
           & fmap (\(v, trm, typ) -> (v, (trm, typ)))
           & Map.fromList
-          & Convert.hashTermComponents'
+          & Convert.hashTermComponents
 
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
     let oldReferenceId = vToOldReferenceMapping Map.! v
