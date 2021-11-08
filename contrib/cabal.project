@@ -2,6 +2,7 @@ packages:
     yaks/easytest
     parser-typechecker
     unison-core
+    unison-cli
     lib/unison-prelude
     lib/unison-util-relation
     codebase2/codebase
