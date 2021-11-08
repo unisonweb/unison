@@ -1451,9 +1451,7 @@ displayDefinitions' ppe0 types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTyp
       case dt of
         MissingObject r -> missing n r
         BuiltinObject _ -> builtin n
-        UserObject decl -> case decl of
-          Left d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-          Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe0 r) r n d
+        UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n decl
     builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r =
       P.wrap
@@ -1559,9 +1557,7 @@ displayDefinitions outputLoc ppe types terms =
           case dt of
             MissingObject r -> missing n r
             BuiltinObject _ -> builtin n
-            UserObject decl -> case decl of
-              Left d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
-              Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe r) r n d
+            UserObject decl -> DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe r) r n decl
         builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
         missing n r =
           P.wrap
@@ -1674,9 +1670,7 @@ prettyDeclTriple ::
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
   BuiltinObject _ -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
   MissingObject _ -> mempty -- these need to be handled elsewhere
-  UserObject decl -> case decl of
-    Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
-    Right dd -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
+  UserObject decl -> P.syntaxToColor $ DeclPrinter.prettyDeclHeader name decl
 
 prettyDeclPair ::
   Var v =>
