@@ -324,7 +324,7 @@ propagate rootNames patch b = case validatePatch patch of
               declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
               -- TODO: kind-check the new components
               hashedDecls = (fmap . fmap) (over _2 DerivedId)
-                          . Hashing.hashDecls
+                          . Hashing.hashDataDecls
                           $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
@@ -594,9 +594,9 @@ applyPropagate patch Edits {..} = do
     types = updateMetadatas id
           $ Star3.replaceFacts replaceType typeEdits _types
 
-    updateMetadatas :: 
+    updateMetadatas ::
       Ord r =>
-      (Reference -> r) -> 
+      (Reference -> r) ->
       Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
       Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
     updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s

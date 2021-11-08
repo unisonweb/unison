@@ -589,7 +589,7 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
         remappedReferences
           & Map.elems
           & Map.fromList
-          & Convert.hashDecls'
+          & Convert.hashDecls
           & fromRight (error "unexpected resolution error")
 
   for_ newComponent $ \(declName, newReferenceId, dd) -> do

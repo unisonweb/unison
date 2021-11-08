@@ -15,7 +15,7 @@ import Unison.DataDeclaration
     Modifier (Structural, Unique),
   )
 import qualified Unison.DataDeclaration as DD
-import Unison.Hashing.V2.Convert (hashDecls)
+import Unison.Hashing.V2.Convert (hashDataDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -121,10 +121,10 @@ failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
 builtinDataDecls = rs1 ++ rs
  where
-  rs1 = case hashDecls $ Map.fromList
+  rs1 = case hashDataDecls $ Map.fromList
     [ (v "Link"                , link)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  rs = case hashDecls $ Map.fromList
+  rs = case hashDataDecls $ Map.fromList
     [ (v "Unit"               , unit)
     , (v "Tuple"              , tuple)
     , (v "Optional"           , opt)
@@ -310,7 +310,7 @@ builtinDataDecls = rs1 ++ rs
 
 builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
 builtinEffectDecls =
-  case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
+  case hashDataDecls $ Map.fromList [ (v "Exception", exception) ] of
     Right a -> over _3 DD.EffectDeclaration <$> a
     Left e -> error $ "builtinEffectDecls: " <> show e
   where
