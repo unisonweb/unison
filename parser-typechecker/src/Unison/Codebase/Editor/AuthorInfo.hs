@@ -27,7 +27,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
     createAuthorInfo' :: [Word8] -> AuthorInfo v a
     createAuthorInfo' bytes =
       let [(guidRef, guidTerm)] =
-            hashAndWrangle "guid" $
+            hashAndWrangle "guid" guidType $
               Term.app
                 a
                 (Term.constructor a guidTypeRef 0)
@@ -38,7 +38,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
                 )
 
           [(authorRef, authorTerm)] =
-            hashAndWrangle "author" $
+            hashAndWrangle "author" authorType $
               Term.apps
                 (Term.constructor a authorTypeRef 0)
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
@@ -46,7 +46,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
                 ]
 
           [(chRef, chTerm)] =
-            hashAndWrangle "copyrightHolder" $
+            hashAndWrangle "copyrightHolder" chType $
               Term.apps
                 (Term.constructor a chTypeRef 0)
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
@@ -56,10 +56,13 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
             (guidRef, guidTerm, guidType)
             (authorRef, authorTerm, authorType)
             (chRef, chTerm, chType)
-    hashAndWrangle v tm =
-      Foldable.toList $
+    hashAndWrangle :: Text
+                  -> Type v a -> Term v a
+                  -> [(Reference.Id, Term v a)]
+    hashAndWrangle v typ tm =
+      Foldable.toList $ fmap (\(id,tm,_tp) -> (id,tm)) $
         H.hashTermComponents
-          (Map.fromList [(Var.named v, tm)])
+          (Map.singleton (Var.named v) (tm, typ))
     (chType, chTypeRef) = (Type.ref a chTypeRef, unsafeParse copyrightHolderHash)
     (authorType, authorTypeRef) = (Type.ref a authorTypeRef, unsafeParse authorHash)
     (guidType, guidTypeRef) = (Type.ref a guidTypeRef, unsafeParse guidHash)
