@@ -599,14 +599,17 @@ stepManyAt0 :: forall f m . (Monad m, Foldable f)
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
-stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
-             => f (Path, Branch0 m -> n (Branch0 m))
-             -> Branch0 m -> n (Branch0 m)
+stepManyAt0M ::
+  forall m n f.
+  (Monad m, Monad n, Foldable f) =>
+  f (Path, Branch0 m -> n (Branch0 m)) ->
+  Branch0 m ->
+  n (Branch0 m)
 stepManyAt0M (toList -> actions) b
   | null actions = pure b
   | otherwise = do
-    let (childActionsBeforeCurrentActions, actionsAfterChildActions)
-          = List.break (isCurrentPath . fst) actions
+    let (childActionsBeforeCurrentActions, actionsAfterChildActions) =
+          List.break (isCurrentPath . fst) actions
     let (currentActions, remainingActions) = List.span (isCurrentPath . fst) actionsAfterChildActions
     let childActionsGroupedByPath = groupByNextSegment childActionsBeforeCurrentActions
     -- Run all actions over child branches which occur before any changes to the current branch
@@ -620,21 +623,28 @@ stepManyAt0M (toList -> actions) b
     stepManyAt0M remainingActions b''
   where
     stepChildren :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] -> Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
-    stepChildren childActions children0 = foldM g children0 $ Map.toList childActions
+    stepChildren childActions children0 =
+      foldM go children0 $ Map.toList childActions
       where
-      g children (seg, actions) = do
         -- Recursively applies the relevant actions to the child branch
-        -- The `findWithDefault` is important - it allows the stepManyAt
-        -- to create new children at paths that don't previously exist.
-        child <- stepM (stepManyAt0M actions) (Map.findWithDefault empty seg children0)
-        pure $ updateChildren seg child children
+        go ::
+          ( Map NameSegment (Branch m) ->
+            (NameSegment, [(Path, Branch0 m -> n (Branch0 m))]) ->
+            n (Map NameSegment (Branch m))
+          )
+        go children (seg, actions) = do
+          -- 'non empty' creates an empty branch if one is missing,
+          -- and similarly deletes a branch if it is empty after modifications.
+          -- This is important so that branch actions can create/delete branches.
+          children & at seg . non empty %%~ stepM (stepManyAt0M actions)
     -- The order of actions across differing keys is irrelevant since those actions can't
     -- affect each other.
     -- The order within a given key is stable.
     groupByNextSegment :: [(Path, x)] -> Map NameSegment [(Path, x)]
-    groupByNextSegment = Map.unionsWith (<>) . fmap \case
-      (seg :< rest, action) -> Map.singleton seg [(rest, action)]
-      _ -> error "groupByNextSegment called on current path, which shouldn't happen."
+    groupByNextSegment =
+      Map.unionsWith (<>) . fmap \case
+        (seg :< rest, action) -> Map.singleton seg [(rest, action)]
+        _ -> error "groupByNextSegment called on current path, which shouldn't happen."
     isCurrentPath :: Path -> Bool
     isCurrentPath (Path Empty) = True
     isCurrentPath _ = False
