@@ -132,6 +132,7 @@ data Command
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
+  -- | Get referents to all constructors for the declaration indicated by the provided reference.
   ConstructorsOfType :: Reference -> Command m i v (Set Referent)
 
   -- the hash length needed to disambiguate any branch in the codebase

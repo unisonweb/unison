@@ -1080,20 +1080,18 @@ notifyUser dir o = case o of
                    & P.lines . fmap prettyDefinitionGroup
       groupByReference :: Ord t => [(Referent, t)] -> [[(Referent, t)]]
       groupByReference = List.groupOn (Referent.toReference . fst) . sort
-      prettyDefinitionGroup :: [(Referent, (Maybe (Type v Ann)))] -> _
-      -- prettyDefinitionGroup [(r, Nothing)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r)
-      -- prettyDefinitionGroup [(r, Just k)] = P.text (HQ.toText $ PPE.typeOrTermName ppe r) <> ":" <> TypePrinter.pretty ppe k
-      prettyDefinitionGroup [(r, Nothing)] =
-        P.text (HQ.toText $ PPE.typeOrTermName ppe r)
-      prettyDefinitionGroup [(referent, Just k)] =
-        TypePrinter.prettySignaturesCTMultiline ppe [(referent, PPE.typeOrTermName ppe referent, k)]
-      prettyDefinitionGroup ((_, _typeNames):_constructors) = mempty
-        -- (prettyName typeNames)
-        -- <> P.newline
-        -- <> (P.indent "  " . P.lines . fmap prettyName $ fmap snd constructors)
+      singleDefinition :: (Referent, Maybe (Type v Ann)) -> P.Pretty P.ColorText
+      singleDefinition (r, Nothing) =
+        P.hiBlack "type " <> P.text (HQ.toText $ PPE.typeOrTermName ppe r)
+      singleDefinition (r, Just k) =
+        TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, k)]
+      prettyDefinitionGroup :: [(Referent, Maybe (Type v Ann))] -> P.Pretty P.ColorText
+      prettyDefinitionGroup [d] = singleDefinition d
+      prettyDefinitionGroup (typ:constructors) =
+          singleDefinition typ
+        <> P.newline
+        <> (P.indent (P.hiBlack "  constructor ") . P.lines $ fmap (\(t, _) -> singleDefinition (t, Nothing)) constructors)
       prettyDefinitionGroup [] = mempty
-      -- prettyName = P.text . Name.toText . head . toList
-      -- prettyDeps m = P.lines $ fmap (P.text . Name.toText) $ Set.toList m
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>

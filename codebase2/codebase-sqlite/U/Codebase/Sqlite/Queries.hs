@@ -671,21 +671,6 @@ getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
     AND dependent_component_index = ?
 |]
 
--- getTransitiveDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Id]
--- getTransitiveDependenciesForDependent dependent =
---   query sql dependent
---   where
---     sql =
---       [here|
--- WITH RECURSIVE deps(obj_Id, builtin_id, depth) AS (
---    SELECT ?, NULL, 0
---    UNION
---    SELECT dependency_object_id, dependency_builtin, depth + 1
---      FROM dependents_index JOIN deps ON dependents_index.dependent_object_id=deps.obj_id
--- )
--- SELECT * FROM deps;
--- |]
-
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
 objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%") where sql = [here|
   SELECT object.id FROM object

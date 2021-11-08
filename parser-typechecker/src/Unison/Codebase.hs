@@ -188,18 +188,11 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
--- | Get non-transitive dependencies of a reference (i.e. the references contained within a given
--- reference).
--- The dependents of a builtin type includes the set of builtin terms which
--- mention that type.
--- dependencies :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
--- dependencies c r
---     = undefined c r -- Set.map Reference.DerivedId
---         -- <$> getDependencies c r
-
+-- | Get all terms which match the provided type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
 
+-- | Get all terms which match the exact type the provided reference points to.
 termsOfTypeByReference :: (Var v, Functor m) => Codebase m v a -> Reference -> m (Set Referent.Referent)
 termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)

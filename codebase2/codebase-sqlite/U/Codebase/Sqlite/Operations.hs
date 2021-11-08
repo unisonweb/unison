@@ -1432,7 +1432,8 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Includes builtins.
+-- | Returns the dependencies of the given term.
+-- Includes builtins.
 dependencies :: EDB m => C.Reference.Id -> m (Set C.Reference)
 dependencies cid = do
   sid <- c2sReferenceId cid

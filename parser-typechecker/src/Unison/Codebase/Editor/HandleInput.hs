@@ -3095,42 +3095,15 @@ fuzzySelectNamespace searchBranch0 =
       )
 
 
-data Residency = Local | NonLocal
-  deriving (Eq)
-
--- TODO: filter out builtins, they're not really dependencies
--- namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Set Name), Map Referent (Set Name))
--- namespaceDependencies root branch = do
---     let startingReferents = Relation.dom namespaceTerms
---     residencyMap <- flip execStateT mempty $ resolveRefs startingReferents
---     let (local, nonlocal) = Map.partition ((== Local) . fst) residencyMap
---     pure (fmap snd local, fmap snd nonlocal)
---   where
---     namespaceTerms :: Relation Referent Name
---     namespaceTerms = branch & Branch.deepTerms
---     rootTerms :: Relation Referent Name
---     rootTerms = root & Branch.deepTerms
---     storeName ::
---       Referent ->
---       StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
---     storeName referent = do
---       case Relation.lookupDom referent namespaceTerms of
---         Lens.Empty -> Lens.at referent Lens.?= (NonLocal, Relation.lookupDom referent rootTerms)
---         names -> at referent ?= (Local, names)
---     resolveRefs :: Set Referent -> StateT (Map Referent (Residency, Set Name)) (Action m i v) ()
---     resolveRefs todo = for_ todo $ \case
---       r@(Referent.Ref (DerivedId refId)) -> do
---         -- TODO: I need 'GetDependencies', not GetDependents
---         directDepReferences <- lift $ eval (GetDependencies refId)
---         let directDepReferents = Set.map Referent.fromReference _directDepReferences
---         storeName r
---         checked <- get
---         let uncheckedDeps = directDepReferents
---                           & Set.filter ((`Map.notMember` checked))
---         resolveRefs uncheckedDeps
---       -- Anything else?
---       _ -> pure ()
-
+-- | Check the dependencies of all types, terms, and metadata in the current namespace,
+-- returns dependencies which do not have a name within the current namespace, alongside their
+-- type (for terms and constructors).
+--
+-- This is non-transitive, i.e. only the first layer of external dependencies is returned.
+--
+-- So if my namespace depends on .base.Bag.map; which depends on base.Map.mapKeys, only
+-- .base.Bag.map is returned unless some other definition inside my namespace depends
+-- on .base.Bag.map directly.
 namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Maybe (Type v Ann)))
 namespaceDependencies _root branch = do
   allBranchDependencies :: Set Reference
@@ -3141,19 +3114,15 @@ namespaceDependencies _root branch = do
       externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
   let externalConstructors :: Set Referent
       externalConstructors = depsWhichAreConstructors `Set.difference` allBranchReferents
+
+  let allExternalReferents  :: Set Referent
+      allExternalReferents = (Set.map Referent.fromReference externalDependencies <> externalConstructors)
   namedExternalDeps :: Map Referent (Maybe (Type v Ann))
-    <- Map.fromList <$> traverse (\ref -> (ref,) <$> eval (LoadTypeOfTerm (Referent.toReference ref))) (Set.toList $ Set.map Referent.fromReference externalDependencies <> externalConstructors)
-        -- & map (\ref -> (ref, Map.findWithDefault mempty ref allRootNames))
-        -- & Map.fromListWith (<>)
+    <- Map.fromList <$> for (Set.toList allExternalReferents) \ref -> do
+        typeOfTerm <- eval (LoadTypeOfTerm (Referent.toReference ref))
+        pure (ref, typeOfTerm)
   pure namedExternalDeps
   where
-    -- allRootNames :: Map Referent (Set Name)
-    -- allRootNames =
-    --   Map.unionsWith (<>)
-    --     [ Relation.domain (deepTerms root)
-    --     , Map.mapKeysWith (<>) Referent.fromReference $ Relation.domain (deepTypes root)
-    --     ]
-
     allBranchReferents :: Set Referent
     allBranchReferents = Relation.dom (deepTerms branch)
     allBranchReferences :: Set Reference
@@ -3163,18 +3132,3 @@ namespaceDependencies _root branch = do
       -- TODO:
       -- <> _termMetadata
       -- <> _typeMetadata
-
--- Plan:
---   As a compromise, we'll find all types depended on by terms, then ensure that the type and
---   all of its constructors are named in the current namespace.
---  For all dependencies of all terms and types
---    - Check whether the reference is in the namespace somewhere, if it's not, add it to the
---      output
---    - Call Codebase.termsOfTypeImpl to get the set of all Referents of that type, then filter
---        for only referents with constructors
---        (things which aren't references to decls won't have any results, and that's fine)
---    - search
-
-
-    -- eval $ GetDependents (Referent)
-    -- eval $ NamespaceDependencies branch

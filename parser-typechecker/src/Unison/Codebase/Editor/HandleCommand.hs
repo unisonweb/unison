@@ -203,7 +203,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
     ConstructorsOfType typeRef -> do
       allTermsOfType <- liftIO $ Codebase.termsOfTypeByReference codebase typeRef
-      -- Filter to only return the constructors of that type.
+      -- Filter to only return the constructors of that type, rather than ALL terms.
       -- There should be a more efficient way to do this once
       -- we track constructorIDs in sql.
       pure $ allTermsOfType & Set.filter (\case
