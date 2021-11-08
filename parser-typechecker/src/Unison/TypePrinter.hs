@@ -10,7 +10,7 @@ module Unison.TypePrinter
   , prettySyntax
   , prettySignaturesST
   , prettySignaturesCT
-  , prettySignaturesCTMultiline
+  , prettySignaturesCTCollapsed
   ) where
 
 import Unison.Prelude
@@ -163,12 +163,12 @@ prettySignaturesCT
   -> [Pretty ColorText]
 prettySignaturesCT env ts = map PP.syntaxToColor $ prettySignaturesST env ts
 
-prettySignaturesCTMultiline
+prettySignaturesCTCollapsed
   :: Var v
   => PrettyPrintEnv
   -> [(Referent, HashQualified Name, Type v a)]
   -> Pretty ColorText
-prettySignaturesCTMultiline env ts = PP.lines $
+prettySignaturesCTCollapsed env ts = PP.lines $
   PP.group <$> prettySignaturesCT env ts
 
 

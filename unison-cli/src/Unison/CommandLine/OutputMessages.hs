@@ -1370,7 +1370,7 @@ notifyUser dir o = case o of
         m
           & Map.toList
           & fmap (first Referent.fromReference)
-          & fmap (\(r, typ) -> TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, typ)])
+          & fmap (\(r, typ) -> TypePrinter.prettySignaturesCTCollapsed ppe [(r, PPE.typeOrTermName ppe r, typ)])
           & P.lines
 
       prettyTypes :: Map Reference (Set Referent) -> P.Pretty P.ColorText
