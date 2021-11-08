@@ -1069,31 +1069,43 @@ notifyUser dir o = case o of
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
   ListNamespaceDependencies _ppe Empty Empty -> pure $ "This namespace has no external dependencies."
-  ListNamespaceDependencies ppe externalTerms externalTypes -> pure $
+  ListNamespaceDependencies ppe externalTerms externalTypes -> pure . P.lines $
       Monoid.whenM (not . null $ externalTerms)
-        (P.bold "This namespace depends on the following external terms:" <>
-          P.newline <> P.indent "  " (prettyTerms externalTerms))
+        [ P.bold "This namespace depends on the following external terms:" <>
+          P.newline <> P.indent "  " (prettyTerms externalTerms) ]
       <> Monoid.whenM (not . null $ externalTypes)
-        (P.bold "This namespace depends on the following external types declarations and constructors:" <>
+        [ P.newline <> P.bold "This namespace depends on the following external types declarations and constructors:" <>
           P.newline <> P.indent "  " (prettyTypes externalTypes)
-        )
+        ]
     where
       prettyTerms :: Map Reference (Type v Ann) -> P.Pretty P.ColorText
-      prettyTerms m = m
-                   & Map.toList
-                   & fmap (first Referent.fromReference)
-                   & fmap (\(r, typ) -> TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, typ)])
-                   & P.lines
+      prettyTerms m =
+        m
+          & Map.toList
+          & fmap (first Referent.fromReference)
+          & fmap (\(r, typ) -> TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, typ)])
+          & P.lines
 
       prettyTypes :: Map Reference (Set Referent) -> P.Pretty P.ColorText
-      prettyTypes m = m
-                   & Map.toList
-                   & fmap (first Referent.fromReference)
-                   & fmap (\(r, constructors) ->
-                       P.hiBlack "type " <> P.text (HQ.toText $ PPE.typeOrTermName ppe r)
-                         <> (P.indent (P.hiBlack "  constructor ")
-                                . P.lines . fmap (P.text . HQ.toText . PPE.typeOrTermName ppe) . Set.toList $ constructors))
-                   & P.lines
+      prettyTypes m =
+        m
+          & Map.toList
+          & fmap (first Referent.fromReference)
+          & fmap
+            ( \(r, constructors) ->
+                P.text (HQ.toText $ PPE.typeOrTermName ppe r)
+                  <> Monoid.whenM
+                    (not . null $ constructors)
+                    ( P.newline
+                        <> ( P.indent (P.hiBlack "  constructor ")
+                               . P.lines
+                               . fmap (P.text . HQ.toText . PPE.typeOrTermName ppe)
+                               . Set.toList
+                               $ constructors
+                           )
+                    )
+            )
+          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>
