@@ -4,9 +4,7 @@ module Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames) where
 
 import Unison.Prelude
 
-import qualified Data.Set as Set
 import qualified Unison.HashQualified' as HQ'
-import qualified Unison.Name as Name
 import Unison.NamesWithHistory (NamesWithHistory)
 import qualified Unison.NamesWithHistory as Names
 import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
