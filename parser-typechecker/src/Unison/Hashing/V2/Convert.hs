@@ -4,8 +4,8 @@
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     tokensBranch0,
+    hashDataDecls,
     hashDecls,
-    hashDecls',
     hashPatch,
     hashClosedTerm,
     hashTermComponents,
@@ -57,6 +57,8 @@ import Unison.Var (Var)
 import qualified Unison.ConstructorType as Memory.ConstructorType
 import Control.Monad.Trans.Writer.CPS (Writer)
 import qualified Control.Monad.Trans.Writer.CPS as Writer
+import qualified Unison.ConstructorType as CT
+import Data.Functor ((<&>))
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
 typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Type.removeAllEffectVars
@@ -198,11 +200,11 @@ h2mReferent getCT = \case
     let mRef = h2mReference ref
     in Memory.Referent.Con mRef n (getCT mRef)
 
-hashDecls ::
+hashDataDecls ::
   Var v =>
   Map v (Memory.DD.DataDeclaration v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
-hashDecls memDecls = do
+hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
   hashingResult <- Hashing.DD.hashDecls hashingDecls
   pure $ map h2mDeclResult hashingResult
@@ -210,12 +212,27 @@ hashDecls memDecls = do
     h2mDeclResult :: Ord v => (v, Hashing.Reference.Id, Hashing.DD.DataDeclaration v a) -> (v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)
     h2mDeclResult (v, id, dd) = (v, h2mReferenceId id, h2mDecl dd)
 
--- TODO: rename hashDecls to hashDataDecls, remove tick from this
-hashDecls' ::
+hashDecls ::
   Var v =>
   Map v (Memory.DD.Decl v a) ->
   ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
-hashDecls' = undefined
+hashDecls memDecls = do
+  -- want to unwrap the decl before doing the rehashing, and then wrap it back up the same way
+  let howToReassemble =
+        memDecls <&> \case
+          Left {} -> CT.Effect
+          Right {} -> CT.Data
+      memDeclsAsDDs = Memory.DD.asDataDecl <$> memDecls
+  result <- hashDataDecls memDeclsAsDDs
+  pure $
+    result <&> \(v, id', decl) ->
+      case Map.lookup v howToReassemble of
+        Nothing -> error "Unknown v in hashDecls'"
+        Just ct -> (v, id', retag ct decl)
+  where
+    retag :: CT.ConstructorType -> Memory.DD.DataDeclaration v a -> Memory.DD.Decl v a
+    retag CT.Effect = Left . Memory.DD.EffectDeclaration
+    retag CT.Data = Right
 
 m2hDecl :: Ord v => Memory.DD.DataDeclaration v a -> Hashing.DD.DataDeclaration v a
 m2hDecl (Memory.DD.DataDeclaration mod ann bound ctors) =
