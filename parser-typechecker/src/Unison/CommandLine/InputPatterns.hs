@@ -1318,7 +1318,7 @@ dependencies = InputPattern "dependencies" [] []
 
 namespaceDependencies :: InputPattern
 namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
-  "List the dependencies of the specified namespace across all namespaces."
+  "List the external dependencies of the specified namespace."
   (\case
     [p] -> first fromString $ do
              p <- Path.parsePath' p
@@ -1662,25 +1662,25 @@ allSubNamespaces b =
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
 newNameArg :: ArgumentType
-newNameArg = ArgumentType 
-  { typeName = "new-name"  
-  , suggestions = pathCompletor 
+newNameArg = ArgumentType
+  { typeName = "new-name"
+  , suggestions = pathCompletor
                     prefixIncomplete
                     (Set.map ((<> ".") . Path.toText) . Branch.deepPaths)
   , globTargets = mempty
   }
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType 
-  { typeName = "word" 
+noCompletions = ArgumentType
+  { typeName = "word"
   , suggestions = I.noSuggestions
   , globTargets = mempty
   }
 
 -- Arya: I could imagine completions coming from previous git pulls
 gitUrlArg :: ArgumentType
-gitUrlArg = ArgumentType 
-  { typeName = "git-url" 
+gitUrlArg = ArgumentType
+  { typeName = "git-url"
   , suggestions = let complete s = pure [Completion s s False]
       in \input _ _ _ -> case input of
            "gh" -> complete "https://github.com/"

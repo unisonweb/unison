@@ -610,12 +610,14 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
+          -- | Get the set of derived (a.k.a. non-builtin) dependencies of a term or type.
           getDerivedDependencies :: MonadIO m => Reference.Id -> m (Set Reference.Id)
           getDerivedDependencies r =
             runDB conn $ do
               refs <- Ops.derivedDependencies (Cv.referenceid1to2 r)
               Set.traverse (Cv.referenceid2to1 (getCycleLen "getDerivedDependencies")) refs
 
+          -- | Get the set of all dependencies (including builtins) of a term or type.
           getDependencies :: MonadIO m => Reference.Id -> m (Set Reference)
           getDependencies r =
             runDB conn $ do

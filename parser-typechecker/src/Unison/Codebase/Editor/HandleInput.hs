@@ -1740,9 +1740,9 @@ loop = do
         case (Branch.getAt (Path.unabsolute path) root') of
           Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
           Just b -> do
-            externalDeps <- namespaceDependencies root0 (Branch.head b)
+            (externalTerms, externalTypes) <- namespaceDependencies (Branch.head b)
             ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-            respond $ ListNamespaceDependencies ppe externalDeps
+            respond $ ListNamespaceDependencies ppe externalTerms externalTypes
       DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
       DebugTypecheckedUnisonFileI -> case uf of
         Nothing -> respond NoUnisonFile
@@ -3104,31 +3104,34 @@ fuzzySelectNamespace searchBranch0 =
 -- So if my namespace depends on .base.Bag.map; which depends on base.Map.mapKeys, only
 -- .base.Bag.map is returned unless some other definition inside my namespace depends
 -- on .base.Bag.map directly.
-namespaceDependencies :: Branch0 m -> Branch0 m -> Action m i v (Map Referent (Maybe (Type v Ann)))
-namespaceDependencies _root branch = do
+namespaceDependencies :: forall m i v. Branch0 m -> Action m i v (Map Reference (Type v Ann), Map Reference (Set Referent))
+namespaceDependencies branch = do
   allBranchDependencies :: Set Reference
-    <- fold <$> traverse (eval . GetDependencies) (mapMaybe Reference.toId $ Set.toList allBranchReferences)
-  depsWhichAreConstructors  :: Set Referent
-    <- fold <$> traverse (eval . ConstructorsOfType) (Set.toList allBranchDependencies)
+    <- fold <$> traverse (eval . GetDependencies) (mapMaybe Reference.toId $ Set.toList refsInCurrentBranch)
+  externalConstructors  :: Map Reference (Set Referent)
+    <- Map.unions <$> (for (Set.toList allBranchDependencies) $ \ref -> do
+                    constructors <- eval (ConstructorsOfType ref)
+                    let externalConstrs = constructors `Set.difference` currentBranchReferents
+                    pure $ Map.singleton ref externalConstrs
+              )
   let externalDependencies :: Set Reference
-      externalDependencies = allBranchDependencies `Set.difference` allBranchReferences
-  let externalConstructors :: Set Referent
-      externalConstructors = depsWhichAreConstructors `Set.difference` allBranchReferents
-
-  let allExternalReferents  :: Set Referent
-      allExternalReferents = (Set.map Referent.fromReference externalDependencies <> externalConstructors)
-  namedExternalDeps :: Map Referent (Maybe (Type v Ann))
-    <- Map.fromList <$> for (Set.toList allExternalReferents) \ref -> do
-        typeOfTerm <- eval (LoadTypeOfTerm (Referent.toReference ref))
-        pure (ref, typeOfTerm)
-  pure namedExternalDeps
+      externalDependencies = allBranchDependencies `Set.difference` refsInCurrentBranch
+  termsTypesAndConstructors :: (Map Reference (Type v Ann), Map Reference (Set Referent))
+       <- fold <$> for (Set.toList externalDependencies) \ref -> do
+            typeOfTerm <- eval (LoadTypeOfTerm ref)
+            pure $ case typeOfTerm of
+              -- If we got a type, this must be a term reference
+              Just typ -> (Map.singleton ref typ, mempty)
+              -- If we didn't, it must be a type declaration, so we include its constructors.
+              Nothing -> (mempty, Map.singleton ref (fold $ Map.lookup ref externalConstructors))
+  pure termsTypesAndConstructors
   where
-    allBranchReferents :: Set Referent
-    allBranchReferents = Relation.dom (deepTerms branch)
-    allBranchReferences :: Set Reference
-    allBranchReferences =
+    currentBranchReferents :: Set Referent
+    currentBranchReferents = Relation.dom (deepTerms branch)
+    refsInCurrentBranch :: Set Reference
+    refsInCurrentBranch =
          Relation.dom (deepTypes branch)
-      <> Set.map Referent.toReference allBranchReferents
+      <> Set.map Referent.toReference currentBranchReferents
       -- TODO:
       -- <> _termMetadata
       -- <> _typeMetadata

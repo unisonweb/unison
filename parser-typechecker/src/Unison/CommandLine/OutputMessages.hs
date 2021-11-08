@@ -118,7 +118,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(Unrecogni
 import qualified Unison.Referent' as Referent
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Input as Input
-import qualified Data.List.Extra as List
+import qualified U.Util.Monoid as Monoid
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1068,30 +1068,32 @@ notifyUser dir o = case o of
         [ (p $ Reference.toShortHash r, "(no name available)") | r <- toList missing ])
     p = prettyShortHash . SH.take hqLength
     c = P.syntaxToColor
-  ListNamespaceDependencies _ppe Empty -> pure $ "This namespace has no external dependencies"
-  ListNamespaceDependencies ppe externalDeps -> pure $
-      P.bold "This namespace depends on the following external terms:" <>
-      P.newline <> P.indent "  " (prettyDeps externalDeps)
+  ListNamespaceDependencies _ppe Empty Empty -> pure $ "This namespace has no external dependencies."
+  ListNamespaceDependencies ppe externalTerms externalTypes -> pure $
+      Monoid.whenM (not . null $ externalTerms)
+        (P.bold "This namespace depends on the following external terms:" <>
+          P.newline <> P.indent "  " (prettyTerms externalTerms))
+      <> Monoid.whenM (not . null $ externalTypes)
+        (P.bold "This namespace depends on the following external types declarations and constructors:" <>
+          P.newline <> P.indent "  " (prettyTypes externalTypes)
+        )
     where
-      prettyDeps :: Map Referent (Maybe (Type v Ann)) -> _
-      prettyDeps m = m
+      prettyTerms :: Map Reference (Type v Ann) -> P.Pretty P.ColorText
+      prettyTerms m = m
                    & Map.toList
-                   & groupByReference
-                   & P.lines . fmap prettyDefinitionGroup
-      groupByReference :: Ord t => [(Referent, t)] -> [[(Referent, t)]]
-      groupByReference = List.groupOn (Referent.toReference . fst) . sort
-      singleDefinition :: (Referent, Maybe (Type v Ann)) -> P.Pretty P.ColorText
-      singleDefinition (r, Nothing) =
-        P.hiBlack "type " <> P.text (HQ.toText $ PPE.typeOrTermName ppe r)
-      singleDefinition (r, Just k) =
-        TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, k)]
-      prettyDefinitionGroup :: [(Referent, Maybe (Type v Ann))] -> P.Pretty P.ColorText
-      prettyDefinitionGroup [d] = singleDefinition d
-      prettyDefinitionGroup (typ:constructors) =
-          singleDefinition typ
-        <> P.newline
-        <> (P.indent (P.hiBlack "  constructor ") . P.lines $ fmap (\(t, _) -> singleDefinition (t, Nothing)) constructors)
-      prettyDefinitionGroup [] = mempty
+                   & fmap (first Referent.fromReference)
+                   & fmap (\(r, typ) -> TypePrinter.prettySignaturesCTMultiline ppe [(r, PPE.typeOrTermName ppe r, typ)])
+                   & P.lines
+
+      prettyTypes :: Map Reference (Set Referent) -> P.Pretty P.ColorText
+      prettyTypes m = m
+                   & Map.toList
+                   & fmap (first Referent.fromReference)
+                   & fmap (\(r, constructors) ->
+                       P.hiBlack "type " <> P.text (HQ.toText $ PPE.typeOrTermName ppe r)
+                         <> (P.indent (P.hiBlack "  constructor ")
+                                . P.lines . fmap (P.text . HQ.toText . PPE.typeOrTermName ppe) . Set.toList $ constructors))
+                   & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       (effects <&> \(n,r) -> "ability " <>
