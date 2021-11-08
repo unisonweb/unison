@@ -22,6 +22,7 @@ import Control.Lens (_5,view)
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
                                                 , BackendError
+                                                , IncludeCycles
                                                 )
 import           Data.Configurator.Types        ( Configured )
 import qualified Data.Map                      as Map
@@ -107,8 +108,9 @@ data Command
   GetDefinitionsBySuffixes
     :: Maybe Path
     -> Branch m
+    -> IncludeCycles
     -> [HQ.HashQualified Name]
-    -> Command m i v (Either BackendError (DefinitionResults v))
+    -> Command m i v (DefinitionResults v)
 
   FindShallow
     :: Path.Absolute
@@ -255,7 +257,7 @@ data Command
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v (Runtime.WatchResults v Ann)
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> Command m i v (Runtime.WatchResults v Ann)
 
   CreateAuthorInfo :: Text -> Command m i v (AuthorInfo v Ann)
 

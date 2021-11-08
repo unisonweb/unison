@@ -15,14 +15,13 @@ import Control.Lens as Lens hiding (noneOf)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.NameSegment as NameSegment
 import qualified Data.Text as Text
-import qualified Data.Maybe as Maybe
 import qualified Unison.Util.Star3 as Star3
 import qualified Unison.Util.Relation as Relation
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
-import Control.Monad (guard)
+import Control.Monad (when)
 
 -- | Possible targets which a glob may select.
 data TargetType
@@ -92,26 +91,39 @@ expandGlobToNameSegments targets branch globPath =
 matchingChildBranches :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 matchingChildBranches keyPredicate = Branch.children0 . indices keyPredicate
 
+data GlobFailure = NoGlobs | NoTargets
+
 -- | Expand a single glob pattern into all matching targets of the specified types.
-expandGlobs :: forall m. Set TargetType
-            -> Branch0 m -- ^ Root branch
-            -> Path.Absolute -- ^ UCM's current path
-            -> String -- ^ The glob string, e.g. .base.List.?.doc
-            -> [String] -- ^ Fully expanded, absolute paths. E.g. [".base.List.map"]
-expandGlobs targets rootBranch currentPath s = Maybe.fromMaybe [s] $ do
-  guard (not . null $ targets)
+expandGlobs ::
+  forall m.
+  Set TargetType ->
+  -- | Root branch
+  Branch0 m ->
+  -- | UCM's current path
+  Path.Absolute ->
+  -- | The glob string, e.g. .base.List.?.doc
+  String ->
+  -- | Nothing if arg was not a glob.
+  -- otherwise, fully expanded, absolute paths. E.g. [".base.List.map"]
+  Maybe [String]
+expandGlobs targets rootBranch currentPath s = either recover Just $ do
   let (isAbsolute, globPath) = globbedPathParser (Text.pack s)
   -- If we don't have any actual globs, we can fail to fall back to the original argument.
-  guard (any Either.isRight globPath)
+  when (not . any Either.isRight $ globPath) (Left NoGlobs)
+  when (null targets) (Left NoTargets)
   let currentBranch :: Branch0 m
       currentBranch
         | isAbsolute = rootBranch
         | otherwise = Branch.getAt0 (Path.unabsolute currentPath) rootBranch
   let paths = expandGlobToPaths targets globPath currentBranch
-  let relocatedPaths | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
-                     | otherwise = Path.resolve currentPath <$> paths
+  let relocatedPaths
+        | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
+        | otherwise = Path.resolve currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
-
+  where
+    recover = \case
+      NoGlobs -> Nothing
+      NoTargets -> Just []
 
 -- | Parses a single name segment into a GlobArg or a bare segment according to whether
 -- there's a glob.

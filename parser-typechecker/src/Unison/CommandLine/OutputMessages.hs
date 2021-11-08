@@ -53,7 +53,6 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 )
-import qualified Unison.CommandLine.InputPattern as IP1
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.Builtin.Decls          as DD
@@ -279,6 +278,22 @@ notifyUser dir o = case o of
     pure . P.fatalCallout . P.wrap $ "I have reason to believe that"
       <> P.shown h <> "exists in the codebase, but there was a failure"
       <> "when I tried to load it."
+  NamespaceEmpty p ->
+    case p of
+      Right (p0, p1) ->
+        pure
+          . P.warnCallout
+          $ "The namespaces "
+          <> P.string (show p0)
+          <> " and "
+          <> P.string (show p1)
+          <> " are empty. Was there a typo?"
+      Left p0 ->
+        pure
+          . P.warnCallout
+          $ "The namespace "
+          <> P.string (show p0)
+          <> " is empty. Was there a typo?"
   WarnIncomingRootBranch current hashes -> pure $
     if null hashes then P.wrap $
       "Please let someone know I generated an empty IncomingRootBranch"
@@ -338,15 +353,6 @@ notifyUser dir o = case o of
     displayDefinitions outputLoc ppe types terms
   DisplayRendered outputLoc pp ->
     displayRendered outputLoc pp
-  DisplayLinks ppe md types terms ->
-    if Map.null md then pure $ P.wrap "Nothing to show here. Use the "
-      <> IP.makeExample' IP.link <> " command to add links from this definition."
-    else
-      pure $ intercalateMap "\n\n" go (Map.toList md)
-      where
-      go (_key, rs) =
-        displayDefinitions' ppe (Map.restrictKeys types rs)
-                                (Map.restrictKeys terms rs)
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> pure . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> pure $
@@ -680,7 +686,7 @@ notifyUser dir o = case o of
     else pure mempty
 
   TodoOutput names todo -> pure (todoOutput names todo)
-  GitError input e -> pure $ case e of
+  GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) -> P.wrap
         $ "I don't know how to interpret schema version " <> P.shown v
@@ -716,15 +722,11 @@ notifyUser dir o = case o of
         P.wrap $ "The repository at" <> prettyWriteRepo repo
               <> "has some changes I don't know about.",
         "",
-        P.wrap $ "If you want to " <> push <> "you can do:", "",
-        P.indentN 2 pull, "",
-        P.wrap $
-          "to merge these changes locally," <>
-          "then try your" <> push <> "again."
+        P.wrap $ "Try" <> pull <> "to merge these changes locally, then" <> push <> "again."
         ]
         where
-        push = P.group . P.backticked . P.string . IP1.patternName $ IP.patternFromInput input
-        pull = P.group . P.backticked $ IP.inputStringFromInput input
+        push = P.group . P.backticked . IP.patternName $ IP.push
+        pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
       CouldntLoadRootBranch repo hash -> P.wrap
         $ "I couldn't load the designated root hash"
@@ -1227,43 +1229,88 @@ displayRendered outputLoc pp =
         P.indentN 2 pp
       ]
 
-displayDefinitions :: Var v => Ord a1 =>
-  Maybe FilePath
-  -> PPE.PrettyPrintEnvDecl
-  -> Map Reference.Reference (DisplayObject () (DD.Decl v a1))
-  -> Map Reference.Reference (DisplayObject (Type v a1) (Term v a1))
-  -> IO Pretty
-displayDefinitions _outputLoc _ppe types terms | Map.null types && Map.null terms =
-  pure $ P.callout "😶" "No results to display."
+displayDefinitions ::
+  Var v =>
+  Ord a1 =>
+  Maybe FilePath ->
+  PPE.PrettyPrintEnvDecl ->
+  Map Reference.Reference (DisplayObject () (DD.Decl v a1)) ->
+  Map Reference.Reference (DisplayObject (Type v a1) (Term v a1)) ->
+  IO Pretty
+displayDefinitions _outputLoc _ppe types terms
+  | Map.null types && Map.null terms =
+    pure $ P.callout "😶" "No results to display."
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
-  displayOnly = pure code
-  scratchAndDisplay path = do
-    path' <- canonicalizePath path
-    prependToFile code path'
-    pure (message code path')
-    where
-    prependToFile code path = do
-      existingContents <- do
-        exists <- doesFileExist path
-        if exists then readFile path
-        else pure ""
-      writeFile path . Text.pack . P.toPlain 80 $
-        P.lines [ code, ""
-                , "---- " <> "Anything below this line is ignored by Unison."
-                , "", P.text existingContents ]
-    message code path =
-      P.callout "☝️" $ P.lines [
-        P.wrap $ "I added these definitions to the top of " <> fromString path,
-        "",
-        P.indentN 2 code,
-        "",
-        P.wrap $
-          "You can edit them there, then do" <> makeExample' IP.update <>
-          "to replace the definitions currently in this namespace."
-      ]
-  code = displayDefinitions' ppe types terms
+    displayOnly = pure code
+    scratchAndDisplay path = do
+      path' <- canonicalizePath path
+      prependToFile code path'
+      pure (message code path')
+      where
+        prependToFile code path = do
+          existingContents <- do
+            exists <- doesFileExist path
+            if exists
+              then readFile path
+              else pure ""
+          writeFile path . Text.pack . P.toPlain 80 $
+            P.lines
+              [ code,
+                "",
+                "---- " <> "Anything below this line is ignored by Unison.",
+                "",
+                P.text existingContents
+              ]
+        message code path =
+          P.callout "☝️" $
+            P.lines
+              [ P.wrap $ "I added these definitions to the top of " <> fromString path,
+                "",
+                P.indentN 2 code,
+                "",
+                P.wrap $
+                  "You can edit them there, then do" <> makeExample' IP.update
+                    <> "to replace the definitions currently in this namespace."
+              ]
+    code =
+      P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
+      where
+        ppeBody r = PPE.declarationPPE ppe r
+        ppeDecl = PPE.unsuffixifiedPPE ppe
+        prettyTerms =
+          map go . Map.toList $
+            -- sort by name
+            Map.mapKeys (first (PPE.termName ppeDecl . Referent.Ref) . dupe) terms
+        prettyTypes =
+          map go2 . Map.toList $
+            Map.mapKeys (first (PPE.typeName ppeDecl) . dupe) types
+        go ((n, r), dt) =
+          case dt of
+            MissingObject r -> missing n r
+            BuiltinObject typ ->
+              P.hang
+                ("builtin " <> prettyHashQualified n <> " :")
+                (TypePrinter.prettySyntax (ppeBody r) typ)
+            UserObject tm -> TermPrinter.prettyBinding (ppeBody r) n tm
+        go2 ((n, r), dt) =
+          case dt of
+            MissingObject r -> missing n r
+            BuiltinObject _ -> builtin n
+            UserObject decl -> case decl of
+              Left d -> DeclPrinter.prettyEffectDecl (ppeBody r) r n d
+              Right d -> DeclPrinter.prettyDataDecl (PPE.declarationPPEDecl ppe r) r n d
+        builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
+        missing n r =
+          P.wrap
+            ( "-- The name " <> prettyHashQualified n <> " is assigned to the "
+                <> "reference "
+                <> fromString (show r ++ ",")
+                <> "which is missing from the codebase."
+            )
+            <> P.newline
+            <> tip "You might need to repair the codebase manually."
 
 displayTestResults :: Bool -- whether to show the tip
                    -> PPE.PrettyPrintEnv

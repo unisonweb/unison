@@ -79,7 +79,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
   output <-
     flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
       fmap Text.unpack $
-        TR.run
+        TR.run "Unison.Test.Ucm.runTranscript Invalid Version String"
           codebasePath
           configFile
           stanzas

@@ -4,18 +4,25 @@
 module Unison.Server.Doc.AsHtml where
 
 import Data.Foldable
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Lucid
 import qualified Lucid as L
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import Unison.Server.Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 
 data NamedLinkHref
   = Href Text
+  | DocLinkHref Name
   | ReferenceHref Text
   | InvalidHref
 
@@ -42,25 +49,38 @@ codeBlock :: [Attribute] -> Html () -> Html ()
 codeBlock attrs =
   pre_ attrs . code_ []
 
-normalizeHref :: NamedLinkHref -> Doc -> NamedLinkHref
-normalizeHref href doc =
-  case doc of
-    Word w ->
-      case href of
-        InvalidHref ->
-          Href w
-        Href h ->
-          Href (h <> w)
-        ReferenceHref _ ->
+normalizeHref :: Map Referent Name -> Doc -> NamedLinkHref
+normalizeHref docNamesByRef = go InvalidHref
+  where
+    go href doc =
+      case doc of
+        Word w ->
+          case href of
+            InvalidHref ->
+              Href w
+            Href h ->
+              Href (h <> w)
+            ReferenceHref _ ->
+              href
+            DocLinkHref _ ->
+              href
+        Group d_ ->
+          go href d_
+        Join ds ->
+          foldl' go href ds
+        Special (Link syntax) ->
+          case Syntax.firstReference syntax of
+            Just r ->
+              -- Convert references to docs to names, so we can construct links
+              -- matching the file structure being generated from all the docs
+              case Referent.fromText r >>= flip Map.lookup docNamesByRef of
+                Just n ->
+                  DocLinkHref n
+                Nothing ->
+                  ReferenceHref r
+            Nothing -> InvalidHref
+        _ ->
           href
-    Group d_ ->
-      normalizeHref href d_
-    Join ds ->
-      foldl' normalizeHref href ds
-    Special (Link syntax) ->
-      maybe InvalidHref ReferenceHref (Syntax.firstReference syntax)
-    _ ->
-      href
 
 data IsFolded
   = IsFolded Bool [Html ()] [Html ()]
@@ -119,32 +139,32 @@ mergeWords sep = foldr merge_ []
 -- Used for things like extract an src of an image. I.e something that has to
 -- be a Text and not a Doc
 toText :: Text -> Doc -> Text
-toText sep doc = 
+toText sep doc =
   case doc of
-  Paragraph ds ->
-    listToText ds
-  Group d ->
-    toText sep d
-  Join ds ->
-    listToText ds
-  Bold d ->
-    toText sep d
-  Italic d ->
-    toText sep d
-  Strikethrough d ->
-    toText sep d
-  Blockquote d ->
-    toText sep d
-  Section d ds ->
-    toText sep d <> sep <> listToText ds
-  UntitledSection ds ->
-    listToText ds
-  Column ds ->
-    listToText ds
-  Word w ->
-    w
-  _ ->
-    ""
+    Paragraph ds ->
+      listToText ds
+    Group d ->
+      toText sep d
+    Join ds ->
+      listToText ds
+    Bold d ->
+      toText sep d
+    Italic d ->
+      toText sep d
+    Strikethrough d ->
+      toText sep d
+    Blockquote d ->
+      toText sep d
+    Section d ds ->
+      toText sep d <> sep <> listToText ds
+    UntitledSection ds ->
+      listToText ds
+    Column ds ->
+      listToText ds
+    Word w ->
+      w
+    _ ->
+      ""
   where
     isEmpty s =
       s == Text.empty
@@ -154,8 +174,8 @@ toText sep doc =
         . filter (not . isEmpty)
         . map (toText sep)
 
-toHtml :: Doc -> Html ()
-toHtml document =
+toHtml :: Map Referent Name -> Doc -> Html ()
+toHtml docNamesByRef document =
   let toHtml_ sectionLevel doc =
         let -- Make it simple to retain the sectionLevel when recurring.
             -- the Section variant increments it locally
@@ -250,11 +270,14 @@ toHtml document =
                       h sectionLevel $ currentSectionLevelToHtml title
                  in section_ [] $ sequence_ (titleEl : map (sectionContentToHtml (toHtml_ (sectionLevel + 1))) docs)
               NamedLink label href ->
-                case normalizeHref InvalidHref href of
+                case normalizeHref docNamesByRef href of
                   Href h ->
                     a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
+                  DocLinkHref name ->
+                    let href = "/" <> Text.replace "." "/" (Name.toText name) <> ".html"
+                     in a_ [class_ "named-link doc-link", href_ href] $ currentSectionLevelToHtml label
                   ReferenceHref ref ->
-                    a_ [class_ "named-link", data_ "ref" ref] $ currentSectionLevelToHtml label
+                    span_ [class_ "named-link", data_ "ref" ref, data_ "ref-type" "term"] $ currentSectionLevelToHtml label
                   InvalidHref ->
                     span_ [class_ "named-link invalid-href"] $ currentSectionLevelToHtml label
               Image altText src caption ->
