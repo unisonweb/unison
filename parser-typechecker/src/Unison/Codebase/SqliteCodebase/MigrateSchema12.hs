@@ -168,11 +168,11 @@ liftQ :: Monad m => ReaderT Connection (ExceptT Q.Integrity m) a -> ReaderT Conn
 liftQ = mapReaderT lift
 
 migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExceptT $ do
-  oldBranchHashId <- lift . liftQ $ Q.loadCausalValueHashId oldCausalHashId
-  oldCausalParentHashIds <- lift . liftQ $ Q.loadCausalParents oldCausalHashId
+migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
+  oldBranchHashId <- runDB conn . liftQ $ Q.loadCausalValueHashId oldCausalHashId
+  oldCausalParentHashIds <- runDB conn . liftQ $ Q.loadCausalParents oldCausalHashId
 
-  branchObjId <- lift . liftQ $ Q.expectObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
+  branchObjId <- runDB conn . liftQ $ Q.expectObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
@@ -206,24 +206,25 @@ migrateCausal conn oldCausalHashId = runDB conn . fmap (either id id) . runExcep
                   parents = Set.mapMonotonic Cv.hash2to1 newParentHashes
                 }
             )
-  newCausalHashId <- Q.saveCausalHash newCausalHash
+  newCausalHashId <- runDB conn (Q.saveCausalHash newCausalHash)
   let newCausal =
         DbCausal
           { selfHash = newCausalHashId,
             valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
             parents = newParentHashIds
           }
-  Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
-  Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
+  runDB conn do
+    Q.saveCausal (SC.selfHash newCausal) (SC.valueHash newCausal)
+    Q.saveCausalParents (SC.selfHash newCausal) (Set.toList $ SC.parents newCausal)
 
   field @"causalMapping" %= Map.insert oldCausalHashId (newCausalHash, newCausalHashId)
 
   pure Sync.Done
 
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateBranch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
+migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
-  oldBranchWithHashes <- traverseOf S.branchHashes_ (lift . fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch
+  oldBranchWithHashes <- runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch)
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
   migratedCausals <- gets causalMapping
@@ -298,7 +299,7 @@ migratePatch ::
   Connection ->
   Old PatchObjectId ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
-migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ do
+migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   let hydrateHashes :: forall m. Q.EDB m => HashId -> m Hash
       hydrateHashes hashId = do
@@ -308,7 +309,7 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
         Cv.hash2to1 <$> Ops.loadHashByObjectId objId
 
   oldPatchWithHashes :: S.Patch' TextId Hash Hash <-
-    lift $ do
+    runDB conn do
       (oldPatch & S.patchH_ %%~ liftQ . hydrateHashes)
         >>= (S.patchO_ %%~ hydrateObjectIds)
 
@@ -334,7 +335,7 @@ migratePatch conn oldObjectId = runDB conn . fmap (either id id) . runExceptT $ 
           & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
 
   newPatchWithIds :: S.Patch <-
-    lift . liftQ $ do
+    runDB conn . liftQ $ do
       (newPatch & S.patchH_ %%~ hashToHashId)
         >>= (S.patchO_ %%~ hashToObjectId)
 
