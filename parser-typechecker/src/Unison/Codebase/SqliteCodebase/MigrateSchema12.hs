@@ -331,7 +331,8 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
       remapRef ref = Map.findWithDefault ref ref migratedReferences
 
   let newPatch =
-        oldPatchWithHashes & patchSomeRefsH_ . uRefIdAsRefId_ %~ remapRef
+        oldPatchWithHashes
+          & patchSomeRefsH_ . uRefIdAsRefId_ %~ remapRef
           & patchSomeRefsO_ . uRefIdAsRefId_ %~ remapRef
 
   newPatchWithIds :: S.Patch <-
@@ -418,29 +419,27 @@ someMetadataSetFormat_ ::
 someMetadataSetFormat_ typeOrTermTraversal_ =
   S.Branch.Full.metadataSetFormatReferences_ . someReference_ typeOrTermTraversal_
 
-someReferentMetadata_ ::
+someReferenceMetadata_ ::
   (Ord k, Ord t, Ord h) =>
-  (forall ref. Traversal' ref (SomeReference ref)) ->
   Traversal' k (SomeReference (UReference.Id' h)) ->
   Traversal'
     (Map k (S.Branch.Full.MetadataSetFormat' t h))
     (SomeReference (UReference.Id' h))
-someReferentMetadata_ typeOrTermTraversal_ keyTraversal f m =
+someReferenceMetadata_ keyTraversal_ f m =
   Map.toList m
-    & traversed . beside keyTraversal (someMetadataSetFormat_ typeOrTermTraversal_) %%~ f
+    & traversed . beside keyTraversal_ (someMetadataSetFormat_ asTermReference_) %%~ f
     <&> Map.fromList
 
 branchSomeRefs_ :: (Ord t, Ord h) => Traversal' (S.Branch' t h p c) (SomeReference (UReference.Id' h))
 branchSomeRefs_ f S.Branch.Full.Branch {children, patches, terms, types} = do
-  -- Chris: Chat with Arya about which of these undefined's match refs which are types vs terms, metadata is confusing
-  let newTypesMap = types & traversed . someReferentMetadata_ undefined (someReference_ undefined) %%~ f
-  let newTermsMap = terms & traversed . someReferentMetadata_ undefined (someReferent_ undefined) %%~ f
+  let newTypesMap = types & traversed . someReferenceMetadata_ (someReference_ asTypeReference_) %%~ f
+  let newTermsMap = terms & traversed . someReferenceMetadata_ (someReferent_ asTermReference_) %%~ f
   S.Branch.Full.Branch <$> newTermsMap <*> newTypesMap <*> pure patches <*> pure children
 
 patchSomeRefsH_ :: (Ord t, Ord h) => Traversal (S.Patch' t h o) (S.Patch' t h o) (SomeReference (UReference.Id' h)) (SomeReference (UReference.Id' h))
 patchSomeRefsH_ f S.Patch {termEdits, typeEdits} = do
   newTermEdits <- Map.fromList <$> (Map.toList termEdits & traversed . _1 . (someReferent_ asTermReference_) %%~ f)
-  newTypeEdits <- Map.fromList <$> (Map.toList typeEdits & traversed . _1 . (someReference_ undefined) %%~ f)
+  newTypeEdits <- Map.fromList <$> (Map.toList typeEdits & traversed . _1 . (someReference_ asTypeReference_) %%~ f)
   pure S.Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
 
 patchSomeRefsO_ :: (Ord t, Ord h, Ord o) => Traversal' (S.Patch' t h o) (SomeReference (UReference.Id' o))
@@ -456,7 +455,7 @@ termEditRefs_ _f (TermEdit.Deprecate) = pure TermEdit.Deprecate
 
 typeEditRefs_ :: Traversal' (TypeEdit.TypeEdit' t h) (SomeReference (UReference.Id' h))
 typeEditRefs_ f (TypeEdit.Replace ref) =
-  TypeEdit.Replace <$> (ref & someReference_ undefined %%~ f)
+  TypeEdit.Replace <$> (ref & someReference_ asTypeReference_ %%~ f)
 typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 
 migrateTermComponent ::
