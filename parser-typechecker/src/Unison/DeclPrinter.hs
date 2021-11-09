@@ -25,8 +25,12 @@ import           Unison.PrettyPrintEnvDecl     ( PrettyPrintEnvDecl(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference(DerivedId) )
+import qualified Unison.Result as Result
 import qualified Unison.Util.SyntaxText        as S
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup(TypeLookup))
+import qualified Unison.Typechecker.TypeLookup as TypeLookup
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
@@ -140,11 +144,28 @@ fieldNames env r name dd = case DD.constructors dd of
   [(_, typ)] -> let
     vars :: [v]
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
-    accessorTypes :: [Type.Type v ()]
-    accessorTypes = () -- error "TODO: get types for accessors"
     accessors :: [(v, Term.Term v ())]
     accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-    hashes = Hashing.hashTermComponents (Map.fromList (zipWith (\(v, trm) typ -> (v, (trm, typ))) accessors accessorTypes))
+    accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())]
+    accessorsWithTypes = accessors <&> \(v, trm) ->
+                      case Result.result (Typechecker.synthesize typecheckingEnv trm) of
+                        Nothing -> error $ "Failed to typecheck record field: " <> show v
+                        Just typ -> (v, trm, typ)
+    typeLookup :: TypeLookup v ()
+    typeLookup =
+      TypeLookup
+        { TypeLookup.typeOfTerms = mempty,
+          TypeLookup.dataDecls = Map.singleton r (void dd),
+          TypeLookup.effectDecls = mempty
+        }
+    typecheckingEnv :: Typechecker.Env v ()
+    typecheckingEnv =
+      Typechecker.Env
+        { Typechecker._ambientAbilities = mempty,
+          Typechecker._typeLookup = typeLookup,
+          Typechecker._termsByShortname = mempty
+        }
+    hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
     names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
             | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes ]
     fieldNames = Map.fromList

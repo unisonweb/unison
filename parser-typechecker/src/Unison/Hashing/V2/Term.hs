@@ -15,6 +15,7 @@ module Unison.Hashing.V2.Term
     MatchCase (..),
     hashClosedTerm,
     hashComponents,
+    hashComponentsWithoutTypes,
   )
 where
 
@@ -125,6 +126,9 @@ hashComponents terms =
       -- iff there isn't already a top-level annotation.
       -- What if there's a top-level Annotation but it doesn't match
       -- the type that was provided?
+
+hashComponentsWithoutTypes :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
+hashComponentsWithoutTypes = ReferenceUtil.hashComponents $ refId ()
 
 hashClosedTerm :: Var v => Term v a -> Reference.Id
 hashClosedTerm tm = Reference.Id (ABT.hash tm) 0
