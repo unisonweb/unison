@@ -1888,23 +1888,24 @@ handleDependents hq = do
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
            in LD.fold tp tm ld
         ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl
-        let -- Retain only dependents that are named in the current namespace
-            namedDependents :: [(Name, Reference)]
-            namedDependents =
+        let results :: [(Reference, Maybe Name)]
+            results =
+              -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
+              -- take a flag to control whether we want to show all dependents
               mapMaybe f (Set.toList dependents)
               where
-                f :: Reference -> Maybe (Name, Reference)
+                f :: Reference -> Maybe (Reference, Maybe Name)
                 f reference =
                   asum
-                    [ g <$> PPE.terms ppe (Referent.Ref reference)
-                    , g <$> PPE.types ppe reference
+                    [ g <$> PPE.terms ppe (Referent.Ref reference),
+                      g <$> PPE.types ppe reference
                     ]
                   where
-                    g :: HQ'.HashQualified Name -> (Name, Reference)
+                    g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
                     g hqName =
-                      (HQ'.toName hqName, reference)
-        numberedArgs .= map (Text.unpack . Reference.toText . snd) namedDependents
-        respond (ListDependents hqLength ld namedDependents Set.empty {- no "missing" references -})
+                      (reference, Just (HQ'.toName hqName))
+        numberedArgs .= map (Text.unpack . Reference.toText . fst) results
+        respond (ListDependents hqLength ld results)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()

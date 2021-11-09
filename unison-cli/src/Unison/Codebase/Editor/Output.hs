@@ -209,7 +209,8 @@ data Output v
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
-  | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | -- | List dependents of a type or term.
+    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
