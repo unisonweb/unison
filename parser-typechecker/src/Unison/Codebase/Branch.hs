@@ -613,14 +613,19 @@ stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupA
     groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
     groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
 
-    execActions :: (Branch0 m
-              -> (ActionLocation, [(Path, Branch0 m -> n (Branch0 m))])
-              -> n (Branch0 m))
+    execActions ::
+      ( Branch0 m ->
+        (ActionLocation, [(Path, Branch0 m -> n (Branch0 m))]) ->
+        n (Branch0 m)
+      )
     execActions b = \case
       (HereActions, actions) -> foldM (\b (_, act) -> act b) b actions
       (ChildActions, actions) -> b & children %%~ stepChildren (groupByNextSegment actions)
 
-    stepChildren :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] -> Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
+    stepChildren ::
+      Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] ->
+      Map NameSegment (Branch m) ->
+      n (Map NameSegment (Branch m))
     stepChildren childActions children0 =
       foldM go children0 $ Map.toList childActions
       where
