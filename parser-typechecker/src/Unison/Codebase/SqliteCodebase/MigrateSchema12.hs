@@ -86,6 +86,7 @@ import Unison.Var (Var)
 --
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
 --    ☢️ [ ] incorporate type signature into hash of term <- chris/arya have started ☢️
+--          [ ] store type annotation in the term
 --    * [ ] Salt V2 hashes with version number
 --    * [ ] Use V2 hashing for Causals
 --    * [ ] Delete V1 Hashing to ensure it's unused

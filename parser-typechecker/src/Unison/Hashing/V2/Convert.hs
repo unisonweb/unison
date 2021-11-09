@@ -9,6 +9,7 @@ module Unison.Hashing.V2.Convert
     hashPatch,
     hashClosedTerm,
     hashTermComponents,
+    hashTermComponentsWithoutTypes,
     typeToReference,
     typeToReferenceMentions,
   )
@@ -73,8 +74,8 @@ hashTermComponents ::
   Var v =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a) ->
   Map v (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
-hashTermComponents vTerms =
-  case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) vTerms) of
+hashTermComponents mTerms =
+  case Writer.runWriter (traverse (bitraverse m2hTerm (pure . m2hType)) mTerms) of
     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms
   where
     h2mTermResult ::
@@ -86,14 +87,20 @@ hashTermComponents vTerms =
       (Memory.Reference.Id, Memory.Term.Term v a, Memory.Type.Type v a)
     h2mTermResult getCtorType (id, tm, typ) = (h2mReferenceId id, h2mTerm getCtorType tm, h2mType typ)
 
-
-
--- hashTermComponents' mTerms =
---   case Writer.runWriter (traverse m2hTerm mTerms) of
---     (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponents hTerms
---   where
---     h2mTermResult :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
---     h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
+-- | This shouldn't be used when storing terms in the codebase, as it doesn't incorporate the type into the hash.
+--   this should only be used in cases where you just need a way to identify some terms that you have, but won't be
+--   saving them.
+hashTermComponentsWithoutTypes ::
+  forall v a.
+  Var v =>
+  Map v (Memory.Term.Term v a) ->
+  Map v (Memory.Reference.Id, Memory.Term.Term v a)
+hashTermComponentsWithoutTypes mTerms =
+  case Writer.runWriter (traverse m2hTerm mTerms) of
+    (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.Term.hashComponentsWithoutTypes hTerms
+  where
+    h2mTermResult :: Ord v => (Memory.Reference.Reference -> Memory.ConstructorType.ConstructorType) -> (Hashing.Reference.Id, Hashing.Term.Term v a) -> (Memory.Reference.Id, Memory.Term.Term v a)
+    h2mTermResult getCtorType (id, tm) = (h2mReferenceId id, h2mTerm getCtorType tm)
 
 hashClosedTerm :: Var v => Memory.Term.Term v a -> Memory.Reference.Id
 hashClosedTerm = h2mReferenceId . Hashing.Term.hashClosedTerm . fst . Writer.runWriter . m2hTerm

@@ -291,7 +291,7 @@ prepareEvaluation ppe tm ctx = do
   (rmn, rtms)
     | Tm.LetRecNamed' bs mn0 <- tm
     , hcs <- fmap (first RF.DerivedId)
-           . Hashing.hashTermComponents $ Map.fromList bs
+           . Hashing.hashTermComponentsWithoutTypes $ Map.fromList bs
     , mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
     , rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn
     = (rmn , (rmn, mn) : Map.elems hcs)
