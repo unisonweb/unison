@@ -194,6 +194,13 @@ defaultPatchNameSegment = "patch"
 prettyPrintEnvDecl :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
+-- | Get a pretty print env decl for the current names at the current path.
+currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl = do
+  root' <- use root
+  currentPath' <- Path.unabsolute <$> use currentPath
+  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
+
 loop :: forall m v. (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf <- use latestTypecheckedFile
@@ -1868,24 +1875,36 @@ loop = do
 
 handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
 handleDependents hq = do
-  root' <- use root
   hqLength <- eval CodebaseHashLength
   -- todo: add flag to handle transitive efficiently
   resolveHQToLabeledDependencies hq >>= \lds ->
     if null lds
       then respond $ LabeledReferenceNotFound hq
-      else for_ lds $ \ld -> do
+      else for_ lds \ld -> do
+        -- The full set of dependent references, any number of which may not have names in the current namespace.
         dependents <-
           let tp r = eval $ GetDependents r
               tm (Referent.Ref r) = eval $ GetDependents r
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
            in LD.fold tp tm ld
-        (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-        let types = R.toList $ Names.types names0
-        let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-        let names = types <> terms
-        numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-        respond $ ListDependents hqLength ld names missing
+        ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl
+        let -- Retain only dependents that are named in the current namespace
+            namedDependents :: [(Name, Reference)]
+            namedDependents =
+              mapMaybe f (Set.toList dependents)
+              where
+                f :: Reference -> Maybe (Name, Reference)
+                f reference =
+                  asum
+                    [ g <$> PPE.terms ppe (Referent.Ref reference)
+                    , g <$> PPE.types ppe reference
+                    ]
+                  where
+                    g :: HQ'.HashQualified Name -> (Name, Reference)
+                    g hqName =
+                      (HQ'.toName hqName, reference)
+        numberedArgs .= map (Text.unpack . Reference.toText . snd) namedDependents
+        respond (ListDependents hqLength ld namedDependents Set.empty {- no "missing" references -})
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
