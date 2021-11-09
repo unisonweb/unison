@@ -592,7 +592,11 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
--- stepManyAt0 consolidates several changes into a single step
+-- | stepManyAt0 consolidates several changes into a single step
+-- It does NOT record a new causal node for the parent branch, but does for any child
+-- branches.
+-- If you're using this on a branch, ensure you record the changes to the root branch into a
+-- causal node at some point.
 stepManyAt0 :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
