@@ -43,7 +43,7 @@ embeddedSource ref =
 
 inlineCode :: [Text] -> Html () -> Html ()
 inlineCode classNames =
-  pre_ [classes_ ("inline-code" : classNames)] . code_ []
+  code_ [classes_ ("inline-code" : classNames)]
 
 codeBlock :: [Attribute] -> Html () -> Html ()
 codeBlock attrs =
@@ -97,8 +97,8 @@ foldedToHtml attrs isFolded =
               then open_ "open" : attrs
               else attrs
        in details_ attrsWithOpen $ do
-         summary_ [ class_ "folded-content"] $ sequence_ summary
-         div_ [ class_ "folded-content"] $ sequence_ details
+            summary_ [class_ "folded-content"] $ sequence_ summary
+            div_ [class_ "folded-content"] $ sequence_ details
 
 foldedToHtmlSource :: Bool -> EmbeddedSource -> Html ()
 foldedToHtmlSource isFolded source =
@@ -245,14 +245,11 @@ toHtml docNamesByRef document =
                       tr_ [] $ mapM_ cellToHtml $ mergeWords " " cells
                  in table_ [] $ tbody_ [] $ mapM_ rowToHtml rows
               Folded isFolded summary details ->
-                let content =
-                      if isFolded
-                        then [currentSectionLevelToHtml summary]
-                        else
-                          [ currentSectionLevelToHtml summary,
-                            currentSectionLevelToHtml details
-                          ]
-                 in foldedToHtml [] (IsFolded isFolded content [])
+                foldedToHtml [class_ "folded"] $
+                  IsFolded
+                    isFolded
+                    [currentSectionLevelToHtml summary]
+                    [currentSectionLevelToHtml details]
               Paragraph docs ->
                 case docs of
                   [d] ->
@@ -315,7 +312,7 @@ toHtml docNamesByRef document =
                   ExampleBlock syntax ->
                     div_ [class_ "source rich example"] $ codeBlock [] (Syntax.toHtml syntax)
                   Link syntax ->
-                    inlineCode ["rich", "source"] (Syntax.toHtml syntax)
+                    inlineCode ["rich", "source"] $ Syntax.toHtml syntax
                   Signature signatures ->
                     div_
                       [class_ "rich source signatures"]
