@@ -41,7 +41,7 @@ test = scope "gitsync22" . tests $
       .> alias.type ##Nat builtin.Nat
       .> history
       .> history builtin
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -62,7 +62,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> add
       .> history
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -87,7 +87,7 @@ test = scope "gitsync22" . tests $
           .> link doc y
           .> links y
           .> history
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -106,7 +106,7 @@ test = scope "gitsync22" . tests $
           .> add
           .> alias.type ##Nat Nat
           .> link doc Nat
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -127,7 +127,7 @@ test = scope "gitsync22" . tests $
           ```
           ```ucm
           .> add
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -163,7 +163,7 @@ test = scope "gitsync22" . tests $
           ```
           ```ucm
           .> view.patch patch
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -187,7 +187,7 @@ test = scope "gitsync22" . tests $
           ```ucm
           .> update
           .> history
-          .> push ${repo}
+          .> push.create ${repo}
           ```
     |])
     (\repo -> [i|
@@ -209,7 +209,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> debug.file
       .> add
-      .> push ${repo}
+      .> push.create ${repo}
       ```
     |])
 -- simplest-user
@@ -232,7 +232,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .> debug.file
       .myLib> add
-      .myLib> push ${repo}
+      .myLib> push.create ${repo}
       ```
       |])
 -- simplest-user
@@ -254,7 +254,7 @@ test = scope "gitsync22" . tests $
       ```ucm
       .myLib> debug.file
       .myLib> add
-      .myLib> push ${repo}
+      .myLib> push.create ${repo}
       ```
       |])
 -- simplest-user
@@ -288,7 +288,7 @@ test = scope "gitsync22" . tests $
       ```
       ```ucm
       .workaround1552.myLib.v2> update
-      .workaround1552.myLib> push ${repo}
+      .workaround1552.myLib> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -332,7 +332,7 @@ test = scope "gitsync22" . tests $
       .patches> replace .defns.A .defns.B
       .patches> alias.type .defns.A  A
       .patches> replace .defns.x .defns.y
-      .patches> push ${repo}
+      .patches> push.create ${repo}
       ```
     |])
     (\repo -> [i|
@@ -353,7 +353,7 @@ test = scope "gitsync22" . tests $
         ```
         ```ucm
         .> add
-        .> push ${repo}
+        .> push.create ${repo}
         ```
       |])
     (\repo -> [i|
@@ -377,7 +377,7 @@ CallStack (from HasCallStack):
       ```ucm
       .> alias.type ##Nat builtin.Nat2
       .> alias.type ##Int builtin.Int2
-      .> push ${repo}:.foo.bar
+      .> push.create ${repo}:.foo.bar
       ```
     |])
     (\repo -> [i|
@@ -399,8 +399,8 @@ CallStack (from HasCallStack):
       ```ucm
       .> alias.type ##Nat builtin.Nat2
       .> alias.type ##Int builtin.Int2
-      .> push ${repo}
-      .> push ${repo}:.foo.bar
+      .> push.create ${repo}
+      .> push.create ${repo}:.foo.bar
       ```
     |])
     (\repo -> [i|
@@ -513,7 +513,7 @@ fastForwardPush = scope "fastforward-push" do
     void $ Ucm.runTranscript author [i|
       ```ucm
       .lib> alias.type ##Nat Nat
-      .lib> push ${repo}
+      .lib> push.create ${repo}
       .lib> alias.type ##Int Int
       .lib> push ${repo}
       ```
@@ -543,13 +543,13 @@ destroyedRemote = scope "destroyed-remote" do
     void $ Ucm.runTranscript codebase [i|
       ```ucm
       .lib> alias.type ##Nat Nat
-      .lib> push ${repo}
+      .lib> push.create ${repo}
       ```
     |]
     reinitRepo repo
     void $ Ucm.runTranscript codebase [i|
       ```ucm
-      .lib> push ${repo}
+      .lib> push.create ${repo}
       ```
     |]
   ok

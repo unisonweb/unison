@@ -16,6 +16,7 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import           Unison.Codebase.PushBehavior (PushBehavior)
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -54,15 +55,15 @@ data Input
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity 
-    | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
+    | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
-    -- used in Welcome module to give directions to user 
-    | CreateMessage (P.Pretty P.ColorText)  
+    -- used in Welcome module to give directions to user
+    | CreateMessage (P.Pretty P.ColorText)
     -- Change directory. If Nothing is provided, prompt an interactive fuzzy search.
     | SwitchBranchI (Maybe Path')
     | UpI
