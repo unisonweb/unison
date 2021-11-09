@@ -619,8 +619,8 @@ stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupA
         n (Branch0 m)
       )
     execActions b = \case
-      (HereActions, actions) -> foldM (\b (_, act) -> act b) b actions
-      (ChildActions, actions) -> b & children %%~ stepChildren (groupByNextSegment actions)
+      (HereActions, acts) -> foldM (\b (_, act) -> act b) b acts
+      (ChildActions, acts) -> b & children %%~ stepChildren (groupByNextSegment acts)
 
     stepChildren ::
       Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] ->
@@ -635,11 +635,11 @@ stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupA
             (NameSegment, [(Path, Branch0 m -> n (Branch0 m))]) ->
             n (Map NameSegment (Branch m))
           )
-        go children (seg, actions) = do
+        go children (seg, acts) = do
           -- 'non empty' creates an empty branch if one is missing,
           -- and similarly deletes a branch if it is empty after modifications.
           -- This is important so that branch actions can create/delete branches.
-          children & at seg . non empty %%~ stepM (stepManyAt0M actions)
+          children & at seg . non empty %%~ stepM (stepManyAt0M acts)
     -- The order of actions across differing keys is irrelevant since those actions can't
     -- affect each other.
     -- The order within a given key is stable.
