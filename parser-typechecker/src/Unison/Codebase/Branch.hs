@@ -114,7 +114,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
 import qualified Unison.Util.Star3             as Star3
-import qualified Data.List.Extra as List
+import qualified Unison.Util.List as List
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -599,29 +599,27 @@ stepManyAt0 :: forall f m . (Monad m, Foldable f)
 stepManyAt0 actions =
   runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
 
+data ActionLocation = HereActions | ChildActions
+  deriving Eq
+
 stepManyAt0M ::
   forall m n f.
   (Monad m, Monad n, Foldable f) =>
   f (Path, Branch0 m -> n (Branch0 m)) ->
   Branch0 m ->
   n (Branch0 m)
-stepManyAt0M (toList -> actions) b
-  | null actions = pure b
-  | otherwise = do
-    let (childActionsBeforeCurrentActions, actionsAfterChildActions) =
-          List.break (isCurrentPath . fst) actions
-    let (currentActions, remainingActions) = List.span (isCurrentPath . fst) actionsAfterChildActions
-    let childActionsGroupedByPath = groupByNextSegment childActionsBeforeCurrentActions
-    -- Run all actions over child branches which occur before any changes to the current branch
-    b' <- b & children %%~ stepChildren childActionsGroupedByPath
-    -- Run all actions for the current branch
-    b'' <- foldM (\b (_, act) -> act b) b' currentActions
-    -- recurse with any remaining actions to repeat the process.
-    -- This is necessary because it's possible for sub-branch changes to be arbitrarily
-    -- interleaved with the current branch's changes.
-    -- This ensures correctness, but with as much batching as possible on child branches.
-    stepManyAt0M remainingActions b''
+stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
   where
+    groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
+    groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
+
+    execActions :: (Branch0 m
+              -> (ActionLocation, [(Path, Branch0 m -> n (Branch0 m))])
+              -> n (Branch0 m))
+    execActions b = \case
+      (HereActions, actions) -> foldM (\b (_, act) -> act b) b actions
+      (ChildActions, actions) -> b & children %%~ stepChildren (groupByNextSegment actions)
+
     stepChildren :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] -> Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
     stepChildren childActions children0 =
       foldM go children0 $ Map.toList childActions
@@ -645,9 +643,9 @@ stepManyAt0M (toList -> actions) b
       Map.unionsWith (<>) . fmap \case
         (seg :< rest, action) -> Map.singleton seg [(rest, action)]
         _ -> error "groupByNextSegment called on current path, which shouldn't happen."
-    isCurrentPath :: Path -> Bool
-    isCurrentPath (Path Empty) = True
-    isCurrentPath _ = False
+    pathLocation :: Path -> ActionLocation
+    pathLocation (Path Empty) = HereActions
+    pathLocation _ = ChildActions
 
 instance Hashable (Branch0 m) where
   tokens b =
