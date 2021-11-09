@@ -1610,7 +1610,7 @@ dependents =
     "dependents"
     []
     []
-    "List the dependents of the specified definition."
+    "List the named dependents of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
         _ -> Left (I.help dependents)
