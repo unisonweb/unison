@@ -293,10 +293,10 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
         Nothing -> error $ "Expected patch: " <> show patchObjId <> " to be migrated"
         Just (newPatchObjId, _, _) -> PatchObjectId newPatchObjId
   let remapCausalHashId causalHashId = case Map.lookup causalHashId migratedCausals of
-        Nothing -> error $ "Expected patch: " <> show causalHashId <> " to be migrated"
+        Nothing -> error $ "Expected causal hash id: " <> show causalHashId <> " to be migrated"
         Just (_, newCausalHashId) -> newCausalHashId
-  let remapBranchObjectId patchObjId = case Map.lookup (unBranchObjectId patchObjId) migratedObjects of
-        Nothing -> error $ "Expected patch: " <> show patchObjId <> " to be migrated"
+  let remapBranchObjectId objId = case Map.lookup (unBranchObjectId objId) migratedObjects of
+        Nothing -> error $ "Expected object: " <> show objId <> " to be migrated"
         Just (newBranchObjId, _, _) -> BranchObjectId newBranchObjId
 
   let newBranch :: S.DbBranch
