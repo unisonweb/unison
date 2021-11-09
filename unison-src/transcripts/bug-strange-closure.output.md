@@ -2275,7 +2275,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         1
                                                         (Term.Term
                                                           (Any
-                                                            '(x ->
+                                                            (_
+                                                            x ->
                                                               sqr
                                                                 x))))),
                                                     !Lit
