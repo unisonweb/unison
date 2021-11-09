@@ -112,13 +112,13 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #4dmogr46d2
+  ⊙ #218mq9e558
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #fe6mqhfcun
+  ⊙ #72g69eo2bj
   
     + Adds / updates:
     
@@ -129,26 +129,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #qlrc4272pk
+  ⊙ #vf2ebq39cs
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #mu2ju8e2ic
+  ⊙ #fjg1h9l2ej
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #4adnodif8j
+  ⊙ #c9244fu39l
   
     + Adds / updates:
     
       x
   
-  □ #ucb56c3fgj (start of history)
+  □ #jea0k61jcr (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.

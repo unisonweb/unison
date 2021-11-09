@@ -13,7 +13,7 @@ Let's look at some examples. We'll start with a namespace with just the builtins
   
   
   
-  □ #edu0qq546n (start of history)
+  □ #2r3d85j770 (start of history)
 
 .> fork builtin builtin2
 
@@ -42,21 +42,21 @@ Now suppose we `fork` a copy of builtin, then rename `Nat.+` to `frobnicate`, th
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #u7d9er9k2f
+  ⊙ #h8beuf9p8f
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #4dcjftvejg
+  ⊙ #7lmni6l7fa
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #edu0qq546n (start of history)
+  □ #2r3d85j770 (start of history)
 
 ```
 If we merge that back into `builtin`, we get that same chain of history:
@@ -71,21 +71,21 @@ If we merge that back into `builtin`, we get that same chain of history:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #u7d9er9k2f
+  ⊙ #h8beuf9p8f
   
     > Moves:
     
       Original name  New name
       Nat.frobnicate Nat.+
   
-  ⊙ #4dcjftvejg
+  ⊙ #7lmni6l7fa
   
     > Moves:
     
       Original name New name
       Nat.+         Nat.frobnicate
   
-  □ #edu0qq546n (start of history)
+  □ #2r3d85j770 (start of history)
 
 ```
 Let's try again, but using a `merge.squash` (or just `squash`) instead. The history will be unchanged:
@@ -95,18 +95,16 @@ Let's try again, but using a `merge.squash` (or just `squash`) instead. The hist
 
   Nothing changed as a result of the merge.
 
-  😶
-  
-  builtin2 was already up-to-date with mybuiltin.
-
 .> history builtin2
 
   Note: The most recent namespace hash is immediately below this
         message.
   
+  ⊙ #1vqpv7b08f
   
+    
   
-  □ #edu0qq546n (start of history)
+  □ #2r3d85j770 (start of history)
 
 ```
 The churn that happened in `mybuiltin` namespace ended up back in the same spot, so the squash merge of that namespace with our original namespace had no effect.
@@ -485,13 +483,13 @@ This checks to see that squashing correctly preserves deletions:
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #0kh907mpqb
+  ⊙ #9m6o6lhcen
   
     - Deletes:
     
       Nat.* Nat.+
   
-  □ #edu0qq546n (start of history)
+  □ #2r3d85j770 (start of history)
 
 ```
 Notice that `Nat.+` and `Nat.*` are deleted by the squash, and we see them deleted in one atomic step in the history.
