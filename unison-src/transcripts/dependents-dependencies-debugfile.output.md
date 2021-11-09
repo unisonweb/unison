@@ -87,7 +87,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
   Dependents of #6cdi7g1oi2:
   
        Reference   Name
-    1. #im2kiu2hmn r
+    1. #im2kiu2hmn inside.r
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.

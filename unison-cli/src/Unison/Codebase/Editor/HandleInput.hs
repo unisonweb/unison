@@ -1835,7 +1835,9 @@ handleDependents hq = do
               tm (Referent.Ref r) = eval $ GetDependents r
               tm (Referent.Con r _i _ct) = eval $ GetDependents r
            in LD.fold tp tm ld
-        ppe <- PPE.suffixifiedPPE <$> currentPrettyPrintEnvDecl
+        -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
+        -- unambiguous name.
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
         let results :: [(Reference, Maybe Name)]
             results =
               -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
