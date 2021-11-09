@@ -51,6 +51,7 @@ library
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.PushBehavior
       Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
