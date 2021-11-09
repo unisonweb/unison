@@ -77,13 +77,19 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 
 -- todo:
---  * write a harness to call & seed algorithm, then do cleanup
+--  * write a harness to call & seed algorithm
 --    * may involve writing a `Progress`
 --    * raw DB things:
---    * overwrite object_id column in hash_object table to point at new objects
---    * delete references to old objects in index tables (where else?)
---    * delete old objects
+--    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
+--    * [ ] delete references to old objects in index tables (where else?)
+--    * [ ] delete old objects
+--
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
+--    ☢️ [ ] incorporate type signature into hash of term <- chris/arya have started ☢️
+--    * [ ] Salt V2 hashes with version number
+--    * [ ] Use V2 hashing for Causals
+--    * [ ] Delete V1 Hashing to ensure it's unused
+--    * [ ] confirm that pulls are handled ok
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
@@ -99,13 +105,13 @@ migrateSchema12 conn codebase = do
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
       let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          need = undefined
+          need e = liftIO $ putStrLn $ "Need: " ++ show e
           done :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          done = undefined
+          done e = liftIO $ putStrLn $ "Done: " ++ show e
           error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          error = undefined
+          error e = liftIO $ putStrLn $ "Error: " ++ show e
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = undefined
+          allDone = liftIO $ putStrLn $ "All Done"
        in Sync.Progress {need, done, error, allDone}
 
 type Old a = a
