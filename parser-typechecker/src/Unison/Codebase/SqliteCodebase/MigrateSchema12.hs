@@ -98,9 +98,16 @@ migrateSchema12 conn codebase = do
     foldMapM
       (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
       [WK.RegularWatch, WK.TestWatch]
-  (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
-    `runReaderT` Env {db = conn, codebase}
-    `evalStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+  migrationState <-
+    (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+      `runReaderT` Env {db = conn, codebase}
+      `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+  ifor_ (objLookup migrationState) \old (new, _, _) -> do
+    (runDB conn . liftQ) do
+      Q.recordObjectRehash old new
+      Q.deleteIndexesForObject old
+      -- what about deleting old watches?
+      Q.deleteObject old
   where
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =

@@ -47,6 +47,7 @@ module U.Codebase.Sqlite.Queries (
   expectObjectIdForAnyHashId,
   maybeObjectIdForPrimaryHashId,
   maybeObjectIdForAnyHashId,
+  recordObjectRehash,
 
   -- * object table
   saveObject,
@@ -55,6 +56,7 @@ module U.Codebase.Sqlite.Queries (
   loadObjectWithTypeById,
   loadObjectWithHashIdAndTypeById,
   updateObjectBlob, -- unused
+  deleteObject,
 
   -- * namespace_root table
   loadMaybeNamespaceRoot,
@@ -84,6 +86,7 @@ module U.Codebase.Sqlite.Queries (
   clearWatches,
 
   -- * indexes
+  deleteIndexesForObject,
   -- ** dependents index
   addToDependentsIndex,
   getDependentsForDependency,
@@ -392,10 +395,33 @@ hashIdWithVersionForObject = query sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
 
+-- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
+--
+-- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
+recordObjectRehash :: DB m => ObjectId -> ObjectId -> m ()
+recordObjectRehash old new =
+  execute sql (new, old)
+  where
+    sql = [here|
+      UPDATE hash_object
+      SET object_id = ?
+      WHERE object_id = ?
+    |]
+
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
   UPDATE object SET bytes = ? WHERE id = ?
 |]
+
+-- | Delete a row in the @object@ table.
+deleteObject :: DB m => ObjectId -> m ()
+deleteObject oid =
+  execute
+    [here|
+      DELETE FROM object
+      WHERE id = ?
+    |]
+    (Only oid)
 
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
@@ -634,6 +660,29 @@ getTypeMentionsReferencesForComponent r =
 
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
+
+-- | Delete all mentions of an object in index tables.
+deleteIndexesForObject :: DB m => ObjectId -> m ()
+deleteIndexesForObject oid = do
+  execute
+    [here|
+      DELETE FROM dependents_index
+      WHERE dependency_object_id = ?
+        OR dependent_object_id = ?
+    |]
+    (oid, oid)
+  execute
+    [here|
+      DELETE FROM find_type_index
+      WHERE term_referent_object_id = ?
+    |]
+    (Only oid)
+  execute
+    [here|
+      DELETE FROM find_type_mentions_index
+      WHERE term_referent_object_id = ?
+    |]
+    (Only oid)
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
