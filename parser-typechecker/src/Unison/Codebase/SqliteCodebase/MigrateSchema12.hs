@@ -77,13 +77,19 @@ import qualified Unison.Type as Type
 import Unison.Var (Var)
 
 -- todo:
---  * write a harness to call & seed algorithm, then do cleanup
+--  * write a harness to call & seed algorithm
 --    * may involve writing a `Progress`
 --    * raw DB things:
---    * overwrite object_id column in hash_object table to point at new objects
---    * delete references to old objects in index tables (where else?)
---    * delete old objects
+--    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
+--    * [ ] delete references to old objects in index tables (where else?)
+--    * [ ] delete old objects
+--
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
+--    ☢️ [ ] incorporate type signature into hash of term <- chris/arya have started ☢️
+--    * [ ] Salt V2 hashes with version number
+--    * [ ] Use V2 hashing for Causals
+--    * [ ] Delete V1 Hashing to ensure it's unused
+--    * [ ] confirm that pulls are handled ok
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
@@ -94,18 +100,18 @@ migrateSchema12 conn codebase = do
       [WK.RegularWatch, WK.TestWatch]
   (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
     `runReaderT` Env {db = conn, codebase}
-    `evalStateT` MigrationState Map.empty Map.empty Map.empty
+    `evalStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
   where
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
       let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          need = undefined
+          need e = liftIO $ putStrLn $ "Need: " ++ show e
           done :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          done = undefined
+          done e = liftIO $ putStrLn $ "Done: " ++ show e
           error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          error = undefined
+          error e = liftIO $ putStrLn $ "Error: " ++ show e
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = undefined
+          allDone = liftIO $ putStrLn $ "All Done"
        in Sync.Progress {need, done, error, allDone}
 
 type Old a = a
@@ -120,7 +126,9 @@ data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
   { referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
     causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
-    objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash))
+    objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash)),
+    -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
+    migratedDefnHashes :: Set (Old Hash)
   }
   deriving (Generic)
 
@@ -169,6 +177,8 @@ liftQ = mapReaderT lift
 
 migrateCausal :: MonadIO m => Connection -> CausalHashId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
+  whenM (Map.member oldCausalHashId <$> use (field @"causalMapping")) (throwE Sync.PreviouslyDone)
+
   oldBranchHashId <- runDB conn . liftQ $ Q.loadCausalValueHashId oldCausalHashId
   oldCausalParentHashIds <- runDB conn . liftQ $ Q.loadCausalParents oldCausalHashId
 
@@ -223,6 +233,8 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
 
 migrateBranch :: MonadIO m => Connection -> ObjectId -> StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
+  whenM (Map.member oldObjectId <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
+
   oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
   oldBranchWithHashes <- runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch)
   migratedRefs <- gets referenceMapping
@@ -300,6 +312,8 @@ migratePatch ::
   Old PatchObjectId ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
 migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
+  whenM (Map.member (unPatchObjectId oldObjectId) <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
+
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   let hydrateHashes :: forall m. Q.EDB m => HashId -> m Hash
       hydrateHashes hashId = do
@@ -465,6 +479,8 @@ migrateTermComponent ::
   Unison.Hash ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
+  whenM (Set.member hash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
+
   component <-
     (lift . lift $ getTermComponentWithTypes hash) >>= \case
       Nothing -> error $ "Hash was missing from codebase: " <> show hash
@@ -523,6 +539,8 @@ migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
     field @"referenceMapping" %= Map.insert (TermReference oldReferenceId) (TermReference newReferenceId)
     lift . lift $ putTerm newReferenceId trm typ
 
+  field @"migratedDefnHashes" %= Set.insert hash
+
   pure Sync.Done
 
 migrateDeclComponent ::
@@ -532,6 +550,8 @@ migrateDeclComponent ::
   Unison.Hash ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
 migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
+  whenM (Set.member hash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
+
   declComponent :: [DD.Decl v a] <-
     (lift . lift $ getDeclComponent hash) >>= \case
       Nothing -> error $ "Expected decl component for hash:" <> show hash
@@ -611,6 +631,8 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
           (ConstructorReference newReferenceId newConstructorId)
 
     lift . lift $ putTypeDeclaration newReferenceId dd
+
+  field @"migratedDefnHashes" %= Set.insert hash
 
   pure Sync.Done
 
