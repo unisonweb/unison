@@ -88,8 +88,8 @@ import Unison.Var (Var)
 --    ☢️ [ ] incorporate type signature into hash of term <- chris/arya have started ☢️
 --          [ ] store type annotation in the term
 --    * [ ] Salt V2 hashes with version number
---    * [ ] Use V2 hashing for Causals
---    * [ ] Delete V1 Hashing to ensure it's unused
+--    * [ ] Refactor Causal helper functions to use V2 hashing
+--          * [ ] Delete V1 Hashing to ensure it's unused
 --    * [ ] confirm that pulls are handled ok
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
@@ -335,12 +335,14 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
       (oldPatch & S.patchH_ %%~ liftQ . hydrateHashes)
         >>= (S.patchO_ %%~ hydrateObjectIds)
 
+  migratedRefs <- gets referenceMapping
+  let isUnmigratedRef ref = Map.notMember ref migratedRefs
   -- 2. Determine whether all things the patch refers to are built.
-  let dependencies :: [Entity]
-      dependencies =
-        oldPatchWithHashes ^.. patchSomeRefsH_ . uRefIdAsRefId_ . to someReferenceIdToEntity
-          <> oldPatchWithHashes ^.. patchSomeRefsO_ . uRefIdAsRefId_ . to someReferenceIdToEntity
-  when (not . null $ dependencies) (throwE (Sync.Missing dependencies))
+  let unmigratedDependencies :: [Entity]
+      unmigratedDependencies =
+        oldPatchWithHashes ^.. patchSomeRefsH_ . uRefIdAsRefId_ . filtered isUnmigratedRef . to someReferenceIdToEntity
+          <> oldPatchWithHashes ^.. patchSomeRefsO_ . uRefIdAsRefId_ . filtered isUnmigratedRef . to someReferenceIdToEntity
+  when (not . null $ unmigratedDependencies) (throwE (Sync.Missing unmigratedDependencies))
 
   let hashToHashId :: forall m. Q.EDB m => Hash -> m HashId
       hashToHashId h =
