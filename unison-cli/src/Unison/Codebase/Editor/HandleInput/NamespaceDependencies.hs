@@ -44,11 +44,10 @@ namespaceDependencies branch = do
           & traverse refToDeps
           <&> Map.unionsWith (<>)
   dependenciesToDependants :: Map Referent (Set Name) <-
-    Map.unionsWith (<>)
-      <$> sequenceA
-        [ allDependenciesOf currentBranchTypes,
-          allDependenciesOf currentBranchTerms
-        ]
+    liftA2
+      (Map.unionWith (<>))
+      (allDependenciesOf currentBranchTypes)
+      (allDependenciesOf (Set.map Referent.toReference currentBranchTermsAndConstructors))
   let onlyExternalDeps :: Map Referent (Set Name)
       onlyExternalDeps =
         Map.filterWithKey
@@ -59,7 +58,7 @@ namespaceDependencies branch = do
       <$> ( for (Map.toList onlyExternalDeps) $ \case
               (ref, deps) -> do
                 constructors <- eval (ConstructorsOfType (Referent.toReference ref))
-                let externalConstrs = constructors `Set.difference` currentBranchReferents
+                let externalConstrs = constructors `Set.difference` currentBranchTermsAndConstructors
                 pure $
                   [ Map.singleton ref deps,
                     Map.fromListWith (<>) ((,deps) <$> Set.toList externalConstrs)
@@ -68,18 +67,17 @@ namespaceDependencies branch = do
   let allDependenciesToDependants = Map.unionWith (<>) externalConstructors onlyExternalDeps
   pure allDependenciesToDependants
   where
-    currentBranchReferents :: Set Referent
-    currentBranchReferents = Relation.dom (Branch.deepTerms branch)
+    currentBranchTermsAndConstructors :: Set Referent
+    currentBranchTermsAndConstructors = Relation.dom (Branch.deepTerms branch)
     localNameByReference :: Reference -> (Set Name)
     localNameByReference ref = Relation.lookupDom (Referent.fromReference ref) (Branch.deepTerms branch)
-    currentBranchTerms :: Set Reference
-    currentBranchTerms = Set.map Referent.toReference currentBranchReferents
     currentBranchTypes :: Set Reference
     currentBranchTypes = Relation.dom (Branch.deepTypes branch)
     typeAndTermRefsInCurrentBranch :: Set Referent
     typeAndTermRefsInCurrentBranch =
       Set.map Referent.fromReference (Relation.dom (Branch.deepTypes branch))
-        <> currentBranchReferents
+        <> currentBranchTermsAndConstructors
+
 -- TODO:
 -- <> _termMetadata
 -- <> _typeMetadata
