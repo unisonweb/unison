@@ -80,6 +80,9 @@ namespaceDependencies branch = do
     typeAndTermRefsInCurrentBranch =
       Set.map Referent.fromReference (Relation.dom (Branch.deepTypes branch))
         <> currentBranchTermsAndConstructors
+
+    -- Since metadata is only linked by reference, not by name,
+    -- it's possible that the metadata itself is external to the branch.
     branchMetadataReferences :: Map Reference (Set Name)
     branchMetadataReferences =
       let typeMetadataRefs =
