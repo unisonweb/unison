@@ -56,13 +56,13 @@ termName env r =
 typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   case types env r of
-    Nothing -> HQ.take todoHashLength (HQ.fromReference r) 
+    Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
 -- | Find a name for this referent (or embedded reference) in either the types or terms.
 typeOrTermName :: PrettyPrintEnv -> Referent -> HashQualified Name
 typeOrTermName env r =
-  fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) ((Referent'.toTermReference r >>= types env)  <|> terms env r)
+  maybe (HQ.take todoHashLength $ HQ.fromReferent r) HQ'.toHQ ((Referent'.toTermReference r >>= types env) <|> terms env r)
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
 patternName env r cid =
