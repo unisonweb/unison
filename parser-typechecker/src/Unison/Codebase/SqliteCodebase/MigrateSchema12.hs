@@ -135,7 +135,7 @@ data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
   { referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
     causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
-    objLookup :: Map (Old ObjectId) (New (ObjectId, HashId, Hash)),
+    objLookup :: Map (Old ObjectId) ((New ObjectId, New HashId, New Hash)),
     -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
     migratedDefnHashes :: Set (Old Hash)
   }
@@ -157,11 +157,11 @@ migrationSync ::
   Sync (ReaderT (Env m v a) (StateT MigrationState m)) Entity
 migrationSync = Sync \case
   TermComponent hash -> do
-    Env {codebase} <- ask
-    lift (migrateTermComponent codebase hash)
+    Env {codebase, db} <- ask
+    lift (migrateTermComponent db codebase hash)
   DeclComponent hash -> do
-    Env {codebase} <- ask
-    lift (migrateDeclComponent codebase hash)
+    Env {codebase, db} <- ask
+    lift (migrateDeclComponent db codebase hash)
   BranchE objectId -> do
     Env {db} <- ask
     lift (migrateBranch db objectId)
@@ -485,20 +485,21 @@ typeEditRefs_ _f (TypeEdit.Deprecate) = pure TypeEdit.Deprecate
 
 migrateTermComponent ::
   forall m v a.
-  (Ord v, Var v, Monad m) =>
+  (Ord v, Var v, Monad m, MonadIO m) =>
+  Connection ->
   Codebase m v a ->
   Unison.Hash ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
-  whenM (Set.member hash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
+migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExceptT $ do
+  whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   component <-
-    (lift . lift $ getTermComponentWithTypes hash) >>= \case
-      Nothing -> error $ "Hash was missing from codebase: " <> show hash
+    (lift . lift $ getTermComponentWithTypes oldHash) >>= \case
+      Nothing -> error $ "Hash was missing from codebase: " <> show oldHash
       Just component -> pure component
 
   let componentIDMap :: Map (Old Reference.Id) (Term.Term v a, Type v a)
-      componentIDMap = Map.fromList $ Reference.componentFor hash component
+      componentIDMap = Map.fromList $ Reference.componentFor oldHash component
   let unhashed :: Map (Old Reference.Id) (v, Term.Term v a)
       unhashed = Term.unhashComponent (fst <$> componentIDMap)
   let vToOldReferenceMapping :: Map v (Old Reference.Id)
@@ -550,26 +551,32 @@ migrateTermComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
     field @"referenceMapping" %= Map.insert (TermReference oldReferenceId) (TermReference newReferenceId)
     lift . lift $ putTerm newReferenceId trm typ
 
-  field @"migratedDefnHashes" %= Set.insert hash
+  -- Need to get one of the new references to grab its hash, doesn't matter which one since
+  -- all hashes in the component are the same.
+  case newTermComponents ^? traversed . _1 . to Reference.idToHash of
+    Nothing -> pure ()
+    Just newHash -> insertObjectMappingForHash conn oldHash newHash
 
+  field @"migratedDefnHashes" %= Set.insert oldHash
   pure Sync.Done
 
 migrateDeclComponent ::
   forall m v a.
-  (Ord v, Var v, Monad m) =>
+  (Ord v, Var v, Monad m, MonadIO m) =>
+  Connection ->
   Codebase m v a ->
   Unison.Hash ->
   StateT MigrationState m (Sync.TrySyncResult Entity)
-migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
-  whenM (Set.member hash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
+migrateDeclComponent conn Codebase {..} oldHash = fmap (either id id) . runExceptT $ do
+  whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
   declComponent :: [DD.Decl v a] <-
-    (lift . lift $ getDeclComponent hash) >>= \case
-      Nothing -> error $ "Expected decl component for hash:" <> show hash
+    (lift . lift $ getDeclComponent oldHash) >>= \case
+      Nothing -> error $ "Expected decl component for hash:" <> show oldHash
       Just dc -> pure dc
 
   let componentIDMap :: Map (Old Reference.Id) (DD.Decl v a)
-      componentIDMap = Map.fromList $ Reference.componentFor hash declComponent
+      componentIDMap = Map.fromList $ Reference.componentFor oldHash declComponent
 
   let unhashed :: Map (Old Reference.Id) (DeclName v, DD.Decl v a)
       unhashed = DD.unhashComponent componentIDMap
@@ -643,9 +650,29 @@ migrateDeclComponent Codebase {..} hash = fmap (either id id) . runExceptT $ do
 
     lift . lift $ putTypeDeclaration newReferenceId dd
 
-  field @"migratedDefnHashes" %= Set.insert hash
+  -- Need to get one of the new references to grab its hash, doesn't matter which one since
+  -- all hashes in the component are the same.
+  case newComponent ^? traversed . _2 . to Reference.idToHash of
+    Nothing -> pure ()
+    Just newHash -> insertObjectMappingForHash conn oldHash newHash
+  field @"migratedDefnHashes" %= Set.insert oldHash
 
   pure Sync.Done
+
+insertObjectMappingForHash ::
+  (MonadIO m, MonadState MigrationState m) =>
+  Connection ->
+  Old Hash ->
+  New Hash ->
+  m ()
+insertObjectMappingForHash conn oldHash newHash = do
+  (oldObjectId, newHashId, newObjectId) <- runDB conn . liftQ $ do
+    oldHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ oldHash
+    oldObjectId <- Q.expectObjectIdForPrimaryHashId $ oldHashId
+    newHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ newHash
+    newObjectId <- Q.expectObjectIdForPrimaryHashId $ newHashId
+    pure (oldObjectId, newHashId, newObjectId)
+  field @"objLookup" %= Map.insert oldObjectId (newObjectId, newHashId, newHash)
 
 typeReferences_ :: (Monad m, Ord v) => LensLike' m (Type v a) SomeReferenceId
 typeReferences_ =
