@@ -27,6 +27,8 @@ library
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
       Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.Action
+      Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.Input
       Unison.Codebase.Editor.Output
       Unison.Codebase.Editor.Output.BranchDiff
@@ -56,6 +58,8 @@ library
       BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
@@ -117,6 +121,8 @@ executable integration-tests
       BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
@@ -181,6 +187,8 @@ executable transcripts
       BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
@@ -250,6 +258,8 @@ executable unison
       BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
@@ -325,6 +335,8 @@ test-suite tests
       BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
       DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse

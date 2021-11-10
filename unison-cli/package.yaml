@@ -97,6 +97,8 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse

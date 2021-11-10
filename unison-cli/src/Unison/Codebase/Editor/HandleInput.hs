@@ -2,9 +2,6 @@
 
 module Unison.Codebase.Editor.HandleInput
   ( loop,
-    loopState0,
-    LoopState (..),
-    currentPath,
     parseSearchType,
   )
 where
@@ -22,7 +19,6 @@ import Data.Either.Extra (eitherToMaybe)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as List
 import Data.List.Extra (nubOrd)
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
 import Data.Sequence (Seq (..))
@@ -131,7 +127,6 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
-import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import Unison.Util.List (uniqueBy)
 import Unison.Util.Monoid (intercalateMap)
@@ -145,48 +140,9 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-
-type F m i v = Free (Command m i v)
-
--- type (Action m i v) a
-type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
-
-data LoopState m v = LoopState
-  { _root :: Branch m,
-    _lastSavedRoot :: Branch m,
-    -- the current position in the namespace
-    _currentPathStack :: NonEmpty Path.Absolute,
-    -- TBD
-    -- , _activeEdits :: Set Branch.EditGuid
-
-    -- The file name last modified, and whether to skip the next file
-    -- change event for that path (we skip file changes if the file has
-    -- just been modified programmatically)
-    _latestFile :: Maybe (FilePath, SkipNextUpdate),
-    _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann),
-    -- The previous user input. Used to request confirmation of
-    -- questionable user commands.
-    _lastInput :: Maybe Input,
-    -- A 1-indexed list of strings that can be referenced by index at the
-    -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
-    -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
-    _numberedArgs :: NumberedArgs
-  }
-
-type SkipNextUpdate = Bool
-
-type InputDescription = Text
-
-makeLenses ''LoopState
-
--- replacing the old read/write scalar Lens with "peek" Getter for the NonEmpty
-currentPath :: Getter (LoopState m v) Path.Absolute
-currentPath = currentPathStack . to Nel.head
-
-loopState0 :: Branch m -> Path.Absolute -> LoopState m v
-loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
-
-type Action' m v = Action m (Either Event Input) v
+import qualified Unison.Codebase.Editor.HandleInput.Action as Action
+import Unison.Codebase.Editor.HandleInput.Action (Action, Action')
+import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -196,10 +152,10 @@ prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 loop :: forall m v. (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
-  uf <- use latestTypecheckedFile
-  root' <- use root
-  currentPath' <- use currentPath
-  latestFile' <- use latestFile
+  uf <- use Action.latestTypecheckedFile
+  root' <- use Action.root
+  currentPath' <- use Action.currentPath
+  latestFile' <- use Action.latestFile
   currentBranch' <- getAt currentPath'
   e <- eval Input
   hqLength <- eval CodebaseHashLength
@@ -267,8 +223,8 @@ loop = do
               _ -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         let parseNames = Backend.getCurrentParseNames (Backend.AllNames currentPath'') root'
-        latestFile .= Just (Text.unpack sourceName, False)
-        latestTypecheckedFile .= Nothing
+        Action.latestFile .= Just (Text.unpack sourceName, False)
+        Action.latestTypecheckedFile .= Nothing
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
@@ -302,7 +258,7 @@ loop = do
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               unless (null e') $
                 eval . Notify $ Evaluated text ppe bindings e'
-              latestTypecheckedFile .= Just unisonFile
+              Action.latestTypecheckedFile .= Just unisonFile
 
   case e of
     Left (IncomingRootBranch hashes) ->
@@ -313,7 +269,7 @@ loop = do
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
-        then modifying latestFile (fmap (const False) <$>)
+        then modifying Action.latestFile (fmap (const False) <$>)
         else loadUnisonFile sourceName text
     Right input ->
       let ifConfirmed = ifM (confirmedCommand input)
@@ -375,13 +331,13 @@ loop = do
           branchExistsSplit = branchExists . Path.unsplit'
           typeExists dest = respond . TypeAlreadyExists dest
           termExists dest = respond . TermAlreadyExists dest
-          inputDescription :: InputDescription
+          inputDescription :: Action.InputDescription
           inputDescription = case input of
             ForkLocalBranchI src dest -> "fork " <> hp' src <> " " <> p' dest
             MergeLocalBranchI src dest mode -> case mode of
               Branch.RegularMerge -> "merge " <> p' src <> " " <> p' dest
               Branch.SquashMerge -> "merge.squash " <> p' src <> " " <> p' dest
-            ResetRootI src -> "reset-root " <> hp' src
+            ResetRootI src -> "reset-Action.root " <> hp' src
             AliasTermI src dest -> "alias.term " <> hhqs' src <> " " <> ps' dest
             AliasTypeI src dest -> "alias.type " <> hhqs' src <> " " <> ps' dest
             AliasManyI srcs dest ->
@@ -495,7 +451,7 @@ loop = do
           stepManyAtNoSync =
             Unison.Codebase.Editor.HandleInput.stepManyAtNoSync
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
-          syncRoot = use root >>= updateRoot
+          syncRoot = use Action.root >>= updateRoot
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
@@ -580,12 +536,12 @@ loop = do
             runExceptT (for mdValues \val -> ExceptT (getMetadataFromName val)) >>= \case
               Left output -> respond output
               Right metadata -> do
-                before <- Branch.head <$> use root
+                before <- Branch.head <$> use Action.root
                 traverse_ go metadata
                 if silent
                   then respond DefaultMetadataNotification
                   else do
-                    after <- Branch.head <$> use root
+                    after <- Branch.head <$> use Action.root
                     (ppe, outputDiff) <- diffHelper before after
                     if OBranchDiff.isEmpty outputDiff
                       then respond NoOp
@@ -599,7 +555,7 @@ loop = do
             where
               go :: (Metadata.Type, Metadata.Value) -> Action m (Either Event Input) v ()
               go (mdType, mdValue) = do
-                newRoot <- use root
+                newRoot <- use Action.root
                 let r0 = Branch.head newRoot
                     getTerms p = BranchUtil.getTerm (resolveSplit' p) r0
                     getTypes p = BranchUtil.getType (resolveSplit' p) r0
@@ -643,7 +599,7 @@ loop = do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
                     stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
-                    root'' <- use root
+                    root'' <- use Action.root
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else handleFailedDelete failed failedDependents
@@ -652,7 +608,7 @@ loop = do
               respond $ PrintMessage pretty
             ShowReflogI -> do
               entries <- convertEntries Nothing [] <$> eval LoadReflog
-              numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
+              Action.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
               respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a
@@ -784,9 +740,9 @@ loop = do
                       (snoc desta "merged")
                 else respond . BranchNotEmpty . Path.Path' . Left $ currentPath'
 
-            -- move the root to a sub-branch
+            -- move the Action.root to a sub-branch
             MoveBranchI Nothing dest -> do
-              b <- use root
+              b <- use Action.root
               stepManyAt
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (resolveSplit' dest) b
@@ -845,7 +801,7 @@ loop = do
                     let rootNames = Branch.toNames root0
                         toDelete =
                           Names.prefix0
-                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates Action.currentPath
                             (Branch.toNames b)
                      in getEndangeredDependents (eval . GetDependents) toDelete rootNames
                   if failed == mempty
@@ -872,17 +828,17 @@ loop = do
                 Nothing -> pure ()
                 Just path' -> do
                   let path = resolveToAbsolute path'
-                  currentPathStack %= Nel.cons path
+                  Action.currentPathStack %= Nel.cons path
                   branch' <- getAt path
                   when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
             UpI ->
-              use currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
+              use Action.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
                 Nothing -> pure ()
-                Just (path, _) -> currentPathStack %= Nel.cons (Path.Absolute path)
+                Just (path, _) -> Action.currentPathStack %= Nel.cons (Path.Absolute path)
             PopBranchI ->
-              use (currentPathStack . to Nel.uncons) >>= \case
+              use (Action.currentPathStack . to Nel.uncons) >>= \case
                 (_, Nothing) -> respond StartOfCurrentPathHistory
-                (_, Just t) -> currentPathStack .= t
+                (_, Just t) -> Action.currentPathStack .= t
             HistoryI resultsCap diffCap from -> case from of
               Left hash -> unlessError do
                 b <- resolveShortBranchHash hash
@@ -1050,7 +1006,7 @@ loop = do
             LinksI src mdTypeStr -> unlessError do
               (ppe, out) <- getLinks (show input) src (Right mdTypeStr)
               lift do
-                numberedArgs .= fmap (HQ.toString . view _1) out
+                Action.numberedArgs .= fmap (HQ.toString . view _1) out
                 respond $ ListOfLinks ppe out
             DocsI srcs -> do
               srcs' <- case srcs of
@@ -1136,7 +1092,7 @@ loop = do
                         (seg, _) <- Map.toList (Branch._edits b)
                     ]
               respond $ ListOfPatches $ Set.fromList patches
-              numberedArgs .= fmap Name.toString patches
+              Action.numberedArgs .= fmap Name.toString patches
             FindShallowI pathArg -> do
               let pathArgAbs = resolveToAbsolute pathArg
                   ppe =
@@ -1149,7 +1105,7 @@ loop = do
                 Left e -> handleBackendError e
                 Right entries -> do
                   -- caching the result as an absolute path, for easier jumping around
-                  numberedArgs .= fmap entryToHQString entries
+                  Action.numberedArgs .= fmap entryToHQString entries
                   respond $ ListShallow ppe entries
                   where
                     entryToHQString :: ShallowListEntry v Ann -> String
@@ -1200,7 +1156,7 @@ loop = do
                     let srs = searchBranchScored ns fuzzyNameDistance qs
                     pure $ uniqueBy SR.toReferent srs
                 lift do
-                  numberedArgs .= fmap searchResultToHQString results
+                  Action.numberedArgs .= fmap searchResultToHQString results
                   results' <- loadSearchResults results
                   ppe <-
                     suffixifiedPPE
@@ -1730,7 +1686,7 @@ loop = do
                     let types = R.toList $ Names.types names0
                     let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                     let names = types <> terms
-                    numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+                    Action.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                     respond $ ListDependents hqLength ld names missing
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1760,17 +1716,17 @@ loop = do
                     let types = R.toList $ Names.types names0
                     let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
                     let names = types <> terms
-                    numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
+                    Action.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
                     respond $ ListDependencies hqLength ld names missing
             NamespaceDependenciesI namespacePath' -> do
               let path = maybe currentPath' resolveToAbsolute namespacePath'
               case (Branch.getAt (Path.unabsolute path) root') of
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  (externalTerms, externalTypes) <- namespaceDependencies (Branch.head b)
+                  (externalTerms, externalTypes) <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ ListNamespaceDependencies ppe externalTerms externalTypes
-            DebugNumberedArgsI -> use numberedArgs >>= respond . DumpNumberedArgs
+            DebugNumberedArgsI -> use Action.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile
               Just uf ->
@@ -1900,8 +1856,8 @@ handleShowDefinition outputLoc inputQuery = do
         branch <- fuzzyBranch
         fuzzySelectTermsAndTypes branch
       else pure inputQuery
-  currentPath' <- Path.unabsolute <$> use currentPath
-  root' <- use root
+  currentPath' <- Path.unabsolute <$> use Action.currentPath
+  root' <- use Action.root
   hqLength <- eval CodebaseHashLength
   Backend.DefinitionResults terms types misses <-
     eval (GetDefinitionsBySuffixes (Just currentPath') root' includeCycles query)
@@ -1911,22 +1867,22 @@ handleShowDefinition outputLoc inputQuery = do
     let ppe = PPE.fromNamesDecl hqLength printNames
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
-  -- We set latestFile to be programmatically generated, if we
+  -- We set Action.latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
   -- next update for that file (which will happen immediately)
-  latestFile .= ((,True) <$> outputPath)
+  Action.latestFile .= ((,True) <$> outputPath)
   where
     -- `view`: fuzzy find globally; `edit`: fuzzy find local to current branch
     fuzzyBranch :: Action' m v (Branch0 m)
     fuzzyBranch =
       case outputLoc of
-        ConsoleLocation {} -> Branch.head <$> use root
+        ConsoleLocation {} -> Branch.head <$> use Action.root
         -- fuzzy finding for 'edit's are local to the current branch
         LatestFileLocation {} -> currentBranch0
         FileLocation {} -> currentBranch0
       where
         currentBranch0 = do
-          currentPath' <- use currentPath
+          currentPath' <- use Action.currentPath
           currentBranch <- getAt currentPath'
           pure (Branch.head currentBranch)
     -- `view`: don't include cycles; `edit`: include cycles
@@ -1943,7 +1899,7 @@ handleShowDefinition outputLoc inputQuery = do
         ConsoleLocation -> pure Nothing
         FileLocation path -> pure (Just path)
         LatestFileLocation ->
-          use latestFile <&> \case
+          use Action.latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
 
@@ -1968,9 +1924,9 @@ resolveHQToLabeledDependencies = \case
 doDisplay :: Var v => OutputLocation -> NamesWithHistory -> Term v () -> Action' m v ()
 doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
-  tf <- use latestTypecheckedFile
+  tf <- use Action.latestTypecheckedFile
   let (tms, typs) = maybe mempty UF.indexByReference tf
-  latestFile' <- use latestFile
+  latestFile' <- use Action.latestFile
   let loc = case outputLoc of
         ConsoleLocation -> Nothing
         FileLocation path -> Just path
@@ -2027,8 +1983,8 @@ getLinks' ::
       [(HQ.HashQualified Name, Reference, Maybe (Type v Ann))]
     )
 getLinks' src selection0 = do
-  root0 <- Branch.head <$> use root
-  currentPath' <- use currentPath
+  root0 <- Branch.head <$> use Action.root
+  currentPath' <- use Action.currentPath
   let resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       p = resolveSplit' src -- ex: the (parent,hqsegment) of `List.map` - `List`
       -- all metadata (type+value) associated with name `src`
@@ -2065,7 +2021,7 @@ propagatePatchNoSync ::
   Path.Absolute ->
   Action' m v Bool
 propagatePatchNoSync patch scopePath = do
-  r <- use root
+  r <- use Action.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtMNoSync'
     ( Path.unabsolute scopePath,
@@ -2075,12 +2031,12 @@ propagatePatchNoSync patch scopePath = do
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch ::
   (Monad m, Var v) =>
-  InputDescription ->
+  Action.InputDescription ->
   Patch ->
   Path.Absolute ->
   Action' m v Bool
 propagatePatch inputDescription patch scopePath = do
-  r <- use root
+  r <- use Action.root
   let nroot = Branch.toNames (Branch.head r)
   stepAtM'
     (inputDescription <> " (applying patch)")
@@ -2112,7 +2068,7 @@ showTodoOutput getPpe patch names0 = do
   if TO.noConflicts todo && TO.noEdits todo
     then respond NoConflictsOrEdits
     else do
-      numberedArgs
+      Action.numberedArgs
         .= ( Text.unpack . Reference.toText . view _2
                <$> fst (TO.todoFrontierDependents todo)
            )
@@ -2306,7 +2262,7 @@ respondNumbered :: NumberedOutput v -> Action m i v ()
 respondNumbered output = do
   args <- eval $ NotifyNumbered output
   unless (null args) $
-    numberedArgs .= toList args
+    Action.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either (eval . Notify) pure
@@ -2319,7 +2275,7 @@ unlessError' f ma = unlessError $ withExceptT f ma
 mergeBranchAndPropagateDefaultPatch ::
   (Monad m, Var v) =>
   Branch.MergeMode ->
-  InputDescription ->
+  Action.InputDescription ->
   Maybe (Output v) ->
   Branch m ->
   Maybe Path.Path' ->
@@ -2334,7 +2290,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
     mergeBranch ::
       (Monad m, Var v) =>
       Branch.MergeMode ->
-      InputDescription ->
+      Action.InputDescription ->
       Branch m ->
       Maybe Path.Path' ->
       Path.Absolute ->
@@ -2350,7 +2306,7 @@ mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb 
 
 loadPropagateDiffDefaultPatch ::
   (Monad m, Var v) =>
-  InputDescription ->
+  Action.InputDescription ->
   Maybe Path.Path' ->
   Path.Absolute ->
   Action' m v ()
@@ -2390,17 +2346,17 @@ getMetadataFromName name = do
   where
     getPPE :: Action m (Either Event Input) v PPE.PrettyPrintEnv
     getPPE = do
-      currentPath' <- use currentPath
+      currentPath' <- use Action.currentPath
       sbhLength <- eval BranchHashLength
-      Backend.basicSuffixifiedNames sbhLength <$> use root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
+      Backend.basicSuffixifiedNames sbhLength <$> use Action.root <*> pure (Backend.AllNames $ Path.unabsolute currentPath')
 
 -- | Get the set of terms related to a hash-qualified name.
 getHQTerms :: HQ.HashQualified Name -> Action' m v (Set Referent)
 getHQTerms = \case
   HQ.NameOnly n -> do
-    root0 <- Branch.head <$> use root
-    currentPath' <- use currentPath
-    -- absolute-ify the name, then lookup in deepTerms of root
+    root0 <- Branch.head <$> use Action.root
+    currentPath' <- use Action.currentPath
+    -- absolute-ify the name, then lookup in deepTerms of Action.root
     let path =
           n
             & Path.fromName'
@@ -2415,13 +2371,13 @@ getHQTerms = \case
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
-  use root <&> fromMaybe Branch.empty . Branch.getAt p
+  use Action.root <&> fromMaybe Branch.empty . Branch.getAt p
 
 -- Update a branch at the given path, returning `True` if
 -- an update occurred and false otherwise
 updateAtM ::
   Applicative m =>
-  InputDescription ->
+  Action.InputDescription ->
   Path.Absolute ->
   (Branch m -> Action m i v (Branch m)) ->
   Action m i v Bool
@@ -2434,7 +2390,7 @@ updateAtM reason (Path.Absolute p) f = do
 stepAt ::
   forall m i v.
   Monad m =>
-  InputDescription ->
+  Action.InputDescription ->
   (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
 stepAt cause = stepManyAt @m @[] cause . pure
@@ -2449,7 +2405,7 @@ stepAtNoSync = stepManyAtNoSync @m @[] . pure
 stepAtM ::
   forall m i v.
   Monad m =>
-  InputDescription ->
+  Action.InputDescription ->
   (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
 stepAtM cause = stepManyAtM @m @[] cause . pure
@@ -2457,7 +2413,7 @@ stepAtM cause = stepManyAtM @m @[] cause . pure
 stepAtM' ::
   forall m i v.
   Monad m =>
-  InputDescription ->
+  Action.InputDescription ->
   (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
 stepAtM' cause = stepManyAtM' @m @[] cause . pure
@@ -2471,32 +2427,32 @@ stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
 
 stepManyAt ::
   (Monad m, Foldable f) =>
-  InputDescription ->
+  Action.InputDescription ->
   f (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
 stepManyAt reason actions = do
   stepManyAtNoSync actions
-  b <- use root
+  b <- use Action.root
   updateRoot b reason
 
--- Like stepManyAt, but doesn't update the root
+-- Like stepManyAt, but doesn't update the Action.root
 stepManyAtNoSync ::
   (Monad m, Foldable f) =>
   f (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
 stepManyAtNoSync actions = do
-  b <- use root
+  b <- use Action.root
   let new = Branch.stepManyAt actions b
-  root .= new
+  Action.root .= new
 
 stepManyAtM ::
   (Monad m, Foldable f) =>
-  InputDescription ->
+  Action.InputDescription ->
   f (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
 stepManyAtM reason actions = do
   stepManyAtMNoSync actions
-  b <- use root
+  b <- use Action.root
   updateRoot b reason
 
 stepManyAtMNoSync ::
@@ -2504,17 +2460,17 @@ stepManyAtMNoSync ::
   f (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
 stepManyAtMNoSync actions = do
-  b <- use root
+  b <- use Action.root
   b' <- eval . Eval $ Branch.stepManyAtM actions b
-  root .= b'
+  Action.root .= b'
 
 stepManyAtM' ::
   (Monad m, Foldable f) =>
-  InputDescription ->
+  Action.InputDescription ->
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
 stepManyAtM' reason actions = do
-  b <- use root
+  b <- use Action.root
   b' <- Branch.stepManyAtM actions b
   updateRoot b' reason
   pure (b /= b')
@@ -2524,16 +2480,16 @@ stepManyAtMNoSync' ::
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
 stepManyAtMNoSync' actions = do
-  b <- use root
+  b <- use Action.root
   b' <- Branch.stepManyAtM actions b
-  root .= b'
+  Action.root .= b'
   pure (b /= b')
 
-updateRoot :: Branch m -> InputDescription -> Action m i v ()
+updateRoot :: Branch m -> Action.InputDescription -> Action m i v ()
 updateRoot new reason = do
   old <- use lastSavedRoot
   when (old /= new) $ do
-    root .= new
+    Action.root .= new
     eval $ SyncLocalRootBranch new
     eval $ AppendToReflog reason old new
     lastSavedRoot .= new
@@ -2546,7 +2502,7 @@ zeroOneOrMore f zero one more = case toList f of
   a : _ -> one a
   _ -> zero
 
--- Goal: If `remaining = root - toBeDeleted` contains definitions X which
+-- Goal: If `remaining = Action.root - toBeDeleted` contains definitions X which
 -- depend on definitions Y not in `remaining` (which should also be in
 -- `toBeDeleted`), then complain by returning (Y, X).
 getEndangeredDependents ::
@@ -2616,7 +2572,7 @@ toSlurpResult ::
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   SlurpResult v
-toSlurpResult currentPath uf existingNames =
+toSlurpResult curPath uf existingNames =
   Slurp.subtractComponent (conflicts <> ctorCollisions) $
     SlurpResult
       uf
@@ -2735,10 +2691,10 @@ toSlurpResult currentPath uf existingNames =
             -- All the refs whose names include `n`, and are not `r`
             let refs = Set.delete r $ R.lookupDom n existingNames
                 aliasesOfNew =
-                  Set.map (Path.unprefixName currentPath) . Set.delete n $
+                  Set.map (Path.unprefixName curPath) . Set.delete n $
                     R.lookupRan r existingNames
                 aliasesOfOld =
-                  Set.map (Path.unprefixName currentPath) . Set.delete n . R.dom $
+                  Set.map (Path.unprefixName curPath) . Set.delete n . R.dom $
                     R.restrictRan existingNames refs,
             not (null aliasesOfNew && null aliasesOfOld),
             Set.notMember (var n) duplicates
@@ -2778,7 +2734,7 @@ displayI ::
   HQ.HashQualified Name ->
   Action m (Either Event Input) v ()
 displayI prettyPrintNames outputLoc hq = do
-  uf <- use latestTypecheckedFile >>= addWatch (HQ.toString hq)
+  uf <- use Action.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
     Nothing -> do
       let parseNames = (`NamesWithHistory.NamesWithHistory` mempty) prettyPrintNames
@@ -2830,7 +2786,7 @@ docsI srcLoc prettyPrintNames src = do
     dotDoc = hq <&> \n -> Name.joinDot n "doc"
 
     fileByName = do
-      ns <- maybe mempty UF.typecheckedToNames <$> use latestTypecheckedFile
+      ns <- maybe mempty UF.typecheckedToNames <$> use Action.latestTypecheckedFile
       fnames <- pure $ NamesWithHistory.NamesWithHistory ns mempty
       case NamesWithHistory.lookupHQTerm dotDoc fnames of
         s | Set.size s == 1 -> do
@@ -2853,7 +2809,7 @@ docsI srcLoc prettyPrintNames src = do
             Left e -> respond (EvaluationFailure e)
             Right tm -> doDisplay ConsoleLocation names (Term.unannotate tm)
         out -> do
-          numberedArgs .= fmap (HQ.toString . view _1) out
+          Action.numberedArgs .= fmap (HQ.toString . view _1) out
           respond $ ListOfLinks ppe out
 
     codebaseByName = do
@@ -3001,7 +2957,7 @@ loadDisplayInfo refs = do
 -- are converted to names relative to current path. all other names are
 -- converted to absolute names. For example:
 --
--- e.g. if currentPath = .foo.bar
+-- e.g. if Action.currentPath = .foo.bar
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names -> Names
@@ -3018,12 +2974,12 @@ makeHistoricalParsingNames ::
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicParseNames
-  currentPath <- use currentPath
+  curPath <- use Action.currentPath
   pure $
     NamesWithHistory
       basicNames
       ( Names.makeAbsolute rawHistoricalNames
-          <> fixupNamesRelative currentPath rawHistoricalNames
+          <> fixupNamesRelative curPath rawHistoricalNames
       )
 
 loadTypeDisplayObject ::
@@ -3092,15 +3048,15 @@ makeShadowedPrintNamesFromLabeled deps shadowing =
 makePrintNamesFromLabeled' ::
   Monad m => Set LabeledDependency -> Action' m v NamesWithHistory
 makePrintNamesFromLabeled' deps = do
-  root <- use root
-  currentPath <- use currentPath
+  root' <- use Action.root
+  curPath <- use Action.currentPath
   (_missing, rawHistoricalNames) <-
     eval . Eval $
       Branch.findHistoricalRefs
         deps
-        root
+        root'
   basicNames <- basicPrettyPrintNamesA
-  pure $ NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames)
+  pure $ NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames)
 
 getTermsIncludingHistorical ::
   Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
@@ -3120,25 +3076,25 @@ getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
 -- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Monad m => Set (HQ.HashQualified Name) -> Action' m v Names
 findHistoricalHQs lexedHQs0 = do
-  root <- use root
-  currentPath <- use currentPath
+  root' <- use Action.root
+  curPath <- use Action.currentPath
   let -- omg this nightmare name-to-path parsing code is littered everywhere.
       -- We need to refactor so that the absolute-ness of a name isn't represented
       -- by magical text combinations.
       -- Anyway, this function takes a name, tries to determine whether it is
       -- relative or absolute, and tries to return the corresponding name that is
-      -- /relative/ to the root.
+      -- /relative/ to the Action.root.
       preprocess n = case Name.toString n of
         -- some absolute name that isn't just "."
         '.' : t@(_ : _) -> Name.unsafeFromString t
         -- something in current path
         _ ->
-          if Path.isRoot currentPath
+          if Path.isRoot curPath
             then n
-            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
+            else Name.joinDot (Path.toName . Path.unabsolute $ curPath) n
 
       lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root'
   pure rawHistoricalNames
 
 basicPrettyPrintNamesA :: Functor m => Action' m v Names
@@ -3148,13 +3104,13 @@ makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names 
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames <- basicPrettyPrintNamesA
-  currentPath <- use currentPath
+  curPath <- use Action.currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
     NamesWithHistory.shadowing
       shadowing
-      (NamesWithHistory basicNames (fixupNamesRelative currentPath rawHistoricalNames))
+      (NamesWithHistory basicNames (fixupNamesRelative curPath rawHistoricalNames))
 
 basicParseNames, slurpResultNames :: Functor m => Action' m v Names
 basicParseNames = fst <$> basicNames'
@@ -3163,15 +3119,15 @@ slurpResultNames = currentPathNames
 
 currentPathNames :: Functor m => Action' m v Names
 currentPathNames = do
-  currentPath' <- use currentPath
+  currentPath' <- use Action.currentPath
   currentBranch' <- getAt currentPath'
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
 basicNames' :: Functor m => Action' m v (Names, Names)
 basicNames' = do
-  root' <- use root
-  currentPath' <- use currentPath
+  root' <- use Action.root
+  currentPath' <- use Action.currentPath
   pure $ Backend.basicNames' root' (Backend.AllNames $ Path.unabsolute currentPath')
 
 data AddRunMainResult v
@@ -3327,45 +3283,3 @@ fuzzySelectNamespace searchBranch0 =
           Path.toText
           (Set.toList $ Branch.deepPaths searchBranch0)
       )
-
-
--- | Check the dependencies of all types, terms, and metadata in the current namespace,
--- returns dependencies which do not have a name within the current namespace, alongside their
--- type (for terms and constructors).
---
--- This is non-transitive, i.e. only the first layer of external dependencies is returned.
---
--- So if my namespace depends on .base.Bag.map; which depends on base.Map.mapKeys, only
--- .base.Bag.map is returned unless some other definition inside my namespace depends
--- on .base.Bag.map directly.
-namespaceDependencies :: forall m i v. Branch0 m -> Action m i v (Map Reference (Type v Ann), Map Reference (Set Referent))
-namespaceDependencies branch = do
-  allBranchDependencies :: Set Reference
-    <- fold <$> traverse (eval . GetDependencies) (mapMaybe Reference.toId $ Set.toList refsInCurrentBranch)
-  externalConstructors  :: Map Reference (Set Referent)
-    <- Map.unions <$> (for (Set.toList allBranchDependencies) $ \ref -> do
-                    constructors <- eval (ConstructorsOfType ref)
-                    let externalConstrs = constructors `Set.difference` currentBranchReferents
-                    pure $ Map.singleton ref externalConstrs
-              )
-  let externalDependencies :: Set Reference
-      externalDependencies = allBranchDependencies `Set.difference` refsInCurrentBranch
-  termsTypesAndConstructors :: (Map Reference (Type v Ann), Map Reference (Set Referent))
-       <- fold <$> for (Set.toList externalDependencies) \ref -> do
-            typeOfTerm <- eval (LoadTypeOfTerm ref)
-            pure $ case typeOfTerm of
-              -- If we got a type, this must be a term reference
-              Just typ -> (Map.singleton ref typ, mempty)
-              -- If we didn't, it must be a type declaration, so we include its constructors.
-              Nothing -> (mempty, Map.singleton ref (fold $ Map.lookup ref externalConstructors))
-  pure termsTypesAndConstructors
-  where
-    currentBranchReferents :: Set Referent
-    currentBranchReferents = Relation.dom (deepTerms branch)
-    refsInCurrentBranch :: Set Reference
-    refsInCurrentBranch =
-         Relation.dom (deepTypes branch)
-      <> Set.map Referent.toReference currentBranchReferents
-      -- TODO:
-      -- <> _termMetadata
-      -- <> _typeMetadata
