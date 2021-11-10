@@ -204,17 +204,17 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   migratedCausals <- gets causalMapping
   let unmigratedParents =
         oldCausalParentHashIds
-          & filter (`Map.member` migratedCausals)
+          & filter (`Map.notMember` migratedCausals)
           & fmap CausalE
   let unmigratedEntities = unmigratedBranch <> unmigratedParents
   when (not . null $ unmigratedParents <> unmigratedBranch) (throwE $ Sync.Missing unmigratedEntities)
 
-  (_, _, newBranchHash, _) <- gets (\MigrationState {objLookup} -> objLookup Map.! branchObjId)
+  (_, _, newBranchHash, _) <- gets (\MigrationState {objLookup} -> objLookup ^?! ix branchObjId)
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
           & fmap
-            (\oldParentHashId -> migratedCausals Map.! oldParentHashId)
+            (\oldParentHashId -> migratedCausals ^?! ix oldParentHashId)
           & unzip
           & bimap (Set.fromList . map unCausalHash) Set.fromList
 
@@ -231,7 +231,7 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   let newCausal =
         DbCausal
           { selfHash = newCausalHashId,
-            valueHash = BranchHashId $ view _2 (migratedObjIds Map.! branchObjId),
+            valueHash = BranchHashId $ view _2 (migratedObjIds ^?! ix branchObjId),
             parents = newParentHashIds
           }
   runDB conn do
@@ -551,7 +551,7 @@ migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
           & Convert.hashTermComponents
 
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do
-    let oldReferenceId = vToOldReferenceMapping Map.! v
+    let oldReferenceId = vToOldReferenceMapping ^?! ix v
     field @"referenceMapping" %= Map.insert (TermReference oldReferenceId) (TermReference newReferenceId)
     lift . lift $ putTerm newReferenceId trm typ
 
@@ -635,12 +635,12 @@ migrateDeclComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
           & fromRight (error "unexpected resolution error")
 
   for_ newComponent $ \(declName, newReferenceId, dd) -> do
-    let oldReferenceId = declNameToOldReference Map.! declName
+    let oldReferenceId = declNameToOldReference ^?! ix declName
     field @"referenceMapping" %= Map.insert (TypeReference oldReferenceId) (TypeReference newReferenceId)
 
     let oldConstructorIds :: Map (ConstructorName v) (Old ConstructorId)
         oldConstructorIds =
-          (componentIDMap Map.! oldReferenceId)
+          (componentIDMap ^?! ix oldReferenceId)
             & DD.asDataDecl
             & DD.constructors'
             & imap (\constructorId (_ann, constructorName, _type) -> (constructorName, fromIntegral constructorId))
@@ -649,7 +649,7 @@ migrateDeclComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
     ifor_ (DD.constructors' (DD.asDataDecl dd)) \(fromIntegral -> newConstructorId) (_ann, constructorName, _type) -> do
       field @"referenceMapping"
         %= Map.insert
-          (ConstructorReference oldReferenceId (oldConstructorIds Map.! constructorName))
+          (ConstructorReference oldReferenceId (oldConstructorIds ^?! ix constructorName))
           (ConstructorReference newReferenceId newConstructorId)
 
     lift . lift $ putTypeDeclaration newReferenceId dd
