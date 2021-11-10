@@ -31,7 +31,7 @@ import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import qualified Unison.Reference as R
 import Unison.Referent' (Referent' (..), toReference', reference_)
 import Unison.ShortHash (ShortHash)
@@ -45,10 +45,10 @@ import qualified Unison.ShortHash as SH
 -- rather than the target of a Reference.
 type Referent = Referent' Reference
 
-pattern Ref :: Reference -> Referent
+pattern Ref :: TermReference -> Referent
 pattern Ref r = Ref' r
 
-pattern Con :: Reference -> ConstructorId -> ConstructorType -> Referent
+pattern Con :: TypeReference -> ConstructorId -> ConstructorType -> Referent
 pattern Con r i t = Con' r i t
 
 {-# COMPLETE Ref, Con #-}

@@ -11,6 +11,9 @@ module Unison.Reference
    Id(..),
    Pos,
    Size,
+   TermReference,
+   TypeReference,
+   ConstructorReference(..),
    derivedBase32Hex,
    Component, members,
    component,
@@ -36,6 +39,7 @@ import Unison.Prelude
 import qualified Data.Map        as Map
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
@@ -62,6 +66,16 @@ pattern Derived h i n = DerivedId (Id h i n)
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos Size deriving (Generic)
+
+-- | A term reference.
+type TermReference = Reference
+
+-- | A type declaration reference.
+type TypeReference = Reference
+
+-- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
+data ConstructorReference
+  = ConstructorReference TypeReference ConstructorId
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
