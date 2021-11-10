@@ -1353,16 +1353,16 @@ notifyUser dir o = case o of
   ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
   ListNamespaceDependencies ppe path' externalDependencies -> do
     let spacer = ("", "")
-    pure . P.column2Header (P.hiBlack "External dependency") ("Dependants in " <> prettyAbsolute path') $
+    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
       List.intersperse spacer (externalDepsTable externalDependencies)
     where
       externalDepsTable :: Map Referent (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
-      externalDepsTable = ifoldMap $ \ref dependants ->
-        [(prettyRef ref, prettyDependants dependants)]
+      externalDepsTable = ifoldMap $ \ref dependents ->
+        [(prettyRef ref, prettyDependents dependents)]
       prettyRef :: Referent -> P.Pretty P.ColorText
       prettyRef ref = (P.syntaxToColor . prettyHashQualified $ PPE.typeOrTermName ppe ref)
-      prettyDependants :: Set Name -> P.Pretty P.ColorText
-      prettyDependants refs =
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
         refs
           & Set.toList
           & fmap prettyName

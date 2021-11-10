@@ -21,7 +21,7 @@ import qualified Unison.Util.Relation3 as Relation3
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
--- alongside the names of all of that thing's dependants.
+-- alongside the names of all of that thing's dependents.
 --
 -- This is non-transitive, i.e. only the first layer of external dependencies is returned.
 --
@@ -48,14 +48,14 @@ namespaceDependencies branch = do
 
   typeDeps <- allDependenciesOf currentBranchTypes
   termDeps <- allDependenciesOf (Set.map Referent.toReference currentBranchTermsAndConstructors)
-  let dependenciesToDependants :: Map Referent (Set Name)
-      dependenciesToDependants =
+  let dependenciesToDependents :: Map Referent (Set Name)
+      dependenciesToDependents =
         Map.unionsWith (<>) [typeDeps, termDeps, externalMetadata]
   let onlyExternalDeps :: Map Referent (Set Name)
       onlyExternalDeps =
         Map.filterWithKey
           (\k _ -> k `Set.notMember` typeAndTermRefsInCurrentBranch)
-          dependenciesToDependants
+          dependenciesToDependents
   externalConstructors :: Map Referent (Set Name) <-
     Map.unions . concat
       <$> ( for (Map.toList onlyExternalDeps) $ \case
@@ -67,8 +67,8 @@ namespaceDependencies branch = do
                     Map.fromListWith (<>) ((,deps) <$> Set.toList externalConstrs)
                   ]
           )
-  let allDependenciesToDependants = Map.unionWith (<>) externalConstructors onlyExternalDeps
-  pure allDependenciesToDependants
+  let allDependenciesToDependents = Map.unionWith (<>) externalConstructors onlyExternalDeps
+  pure allDependenciesToDependents
   where
     currentBranchTermsAndConstructors :: Set Referent
     currentBranchTermsAndConstructors = Relation.dom (Branch.deepTerms branch)
