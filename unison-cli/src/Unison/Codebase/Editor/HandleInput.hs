@@ -31,10 +31,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase.Branch
-  ( Branch (..),
-    Branch0 (..),
-  )
+import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
@@ -50,7 +47,7 @@ import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBranchDiff
 import qualified Unison.Codebase.Editor.Output.DumpNamespace as Output.DN
 import qualified Unison.Codebase.Editor.Propagate as Propagate
-import Unison.Codebase.Editor.RemoteRepo (WriteRemotePath, printNamespace, writePathToRead, writeToRead)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo, printNamespace, writePathToRead, writeToRead)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
@@ -61,12 +58,11 @@ import qualified Unison.Codebase.MainTerm as MainTerm
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch (..))
 import qualified Unison.Codebase.Patch as Patch
-import Unison.Codebase.Path
-  ( Path,
-    Path' (..),
-  )
+import Unison.Codebase.Path (Path, Path' (..))
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.PushBehavior (PushBehavior)
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
@@ -74,6 +70,7 @@ import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
+import Unison.Codebase.Type (GitError)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -454,9 +451,6 @@ loop = do
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
-          viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
-          syncRemoteRootBranch repo b mode =
-            ExceptT . eval $ SyncRemoteRootBranch repo b mode
           loadSearchResults = eval . LoadSearchResults
           handleFailedDelete failed failedDependents = do
             failed <- loadSearchResults $ SR.fromNames failed
@@ -1653,23 +1647,7 @@ loop = do
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
-            PushRemoteBranchI mayRepo path syncMode -> do
-              let srcAbs = resolveToAbsolute path
-              srcb <- getAt srcAbs
-              unlessError do
-                (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-                lift $ unlessGitError do
-                  (cleanup, remoteRoot) <-
-                    unsafeTime "Push viewRemoteBranch" $
-                      viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-                  -- We don't merge `srcb` with the remote namespace, `r`, we just
-                  -- replace it. The push will be rejected if this rewinds time
-                  -- or misses any new updates in `r` that aren't in `srcb` already.
-                  let newRemoteRoot = Branch.modifyAt remotePath (const srcb) remoteRoot
-                  unsafeTime "Push syncRemoteRootBranch" $
-                    syncRemoteRootBranch repo newRemoteRoot syncMode
-                  lift . eval $ Eval cleanup
-                  lift $ respond Success
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
             ListDependentsI hq ->
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1811,39 +1789,55 @@ loop = do
               )
           pure . join $ toList xs
 
-        configKey k p =
-          Text.intercalate "." . toList $
-            k
-              :<| fmap
-                NameSegment.toText
-                (Path.toSeq $ Path.unabsolute p)
-
-        -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
-        -- otherwise, tries to load a value from .unisonConfig, and complains
-        -- if needed.
-        resolveConfiguredGitUrl ::
-          PushPull ->
-          Path' ->
-          ExceptT (Output v) (Action' m v) WriteRemotePath
-        resolveConfiguredGitUrl pushPull destPath' = ExceptT do
-          let destPath = resolveToAbsolute destPath'
-          let configKey = gitUrlKey destPath
-          (eval . ConfigLookup) configKey >>= \case
-            Just url ->
-              case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
-                Left e ->
-                  pure . Left $
-                    ConfiguredGitUrlParseError pushPull destPath' url (show e)
-                Right ns ->
-                  pure . Right $ ns
-            Nothing ->
-              pure . Left $ NoConfiguredGitUrl pushPull destPath'
-
-        gitUrlKey = configKey "GitUrl"
-
   case e of
     Right input -> Action.lastInput .= Just input
     _ -> pure ()
+
+handlePushRemoteBranch ::
+  forall m v.
+  Applicative m =>
+  -- | The URL to push to. If missing, it is looked up in `.unisonConfig`.
+  Maybe WriteRemotePath ->
+  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
+  Path' ->
+  -- | The push behavior (whether the remote branch is required to be empty or non-empty).
+  PushBehavior ->
+  -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
+  SyncMode.SyncMode ->
+  Action' m v ()
+handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
+  srcb <- do
+    currentPath' <- use currentPath
+    getAt (Path.resolve currentPath' path)
+  unlessError do
+    (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
+    (cleanup, remoteRoot) <-
+      unsafeTime "Push viewRemoteBranch" do
+        withExceptT Output.GitError do
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
+    -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
+    -- updates in the remote branch that aren't in `srcb` already.
+    case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
+      Nothing -> lift do
+        eval (Eval cleanup)
+        respond (RefusedToPush pushBehavior)
+      Just newRemoteRoot -> do
+        unsafeTime "Push syncRemoteRootBranch" do
+          withExceptT Output.GitError do
+            syncRemoteRootBranch repo newRemoteRoot syncMode
+        lift do
+          eval (Eval cleanup)
+          respond Success
+  where
+    -- Per `pushBehavior`, we are either:
+    --
+    --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
+    --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
+    shouldPushTo :: Branch m -> Bool
+    shouldPushTo remoteBranch = do
+      case pushBehavior of
+        PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
+        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
@@ -1901,6 +1895,46 @@ handleShowDefinition outputLoc inputQuery = do
           use Action.latestFile <&> \case
             Nothing -> Just "scratch.u"
             Just (path, _) -> Just path
+
+-- Takes a maybe (namespace address triple); returns it as-is if `Just`;
+-- otherwise, tries to load a value from .unisonConfig, and complains
+-- if needed.
+resolveConfiguredGitUrl ::
+  PushPull ->
+  Path' ->
+  ExceptT (Output v) (Action' m v) WriteRemotePath
+resolveConfiguredGitUrl pushPull destPath' = ExceptT do
+  currentPath' <- use currentPath
+  let destPath = Path.resolve currentPath' destPath'
+  let configKey = gitUrlKey destPath
+  (eval . ConfigLookup) configKey >>= \case
+    Just url ->
+      case P.parse UriParser.writeRepoPath (Text.unpack configKey) url of
+        Left e ->
+          pure . Left $
+            ConfiguredGitUrlParseError pushPull destPath' url (show e)
+        Right ns ->
+          pure . Right $ ns
+    Nothing ->
+      pure . Left $ NoConfiguredGitUrl pushPull destPath'
+
+gitUrlKey :: Path.Absolute -> Text
+gitUrlKey = configKey "GitUrl"
+
+configKey :: Text -> Path.Absolute -> Text
+configKey k p =
+  Text.intercalate "." . toList $
+    k
+      :<| fmap
+        NameSegment.toText
+        (Path.toSeq $ Path.unabsolute p)
+
+viewRemoteBranch :: ReadRemoteNamespace -> ExceptT GitError (Action' m v) (m (), Branch m)
+viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
+
+syncRemoteRootBranch :: WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError (Action' m v) ()
+syncRemoteRootBranch repo b mode =
+  ExceptT . eval $ SyncRemoteRootBranch repo b mode
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
@@ -2261,7 +2295,7 @@ respondNumbered output = do
     Action.numberedArgs .= toList args
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
-unlessError ma = runExceptT ma >>= either (eval . Notify) pure
+unlessError ma = runExceptT ma >>= either respond pure
 
 unlessError' :: (e -> Output v) -> ExceptT e (Action' m v) () -> Action' m v ()
 unlessError' f ma = unlessError $ withExceptT f ma

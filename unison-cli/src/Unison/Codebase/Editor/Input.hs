@@ -16,6 +16,7 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import           Unison.Codebase.PushBehavior (PushBehavior)
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.ShortHash (ShortHash)
 import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -55,7 +56,7 @@ data Input
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI Path' Path' -- old new
     | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
-    | PushRemoteBranchI (Maybe WriteRemotePath) Path' SyncMode
+    | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
     | ResetRootI (Either ShortBranchHash Path')
