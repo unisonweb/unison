@@ -211,10 +211,10 @@ data Output v
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
   | -- | List all direct dependencies which don't have any names in the current branch
-    -- The first map is all missing terms and their types
-    -- The second map is all types and any missing constructors.
-    -- A type is still included if it has a name, but one of its constructors does not.
-    ListNamespaceDependencies PPE.PrettyPrintEnv Path.Absolute (Map LabeledDependency (Set Name))
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map Referent (Set Name)) -- Mapping of external dependencies to their local dependants.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
