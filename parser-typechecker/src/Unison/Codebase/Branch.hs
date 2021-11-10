@@ -193,10 +193,22 @@ deepTypeReferences :: Branch0 m -> Set Reference
 deepTypeReferences = R.dom . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
-terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
+terms =
+  lens
+    _terms
+    \branch terms ->
+      branch {_terms = terms}
+        & deriveDeepTerms
+        & deriveDeepTermMetadata
 
 types :: Lens' (Branch0 m) (Star Reference NameSegment)
-types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
+types =
+  lens
+    _types
+    \branch types ->
+      branch {_types = types}
+        & deriveDeepTypes
+        & deriveDeepTypeMetadata
 
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
