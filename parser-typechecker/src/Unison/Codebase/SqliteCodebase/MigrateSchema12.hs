@@ -314,7 +314,7 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   newHash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
   newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))))
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
-  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash,  oldHash)
+  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash, oldHash)
   pure Sync.Done
 
 migratePatch ::
@@ -497,13 +497,13 @@ migrateTermComponent ::
 migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExceptT $ do
   whenM (Set.member oldHash <$> use (field @"migratedDefnHashes")) (throwE Sync.PreviouslyDone)
 
-  component <-
+  oldComponent <-
     (lift . lift $ getTermComponentWithTypes oldHash) >>= \case
       Nothing -> error $ "Hash was missing from codebase: " <> show oldHash
-      Just component -> pure component
+      Just c -> pure c
 
   let componentIDMap :: Map (Old Reference.Id) (Term.Term v a, Type v a)
-      componentIDMap = Map.fromList $ Reference.componentFor oldHash component
+      componentIDMap = Map.fromList $ Reference.componentFor oldHash oldComponent
   let unhashed :: Map (Old Reference.Id) (v, Term.Term v a)
       unhashed = Term.unhashComponent (fst <$> componentIDMap)
   let vToOldReferenceMapping :: Map v (Old Reference.Id)
@@ -514,22 +514,22 @@ migrateTermComponent conn Codebase {..} oldHash = fmap (either id id) . runExcep
           & Map.fromList
 
   referencesMap <- gets referenceMapping
-  let getMigratedReference :: Old SomeReferenceId -> New SomeReferenceId
-      getMigratedReference ref =
-        Map.findWithDefault (error "unmigrated reference") ref referencesMap
 
   let allMissingReferences :: [Old SomeReferenceId]
       allMissingReferences =
-        unhashed
-          & foldSetter
-            ( traversed
-                . _2
-                . termReferences_
-                . filtered (`Map.notMember` referencesMap)
-            )
+        let missingTermRefs =
+              unhashed & foldSetter (traversed . _2 . termReferences_)
+            missingTypeRefs =
+              componentIDMap
+                & foldSetter (traversed . _2 . typeReferences_)
+         in filter (`Map.notMember` referencesMap) (missingTermRefs <> missingTypeRefs)
 
   when (not . null $ allMissingReferences) $
     throwE $ Sync.Missing . nubOrd $ (someReferenceIdToEntity <$> allMissingReferences)
+
+  let getMigratedReference :: Old SomeReferenceId -> New SomeReferenceId
+      getMigratedReference ref =
+        Map.findWithDefault (error $ "unmigrated reference" <> show ref) ref referencesMap
 
   let remappedReferences :: Map (Old Reference.Id) (v, Term.Term v a, Type v a) =
         Zip.zipWith
