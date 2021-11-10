@@ -13,6 +13,7 @@ module Unison.LabeledDependency
   , toReference
   , LabeledDependency
   , partition
+  , toEither
   ) where
 
 import Unison.Prelude hiding (fold)
@@ -47,6 +48,10 @@ fold f g (X e) = either f g e
 
 partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
 partition = partitionEithers . map (\(X e) -> e) . toList
+
+toEither :: LabeledDependency -> (Either Reference Referent)
+toEither (X e) = e
+
 
 -- | Left TypeRef | Right TermRef
 toReference :: LabeledDependency -> Either Reference Reference

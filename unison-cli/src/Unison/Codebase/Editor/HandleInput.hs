@@ -127,7 +127,6 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Find as Find
-import qualified Unison.Util.Free as Free
 import Unison.Util.List (uniqueBy)
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Monoid as Monoid
@@ -141,7 +140,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.HandleInput.Action as Action
-import Unison.Codebase.Editor.HandleInput.Action (Action, Action')
+import Unison.Codebase.Editor.HandleInput.Action (Action, Action', eval)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 
 defaultPatchNameSegment :: NameSegment
@@ -1723,9 +1722,9 @@ loop = do
               case (Branch.getAt (Path.unabsolute path) root') of
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
-                  (externalTerms, externalTypes) <- NamespaceDependencies.namespaceDependencies (Branch.head b)
+                  externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                  respond $ ListNamespaceDependencies ppe externalTerms externalTypes
+                  respond $ ListNamespaceDependencies ppe externalDependencies
             DebugNumberedArgsI -> use Action.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile
@@ -1843,7 +1842,7 @@ loop = do
         gitUrlKey = configKey "GitUrl"
 
   case e of
-    Right input -> lastInput .= Just input
+    Right input -> Action.lastInput .= Just input
     _ -> pure ()
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
@@ -2134,12 +2133,9 @@ computeFrontier getDependents patch names =
         -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
         pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
-eval :: Command m i v a -> Action m i v a
-eval = lift . lift . Free.eval
-
 confirmedCommand :: Input -> Action m i v Bool
 confirmedCommand i = do
-  i0 <- use lastInput
+  i0 <- use Action.lastInput
   pure $ Just i == i0
 
 listBranch :: Branch0 m -> [SearchResult]
@@ -2382,7 +2378,7 @@ updateAtM ::
   (Branch m -> Action m i v (Branch m)) ->
   Action m i v Bool
 updateAtM reason (Path.Absolute p) f = do
-  b <- use lastSavedRoot
+  b <- use Action.lastSavedRoot
   b' <- Branch.modifyAtM p f b
   updateRoot b' reason
   pure $ b /= b'
@@ -2487,12 +2483,12 @@ stepManyAtMNoSync' actions = do
 
 updateRoot :: Branch m -> Action.InputDescription -> Action m i v ()
 updateRoot new reason = do
-  old <- use lastSavedRoot
+  old <- use Action.lastSavedRoot
   when (old /= new) $ do
     Action.root .= new
     eval $ SyncLocalRootBranch new
     eval $ AppendToReflog reason old new
-    lastSavedRoot .= new
+    Action.lastSavedRoot .= new
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible

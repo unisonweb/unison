@@ -16,6 +16,7 @@ import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import Unison.Codebase.Editor.Command
 import qualified Data.List.NonEmpty as Nel
+import qualified Unison.Util.Free as Free
 
 type F m i v = Free (Command m i v)
 
@@ -60,3 +61,6 @@ currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
+
+eval :: Command m i v a -> Action m i v a
+eval = lift . lift . Free.eval
