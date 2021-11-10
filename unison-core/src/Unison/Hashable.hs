@@ -29,7 +29,8 @@ accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
 accumulateToken = Hashed . accumulate'
 
 accumulate' :: (Accumulate h, Hashable t) => t -> h
-accumulate' = accumulate . tokens
+accumulate' = accumulate . (hashVersion :). tokens
+  where hashVersion = Tag 2
 
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]

@@ -90,7 +90,7 @@ import Unison.Var (Var)
 --    * [ ] Refactor Causal helper functions to use V2 hashing
 --          * [ ] I guess move Hashable to V2.Hashing pseudo-package
 --          * [ ] Delete V1 Hashing to ensure it's unused
---          * [ ] Salt V2 hashes with version number
+--          * [x] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
