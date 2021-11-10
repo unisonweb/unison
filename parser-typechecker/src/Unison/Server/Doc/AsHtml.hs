@@ -230,9 +230,9 @@ toHtml docNamesByRef document =
               Callout icon content ->
                 let (cls, ico) =
                       case icon of
-                        Just (Word emoji) ->
-                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml emoji)
-                        _ ->
+                        Just emoji ->
+                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji)
+                        Nothing ->
                           (class_ "callout", "")
                  in div_ [cls] $ do
                       ico
