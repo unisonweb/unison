@@ -29,6 +29,7 @@ import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path')
 import qualified Unison.Codebase.Path as Path
+import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Type (GitError)
@@ -219,6 +220,8 @@ data Output v
   | CouldntLoadBranch Branch.Hash
   | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
   | NoOp
+    -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
+  | RefusedToPush PushBehavior
   deriving (Show)
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
@@ -340,6 +343,7 @@ isFailure o = case o of
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty _ -> False
+  RefusedToPush{} -> True
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
