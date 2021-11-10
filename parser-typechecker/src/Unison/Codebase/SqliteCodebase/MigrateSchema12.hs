@@ -85,11 +85,12 @@ import Unison.Var (Var)
 --    * [ ] delete old objects
 --
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
---    ☢️ [ ] incorporate type signature into hash of term <- chris/arya have started ☢️
---          [ ] store type annotation in the term
---    * [ ] Salt V2 hashes with version number
+--    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
+--          [x] store type annotation in the term
 --    * [ ] Refactor Causal helper functions to use V2 hashing
+--          * [ ] I guess move Hashable to V2.Hashing pseudo-package
 --          * [ ] Delete V1 Hashing to ensure it's unused
+--          * [ ] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
