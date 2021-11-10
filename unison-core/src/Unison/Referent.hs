@@ -12,7 +12,7 @@ module Unison.Referent
     fold,
     toReference,
     fromReference,
-    fromId,
+    fromReferenceId,
     fromText,
 
     -- * Lenses
@@ -102,8 +102,8 @@ toReference = toReference'
 fromReference :: Reference -> Referent
 fromReference r = Ref r
 
-fromId :: Reference.Id -> Referent
-fromId = fromReference . Reference.fromId
+fromReferenceId :: Reference.Id -> Referent
+fromReferenceId = fromReference . Reference.fromId
 
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)

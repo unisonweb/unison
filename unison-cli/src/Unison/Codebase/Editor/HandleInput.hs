@@ -336,7 +336,7 @@ loop = do
             MergeLocalBranchI src dest mode -> case mode of
               Branch.RegularMerge -> "merge " <> p' src <> " " <> p' dest
               Branch.SquashMerge -> "merge.squash " <> p' src <> " " <> p' dest
-            ResetRootI src -> "reset-Action.root " <> hp' src
+            ResetRootI src -> "reset-root " <> hp' src
             AliasTermI src dest -> "alias.term " <> hhqs' src <> " " <> ps' dest
             AliasTypeI src dest -> "alias.type " <> hhqs' src <> " " <> ps' dest
             AliasManyI srcs dest ->
@@ -800,7 +800,7 @@ loop = do
                     let rootNames = Branch.toNames root0
                         toDelete =
                           Names.prefix0
-                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates Action.currentPath
+                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                             (Branch.toNames b)
                      in getEndangeredDependents (eval . GetDependents) toDelete rootNames
                   if failed == mempty
@@ -1723,7 +1723,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- fqnPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use Action.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
@@ -1866,7 +1866,7 @@ handleShowDefinition outputLoc inputQuery = do
     let ppe = PPE.fromNamesDecl hqLength printNames
     respond (DisplayDefinitions outputPath ppe types terms)
   when (not (null misses)) (respond (SearchTermsNotFound misses))
-  -- We set Action.latestFile to be programmatically generated, if we
+  -- We set latestFile to be programmatically generated, if we
   -- are viewing these definitions to a file - this will skip the
   -- next update for that file (which will happen immediately)
   Action.latestFile .= ((,True) <$> outputPath)
@@ -2352,7 +2352,7 @@ getHQTerms = \case
   HQ.NameOnly n -> do
     root0 <- Branch.head <$> use Action.root
     currentPath' <- use Action.currentPath
-    -- absolute-ify the name, then lookup in deepTerms of Action.root
+    -- absolute-ify the name, then lookup in deepTerms of root
     let path =
           n
             & Path.fromName'
@@ -2498,7 +2498,7 @@ zeroOneOrMore f zero one more = case toList f of
   a : _ -> one a
   _ -> zero
 
--- Goal: If `remaining = Action.root - toBeDeleted` contains definitions X which
+-- Goal: If `remaining = root - toBeDeleted` contains definitions X which
 -- depend on definitions Y not in `remaining` (which should also be in
 -- `toBeDeleted`), then complain by returning (Y, X).
 getEndangeredDependents ::
