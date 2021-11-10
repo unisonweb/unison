@@ -1724,7 +1724,7 @@ loop = do
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
                   ppe <- suffixifiedPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
-                  respond $ ListNamespaceDependencies ppe externalDependencies
+                  respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use Action.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
               Nothing -> respond NoUnisonFile

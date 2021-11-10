@@ -1349,9 +1349,9 @@ notifyUser dir o = case o of
         )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
-  ListNamespaceDependencies _ppe Empty -> pure $ "This namespace has no external dependencies."
-  ListNamespaceDependencies ppe externalDependencies ->
-    pure . P.column2Header "dependency" "dependants" $ externalDepsTable externalDependencies
+  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
+  ListNamespaceDependencies ppe path' externalDependencies ->
+    pure . P.column2 $ (P.hiBlack "external dependency", P.hiBlack ("dependants in " <> prettyAbsolute path')) : externalDepsTable externalDependencies
 
     -- pure . P.lines $
     --   Monoid.whenM
@@ -1366,7 +1366,7 @@ notifyUser dir o = case o of
     --           <> P.newline
     --           <> P.indent "  " (prettyTypes externalTypes)
     --       ]
-    where
+     where
       prettyLabelledDep :: LD.LabeledDependency -> P.Pretty P.ColorText
       prettyLabelledDep ld = case LD.toEither ld of
         Left ref ->
@@ -1377,14 +1377,14 @@ notifyUser dir o = case o of
           P.hiBlack "constructor " <> (P.text . HQ.toText $ PPE.typeName ppe ref)
         Right (Referent.Con ref _conID CT.Effect) ->
           P.text . HQ.toText $ PPE.typeName ppe ref
-      externalDepsTable :: Map LabeledDependency (Set Reference) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
       externalDepsTable = ifoldMap $ \ld dependants ->
         [(prettyLabelledDep ld, prettyDependants dependants)]
-      prettyDependants :: Set Reference -> P.Pretty P.ColorText
+      prettyDependants :: Set Name -> P.Pretty P.ColorText
       prettyDependants refs = refs
                             & Set.toList
-                            & fmap (P.text . HQ.toText . PPE.termName ppe . Referent.fromReference)
-                            & P.commas
+                            & fmap prettyName
+                            & P.lines
 
       -- prettyTerms :: Map Reference (Type v Ann) -> P.Pretty P.ColorText
       -- prettyTerms m =
@@ -1465,6 +1465,10 @@ prettyPath' p' =
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
+
+prettyAbsolute :: Path.Absolute -> Pretty
+prettyAbsolute = P.blue . P.shown
+
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)

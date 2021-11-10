@@ -214,7 +214,7 @@ data Output v
     -- The first map is all missing terms and their types
     -- The second map is all types and any missing constructors.
     -- A type is still included if it has a name, but one of its constructors does not.
-    ListNamespaceDependencies PPE.PrettyPrintEnv (Map LabeledDependency (Set Reference))
+    ListNamespaceDependencies PPE.PrettyPrintEnv Path.Absolute (Map LabeledDependency (Set Name))
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
