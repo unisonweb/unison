@@ -16,6 +16,8 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Relation4 as Relation4
+import qualified Unison.Util.Relation3 as Relation3
 
 -- | Check the dependencies of all types, terms, and metadata in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,
@@ -43,11 +45,12 @@ namespaceDependencies branch = do
           & mapMaybe Reference.toId
           & traverse refToDeps
           <&> Map.unionsWith (<>)
-  dependenciesToDependants :: Map Referent (Set Name) <-
-    liftA2
-      (Map.unionWith (<>))
-      (allDependenciesOf currentBranchTypes)
-      (allDependenciesOf (Set.map Referent.toReference currentBranchTermsAndConstructors))
+
+  typeDeps <- allDependenciesOf currentBranchTypes
+  termDeps <- allDependenciesOf (Set.map Referent.toReference currentBranchTermsAndConstructors)
+  let dependenciesToDependants :: Map Referent (Set Name)
+      dependenciesToDependants =
+        Map.unionsWith (<>) [typeDeps, termDeps, externalMetadata]
   let onlyExternalDeps :: Map Referent (Set Name)
       onlyExternalDeps =
         Map.filterWithKey
@@ -77,7 +80,22 @@ namespaceDependencies branch = do
     typeAndTermRefsInCurrentBranch =
       Set.map Referent.fromReference (Relation.dom (Branch.deepTypes branch))
         <> currentBranchTermsAndConstructors
-
--- TODO:
--- <> _termMetadata
--- <> _typeMetadata
+    branchMetadataReferences :: Map Reference (Set Name)
+    branchMetadataReferences =
+      let typeMetadataRefs =
+            (Branch.deepTypeMetadata branch)
+              & Relation4.d234 -- Select only the type and value portions of the metadata
+              & \rel -> Relation.range (Relation3.d12 rel) <> Relation.range (Relation3.d13 rel)
+          termMetadataRefs =
+            (Branch.deepTermMetadata branch)
+              & Relation4.d234 -- Select only the type and value portions of the metadata
+              & \rel -> Relation.range (Relation3.d12 rel) <> Relation.range (Relation3.d13 rel)
+          --   (Branch.deepTermMetadata branch)
+          --     & Relation4.d34 -- Select only the type and value portions of the metadata
+          --     & \rel -> Relation.dom rel <> Relation.ran rel
+       in Map.unionWith (<>) typeMetadataRefs termMetadataRefs
+    externalMetadata :: Map Referent (Set Name)
+    externalMetadata = branchMetadataReferences
+                     & Map.mapKeys Referent.fromReference
+                     & Map.filterWithKey
+                        (\ref _ -> ref `Set.notMember` typeAndTermRefsInCurrentBranch)
