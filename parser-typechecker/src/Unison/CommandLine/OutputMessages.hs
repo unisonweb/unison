@@ -57,6 +57,7 @@ import Unison.CommandLine
   )
 import Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
@@ -2361,7 +2362,7 @@ watchPrinter src ppe ann kind term isHit =
         extra = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
         line = lines !! (lineNum - 1)
         addCache p = if isHit then p <> " (cached)" else p
-        renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
+        renderTest (Term.App' (Term.Constructor' (ConstructorReference _ id)) (Term.Text' msg)) =
           "\n"
             <> if id == DD.okConstructorId
               then
@@ -2511,7 +2512,7 @@ isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
   Term.List' ts -> all isSuccess ts
     where
-      isSuccess (Term.App' (Term.Constructor' ref cid) _) =
+      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
         cid == DD.okConstructorId
           && ref == DD.testResultRef
       isSuccess _ = False

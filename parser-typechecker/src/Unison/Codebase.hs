@@ -53,6 +53,7 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -134,14 +135,14 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
 lookupWatchCache :: (Monad m) => Codebase m v a -> Reference -> m (Maybe (Term v a))
 lookupWatchCache codebase (Reference.DerivedId h) = do
@@ -182,8 +183,8 @@ getTypeOfTerm c r = case r of
 getTypeOfReferent :: (BuiltinAnnotation a, Var v, Monad m)
                   => Codebase m v a -> Referent.Referent -> m (Maybe (Type v a))
 getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
-getTypeOfReferent c (Referent.Con r cid _) =
-  getTypeOfConstructor c r cid
+getTypeOfReferent c (Referent.Con r _) =
+  getTypeOfConstructor c r
 
 -- | The dependents of a builtin type includes the set of builtin terms which
 -- mention that type.

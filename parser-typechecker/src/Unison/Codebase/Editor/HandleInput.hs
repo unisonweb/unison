@@ -84,6 +84,7 @@ import qualified Unison.CommandLine.DisplayValues as DisplayValues
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import qualified Unison.CommandLine.InputPatterns as InputPatterns
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -1496,13 +1497,13 @@ loop = do
                   oks results =
                     [ (r, msg)
                       | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts,
+                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
                         cid == DD.okConstructorId && ref == DD.testResultRef
                     ]
                   fails results =
                     [ (r, msg)
                       | (r, Term.List' ts) <- Map.toList results,
-                        Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts,
+                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
                         cid == DD.failConstructorId && ref == DD.testResultRef
                     ]
               cachedTests <- fmap Map.fromList . eval $ LoadWatches WK.TestWatch testRefs
@@ -1608,13 +1609,13 @@ loop = do
               let oks results =
                     [ (r, msg)
                       | (r, Term.List' ts) <- results,
-                        Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts,
+                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
                         cid == DD.okConstructorId && ref == DD.testResultRef
                     ]
                   fails results =
                     [ (r, msg)
                       | (r, Term.List' ts) <- results,
-                        Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts,
+                        Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) <- toList ts,
                         cid == DD.failConstructorId && ref == DD.testResultRef
                     ]
 
@@ -1724,7 +1725,7 @@ loop = do
                     dependents <-
                       let tp r = eval $ GetDependents r
                           tm (Referent.Ref r) = eval $ GetDependents r
-                          tm (Referent.Con r _i _ct) = eval $ GetDependents r
+                          tm (Referent.Con (ConstructorReference r _i) _ct) = eval $ GetDependents r
                        in LD.fold tp tm ld
                     (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
                     let types = R.toList $ Names.types names0
@@ -1748,7 +1749,7 @@ loop = do
                             eval (LoadTerm i) <&> \case
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just tm -> Set.delete r $ Term.dependencies tm
-                          tm con@(Referent.Con (Reference.DerivedId i) cid _ct) =
+                          tm con@(Referent.Con (ConstructorReference (Reference.DerivedId i) cid) _ct) =
                             eval (LoadType i) <&> \case
                               Nothing -> error $ "What happened to " ++ show i ++ "?"
                               Just decl -> case DD.typeOfConstructor (DD.asDataDecl decl) cid of
@@ -3285,7 +3286,7 @@ diffHelper before after = do
 
 loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
 loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
-loadTypeOfTerm (Referent.Con (Reference.DerivedId r) cid _) = do
+loadTypeOfTerm (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
   decl <- eval $ LoadType r
   case decl of
     Just (either DD.toDataDecl id -> dd) -> pure $ DD.typeOfConstructor dd cid

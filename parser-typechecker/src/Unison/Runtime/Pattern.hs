@@ -11,7 +11,7 @@ module Unison.Runtime.Pattern
   , builtinDataSpec
   ) where
 
-import Control.Lens ((<&>))
+import Control.Lens ((<&>), (^.))
 import Control.Monad.State (State, state, evalState, runState, modify)
 
 import Data.List (transpose)
@@ -24,8 +24,9 @@ import qualified Data.Set as Set
 import Unison.ABT
   (absChain', visitPure, pattern AbsN', renames)
 import Unison.Builtin.Decls (builtinDataDecls, builtinEffectDecls)
+import qualified Unison.ConstructorReference as ConstructorReference
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (declFields)
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Pattern
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
@@ -153,39 +154,37 @@ extractVars = catMaybes . fmap extractVar
 -- convenient to yield a list here.
 decomposePattern
   :: Var v
-  => Reference -> Int -> Int -> P.Pattern v
+  => ConstructorReference -> Int -> P.Pattern v
   -> [[P.Pattern v]]
-decomposePattern rf0 t _       (P.Boolean _ b)
+decomposePattern (ConstructorReference rf0 t) _       (P.Boolean _ b)
   | rf0 == Rf.booleanRef
   , t == if b then 1 else 0
   = [[]]
-decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
-  | t == u
-  , rf0 == rf
+decomposePattern rf0 nfields p@(P.Constructor _ rf ps)
+  | rf0 == rf
   = if length ps == nfields
     then [ps]
     else internalBug err
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
-  | t == u
-  , rf0 == rf
+decomposePattern rf0 nfields p@(P.EffectBind _ rf ps pk)
+  | rf0 == rf
   = if length ps + 1 == nfields
     then [ps ++ [pk]]
     else internalBug err
   where
   err = "decomposePattern: wrong number of ability fields: "
      ++ show (nfields, p)
-decomposePattern _ t _ (P.EffectPure _ p)
+decomposePattern (ConstructorReference _ t) _ (P.EffectPure _ p)
   | t == -1 = [[p]]
-decomposePattern _ _ nfields (P.Var _)
+decomposePattern _ nfields (P.Var _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ nfields (P.Unbound _)
+decomposePattern _ nfields (P.Unbound _)
   = [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ _ (P.SequenceLiteral _ _)
+decomposePattern _ _ (P.SequenceLiteral _ _)
   = internalBug "decomposePattern: sequence literal"
-decomposePattern _ _ _ _ = []
+decomposePattern _ _ _ = []
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
 matchBuiltin (P.Var _) = Just $ P.Unbound ()
@@ -311,15 +310,14 @@ decomposeSeqP _ _ _ = Overlap
 splitRow
   :: Var v
   => v
-  -> Reference
-  -> Int
+  -> ConstructorReference
   -> Int
   -> PatternRow v
   -> [([P.Pattern v], PatternRow v)]
-splitRow v rf t nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
-  = decomposePattern rf t nfields sp
+splitRow v rf nfields (PR (break ((==v).loc) -> (pl, sp : pr)) g b)
+  = decomposePattern rf nfields sp
       <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
-splitRow _ _ _ _ row = [([],row)]
+splitRow _ _ _ row = [([],row)]
 
 -- Splits a row with respect to a variable, expecting that the
 -- variable will be matched against a builtin pattern (non-data type,
@@ -474,7 +472,7 @@ splitMatrix
 splitMatrix v rf cons (PM rs)
   = fmap (\(a, (b, c)) -> (a,b,c)) . (fmap.fmap) buildMatrix $ mmap
   where
-  mmap = fmap (\(t,fs) -> (t, splitRow v rf t fs =<< rs)) cons
+  mmap = fmap (\(t,fs) -> (t, splitRow v (ConstructorReference rf t) fs =<< rs)) cons
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
 -- variable source, the list of variables bound the the pattern being
@@ -501,10 +499,10 @@ renameTo to from
 normalizeSeqP :: P.Pattern a -> P.Pattern a
 normalizeSeqP (P.As a p) = P.As a (normalizeSeqP p)
 normalizeSeqP (P.EffectPure a p) = P.EffectPure a $ normalizeSeqP p
-normalizeSeqP (P.EffectBind a r i ps k)
-  = P.EffectBind a r i (normalizeSeqP <$> ps) (normalizeSeqP k)
-normalizeSeqP (P.Constructor a r i ps)
-  = P.Constructor a r i $ normalizeSeqP <$> ps
+normalizeSeqP (P.EffectBind a r ps k)
+  = P.EffectBind a r (normalizeSeqP <$> ps) (normalizeSeqP k)
+normalizeSeqP (P.Constructor a r ps)
+  = P.Constructor a r $ normalizeSeqP <$> ps
 normalizeSeqP (P.SequenceLiteral a ps)
   = P.SequenceLiteral a $ normalizeSeqP <$> ps
 normalizeSeqP (P.SequenceOp a p0 op q0)
@@ -530,12 +528,12 @@ prepareAs :: Var v => P.Pattern a -> v -> PPM v (P.Pattern v)
 prepareAs (P.Unbound _) u = pure $ P.Var u
 prepareAs (P.As _ p) u = (useVar >>= renameTo u) *> prepareAs p u
 prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
-prepareAs (P.Constructor _ r i ps) u = do
-  P.Constructor u r i <$> traverse preparePattern ps
+prepareAs (P.Constructor _ r ps) u = do
+  P.Constructor u r <$> traverse preparePattern ps
 prepareAs (P.EffectPure _ p) u = do
   P.EffectPure u <$> preparePattern p
-prepareAs (P.EffectBind _ r i ps k) u = do
-  P.EffectBind u r i
+prepareAs (P.EffectBind _ r ps k) u = do
+  P.EffectBind u r
     <$> traverse preparePattern ps
     <*> preparePattern k
 prepareAs (P.SequenceLiteral _ ps) u = do
@@ -554,11 +552,11 @@ prepareAs p u = pure $ u <$ p
 preparePattern :: Var v => P.Pattern a -> PPM v (P.Pattern v)
 preparePattern p = prepareAs p =<< freshVar
 
-buildPattern :: Bool -> Reference -> ConstructorId -> [v] -> Int -> P.Pattern ()
-buildPattern effect r t vs nfields
+buildPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
+buildPattern effect r vs nfields
   | effect, [] <- vps = internalBug "too few patterns for effect bind"
-  | effect = P.EffectBind () r t (init vps) (last vps)
-  | otherwise = P.Constructor () r t vps
+  | effect = P.EffectBind () r (init vps) (last vps)
+  | otherwise = P.Constructor () r vps
   where
   vps | length vs < nfields
       = replicate nfields $ P.Unbound ()
@@ -661,7 +659,7 @@ buildCase
 buildCase spec r eff cons ctx0 (t, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = buildPattern eff r t vs $ cons !! t
+  pat = buildPattern eff (ConstructorReference r t) vs $ cons !! t
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 
@@ -740,7 +738,7 @@ determineType = foldMap f
   f P.Char{} = PData Rf.charRef
   f P.SequenceLiteral{} = PData Rf.listRef
   f P.SequenceOp{} = PData Rf.listRef
-  f (P.Constructor _ r _ _) = PData r
-  f (P.EffectBind _ r _ _ _) = PReq $ Set.singleton r
+  f (P.Constructor _ r _) = PData (r ^. ConstructorReference.reference_)
+  f (P.EffectBind _ r _ _) = PReq $ Set.singleton (r ^. ConstructorReference.reference_)
   f P.EffectPure{} = PReq mempty
   f _ = Unknown

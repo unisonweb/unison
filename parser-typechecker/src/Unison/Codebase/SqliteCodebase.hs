@@ -87,6 +87,7 @@ import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.Type as C
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
@@ -721,7 +722,7 @@ sqliteCodebase debugName root = do
                 >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
-                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
+                  [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid)) (Cv.decltype2to1 ct)
                     | (h, pos, len, ct, cids) <- declReferents',
                       cid <- cids
                   ]

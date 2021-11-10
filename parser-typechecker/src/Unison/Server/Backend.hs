@@ -8,7 +8,7 @@
 
 module Unison.Server.Backend where
 
-import Control.Lens (_2, over)
+import Control.Lens ((^.), _2, over)
 import Control.Lens.Cons
 import Control.Error.Util ((??),hush)
 import Control.Monad.Except
@@ -45,6 +45,8 @@ import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.ConstructorReference (GConstructorReference(..))
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
@@ -181,19 +183,18 @@ loadReferentType ::
   m (Maybe (Type v Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
-  Referent.Con r cid _ -> getTypeOfConstructor r cid
+  Referent.Con r _ -> getTypeOfConstructor r
   where
-    getTypeOfConstructor (Reference.DerivedId r) cid = do
+    -- Mitchell wonders: why was this definition copied from Unison.Codebase?
+    getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
       maybeDecl <- Codebase.getTypeDeclaration codebase r
       pure $ case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    getTypeOfConstructor r cid =
+    getTypeOfConstructor r =
       error $
         "Don't know how to getTypeOfConstructor "
           ++ show r
-          ++ " "
-          ++ show cid
 
 getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
 getRootBranch =
@@ -622,20 +623,6 @@ data DefinitionResults v =
       noResults :: [HQ.HashQualified Name]
     }
 
--- Separates type references from term references and returns types and terms,
--- respectively. For terms that are constructors, turns them into their data
--- types.
-collateReferences
-  :: Foldable f
-  => Foldable g
-  => f Reference -- types requested
-  -> g Referent -- terms requested, including ctors
-  -> (Set Reference, Set Reference)
-collateReferences (toList -> types) (toList -> terms) =
-  let terms' = [ r | Referent.Ref r <- terms ]
-      types' = [ r | Referent.Con r _ _ <- terms ]
-  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
-
 expandShortBranchHash
   :: Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.Hash
 expandShortBranchHash codebase hash = do
@@ -965,7 +952,7 @@ definitionsBySuffixes namesScope branch codebase includeCycles query = do
       where
         f :: SR.SearchResult -> Maybe Reference
         f = \case
-          SR.Tm' _ (Referent.Con r _ _) _ -> Just r
+          SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
     displayTerm :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))

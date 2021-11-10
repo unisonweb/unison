@@ -17,9 +17,12 @@ module Unison.LabeledDependency
 
 import Unison.Prelude hiding (fold)
 
+import Control.Lens ((^.))
+import Unison.ConstructorReference (ConstructorReference)
+import qualified Unison.ConstructorReference as ConstructorReference
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con, ConstructorId)
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import qualified Data.Set as Set
 
 -- dumb constructor name is private
@@ -28,16 +31,16 @@ newtype LabeledDependency = X (Either Reference Referent) deriving (Eq, Ord, Sho
 derivedType, derivedTerm :: Id -> LabeledDependency
 typeRef, termRef :: Reference -> LabeledDependency
 referent :: Referent -> LabeledDependency
-dataConstructor :: Reference -> ConstructorId -> LabeledDependency
-effectConstructor :: Reference -> ConstructorId -> LabeledDependency
+dataConstructor :: ConstructorReference -> LabeledDependency
+effectConstructor :: ConstructorReference -> LabeledDependency
 
 derivedType = X . Left . DerivedId
 derivedTerm = X . Right . Ref . DerivedId
 typeRef = X . Left
 termRef = X . Right . Ref
 referent = X . Right
-dataConstructor r cid = X . Right $ Con r cid Data
-effectConstructor r cid = X . Right $ Con r cid Effect
+dataConstructor r = X . Right $ Con r Data
+effectConstructor r = X . Right $ Con r Effect
 
 referents :: Foldable f => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
@@ -53,4 +56,4 @@ toReference :: LabeledDependency -> Either Reference Reference
 toReference = \case
   X (Left r)             -> Left r
   X (Right (Ref r))     -> Right r
-  X (Right (Con r _ _)) -> Left r
+  X (Right (Con r _)) -> Left (r ^. ConstructorReference.reference_)

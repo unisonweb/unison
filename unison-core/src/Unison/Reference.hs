@@ -15,9 +15,6 @@ module Unison.Reference
    TermReferenceId,
    TypeReference,
    TypeReferenceId,
-   GConstructorReference(..),
-   ConstructorReference,
-   ConstructorReferenceId,
    derivedBase32Hex,
    Component, members,
    component,
@@ -43,7 +40,6 @@ import Unison.Prelude
 import qualified Data.Map        as Map
 import qualified Data.Set        as Set
 import qualified Data.Text       as Text
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
@@ -80,14 +76,6 @@ type TermReferenceId = Id
 type TypeReference = Reference
 
 type TypeReferenceId = Id
-
--- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
-data GConstructorReference r
-  = ConstructorReference r ConstructorId
-
-type ConstructorReference = GConstructorReference TypeReference
-
-type ConstructorReferenceId = GConstructorReference TypeReferenceId
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
