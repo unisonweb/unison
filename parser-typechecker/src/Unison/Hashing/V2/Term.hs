@@ -112,7 +112,7 @@ hashComponents terms =
     terms' = uncurry incorporateType <$> terms
 
     keepType :: ((Term v a, Type v a) -> (Reference.Id, Term v a) -> (Reference.Id, Term v a, Type v a))
-    keepType (_, typ) (refId, trm) = (refId, trm, typ)
+    keepType (_oldTrm, typ) (refId, trm) = (refId, trm, typ)
 
     incorporateType :: Term v a -> Type v a -> Term v a
     incorporateType a@(ABT.out -> ABT.Tm (Ann e _tp)) typ = ABT.tm' (ABT.annotation a) (Ann e typ)
