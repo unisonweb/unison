@@ -12,8 +12,12 @@ module Unison.Reference
    Pos,
    Size,
    TermReference,
+   TermReferenceId,
    TypeReference,
-   ConstructorReference(..),
+   TypeReferenceId,
+   GConstructorReference(..),
+   ConstructorReference,
+   ConstructorReferenceId,
    derivedBase32Hex,
    Component, members,
    component,
@@ -70,12 +74,20 @@ data Id = Id H.Hash Pos Size deriving (Generic)
 -- | A term reference.
 type TermReference = Reference
 
+type TermReferenceId = Id
+
 -- | A type declaration reference.
 type TypeReference = Reference
 
+type TypeReferenceId = Id
+
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
-data ConstructorReference
-  = ConstructorReference TypeReference ConstructorId
+data GConstructorReference r
+  = ConstructorReference r ConstructorId
+
+type ConstructorReference = GConstructorReference TypeReference
+
+type ConstructorReferenceId = GConstructorReference TypeReferenceId
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
