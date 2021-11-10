@@ -1807,7 +1807,7 @@ handlePushRemoteBranch ::
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
   srcb <- do
-    currentPath' <- use currentPath
+    currentPath' <- use Action.currentPath
     getAt (Path.resolve currentPath' path)
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
@@ -1904,7 +1904,7 @@ resolveConfiguredGitUrl ::
   Path' ->
   ExceptT (Output v) (Action' m v) WriteRemotePath
 resolveConfiguredGitUrl pushPull destPath' = ExceptT do
-  currentPath' <- use currentPath
+  currentPath' <- use Action.currentPath
   let destPath = Path.resolve currentPath' destPath'
   let configKey = gitUrlKey destPath
   (eval . ConfigLookup) configKey >>= \case
