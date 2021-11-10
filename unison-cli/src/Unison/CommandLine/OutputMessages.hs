@@ -1314,7 +1314,7 @@ notifyUser dir o = case o of
   ListDependents hqLength ld results ->
     pure $
       if null results
-        then prettyLd <> " doesn't have any dependents."
+        then prettyLd <> " doesn't have any named dependents."
         else
           P.lines
             [ "Dependents of " <> prettyLd <> ":",
