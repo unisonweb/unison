@@ -104,12 +104,12 @@ migrateSchema12 conn codebase = do
     (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
       `runReaderT` Env {db = conn, codebase}
       `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
-  ifor_ (objLookup migrationState) \old (new, _, _) -> do
+  ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
     (runDB conn . liftQ) do
-      Q.recordObjectRehash old new
-      Q.deleteIndexesForObject old
+      Q.recordObjectRehash oldObjId newObjId
+      Q.deleteIndexesForObject oldObjId
       -- what about deleting old watches?
-      Q.deleteObject old
+      Q.deleteObject oldObjId
   where
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
@@ -135,7 +135,9 @@ data MigrationState = MigrationState
   -- Mapping between old cycle-position -> new cycle-position for a given Decl object.
   { referenceMapping :: Map (Old SomeReferenceId) (New SomeReferenceId),
     causalMapping :: Map (Old CausalHashId) (New (CausalHash, CausalHashId)),
-    objLookup :: Map (Old ObjectId) ((New ObjectId, New HashId, New Hash)),
+    -- We also store the old hash for this object ID since we need a way to
+    -- convert Object Reference IDs into Hash Reference IDs so we can use the referenceMapping.
+    objLookup :: Map (Old ObjectId) (New ObjectId, New HashId, New Hash, Old Hash),
     -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
     migratedDefnHashes :: Set (Old Hash)
   }
@@ -207,7 +209,7 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   let unmigratedEntities = unmigratedBranch <> unmigratedParents
   when (not . null $ unmigratedParents <> unmigratedBranch) (throwE $ Sync.Missing unmigratedEntities)
 
-  (_, _, newBranchHash) <- gets (\MigrationState {objLookup} -> objLookup Map.! branchObjId)
+  (_, _, newBranchHash, _) <- gets (\MigrationState {objLookup} -> objLookup Map.! branchObjId)
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
@@ -245,6 +247,7 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member oldObjectId <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
   oldBranch <- runDB conn (Ops.loadDbBranchByObjectId (BranchObjectId oldObjectId))
+  oldHash <- fmap Cv.hash2to1 . runDB conn $ Ops.loadHashByObjectId oldObjectId
   oldBranchWithHashes <- runDB conn (traverseOf S.branchHashes_ (fmap Cv.hash2to1 . Ops.loadHashByObjectId) oldBranch)
   migratedRefs <- gets referenceMapping
   migratedObjects <- gets objLookup
@@ -292,13 +295,13 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
 
   let remapPatchObjectId patchObjId = case Map.lookup (unPatchObjectId patchObjId) migratedObjects of
         Nothing -> error $ "Expected patch: " <> show patchObjId <> " to be migrated"
-        Just (newPatchObjId, _, _) -> PatchObjectId newPatchObjId
+        Just (newPatchObjId, _, _, _) -> PatchObjectId newPatchObjId
   let remapCausalHashId causalHashId = case Map.lookup causalHashId migratedCausals of
         Nothing -> error $ "Expected causal hash id: " <> show causalHashId <> " to be migrated"
         Just (_, newCausalHashId) -> newCausalHashId
   let remapBranchObjectId objId = case Map.lookup (unBranchObjectId objId) migratedObjects of
         Nothing -> error $ "Expected object: " <> show objId <> " to be migrated"
-        Just (newBranchObjId, _, _) -> BranchObjectId newBranchObjId
+        Just (newBranchObjId, _, _, _) -> BranchObjectId newBranchObjId
 
   let newBranch :: S.DbBranch
       newBranch =
@@ -308,10 +311,10 @@ migrateBranch conn oldObjectId = fmap (either id id) . runExceptT $ do
           & S.childrenHashes_ %~ (remapBranchObjectId *** remapCausalHashId)
 
   let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch newBranch
-  hash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
-  newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 hash))))
+  newHash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash newBranch))
+  newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))))
   newObjectId <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
-  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, hash)
+  field @"objLookup" %= Map.insert oldObjectId (unBranchObjectId newObjectId, unBranchHashId newHashId, newHash,  oldHash)
   pure Sync.Done
 
 migratePatch ::
@@ -323,6 +326,7 @@ migratePatch ::
 migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
   whenM (Map.member (unPatchObjectId oldObjectId) <$> use (field @"objLookup")) (throwE Sync.PreviouslyDone)
 
+  oldHash <- fmap Cv.hash2to1 . runDB conn $ Ops.loadHashByObjectId (unPatchObjectId oldObjectId)
   oldPatch <- runDB conn (Ops.loadDbPatchById oldObjectId)
   let hydrateHashes :: forall m. Q.EDB m => HashId -> m Hash
       hydrateHashes hashId = do
@@ -369,7 +373,7 @@ migratePatch conn oldObjectId = fmap (either id id) . runExceptT $ do
   newHash <- runDB conn (liftQ (Hashing.dbPatchHash newPatchWithIds))
   newObjectId <- runDB conn (Ops.saveDbPatch (PatchHash (Cv.hash1to2 newHash)) (S.Patch.Format.Full localPatchIds localPatch))
   newHashId <- runDB conn (liftQ (Q.expectHashIdByHash (Cv.hash1to2 newHash)))
-  field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash)
+  field @"objLookup" %= Map.insert (unPatchObjectId oldObjectId) (unPatchObjectId newObjectId, newHashId, newHash, oldHash)
   pure Sync.Done
 
 -- | PLAN
@@ -672,7 +676,7 @@ insertObjectMappingForHash conn oldHash newHash = do
     newHashId <- Q.expectHashIdByHash . Cv.hash1to2 $ newHash
     newObjectId <- Q.expectObjectIdForPrimaryHashId $ newHashId
     pure (oldObjectId, newHashId, newObjectId)
-  field @"objLookup" %= Map.insert oldObjectId (newObjectId, newHashId, newHash)
+  field @"objLookup" %= Map.insert oldObjectId (newObjectId, newHashId, newHash, oldHash)
 
 typeReferences_ :: (Monad m, Ord v) => LensLike' m (Type v a) SomeReferenceId
 typeReferences_ =
@@ -750,7 +754,7 @@ type SomeReferenceId = SomeReference Reference.Id
 type SomeReferenceObjId = SomeReference (UReference.Id' ObjectId)
 
 remapObjIdRefs ::
-  (Map (Old ObjectId) (New ObjectId, New HashId, New Hash)) ->
+  (Map (Old ObjectId) (New ObjectId, New HashId, New Hash, Old Hash)) ->
   (Map SomeReferenceId SomeReferenceId) ->
   SomeReferenceObjId ->
   SomeReferenceObjId
@@ -758,18 +762,18 @@ remapObjIdRefs objMapping refMapping someObjIdRef = newSomeObjId
   where
     oldObjId :: ObjectId
     oldObjId = someObjIdRef ^. someRef_ . UReference.idH
-    (newObjId, _, newHash) =
+    (newObjId, _, _, oldHash) =
       case Map.lookup oldObjId objMapping of
         Nothing -> error $ "Expected object mapping for ID: " <> show oldObjId
         Just found -> found
-    someRefId :: SomeReferenceId
-    someRefId = (someObjIdRef & someRef_ . UReference.idH .~ newHash) ^. uRefIdAsRefId_
-    newRefId :: SomeReferenceId
-    newRefId = case Map.lookup someRefId refMapping of
-      Nothing -> error $ "Expected reference mapping for ID: " <> show someRefId
+    oldSomeRefId :: SomeReferenceId
+    oldSomeRefId = (someObjIdRef & someRef_ . UReference.idH .~ oldHash) ^. uRefIdAsRefId_
+    newSomeRefId :: SomeReferenceId
+    newSomeRefId = case Map.lookup oldSomeRefId refMapping of
+      Nothing -> error $ "Expected reference mapping for ID: " <> show oldSomeRefId
       Just r -> r
     newSomeObjId :: SomeReference (UReference.Id' (New ObjectId))
-    newSomeObjId = (newRefId ^. from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
+    newSomeObjId = (newSomeRefId ^. from uRefIdAsRefId_) & someRef_ . UReference.idH .~ newObjId
 
 data SomeReference ref
   = TermReference ref
