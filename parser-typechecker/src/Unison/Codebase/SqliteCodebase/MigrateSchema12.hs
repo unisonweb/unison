@@ -78,8 +78,11 @@ import Unison.Var (Var)
 
 -- todo:
 --  * write a harness to call & seed algorithm
---    * may involve writing a `Progress`
+--    * [ ] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
+--            weird state even if we crash.
+--    * [x] may involve writing a `Progress`
 --    * raw DB things:
+--    * [ ] write new namespace root after migration.
 --    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
 --    * [ ] delete references to old objects in index tables (where else?)
 --    * [ ] delete old objects
