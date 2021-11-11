@@ -16,7 +16,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified GHC.Conc
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName)
+import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.IO.Error (catchIOError)
@@ -94,12 +94,12 @@ main = do
                   , P.wrap ("will " <> P.bold "always" <> " create a codebase in your home directory if one does not already exist.")
                   ])
 
-     Run (RunFromSymbol mainName) -> do
+     Run (RunFromSymbol mainName) args -> do
       ((closeCodebase, theCodebase),_) <- getCodebaseOrExit mCodePathOption
       runtime <- RTI.startRuntime Version.gitDescribeWithDate
-      execute theCodebase runtime mainName
+      withArgs args $ execute theCodebase runtime mainName
       closeCodebase
-     Run (RunFromFile file mainName)
+     Run (RunFromFile file mainName) args
        | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
        | otherwise -> do
             e <- safeReadUtf8 file
@@ -109,9 +109,9 @@ main = do
                 ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
                 rt <- RTI.startRuntime Version.gitDescribeWithDate
                 let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
                 closeCodebase
-     Run (RunFromPipe mainName) -> do
+     Run (RunFromPipe mainName) args -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
@@ -121,12 +121,12 @@ main = do
           let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
           launch
             currentDir config rt theCodebase
-            [Left fileEvent, Right $ Input.ExecuteI mainName, Right Input.QuitI]
+            [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
             Nothing
             ShouldNotDownloadBase
             initRes
           closeCodebase
-     Run (RunCompiled file) ->
+     Run (RunCompiled file) args ->
        BL.readFile file >>= \bs ->
        try (evaluate $ RTI.decodeStandalone bs) >>= \case
          Left (PE _cs err) -> do
@@ -151,7 +151,7 @@ main = do
                \ program. The parser generated an unrecognized error."
          Right (Right (v, rf, w, sto))
            | not vmatch -> mismatchMsg
-           | otherwise -> RTI.runStandalone sto w
+           | otherwise -> withArgs args $ RTI.runStandalone sto w
            where
            vmatch = v == Text.pack Version.gitDescribeWithDate
            ws s = P.wrap (P.text s)
@@ -248,7 +248,7 @@ runTranscripts' mcodepath transcriptDir args = do
         configFilePath <- getConfigFilePath mcodepath
         -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
         ((closeCodebase, theCodebase),_) <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir))
-        mdOut <- TR.run transcriptDir configFilePath stanzas theCodebase
+        mdOut <- TR.run Version.gitDescribeWithDate transcriptDir configFilePath stanzas theCodebase
         closeCodebase
         let out = currentDir FP.</>
                    FP.addExtension (FP.dropExtension fileName ++ ".output")

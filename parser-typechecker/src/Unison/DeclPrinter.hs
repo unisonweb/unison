@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.DeclPrinter where
+module Unison.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
 
 import Unison.Prelude
 
@@ -47,8 +47,8 @@ prettyDecl
   -> HashQualified Name
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE _) r hq d = case d of
-  Left e -> prettyEffectDecl unsuffixifiedPPE r hq e
+prettyDecl ppe r hq d = case d of
+  Left e -> prettyEffectDecl (suffixifiedPPE ppe) r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl

@@ -2,13 +2,11 @@
 
 module Unison.Runtime.Serialize where
 
-import Basement.Block (Block)
-
 import Control.Applicative (liftA2)
 import Control.Monad (replicateM)
 import Data.Foldable (traverse_)
 
-import qualified Data.ByteArray as BA
+import qualified Data.Vector.Primitive as BA
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Short as SBS
 import Data.Bits (Bits)
@@ -142,11 +140,11 @@ getBytes = Bytes.fromChunks <$> getList getBlock
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
-getBlock :: MonadGet m => m (Bytes.View (Block Word8))
-getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString
+getBlock :: MonadGet m => m Bytes.Chunk
+getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
-putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
-putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
+putBlock :: MonadPut m => Bytes.Chunk -> m ()
+putBlock b = putLength (BA.length b) *> putByteString (Bytes.chunkToByteString b)
 
 putHash :: MonadPut m => Hash -> m ()
 putHash h = do

@@ -18,13 +18,13 @@ module Unison.Runtime.Foreign
 
 import Control.Concurrent (ThreadId, MVar)
 import Data.IORef (IORef)
-import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import qualified Data.X509 as X509
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.Text (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (SuperGroup, Value)
@@ -78,7 +78,7 @@ instance Show Foreign where
     $ showString "Wrap " . showsPrec 10 r . showString " " . contents
     where
     contents
-      | r == Ty.textRef = shows (unpack (unsafeCoerce v))
+      | r == Ty.textRef = shows @Text (unsafeCoerce v)
       | otherwise = showString "_"
 
 unwrapForeign :: Foreign -> a

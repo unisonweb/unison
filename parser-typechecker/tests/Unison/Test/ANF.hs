@@ -26,6 +26,7 @@ import Unison.Test.Common (tm)
 
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)
+import qualified Unison.Util.Text as Util.Text
 
 -- testSNF s = ok
 --   where
@@ -68,7 +69,7 @@ denormalize (TLit l) = case l of
   I i -> Term.int () i
   N n -> Term.nat () n
   F f -> Term.float () f
-  T t -> Term.text () t
+  T t -> Term.text () (Util.Text.toText t)
   C c -> Term.char () c
   LM r -> Term.termLink () r
   LY r -> Term.typeLink () r
@@ -125,7 +126,7 @@ denormalizeMatch b
   | MatchIntegral m df <- b
   = (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b
-  = (dcase (const $ P.Text ()) <$> Map.toList m) ++ dfcase df
+  = (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b
   , [(0, ([UN], zb))] <- mapToList cs
   , TAbs i (TMatch j (MatchIntegral m df))  <- zb
