@@ -160,16 +160,18 @@ decomposePattern (ConstructorReference rf0 t) _       (P.Boolean _ b)
   | rf0 == Rf.booleanRef
   , t == if b then 1 else 0
   = [[]]
-decomposePattern rf0 nfields p@(P.Constructor _ rf ps)
-  | rf0 == rf
+decomposePattern (ConstructorReference rf0 t) nfields p@(P.Constructor _ (ConstructorReference rf u) ps)
+  | t == u
+  , rf0 == rf
   = if length ps == nfields
     then [ps]
     else internalBug err
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern rf0 nfields p@(P.EffectBind _ rf ps pk)
-  | rf0 == rf
+decomposePattern (ConstructorReference rf0 t) nfields p@(P.EffectBind _ (ConstructorReference rf u) ps pk)
+  | t == u
+  , rf0 == rf
   = if length ps + 1 == nfields
     then [ps ++ [pk]]
     else internalBug err
