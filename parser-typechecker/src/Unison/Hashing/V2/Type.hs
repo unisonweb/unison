@@ -32,7 +32,7 @@ import qualified Unison.Hashable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
-import qualified Unison.Kind as K
+import qualified Unison.Hashing.V2.Kind as K
 import qualified Unison.Name as Name
 import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude

@@ -15,12 +15,13 @@ Add some definitions which we can match over:
 ```unison:hide
 convertToThing = 1
 convertFromThing = 2
+otherTerm = 3
 
 -- Nested definitions
-nested.toList = 3
-nested.toMap = 4
-othernest.toList = 5
-othernest.toMap = 6
+nested.toList = 4
+nested.toMap = 5
+othernest.toList = 6
+othernest.toMap = 7
 ```
 
 ```ucm:hide
@@ -52,7 +53,7 @@ You may have up to one glob per name segment.
 Globbing only expands to the appropriate argument type.
 
 E.g. `view` should not see glob expansions for namespaces.
-This should expand to the empty argument and silently succeed.
+This should expand to only the otherTerm.
 
 ```ucm
 .> view other?
