@@ -27,13 +27,16 @@ module Unison.Codebase.Causal
     transform,
     unsafeMapHashPreserving,
     before,
+    beforeHash,
   )
 where
 
 import Unison.Prelude
 
+import qualified Control.Monad.Extra as Monad (anyM)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
+import qualified Control.Monad.Reader as Reader
 import qualified Data.Map as Map
 import Data.Sequence (ViewL (..))
 import qualified Data.Sequence as Seq
@@ -263,6 +266,24 @@ threeWayMerge' lca combine c1 c2 = do
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
+
+-- `True` if `h` is found in the history of `c` within `maxDepth` path length
+-- from the tip of `c`
+beforeHash :: forall m h e . Monad m => Word -> RawHash h -> Causal m h e -> m Bool
+beforeHash maxDepth h c =
+  Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
+  where
+  go c | h == currentHash c = pure True
+  go c = do
+    currentDepth :: Word <- Reader.ask
+    if currentDepth >= maxDepth
+    then pure False
+    else do
+      seen <- State.get
+      cs <- lift . lift $ toList <$> sequence (children c)
+      let unseens = filter (\c -> c `Set.notMember` seen) cs
+      State.modify' (<> Set.fromList cs)
+      Monad.anyM (Reader.local (1+) . go) unseens
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'

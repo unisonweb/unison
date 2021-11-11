@@ -10,7 +10,6 @@ import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Tuple.Extra (uncurry3)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -21,11 +20,11 @@ import qualified Unison.Codebase.Branch.Names as Branch
 import Unison.Codebase.Editor.Input (Input)
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo)
-import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
@@ -977,14 +976,59 @@ push =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+    )
+
+pushCreate :: InputPattern
+pushCreate =
+  InputPattern
+    "push.create"
+    []
+    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    ( P.lines
+        [ P.wrap
+            "The `push.create` command pushes a local namespace to an empty remote namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`push.create remote local`",
+                "pushes the contents of the local namespace `local`"
+                  <> "into the empty remote namespace `remote`."
+              ),
+              ( "`push remote`",
+                "publishes the current namespace into the empty remote namespace `remote`"
+              ),
+              ( "`push`",
+                "publishes the current namespace"
+                  <> "into the empty remote namespace configured in `.unisonConfig`"
+                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+              )
+            ],
+          "",
+          P.wrap "where `remote` is a git repository, optionally followed by `:`"
+            <> "and an absolute remote path, such as:",
+          P.indentN 2 . P.lines $
+            [ P.backticked "https://github.com/org/repo",
+              P.backticked "https://github.com/org/repo:.some.remote.path"
+            ]
+        ]
+    )
+    ( \case
+        [] ->
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
+        url : rest -> do
+          (repo, path) <- parsePushPath "url" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1004,14 +1048,14 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern
@@ -1661,16 +1705,19 @@ execute =
   InputPattern
     "run"
     []
-    []
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
     ( P.wrapColumn2
-        [ ( "`run mymain`",
+        [ ( "`run mymain args...`",
             "Runs `!mymain`, where `mymain` is searched for in the most recent"
               <> "typechecked file, or in the codebase."
+              <> "Any provided arguments will be passed as program arguments as though they were"
+              <> "provided at the command line when running mymain as an executable."
           )
         ]
     )
     ( \case
-        [w] -> pure . Input.ExecuteI $ w
+        [w] -> pure $ Input.ExecuteI w []
+        (w : ws) -> pure $ Input.ExecuteI w ws
         _ -> Left $ showPatternHelp execute
     )
 
@@ -1756,6 +1803,7 @@ validInputs =
     diffNamespace,
     names,
     push,
+    pushCreate,
     pull,
     pullSilent,
     pushExhaustive,
@@ -1949,8 +1997,8 @@ pathCompletor ::
 pathCompletor filterQuery getNames query _code b p =
   let b0root = Branch.head b
       b0local = Branch.getAt0 (Path.unabsolute p) b0root
-      -- todo: if these sets are huge, maybe trim results
-   in pure . filterQuery query . map Text.unpack $
+   in -- todo: if these sets are huge, maybe trim results
+      pure . filterQuery query . map Text.unpack $
         toList (getNames b0local)
           ++ if "." `isPrefixOf` query
             then map ("." <>) (toList (getNames b0root))
@@ -2010,26 +2058,3 @@ gitUrlArg =
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
-
-patternFromInput :: Input -> InputPattern
-patternFromInput = \case
-  Input.PushRemoteBranchI _ _ SyncMode.ShortCircuit -> push
-  Input.PushRemoteBranchI _ _ SyncMode.Complete -> pushExhaustive
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Default -> pull
-  Input.PullRemoteBranchI _ _ SyncMode.ShortCircuit Verbosity.Silent -> pullSilent
-  Input.PullRemoteBranchI _ _ SyncMode.Complete _ -> pushExhaustive
-  _ -> error "todo: finish this function"
-
-inputStringFromInput :: IsString s => Input -> P.Pretty s
-inputStringFromInput = \case
-  i@(Input.PushRemoteBranchI rh p' _) ->
-    (P.string . I.patternName $ patternFromInput i)
-      <> (" " <> maybe mempty (P.text . uncurry RemoteRepo.printHead) rh)
-      <> " "
-      <> P.shown p'
-  i@(Input.PullRemoteBranchI ns p' _ _) ->
-    (P.string . I.patternName $ patternFromInput i)
-      <> (" " <> maybe mempty (P.text . uncurry3 RemoteRepo.printNamespace) ns)
-      <> " "
-      <> P.shown p'
-  _ -> error "todo: finish this function"

@@ -25,6 +25,7 @@ import qualified Data.ByteString.Lazy as L
 import GHC.Stack
 
 import Unison.Reference (Reference)
+import qualified Unison.Util.Text as Util.Text
 
 import Unison.ABT.Normalized (Term(..))
 import Unison.Runtime.Exception
@@ -394,7 +395,7 @@ putLit :: MonadPut m => Lit -> m ()
 putLit (I i) = putTag IT *> putInt i
 putLit (N n) = putTag NT *> putNat n
 putLit (F f) = putTag FT *> putFloat f
-putLit (T t) = putTag TT *> putText t
+putLit (T t) = putTag TT *> putText (Util.Text.toText t)
 putLit (C c) = putTag CT *> putChar c
 putLit (LM r) = putTag LMT *> putReferent r
 putLit (LY r) = putTag LYT *> putReference r
@@ -404,13 +405,13 @@ getLit = getTag >>= \case
   IT -> I <$> getInt
   NT -> N <$> getNat
   FT -> F <$> getFloat
-  TT -> T <$> getText
+  TT -> T . Util.Text.fromText <$> getText
   CT -> C <$> getChar
   LMT -> LM <$> getReferent
   LYT -> LY <$> getReference
 
 putBLit :: MonadPut m => BLit -> m ()
-putBLit (Text t) = putTag TextT *> putText t
+putBLit (Text t) = putTag TextT *> putText (Util.Text.toText t)
 putBLit (List s) = putTag ListT *> putFoldable putValue s
 putBLit (TmLink r) = putTag TmLinkT *> putReferent r
 putBLit (TyLink r) = putTag TyLinkT *> putReference r
@@ -418,7 +419,7 @@ putBLit (Bytes b) = putTag BytesT *> putBytes b
 
 getBLit :: MonadGet m => m BLit
 getBLit = getTag >>= \case
-  TextT -> Text <$> getText
+  TextT -> Text . Util.Text.fromText <$> getText
   ListT -> List . Seq.fromList <$> getList getValue
   TmLinkT -> TmLink <$> getReferent
   TyLinkT -> TyLink <$> getReference
@@ -439,7 +440,7 @@ putBranches ctx bs = case bs of
     putMaybe df $ putNormal ctx
   MatchText m df -> do
     putTag MTextT
-    putMap putText (putNormal ctx) m
+    putMap (putText . Util.Text.toText) (putNormal ctx) m
     putMaybe df $ putNormal ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
@@ -466,7 +467,7 @@ getBranches ctx frsh0 = getTag >>= \case
       <*> getMaybe (getNormal ctx frsh0)
   MTextT ->
     MatchText
-      <$> getMap getText (getNormal ctx frsh0)
+      <$> getMap (Util.Text.fromText <$> getText) (getNormal ctx frsh0)
       <*> getMaybe (getNormal ctx frsh0)
   MReqT ->
     MatchRequest

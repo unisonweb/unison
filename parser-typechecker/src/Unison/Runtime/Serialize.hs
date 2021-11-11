@@ -2,15 +2,12 @@
 
 module Unison.Runtime.Serialize where
 
-import Basement.Block (Block)
-
 import Control.Applicative (liftA2)
 import Control.Monad (replicateM)
 import Data.Foldable (traverse_)
 
-import qualified Data.ByteArray as BA
+import qualified Data.Vector.Primitive as BA
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Short as SBS
 import Data.Bits (Bits)
 import Data.Bytes.Put
 import Data.Bytes.Get hiding (getBytes)
@@ -30,7 +27,7 @@ import Unison.Referent (Referent, pattern Ref, pattern Con)
 import qualified Unison.Util.Bytes as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Hash (Hash)
-import qualified Unison.Hash as Hash
+import qualified U.Util.Hash as Hash
 import qualified Unison.ConstructorType as CT
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
@@ -142,15 +139,15 @@ getBytes = Bytes.fromChunks <$> getList getBlock
 putBytes :: MonadPut m => Bytes.Bytes -> m ()
 putBytes = putFoldable putBlock . Bytes.chunks
 
-getBlock :: MonadGet m => m (Bytes.View (Block Word8))
-getBlock = getLength >>= fmap (Bytes.view . BA.convert) . getByteString
+getBlock :: MonadGet m => m Bytes.Chunk
+getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
-putBlock :: MonadPut m => Bytes.View (Block Word8) -> m ()
-putBlock b = putLength (BA.length b) *> putByteString (BA.convert b)
+putBlock :: MonadPut m => Bytes.Chunk -> m ()
+putBlock b = putLength (BA.length b) *> putByteString (Bytes.chunkToByteString b)
 
 putHash :: MonadPut m => Hash -> m ()
 putHash h = do
-  let bs = SBS.fromShort $ Hash.toBytes h
+  let bs = Hash.toByteString h
   putLength (B.length bs)
   putByteString bs
 
@@ -158,7 +155,7 @@ getHash :: MonadGet m => m Hash
 getHash = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
-  pure $ Hash.fromBytes bs
+  pure $ Hash.fromByteString bs
 
 putReferent :: MonadPut m => Referent -> m ()
 putReferent = \case

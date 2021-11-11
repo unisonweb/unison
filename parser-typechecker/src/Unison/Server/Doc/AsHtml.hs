@@ -41,9 +41,9 @@ embeddedSource ref =
         Term s -> embeddedSource' s
         Type s -> embeddedSource' s
 
-inlineCode :: [Attribute] -> Html () -> Html ()
-inlineCode attrs =
-  pre_ (class_ "inline-code" : attrs) . code_ []
+inlineCode :: [Text] -> Html () -> Html ()
+inlineCode classNames =
+  code_ [classes_ ("inline-code" : classNames)]
 
 codeBlock :: [Attribute] -> Html () -> Html ()
 codeBlock attrs =
@@ -96,14 +96,16 @@ foldedToHtml attrs isFolded =
             if isFolded
               then open_ "open" : attrs
               else attrs
-       in details_ attrsWithOpen $ summary_ [] $ sequence_ $ summary ++ details
+       in details_ attrsWithOpen $ do
+            summary_ [class_ "folded-content"] $ sequence_ summary
+            div_ [class_ "folded-content"] $ sequence_ details
 
 foldedToHtmlSource :: Bool -> EmbeddedSource -> Html ()
 foldedToHtmlSource isFolded source =
   case source of
     Builtin summary ->
       foldedToHtml
-        [class_ "rich source"]
+        [class_ "folded rich source"]
         ( Disabled
             ( div_
                 [class_ "builtin-summary"]
@@ -115,7 +117,7 @@ foldedToHtmlSource isFolded source =
             )
         )
     EmbeddedSource summary details ->
-      foldedToHtml [class_ "rich source"] $
+      foldedToHtml [class_ "folded rich source"] $
         IsFolded
           isFolded
           [codeBlock [] $ Syntax.toHtml summary]
@@ -228,9 +230,9 @@ toHtml docNamesByRef document =
               Callout icon content ->
                 let (cls, ico) =
                       case icon of
-                        Just (Word emoji) ->
-                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml emoji)
-                        _ ->
+                        Just emoji ->
+                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji)
+                        Nothing ->
                           (class_ "callout", "")
                  in div_ [cls] $ do
                       ico
@@ -243,14 +245,11 @@ toHtml docNamesByRef document =
                       tr_ [] $ mapM_ cellToHtml $ mergeWords " " cells
                  in table_ [] $ tbody_ [] $ mapM_ rowToHtml rows
               Folded isFolded summary details ->
-                let content =
-                      if isFolded
-                        then [currentSectionLevelToHtml summary]
-                        else
-                          [ currentSectionLevelToHtml summary,
-                            currentSectionLevelToHtml details
-                          ]
-                 in foldedToHtml [] (IsFolded isFolded content [])
+                foldedToHtml [class_ "folded"] $
+                  IsFolded
+                    isFolded
+                    [currentSectionLevelToHtml summary]
+                    [currentSectionLevelToHtml details]
               Paragraph docs ->
                 case docs of
                   [d] ->
@@ -313,7 +312,7 @@ toHtml docNamesByRef document =
                   ExampleBlock syntax ->
                     div_ [class_ "source rich example"] $ codeBlock [] (Syntax.toHtml syntax)
                   Link syntax ->
-                    inlineCode [class_ "rich source"] (Syntax.toHtml syntax)
+                    inlineCode ["rich", "source"] $ Syntax.toHtml syntax
                   Signature signatures ->
                     div_
                       [class_ "rich source signatures"]

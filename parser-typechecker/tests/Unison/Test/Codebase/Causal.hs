@@ -24,7 +24,6 @@ import Unison.Hashable (Hashable)
 import Data.Set (Set)
 import Data.Functor.Identity
 import Unison.Hash (Hash)
-import Unison.CommandLine (beforeHash)
 
 c :: M (Causal M Int64 [Int64])
 c = merge (foldr cons (one [1]) t1)
@@ -141,7 +140,7 @@ beforeHashTests = do
   expect' . not =<< before c1 (longCausal (1000 :: Int64))
   ok
   where
-    before h c = beforeHash 10 (Causal.currentHash h) c
+    before h c = Causal.beforeHash 10 (Causal.currentHash h) c
     sillyMerge _lca l _r = pure l
     longCausal 0 = Causal.one 0
     longCausal n = Causal.cons n (longCausal (n - 1))

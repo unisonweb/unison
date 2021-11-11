@@ -156,6 +156,7 @@ reference (Segment _ el) =
         case el' of
           TermReference r -> Just r
           TypeReference r -> Just r
+          HashQualifier r -> Just r
           _ -> Nothing
    in el >>= reference'
 

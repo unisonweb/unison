@@ -33,17 +33,12 @@ module Unison.CommandLine
   , watchBranchUpdates
   , watchConfig
   , watchFileSystem
-  -- * Exported for testing
-  , beforeHash
   ) where
 
 import Unison.Prelude
 
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
-import qualified Control.Monad.Extra             as Monad
-import qualified Control.Monad.Reader            as Reader
-import qualified Control.Monad.State             as State
 import           Data.Configurator               (autoReload, autoConfig)
 import           Data.Configurator.Types         (Config, Worth (..))
 import           Data.List                       (isSuffixOf, isPrefixOf)
@@ -57,7 +52,6 @@ import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import qualified Unison.Codebase.Branch          as Branch
-import           Unison.Codebase.Causal          ( Causal )
 import qualified Unison.Codebase.Causal          as Causal
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Server.SearchResult    as SR
@@ -72,7 +66,7 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import qualified Data.Configurator as Config
-import Control.Lens (ifoldMap)
+import Control.Lens (ifor)
 import qualified Unison.CommandLine.Globbing as Globbing
 import qualified Unison.CommandLine.InputPattern as InputPattern
 import Unison.Codebase.Branch (Branch0)
@@ -119,30 +113,12 @@ watchBranchUpdates currentRoot q codebase = do
     -- heuristic. If a fairly recent head gets deposited at just the right
     -- time, it would get ignored by this logic. This seems unavoidable.
     let maxDepth = 20 -- if it's further back than this, consider it new
-    let isNew b = not <$> beforeHash maxDepth b (Branch._history currentRoot)
+    let isNew b = not <$> Causal.beforeHash maxDepth b (Branch._history currentRoot)
     notBefore <- filterM isNew (toList updatedBranches)
     when (length notBefore > 0) $
       atomically . Q.enqueue q . IncomingRootBranch $ Set.fromList notBefore
   pure (cancelExternalBranchUpdates >> killThread thread)
 
-
--- `True` if `h` is found in the history of `c` within `maxDepth` path length
--- from the tip of `c`
-beforeHash :: forall m h e . Monad m => Word -> Causal.RawHash h -> Causal m h e -> m Bool
-beforeHash maxDepth h c =
-  Reader.runReaderT (State.evalStateT (go c) Set.empty) (0 :: Word)
-  where
-  go c | h == Causal.currentHash c = pure True
-  go c = do
-    currentDepth :: Word <- Reader.ask
-    if currentDepth >= maxDepth
-    then pure False
-    else do
-      seen <- State.get
-      cs <- lift . lift $ toList <$> sequence (Causal.children c)
-      let unseens = filter (\c -> c `Set.notMember` seen) cs
-      State.modify' (<> Set.fromList cs)
-      Monad.anyM (Reader.local (1+) . go) unseens
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
@@ -218,7 +194,7 @@ exactComplete q ss = go <$> filter (isPrefixOf q) ss where
   go s = prettyCompletionWithQueryPrefix (s == q) q s
 
 
--- | Completes a list of options, limiting options to the same namespace as the query, 
+-- | Completes a list of options, limiting options to the same namespace as the query,
 -- or the namespace's children if the query is itself a namespace.
 --
 -- E.g.
@@ -257,26 +233,35 @@ fixupCompletion q cs@(h:t) = let
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 
-parseInput
-  :: Branch0 m -- ^ Root branch, used to expand globs
-  -> Path.Absolute -- ^ Current path from root, used to expand globs
-  -> [String] -- ^ Numbered arguments
-  -> Map String InputPattern -- ^ Input Pattern Map
-  -> [String] -- ^ command:arguments
-  -> Either (P.Pretty CT.ColorText) Input
+parseInput ::
+  -- | Root branch, used to expand globs
+  Branch0 m ->
+  -- | Current path from root, used to expand globs
+  Path.Absolute ->
+  -- | Numbered arguments
+  [String] ->
+  -- | Input Pattern Map
+  Map String InputPattern ->
+  -- | command:arguments
+  [String] ->
+  Either (P.Pretty CT.ColorText) Input
 parseInput rootBranch currentPath numberedArgs patterns segments = do
   case segments of
     [] -> Left ""
     command : args -> case Map.lookup command patterns of
       Just pat@(InputPattern {parse}) -> do
-        let expandedArgs :: [String]
-            expandedArgs = foldMap (expandNumber numberedArgs) args
-        parse $
-          flip ifoldMap expandedArgs $ \i arg -> do
-            let targets = case InputPattern.argType pat i of
-                  Just argT -> InputPattern.globTargets argT
-                  Nothing -> mempty
-            Globbing.expandGlobs targets rootBranch currentPath arg
+        let expandedNumbers :: [String]
+            expandedNumbers = foldMap (expandNumber numberedArgs) args
+        expandedGlobs <- ifor expandedNumbers $ \i arg -> do
+          let targets = case InputPattern.argType pat i of
+                Just argT -> InputPattern.globTargets argT
+                Nothing -> mempty
+          case Globbing.expandGlobs targets rootBranch currentPath arg of
+            -- No globs encountered
+            Nothing -> pure [arg]
+            Just [] -> Left $ "No matches for: " <> fromString arg
+            Just matches -> pure matches
+        parse (concat expandedGlobs)
       Nothing ->
         Left
           . warn

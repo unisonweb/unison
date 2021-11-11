@@ -61,3 +61,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Evan Minsk (@iamevn)
 * Karthik Ravikanti (@plumenator)
 * Alberto Flores (@albertoefguerrero)
+* Shawn Bachlet (@shawn-bachlet)
+* Solomon Bothwell (@solomon-b)
