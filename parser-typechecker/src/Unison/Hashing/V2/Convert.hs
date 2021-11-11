@@ -17,8 +17,12 @@ where
 
 import Control.Lens (over, _3)
 import qualified Control.Lens as Lens
+import Control.Monad.Trans.Writer.CPS (Writer)
+import qualified Control.Monad.Trans.Writer.CPS as Writer
 import Data.Bifunctor (bimap)
+import Data.Bitraversable (bitraverse)
 import Data.Foldable (toList)
+import Data.Functor ((<&>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -29,6 +33,8 @@ import qualified Unison.Codebase.Causal as Memory.Causal
 import qualified Unison.Codebase.Patch as Memory.Patch
 import qualified Unison.Codebase.TermEdit as Memory.TermEdit
 import qualified Unison.Codebase.TypeEdit as Memory.TypeEdit
+import qualified Unison.ConstructorType as CT
+import qualified Unison.ConstructorType as Memory.ConstructorType
 import qualified Unison.DataDeclaration as Memory.DD
 import Unison.Hash (Hash)
 import Unison.Hashable (Accumulate, Token)
@@ -36,6 +42,7 @@ import qualified Unison.Hashable as H
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
+import qualified Unison.Hashing.V2.Kind as Hashing.Kind
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Pattern as Hashing.Pattern
 import qualified Unison.Hashing.V2.Reference as Hashing.Reference
@@ -44,6 +51,7 @@ import qualified Unison.Hashing.V2.Term as Hashing.Term
 import qualified Unison.Hashing.V2.TermEdit as Hashing.TermEdit
 import qualified Unison.Hashing.V2.Type as Hashing.Type
 import qualified Unison.Hashing.V2.TypeEdit as Hashing.TypeEdit
+import qualified Unison.Kind as Memory.Kind
 import Unison.NameSegment (NameSegment)
 import Unison.Names.ResolutionResult (ResolutionResult)
 import qualified Unison.Pattern as Memory.Pattern
@@ -54,12 +62,6 @@ import qualified Unison.Type as Memory.Type
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Memory.Star3
 import Unison.Var (Var)
-import qualified Unison.ConstructorType as Memory.ConstructorType
-import Control.Monad.Trans.Writer.CPS (Writer)
-import qualified Control.Monad.Trans.Writer.CPS as Writer
-import qualified Unison.ConstructorType as CT
-import Data.Functor ((<&>))
-import Data.Bitraversable (bitraverse)
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
 typeToReference = h2mReference . Hashing.Type.toReference . m2hType . Memory.Type.removeAllEffectVars
@@ -265,12 +267,17 @@ m2hType :: Ord v => Memory.Type.Type v a -> Hashing.Type.Type v a
 m2hType = ABT.transform \case
   Memory.Type.Ref ref -> Hashing.Type.Ref (m2hReference ref)
   Memory.Type.Arrow a1 a1' -> Hashing.Type.Arrow a1 a1'
-  Memory.Type.Ann a1 ki -> Hashing.Type.Ann a1 ki
+  Memory.Type.Ann a1 ki -> Hashing.Type.Ann a1 (m2hKind ki)
   Memory.Type.App a1 a1' -> Hashing.Type.App a1 a1'
   Memory.Type.Effect a1 a1' -> Hashing.Type.Effect a1 a1'
   Memory.Type.Effects a1s -> Hashing.Type.Effects a1s
   Memory.Type.Forall a1 -> Hashing.Type.Forall a1
   Memory.Type.IntroOuter a1 -> Hashing.Type.IntroOuter a1
+
+m2hKind :: Memory.Kind.Kind -> Hashing.Kind.Kind
+m2hKind = \case
+  Memory.Kind.Star -> Hashing.Kind.Star
+  Memory.Kind.Arrow k1 k2 -> Hashing.Kind.Arrow (m2hKind k1) (m2hKind k2)
 
 m2hReference :: Memory.Reference.Reference -> Hashing.Reference.Reference
 m2hReference = \case
@@ -298,12 +305,17 @@ h2mType :: Ord v => Hashing.Type.Type v a -> Memory.Type.Type v a
 h2mType = ABT.transform \case
   Hashing.Type.Ref ref -> Memory.Type.Ref (h2mReference ref)
   Hashing.Type.Arrow a1 a1' -> Memory.Type.Arrow a1 a1'
-  Hashing.Type.Ann a1 ki -> Memory.Type.Ann a1 ki
+  Hashing.Type.Ann a1 ki -> Memory.Type.Ann a1 (h2mKind ki)
   Hashing.Type.App a1 a1' -> Memory.Type.App a1 a1'
   Hashing.Type.Effect a1 a1' -> Memory.Type.Effect a1 a1'
   Hashing.Type.Effects a1s -> Memory.Type.Effects a1s
   Hashing.Type.Forall a1 -> Memory.Type.Forall a1
   Hashing.Type.IntroOuter a1 -> Memory.Type.IntroOuter a1
+
+h2mKind :: Hashing.Kind.Kind -> Memory.Kind.Kind
+h2mKind = \case
+  Hashing.Kind.Star -> Memory.Kind.Star
+  Hashing.Kind.Arrow k1 k2 -> Memory.Kind.Arrow (h2mKind k1) (h2mKind k2)
 
 h2mReference :: Hashing.Reference.Reference -> Memory.Reference.Reference
 h2mReference = \case
