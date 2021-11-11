@@ -110,9 +110,8 @@ migrateSchema12 conn codebase = do
   ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
     (runDB conn . liftQ) do
       Q.recordObjectRehash oldObjId newObjId
-      Q.deleteIndexesForObject oldObjId
-      -- what about deleting old watches?
-      Q.deleteObject oldObjId
+  -- what about deleting old watches?
+  runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
   where
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
