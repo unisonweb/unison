@@ -95,6 +95,8 @@ import Unison.Var (Var)
 --          * [ ] Delete V1 Hashing to ensure it's unused
 --          * [x] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
+--    * [ ] Update the schema version in the database after migrating so we only migrate
+--    once.
 
 migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
