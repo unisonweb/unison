@@ -2147,7 +2147,8 @@ showTodoOutput getPpe patch names0 = do
 
 checkTodo :: Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
-  f <- computeFrontier (eval . GetDependents) patch names0
+  let shouldUpdate = Names.contains names0
+  f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
@@ -2175,34 +2176,6 @@ checkTodo patch names0 = do
       tdeps <- transitiveClosure branchDependents rs
       -- we don't want the frontier in the result
       pure $ tdeps `Set.difference` rs
-
--- (d, f) when d is "dirty" (needs update),
---             f is in the frontier (an edited dependency of d),
---         and d depends on f
--- a ⋖ b = a depends directly on b
--- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
---
--- The range of this relation is the frontier, and the domain is
--- the set of dirty references.
-computeFrontier ::
-  forall m.
-  Monad m =>
-  (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
-  Patch ->
-  Names ->
-  m (R.Relation Reference Reference)
-computeFrontier getDependents patch names =
-  let edited :: Set Reference
-      edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-      addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
-      addDependents dependents ref =
-        (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
-          <$> getDependents ref
-   in do
-        -- (r,r2) ∈ dependsOn if r depends on r2
-        dependsOn <- foldM addDependents R.empty edited
-        -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-        pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
