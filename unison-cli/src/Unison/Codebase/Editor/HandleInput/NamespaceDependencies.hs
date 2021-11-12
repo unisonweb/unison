@@ -32,7 +32,7 @@ namespaceDependencies :: forall m i v. Branch0 m -> Action m i v (Map Referent (
 namespaceDependencies branch = do
   let refToDeps :: Reference.Id -> Action m i v (Map Referent (Set Name))
       refToDeps refId = do
-        dependencies <- fmap Referent.fromReference . Set.toList <$> eval (GetDependencies refId)
+        dependencies <- fmap Referent.fromTermReference . Set.toList <$> eval (GetDependencies refId)
         ( dependencies
             & fmap \dep -> Map.singleton dep (localNameByReference (Reference.fromId refId))
           )
@@ -60,7 +60,7 @@ namespaceDependencies branch = do
     Map.unions . concat
       <$> ( for (Map.toList onlyExternalDeps) $ \case
               (ref, deps) -> do
-                constructors <- eval (ConstructorsOfType (Referent.toReference ref))
+                constructors <- eval (ConstructorsForType (Referent.toReference ref))
                 let externalConstrs = constructors `Set.difference` currentBranchTermsAndConstructors
                 pure $
                   [ Map.singleton ref deps,
@@ -73,12 +73,12 @@ namespaceDependencies branch = do
     currentBranchTermsAndConstructors :: Set Referent
     currentBranchTermsAndConstructors = Relation.dom (Branch.deepTerms branch)
     localNameByReference :: Reference -> (Set Name)
-    localNameByReference ref = Relation.lookupDom (Referent.fromReference ref) (Branch.deepTerms branch)
+    localNameByReference ref = Relation.lookupDom (Referent.fromTermReference ref) (Branch.deepTerms branch)
     currentBranchTypes :: Set Reference
     currentBranchTypes = Relation.dom (Branch.deepTypes branch)
     typeAndTermRefsInCurrentBranch :: Set Referent
     typeAndTermRefsInCurrentBranch =
-      Set.map Referent.fromReference (Relation.dom (Branch.deepTypes branch))
+      Set.map Referent.fromTermReference (Relation.dom (Branch.deepTypes branch))
         <> currentBranchTermsAndConstructors
 
     -- Since metadata is only linked by reference, not by name,
@@ -99,6 +99,6 @@ namespaceDependencies branch = do
        in Map.unionWith (<>) typeMetadataRefs termMetadataRefs
     externalMetadata :: Map Referent (Set Name)
     externalMetadata = branchMetadataReferences
-                     & Map.mapKeys Referent.fromReference
+                     & Map.mapKeys Referent.fromTermReference
                      & Map.filterWithKey
                         (\ref _ -> ref `Set.notMember` typeAndTermRefsInCurrentBranch)

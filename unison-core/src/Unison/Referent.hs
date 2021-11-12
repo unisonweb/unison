@@ -11,8 +11,8 @@ module Unison.Referent
     pattern ConId,
     fold,
     toReference,
-    fromReference,
-    fromReferenceId,
+    fromTermReference,
+    fromTermReferenceId,
     fromText,
 
     -- * Lenses
@@ -98,12 +98,12 @@ toString = Text.unpack . toText
 toReference :: Referent -> Reference
 toReference = toReference'
 
--- | Inject a Reference into a Referent
-fromReference :: Reference -> Referent
-fromReference r = Ref r
+-- | Inject a Term Reference into a Referent
+fromTermReference :: Reference -> Referent
+fromTermReference r = Ref r
 
-fromReferenceId :: Reference.Id -> Referent
-fromReferenceId = fromReference . Reference.fromId
+fromTermReferenceId :: Reference.Id -> Referent
+fromTermReferenceId = fromTermReference . Reference.fromId
 
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)

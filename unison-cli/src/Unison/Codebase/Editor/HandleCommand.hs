@@ -202,7 +202,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
-    ConstructorsOfType typeRef -> do
+    ConstructorsForType typeRef -> do
       allTermsOfType <- liftIO $ Codebase.termsOfTypeByReference codebase typeRef
       -- Filter to only return the constructors of that type, rather than ALL terms.
       -- There should be a more efficient way to do this once

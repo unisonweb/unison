@@ -51,12 +51,12 @@ data Codebase m v a = Codebase
     -- The dependents of a builtin type includes the set of builtin terms which
     -- mention that type.
     dependentsImpl :: Reference -> m (Set Reference.Id),
-    -- | Get non-transitive dependencies of a reference (i.e. the references contained within a given
-    -- reference).
+    -- | Get non-transitive dependencies of a reference
+    -- (i.e. the references contained within the term associated with the given reference id).
     -- Includes builtins in the result.
     getDependencies :: Reference.Id -> m (Set Reference),
-    -- | Get non-transitive dependencies of a reference (i.e. the references contained within a given
-    -- reference).
+    -- | Get non-transitive dependencies of a reference
+    -- (i.e. the references contained within the term associated with the given reference id).
     -- Does not include builtins in the result.
     getDerivedDependencies :: Reference.Id -> m (Set Reference.Id),
     -- This copies all the dependencies of `b` from the specified Codebase into this one
