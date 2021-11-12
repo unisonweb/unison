@@ -32,7 +32,7 @@ hasMetadata = 3
 
 .dependencies> namespace.dependencies
 
-  External dependency    Dependants in .dependencies
+  External dependency    Dependents in .dependencies
   .builtin.Int           dependsOnInt
                          
   .builtin.Nat           dependsOnIntAndNat
@@ -41,7 +41,7 @@ hasMetadata = 3
                          
   .builtin.Nat.drop      dependsOnIntAndNat
                          
-  .builtin.Text          hasMetadata
+  ##Text                 hasMetadata
                          
   .metadata.myMetadata   hasMetadata
 
