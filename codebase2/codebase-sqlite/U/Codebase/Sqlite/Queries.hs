@@ -112,6 +112,7 @@ module U.Codebase.Sqlite.Queries (
   -- * db misc
   createSchema,
   schemaVersion,
+  setSchemaVersion,
   setFlags,
 
   DataVersion,
@@ -258,6 +259,14 @@ schemaVersion = queryAtoms_ sql >>= \case
   [v] -> pure v
   vs -> error $ show (MultipleSchemaVersions vs)
   where sql = "SELECT version from schema_version;"
+
+setSchemaVersion :: DB m => SchemaVersion -> m ()
+setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
+  where
+    sql = [here|
+     UPDATE schema_version
+     SET version = ?
+     |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)

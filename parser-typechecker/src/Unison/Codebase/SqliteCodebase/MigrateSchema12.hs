@@ -80,11 +80,11 @@ import UnliftIO (MonadUnliftIO)
 
 -- todo:
 --  * write a harness to call & seed algorithm
---    * [ ] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
+--    * [x] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
 --            weird state even if we crash.
 --    * [x] may involve writing a `Progress`
 --    * raw DB things:
---    * [ ] write new namespace root after migration.
+--    * [x] write new namespace root after migration.
 --    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
 --    * [ ] delete references to old objects in index tables (where else?)
 --    * [ ] delete old objects
@@ -97,32 +97,29 @@ import UnliftIO (MonadUnliftIO)
 --          * [ ] Delete V1 Hashing to ensure it's unused
 --          * [x] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
---    * [ ] Update the schema version in the database after migrating so we only migrate
+--    * [x] Update the schema version in the database after migrating so we only migrate
 --    once.
 
 migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
-  migrationState <-
-    withinSavepoint "MIGRATE12" $ do
-          rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
-          watches <-
-            foldMapM
-              (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
-              [WK.RegularWatch, WK.TestWatch]
-          migrationState <-
-            (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
-              `runReaderT` Env {db = conn, codebase}
-              `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
-          let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
-          runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
-          pure migrationState
-
-  withinSavepoint "MIGRATE12_CLEANUP" do
+  withinSavepoint "MIGRATESCHEMA12" $ do
+        rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
+        watches <-
+          foldMapM
+            (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
+            [WK.RegularWatch, WK.TestWatch]
+        migrationState <-
+          (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+            `runReaderT` Env {db = conn, codebase}
+            `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+        let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+        runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
         ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
           (runDB conn . liftQ) do
             Q.recordObjectRehash oldObjId newObjId
         -- what about deleting old watches?
         runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+        runDB conn . liftQ $ Q.setSchemaVersion 2
   where
     withinSavepoint :: (String -> m c -> m c)
     withinSavepoint name act =
