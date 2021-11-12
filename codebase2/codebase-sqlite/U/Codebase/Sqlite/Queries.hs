@@ -56,7 +56,6 @@ module U.Codebase.Sqlite.Queries (
   loadObjectWithTypeById,
   loadObjectWithHashIdAndTypeById,
   updateObjectBlob, -- unused
-  deleteObject,
 
   -- * namespace_root table
   loadMaybeNamespaceRoot,
@@ -86,7 +85,6 @@ module U.Codebase.Sqlite.Queries (
   clearWatches,
 
   -- * indexes
-  deleteIndexesForObject,
   -- ** dependents index
   addToDependentsIndex,
   getDependentsForDependency,
@@ -107,6 +105,9 @@ module U.Codebase.Sqlite.Queries (
   objectIdByBase32Prefix,
   namespaceHashIdByBase32Prefix,
   causalHashIdByBase32Prefix,
+
+  -- * garbage collection
+  garbageCollectObjectsWithoutHashes,
 
   -- * db misc
   createSchema,
@@ -413,16 +414,6 @@ updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
   UPDATE object SET bytes = ? WHERE id = ?
 |]
 
--- | Delete a row in the @object@ table.
-deleteObject :: DB m => ObjectId -> m ()
-deleteObject oid =
-  execute
-    [here|
-      DELETE FROM object
-      WHERE id = ?
-    |]
-    (Only oid)
-
 -- |Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
 saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
@@ -661,28 +652,46 @@ getTypeMentionsReferencesForComponent r =
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
 
--- | Delete all mentions of an object in index tables.
-deleteIndexesForObject :: DB m => ObjectId -> m ()
-deleteIndexesForObject oid = do
-  execute
+-- | Delete objects without hashes. An object typically *would* have a hash, but (for example) during a migration in which an object's hash
+-- may change, its corresponding hash_object row may be updated to point at a new version of that object. This procedure clears out all
+-- references to objects that do not have any corresponding hash_object rows.
+garbageCollectObjectsWithoutHashes :: DB m => m ()
+garbageCollectObjectsWithoutHashes = do
+  execute_
+    [here|
+      CREATE TEMPORARY TABLE object_without_hash AS
+        SELECT id
+        FROM object
+        WHERE id NOT IN (
+          SELECT object_id
+          FROM hash_object
+        )
+    |]
+  execute_
     [here|
       DELETE FROM dependents_index
-      WHERE dependency_object_id = ?
-        OR dependent_object_id = ?
+      WHERE dependency_object_id IN object_without_hash
+        OR dependent_object_id IN object_without_hash
     |]
-    (oid, oid)
-  execute
+  execute_
     [here|
       DELETE FROM find_type_index
-      WHERE term_referent_object_id = ?
+      WHERE term_referent_object_id IN object_without_hash
     |]
-    (Only oid)
-  execute
+  execute_
     [here|
       DELETE FROM find_type_mentions_index
-      WHERE term_referent_object_id = ?
+      WHERE term_referent_object_id IN object_without_hash
     |]
-    (Only oid)
+  execute_
+    [here|
+      DELETE FROM object
+      WHERE id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DROP TABLE object_without_hash
+    |]
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
