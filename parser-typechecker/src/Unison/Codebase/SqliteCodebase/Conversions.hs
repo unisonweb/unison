@@ -32,7 +32,7 @@ import qualified U.Util.Hash as V2.Hash
 import qualified U.Util.Map as Map
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
-import qualified Unison.Codebase.Causal as V1.Causal
+import qualified Unison.Codebase.Causal.Type as V1.Causal
 import qualified Unison.Codebase.Metadata as V1.Metadata
 import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1

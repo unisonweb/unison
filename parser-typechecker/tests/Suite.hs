@@ -10,7 +10,6 @@ import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.Codebase.Branch as Branch
-import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
@@ -36,7 +35,6 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.CodebaseInit as CodebaseInit
--- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
 test = tests
@@ -57,7 +55,6 @@ test = tests
   , Text.test
   , Relation.test
   , Path.test
-  , Causal.test
   , Referent.test
   , ABT.test
   , ANF.test

@@ -10,8 +10,8 @@ module Unison.Hashing.V2.Referent
 where
 
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as H
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as H
 import Unison.Hashing.V2.Reference (Reference)
 
 data Referent = Ref Reference | Con Reference ConstructorId

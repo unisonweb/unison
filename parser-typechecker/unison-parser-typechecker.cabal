@@ -38,6 +38,7 @@ library
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
       Unison.Codebase.Causal.FoldHistory
+      Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.DisplayObject
@@ -82,6 +83,7 @@ library
       Unison.Hashing.V2.Causal
       Unison.Hashing.V2.Convert
       Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.Hashable
       Unison.Hashing.V2.Kind
       Unison.Hashing.V2.Patch
       Unison.Hashing.V2.Pattern
@@ -352,7 +354,6 @@ executable tests
       Unison.Test.ANF
       Unison.Test.Cache
       Unison.Test.Codebase.Branch
-      Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.ColorText

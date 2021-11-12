@@ -10,7 +10,6 @@ module Unison.Hashing.V2.Reference
     pattern DerivedId,
     Id (..),
     components,
-    toText,
   )
 where
 
@@ -18,8 +17,8 @@ import Unison.Prelude
 
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as Hashable
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 
@@ -55,9 +54,6 @@ toShortHash (Derived h i) = SH.ShortHash (H.base32Hex h) (Just $ showSuffix i) N
 
 showSuffix :: Pos -> Text
 showSuffix = Text.pack . show
-
-toText :: Reference -> Text
-toText = SH.toText . toShortHash
 
 component :: H.Hash -> [k] -> [(k, Id)]
 component h ks = let

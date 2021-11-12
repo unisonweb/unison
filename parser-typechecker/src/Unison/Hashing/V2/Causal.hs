@@ -11,8 +11,8 @@ where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as H
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as H
 
 hashCausal :: H.Accumulate h => Causal -> h
 hashCausal = H.accumulate'

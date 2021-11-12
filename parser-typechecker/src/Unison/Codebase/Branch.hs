@@ -74,10 +74,10 @@ import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform, uncons )
-import           Data.Bifunctor                 ( second )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
+import Control.Lens hiding (children, cons, transform, uncons)
+import Data.Bifunctor (second)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Unison.Codebase.Branch.Raw (Raw (Raw))
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -91,26 +91,24 @@ import Unison.Codebase.Branch.Type
     headHash,
     history,
   )
-import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch          ( Patch )
-import qualified Unison.Codebase.Causal        as Causal
 import Unison.Codebase.Causal (Causal)
-import           Unison.Codebase.Path           ( Path(..) )
-import qualified Unison.Codebase.Path          as Path
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.Codebase.Metadata      as Metadata
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Hashable               as H
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Patch (Patch)
+import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Path (Path (..))
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Hashing.V2.Convert as H
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent )
-import qualified Unison.Util.Relation          as R
-import qualified Unison.Util.Relation4         as R4
-import qualified Unison.Util.Star3             as Star3
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
 import qualified Unison.Util.List as List
 import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Star3 as Star3
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -450,9 +448,6 @@ stepManyAt0M actions b = go (toList actions) b where
     in do
       c2 <- stepChildren (view children b)
       currentAction (set children c2 b)
-
-instance Hashable (Branch0 m) where
-  tokens = H.tokensBranch0
 
 -- todo: consider inlining these into Actions2
 addTermName

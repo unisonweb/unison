@@ -4,8 +4,8 @@ module Unison.Hashing.V2.Kind where
 
 import Unison.Prelude
 
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as Hashable
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as Hashable
 
 data Kind = Star | Arrow Kind Kind deriving (Eq,Ord,Read,Show,Generic)
 

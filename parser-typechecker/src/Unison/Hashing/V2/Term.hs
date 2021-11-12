@@ -25,8 +25,8 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hash as Hash
-import Unison.Hashable (Hashable1, accumulateToken)
-import qualified Unison.Hashable as Hashable
+import Unison.Hashing.V2.Hashable (Hashable1, accumulateToken)
+import qualified Unison.Hashing.V2.Hashable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Pattern (Pattern)
 import Unison.Hashing.V2.Reference (Reference)

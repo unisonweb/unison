@@ -4,26 +4,20 @@
 
 module Unison.Codebase.Causal
   ( Causal (..),
-    Raw (..),
-    RawHash (..),
+    RawHash (RawHash, unRawHash),
     head_,
     one,
     cons,
     cons',
     consDistinct,
     uncons,
-    hash,
     children,
-    Deserialize,
-    Serialize,
-    cachedRead,
     threeWayMerge,
     threeWayMerge',
     squashMerge',
     lca,
     stepDistinct,
     stepDistinctM,
-    sync,
     transform,
     unsafeMapHashPreserving,
     before,
@@ -34,195 +28,44 @@ where
 import Unison.Prelude
 
 import qualified Control.Monad.Extra as Monad (anyM)
-import Control.Monad.State (StateT)
-import qualified Control.Monad.State as State
 import qualified Control.Monad.Reader as Reader
+import qualified Control.Monad.State as State
 import qualified Data.Map as Map
-import Data.Sequence (ViewL (..))
-import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import qualified U.Util.Cache as Cache
-import Unison.Hash (Hash)
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as Hashable
+import Unison.Codebase.Branch.Type (Branch0, UnwrappedBranch)
+import Unison.Codebase.Causal.Type
+  ( Causal
+      ( Cons,
+        Merge,
+        One,
+        currentHash,
+        head,
+        tail,
+        tails
+      ),
+    RawHash (RawHash, unRawHash),
+    before,
+    children,
+    head_,
+    lca,
+  )
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Prelude hiding (head, read, tail)
-import qualified Control.Lens as Lens
-
-{-
-`Causal a` has 5 operations, specified algebraically here:
-
-* `before : Causal m a -> Causal m a -> m Bool` defines a partial order on
-            `Causal`.
-* `head : Causal m a -> a`, which represents the "latest" `a` value in a causal
-          chain.
-* `one : a -> Causal m a`, satisfying `head (one hd) == hd`
-* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and
-          also `before tl (cons hd tl)`.
-* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is
-           commutative (but not associative) and satisfies:
-  * `before c1 (merge c1 c2)`
-  * `before c2 (merge c1 c2)`
-* `sequence : Causal a -> Causal a -> Causal a`, which is defined as
-              `sequence c1 c2 = cons (head c2) (merge c1 c2)`.
-  * `before c1 (sequence c1 c2)`
-  * `head (sequence c1 c2) == head c2`
--}
-
-newtype RawHash a = RawHash { unRawHash :: Hash }
-  deriving (Eq, Ord, Generic)
-
-instance Show (RawHash a) where
-  show = show . unRawHash
-
-instance Show e => Show (Causal m h e) where
-  show = \case
-    One h e      -> "One " ++ (take 3 . show) h ++ " " ++ show e
-    Cons h e t   -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
-    Merge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
-
--- h is the type of the pure data structure that will be hashed and used as
--- an index; e.g. h = Branch00, e = Branch0 m
-data Causal m h e
-  = One { currentHash :: RawHash h
-        , head :: e
-        }
-  | Cons { currentHash :: RawHash h
-         , head :: e
-         , tail :: (RawHash h, m (Causal m h e))
-         }
-  -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: RawHash h
-          , head :: e
-          , tails :: Map (RawHash h) (m (Causal m h e))
-          }
-
-Lens.makeLensesFor [("head", "head_")] ''Causal
-
--- A serializer `Causal m h e`. Nonrecursive -- only responsible for
--- writing a single node of the causal structure.
-data Raw h e
-  = RawOne e
-  | RawCons e (RawHash h)
-  | RawMerge e (Set (RawHash h))
-
-type Deserialize m h e = RawHash h -> m (Raw h e)
-
-cachedRead :: MonadIO m
-           => Cache.Cache (RawHash h) (Causal m h e)
-           -> Deserialize m h e
-           -> RawHash h -> m (Causal m h e)
-cachedRead cache deserializeRaw h = Cache.lookup cache h >>= \case
-  Nothing -> do
-    raw <- deserializeRaw h
-    causal <- pure $ case raw of
-      RawOne e              -> One h e
-      RawCons e tailHash    -> Cons h e (tailHash, read tailHash)
-      RawMerge e tailHashes -> Merge h e $
-        Map.fromList [(h, read h) | h <- toList tailHashes ]
-    Cache.insert cache h causal
-    pure causal
-  Just causal -> pure causal
-  where
-    read = cachedRead cache deserializeRaw
-
-type Serialize m h e = RawHash h -> Raw h e -> m ()
-
--- Sync a causal to some persistent store, stopping when hitting a Hash which
--- has already been written, according to the `exists` function provided.
-sync
-  :: forall m h e
-   . Monad m
-  => (RawHash h -> m Bool)
-  -> Serialize (StateT (Set (RawHash h)) m) h e
-  -> Causal m h e
-  -> StateT (Set (RawHash h)) m ()
-sync exists serialize c = do
-  queued <- State.get
-  itExists <- if Set.member (currentHash c) queued then pure True
-              else lift . exists $ currentHash c
-  unless itExists $ go c
- where
-  go :: Causal m h e -> StateT (Set (RawHash h)) m ()
-  go c = do
-    queued <- State.get
-    when (Set.notMember (currentHash c) queued) $ do
-      State.modify (Set.insert $ currentHash c)
-      case c of
-        One currentHash head -> serialize currentHash $ RawOne head
-        Cons currentHash head (tailHash, tailm) -> do
-          -- write out the tail first, so what's on disk is always valid
-          b <- lift $ exists tailHash
-          unless b $ go =<< lift tailm
-          serialize currentHash (RawCons head tailHash)
-        Merge currentHash head tails -> do
-          for_ (Map.toList tails) $ \(hash, cm) -> do
-            b <- lift $ exists hash
-            unless b $ go =<< lift cm
-          serialize currentHash (RawMerge head (Map.keysSet tails))
-
-instance Eq (Causal m h a) where
-  a == b = currentHash a == currentHash b
-
-instance Ord (Causal m h a) where
-  a <= b = currentHash a <= currentHash b
-
-instance Hashable (RawHash h) where
-  tokens (RawHash h) = Hashable.tokens h
-
--- Find the lowest common ancestor of two causals.
-lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
-lca a b =
-  lca' (Seq.singleton $ pure a) (Seq.singleton $ pure b)
-
--- `lca' xs ys` finds the lowest common ancestor of any element of `xs` and any
--- element of `ys`.
--- This is a breadth-first search used in the implementation of `lca a b`.
-lca'
-  :: Monad m
-  => Seq (m (Causal m h e))
-  -> Seq (m (Causal m h e))
-  -> m (Maybe (Causal m h e))
-lca' = go Set.empty Set.empty where
-  go seenLeft seenRight remainingLeft remainingRight =
-    case Seq.viewl remainingLeft of
-      Seq.EmptyL -> search seenLeft remainingRight
-      a :< as    -> do
-        left <- a
-        if Set.member (currentHash left) seenRight
-          then pure $ Just left
-          -- Note: swapping position of left and right when we recurse so that
-          -- we search each side equally. This avoids having to case on both
-          -- arguments, and the order shouldn't really matter.
-          else go seenRight
-                  (Set.insert (currentHash left) seenLeft)
-                  remainingRight
-                  (as <> children left)
-  search seen remaining = case Seq.viewl remaining of
-    Seq.EmptyL -> pure Nothing
-    a :< as    -> do
-      current <- a
-      if Set.member (currentHash current) seen
-        then pure $ Just current
-        else search seen (as <> children current)
-
-children :: Causal m h e -> Seq (m (Causal m h e))
-children (One _ _         ) = Seq.empty
-children (Cons  _ _ (_, t)) = Seq.singleton t
-children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
+import qualified Unison.Codebase.Branch.Raw as Branch
 
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
 -- (or is equal to `c2` if `c1` changes nothing).
 squashMerge'
-  :: forall m h e
-   . (Monad m, Hashable e, Eq e)
-  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
-  -> (e -> m e)
-  -> (Maybe e -> e -> e -> m e)
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
+  :: forall m
+   . Monad m
+  => (UnwrappedBranch m -> UnwrappedBranch m -> m (Maybe (UnwrappedBranch m)))
+  -> (Branch0 m -> m (Branch0 m))
+  -> (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
+  -> UnwrappedBranch m
+  -> UnwrappedBranch m
+  -> m (UnwrappedBranch m)
 squashMerge' lca discardHistory combine c1 c2 = do
   theLCA <- lca c1 c2
   let done newHead = consDistinct newHead c2
@@ -233,22 +76,22 @@ squashMerge' lca discardHistory combine c1 c2 = do
       | lca == c2 -> done <$> discardHistory (head c1)
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
-threeWayMerge :: forall m h e
-   . (Monad m, Hashable e)
-  => (Maybe e -> e -> e -> m e)
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
+threeWayMerge :: forall m
+   . Monad m
+  => (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
+  -> UnwrappedBranch m
+  -> UnwrappedBranch m
+  -> m (UnwrappedBranch m)
 threeWayMerge = threeWayMerge' lca
 
 threeWayMerge'
-  :: forall m h e
-   . (Monad m, Hashable e)
-  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
-  -> (Maybe e -> e -> e -> m e)
-  -> Causal m h e
-  -> Causal m h e
-  -> m (Causal m h e)
+  :: forall m
+   . Monad m
+  => (UnwrappedBranch m -> UnwrappedBranch m -> m (Maybe (UnwrappedBranch m)))
+  -> (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
+  -> UnwrappedBranch m
+  -> UnwrappedBranch m
+  -> m (UnwrappedBranch m)
 threeWayMerge' lca combine c1 c2 = do
   theLCA <- lca c1 c2
   case theLCA of
@@ -260,12 +103,10 @@ threeWayMerge' lca combine c1 c2 = do
  where
   children =
     Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
-  done :: e -> Causal m h e
+  done :: Branch0 m -> UnwrappedBranch m
   done newHead =
-    Merge (RawHash (hash (newHead, Map.keys children))) newHead children
-
-before :: Monad m => Causal m h e -> Causal m h e -> m Bool
-before a b = (== Just a) <$> lca a b
+    let h = Hashing.hashCausal newHead (Map.keysSet children)
+    in Merge (RawHash h) newHead children
 
 -- `True` if `h` is found in the history of `c` within `maxDepth` path length
 -- from the tip of `c`
@@ -285,27 +126,28 @@ beforeHash maxDepth h c =
       State.modify' (<> Set.fromList cs)
       Monad.anyM (Reader.local (1+) . go) unseens
 
-hash :: Hashable e => e -> Hash
-hash = Hashable.accumulate'
-
-stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
+stepDistinct :: Applicative m => (Branch0 m -> Branch0 m) -> UnwrappedBranch m -> UnwrappedBranch m
 stepDistinct f c = f (head c) `consDistinct` c
 
 stepDistinctM
-  :: (Applicative m, Functor n, Eq e, Hashable e)
-  => (e -> n e) -> Causal m h e -> n (Causal m h e)
+  :: (Applicative m, Functor n)
+  => (Branch0 m -> n (Branch0 m)) -> UnwrappedBranch m -> n (UnwrappedBranch m)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
-one :: Hashable e => e -> Causal m h e
-one e = One (RawHash $ hash e) e
+one :: Branch0 m -> UnwrappedBranch m
+one e =
+  let h = Hashing.hashCausal e mempty
+  in One (RawHash h) e
 
-cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
+cons :: Applicative m => Branch0 m -> UnwrappedBranch m -> UnwrappedBranch m
 cons e tl = cons' e (currentHash tl) (pure tl)
 
-cons' :: Hashable e => e -> RawHash h -> m (Causal m h e) -> Causal m h e
-cons' e ht mt = Cons (RawHash $ hash [hash e, unRawHash ht]) e (ht, mt)
+cons' :: Branch0 m -> RawHash Branch.Raw -> m (UnwrappedBranch m) -> UnwrappedBranch m
+cons' b0 hTail mTail =
+  let h = Hashing.hashCausal b0 (Set.singleton hTail)
+  in Cons (RawHash h) b0 (hTail, mTail)
 
-consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
+consDistinct :: Applicative m => Branch0 m -> UnwrappedBranch m -> UnwrappedBranch m
 consDistinct e tl =
   if head tl == e then tl
   else cons e tl
