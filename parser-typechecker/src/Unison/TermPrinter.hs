@@ -305,8 +305,10 @@ pretty0
       lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
          <> printGuard guard
       printGuard Nothing = mempty
-      printGuard (Just g') = let (_,g) = ABT.unabs g' in
-        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im doc) g]
+      printGuard (Just g') =
+        let (_,g) = ABT.unabs g'
+         in PP.softHang (fmt S.DelimiterChar " |") $
+              pretty0 n (ac 2 Normal im doc) g
       eq = fmt S.BindingEquals " ="
       rhs =
         let (im', uses) = calcImports im scrutinee in
