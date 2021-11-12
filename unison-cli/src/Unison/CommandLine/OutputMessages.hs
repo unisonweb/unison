@@ -929,7 +929,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadRepo repo
       CouldntLoadSyncedBranch ns h ->
