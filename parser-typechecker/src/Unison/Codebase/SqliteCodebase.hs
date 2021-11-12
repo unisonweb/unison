@@ -109,7 +109,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO)
+import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 
@@ -124,11 +124,11 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 v2dir :: FilePath -> FilePath
 v2dir root = root </> ".unison" </> "v2"
 
-init :: HasCallStack => (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
+init :: HasCallStack => (MonadUnliftIO m, MonadCatch m) => Codebase.Init m Symbol Ann
 init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
 
 createCodebaseOrError ::
-  (MonadIO m, MonadCatch m) =>
+  (MonadUnliftIO m, MonadCatch m) =>
   Codebase.DebugName ->
   CodebasePath ->
   m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
@@ -148,7 +148,7 @@ data CreateCodebaseError
   deriving (Show)
 
 createCodebaseOrError' ::
-  (MonadIO m, MonadCatch m) =>
+  (MonadUnliftIO m, MonadCatch m) =>
   Codebase.DebugName ->
   CodebasePath ->
   m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
@@ -179,7 +179,7 @@ openOrCreateCodebaseConnection debugName path = do
   unsafeGetConnection debugName path
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError :: forall m. (MonadUnliftIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
 getCodebaseOrError debugName dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
@@ -274,7 +274,7 @@ shutdownConnection conn = do
 
 sqliteCodebase ::
   forall m.
-  (MonadIO m, MonadCatch m) =>
+  (MonadUnliftIO m, MonadCatch m) =>
   Codebase.DebugName ->
   CodebasePath ->
   m (Either SchemaVersion (m (), Codebase m Symbol Ann))
@@ -1057,7 +1057,7 @@ syncProgress = Sync.Progress need done warn allDone
 
 viewRemoteBranch' ::
   forall m.
-  (MonadIO m, MonadCatch m) =>
+  (MonadUnliftIO m, MonadCatch m) =>
   ReadRemoteNamespace ->
   m (Either C.GitError (m (), Branch m, CodebasePath))
 viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
