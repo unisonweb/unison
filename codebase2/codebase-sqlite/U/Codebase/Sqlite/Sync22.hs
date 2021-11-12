@@ -41,7 +41,6 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import Unison.Prelude
-import qualified U.Codebase.Sqlite.LabeledRef as Sqlite.LabeledRef
 
 data Entity
   = O ObjectId
@@ -258,7 +257,7 @@ trySync tCache hCache oCache cCache = \case
     syncDependenciesIndex ref ref' = do
       deps <- runSrc (Q.getDependenciesForDependent ref)
       for_ deps \dep -> do
-        dep' <- expectSyncedObjectReference (Sqlite.LabeledRef.toReference dep)
+        dep' <- expectSyncedObjectReference dep
         runDest (Q.addToDependentsIndex dep' ref')
 
     syncLocalIds :: L.LocalIds -> ValidateT (Set Entity) m L.LocalIds

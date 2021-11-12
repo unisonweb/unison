@@ -34,15 +34,12 @@ instance ToRow (Reference' TextId HashId) where
     ReferenceBuiltin t -> toRow (Only t) ++ [SQLNull, SQLNull]
     ReferenceDerived (Id h i) -> SQLNull : toRow (Only h) ++ toRow (Only i)
 
--- SELECT optional builtin_text_id, hash_id, pos
 instance FromRow (Reference' TextId HashId) where
   fromRow = referenceFromRow'
 
--- SELECT optional builtin_text_id, object_id, pos
 instance FromRow (Reference' TextId ObjectId) where
   fromRow = referenceFromRow'
 
--- SELECT optional builtin_text_id, hash_id/object_id, pos
 referenceFromRow' :: (FromField t, FromField h, Show t, Show h) => RowParser (Reference' t h)
 referenceFromRow' = liftA3 mkRef field field field
   where

@@ -88,7 +88,6 @@ module U.Codebase.Sqlite.Operations (
   declReferencesByPrefix,
   branchHashesByPrefix,
   derivedDependencies,
-  dependencies,
 ) where
 
 import Control.Lens (Lens')
@@ -201,8 +200,6 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
-import qualified U.Codebase.Sqlite.LabeledRef as S
-import qualified U.Codebase.LabeledRef as C
 
 -- * Error handling
 
@@ -321,12 +318,6 @@ c2sReference = bitraverse lookupTextId primaryHashToExistingObjectId
 
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
-
-s2cLabeledRef :: EDB m => S.LabeledRef -> m C.LabeledRef
-s2cLabeledRef = \case
-  S.TypeReference reference -> C.TypeReference <$> (s2cReference reference)
-  S.TermReference reference -> C.TermReference <$> (s2cReference reference)
-  S.ConstructorReference referent -> C.ConstructorReference <$> (s2cReferent referent)
 
 c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
 c2sReferenceId = C.Reference.idH primaryHashToExistingObjectId
@@ -1430,9 +1421,7 @@ dependents r = do
   cIds <- traverse s2cReferenceId sIds
   pure $ Set.fromList cIds
 
--- | Returns empty set for unknown inputs;
--- Doesn't distinguish between term and decl
--- Doesn't include builtins
+-- | returns empty set for unknown inputs; doesn't distinguish between term and decl
 derivedDependencies :: EDB m => C.Reference.Id -> m (Set C.Reference.Id)
 derivedDependencies cid = do
   sid <- c2sReferenceId cid
@@ -1440,11 +1429,4 @@ derivedDependencies cid = do
   cids <- traverse s2cReferenceId sids
   pure $ Set.fromList cids
 
--- | Returns the dependencies of the given term.
--- Includes builtins.
-dependencies :: EDB m => C.Reference.Id -> m (Set C.LabeledRef)
-dependencies cid = do
-  sid <- c2sReferenceId cid
-  sids <- Q.getDependenciesForDependent sid
-  cids <- traverse s2cLabeledRef sids
-  pure $ Set.fromList cids
+-- lca              :: (forall he e. [Causal m CausalHash he e] -> m (Maybe BranchHash)),
