@@ -108,6 +108,7 @@ module U.Codebase.Sqlite.Queries (
 
   -- * garbage collection
   garbageCollectObjectsWithoutHashes,
+  garbageCollectWatchesWithoutObjects,
 
   -- * db misc
   createSchema,
@@ -704,6 +705,18 @@ garbageCollectObjectsWithoutHashes = do
     [here|
       DROP TABLE object_without_hash
     |]
+  execute_ "VACUUM"
+
+-- | Delete all
+garbageCollectWatchesWithoutObjects :: DB m => m ()
+garbageCollectWatchesWithoutObjects = do
+  execute_
+    [here|
+      DELETE FROM watch
+      WHERE watch.hash_id NOT IN
+      (SELECT hash_object.hash_id FROM hash_object)
+    |]
+  execute_ "VACUUM"
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)

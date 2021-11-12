@@ -117,8 +117,8 @@ migrateSchema12 conn codebase = do
         ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
           (runDB conn . liftQ) do
             Q.recordObjectRehash oldObjId newObjId
-        -- what about deleting old watches?
         runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+        runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
         runDB conn . liftQ $ Q.setSchemaVersion 2
   where
     withinSavepoint :: (String -> m c -> m c)
