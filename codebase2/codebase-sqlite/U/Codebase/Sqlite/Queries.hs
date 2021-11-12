@@ -107,6 +107,7 @@ module U.Codebase.Sqlite.Queries (
   causalHashIdByBase32Prefix,
 
   -- * garbage collection
+  vacuum,
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
 
@@ -565,7 +566,6 @@ clearWatches :: DB m => m ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
   execute_ "DELETE FROM watch"
-  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
@@ -705,7 +705,6 @@ garbageCollectObjectsWithoutHashes = do
     [here|
       DROP TABLE object_without_hash
     |]
-  execute_ "VACUUM"
 
 -- | Delete all
 garbageCollectWatchesWithoutObjects :: DB m => m ()
@@ -716,7 +715,11 @@ garbageCollectWatchesWithoutObjects = do
       WHERE watch.hash_id NOT IN
       (SELECT hash_object.hash_id FROM hash_object)
     |]
-  execute_ "VACUUM"
+
+-- | Clean the database and recover disk space.
+-- This is an expensive operation. Also note that it cannot be executed within a transaction.
+vacuum :: DB m => m ()
+vacuum = execute_ "VACUUM"
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)

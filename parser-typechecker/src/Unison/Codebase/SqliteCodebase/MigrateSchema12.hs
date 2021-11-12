@@ -120,6 +120,7 @@ migrateSchema12 conn codebase = do
         runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
         runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
         runDB conn . liftQ $ Q.setSchemaVersion 2
+  runDB conn (liftQ Q.vacuum)
   where
     withinSavepoint :: (String -> m c -> m c)
     withinSavepoint name act =
