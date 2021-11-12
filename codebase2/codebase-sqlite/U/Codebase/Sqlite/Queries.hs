@@ -120,6 +120,8 @@ module U.Codebase.Sqlite.Queries (
   savepoint,
   release,
   rollbackRelease,
+  rollbackTo,
+  withSavepoint,
 
   setJournalMode,
   traceConnectionFile,
@@ -186,6 +188,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
+import UnliftIO.Exception (bracket_, onException)
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -918,11 +921,39 @@ withImmediateTransaction action = do
 
 
 -- | low-level transaction stuff
-savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+
+-- | Create a savepoint, which is a named transaction which may wrap many nested
+-- sub-transactions.
+savepoint :: DB m => String -> m ()
 savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+
+-- | Release a savepoint, which will commit the results once all
+-- wrapping transactions/savepoints are commited.
+release :: DB m => String -> m ()
 release name = execute_ (fromString $ "RELEASE " ++ name)
+
+-- | Roll the database back to its state from when the savepoint was created.
+-- Note: this also re-starts the savepoint and it must still be released if that is the
+-- intention. See 'rollbackRelease'.
+rollbackTo :: DB m => String -> m ()
 rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+
+-- | Roll back the savepoint and immediately release it.
+-- This effectively _aborts_ the savepoint, useful if an irrecoverable error is
+-- encountered.
+rollbackRelease :: DB m => String -> m ()
 rollbackRelease name = rollbackTo name *> release name
+
+-- | Runs the provided action within a savepoint.
+-- Releases the savepoint on completion.
+-- If an exception occurs, the savepoint will be rolled-back and released,
+-- abandoning all changes.
+withSavepoint :: (DB m, MonadUnliftIO m) => String -> m a -> m a
+withSavepoint name act =
+  bracket_
+    (savepoint name)
+    (release name)
+    (act `onException` rollbackTo name)
 
 -- * orphan instances
 
