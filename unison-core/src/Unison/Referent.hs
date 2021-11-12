@@ -11,6 +11,7 @@ module Unison.Referent
     pattern ConId,
     fold,
     toReference,
+    toReferenceId,
     fromTermReference,
     fromTermReferenceId,
     fromText,
@@ -97,6 +98,9 @@ toString = Text.unpack . toText
 
 toReference :: Referent -> Reference
 toReference = toReference'
+
+toReferenceId :: Referent -> Maybe Reference.Id
+toReferenceId = Reference.toId . toReference
 
 -- | Inject a Term Reference into a Referent
 fromTermReference :: Reference -> Referent

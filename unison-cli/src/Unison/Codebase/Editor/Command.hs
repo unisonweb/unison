@@ -134,9 +134,6 @@ data Command
   TermReferencesByShortHash :: ShortHash -> Command m i v (Set Reference)
   TermReferentsByShortHash :: ShortHash -> Command m i v (Set Referent)
 
-  -- | Get referents to all constructors for the type declaration associated with the provided reference.
-  ConstructorsForTypeDeclaration :: Reference -> Command m i v (Set Referent)
-
   -- the hash length needed to disambiguate any branch in the codebase
   BranchHashLength :: Command m i v Int
 
@@ -241,17 +238,6 @@ data Command
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
 
-  -- | Get the immediate (not transitive) dependencies of the given reference
-  -- This might include historical definitions not in any current path; these
-  -- should be filtered by the caller of this command if that's not desired.
-  -- Includes builtins
-  GetDependencies :: Reference.Id -> Command m i v (Set Reference)
-  -- | Get the immediate (not transitive) dependencies of the given reference
-  -- This might include historical definitions not in any current path; these
-  -- should be filtered by the caller of this command if that's not desired.
-  -- Excludes builtins
-  GetDerivedDependencies :: Reference.Id -> Command m i v (Set Reference.Id)
-
   GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
 
@@ -326,8 +312,6 @@ commandName = \case
   IsTerm {} -> "IsTerm"
   IsType {} -> "IsType"
   GetDependents {} -> "GetDependents"
-  GetDependencies {} -> "GetDependencies"
-  GetDerivedDependencies {} -> "GetDerivedDependencies"
   GetTermsOfType {} -> "GetTermsOfType"
   GetTermsMentioningType {} -> "GetTermsMentioningType"
   Execute {} -> "Execute"
@@ -341,4 +325,3 @@ commandName = \case
   ClearWatchCache {} -> "ClearWatchCache"
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
-  ConstructorsForTypeDeclaration {} -> "ConstructorsForTypeDeclaration"

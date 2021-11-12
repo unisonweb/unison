@@ -1356,11 +1356,16 @@ notifyUser dir o = case o of
     pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
       List.intersperse spacer (externalDepsTable externalDependencies)
     where
-      externalDepsTable :: Map Referent (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
-      externalDepsTable = ifoldMap $ \ref dependents ->
-        [(prettyRef ref, prettyDependents dependents)]
-      prettyRef :: Referent -> P.Pretty P.ColorText
-      prettyRef ref = (P.syntaxToColor . prettyHashQualified $ PPE.typeOrTermName ppe ref)
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
       prettyDependents :: Set Name -> P.Pretty P.ColorText
       prettyDependents refs =
         refs

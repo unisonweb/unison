@@ -98,6 +98,7 @@ library
     , regex-tdfa
     , stm
     , text
+    , transformers
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
@@ -165,6 +166,7 @@ executable integration-tests
     , stm
     , text
     , time
+    , transformers
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
@@ -232,6 +234,7 @@ executable transcripts
     , shellmet
     , stm
     , text
+    , transformers
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
@@ -302,6 +305,7 @@ executable unison
     , template-haskell
     , temporary
     , text
+    , transformers
     , unison-cli
     , unison-codebase-sqlite
     , unison-core1
@@ -379,6 +383,7 @@ test-suite tests
     , stm
     , temporary
     , text
+    , transformers
     , unison-cli
     , unison-codebase-sqlite
     , unison-core1

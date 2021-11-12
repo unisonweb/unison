@@ -215,7 +215,7 @@ data Output v
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
       Path.Absolute -- The namespace we're checking dependencies for.
-      (Map Referent (Set Name)) -- Mapping of external dependencies to their local dependents.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
