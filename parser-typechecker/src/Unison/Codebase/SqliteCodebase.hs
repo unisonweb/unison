@@ -610,20 +610,6 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
-          -- | Get the set of derived (a.k.a. non-builtin) dependencies of a term or type.
-          getDerivedDependencies :: MonadIO m => Reference.Id -> m (Set Reference.Id)
-          getDerivedDependencies r =
-            runDB conn $ do
-              refs <- Ops.derivedDependencies (Cv.referenceid1to2 r)
-              Set.traverse (Cv.referenceid2to1 (getCycleLen "getDerivedDependencies")) refs
-
-          -- | Get the set of all dependencies (including builtins) of a term or type.
-          getDependencies :: MonadIO m => Reference.Id -> m (Set LabeledDependency)
-          getDependencies r =
-            runDB conn $ do
-              refs <- Ops.dependencies (Cv.referenceid1to2 r)
-              Set.traverse (Cv.reference2to1 (getCycleLen "getDependencies")) refs
-
           syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncFromDirectory srcRoot _syncMode b =
             flip State.evalStateT emptySyncProgressState $ do
@@ -775,45 +761,42 @@ sqliteCodebase debugName root = do
       pure . Right $
         ( finalizer,
           let
-            code = Codebase1.Codebase
-              { getTerm = (Cache.applyDefined termCache getTerm),
-                getTypeOfTermImpl = (Cache.applyDefined typeOfTermCache getTypeOfTermImpl),
-                getTypeDeclaration = (Cache.applyDefined declCache getTypeDeclaration),
-                putTerm = putTerm,
-                putTypeDeclaration = putTypeDeclaration,
-                getRootBranch = (getRootBranch rootBranchCache),
-                putRootBranch = (putRootBranch rootBranchCache),
-                rootBranchUpdates = (rootBranchUpdates rootBranchCache),
-                getBranchForHashImpl = getBranchForHash,
-                putBranch = putBranch,
-                branchExists = isCausalHash,
-                getPatch = getPatch,
-                putPatch = putPatch,
-                patchExists = patchExists,
-                dependentsImpl = dependentsImpl,
-                getDerivedDependencies = getDerivedDependencies,
-                getDependencies = getDependencies,
-                syncFromDirectory = syncFromDirectory,
-                syncToDirectory = syncToDirectory,
-                viewRemoteBranch' = viewRemoteBranch',
-                pushGitRootBranch = (\b r _s -> pushGitRootBranch conn b r),
-                watches = watches,
-                getWatch = getWatch,
-                putWatch = putWatch,
-                clearWatches = clearWatches,
-                getReflog = getReflog,
-                appendReflog = appendReflog,
-                termsOfTypeImpl = termsOfTypeImpl,
-                termsMentioningTypeImpl = termsMentioningTypeImpl,
-                hashLength = hashLength,
-                termReferencesByPrefix = termReferencesByPrefix,
-                typeReferencesByPrefix = declReferencesByPrefix,
-                termReferentsByPrefix = referentsByPrefix,
-                branchHashLength = branchHashLength,
-                branchHashesByPrefix = branchHashesByPrefix,
-                lcaImpl = (Just sqlLca),
-                beforeImpl = (Just \l r -> runDB conn $ fromJust <$> before l r)
-              }
+           code = Codebase1.Codebase
+            (Cache.applyDefined termCache getTerm)
+            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
+            (Cache.applyDefined declCache getTypeDeclaration)
+            putTerm
+            putTypeDeclaration
+            (getRootBranch rootBranchCache)
+            (putRootBranch rootBranchCache)
+            (rootBranchUpdates rootBranchCache)
+            getBranchForHash
+            putBranch
+            isCausalHash
+            getPatch
+            putPatch
+            patchExists
+            dependentsImpl
+            syncFromDirectory
+            syncToDirectory
+            viewRemoteBranch'
+            (\b r _s -> pushGitRootBranch conn b r)
+            watches
+            getWatch
+            putWatch
+            clearWatches
+            getReflog
+            appendReflog
+            termsOfTypeImpl
+            termsMentioningTypeImpl
+            hashLength
+            termReferencesByPrefix
+            declReferencesByPrefix
+            referentsByPrefix
+            branchHashLength
+            branchHashesByPrefix
+            (Just sqlLca)
+            (Just \l r -> runDB conn $ fromJust <$> before l r)
           in code
         )
     v -> shutdownConnection conn $> Left v
