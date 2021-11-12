@@ -54,6 +54,7 @@ library
     , bytestring
     , containers
     , cryptonite
+    , extra
     , lens
     , memory
     , safe
@@ -93,6 +94,7 @@ benchmark bench
     , containers
     , criterion
     , cryptonite
+    , extra
     , lens
     , memory
     , safe
