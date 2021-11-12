@@ -618,7 +618,7 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "getDerivedDependencies")) refs
 
           -- | Get the set of all dependencies (including builtins) of a term or type.
-          getDependencies :: MonadIO m => Reference.Id -> m (Set Reference)
+          getDependencies :: MonadIO m => Reference.Id -> m (Set LabeledDependency)
           getDependencies r =
             runDB conn $ do
               refs <- Ops.dependencies (Cv.referenceid1to2 r)

@@ -179,6 +179,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
+import U.Codebase.Sqlite.LabeledRef (LabeledRef)
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -654,10 +655,13 @@ getDependentsForDependency dependency = query sql dependency where sql = [here|
     AND dependency_component_index IS ?
 |]
 
-getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
+-- | TODO: Add constructor ID to this query once it's in the dependents index.
+getDependenciesForDependent :: DB m => Reference.Id -> m [LabeledRef]
 getDependenciesForDependent dependent = query sql dependent where sql = [here|
-  SELECT dependency_builtin, dependency_object_id, dependency_component_index
+  SELECT dependency_builtin, dependency_object_id, dependency_component_index, object.type_id
   FROM dependents_index
+    JOIN object
+    ON dependents_index.dependency_object_id = object.id
   WHERE dependent_object_id IS ?
     AND dependent_component_index IS ?
 |]

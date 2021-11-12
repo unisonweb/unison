@@ -201,6 +201,8 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified U.Util.Set as Set
 import qualified U.Util.Term as TermUtil
+import qualified U.Codebase.Sqlite.LabeledRef as S
+import qualified U.Codebase.LabeledRef as C
 
 -- * Error handling
 
@@ -319,6 +321,12 @@ c2sReference = bitraverse lookupTextId primaryHashToExistingObjectId
 
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId
+
+s2cLabeledRef :: EDB m => S.LabeledRef -> m C.LabeledRef
+s2cLabeledRef = \case
+  S.TypeReference reference -> C.TypeReference <$> (s2cReference reference)
+  S.TermReference reference -> C.TermReference <$> (s2cReference reference)
+  S.ConstructorReference referent -> C.ConstructorReference <$> (s2cReferent referent)
 
 c2sReferenceId :: EDB m => C.Reference.Id -> m S.Reference.Id
 c2sReferenceId = C.Reference.idH primaryHashToExistingObjectId
@@ -1434,9 +1442,9 @@ derivedDependencies cid = do
 
 -- | Returns the dependencies of the given term.
 -- Includes builtins.
-dependencies :: EDB m => C.Reference.Id -> m (Set C.Reference)
+dependencies :: EDB m => C.Reference.Id -> m (Set C.LabeledRef)
 dependencies cid = do
   sid <- c2sReferenceId cid
   sids <- Q.getDependenciesForDependent sid
-  cids <- traverse s2cReference sids
+  cids <- traverse s2cLabeledRef sids
   pure $ Set.fromList cids

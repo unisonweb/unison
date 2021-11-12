@@ -54,7 +54,7 @@ data Codebase m v a = Codebase
     -- | Get non-transitive dependencies of a reference
     -- (i.e. the references contained within the term associated with the given reference id).
     -- Includes builtins in the result.
-    getDependencies :: Reference.Id -> m (Set Reference),
+    getDependencies :: Reference.Id -> m (Set LabeledDependency),
     -- | Get non-transitive dependencies of a reference
     -- (i.e. the references contained within the term associated with the given reference id).
     -- Does not include builtins in the result.
