@@ -109,6 +109,8 @@ migrateSchema12 conn codebase = do
     (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
       `runReaderT` Env {db = conn, codebase}
       `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+  let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+  runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
   ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
     (runDB conn . liftQ) do
       Q.recordObjectRehash oldObjId newObjId
@@ -124,7 +126,7 @@ migrateSchema12 conn codebase = do
           error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
           error e = liftIO $ putStrLn $ "Error: " ++ show e
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = liftIO $ putStrLn $ "All Done"
+          allDone = liftIO $ putStrLn $ "Finished migrating, initiating cleanup."
        in Sync.Progress {need, done, error, allDone}
 
 type Old a = a
