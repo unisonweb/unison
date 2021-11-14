@@ -143,11 +143,10 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
-lookupWatchCache :: (Monad m) => Codebase m v a -> Reference -> m (Maybe (Term v a))
-lookupWatchCache codebase (Reference.DerivedId h) = do
+lookupWatchCache :: (Monad m) => Codebase m v a -> Reference.Id -> m (Maybe (Term v a))
+lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
-lookupWatchCache _ Reference.Builtin{} = pure Nothing
 
 typeLookupForDependencies
   :: (Monad m, Var v, BuiltinAnnotation a)

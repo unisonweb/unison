@@ -265,7 +265,7 @@ type UseCache = Bool
 
 type EvalResult v =
   ( [(v, Term v ())]
-  , Map v (Ann, WK.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  , Map v (Ann, WK.WatchKind, Reference.Id, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
