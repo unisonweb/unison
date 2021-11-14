@@ -1,4 +1,5 @@
 {-# language PatternSynonyms #-}
+-- These tests are outdated and resumed tentatively.
 
 module Main(main) where
 
@@ -219,6 +220,8 @@ setupb2 f m n
 
 benchEv :: String -> Section -> Benchmark
 benchEv str code = bench str . whnfIO . eval0 testEnv $ code
+
+-- eval0 :: SEnv -> Section -> IO()
 
 main = defaultMain
   [ bgroup "loop"

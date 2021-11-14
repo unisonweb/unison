@@ -183,11 +183,13 @@ executables:
 
 benchmarks:
   runtime:
-    source-dirs: benchmarks/runtime
+    source-dirs: benchmarks
     main: Main.hs
     dependencies:
       - base
+      - bytestring
       - criterion
       - containers
+      - text
       - unison-core1
       - unison-parser-typechecker
