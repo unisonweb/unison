@@ -85,9 +85,9 @@ import UnliftIO (MonadUnliftIO)
 --    * [x] may involve writing a `Progress`
 --    * raw DB things:
 --    * [x] write new namespace root after migration.
---    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
---    * [ ] delete references to old objects in index tables (where else?)
---    * [ ] delete old objects
+--    * [x] overwrite object_id column in hash_object table to point at new objects
+--    * [x] delete references to old objects in index tables (where else?)
+--    * [x] delete old objects
 --
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
 --    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
@@ -95,8 +95,11 @@ import UnliftIO (MonadUnliftIO)
 --    * [ ] Refactor Causal helper functions to use V2 hashing
 --          * [ ] I guess move Hashable to V2.Hashing pseudo-package
 --          * [ ] Delete V1 Hashing to ensure it's unused
---          * [x] Salt V2 hashes with version number
+--          * [ ] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
+--    * [ ] Make a backup of the v1 codebase before migrating, in a temp directory.
+--          Include a message explaining where we put it.
+--    * [ ] Improved error message (don't crash) if loading a codebase newer than your ucm
 --    * [x] Update the schema version in the database after migrating so we only migrate
 --    once.
 
