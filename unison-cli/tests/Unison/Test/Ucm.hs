@@ -30,6 +30,7 @@ import qualified Unison.PrettyTerminal as PT
 import qualified Unison.Util.Pretty as P
 import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
+import UnliftIO.Exception (bracket)
 
 data CodebaseFormat = CodebaseFormat2 deriving (Show, Enum, Bounded)
 
@@ -70,23 +71,23 @@ runTranscript (Codebase codebasePath fmt) transcript = do
     pure $ tmpDir </> ".unisonConfig"
   let err err = fail $ "Parse error: \n" <> show err
       cbInit = case fmt of CodebaseFormat2 -> SC.init
-  (closeCodebase, codebase) <-
-    Codebase.Init.openCodebase cbInit "transcript" codebasePath >>= \case
-      Left e -> fail $ P.toANSI 80 e
-      Right x -> pure x
-  Codebase.installUcmDependencies codebase
-  -- parse and run the transcript
-  output <-
-    flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
-      fmap Text.unpack $
-        TR.run "Unison.Test.Ucm.runTranscript Invalid Version String"
-          codebasePath
-          configFile
-          stanzas
-          codebase
-  closeCodebase
-  when debugTranscriptOutput $ traceM output
-  pure output
+  let initCodebase =
+        Codebase.Init.openCodebase cbInit "transcript" codebasePath >>= \case
+          Left e -> fail $ P.toANSI 80 e
+          Right x -> pure x
+  bracket initCodebase (\(closeCodebase, _) -> closeCodebase) $ \(_, codebase) -> do
+    Codebase.installUcmDependencies codebase
+    -- parse and run the transcript
+    output <-
+      flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
+        fmap Text.unpack $
+          TR.run "Unison.Test.Ucm.runTranscript Invalid Version String"
+            codebasePath
+            configFile
+            stanzas
+            codebase
+    when debugTranscriptOutput $ traceM output
+    pure output
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) f = do
