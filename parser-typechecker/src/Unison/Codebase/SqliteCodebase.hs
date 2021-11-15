@@ -27,7 +27,7 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
-import qualified Data.Char as Char
+-- import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, ($>), (<&>))
@@ -53,7 +53,6 @@ import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
-import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -109,7 +108,7 @@ import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import Control.Monad.Catch (onException)
+import U.Codebase.Sqlite.Queries (walCheckpoint)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -1079,40 +1078,39 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
   destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
-  (`onException` (liftIO $ shutdownConnection destConn)) $ do
-    flip runReaderT destConn $ Q.savepoint "push"
-    lift . flip State.execStateT emptySyncProgressState $
-      syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-    flip runReaderT destConn do
-      let newRootHash = Branch.headHash branch
-      -- the call to runDB "handles" the possible DB error by bombing
-      (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-        Nothing -> do
-          setRepoRoot newRootHash
-          Q.release "push"
-        Just oldRootHash -> do
-          before oldRootHash newRootHash >>= \case
-            Nothing ->
-              error $
-                "I couldn't find the hash " ++ show newRootHash
-                  ++ " that I just synced to the cached copy of "
-                  ++ repoString
-                  ++ " in "
-                  ++ show remotePath
-                  ++ "."
-            Just False -> do
-              Q.rollbackRelease "push"
-              throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+  -- (`onException` (liftIO $ shutdownConnection destConn)) $ do
+  flip runReaderT destConn $ Q.savepoint "push"
+  lift . flip State.execStateT emptySyncProgressState $
+    syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
+  flip runReaderT destConn do
+    let newRootHash = Branch.headHash branch
+    -- the call to runDB "handles" the possible DB error by bombing
+    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+      Nothing -> do
+        setRepoRoot newRootHash
+        Q.release "push"
+      Just oldRootHash -> do
+        before oldRootHash newRootHash >>= \case
+          Nothing ->
+            error $
+              "I couldn't find the hash " ++ show newRootHash
+                ++ " that I just synced to the cached copy of "
+                ++ repoString
+                ++ " in "
+                ++ show remotePath
+                ++ "."
+          Just False -> do
+            Q.rollbackRelease "push"
+            throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
 
-            Just True -> do
-              setRepoRoot newRootHash
-              Q.release "push"
+          Just True -> do
+            setRepoRoot newRootHash
+            Q.release "push"
 
-      Q.setJournalMode JournalMode.DELETE
-
-    liftIO do
-      -- shutdownConnection destConn
-      void $ push remotePath repo
+  liftIO do
+    runReaderT walCheckpoint destConn 
+    shutdownConnection destConn
+    void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
@@ -1143,22 +1141,22 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
     -- and hasDeleteShm is `True` if there's the line:
     --   D .unison/v2/unison.sqlite3-shm
     --
-    parseStatus :: Text -> Maybe (Bool, Bool)
-    parseStatus status =
-      if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
-      else Nothing
-      where
-        statusLines = Text.unpack <$> Text.lines status
-        t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
-        okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-        isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-        isShmDelete _ = False
-        hasDeleteWal = any isWalDelete statusLines
-        hasDeleteShm = any isShmDelete statusLines
+    -- parseStatus :: Text -> Maybe (Bool, Bool)
+    -- parseStatus status =
+    --   if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
+    --   else Nothing
+    --   where
+    --     statusLines = Text.unpack <$> Text.lines status
+    --     t = dropWhile Char.isSpace
+    --     okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
+    --     okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+    --     okLine line = isWalDelete line || isShmDelete line
+    --     isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+    --     isWalDelete _ = False
+    --     isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+    --     isShmDelete _ = False
+    --     hasDeleteWal = any isWalDelete statusLines
+    --     hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
     push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
@@ -1171,19 +1169,20 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
       status <- gitTextIn remotePath ["status", "--short", "-uall"]
       if Text.null status
         then pure False
-        else case parseStatus status of
-          Nothing ->
-            error $ "An error occurred during push.\n"
-                 <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
-                 <> Text.unpack status <> "\n\n"
-                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
-                 <> "and add any more details about how you encountered this!\n"
-          Just (hasDeleteWal, hasDeleteShm) -> do
+        else do
+        -- else case parseStatus status of
+        --   Nothing ->
+        --     error $ "An error occurred during push.\n"
+        --          <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+        --          <> Text.unpack status <> "\n\n"
+        --          <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
+        --          <> "and add any more details about how you encountered this!\n"
+        --   Just (hasDeleteWal, hasDeleteShm) -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage
             gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+            -- when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
+            -- when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
             gitIn
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]

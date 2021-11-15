@@ -114,6 +114,7 @@ module U.Codebase.Sqlite.Queries (
   release,
   rollbackRelease,
 
+  walCheckpoint,
   setJournalMode,
   traceConnectionFile,
 ) where
@@ -854,6 +855,10 @@ savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
 release name = execute_ (fromString $ "RELEASE " ++ name)
 rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
 rollbackRelease name = rollbackTo name *> release name
+
+-- | Syncs WAL files into the main DB. Use this before syncing with a remote file-system.
+walCheckpoint :: DB m => m ()
+walCheckpoint = execute_ (fromString $ "PRAGMA wal_checkpoint(FULL);")
 
 -- * orphan instances
 
