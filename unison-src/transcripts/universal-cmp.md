@@ -2,6 +2,10 @@
 File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
+```ucm:hide
+.> builtins.mergeio
+```
+
 ```unison
 threadEyeDeez _ =
   t1 = forkComp '()
