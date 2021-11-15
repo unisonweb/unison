@@ -843,21 +843,5 @@ someReferenceIdToEntity = \case
   -- Constructors are migrated by their decl component.
   (ConstructorReference ref _conId) -> DeclComponent (Reference.idToHash ref)
 
--- -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
--- migrateSchema12 :: Applicative m => Connection -> m Bool
--- migrateSchema12 _db = do
---   -- todo: drop and recreate corrected type/mentions index schema
---   -- do we want to garbage collect at this time? ✅
---   -- or just convert everything without going in dependency order? ✅
---   error "todo: go through "
---   -- todo: double-hash all the types and produce an constructor mapping
---   -- object ids will stay the same
---   -- todo: rehash all the terms using the new constructor mapping
---   -- and adding the type to the term
---   -- do we want to diff namespaces at this time? ❌
---   -- do we want to look at supporting multiple simultaneous representations of objects at this time?
---   pure "todo: migrate12"
---   pure True
-
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
