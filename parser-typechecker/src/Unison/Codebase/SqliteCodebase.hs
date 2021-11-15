@@ -109,6 +109,7 @@ import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
+import Control.Monad.Catch (onException)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -264,7 +265,7 @@ unsafeGetConnection name root = do
   runReaderT Q.setFlags conn
   pure conn
 
-shutdownConnection :: MonadIO m => Connection -> m ()
+shutdownConnection :: (HasCallStack, MonadIO m) => Connection -> m ()
 shutdownConnection conn = do
   Monad.when debug $ traceM $ "shutdown connection " ++ show conn
   liftIO $ Sqlite.close (Connection.underlying conn)
@@ -1078,40 +1079,40 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
   destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
+  (`onException` (liftIO $ shutdownConnection destConn)) $ do
+    flip runReaderT destConn $ Q.savepoint "push"
+    lift . flip State.execStateT emptySyncProgressState $
+      syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
+    flip runReaderT destConn do
+      let newRootHash = Branch.headHash branch
+      -- the call to runDB "handles" the possible DB error by bombing
+      (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+        Nothing -> do
+          setRepoRoot newRootHash
+          Q.release "push"
+        Just oldRootHash -> do
+          before oldRootHash newRootHash >>= \case
+            Nothing ->
+              error $
+                "I couldn't find the hash " ++ show newRootHash
+                  ++ " that I just synced to the cached copy of "
+                  ++ repoString
+                  ++ " in "
+                  ++ show remotePath
+                  ++ "."
+            Just False -> do
+              Q.rollbackRelease "push"
+              throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
 
-  flip runReaderT destConn $ Q.savepoint "push"
-  lift . flip State.execStateT emptySyncProgressState $
-    syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-  flip runReaderT destConn do
-    let newRootHash = Branch.headHash branch
-    -- the call to runDB "handles" the possible DB error by bombing
-    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-      Nothing -> do
-        setRepoRoot newRootHash
-        Q.release "push"
-      Just oldRootHash -> do
-        before oldRootHash newRootHash >>= \case
-          Nothing ->
-            error $
-              "I couldn't find the hash " ++ show newRootHash
-                ++ " that I just synced to the cached copy of "
-                ++ repoString
-                ++ " in "
-                ++ show remotePath
-                ++ "."
-          Just False -> do
-            Q.rollbackRelease "push"
-            throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+            Just True -> do
+              setRepoRoot newRootHash
+              Q.release "push"
 
-          Just True -> do
-            setRepoRoot newRootHash
-            Q.release "push"
+      Q.setJournalMode JournalMode.DELETE
 
-    Q.setJournalMode JournalMode.DELETE
-
-  liftIO do
-    shutdownConnection destConn
-    void $ push remotePath repo
+    liftIO do
+      -- shutdownConnection destConn
+      void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()

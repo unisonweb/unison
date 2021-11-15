@@ -21,6 +21,7 @@ import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
 import Unison.WatchKind (pattern TestWatch)
+import UnliftIO.Exception (bracket)
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
@@ -468,8 +469,7 @@ CallStack (from HasCallStack):
 
 pushPullTest :: String -> CodebaseFormat -> (FilePath -> Transcript) -> (FilePath -> Transcript) -> Test ()
 pushPullTest name fmt authorScript userScript = scope name do
-  io do
-    repo <- initGitRepo
+  io . withGitRepo $ \repo -> do
     author <- Ucm.initCodebase fmt
     authorOutput <- Ucm.runTranscript author (authorScript repo)
     user <- Ucm.initCodebase fmt
@@ -479,16 +479,13 @@ pushPullTest name fmt authorScript userScript = scope name do
       ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
       (authorOutput <> "\n-------\n" <> userOutput)
 
-    -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
 
 watchPushPullTest :: String -> CodebaseFormat -> (FilePath -> Transcript) -> (FilePath -> Transcript) -> (Codebase IO Symbol Ann -> IO ()) -> Test ()
 watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
-  io do
-    repo <- initGitRepo
+  io . withGitRepo $ \repo -> do
     author <- Ucm.initCodebase fmt
     authorOutput <- Ucm.runTranscript author (authorScript repo)
     user <- Ucm.initCodebase fmt
@@ -499,16 +496,13 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
       ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
       (authorOutput <> "\n-------\n" <> userOutput)
 
-    -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
 
 fastForwardPush :: Test ()
 fastForwardPush = scope "fastforward-push" do
-  io do
-    repo <- initGitRepo
+  io . withGitRepo $ \repo -> do
     author <- Ucm.initCodebase Ucm.CodebaseFormat2
     void $ Ucm.runTranscript author [i|
       ```ucm
@@ -522,8 +516,7 @@ fastForwardPush = scope "fastforward-push" do
 
 nonFastForwardPush :: Test ()
 nonFastForwardPush = scope "non-fastforward-push" do
-  io do
-    repo <- initGitRepo
+  io . withGitRepo $ \repo -> do
     author <- Ucm.initCodebase Ucm.CodebaseFormat2
     void $ Ucm.runTranscript author [i|
       ```ucm:error
@@ -537,8 +530,7 @@ nonFastForwardPush = scope "non-fastforward-push" do
 
 destroyedRemote :: Test()
 destroyedRemote = scope "destroyed-remote" do
-  io do
-    repo <- initGitRepo
+  io . withGitRepo $ \repo -> do
     codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
     void $ Ucm.runTranscript codebase [i|
       ```ucm
@@ -559,9 +551,14 @@ destroyedRemote = scope "destroyed-remote" do
       "git" ["init", "--bare", repo]
 
 
-initGitRepo :: IO FilePath
-initGitRepo = do
-  tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory ("git-simple")
-  let repo = tmp </> "repo.git"
-  "git" ["init", "--bare", Text.pack repo]
-  pure repo
+-- | Initialize a temporary git repo, run the action with it, then delete the temp git repo.
+withGitRepo :: (FilePath -> IO a) -> IO a
+withGitRepo act =
+  bracket initialize cleanup act
+  where
+    initialize = do
+      tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory ("git-simple")
+      let repo = tmp </> "repo.git"
+      "git" ["init", "--bare", Text.pack repo]
+      pure repo
+    cleanup repo = removeDirectoryRecursive repo
