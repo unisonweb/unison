@@ -109,7 +109,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO)
+import UnliftIO (MonadIO, catchIO, finally, try, liftIO, MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 
@@ -203,12 +203,9 @@ initSchemaIfNotExist path = liftIO do
 codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root = liftIO do
   Monad.when debug $ traceM $ "codebaseExists " ++ root
-  Control.Exception.catch @Sqlite.SQLError
-    ( sqliteCodebase "codebaseExists" root >>= \case
-        Left _ -> pure False
-        Right (close, _codebase) -> close $> True
-    )
-    (const $ pure False)
+  try (Sqlite.open root) <&> \case
+    Left (_ :: Sqlite.SQLError) -> False
+    Right _ -> True
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
