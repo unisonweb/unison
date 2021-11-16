@@ -185,9 +185,30 @@ toHtml docNamesByRef document =
               toHtml_ sectionLevel
 
             sectionContentToHtml renderer doc_ =
+              -- Block elements can't be children for <p> elements
               case doc_ of
-                Paragraph _ ->
-                  p_ [] $ renderer doc_
+                Paragraph [CodeBlock {}] -> renderer doc_
+                Paragraph [Blockquote _] -> renderer doc_
+                Paragraph [Blankline] -> renderer doc_
+                Paragraph [SectionBreak] -> renderer doc_
+                Paragraph [Callout {} ] -> renderer doc_
+                Paragraph [Table _] -> renderer doc_
+                Paragraph [Folded {} ] -> renderer doc_
+                Paragraph [BulletedList _] -> renderer doc_
+                Paragraph [NumberedList {}] -> renderer doc_
+                -- Paragraph [Section _ _] -> renderer doc_
+                Paragraph [Image {} ] -> renderer doc_
+                Paragraph [Special (Source _)] -> renderer doc_
+                Paragraph [Special (FoldedSource _)] -> renderer doc_
+                Paragraph [Special (ExampleBlock _)] -> renderer doc_
+                Paragraph [Special (Signature _)] -> renderer doc_
+                Paragraph [Special Eval {}] ->renderer doc_
+                Paragraph [Special (Embed _)] -> renderer doc_
+                Paragraph [UntitledSection ds] -> mapM_ (sectionContentToHtml renderer) ds
+                Paragraph [Column _] -> renderer doc_
+
+                Paragraph _ -> p_ [] $ renderer doc_
+
                 _ ->
                   renderer doc_
          in case doc of
