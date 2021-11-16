@@ -5,6 +5,7 @@
 
 module Unison.Test.GitSync where
 
+import Data.Maybe (fromJust)
 import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
@@ -12,12 +13,14 @@ import Shellmet ()
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
+import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
+import Unison.WatchKind (pattern TestWatch)
 import UnliftIO.Exception (bracket)
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
