@@ -13,7 +13,7 @@ where
 
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT, mapExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
