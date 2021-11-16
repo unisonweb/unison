@@ -149,8 +149,8 @@ prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 -- | Get a pretty print env decl for the current names at the current path.
 currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
 currentPrettyPrintEnvDecl = do
-  root' <- use root
-  currentPath' <- Path.unabsolute <$> use currentPath
+  root' <- use LoopState.root
+  currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
 
 loop :: forall m v. (Monad m, Var v) => Action m (Either Event Input) v ()
@@ -1817,7 +1817,7 @@ handleDependents hq = do
                     g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
                     g hqName =
                       (reference, Just (HQ'.toName hqName))
-        numberedArgs .= map (Text.unpack . Reference.toText . fst) results
+        LoopState.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
         respond (ListDependents hqLength ld results)
 
 handlePushRemoteBranch ::
