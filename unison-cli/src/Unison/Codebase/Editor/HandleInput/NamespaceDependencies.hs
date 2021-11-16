@@ -32,7 +32,7 @@ import qualified Unison.Util.Relation4 as Relation4
 --
 -- So if my namespace depends on .base.Bag.map; which depends on base.Map.mapKeys, only
 -- .base.Bag.map is returned unless some other definition inside my namespace depends
--- on .base.Bag.map directly.
+-- on base.Map.mapKeys directly.
 --
 -- Returns a Set of names rather than using the PPE since we already have the correct names in
 -- scope on this branch, and also want to list ALL names of dependents, including aliases.
