@@ -19,8 +19,7 @@ import UnliftIO.IO (hFlush, stdout)
 import qualified Data.ByteString.Base16 as ByteString
 import qualified Data.Char as Char
 import Unison.Codebase.GitError (GitProtocolError)
-import Control.Monad.Trans.Except (ExceptT, runExceptT)
-import UnliftIO (MonadUnliftIO, catchIO)
+import UnliftIO (handleIO)
 
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
@@ -57,7 +56,7 @@ withStatus str ma = do
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadUnliftIO m) => ReadRepo -> ExceptT GitProtocolError m CodebasePath
+pullBranch :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
 pullBranch repo@(ReadGitRepo uri) = do
   checkForGit
   localPath <- tempGitDir uri
@@ -84,10 +83,10 @@ pullBranch repo@(ReadGitRepo uri) = do
     unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir repo localPath
 
   -- | Do a `git pull` on a cached repo.
-  checkoutExisting :: (MonadIO m)
+  checkoutExisting :: (MonadIO m, MonadError GitProtocolError m)
                    => FilePath
                    -> Maybe Text
-                   -> ExceptT GitProtocolError m ()
+                   -> m ()
   checkoutExisting localPath maybeRemoteRef =
     ifM (isEmptyGitRepo localPath)
       -- I don't know how to properly update from an empty remote repo.
@@ -95,19 +94,17 @@ pullBranch repo@(ReadGitRepo uri) = do
       -- be too, so this impl. just wipes the cached copy and starts from scratch.
       goFromScratch
       -- Otherwise proceed!
-      (do
-        r <- liftIO $ (catchIO
-               (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
-                 -- Fetch only the latest commit, we don't need history.
-                 gitIn localPath (["fetch", "origin", remoteRef, "--quiet"] ++ ["--depth", "1"])
-                 -- Reset our branch to point at the latest code from the remote.
-                 gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
-                 -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
-                 gitIn localPath ["clean", "-d", "--force", "--quiet"]
-                 pure $ Right ())
-               (const $ runExceptT goFromScratch))
-        either throwError pure r
-      )
+      do
+        succeeded <- liftIO . handleIO (const $ pure False) $ do
+                         withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
+                          -- Fetch only the latest commit, we don't need history.
+                          gitIn localPath (["fetch", "origin", remoteRef, "--quiet"] ++ ["--depth", "1"])
+                          -- Reset our branch to point at the latest code from the remote.
+                          gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
+                          -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+                          gitIn localPath ["clean", "-d", "--force", "--quiet"]
+                          pure True
+        when (not succeeded) $ goFromScratch
 
     where
       remoteRef :: Text
