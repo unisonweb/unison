@@ -656,7 +656,6 @@ sqliteCodebase debugName root = do
               flip State.evalStateT emptySyncProgressState $ do
                 initSchemaIfNotExist destRoot
                 syncInternal syncProgress conn destConn $ Branch.transform lift b
-                liftIO closeConn
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
           watches w =
