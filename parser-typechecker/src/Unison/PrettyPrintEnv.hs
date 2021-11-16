@@ -54,7 +54,7 @@ termName env r =
 typeName :: PrettyPrintEnv -> Reference -> HashQualified Name
 typeName env r =
   case types env r of
-    Nothing -> HQ.take todoHashLength (HQ.fromReference r) 
+    Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name

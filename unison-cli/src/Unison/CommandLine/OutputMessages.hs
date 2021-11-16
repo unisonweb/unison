@@ -11,6 +11,7 @@ import Control.Lens
 import qualified Control.Monad.State.Strict as State
 import Data.Bifunctor (first, second)
 import Data.List (sort, stripPrefix)
+import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
@@ -1353,6 +1354,28 @@ notifyUser dir o = case o of
         )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
+  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
+  ListNamespaceDependencies ppe path' externalDependencies -> do
+    let spacer = ("", "")
+    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+      List.intersperse spacer (externalDepsTable externalDependencies)
+    where
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
+        refs
+          & Set.toList
+          & fmap prettyName
+          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -1416,6 +1439,9 @@ prettyPath' p' =
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
+
+prettyAbsolute :: Path.Absolute -> Pretty
+prettyAbsolute = P.blue . P.shown
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
@@ -1636,7 +1662,7 @@ unsafePrettyTermResultSig' ::
   Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(r, name, typ)])
+    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1823,13 +1849,13 @@ todoOutput ppe todo =
             ),
           P.indentN 2 . P.lines $
             ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                ++ TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
+                ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
             ),
           P.wrap "I recommend working on them in the following order:",
           P.numberedList $
             let unscore (_score, a, b) = (a, b)
              in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes)
-                  ++ TypePrinter.prettySignatures'
+                  ++ TypePrinter.prettySignaturesCT
                     ppes
                     (goodTerms $ unscore <$> dirtyTerms),
           formatMissingStuff corruptTerms corruptTypes

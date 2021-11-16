@@ -58,6 +58,10 @@ selectD34 c d r =
                                (Map.lookup c (d3 r))
            ]
 
+keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
+keys Relation4{d1, d2, d3, d4} = 
+  (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
+
 d1set :: Ord a => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
 
@@ -74,6 +78,15 @@ d124 Relation4 {d1, d2, d4} =
     { d1 = Map.map R3.d13 d1,
       d2 = Map.map R3.d13 d2,
       d3 = Map.map R3.d12 d4
+    }
+
+-- | Project out a relation that only includes the 2nd, 3rd, and 4th dimensions.
+d234 :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d -> Relation3 b c d
+d234 Relation4 {d2, d3, d4} =
+  Relation3
+    { d1 = Map.map R3.d23 d2,
+      d2 = Map.map R3.d23 d3,
+      d3 = Map.map R3.d23 d4
     }
 
 -- todo: make me faster

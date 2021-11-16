@@ -13,3 +13,4 @@ dist-newstyle
 
 # GHC
 *.hie
+*.prof

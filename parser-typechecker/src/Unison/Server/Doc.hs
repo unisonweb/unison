@@ -161,7 +161,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
-      TypePrinter.prettySignatures''
+      TypePrinter.prettySignaturesST
         (PPE.suffixifiedPPE pped)
         [ (r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
 
@@ -266,8 +266,8 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
                   Just tm -> do
                     typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
-                    let folded = formatPretty . P.lines 
-                               $ TypePrinter.prettySignatures'' ppe [(Referent.Ref ref, name, typ)]
+                    let folded = formatPretty . P.lines
+                               $ TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
                     let full tm@(Term.Ann' _ _) _ =
                           formatPretty (TermPrinter.prettyBinding ppe name tm)
                         full tm typ =
