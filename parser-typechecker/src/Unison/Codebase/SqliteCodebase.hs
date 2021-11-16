@@ -1108,7 +1108,7 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
             Q.release "push"
 
   liftIO do
-    runReaderT walCheckpoint destConn 
+    runReaderT walCheckpoint destConn
     shutdownConnection destConn
     void $ push remotePath repo
   where
@@ -1120,43 +1120,20 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
       chId <- fromMaybe err <$> Q.loadCausalHashIdByCausalHash h2
       Q.setNamespaceRoot chId
 
-    -- This function makes sure that the result of git status is valid.
-    -- Valid lines are any of:
-    --
-    --   ?? .unison/v2/unison.sqlite3 (initial commit to an empty repo)
-    --   M .unison/v2/unison.sqlite3  (updating an existing repo)
-    --   D .unison/v2/unison.sqlite3-wal (cleaning up the WAL from before bugfix)
-    --   D .unison/v2/unison.sqlite3-shm (ditto)
-    --
-    -- Invalid lines are like:
-    --
-    --   ?? .unison/v2/unison.sqlite3-wal
-    --
-    -- Which will only happen if the write-ahead log hasn't been
-    -- fully folded into the unison.sqlite3 file.
-    --
-    -- Returns `Just (hasDeleteWal, hasDeleteShm)` on success,
-    -- `Nothing` otherwise. hasDeleteWal means there's the line:
-    --   D .unison/v2/unison.sqlite3-wal
-    -- and hasDeleteShm is `True` if there's the line:
-    --   D .unison/v2/unison.sqlite3-shm
-    --
-    -- parseStatus :: Text -> Maybe (Bool, Bool)
-    -- parseStatus status =
-    --   if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
-    --   else Nothing
-    --   where
-    --     statusLines = Text.unpack <$> Text.lines status
-    --     t = dropWhile Char.isSpace
-    --     okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-    --     okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
-    --     okLine line = isWalDelete line || isShmDelete line
-    --     isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-    --     isWalDelete _ = False
-    --     isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
-    --     isShmDelete _ = False
-    --     hasDeleteWal = any isWalDelete statusLines
-    --     hasDeleteShm = any isShmDelete statusLines
+    -- This function returns any lines of a git status which are invalid.
+    -- Valid lines are any modifications to .unison/v2/unison.sqlite3(-wal|-shm).
+    invalidStatusLines :: Text -> [Text]
+    invalidStatusLines status = filter (not . okLine . Text.words) statusLines
+      where
+        textCodebasePath = Text.pack codebasePath
+        statusLines = Text.strip <$> Text.lines status
+        okLine ["??", p] | p == textCodebasePath = True
+        okLine ["M", p] | p == textCodebasePath = True
+        okLine line = isWal line || isShm line
+        isWal [_, p] | p == textCodebasePath <> "-wal" = True
+        isWal _ = False
+        isShm [_, p] | p == textCodebasePath <> "-shm" = True
+        isShm _ = False
 
     -- Commit our changes
     push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
@@ -1169,23 +1146,22 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
       status <- gitTextIn remotePath ["status", "--short", "-uall"]
       if Text.null status
         then pure False
-        else do
-        -- else case parseStatus status of
-        --   Nothing ->
-        --     error $ "An error occurred during push.\n"
-        --          <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
-        --          <> Text.unpack status <> "\n\n"
-        --          <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
-        --          <> "and add any more details about how you encountered this!\n"
-        --   Just (hasDeleteWal, hasDeleteShm) -> do
+        else case invalidStatusLines status of
+          [] -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage
             gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            -- when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            -- when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
             gitIn
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
             -- Push our changes to the repo
             gitIn remotePath ["push", "--quiet", url]
             pure True
+          invalidLines ->
+            error . Text.unpack $
+              "An error occurred during push.\n"
+                <> "I was expecting only to see .unison/v2/unison.sqlite3 or its database files modified, but also saw:\n\n"
+                <> Text.unlines invalidLines
+                <> "\n\n"
+                <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
+                <> "and add any more details about how you encountered this!\n"

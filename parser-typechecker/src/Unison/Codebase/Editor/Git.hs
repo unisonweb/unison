@@ -106,7 +106,9 @@ pullBranch repo@(ReadGitRepo uri) = do
           when (fetchHeadHash /= headHash) do
             -- Reset our branch to point at the latest code from the remote.
             gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
-          -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+            -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+            -- Note that this wipes out any in-progress work which other ucm processes may
+            -- have in progress, which we may want to handle more nicely in the future.
             gitIn localPath ["clean", "-d", "--force", "--quiet"])
         (const $ goFromScratch))
 
