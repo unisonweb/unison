@@ -11,6 +11,9 @@ module Unison.TypePrinter
   , prettySignaturesST
   , prettySignaturesCT
   , prettySignaturesCTCollapsed
+
+  , prettySignaturesAlt
+  , prettySignaturesAlt'
   ) where
 
 import Unison.Prelude
@@ -185,3 +188,29 @@ prettySignaturesST env ts =
     (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
     `PP.orElse`
     (fmt S.TypeAscriptionColon ": " <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ))
+
+-- todo: provide sample output in comment; different from prettySignatures'
+prettySignaturesAlt'
+  :: Var v => PrettyPrintEnv
+  -> [([HashQualified Name], Type v a)]
+  -> [Pretty ColorText]
+prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
+  [ ( PP.commas . fmap (\name -> styleHashQualified'' (fmt $ S.HashQualifier name) name) $ names
+    , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
+      `PP.orElse` (  fmt S.TypeAscriptionColon ": "
+                  <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)
+                  )
+    )
+  | (names, typ) <- ts
+  ]
+
+-- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, Type v a)] -> [Pretty ColorText]
+-- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
+
+prettySignaturesAlt
+  :: Var v
+  => PrettyPrintEnv
+  -> [([HashQualified Name], Type v a)]
+  -> Pretty ColorText
+prettySignaturesAlt env ts = PP.lines $
+  PP.group <$> prettySignaturesAlt' env ts
