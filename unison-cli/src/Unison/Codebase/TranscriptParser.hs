@@ -48,7 +48,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import qualified Unison.Codebase.Editor.HandleInput.Action as Action
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -306,7 +306,7 @@ run version dir configFile stanzas codebase = do
             "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
-        writeIORef pathRef (view Action.currentPath state)
+        writeIORef pathRef (view LoopState.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
             rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
         (o, state') <- HandleCommand.commandLine config awaitInput
@@ -324,11 +324,11 @@ run version dir configFile stanzas codebase = do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
           Just () -> do
-            writeIORef numberedArgsRef (Action._numberedArgs state')
-            writeIORef rootBranchRef (Action._root state')
+            writeIORef numberedArgsRef (LoopState._numberedArgs state')
+            writeIORef rootBranchRef (LoopState._root state')
             loop state'
     (`finally` cleanup)
-      $ loop (Action.loopState0 root initialPath)
+      $ loop (LoopState.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

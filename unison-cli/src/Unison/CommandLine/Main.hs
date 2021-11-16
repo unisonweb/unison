@@ -47,7 +47,7 @@ import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
-import qualified Unison.Codebase.Editor.HandleInput.Action as Action
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 
 getUserInput
@@ -181,9 +181,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   writeIORef pageOutput True
                   pure x) `catchSyncOrAsync` interruptHandler
 
-    let loop :: Action.LoopState IO Symbol -> IO ()
+    let loop :: LoopState.LoopState IO Symbol -> IO ()
         loop state = do
-          writeIORef pathRef (view Action.currentPath state)
+          writeIORef pathRef (view LoopState.currentPath state)
           let free = runStateT (runMaybeT HandleInput.loop) state
           (o, state') <- HandleCommand.commandLine config awaitInput
                                        (writeIORef rootRef)
@@ -199,10 +199,10 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           case o of
             Nothing -> pure ()
             Just () -> do
-              writeIORef numberedArgsRef (Action._numberedArgs state')
+              writeIORef numberedArgsRef (LoopState._numberedArgs state')
               loop state'
     -- Run the main program loop, always run cleanup,
     -- If an exception occurred, print it before exiting.
-    (loop (Action.loopState0 root initialPath)
+    (loop (LoopState.loopState0 root initialPath)
       `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))
       `finally` cleanup

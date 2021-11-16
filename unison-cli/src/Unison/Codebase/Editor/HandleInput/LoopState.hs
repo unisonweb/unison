@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Unison.Codebase.Editor.HandleInput.Action where
+module Unison.Codebase.Editor.HandleInput.LoopState where
 
 import Control.Lens
 import Control.Monad.State (StateT)

@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import Unison.Codebase.Branch (Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Command
-import Unison.Codebase.Editor.HandleInput.Action (Action, eval)
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, eval)
 import qualified Unison.DataDeclaration as DD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
