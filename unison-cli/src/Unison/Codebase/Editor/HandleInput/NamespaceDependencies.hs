@@ -74,12 +74,20 @@ namespaceDependencies branch = do
     -- it's possible that the metadata itself is external to the branch.
     metadata :: Map LabeledDependency (Set Name)
     metadata =
-      let typeMetadataRefs =
+      let typeMetadataRefs :: Map LabeledDependency (Set Name)
+          typeMetadataRefs =
             (Branch.deepTypeMetadata branch)
               & Relation4.d234 -- Select only the type and value portions of the metadata
-              & \rel -> Relation.range (Relation3.d12 rel) <> Relation.range (Relation3.d13 rel)
+              & \rel ->
+                let types = Map.mapKeys LD.typeRef $ Relation.range (Relation3.d12 rel)
+                    terms = Map.mapKeys LD.termRef $ Relation.range (Relation3.d13 rel)
+                 in Map.unionWith (<>) types terms
+          termMetadataRefs :: Map LabeledDependency (Set Name)
           termMetadataRefs =
             (Branch.deepTermMetadata branch)
               & Relation4.d234 -- Select only the type and value portions of the metadata
-              & \rel -> Relation.range (Relation3.d12 rel) <> Relation.range (Relation3.d13 rel)
-       in Map.mapKeys LD.termRef $ Map.unionWith (<>) typeMetadataRefs termMetadataRefs
+              & \rel ->
+                let types = Map.mapKeys LD.typeRef $ Relation.range (Relation3.d12 rel)
+                    terms = Map.mapKeys LD.termRef $ Relation.range (Relation3.d13 rel)
+                 in Map.unionWith (<>) types terms
+       in Map.unionWith (<>) typeMetadataRefs termMetadataRefs

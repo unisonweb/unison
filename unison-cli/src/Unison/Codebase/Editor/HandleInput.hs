@@ -1692,7 +1692,7 @@ loop = do
                 Nothing -> respond $ BranchEmpty (Right (Path.absoluteToPath' path))
                 Just b -> do
                   externalDependencies <- NamespaceDependencies.namespaceDependencies (Branch.head b)
-                  ppe <- fqnPPE (NamesWithHistory.NamesWithHistory basicPrettyPrintNames mempty)
+                  ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
                   respond $ ListNamespaceDependencies ppe path externalDependencies
             DebugNumberedArgsI -> use LoopState.numberedArgs >>= respond . DumpNumberedArgs
             DebugTypecheckedUnisonFileI -> case uf of
