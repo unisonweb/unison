@@ -178,7 +178,12 @@ openOrCreateCodebaseConnection debugName path = do
   unsafeGetConnection debugName path
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. (MonadUnliftIO m) => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
+getCodebaseOrError ::
+  forall m.
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
 getCodebaseOrError debugName dir = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
