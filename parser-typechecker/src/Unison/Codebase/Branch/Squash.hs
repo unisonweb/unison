@@ -1,7 +1,8 @@
-module Unison.Codebase.Branch.Squash where
+module Unison.Codebase.Branch.Squash
+  ( squashOnto
+  ) where
 
 import Control.Lens ((.~), (^.))
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.These (These (..))
 import Data.Zip as Zip
@@ -11,13 +12,11 @@ import qualified Unison.Codebase.Causal as Causal
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 
--- | Given a base branch containing the desired branch history and a branch containing the
--- desired final state, this method returns a new branch
+-- | Applies any differences from baseBranch -> headBranch as a single Causal Cons on top of
+-- baseBranch's history.
+-- We do the same recursively for child branches.
 --
--- squash all changes from that point onwards into a single causal Cons.
---
--- This happens recursively, all changes on children will be squashed against their
--- corresponding base causals.
+-- The two branches don't need to share a common ancestor.
 squashOnto ::
   forall m.
   Monad m =>
@@ -32,11 +31,12 @@ squashOnto baseBranch headBranch =
   where
     squashChild :: These (Branch m) (Branch m) -> Maybe (Branch m)
     squashChild = \case
-      -- If we have a matching child in both base and head, squash recursively.
+      -- If we have a matching child in both base and head, squash the child head onto the
+      -- child base recursively.
       (These base head) -> Just $ squashOnto base head
-      -- This child has been deleted in the new head, leave it deleted.
+      -- This child has been deleted, remove it in the result
       (This _base) -> Nothing
-      -- This child didn't exist in the base, flatten the history completely down to a single cons.
+      -- This child didn't exist in the base, flatten the history completely down to a step.
       (That head) -> Just $ Branch.discardHistory head
     squashedChildren :: Map NameSegment (Branch m)
     squashedChildren =
