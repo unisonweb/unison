@@ -2,9 +2,6 @@
 
 ```ucm:hide
 .> builtins.merge
-.> cd builtin
-.> load unison-src/transcripts-using-base/base.u
-.> add
 ```
 
 ```unison:hide

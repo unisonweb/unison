@@ -33,6 +33,9 @@ import qualified Unison.Util.Relation4 as Relation4
 -- So if my namespace depends on .base.Bag.map; which depends on base.Map.mapKeys, only
 -- .base.Bag.map is returned unless some other definition inside my namespace depends
 -- on .base.Bag.map directly.
+--
+-- Returns a Set of names rather than using the PPE since we already have the correct names in
+-- scope on this branch, and also want to list ALL names of dependents, including aliases.
 namespaceDependencies :: forall m i v. Ord v => Branch0 m -> Action m i v (Map LabeledDependency (Set Name))
 namespaceDependencies branch = do
   typeDeps <- for (Map.toList currentBranchTypeRefs) $ \(typeRef, names) -> fmap (fromMaybe Map.empty) . runMaybeT $ do
