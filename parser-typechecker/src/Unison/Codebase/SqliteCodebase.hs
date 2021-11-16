@@ -648,7 +648,7 @@ sqliteCodebase debugName root = do
 
           syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncToDirectory destRoot _syncMode b =
-            withConnection (debugName ++ ".sync.dest") destRoot $ \destConn->
+            withConnection (debugName ++ ".sync.dest") destRoot $ \destConn ->
               flip State.evalStateT emptySyncProgressState $ do
                 initSchemaIfNotExist destRoot
                 syncInternal syncProgress conn destConn $ Branch.transform lift b
@@ -1136,8 +1136,8 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
               Q.release "push"
 
       Q.setJournalMode JournalMode.DELETE
-    liftIO do
-      void $ push remotePath repo
+  liftIO do
+    void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: Q.DB m => Branch.Hash -> m ()
@@ -1215,5 +1215,3 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
             -- Push our changes to the repo
             gitIn remotePath ["push", "--quiet", url]
             pure True
-
-
