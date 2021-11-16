@@ -8,8 +8,6 @@
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
-    unsafeGetConnection,
-    shutdownConnection,
   )
 where
 
@@ -259,11 +257,11 @@ type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
 -- | Create a new sqlite connection to the database at the given path.
--- the caller is responsible for calling the returned cleanup method once finished with the
--- connection.
--- The connection may not be used after it has been cleaned up.
--- Prefer using `withConnection` if you can, as it guarantees the connection will be properly
--- closed for you.
+--   the caller is responsible for calling the returned cleanup method once finished with the
+--   connection.
+--   The connection may not be used after it has been cleaned up.
+--   Prefer using 'withConnection' if you can, as it guarantees the connection will be properly
+--   closed for you.
 unsafeGetConnection ::
   MonadIO m =>
   Codebase.DebugName ->
@@ -277,9 +275,13 @@ unsafeGetConnection name root = do
   -- Closing the connection more than once is a no-op
   cleanup <- liftIO $ once (shutdownConnection conn)
   pure (liftIO cleanup, conn)
+  where
+    shutdownConnection :: MonadIO m => Connection -> m ()
+    shutdownConnection conn = do
+      Monad.when debug $ traceM $ "shutdown connection " ++ show conn
+      liftIO $ Sqlite.close (Connection.underlying conn)
 
-
--- Run an action with a connection to the codebase, closing the connection on completion or
+-- | Run an action with a connection to the codebase, closing the connection on completion or
 -- failure.
 withConnection ::
   MonadUnliftIO m =>
@@ -293,13 +295,8 @@ withConnection name root act = do
     (\(closeConn, _) -> liftIO closeConn)
     (\(_, conn) -> act conn)
 
-shutdownConnection :: MonadIO m => Connection -> m ()
-shutdownConnection conn = do
-  Monad.when debug $ traceM $ "shutdown connection " ++ show conn
-  liftIO $ Sqlite.close (Connection.underlying conn)
-
 sqliteCodebase ::
-  (MonadIO m, MonadCatch m, MonadUnliftIO m) =>
+  (MonadCatch m, MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   m (Either SchemaVersion (m (), Codebase m Symbol Ann))
@@ -643,20 +640,19 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
-          syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncFromDirectory srcRoot _syncMode b =
-            flip State.evalStateT emptySyncProgressState $ do
-              (closeConn, srcConn) <- unsafeGetConnection (debugName ++ ".sync.src") srcRoot
-              syncInternal syncProgress srcConn conn $ Branch.transform lift b
-              liftIO closeConn
+          syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+          syncFromDirectory srcRoot _syncMode b = do
+            withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
+              flip State.evalStateT emptySyncProgressState $ do
+                syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
-          syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+          syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncToDirectory destRoot _syncMode b =
-            flip State.evalStateT emptySyncProgressState $ do
-              initSchemaIfNotExist destRoot
-              (closeConn, destConn) <- unsafeGetConnection (debugName ++ ".sync.dest") destRoot
-              syncInternal syncProgress conn destConn $ Branch.transform lift b
-              liftIO closeConn
+            withConnection (debugName ++ ".sync.dest") destRoot $ \destConn->
+              flip State.evalStateT emptySyncProgressState $ do
+                initSchemaIfNotExist destRoot
+                syncInternal syncProgress conn destConn $ Branch.transform lift b
+                liftIO closeConn
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
           watches w =
@@ -831,7 +827,7 @@ sqliteCodebase debugName root = do
             (Just \l r -> runDB conn $ fromJust <$> before l r)
           in code
         )
-    v -> shutdownConnection conn $> Left v
+    v -> liftIO closeConn $> Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
