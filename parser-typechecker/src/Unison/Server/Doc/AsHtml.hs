@@ -94,8 +94,8 @@ foldedToHtml attrs isFolded =
     IsFolded isFolded summary details ->
       let attrsWithOpen =
             if isFolded
-              then open_ "open" : attrs
-              else attrs
+              then attrs
+              else open_ "open" : attrs
        in details_ attrsWithOpen $ do
             summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
             div_ [class_ "folded-content folded-details"] $ sequence_ details
