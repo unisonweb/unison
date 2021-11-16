@@ -27,7 +27,6 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
--- import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import Data.Foldable (Foldable (toList), for_, traverse_)
 import Data.Functor (void, ($>), (<&>))
@@ -264,7 +263,7 @@ unsafeGetConnection name root = do
   runReaderT Q.setFlags conn
   pure conn
 
-shutdownConnection :: (HasCallStack, MonadIO m) => Connection -> m ()
+shutdownConnection :: MonadIO m => Connection -> m ()
 shutdownConnection conn = do
   Monad.when debug $ traceM $ "shutdown connection " ++ show conn
   liftIO $ Sqlite.close (Connection.underlying conn)
