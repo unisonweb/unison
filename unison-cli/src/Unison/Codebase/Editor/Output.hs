@@ -210,7 +210,8 @@ data Output v
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
-  | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | -- | List dependents of a type or term.
+    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
   | -- | List all direct dependencies which don't have any names in the current branch
     ListNamespaceDependencies
       PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.

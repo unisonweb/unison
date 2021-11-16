@@ -968,7 +968,8 @@ etaNormalForm :: Ord v => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
     where
-      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step (LamNamed' v (App' f (Var' v')))
+        | v == v' , v `Set.notMember` freeVars f = f
       step tm = tm
   _ -> tm
 
@@ -977,8 +978,9 @@ etaReduceEtaVars :: Var v => Term0 v -> Term0 v
 etaReduceEtaVars tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
     where
-      ok v v' = v == v' && Var.typeOf v == Var.Eta
-      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      ok v v' f = v == v' && Var.typeOf v == Var.Eta
+        && v `Set.notMember` freeVars f
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' f = f
       step tm = tm
   _ -> tm
 

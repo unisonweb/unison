@@ -146,6 +146,13 @@ defaultPatchNameSegment = "patch"
 prettyPrintEnvDecl :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
+-- | Get a pretty print env decl for the current names at the current path.
+currentPrettyPrintEnvDecl :: Action' m v PPE.PrettyPrintEnvDecl
+currentPrettyPrintEnvDecl = do
+  root' <- use root
+  currentPath' <- Path.unabsolute <$> use currentPath
+  prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
+
 loop :: forall m v. (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf <- use LoopState.latestTypecheckedFile
@@ -1648,23 +1655,7 @@ loop = do
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
             PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
-            ListDependentsI hq ->
-              -- todo: add flag to handle transitive efficiently
-              resolveHQToLabeledDependencies hq >>= \lds ->
-                if null lds
-                  then respond $ LabeledReferenceNotFound hq
-                  else for_ lds $ \ld -> do
-                    dependents <-
-                      let tp r = eval $ GetDependents r
-                          tm (Referent.Ref r) = eval $ GetDependents r
-                          tm (Referent.Con r _i _ct) = eval $ GetDependents r
-                       in LD.fold tp tm ld
-                    (missing, names0) <- eval . Eval $ Branch.findHistoricalRefs' dependents root'
-                    let types = R.toList $ Names.types names0
-                    let terms = fmap (second Referent.toReference) $ R.toList $ Names.terms names0
-                    let names = types <> terms
-                    LoopState.numberedArgs .= fmap (Text.unpack . Reference.toText) ((fmap snd names) <> toList missing)
-                    respond $ ListDependents hqLength ld names missing
+            ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
               resolveHQToLabeledDependencies hq >>= \lds ->
@@ -1792,6 +1783,42 @@ loop = do
   case e of
     Right input -> LoopState.lastInput .= Just input
     _ -> pure ()
+
+handleDependents :: Monad m => HQ.HashQualified Name -> Action' m v ()
+handleDependents hq = do
+  hqLength <- eval CodebaseHashLength
+  -- todo: add flag to handle transitive efficiently
+  resolveHQToLabeledDependencies hq >>= \lds ->
+    if null lds
+      then respond $ LabeledReferenceNotFound hq
+      else for_ lds \ld -> do
+        -- The full set of dependent references, any number of which may not have names in the current namespace.
+        dependents <-
+          let tp r = eval $ GetDependents r
+              tm (Referent.Ref r) = eval $ GetDependents r
+              tm (Referent.Con r _i _ct) = eval $ GetDependents r
+           in LD.fold tp tm ld
+        -- Use an unsuffixified PPE here, so we display full names (relative to the current path), rather than the shortest possible
+        -- unambiguous name.
+        ppe <- PPE.unsuffixifiedPPE <$> currentPrettyPrintEnvDecl
+        let results :: [(Reference, Maybe Name)]
+            results =
+              -- Currently we only retain dependents that are named in the current namespace (hence `mapMaybe`). In the future, we could
+              -- take a flag to control whether we want to show all dependents
+              mapMaybe f (Set.toList dependents)
+              where
+                f :: Reference -> Maybe (Reference, Maybe Name)
+                f reference =
+                  asum
+                    [ g <$> PPE.terms ppe (Referent.Ref reference),
+                      g <$> PPE.types ppe reference
+                    ]
+                  where
+                    g :: HQ'.HashQualified Name -> (Reference, Maybe Name)
+                    g hqName =
+                      (reference, Just (HQ'.toName hqName))
+        numberedArgs .= map (Text.unpack . Reference.toText . fst) results
+        respond (ListDependents hqLength ld results)
 
 handlePushRemoteBranch ::
   forall m v.

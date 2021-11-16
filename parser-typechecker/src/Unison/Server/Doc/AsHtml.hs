@@ -97,8 +97,8 @@ foldedToHtml attrs isFolded =
               then open_ "open" : attrs
               else attrs
        in details_ attrsWithOpen $ do
-            summary_ [class_ "folded-content"] $ sequence_ summary
-            div_ [class_ "folded-content"] $ sequence_ details
+            summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
+            div_ [class_ "folded-content folded-details"] $ sequence_ details
 
 foldedToHtmlSource :: Bool -> EmbeddedSource -> Html ()
 foldedToHtmlSource isFolded source =
@@ -196,7 +196,7 @@ toHtml docNamesByRef document =
               Code code ->
                 span_ [class_ "rich source inline-code"] $ inlineCode [] (currentSectionLevelToHtml code)
               CodeBlock lang code ->
-                div_ [class_ "rich source code", class_ $ textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
+                div_ [class_ $ "rich source code " <> textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
               Bold d ->
                 strong_ [] $ currentSectionLevelToHtml d
               Italic d ->
@@ -249,7 +249,12 @@ toHtml docNamesByRef document =
                   IsFolded
                     isFolded
                     [currentSectionLevelToHtml summary]
-                    [currentSectionLevelToHtml details]
+                    -- We include the summary in the details slot to make it
+                    -- symmetric with code folding, which currently always
+                    -- includes the type signature in the details portion
+                    [ div_ [] $ currentSectionLevelToHtml summary,
+                    currentSectionLevelToHtml details
+                    ]
               Paragraph docs ->
                 case docs of
                   [d] ->
@@ -314,14 +319,14 @@ toHtml docNamesByRef document =
                   Link syntax ->
                     inlineCode ["rich", "source"] $ Syntax.toHtml syntax
                   Signature signatures ->
-                    div_
+                    codeBlock
                       [class_ "rich source signatures"]
                       ( mapM_
                           (div_ [class_ "signature"] . Syntax.toHtml)
                           signatures
                       )
                   SignatureInline sig ->
-                    span_ [class_ "rich source signature-inline"] $ Syntax.toHtml sig
+                    inlineCode ["rich", "source", "signature-inline"] $ Syntax.toHtml sig
                   Eval source result ->
                     div_ [class_ "source rich eval"] $
                       codeBlock [] $

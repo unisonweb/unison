@@ -931,7 +931,7 @@ notifyUser dir o = case o of
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"
-            <> P.group ("(" <> fromString (Hash.showBase32Hex hash) <> ")")
+            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
             <> "from the repository at"
             <> prettyReadRepo repo
       CouldntLoadSyncedBranch ns h ->
@@ -1312,24 +1312,28 @@ notifyUser dir o = case o of
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents hqLength ld names missing ->
+  ListDependents hqLength ld results ->
     pure $
-      if names == mempty && missing == mempty
-        then c (prettyLabeledDependency hqLength ld) <> " doesn't have any dependents."
+      if null results
+        then prettyLd <> " doesn't have any named dependents."
         else
-          "Dependents of " <> c (prettyLabeledDependency hqLength ld) <> ":\n\n"
-            <> (P.indentN 2 (P.numberedColumn2Header num pairs))
+          P.lines
+            [ "Dependents of " <> prettyLd <> ":",
+              "",
+              P.indentN 2 (P.numberedColumn2Header num pairs)
+            ]
     where
+      prettyLd = P.syntaxToColor (prettyLabeledDependency hqLength ld)
       num n = P.hiBlack $ P.shown n <> "."
       header = (P.hiBlack "Reference", P.hiBlack "Name")
-      pairs =
-        header :
-        ( fmap (first c . second c) $
-            [(p $ Reference.toShortHash r, prettyName n) | (n, r) <- names]
-              ++ [(p $ Reference.toShortHash r, "(no name available)") | r <- toList missing]
+      pairs = header : map pair results
+      pair :: (Reference, Maybe Name) -> (Pretty, Pretty)
+      pair (reference, maybeName) =
+        ( prettyShortHash (SH.take hqLength (Reference.toShortHash reference)),
+          case maybeName of
+            Nothing -> ""
+            Just name -> prettyName name
         )
-      p = prettyShortHash . SH.take hqLength
-      c = P.syntaxToColor
   -- this definition is identical to the previous one, apart from the word
   -- "Dependencies", but undecided about whether or how to refactor
   ListDependencies hqLength ld names missing ->
