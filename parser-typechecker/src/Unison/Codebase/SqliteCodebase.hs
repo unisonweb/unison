@@ -1077,7 +1077,6 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
   destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
-  -- (`onException` (liftIO $ shutdownConnection destConn)) $ do
   flip runReaderT destConn $ Q.savepoint "push"
   lift . flip State.execStateT emptySyncProgressState $
     syncInternal syncProgress srcConn destConn (Branch.transform lift branch)

@@ -1879,19 +1879,19 @@ handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
       unsafeTime "Push viewRemoteBranch" do
         withExceptT Output.GitError do
           viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-
-    mapExceptT (<* eval (Eval cleanup)) $ do
-      -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
-      -- updates in the remote branch that aren't in `srcb` already.
-      case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
-        Nothing -> lift do
-          respond (RefusedToPush pushBehavior)
-        Just newRemoteRoot -> do
-          unsafeTime "Push syncRemoteRootBranch" do
-            withExceptT Output.GitError do
-              syncRemoteRootBranch repo newRemoteRoot syncMode
-          lift do
-            respond Success
+    -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
+    -- updates in the remote branch that aren't in `srcb` already.
+    case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
+      Nothing -> lift do
+        eval (Eval cleanup)
+        respond (RefusedToPush pushBehavior)
+      Just newRemoteRoot -> do
+        unsafeTime "Push syncRemoteRootBranch" do
+          withExceptT Output.GitError do
+            syncRemoteRootBranch repo newRemoteRoot syncMode
+        lift do
+          eval (Eval cleanup)
+          respond Success
   where
     -- Per `pushBehavior`, we are either:
     --
