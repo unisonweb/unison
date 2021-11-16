@@ -761,7 +761,7 @@ sqliteCodebase debugName root = do
       pure . Right $
         ( finalizer,
           let
-           code = Codebase1.Codebase
+           code = C.Codebase
             (Cache.applyDefined termCache getTerm)
             (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
             (Cache.applyDefined declCache getTypeDeclaration)

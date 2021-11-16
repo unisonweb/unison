@@ -39,9 +39,9 @@ hasMetadata = 3
                          dependsOnNat
                          hasMetadata
                          
-  .builtin.Nat.drop      dependsOnIntAndNat
+  .builtin.Text          hasMetadata
                          
-  ##Text                 hasMetadata
+  .builtin.Nat.drop      dependsOnIntAndNat
                          
   .metadata.myMetadata   hasMetadata
 
