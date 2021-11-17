@@ -3,7 +3,6 @@ module Unison.Codebase.Branch.Squash
   ) where
 
 import Control.Lens ((.~), (^.))
-import qualified Data.Map as Map
 import Data.These (These (..))
 import Data.Zip as Zip
 import Unison.Codebase.Branch (Branch)
@@ -29,18 +28,17 @@ squashOnto baseBranch headBranch =
       (Branch.head headBranch & Branch.children .~ squashedChildren)
       (Branch._history baseBranch)
   where
-    squashChild :: These (Branch m) (Branch m) -> Maybe (Branch m)
+    squashChild :: These (Branch m) (Branch m) -> Branch m
     squashChild = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> Just $ squashOnto base head
-      -- This child has been deleted, remove it in the result
-      (This _base) -> Nothing
-      -- This child didn't exist in the base, flatten the history completely down to a step.
-      (That head) -> Just $ Branch.discardHistory head
+      (These base head) -> squashOnto base head
+      -- This child has been deleted, recursively replace children with an empty branch.
+      (This base) -> squashOnto base Branch.empty
+      -- This child didn't exist in the base, we add any changes as a single commit
+      (That head) -> Branch.discardHistory head
     squashedChildren :: Map NameSegment (Branch m)
     squashedChildren =
-      Map.mapMaybe id $
         Zip.alignWith
           squashChild
           (Branch.head baseBranch ^. Branch.children)
