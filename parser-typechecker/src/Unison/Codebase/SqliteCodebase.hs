@@ -42,11 +42,14 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Time (NominalDiffTime)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
 import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
+import System.Directory (copyFile)
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
@@ -121,6 +124,10 @@ debugCommitFailedTransaction = False
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 
+backupCodebasePath :: NominalDiffTime -> FilePath
+backupCodebasePath now =
+  codebasePath ++ "." ++ show @Int (floor now)
+
 v2dir :: FilePath -> FilePath
 v2dir root = root </> ".unison" </> "v2"
 
@@ -169,7 +176,7 @@ createCodebaseOrError' debugName path = do
               Right () -> pure ()
             )
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path)
+      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path Local)
 
 openOrCreateCodebaseConnection :: MonadIO m => Codebase.DebugName -> FilePath -> m Connection
 openOrCreateCodebaseConnection debugName path = do
@@ -187,7 +194,7 @@ getCodebaseOrError debugName dir = do
     -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
     -- Unison.Codebase.Init.getCodebaseOrExit).
     False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir)
+    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir Local)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -269,13 +276,20 @@ shutdownConnection conn = do
   Monad.when debug $ traceM $ "shutdown connection " ++ show conn
   liftIO $ Sqlite.close (Connection.underlying conn)
 
+-- | Whether a codebase is local or remote.
+data LocalOrRemote
+  = Local
+  | Remote
+
 sqliteCodebase ::
   forall m.
   (MonadUnliftIO m, MonadCatch m) =>
   Codebase.DebugName ->
   CodebasePath ->
+  -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
+  LocalOrRemote ->
   m (Either SchemaVersion (m (), Codebase m Symbol Ann))
-sqliteCodebase debugName root = do
+sqliteCodebase debugName root localOrRemote = do
   Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
   conn <- unsafeGetConnection debugName root
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
@@ -831,6 +845,14 @@ sqliteCodebase debugName root = do
     SchemaVersion 2 -> Right <$> startCodebase
     SchemaVersion 1 -> do
       (cleanup, codebase) <- startCodebase
+      case localOrRemote of
+        Local ->
+          liftIO do
+            backupPath <- backupCodebasePath <$> getPOSIXTime
+            copyFile (root </> codebasePath) (root </> backupPath)
+            -- FIXME prettify
+            putStrLn ("I backed up your codebase to " ++ (root </> backupPath))
+        Remote -> pure ()
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
       pure (Right (cleanup, codebase))
@@ -1063,7 +1085,7 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
   ifM @(ExceptT C.GitError m)
     (codebaseExists remotePath)
     do
-      lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath) >>= \case
+      lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote) >>= \case
         Left sv -> ExceptT . pure . Left . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath sv
         Right (closeCodebase, codebase) -> do
           -- try to load the requested branch from it
