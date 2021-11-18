@@ -16,6 +16,8 @@ import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as Text
 import Data.Text.IO (readFile, writeFile)
 import Data.Tuple (swap)
@@ -125,8 +127,6 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
-import Data.Set.NonEmpty (NESet)
-import qualified Data.Set.NonEmpty as NESet
 
 type Pretty = P.Pretty P.ColorText
 
@@ -554,19 +554,31 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       "I was expecting the namespace " <> prettyPath' path
         <> " to be empty for this operation, but it isn't."
-  CantDelete ppeDecl endangerments ->
-    pure . P.warnCallout $ deletionDependentsTable ppeDecl endangerments
-      -- P.lines
-      --   [ P.wrap "I couldn't delete ",
-      --     "",
-      --     P.indentN 2 $ listOfDefinitions' ppe False failed,
-      --     "",
-      --     "because it's still being used by these definitions:",
-      --     "",
-      --     P.indentN 2 $ listOfDefinitions' ppe False failedDependents
-      --   ]
+  CantDeleteDefinitions ppeDecl endangerments ->
+    pure . P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the following definitions which are still in use:",
+          "",
+          deletionDependentsTable ppeDecl endangerments
+        ]
+  CantDeleteNamespace ppeDecl endangerments ->
+    pure . P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
+          "",
+          deletionDependentsTable ppeDecl endangerments,
+          "",
+          P.wrap "If you want to proceed anyways and leave those definitions without names, use"
+            <> IP.patternName IP.deleteNamespaceForce
+        ]
   DeletedDespiteDependents ppeDecl endangerments ->
-    pure . P.warnCallout $ deletionDependentsTable ppeDecl endangerments
+    pure . P.warnCallout $
+      P.lines
+        [ P.wrap "The following definitions still have named dependents.",
+          P.wrap "I've deleted them for you, but the listed dependents now contain some unnamed references.",
+          "",
+          deletionDependentsTable ppeDecl endangerments
+        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -2565,19 +2577,23 @@ isTestOk tm = case tm of
 
 deletionDependentsTable :: PPE.PrettyPrintEnvDecl -> Map LabeledDependency (NESet LabeledDependency) -> P.Pretty P.ColorText
 deletionDependentsTable ppeDecl m =
-  P.column2Header
-    "Dependency"
-    "Dependents"
-    (map (bimap (prettyLabeled suffixifiedEnv) prettyDependents) $ Map.toList m)
+  m
+    & Map.toList
+    & map
+      ( \(dependency, dependents) ->
+          (prettyLabeled suffixifiedEnv dependency, prettyDependents dependents)
+      )
+    & List.intersperse spacer
+    & P.column2Header "Dependency" "Referenced In"
   where
+    spacer = ("", "")
     suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
     fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
     prettyLabeled ppe = \case
-      LD.TermReference ref -> prettyTermName ppe ref
+      LD.TermReferent ref -> prettyTermName ppe ref
       LD.TypeReference ref -> prettyTypeName ppe ref
     prettyDependents refs =
       refs
-      & NESet.toList
-      & fmap (prettyLabeled fqnEnv)
-      & P.lines
-
+        & NESet.toList
+        & fmap (prettyLabeled fqnEnv)
+        & P.lines

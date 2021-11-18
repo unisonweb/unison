@@ -461,10 +461,6 @@ loop = do
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
           loadSearchResults = eval . LoadSearchResults
-          handleFailedDelete :: Map LabeledDependency (NESet LabeledDependency) -> Action' m v ()
-          handleFailedDelete endangerments = do
-            ppeDecl <- currentPrettyPrintEnvDecl
-            respond $ CantDelete ppeDecl endangerments
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
               (inputDescription <> " (1/2)")
@@ -600,7 +596,9 @@ loop = do
                     root'' <- use LoopState.root
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
-                  else handleFailedDelete endangerments
+                  else do
+                    ppeDecl <- currentPrettyPrintEnvDecl
+                    respond $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             CreateMessage pretty ->
               respond $ PrintMessage pretty
@@ -802,7 +800,9 @@ loop = do
                          ppeDecl <- currentPrettyPrintEnvDecl
                          doDelete b0
                          respond $ DeletedDespiteDependents ppeDecl endangerments
-                       Try -> handleFailedDelete endangerments
+                       Try -> do
+                         ppeDecl <- currentPrettyPrintEnvDecl
+                         respond $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
                       stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty

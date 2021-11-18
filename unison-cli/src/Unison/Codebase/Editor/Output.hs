@@ -137,8 +137,10 @@ data Output v
     -- the path is deleted.
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
-  | -- | CantDelete ppe couldntDelete becauseTheseStillReferenceThem
-    CantDelete PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | DeleteEverythingConfirmation
@@ -297,7 +299,8 @@ isFailure o = case o of
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
-  CantDelete {} -> True
+  CantDeleteDefinitions {} -> True
+  CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False

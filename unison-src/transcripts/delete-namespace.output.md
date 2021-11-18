@@ -29,17 +29,18 @@ Deleting a namespace with external dependencies should fail and list all depende
 
   ⚠️
   
-  I couldn't delete
+  I didn't delete the namespace because the following
+  definitions are still in use.
   
-    1. dependencies.term1 : builtin.Nat
-    2. dependencies.term2 : builtin.Nat
-    
+  Dependency   Referenced In
+  term2        dependents.usage2
+               dependents.usage1
+               
+  term1        dependents.usage2
+               dependents.usage1
   
-  because it's still being used by these definitions:
-  
-    1. dependents.usage1 : builtin.Nat
-    2. dependents.usage2 : builtin.Nat
-    
+  If you want to proceed anyways and leave those definitions
+  without names, use namespace.delete.force
 
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
@@ -47,26 +48,25 @@ Deleting a namespace with external dependencies should succeed when using `delet
 ```ucm
 .> delete.namespace.force dependencies
 
-  ⚠️
-  
-  I deleted the following
-  
-    1. dependencies.term1 : builtin.Nat
-    2. dependencies.term2 : builtin.Nat
-    
-  
-  the following now depend on terms which now have no names:
-  
-    1. dependents.usage1 : builtin.Nat
-    2. dependents.usage2 : builtin.Nat
-    
-
   Removed definitions:
   
     1. term1 : Nat
     2. term2 : Nat
   
   Tip: You can use `undo` or `reflog` to undo this change.
+
+  ⚠️
+  
+  The following definitions are still depended upon.
+  I've deleted them for you, but the listed dependents now
+  contain some unnamed references.
+  
+  Dependency   Referenced In
+  term2        dependents.usage2
+               dependents.usage1
+               
+  term1        dependents.usage2
+               dependents.usage1
 
 ```
 Deleting the root namespace should require confirmation if not forced.

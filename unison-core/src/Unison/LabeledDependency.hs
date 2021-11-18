@@ -13,6 +13,7 @@ module Unison.LabeledDependency
   -- , toReference
   , LabeledDependency(..)
   , pattern ConstructorReference
+  , pattern TermReference
   , partition
   ) where
 
