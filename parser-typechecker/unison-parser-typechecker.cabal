@@ -30,7 +30,6 @@ library
       Unison.Codebase.Branch
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
-      Unison.Codebase.Branch.Squash
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation

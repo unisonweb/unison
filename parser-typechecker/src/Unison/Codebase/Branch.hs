@@ -44,8 +44,9 @@ module Unison.Codebase.Branch
   -- * step
   , stepManyAt
   , stepManyAtM
-  , stepManyAt0
   , stepEverywhere
+  , batchUpdates
+  , batchUpdatesM
   -- *
   , addTermName
   , addTypeName
@@ -115,6 +116,8 @@ import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
+import qualified Data.Semialign as Align
+import Data.These (These(..))
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -488,11 +491,9 @@ isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
-step f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch (Causal.one (f empty0))
-  b -> over history (Causal.stepDistinct f) b
+step f = runIdentity . stepM (Identity . f)
 
-stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
   Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
@@ -508,13 +509,22 @@ uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
-stepManyAt :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
-stepManyAt actions = step (stepManyAt0 actions)
+stepManyAt ::
+  forall m f.
+  (Monad m, Foldable f) =>
+  f (Path, Branch0 m -> Branch0 m) ->
+  Branch m ->
+  Branch m
+stepManyAt actions startBranch =
+  runIdentity $ stepManyAtM actionsIdentity startBranch
+  where
+    actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
+    actionsIdentity = coerce (toList actions)
 
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepManyAtM actions = stepM (stepManyAt0M actions)
+stepManyAtM actions startBranch =
+  squashOnto startBranch <$> (stepM (batchUpdatesM actions) startBranch)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -597,22 +607,22 @@ modifyAtM path f b = case Path.uncons path of
 -- branches.
 -- If you're using this on a branch, ensure you record the changes to the root branch into a
 -- causal node at some point.
-stepManyAt0 :: forall f m . (Monad m, Foldable f)
+batchUpdates :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions =
-  runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
+batchUpdates actions =
+  runIdentity . batchUpdatesM [ (p, pure . f) | (p,f) <- toList actions ]
 
 data ActionLocation = HereActions | ChildActions
   deriving Eq
 
-stepManyAt0M ::
+batchUpdatesM ::
   forall m n f.
   (Monad m, Monad n, Foldable f) =>
   f (Path, Branch0 m -> n (Branch0 m)) ->
   Branch0 m ->
   n (Branch0 m)
-stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
+batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
   where
     groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
     groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
@@ -643,7 +653,7 @@ stepManyAt0M (toList -> actions) curBranch = foldM execActions curBranch (groupA
           -- 'non empty' creates an empty branch if one is missing,
           -- and similarly deletes a branch if it is empty after modifications.
           -- This is important so that branch actions can create/delete branches.
-          children & at seg . non empty %%~ stepM (stepManyAt0M acts)
+          children & at seg . non empty %%~ stepM (batchUpdatesM acts)
     -- The order of actions across differing keys is irrelevant since those actions can't
     -- affect each other.
     -- The order within a given key is stable.
@@ -725,3 +735,37 @@ transform f b = case _history b of
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
+
+
+-- | Applies any differences from baseBranch -> headBranch as a single Causal Cons on top of
+-- baseBranch's history.
+-- We do the same recursively for child branches.
+--
+-- The two branches don't need to share a common ancestor.
+squashOnto ::
+  forall m.
+  Monad m =>
+  Branch m ->
+  Branch m ->
+  Branch m
+squashOnto baseBranch headBranch =
+  Branch $
+    Causal.consDistinct
+      (head headBranch & children .~ squashedChildren)
+      (_history baseBranch)
+  where
+    squashChild :: These (Branch m) (Branch m) -> Branch m
+    squashChild = \case
+      -- If we have a matching child in both base and head, squash the child head onto the
+      -- child base recursively.
+      (These base head) -> squashOnto base head
+      -- This child has been deleted, recursively replace children with an empty branch.
+      (This base) -> squashOnto base empty
+      -- This child didn't exist in the base, we add any changes as a single commit
+      (That head) -> discardHistory head
+    squashedChildren :: Map NameSegment (Branch m)
+    squashedChildren =
+        Align.alignWith
+          squashChild
+          (head baseBranch ^. children)
+          (head headBranch ^. children)

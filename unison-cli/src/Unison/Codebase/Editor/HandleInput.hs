@@ -2951,7 +2951,7 @@ doSlurpAdds ::
   SlurpComponent v ->
   UF.TypecheckedUnisonFile v Ann ->
   (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
+doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
   where
     typeActions = map doType . toList $ SC.types slurp
     termActions =
@@ -2998,7 +2998,7 @@ doSlurpUpdates ::
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
-  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
+  Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
     typeActions = join . map doType . Map.toList $ typeEdits
     termActions = join . map doTerm . Map.toList $ termEdits
