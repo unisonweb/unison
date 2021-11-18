@@ -96,7 +96,16 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
-Lens.makeLensesFor [("head", "head_")] ''Causal
+-- | Focus the current head, keeping the hash up to date.
+head_ :: Hashable e => Lens.Lens' (Causal m h e) e
+head_ = Lens.lens getter setter
+  where
+    getter = head
+    setter causal e =
+      case causal of
+        One {} -> one e
+        Cons{tail=(rawHash, c)} -> cons' e rawHash c
+        Merge{tails} -> mergeCons e tails
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
@@ -261,8 +270,11 @@ threeWayMerge' lca combine c1 c2 = do
   predecessors =
     Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
   done :: e -> Causal m h e
-  done newHead =
-    Merge (RawHash (hash (newHead, Map.keys predecessors))) newHead predecessors
+  done newHead = mergeCons newHead predecessors
+
+mergeCons :: Hashable e => e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
+mergeCons newHead predecessors =
+  Merge (RawHash (hash (newHead, Map.keys predecessors))) newHead predecessors
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
