@@ -307,7 +307,7 @@ pretty0
       printGuard Nothing = mempty
       printGuard (Just g') =
         let (_,g) = ABT.unabs g'
-         in PP.softHang (fmt S.DelimiterChar " |") $
+         in PP.hang (fmt S.DelimiterChar " |") $
               pretty0 n (ac 2 Normal im doc) g
       eq = fmt S.BindingEquals " ="
       rhs =
@@ -548,51 +548,53 @@ printCase
   -> DocLiteralContext
   -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
-printCase env im doc ms0 = PP.lines $ map each gridArrowsAligned where
+printCase env im doc ms0 = PP.lines $ alignGrid grid where
   ms = groupCases ms0
-  each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
-  grid = go =<< ms
-  gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
-    f (a, b, _) = (a, Just b)
-    tidy ((a', b'), (_, _, c)) = (a', b', c)
-
+  justify rows =
+    zip (fmap fst . PP.align' $ fmap patternGuards rows) $ fmap gbs rows
+   where
+     patternGuards (p, True, _, _) = (p, Nothing)
+     patternGuards (p, _, _, _) = (p, Just "")
+     gbs (_, _, gs, bs) = zip gs bs
+  alignGrid = fmap alignCase . justify
+  alignCase (p, gbs) = PP.hang p guardBlock
+   where
+    guardBlock = PP.lines
+      $ fmap (\(g, (a, b)) -> PP.hang (PP.spaceIfNeeded g a) b) justified
+    justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+  grid = go <$> ms
   patLhs vs pats = case pats of
     [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-    pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
+    pats  -> PP.group . PP.sep ("," <> PP.softbreak)
+                      . (`evalState` vs)
+                      . for pats $ \pat -> do
       vs <- State.get
       let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
       State.put rem
       pure p
-
   arrow = fmt S.ControlKeyword "->"
   goBody im' uses body = uses [pretty0 env (ac 0 Block im' doc) body]
-  printGuard (Just (ABT.AbsN' _ g)) =
-    -- strip off any Abs-chain around the guard, guard variables are rendered
-    -- like any other variable, ex: case Foo x y | x < y -> ...
-    PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
-  printGuard Nothing  = mempty
 
-  go (pats, vs, [(guard, body)]) =
-    [(lhs, arrow, goBody im' uses body)]
-    where
-    lhs = patLhs vs pats <> printGuard guard
-    (im', uses) = calcImports im body
   -- If there's multiple guarded cases for this pattern, prints as:
   -- MyPattern x y
   --   | guard 1        -> 1
   --   | otherguard x y -> 2
   --   | otherwise      -> 3
   go (pats, vs, unzip -> (guards, bodies)) =
-    (patLhs vs pats, mempty, mempty)
-      : zip3 (PP.indentN 2 . printGuard <$> guards)
-             (repeat arrow)
-             (printBody <$> bodies)
-    where
-    printGuard Nothing = (fmt S.DelimiterChar "|") <> fmt S.ControlKeyword " otherwise"
+    (patLhs vs pats, noGuards, printGuard <$> guards, printBody <$> bodies)
+   where
+    noGuards = all (== Nothing) guards
+    printGuard Nothing | noGuards = mempty
+    printGuard Nothing =
+      fmt S.DelimiterChar "|" <> fmt S.ControlKeyword " otherwise"
     printGuard (Just (ABT.AbsN' _ g)) =
-      PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g]
-    printBody b = let (im', uses) = calcImports im b
-                  in goBody im' uses b
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      PP.softHang (fmt S.DelimiterChar "|") $ pretty0
+        env
+        (ac 2 Normal im doc)
+        g
+    printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
 {- Render a binding, producing output of the form
 

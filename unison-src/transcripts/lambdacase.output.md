@@ -46,8 +46,8 @@ Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpt
 
   isEmpty : [t] -> Boolean
   isEmpty = cases
-    [] -> true
-    _  -> false
+    []   -> true
+    _   -> false
 
 ```
 it shows the definition using `cases` syntax opportunistically, even though the code was originally written without that syntax.
@@ -105,11 +105,12 @@ Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
   merge : [a] -> [a] -> [a]
   merge = cases
-    [], ys           -> ys
-    xs, []           -> xs
-    h +: t, h2 +: t2 ->
-      if h <= h2 then h +: merge t (h2 +: t2)
-      else h2 +: merge (h +: t) t2
+    [], ys   -> ys
+    xs, []   -> xs
+    h +: t, h2 +: t2
+        ->
+        if h <= h2 then h +: merge t (h2 +: t2)
+        else h2 +: merge (h +: t) t2
 
 ```
 it again shows the definition using the multi-argument `cases` syntax opportunistically, even though the code was originally written without that syntax.
@@ -193,11 +194,11 @@ merge3 = cases
 
   merge3 : [a] -> [a] -> [a]
   merge3 = cases
-    [], ys           -> ys
-    xs, []           -> xs
-    h +: t, h2 +: t2  
-      | h <= h2      -> h +: merge3 t (h2 +: t2)
-      | otherwise    -> h2 +: merge3 (h +: t) t2
+    [], ys   -> ys
+    xs, []   -> xs
+    h +: t, h2 +: t2 
+      | h <= h2    -> h +: merge3 t (h2 +: t2)
+      | otherwise  -> h2 +: merge3 (h +: t) t2
 
 ```
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.

@@ -97,71 +97,71 @@ doc = cases
 .> view dopey
 
   dopey : Char -> ()
-  dopey = cases ?0 -> ()
+  dopey = cases ?0   -> ()
 
 .> view grumpy
 
   grumpy : p4kl4dn7b41 -> ()
-  grumpy = cases d -> ()
+  grumpy = cases d   -> ()
 
 .> view happy
 
   happy : Boolean -> ()
-  happy = cases true -> ()
+  happy = cases true   -> ()
 
 .> view sneezy
 
   sneezy : Int -> ()
-  sneezy = cases +1 -> ()
+  sneezy = cases +1   -> ()
 
 .> view bashful
 
   bashful : Optional a -> ()
-  bashful = cases Some a -> ()
+  bashful = cases Some a   -> ()
 
 .> view mouthy
 
   mouthy : [t] -> ()
-  mouthy = cases [] -> ()
+  mouthy = cases []   -> ()
 
 .> view pokey
 
   pokey : [t] -> ()
-  pokey = cases h +: t -> ()
+  pokey = cases h +: t   -> ()
 
 .> view sleepy
 
   sleepy : [t] -> ()
-  sleepy = cases i :+ l -> ()
+  sleepy = cases i :+ l   -> ()
 
 .> view demure
 
   demure : [Nat] -> ()
-  demure = cases [0] -> ()
+  demure = cases [0]   -> ()
 
 .> view angry
 
   angry : [t] -> ()
-  angry = cases a ++ [] -> ()
+  angry = cases a ++ []   -> ()
 
 .> view tremulous
 
   tremulous : (Nat, Nat) -> ()
-  tremulous = cases (0, 1) -> ()
+  tremulous = cases (0, 1)   -> ()
 
 .> view throaty
 
   throaty : Request {g, Ab} x -> ()
-  throaty = cases {a a -> k} -> ()
+  throaty = cases {a a -> k}   -> ()
 
 .> view agitated
 
   agitated : Nat -> ()
-  agitated = cases a | a == 2 -> ()
+  agitated = cases a  | a == 2  -> ()
 
 .> view doc
 
   doc : Nat -> ()
-  doc = cases y@4 -> ()
+  doc = cases y@4   -> ()
 
 ```
