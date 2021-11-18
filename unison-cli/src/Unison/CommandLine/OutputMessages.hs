@@ -125,6 +125,8 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 
 type Pretty = P.Pretty P.ColorText
 
@@ -552,28 +554,19 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       "I was expecting the namespace " <> prettyPath' path
         <> " to be empty for this operation, but it isn't."
-  CantDelete ppe failed failedDependents ->
-    pure . P.warnCallout $
-      P.lines
-        [ P.wrap "I couldn't delete ",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failed,
-          "",
-          "because it's still being used by these definitions:",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failedDependents
-        ]
-  DeletedDespiteDependents ppe deletions dependents ->
-    pure . P.warnCallout $
-      P.lines
-        [ P.wrap "I deleted the following ",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False deletions,
-          "",
-          "the following now depend on terms which now have no names:",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False dependents
-        ]
+  CantDelete ppeDecl endangerments ->
+    pure . P.warnCallout $ deletionDependentsTable ppeDecl endangerments
+      -- P.lines
+      --   [ P.wrap "I couldn't delete ",
+      --     "",
+      --     P.indentN 2 $ listOfDefinitions' ppe False failed,
+      --     "",
+      --     "because it's still being used by these definitions:",
+      --     "",
+      --     P.indentN 2 $ listOfDefinitions' ppe False failedDependents
+      --   ]
+  DeletedDespiteDependents ppeDecl endangerments ->
+    pure . P.warnCallout $ deletionDependentsTable ppeDecl endangerments
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -2549,6 +2542,11 @@ prettyTermName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.termName ppe r)
 
+prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
+prettyTypeName ppe r =
+  P.syntaxToColor $
+    prettyHashQualified (PPE.typeName ppe r)
+
 prettyReadRepo :: ReadRepo -> Pretty
 prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
 
@@ -2564,3 +2562,22 @@ isTestOk tm = case tm of
           && ref == DD.testResultRef
       isSuccess _ = False
   _ -> False
+
+deletionDependentsTable :: PPE.PrettyPrintEnvDecl -> Map LabeledDependency (NESet LabeledDependency) -> P.Pretty P.ColorText
+deletionDependentsTable ppeDecl m =
+  P.column2Header
+    "Dependency"
+    "Dependents"
+    (map (bimap (prettyLabeled suffixifiedEnv) prettyDependents) $ Map.toList m)
+  where
+    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    prettyLabeled ppe = \case
+      LD.TermReference ref -> prettyTermName ppe ref
+      LD.TypeReference ref -> prettyTypeName ppe ref
+    prettyDependents refs =
+      refs
+      & NESet.toList
+      & fmap (prettyLabeled fqnEnv)
+      & P.lines
+

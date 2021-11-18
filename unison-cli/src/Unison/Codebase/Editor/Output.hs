@@ -60,6 +60,7 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
+import Data.Set.NonEmpty (NESet)
 
 type ListDetailed = Bool
 
@@ -137,9 +138,9 @@ data Output v
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
   | -- | CantDelete ppe couldntDelete becauseTheseStillReferenceThem
-    CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+    CantDelete PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
-    DeletedDespiteDependents PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+    DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
