@@ -148,25 +148,30 @@ recursiveDeclDeps seen0 cl d = do
 categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize
   = \case
-      RF.TermReference ref -> (mempty, Set.singleton (RF.toReference ref))
       RF.TypeReference ref -> (Set.singleton ref, mempty)
+      RF.ConstructorReference ref _con _conType -> (Set.singleton ref, mempty)
+      RF.TermReference ref -> (mempty, Set.singleton (RF.toReference ref))
 
-recursiveTermDeps
-  :: Set RF.LabeledDependency
-  -> CodeLookup Symbol IO ()
-  -> Term Symbol
-  -> IO (Set Reference, Set Reference)
+recursiveTermDeps ::
+  Set RF.LabeledDependency ->
+  CodeLookup Symbol IO () ->
+  Term Symbol ->
+  IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
-    rec <- for (toList (deps \\ seen0)) $ \case
-      RF.TypeReference (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+  rec <- for (toList (deps \\ seen0)) $ \case
+    RF.ConstructorReference (RF.DerivedId refId) _ _ -> handleTypeReferenceId refId
+    RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
+    RF.TermReference r -> recursiveRefDeps seen cl (RF.toReference r)
+    _ -> pure mempty
+  pure $ foldMap categorize deps <> fold rec
+  where
+    handleTypeReferenceId :: RF.Id -> IO (Set Reference, Set Reference)
+    handleTypeReferenceId refId =
+      getTypeDeclaration cl refId >>= \case
         Just d -> recursiveDeclDeps seen cl d
         Nothing -> pure mempty
-      RF.TermReference r -> recursiveRefDeps seen cl (RF.toReference r)
-      _ -> pure mempty
-    pure $ foldMap categorize deps <> fold rec
-  where
-  deps = Tm.labeledDependencies tm
-  seen = seen0 <> deps
+    deps = Tm.labeledDependencies tm
+    seen = seen0 <> deps
 
 recursiveRefDeps
   :: Set RF.LabeledDependency
