@@ -94,8 +94,8 @@ foldedToHtml attrs isFolded =
     IsFolded isFolded summary details ->
       let attrsWithOpen =
             if isFolded
-              then open_ "open" : attrs
-              else attrs
+              then attrs
+              else open_ "open" : attrs
        in details_ attrsWithOpen $ do
             summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
             div_ [class_ "folded-content folded-details"] $ sequence_ details
@@ -227,7 +227,7 @@ toHtml docNamesByRef document =
               Style cssclass_ d ->
                 span_ [class_ $ textToClass cssclass_] $ currentSectionLevelToHtml d
               Anchor id' d ->
-                a_ [id_ id', target_ id'] $ currentSectionLevelToHtml d
+                a_ [id_ id', href_ $ "#" <> id'] $ currentSectionLevelToHtml d
               Blockquote d ->
                 blockquote_ [] $ currentSectionLevelToHtml d
               Blankline ->
@@ -297,7 +297,11 @@ toHtml docNamesByRef document =
               NamedLink label href ->
                 case normalizeHref docNamesByRef href of
                   Href h ->
-                    a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
+                    -- Fragments (starting with a #) are links internal to the page
+                    if Text.isPrefixOf "#" h then
+                      a_ [class_ "named-link", href_ h ] $ currentSectionLevelToHtml label
+                    else
+                      a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
                   DocLinkHref name ->
                     let href = "/" <> Text.replace "." "/" (Name.toText name) <> ".html"
                      in a_ [class_ "named-link doc-link", href_ href] $ currentSectionLevelToHtml label
