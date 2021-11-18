@@ -44,10 +44,9 @@ ex1 tup =
   
   ex1 : (a, b, (Nat, Nat)) -> Nat
   ex1 = cases
-    (a, b, (c, d))
-        ->
-        use Nat +
-        c + d
+    (a, b, (c, d)) ->
+      use Nat +
+      c + d
 
 ```
 Notice that `ex0` is printed using the `cases` syntax (but `ex1` is not). The pretty-printer currently prefers the `cases` syntax if definition can be printed using either destructuring bind or `cases`.
@@ -137,13 +136,13 @@ ex5a _ = match (99 + 1, "hi") with
   ex5 : 'Text
   ex5 _ =
     use Nat +
-    match 99 + 1 with 12   -> "Hi"
+    match 99 + 1 with 12 -> "Hi"
   
   ex5a : 'Text
   ex5a _ =
     use Nat +
     match (99 + 1, "hi") with
-      (x, "hi")   -> "Not printed as a destructuring bind."
+      (x, "hi") -> "Not printed as a destructuring bind."
 
 ```
 Notice how it prints both an ordinary match.
@@ -168,9 +167,8 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases
-    (x, y)
-        ->
-        use Nat +
-        x + y
+    (x, y) ->
+      use Nat +
+      x + y
 
 ```
