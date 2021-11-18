@@ -48,7 +48,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -58,6 +58,7 @@ import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
 import Control.Error (rightMay)
+import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: P.Width
@@ -305,7 +306,7 @@ run version dir configFile stanzas codebase = do
             "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
-        writeIORef pathRef (view HandleInput.currentPath state)
+        writeIORef pathRef (view LoopState.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
             rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
         (o, state') <- HandleCommand.commandLine config awaitInput
@@ -323,11 +324,11 @@ run version dir configFile stanzas codebase = do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
           Just () -> do
-            writeIORef numberedArgsRef (HandleInput._numberedArgs state')
-            writeIORef rootBranchRef (HandleInput._root state')
+            writeIORef numberedArgsRef (LoopState._numberedArgs state')
+            writeIORef rootBranchRef (LoopState._root state')
             loop state'
     (`finally` cleanup)
-      $ loop (HandleInput.loopState0 root initialPath)
+      $ loop (LoopState.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do

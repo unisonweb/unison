@@ -39,6 +39,11 @@ d13 :: Relation3 a b c -> Relation a c
 d13 Relation3 {d1, d3} =
   R.unsafeFromMultimaps (Map.map R.ran d1) (Map.map R.dom d3)
 
+-- | Project out a relation that only includes the 2nd and 3rd dimensions.
+d23 :: Relation3 a b c -> Relation b c
+d23 Relation3 {d2, d3} =
+  R.unsafeFromMultimaps (Map.map R.ran d2) (Map.map R.ran d3)
+
 filter :: (Ord a, Ord b, Ord c)
        => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
 filter f = fromList . Prelude.filter f . toList
