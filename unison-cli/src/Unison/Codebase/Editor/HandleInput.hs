@@ -275,8 +275,7 @@ loop = do
         then modifying LoopState.latestFile (fmap (const False) <$>)
         else loadUnisonFile sourceName text
     Right input ->
-      let ifConfirmed = ifM (confirmedCommand input)
-          branchNotFound = respond . BranchNotFound
+      let branchNotFound = respond . BranchNotFound
           branchNotFound' = respond . BranchNotFound . Path.unsplit'
           patchNotFound :: Path.Split' -> Action' m v ()
           patchNotFound s = respond $ PatchNotFound s
@@ -353,7 +352,8 @@ loop = do
             DeleteI thing -> "delete " <> hqs' thing
             DeleteTermI def -> "delete.term " <> hqs' def
             DeleteTypeI def -> "delete.type " <> hqs' def
-            DeleteBranchI opath -> "delete.namespace " <> ops' opath
+            DeleteBranchI Try opath -> "delete.namespace " <> ops' opath
+            DeleteBranchI Force opath -> "delete.namespace.force " <> ops' opath
             DeletePatchI path -> "delete.patch " <> ps' path
             ReplaceI src target p ->
               "replace " <> HQ.toText src <> " "
@@ -786,34 +786,38 @@ loop = do
                 Just _ -> do
                   stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
                   success
-            DeleteBranchI Nothing ->
-              ifConfirmed
-                ( do
-                    stepAt (Path.empty, const Branch.empty0)
-                    respond DeletedEverything
-                )
-                (respond DeleteEverythingConfirmation)
-            DeleteBranchI (Just p) ->
-              maybe (branchNotFound' p) go $ getAtSplit' p
+            DeleteBranchI insistence Nothing -> do
+              hasConfirmed <- confirmedCommand input
+              if (hasConfirmed || insistence == Force)
+                then do stepAt (Path.empty, const Branch.empty0)
+                        respond DeletedEverything
+                else respond DeleteEverythingConfirmation
+            DeleteBranchI insistence (Just p) -> do
+              case getAtSplit' p of
+                Nothing -> branchNotFound' p
+                Just b -> case insistence of
+                            Force -> doDelete (Branch.head b)
+                            Try -> deleteIfNoDependents (Branch.head b)
               where
-                go (Branch.head -> b) = do
-                  (failed, failedDependents) <-
-                    let rootNames = Branch.toNames root0
-                        toDelete =
-                          Names.prefix0
-                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
-                            (Branch.toNames b)
-                     in getEndangeredDependents (eval . GetDependents) toDelete rootNames
-                  if failed == mempty
-                    then do
+                doDelete b0 = do
                       stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
                       -- Looks similar to the 'toDelete' above... investigate me! ;)
-                      diffHelper b Branch.empty0
+                      diffHelper b0 Branch.empty0
                         >>= respondNumbered
                           . uncurry
                             ( ShowDiffAfterDeleteBranch $
                                 resolveToAbsolute (Path.unsplit' p)
                             )
+                deleteIfNoDependents b0 = do
+                  let rootNames = Branch.toNames root0
+                      toDelete =
+                        Names.prefix0
+                          (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                          (Branch.toNames b0)
+                  (failed, failedDependents) <-
+                    getEndangeredDependents (eval . GetDependents) toDelete rootNames
+                  if failed == mempty
+                    then doDelete b0
                     else handleFailedDelete failed failedDependents
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
@@ -1501,20 +1505,6 @@ loop = do
 
                 let m = Map.fromList computedTests
                 respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
-
-            -- ListBranchesI ->
-            --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
-            -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
-            --   uniqueToDelete <- prettyUniqueDefinitions bnbs
-            --   let deleteBranches b =
-            --         traverse (eval . DeleteBranch) b >> respond (Success input)
-            --   if (currentBranchName' `elem` branchNames)
-            --     then respond DeletingCurrentBranch
-            --     else if null uniqueToDelete
-            --       then deleteBranches branchNames
-            --       else ifM (confirmedCommand input)
-            --                (deleteBranches branchNames)
-            --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
