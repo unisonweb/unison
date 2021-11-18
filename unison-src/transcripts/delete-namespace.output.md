@@ -10,21 +10,6 @@ dependents.usage1 = dependencies.term1 + dependencies.term2
 dependents.usage2 = dependencies.term1 * dependencies.term2
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      dependencies.term1    : Nat
-      dependencies.term2    : Nat
-      dependents.usage1     : Nat
-      dependents.usage2     : Nat
-      no_dependencies.thing : Text
-
-```
 Deleting a namespace with no external dependencies should succeed.
 
 ```ucm
@@ -55,5 +40,45 @@ Deleting a namespace with external dependencies should fail and list all depende
     1. dependents.usage1 : builtin.Nat
     2. dependents.usage2 : builtin.Nat
     
+
+```
+Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
+
+```ucm
+.> delete.namespace.force dependencies
+
+  Removed definitions:
+  
+    1. term1 : Nat
+    2. term2 : Nat
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+```
+Deleting the root namespace should require confirmation if not forced.
+
+```ucm
+.> delete.namespace .
+
+  ⚠️
+  
+  Are you sure you want to clear away everything?
+  You could use `namespace` to switch to a new namespace instead.
+
+.> delete.namespace .
+
+  Okay, I deleted everything except the history. Use `undo` to
+  undo, or `builtins.merge` to restore the absolute basics to
+  the current path.
+
+```
+Deleting the root namespace shouldn't require confirmation if forced.
+
+```ucm
+.> delete.namespace.force .
+
+  Okay, I deleted everything except the history. Use `undo` to
+  undo, or `builtins.merge` to restore the absolute basics to
+  the current path.
 
 ```

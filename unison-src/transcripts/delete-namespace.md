@@ -4,7 +4,7 @@
 .> builtins.merge
 ```
 
-```unison
+```unison:hide
 no_dependencies.thing = "no dependents on this term"
 
 dependencies.term1 = 1
@@ -32,6 +32,20 @@ Deleting a namespace with external dependencies should fail and list all depende
 
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
 
-```ucm:error
+```ucm
 .> delete.namespace.force dependencies
 ```
+
+Deleting the root namespace should require confirmation if not forced.
+
+```ucm
+.> delete.namespace .
+.> delete.namespace .
+```
+
+Deleting the root namespace shouldn't require confirmation if forced.
+
+```ucm
+.> delete.namespace.force .
+```
+
