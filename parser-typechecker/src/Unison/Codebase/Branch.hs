@@ -327,6 +327,9 @@ deriveDeepEdits branch =
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
+head_ :: Lens' (Branch m) (Branch0 m)
+head_ = history . Causal.head_
+
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
@@ -490,9 +493,13 @@ isEmpty0 = (== empty0)
 isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
+-- | Perform an update over the current branch and create a new causal step.
+-- Note: this does not step history on updated child branches, see 'stepManyAt'.
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = runIdentity . stepM (Identity . f)
 
+-- | Perform an update over the current branch and create a new causal step.
+-- Note: this does not step history on updated child branches, see 'stepManyAtM'.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
   Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
@@ -509,6 +516,8 @@ uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
+-- | Run a series of updates at specific locations efficiently, aggregating all changes
+-- into a single causal step.
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
@@ -521,10 +530,12 @@ stepManyAt actions startBranch =
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
 
+-- | Run a series of updates at specific locations efficiently, aggregating all changes
+-- into a single causal step.
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions startBranch =
-  squashOnto startBranch <$> (stepM (batchUpdatesM actions) startBranch)
+  squashOnto startBranch <$> (startBranch & head_ %%~ batchUpdatesM actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -602,20 +613,24 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
--- | stepManyAt0 consolidates several changes into a single step
--- It does NOT record a new causal node for the parent branch, but does for any child
--- branches.
--- If you're using this on a branch, ensure you record the changes to the root branch into a
--- causal node at some point.
+-- | Efficiently perform updates over many locations within a branch.
+-- All updates are performed over the current branch, all causal changes
+-- must be performed in the updates themselves.
 batchUpdates :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
 batchUpdates actions =
-  runIdentity . batchUpdatesM [ (p, pure . f) | (p,f) <- toList actions ]
+  runIdentity . batchUpdatesM actionsIdentity
+  where
+    actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
+    actionsIdentity = coerce $ toList actions
 
 data ActionLocation = HereActions | ChildActions
   deriving Eq
 
+-- | Efficiently perform updates over many locations within a branch.
+-- All updates are performed over the current branch, all causal changes
+-- must be performed in the updates themselves.
 batchUpdatesM ::
   forall m n f.
   (Monad m, Monad n, Foldable f) =>
@@ -653,7 +668,7 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
           -- 'non empty' creates an empty branch if one is missing,
           -- and similarly deletes a branch if it is empty after modifications.
           -- This is important so that branch actions can create/delete branches.
-          children & at seg . non empty %%~ stepM (batchUpdatesM acts)
+          children & at seg . non empty . head_ %%~ batchUpdatesM acts
     -- The order of actions across differing keys is irrelevant since those actions can't
     -- affect each other.
     -- The order within a given key is stable.
