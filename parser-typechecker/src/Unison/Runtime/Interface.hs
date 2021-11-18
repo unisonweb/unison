@@ -49,7 +49,7 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Builtin.Decls as RF
 import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
-import qualified Unison.Referent as RF (pattern Ref)
+import qualified Unison.Referent as RF (pattern Ref, toReference)
 import qualified Unison.Reference as RF
 
 import Unison.Util.EnumContainers as EC
@@ -147,8 +147,9 @@ recursiveDeclDeps seen0 cl d = do
 
 categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize
-  = either ((,mempty) . singleton) ((mempty,) . singleton)
-  . RF.toReference
+  = \case
+      RF.TermReference ref -> (mempty, Set.singleton (RF.toReference ref))
+      RF.TypeReference ref -> (Set.singleton ref, mempty)
 
 recursiveTermDeps
   :: Set RF.LabeledDependency
@@ -156,11 +157,11 @@ recursiveTermDeps
   -> Term Symbol
   -> IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
-    rec <- for (RF.toReference <$> toList (deps \\ seen0)) $ \case
-      Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+    rec <- for (toList (deps \\ seen0)) $ \case
+      RF.TypeReference (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
         Just d -> recursiveDeclDeps seen cl d
         Nothing -> pure mempty
-      Right r -> recursiveRefDeps seen cl r
+      RF.TermReference r -> recursiveRefDeps seen cl (RF.toReference r)
       _ -> pure mempty
     pure $ foldMap categorize deps <> fold rec
   where

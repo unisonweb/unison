@@ -47,6 +47,20 @@ Deleting a namespace with external dependencies should succeed when using `delet
 ```ucm
 .> delete.namespace.force dependencies
 
+  ⚠️
+  
+  I deleted the following
+  
+    1. dependencies.term1 : builtin.Nat
+    2. dependencies.term2 : builtin.Nat
+    
+  
+  the following now depend on terms which now have no names:
+  
+    1. dependents.usage1 : builtin.Nat
+    2. dependents.usage2 : builtin.Nat
+    
+
   Removed definitions:
   
     1. term1 : Nat

@@ -139,6 +139,7 @@ import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import qualified Data.Set.NonEmpty as NESet
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -2566,28 +2567,43 @@ getEndangeredDependents ::
   (Reference -> m (Set Reference)) ->
   Names ->
   Names ->
-  m (Names, Names)
-getEndangeredDependents getDependents toDelete root = do
-  let remaining = root `Names.difference` toDelete
-      toDelete', remaining', extinct :: Set Reference
-      toDelete' = Names.allReferences toDelete
-      remaining' = Names.allReferences remaining -- left over after delete
-      extinct = toDelete' `Set.difference` remaining' -- deleting and not left over
-      accumulateDependents m r = getDependents r <&> \ds -> Map.insert r ds m
-  dependentsOfExtinct :: Map Reference (Set Reference) <-
-    foldM accumulateDependents mempty extinct
-  let orphaned, endangered, failed :: Set Reference
-      orphaned = fold dependentsOfExtinct
-      endangered = orphaned `Set.intersection` remaining'
-      failed = Set.filter hasEndangeredDependent extinct
-      hasEndangeredDependent r =
-        any
-          (`Set.member` endangered)
-          (dependentsOfExtinct Map.! r)
-  pure
-    ( Names.restrictReferences failed toDelete,
-      Names.restrictReferences endangered root `Names.difference` toDelete
-    )
+  m (Map Name Names)
+getEndangeredDependents getDependents namesToDelete rootNames = do
+  let remainingNames :: Names
+      remainingNames = rootNames `Names.difference` namesToDelete
+      refsToDelete, remainingRefs, extinct :: Set LabeledDependency
+      refsToDelete = Names.labeledReferences namesToDelete
+      remainingRefs = Names.labeledReferences remainingNames -- left over after delete
+      extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
+      accumulateDependents :: LabeledDependency -> m (Map LabeledDependency (Set Reference))
+      accumulateDependents ld =
+        let ref = LD.fold id Referent.toReference ld
+         in Map.singleton ld <$> getDependents ref
+  dependentsOfExtinct :: Map LabeledDependency (Set Reference) <-
+    Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents
+  -- let extinctNames :: Names
+      -- extinctNames = Names.restrictReferences extinct namesToDelete
+  let extinctToEndangered :: Map LabeledDependency (Set Reference)
+      extinctToEndangered = dependentsOfExtinct & Map.mapMaybe \endangeredDeps ->
+        let remainingEndangered = endangeredDeps `Set.intersection` remainingRefs
+         in NESet.nonEmptySet remainingEndangered
+      -- failed = Map.filter hasEndangeredDependent dependentsOfExtinct
+      -- hasEndangeredDependent :: LabeledDependency -> Bool
+      -- hasEndangeredDependent r =
+      --   any
+      --     (`Set.member` endangered)
+      --     (dependentsOfExtinct Map.! r)
+  let namedDependentsOfExtinct :: [(Names, Names)]
+      namedDependentsOfExtinct = Map.fromList $ do
+        (extinct, deps) <- Map.toList dependentsOfExtinct
+        let namesOfExtinct = LD.fold (Names.namesForReference namesToDelete) (Names.namesForReferent namesToDelete) extinct
+        let namesOfEndangered = Names.restrictReferences deps rootNames
+        pure (namesOfExtinct, namesOfEndangered)
+  pure _
+  -- pure
+  --   ( Names.restrictReferences failed namesToDelete,
+  --     Names.restrictReferences endangered rootNames `Names.difference` namesToDelete
+  --   )
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive
