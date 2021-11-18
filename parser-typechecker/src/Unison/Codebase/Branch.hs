@@ -327,6 +327,8 @@ deriveDeepEdits branch =
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
+-- | Update the head of the current causal.
+-- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
 
@@ -535,7 +537,7 @@ stepManyAt actions startBranch =
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions startBranch =
-  squashOnto startBranch <$> (startBranch & head_ %%~ batchUpdatesM actions)
+  (\changes -> changes `squashedOnto` startBranch) <$> (startBranch & head_ %%~ batchUpdatesM actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -752,18 +754,18 @@ children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
 
 
--- | Applies any differences from baseBranch -> headBranch as a single Causal Cons on top of
--- baseBranch's history.
+-- | @head `squashedOnto` base@ Applies any changes in head as a single Causal Cons on top of
+-- base's history.
 -- We do the same recursively for child branches.
 --
 -- The two branches don't need to share a common ancestor.
-squashOnto ::
+squashedOnto ::
   forall m.
   Monad m =>
   Branch m ->
   Branch m ->
   Branch m
-squashOnto baseBranch headBranch =
+squashedOnto headBranch baseBranch =
   Branch $
     Causal.consDistinct
       (head headBranch & children .~ squashedChildren)
@@ -773,9 +775,9 @@ squashOnto baseBranch headBranch =
     squashChild = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> squashOnto base head
+      (These base head) -> head `squashedOnto` base
       -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> squashOnto base empty
+      (This base) -> empty `squashedOnto` base
       -- This child didn't exist in the base, we add any changes as a single commit
       (That head) -> discardHistory head
     squashedChildren :: Map NameSegment (Branch m)
