@@ -795,9 +795,21 @@ loop = do
             DeleteBranchI insistence (Just p) -> do
               case getAtSplit' p of
                 Nothing -> branchNotFound' p
-                Just b -> case insistence of
-                            Force -> doDelete (Branch.head b)
-                            Try -> deleteIfNoDependents (Branch.head b)
+                Just (Branch.head -> b0) -> do
+                  (deletionsWithDependents, dependents) <- computeDependents b0
+                  if Names.isEmpty deletionsWithDependents
+                     then doDelete b0
+                     else case insistence of
+                       Force -> do
+                         failedDeletionNames <- loadSearchResults $ SR.fromNames deletionsWithDependents
+                         dependents <- loadSearchResults $ SR.fromNames dependents
+                         ppe <-
+                           fqnPPE
+                             =<< makePrintNamesFromLabeled'
+                               (foldMap SR'.labeledDependencies $ failedDeletionNames <> dependents)
+                         respond $ DeletedDespiteDependents ppe failedDeletionNames dependents
+                         doDelete b0
+                       Try -> handleFailedDelete deletionsWithDependents dependents
               where
                 doDelete b0 = do
                       stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
@@ -808,17 +820,13 @@ loop = do
                             ( ShowDiffAfterDeleteBranch $
                                 resolveToAbsolute (Path.unsplit' p)
                             )
-                deleteIfNoDependents b0 = do
+                computeDependents b0 = do
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0
                           (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
                           (Branch.toNames b0)
-                  (failed, failedDependents) <-
-                    getEndangeredDependents (eval . GetDependents) toDelete rootNames
-                  if failed == mempty
-                    then doDelete b0
-                    else handleFailedDelete failed failedDependents
+                  getEndangeredDependents (eval . GetDependents) toDelete rootNames
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->

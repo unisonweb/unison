@@ -563,6 +563,17 @@ notifyUser dir o = case o of
           "",
           P.indentN 2 $ listOfDefinitions' ppe False failedDependents
         ]
+  DeletedDespiteDependents ppe deletions dependents ->
+    pure . P.warnCallout $
+      P.lines
+        [ P.wrap "I deleted the following ",
+          "",
+          P.indentN 2 $ listOfDefinitions' ppe False deletions,
+          "",
+          "the following now depend on terms which now have no names:",
+          "",
+          P.indentN 2 $ listOfDefinitions' ppe False dependents
+        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."

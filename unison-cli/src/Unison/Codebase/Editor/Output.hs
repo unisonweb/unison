@@ -136,8 +136,10 @@ data Output v
     -- the path is deleted.
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
-  | -- CantDelete input couldntDelete becauseTheseStillReferenceThem
+  | -- | CantDelete ppe couldntDelete becauseTheseStillReferenceThem
     CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+  | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
+    DeletedDespiteDependents PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
@@ -295,6 +297,7 @@ isFailure o = case o of
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
   CantDelete {} -> True
+  DeletedDespiteDependents {} -> False
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames _ tys tms -> null tms && null tys
