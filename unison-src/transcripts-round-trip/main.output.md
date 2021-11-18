@@ -180,7 +180,7 @@ f x = let
       = Blah Boolean Boolean
     
     f : Blah -> Boolean
-    f = cases Blah a b | otherwise  -> a
+    f = cases Blah a b   -> a
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -259,10 +259,10 @@ h xs = match xs with
   /Users/runar/work/unison/scratch.u
   
     f : [a] -> a
-    f = cases x +: (x' +: rest) | otherwise  -> x
+    f = cases x +: (x' +: rest)   -> x
     
     g : [a] -> a
-    g = cases rest :+ x' :+ x | otherwise  -> x
+    g = cases rest :+ x' :+ x   -> x
   
   You can edit them there, then do `update` to replace the
   definitions currently in this namespace.
@@ -590,8 +590,8 @@ x = '(let
     
     handler : a -> Request {Abort} a -> a
     handler default = cases
-      { a } | otherwise  -> a
-      {abort -> _} | otherwise  -> default
+      { a }   -> a
+      {abort -> _}   -> default
     
     x : 'Optional Nat
     x =
@@ -797,7 +797,7 @@ foo = let
       go x =
         'match (a -> a) x with
           SomethingUnusuallyLong
-            lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij
+            lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij 
             | lijaefliejalfijelfj == aefilaeifhlei    -> 0
             | lijaefliejalfijelfj == liaehjffeafijij  -> 1
       go (SomethingUnusuallyLong "one" "two" "three")
