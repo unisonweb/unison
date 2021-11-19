@@ -90,7 +90,6 @@ where
 
 import Control.Error (rightMay)
 import Control.Error.Util (hush)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -125,6 +124,8 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import qualified UnliftIO
+import UnliftIO (MonadUnliftIO)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -322,22 +323,23 @@ isBlank codebase = do
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
-  forall m v a.
-  MonadIO m =>
+  forall m v a r.
+  MonadUnliftIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
-  m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT do
-  (cleanup, branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
-  withStatus "Importing downloaded files into local codebase..." $
-    time "SyncFromDirectory" $
-      lift $ syncFromDirectory codebase cacheDir mode branch
-  ExceptT
+  (Branch m -> m r) ->
+  m (Either GitError r)
+importRemoteBranch codebase ns mode action = UnliftIO.try $ do
+  UnliftIO.fromEitherM $ viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+    withStatus "Importing downloaded files into local codebase..." $
+      time "SyncFromDirectory" $
+        syncFromDirectory codebase cacheDir mode branch
     let h = Branch.headHash branch
-        err = Left . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-     in time "load fresh local branch after sync" $
-          (getBranchForHash codebase h <&> maybe err Right) <* cleanup
+        err = UnliftIO.throwIO . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
+    importedBranch <- time "load fresh local branch after sync" $
+          (getBranchForHash codebase h >>= maybe err pure)
+    action importedBranch
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
@@ -345,10 +347,10 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
-  m (Either GitError (m (), Branch m))
-viewRemoteBranch codebase ns = runExceptT do
-  (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
-  pure (cleanup, branch)
+  (Branch m -> m r) ->
+  m (Either GitError r)
+viewRemoteBranch codebase ns action =
+  viewRemoteBranch' codebase ns (\(b, _dir) -> action b)
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
 unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
