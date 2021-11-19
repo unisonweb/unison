@@ -152,6 +152,7 @@ termReferences, typeReferences :: Names -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 typeReferences Names{..} = R.ran types
 
+-- | Collect all references in the given Names, tagged with their type.
 labeledReferences :: Names -> Set LabeledDependency
 labeledReferences Names{..} =
   Set.map LD.typeRef (Relation.ran types)

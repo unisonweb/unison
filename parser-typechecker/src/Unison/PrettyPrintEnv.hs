@@ -60,6 +60,7 @@ typeName env r =
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
+-- | Get a name for a LabeledDependency from the PPE.
 labeledRefName :: PrettyPrintEnv -> LabeledDependency -> HashQualified Name
 labeledRefName ppe = \case
   LD.TermReferent ref -> termName ppe ref

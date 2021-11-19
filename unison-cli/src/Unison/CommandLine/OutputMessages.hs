@@ -310,7 +310,7 @@ notifyNumbered o = case o of
       P.lines
         [ P.wrap "I didn't delete the following definitions which are still in use:",
           "",
-          deletionDependentsTable ppeDecl endangerments
+          endangeredDependentsTable ppeDecl endangerments
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
   CantDeleteNamespace ppeDecl endangerments ->
@@ -318,7 +318,7 @@ notifyNumbered o = case o of
       P.lines
         [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
           "",
-          deletionDependentsTable ppeDecl endangerments,
+          endangeredDependentsTable ppeDecl endangerments,
           "",
           P.wrap "If you want to proceed anyways and leave those definitions without names, use"
             <> IP.patternName IP.deleteNamespaceForce
@@ -330,7 +330,7 @@ notifyNumbered o = case o of
         [ P.wrap "The following definitions still have named dependents.",
           P.wrap "I've deleted them for you, but the listed dependents now contain some unnamed references.",
           "",
-          deletionDependentsTable ppeDecl endangerments
+          endangeredDependentsTable ppeDecl endangerments
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
   where
@@ -2577,15 +2577,24 @@ isTestOk tm = case tm of
       isSuccess _ = False
   _ -> False
 
-numberedArgsForEndangerments :: PPE.PrettyPrintEnvDecl -> Map LabeledDependency (NESet LabeledDependency) -> NumberedArgs
+-- | Get the list of numbered args corresponding to an endangerment map, which is used by a
+-- few outputs. See 'endangeredDependentsTable'.
+numberedArgsForEndangerments ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  NumberedArgs
 numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
   m
     & Map.elems
     & concatMap toList
     & fmap (HQ.toString . PPE.labeledRefName ppe)
 
-deletionDependentsTable :: PPE.PrettyPrintEnvDecl -> Map LabeledDependency (NESet LabeledDependency) -> P.Pretty P.ColorText
-deletionDependentsTable ppeDecl m =
+-- | Format and render all dependents which are endangered by references going extinct.
+endangeredDependentsTable ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  P.Pretty P.ColorText
+endangeredDependentsTable ppeDecl m =
   m
     & Map.toList
     & fmap (second toList)

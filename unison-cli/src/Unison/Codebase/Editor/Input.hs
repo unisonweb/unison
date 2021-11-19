@@ -40,6 +40,7 @@ type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
+-- | Should we force the operation or not?
 data Insistence = Force | Try
   deriving (Show, Eq)
 

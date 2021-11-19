@@ -2551,17 +2551,20 @@ zeroOneOrMore f zero one more = case toList f of
   a : _ -> one a
   _ -> zero
 
--- Goal: If `remaining = root - toBeDeleted` contains definitions X which
--- depend on definitions Y not in `remaining` (which should also be in
--- `toBeDeleted`), then complain by returning (Y, X).
+-- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
+-- definition is going "extinct"). In this case we may wish to take some action or warn the
+-- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
   forall m.
   Monad m =>
+  -- | Function to acquire dependencies
   (Reference -> m (Set Reference)) ->
+  -- | Which names we want to delete
   Names ->
+  -- | All names from the root branch
   Names ->
+  -- | map from references going extinct to the set of endangered dependents
   m (Map LabeledDependency (NESet LabeledDependency))
-  -- ^ map from references going extinct to (names of extinct reference, term references endangered dependents)
 getEndangeredDependents getDependents namesToDelete rootNames = do
   let remainingNames :: Names
       remainingNames = rootNames `Names.difference` namesToDelete
