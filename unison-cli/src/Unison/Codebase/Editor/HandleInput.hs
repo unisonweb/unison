@@ -792,7 +792,7 @@ loop = do
               case getAtSplit' p of
                 Nothing -> branchNotFound' p
                 Just (Branch.head -> b0) -> do
-                  endangerments <- computeDependents b0
+                  endangerments <- computeEndangerments b0
                   if null endangerments
                      then doDelete b0
                      else case insistence of
@@ -813,8 +813,8 @@ loop = do
                             ( ShowDiffAfterDeleteBranch $
                                 resolveToAbsolute (Path.unsplit' p)
                             )
-                computeDependents :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
-                computeDependents b0 = do
+                computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
+                computeEndangerments b0 = do
                   let rootNames = Branch.toNames root0
                       toDelete =
                         Names.prefix0

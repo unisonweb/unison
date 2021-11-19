@@ -308,7 +308,7 @@ notifyNumbered o = case o of
   CantDeleteDefinitions ppeDecl endangerments ->
     (P.warnCallout $
       P.lines
-        [ P.wrap "I didn't delete the following definitions which are still in use:",
+        [ P.wrap "I didn't delete the following definitions because they are still in use:",
           "",
           endangeredDependentsTable ppeDecl endangerments
         ]
@@ -327,8 +327,7 @@ notifyNumbered o = case o of
   DeletedDespiteDependents ppeDecl endangerments ->
     (P.warnCallout $
       P.lines
-        [ P.wrap "The following definitions still have named dependents.",
-          P.wrap "I've deleted them for you, but the listed dependents now contain some unnamed references.",
+        [ P.wrap "Of the things I deleted, the following are still used in the following definitions. They now contain un-named references.",
           "",
           endangeredDependentsTable ppeDecl endangerments
         ]
