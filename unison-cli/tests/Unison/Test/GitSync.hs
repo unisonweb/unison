@@ -194,7 +194,7 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #dsh
+        .> reset-root #d9j9f2c025
         .> history
         ```
     |])
