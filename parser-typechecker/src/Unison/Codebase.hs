@@ -323,23 +323,21 @@ isBlank codebase = do
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
-  forall m v a r.
+  forall m v a.
   MonadUnliftIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
-  (Branch m -> m r) ->
-  m (Either GitError r)
-importRemoteBranch codebase ns mode action = UnliftIO.try $ do
-  UnliftIO.fromEitherM $ viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
-    withStatus "Importing downloaded files into local codebase..." $
-      time "SyncFromDirectory" $
-        syncFromDirectory codebase cacheDir mode branch
-    let h = Branch.headHash branch
-        err = UnliftIO.throwIO . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-    importedBranch <- time "load fresh local branch after sync" $
-          (getBranchForHash codebase h >>= maybe err pure)
-    action importedBranch
+  m (Either GitError (Branch m))
+importRemoteBranch codebase ns mode = UnliftIO.try $ do
+  h <- UnliftIO.fromEitherM $ viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+         withStatus "Importing downloaded files into local codebase..." $
+           time "SyncFromDirectory" $
+             syncFromDirectory codebase cacheDir mode branch
+         pure $ Branch.headHash branch
+  let err = UnliftIO.throwIO . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
+  time "load fresh local branch after sync" $
+        (getBranchForHash codebase h >>= maybe err pure)
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
