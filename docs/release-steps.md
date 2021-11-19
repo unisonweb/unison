@@ -54,15 +54,20 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 ```
 
 __6__
+
 Mark a release of the [Codebase UI](https://github.com/unisonweb/codebase-ui) with a matching version number to that of the UCM release.
 Compile a UI Changelog for the release notes from the Done column on the [Codebase UI Project](https://github.com/unisonweb/codebase-ui/projects/2)
 
 __7__
 
+Build a new version of Unison Share by following these instructions: https://github.com/unisonweb/share#for-share-codebase-maintainers
+
+__8__
+
 Update homebrew. 
 
 ```
-git clone git@github.com/unisonweb/homebrew-unison
+git clone git@github.com/unisonweb/homebrew-unison.git
 ```
 
 Update this file: https://github.com/unisonweb/homebrew-unison/blob/master/unison-language.rb and change the version number and the path to the release tar files.
@@ -73,17 +78,17 @@ To get the updated sha256 values, use the following command, replacing the downl
 curl -sSL https://github.com/unisonweb/unison/releases/download/release%2FM2h/ucm-linux.tar.gz | shasum -a 256 | cut -f1 -d" "
 ```
 
-__8__
+__9__
 
 [In the docs site repository](https://github.com/unisonweb/unisonweb-org/pulls), find a branch with the matching release name (if one exists), merge it into the master branch, then merge master into the production branch. Confirm with @rlmark.
 
-__9__ 
+__10__
 
 Bug @pchiusano to update [the Slack post](https://unisonlanguage.slack.com/files/TLL09QC85/FMT7TDDDY?origin_team=TLL09QC85) which provides install instructions for people coming from [the quickstart guide](https://www.unisonweb.org/docs/quickstart/).
 
-__10__
+__11__
 
-Announce on #contrib Slack channel. Template below.
+Announce on #general Slack channel. Template below.
 
 ---
 
