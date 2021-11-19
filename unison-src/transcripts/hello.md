@@ -13,7 +13,7 @@ The format is just a regular markdown file with some fenced code blocks that are
 $ ucm transcript hello.md
 ```
 
-This runs it on a freshly generated empty codebase. Alternately `ucm transcript.fork -codebase /path/to/code hello.md` runs the transcript on a freshly generated copy of the provided codebase. Do `ucm help` to learn more about usage.
+This runs it on a freshly generated empty codebase. Alternately `ucm transcript.fork --codebase /path/to/code hello.md` runs the transcript on a freshly generated copy of the provided codebase. Do `ucm help` to learn more about usage.
 
 Fenced code blocks of type `unison` and `ucm` are treated specially:
 

@@ -24,8 +24,9 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Names3 ( Names0 )
-import qualified Unison.Names3 as Names
+import           Unison.Names ( Names )
+import qualified Unison.Names as Names
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Names.ResolutionResult as Names
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
@@ -44,6 +45,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
+import qualified Data.Set.NonEmpty as NES
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -112,7 +114,7 @@ type Term0' vt v = Term' vt v ()
 bindNames
   :: forall v a . Var v
   => Set v
-  -> Names0
+  -> Names
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 bindNames keepFreeTerms ns0 e = do
@@ -121,28 +123,32 @@ bindNames keepFreeTerms ns0 e = do
       -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
-      ns = Names.Names ns0 mempty
+      ns = Names.NamesWithHistory ns0 mempty
       -- !_ = trace "bindNames.free type vars: " ()
       -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.fromVar v) ns of
+      okTm (v,a) = case Names.lookupHQTerm (Name.convert $ Name.unsafeFromVar v) ns of
         rs | Set.size rs == 1 ->
                pure (v, fromReferent a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
-      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.fromVar v) ns of
+           | otherwise -> case NES.nonEmptySet rs of
+               Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
+               Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns0 refs)))
+      okTy (v,a) = case Names.lookupHQType (Name.convert $ Name.unsafeFromVar v) ns of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-           | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
+           | otherwise -> case NES.nonEmptySet rs of
+               Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+               Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 refs)))
   termSubsts <- validate okTm freeTmVars
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
 -- This function replaces free term and type variables with
--- hashes found in the provided `Names0`, using suffix-based
--- lookup. Any terms not found in the `Names0` are kept free.
+-- hashes found in the provided `Names`, using suffix-based
+-- lookup. Any terms not found in the `Names` are kept free.
 bindSomeNames
   :: forall v a . Var v
   => Set v
-  -> Names0
+  -> Names
   -> Term v a
   -> Names.ResolutionResult v a (Term v a)
 -- bindSomeNames ns e | trace "Term.bindSome" False
@@ -164,7 +170,7 @@ bindSomeNames avoid ns e = bindNames (avoid <> varsToTDNR) ns e where
   -- (if a free variable is being used as a typed hole).
   varsToTDNR = Set.filter notFound (freeVars e)
   notFound var =
-    Set.size (Name.searchBySuffix (Name.fromVar var) (Names.terms0 ns)) /= 1
+    Set.size (Name.searchBySuffix (Name.unsafeFromVar var) (Names.terms ns)) /= 1
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -962,7 +968,8 @@ etaNormalForm :: Ord v => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
     where
-      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step (LamNamed' v (App' f (Var' v')))
+        | v == v' , v `Set.notMember` freeVars f = f
       step tm = tm
   _ -> tm
 
@@ -971,8 +978,9 @@ etaReduceEtaVars :: Var v => Term0 v -> Term0 v
 etaReduceEtaVars tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
     where
-      ok v v' = v == v' && Var.typeOf v == Var.Eta
-      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      ok v v' f = v == v' && Var.typeOf v == Var.Eta
+        && v `Set.notMember` freeVars f
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' f = f
       step tm = tm
   _ -> tm
 

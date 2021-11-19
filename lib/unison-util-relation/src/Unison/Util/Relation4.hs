@@ -58,6 +58,10 @@ selectD34 c d r =
                                (Map.lookup c (d3 r))
            ]
 
+keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
+keys Relation4{d1, d2, d3, d4} = 
+  (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
+
 d1set :: Ord a => Relation4 a b c d -> Set a
 d1set = Map.keysSet . d1
 
@@ -74,6 +78,15 @@ d124 Relation4 {d1, d2, d4} =
     { d1 = Map.map R3.d13 d1,
       d2 = Map.map R3.d13 d2,
       d3 = Map.map R3.d12 d4
+    }
+
+-- | Project out a relation that only includes the 2nd, 3rd, and 4th dimensions.
+d234 :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d -> Relation3 b c d
+d234 Relation4 {d2, d3, d4} =
+  Relation3
+    { d1 = Map.map R3.d23 d2,
+      d2 = Map.map R3.d23 d3,
+      d3 = Map.map R3.d23 d4
     }
 
 -- todo: make me faster
@@ -105,9 +118,24 @@ delete a b c d Relation4{..} =
       let r' = R3.delete x y z r
       in if r' == mempty then Nothing else Just r'
 
-mapD2 :: (Ord a, Ord b, Ord b', Ord c, Ord d)
-      => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
-mapD2 f = fromList . fmap (\(a,b,c,d) -> (a, f b, c, d)) . toList
+mapD2 :: (Ord a, Ord b, Ord b', Ord c, Ord d) => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
+mapD2 f Relation4 {d1, d2, d3, d4} =
+  Relation4
+    { d1 = Map.map (R3.mapD1 f) d1,
+      d2 = Map.mapKeysWith R3.union f d2,
+      d3 = Map.map (R3.mapD2 f) d3,
+      d4 = Map.map (R3.mapD2 f) d4
+    }
+
+-- | Like 'mapD2', but takes a function that must be monotonic; i.e. @compare x y == compare (f x) (f y)@.
+mapD2Monotonic :: (Ord a, Ord b, Ord b', Ord c, Ord d) => (b -> b') -> Relation4 a b c d -> Relation4 a b' c d
+mapD2Monotonic f Relation4 {d1, d2, d3, d4} =
+  Relation4
+    { d1 = Map.map (R3.mapD1Monotonic f) d1,
+      d2 = Map.mapKeysMonotonic f d2,
+      d3 = Map.map (R3.mapD2Monotonic f) d3,
+      d4 = Map.map (R3.mapD2Monotonic f) d4
+    }
 
 insertAll :: Foldable f => Ord a => Ord b => Ord c => Ord d
           => f (a,b,c,d) -> Relation4 a b c d -> Relation4 a b c d

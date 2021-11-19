@@ -4,17 +4,25 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
@@ -37,10 +45,11 @@ library:
     - base16 >= 0.2.1.0
     - base64-bytestring
     - basement
+    - binary
     - bytes
     - bytestring
+    - bytestring-to-vector
     - cereal
-    - compact
     - containers >= 0.6.3
     - configurator
     - cryptonite
@@ -88,6 +97,7 @@ library:
     - safe-exceptions
     - mwc-random
     - NanoID
+    - lucid
     - servant
     - servant-docs
     - servant-openapi3
@@ -100,6 +110,7 @@ library:
     - temporary
     - terminal-size
     - text
+    - text-short
     - time
     - tls
     - transformers
@@ -126,38 +137,6 @@ library:
     - uri-encode
 
 executables:
-  unison:
-    source-dirs: unison
-    main: Main.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
-    dependencies:
-      - base
-      - bytestring
-      - compact
-      - containers
-      - configurator
-      - directory
-      - errors
-      - filepath
-      - lens
-      - megaparsec
-      - mtl
-      - optparse-applicative >= 0.16.1.0
-      - safe
-      - shellmet
-      - template-haskell
-      - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-codebase-sync
-      - unison-prelude
-      - uri-encode
-      - unliftio
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
-
   prettyprintdemo:
     source-dirs: prettyprintdemo
     main: Main.hs
@@ -183,6 +162,7 @@ executables:
       - extra
       - filepath
       - filemanip
+      - haskeline
       - here
       - lens
       - megaparsec
@@ -200,25 +180,6 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
-
-
-  transcripts:
-    source-dirs: transcripts
-    main: Transcripts.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
-    dependencies:
-      - base
-      - directory
-      - easytest
-      - filepath
-      - shellmet
-      - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
-    build-tools:
-      - unison-parser-typechecker:unison
 
 benchmarks:
   runtime:

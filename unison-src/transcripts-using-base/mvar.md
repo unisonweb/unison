@@ -23,8 +23,10 @@ testMvars _ =
     test2 = "test2"
     ma = MVar.new test
     check "ma should not be empty" (not (isEmpty ma))
-    test' = take ma
-    expectU "should reap what you sow" test test'
+    test0 = read ma
+    test1 = take ma
+    expectU "should read what you sow" test test0
+    expectU "should reap what you sow" test test1
     check "ma should be empty" (isEmpty ma)
     put ma test
     test'' = swap ma test2
@@ -35,6 +37,8 @@ testMvars _ =
     ma2 = !MVar.newEmpty
     check "tryRead should succeed when not empty"
       (eitherCk (x -> not (isNone x)) (tryRead.impl ma))
+    check "tryPut should fail when not empty"
+      (eitherCk (b -> not b) (tryPut.impl ma test))
     check "tryTake should succeed when not empty" (not (isNone (tryTake ma)))
     check "tryTake should not succeed when empty" (isNone (tryTake ma))
 

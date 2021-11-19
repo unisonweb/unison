@@ -49,10 +49,9 @@ toName = \case
 --   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength hs = sortOn f hs where
-  f (NameOnly n) = (countDots n, 0, Left n)
-  f (HashQualified n _h) = (countDots n, 1, Left n)
+  f (NameOnly n) = (length (Name.reverseSegments n), 0, Left n)
+  f (HashQualified n _h) = (length (Name.reverseSegments n), 1, Left n)
   f (HashOnly h) = (maxBound, 0, Right h)
-  countDots n = Text.count "." (Text.dropEnd 1 (Name.toText n))
 
 hasName, hasHash :: HashQualified Name -> Bool
 hasName = isJust . toName
@@ -105,9 +104,13 @@ unsafeFromText txt = fromMaybe msg . fromText $ txt where
   msg = error $ "HashQualified.unsafeFromText " <> show txt
 
 toText :: Show n => HashQualified n -> Text
-toText = \case
-  NameOnly name           -> Text.pack (show name)
-  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
+toText =
+  toTextWith (Text.pack . show)
+
+toTextWith :: (n -> Text) -> HashQualified n -> Text
+toTextWith f = \case
+  NameOnly name           -> f name
+  HashQualified name hash -> f name <> SH.toText hash
   HashOnly hash           -> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
@@ -137,7 +140,7 @@ fromVar :: Var v => v -> Maybe (HashQualified Name)
 fromVar = fromText . Var.name
 
 toVar :: Var v => HashQualified Name -> v
-toVar = Var.named . toText
+toVar = Var.named . toTextWith Name.toText
 
 -- todo: find this logic elsewhere and replace with call to this
 matchesNamedReferent :: Name -> Referent -> HashQualified Name -> Bool

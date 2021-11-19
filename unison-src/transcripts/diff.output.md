@@ -153,19 +153,9 @@ Here's what we've done so far:
 ```ucm
 .> diff.namespace nothing ns1
 
-  Added definitions:
+  ⚠️
   
-    1.  structural type A a
-    2.  structural ability X a1 a2
-    3.  A.A           : Nat -> A a
-    4.  X.x           : {X a1 a2} Nat
-    5.  b             : Nat
-    6.  bdependent    : Nat
-    7.  c             : Nat
-    8.  ┌ fromJust    : Nat (+1 metadata)
-    9.  └ fromJust'   : Nat (+1 metadata)
-    10. ┌ helloWorld  : Text
-    11. └ helloWorld2 : Text
+  The namespace .nothing is empty. Was there a typo?
 
 .> diff.namespace ns1 ns2
 

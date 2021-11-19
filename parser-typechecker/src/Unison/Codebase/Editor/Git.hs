@@ -18,8 +18,8 @@ import UnliftIO.Directory (XdgDirectory (XdgCache), doesDirectoryExist, findExec
 import UnliftIO.IO (hFlush, stdout)
 import qualified Data.ByteString.Base16 as ByteString
 import qualified Data.Char as Char
-import Control.Exception.Safe (catchIO, MonadCatch)
 import Unison.Codebase.GitError (GitProtocolError)
+import UnliftIO (handleIO)
 
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
@@ -56,14 +56,14 @@ withStatus str ma = do
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadIO m, MonadCatch m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
+pullBranch :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
 pullBranch repo@(ReadGitRepo uri) = do
   checkForGit
   localPath <- tempGitDir uri
   ifM (doesDirectoryExist localPath)
     -- try to update existing directory
     (ifM (isGitRepo localPath)
-      (checkoutExisting localPath)
+      (checkoutExisting localPath Nothing)
       (throwError (GitError.UnrecognizableCacheDir repo localPath)))
     -- directory doesn't exist, so clone anew
     (checkOutNew localPath Nothing)
@@ -83,22 +83,32 @@ pullBranch repo@(ReadGitRepo uri) = do
     unless isGitDir . throwError $ GitError.UnrecognizableCheckoutDir repo localPath
 
   -- | Do a `git pull` on a cached repo.
-  checkoutExisting :: (MonadIO m, MonadCatch m, MonadError GitProtocolError m) => FilePath -> m ()
-  checkoutExisting localPath =
+  checkoutExisting :: (MonadIO m, MonadError GitProtocolError m)
+                   => FilePath
+                   -> Maybe Text
+                   -> m ()
+  checkoutExisting localPath maybeRemoteRef =
     ifM (isEmptyGitRepo localPath)
       -- I don't know how to properly update from an empty remote repo.
       -- As a heuristic, if this cached copy is empty, then the remote might
       -- be too, so this impl. just wipes the cached copy and starts from scratch.
       goFromScratch
       -- Otherwise proceed!
-      (catchIO
-        (withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
-          gitIn localPath ["reset", "--hard", "--quiet", "HEAD"]
-          gitIn localPath ["clean", "-d", "--force", "--quiet"]
-          gitIn localPath ["pull", "--force", "--quiet"])
-        (const $ goFromScratch))
+      do
+        succeeded <- liftIO . handleIO (const $ pure False) $ do
+                         withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
+                          -- Fetch only the latest commit, we don't need history.
+                          gitIn localPath (["fetch", "origin", remoteRef, "--quiet"] ++ ["--depth", "1"])
+                          -- Reset our branch to point at the latest code from the remote.
+                          gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
+                          -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+                          gitIn localPath ["clean", "-d", "--force", "--quiet"]
+                          pure True
+        when (not succeeded) $ goFromScratch
 
     where
+      remoteRef :: Text
+      remoteRef = fromMaybe "HEAD" maybeRemoteRef
       goFromScratch :: (MonadIO m, MonadError GitProtocolError m) => m  ()
       goFromScratch = do wipeDir localPath; checkOutNew localPath Nothing
 

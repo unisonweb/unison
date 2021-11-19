@@ -1,231 +1,276 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings   #-}
-
 module Unison.Name
-  ( Name(Name)
-  , Convert(..)
-  , Parse(..)
-  , endsWithSegments
-  , fromString
-  , isPrefixOf
-  , joinDot
-  , makeAbsolute
-  , isAbsolute
-  , parent
-  , module Unison.Util.Alphabetical
-  , sortNames
-  , sortNamed
-  , sortNameds
-  , sortByText
-  , sortNamed'
-  , stripNamePrefix
-  , stripPrefixes
-  , segments
-  , reverseSegments
-  , countSegments
-  , compareSuffix
-  , segments'
-  , suffixes
-  , searchBySuffix
-  , suffixFrom
-  , shortestUniqueSuffix
-  , toString
-  , toText
-  , toVar
-  , unqualified
-  , unqualified'
-  , unsafeFromText
-  , unsafeFromString
-  , fromSegment
-  , fromVar
+  ( Name,
+    Convert (..),
+    Parse (..),
+
+    -- * Basic construction
+    cons,
+    joinDot,
+    fromSegment,
+    fromSegments,
+
+    -- ** Unsafe construction
+    unsafeFromString,
+    unsafeFromText,
+    unsafeFromVar,
+
+    -- * Basic queries
+    countSegments,
+    isAbsolute,
+    isPrefixOf,
+    endsWithReverseSegments,
+    endsWithSegments,
+    reverseSegments,
+    segments,
+    suffixes,
+
+    -- * Basic manipulation
+    makeAbsolute,
+    makeRelative,
+    parent,
+    stripNamePrefix,
+    unqualified,
+
+    -- * To organize later
+    sortNames,
+    sortNamed,
+    sortByText,
+    searchBySuffix,
+    suffixFrom,
+    shortestUniqueSuffix,
+    toString,
+    toText,
+    toVar,
+    splits,
+
+    -- * Re-exports
+    module Unison.Util.Alphabetical,
+
+    -- * Exported for testing
+    compareSuffix,
   )
 where
 
-import           Unison.Prelude
-import qualified Unison.NameSegment            as NameSegment
-import           Unison.NameSegment             ( NameSegment(NameSegment)
-                                                , segments'
-                                                )
+import Control.Lens (mapped, over, _1, _2)
+import qualified Control.Lens as Lens
+import qualified Data.List as List
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as List (NonEmpty)
+import qualified Data.List.NonEmpty as List.NonEmpty
+import qualified Data.RFC5051 as RFC5051
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as Text.Lazy
+import qualified Data.Text.Lazy.Builder as Text (Builder)
+import qualified Data.Text.Lazy.Builder as Text.Builder
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
+import Unison.Prelude
+import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import qualified Unison.Util.Relation as R
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
-import           Control.Lens                   ( unsnoc )
-import qualified Control.Lens                  as Lens
-import qualified Data.Text                     as Text
-import qualified Data.Set                      as Set
-import qualified Unison.Hashable               as H
-import           Unison.Util.Alphabetical      (Alphabetical,compareAlphabetical)
-import qualified Unison.Util.Relation          as R
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Data.RFC5051                  as RFC5051
-import           Data.List                      ( sortBy, tails, inits, find )
-
-newtype Name = Name { toText :: Text }
-  deriving (Eq, Monoid, Semigroup, Generic)
-
-sortNames :: [Name] -> [Name]
-sortNames = sortNamed id
-
-sortNamed :: (a -> Name) -> [a] -> [a]
-sortNamed by = sortByText (toText . by)
-
-sortNameds :: (a -> [Name]) -> [a] -> [a]
-sortNameds by = sortByText (Text.intercalate "." . map toText . by)
-
-sortByText :: (a -> Text) -> [a] -> [a]
-sortByText by as = let
-  as' = [ (a, by a) | a <- as ]
-  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
-  in fst <$> sortBy comp as'
-
--- | Like sortNamed, but takes an additional backup comparison function if two
--- names are equal.
-sortNamed' :: (a -> Name) -> (a -> a -> Ordering) -> [a] -> [a]
-sortNamed' by by2 as = let
-  as' = [ (a, toText (by a)) | a <- as ]
-  comp (a,s) (a2,s2) = RFC5051.compareUnicode s s2 <> by2 a a2
-  in fst <$> sortBy comp as'
-
-unsafeFromText :: Text -> Name
-unsafeFromText t =
-  if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
-
-unsafeFromString :: String -> Name
-unsafeFromString = unsafeFromText . Text.pack
-
-toVar :: Var v => Name -> v
-toVar (Name t) = Var.named t
-
-fromVar :: Var v => v -> Name
-fromVar = unsafeFromText . Var.name
-
-toString :: Name -> String
-toString = Text.unpack . toText
-
-isPrefixOf :: Name -> Name -> Bool
-a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
-
--- foo.bar.baz `endsWithSegments` bar.baz == True
--- foo.bar.baz `endsWithSegments` baz == True
--- foo.bar.baz `endsWithSegments` az == False (not a full segment)
--- foo.bar.baz `endsWithSegments` zonk == False (doesn't match any segment)
--- foo.bar.baz `endsWithSegments` foo == False (matches a segment, but not at the end)
-endsWithSegments :: Name -> Name -> Bool
-endsWithSegments n ending = any (== ending) (suffixes n)
-
--- stripTextPrefix a.b. a.b.c = Just c
--- stripTextPrefix a.b  a.b.c = Just .c;  you probably don't want to do this
--- stripTextPrefix x.y. a.b.c = Nothing
--- stripTextPrefix "" a.b.c = undefined
-_stripTextPrefix :: Text -> Name -> Maybe Name
-_stripTextPrefix prefix name =
-  Name <$> Text.stripPrefix prefix (toText name)
-
--- stripNamePrefix a.b  a.b.c = Just c
--- stripNamePrefix a.b. a.b.c = undefined, "a.b." isn't a valid name IMO
--- stripNamePrefix x.y  a.b.c = Nothing, x.y isn't a prefix of a.b.c
--- stripNamePrefix "" a.b.c = undefined, "" isn't a valid name IMO
--- stripNamePrefix . .Nat = Just Nat
-stripNamePrefix :: Name -> Name -> Maybe Name
-stripNamePrefix prefix name =
-  Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
-  where
-  mid = if toText prefix == "." then "" else "."
-
--- suffixFrom Int builtin.Int.+ ==> Int.+
--- suffixFrom Int Int.negate    ==> Int.negate
---
--- Currently used as an implementation detail of expanding wildcard
--- imports, (like `use Int` should catch `builtin.Int.+`)
--- but it may be generally useful elsewhere. See `expandWildcardImports`
--- for details.
-suffixFrom :: Name -> Name -> Maybe Name
-suffixFrom mid overall = case Text.breakOnAll (toText mid) (toText overall) of
-  []         -> Nothing
-  (_, rem):_ -> Just (Name rem)
-
--- a.b.c.d -> d
-stripPrefixes :: Name -> Name
-stripPrefixes = maybe "" fromSegment . lastMay . segments
-
-joinDot :: Name -> Name -> Name
-joinDot prefix suffix =
-  if toText prefix == "." then Name (toText prefix <> toText suffix)
-  else Name (toText prefix <> "." <> toText suffix)
-
-unqualified :: Name -> Name
-unqualified = unsafeFromText . unqualified' . toText
-
--- parent . -> Nothing
--- parent + -> Nothing
--- parent foo -> Nothing
--- parent foo.bar -> foo
--- parent foo.bar.+ -> foo.bar
-parent :: Name -> Maybe Name
-parent n = case unsnoc (NameSegment.toText <$> segments n) of
-  Nothing        -> Nothing
-  Just ([]  , _) -> Nothing
-  Just (init, _) -> Just $ Name (Text.intercalate "." init)
-
--- suffixes "" -> []
--- suffixes bar -> [bar]
--- suffixes foo.bar -> [foo.bar, bar]
--- suffixes foo.bar.baz -> [foo.bar.baz, bar.baz, baz]
--- suffixes ".base.." -> [base.., .]
-suffixes :: Name -> [Name]
-suffixes (Name "") = []
-suffixes (Name n ) = fmap up . filter (not . null) . tails $ segments' n
-  where up ns = Name (Text.intercalate "." ns)
-
-unqualified' :: Text -> Text
-unqualified' = fromMaybe "" . lastMay . segments'
-
-makeAbsolute :: Name -> Name
-makeAbsolute n | toText n == "."                = Name ".."
-               | Text.isPrefixOf "." (toText n) = n
-               | otherwise                      = Name ("." <> toText n)
-
-instance Show Name where
-  show = toString
-
-instance IsString Name where
-  fromString = unsafeFromText . Text.pack
-
-instance H.Hashable Name where
-  tokens s = [H.Text (toText s)]
-
-fromSegment :: NameSegment -> Name
-fromSegment = unsafeFromText . NameSegment.toText
-
--- Smarter segmentation than `text.splitOn "."`
--- e.g. split `base..` into `[base,.]`
-segments :: Name -> [NameSegment]
-segments (Name n) = NameSegment <$> segments' n
-
-reverseSegments :: Name -> [NameSegment]
-reverseSegments (Name n) = NameSegment <$> NameSegment.reverseSegments' n
-
-countSegments :: Name -> Int
-countSegments n = length (segments n)
-
--- The `Ord` instance for `Name` considers the segments of the name
--- starting from the last, enabling efficient search by name suffix.
---
--- To order names alphabetically for purposes of display to a human,
--- `sortNamed` or one of its variants should be used, which provides a
--- Unicode and capitalization aware sorting (based on RFC5051).
-instance Ord Name where
-  compare n1 n2 =
-       (reverseSegments n1 `compare` reverseSegments n2)
-    <> (isAbsolute n1 `compare` isAbsolute n2)
+-- | A name is an absolute-or-relative non-empty list of name segments.
+data Name
+  -- A few example names:
+  --
+  --   "foo.bar"  --> Name Relative ["bar", "foo"]
+  --   ".foo.bar" --> Name Absolute ["bar", "foo"]
+  --   "|>.<|"    --> Name Relative ["<|", "|>"]
+  --   "."        --> Name Relative ["."]
+  --   ".."       --> Name Absolute ["."]
+  --
+  = Name
+      -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
+      Position
+      -- the name segments in reverse order
+      (List.NonEmpty NameSegment)
+  deriving stock (Eq)
 
 instance Alphabetical Name where
-  compareAlphabetical (Name n1) (Name n2) = compareAlphabetical n1 n2
+  compareAlphabetical n1 n2 =
+    compareAlphabetical (toText n1) (toText n2)
 
+instance IsString Name where
+  fromString =
+    unsafeFromString
+
+instance Ord Name where
+  compare (Name p0 ss0) (Name p1 ss1) =
+    compare ss0 ss1 <> compare p0 p1
+
+instance Show Name where
+  show =
+    Text.unpack . toText
+
+-- Whether a name is absolute, e.g. ".foo.bar", or relative, e.g. "foo.bar"
+data Position
+  = Absolute
+  | Relative
+  deriving stock (Eq, Ord, Show)
+
+-- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
+-- segment order).
+--
+-- >>> compareSuffix "b.c" "a.b.c"
+-- EQ -- because [c,b] == [c,b]
+--
+-- >>> compareSuffix "b.c" "a.b.b"
+-- LT -- because [b,b] < [c,b]
+--
+-- >>> compareSuffix "a.b.c" "b.c"
+-- LT -- because [c,b] < [c,b,a]
+--
+-- >>> compareSuffix "b.b" "a.b.c"
+-- GT -- because [c,b] > [b,b]
+--
+-- Used for suffix-based lookup of a name. For instance, given a @r : Relation Name x@,
+-- @Relation.searchDom (compareSuffix "foo.bar") r@ will find all @r@ whose name has @foo.bar@ as a suffix.
+--
+-- This is only exported for testing; use 'searchBySuffix' or 'shortestUniqueSuffix' instead.
+--
+-- /O(n)/, where /n/ is the number of name segments.
+compareSuffix :: Name -> Name -> Ordering
+compareSuffix (Name _ ss0) =
+  foldr f (const EQ) ss0 . List.NonEmpty.toList . reverseSegments
+  where
+    f :: NameSegment -> ([NameSegment] -> Ordering) -> ([NameSegment] -> Ordering)
+    f x acc = \case
+      [] -> LT
+      y : ys -> compare y x <> acc ys
+
+-- | Cons a name segment onto the head of a relative name. Not monotonic with respect to ordering! It is not safe to use
+-- @cons s@ as the first argument to @Map.mapKeysMonotonic@!
+--
+-- /Precondition/: the name is relative
+--
+-- /O(n)/, where /n/ is the number of segments.
+cons :: HasCallStack => NameSegment -> Name -> Name
+cons x name =
+  case name of
+    Name Absolute _ -> error (reportBug "E495986" ("cannot cons " ++ show x ++ " onto absolute name" ++ show name))
+    Name Relative (y :| ys) -> Name Relative (y :| ys ++ [x])
+
+-- | Return the number of name segments in a name.
+--
+-- /O(n)/, where /n/ is the number of name segments.
+countSegments :: Name -> Int
+countSegments (Name _ ss) =
+  length ss
+
+-- | @endsWithSegments x y@ returns whether @x@ ends with @y@.
+--
+-- >>> endsWithSegments "a.b.c" ["b", "c"]
+-- True
+--
+-- >>> endsWithSegments "a.b.c" ["d"]
+-- False
+--
+-- >>> endsWithSegments "a.b.c" []
+-- True
+--
+-- /O(n)/, where /n/ is the number of name segments.
+endsWithSegments :: Name -> [NameSegment] -> Bool
+endsWithSegments name ss =
+  endsWithReverseSegments name (reverse ss)
+
+-- | Like 'endsWithSegments', but accepts a list of name segments in reverse order.
+--
+-- Slightly more efficient than 'endsWithSegments'.
+endsWithReverseSegments :: Name -> [NameSegment] -> Bool
+endsWithReverseSegments (Name _ ss0) ss1 =
+  List.NonEmpty.isPrefixOf ss1 ss0
+
+-- | Is this name absolute?
+--
+-- /O(1)/.
 isAbsolute :: Name -> Bool
-isAbsolute (Name n) = Text.isPrefixOf "." n
+isAbsolute = \case
+  Name Absolute _ -> True
+  Name Relative _ -> False
+
+-- | @isPrefixOf x y@ returns whether @x@ is a prefix of (or equivalent to) @y@, which is false if one name is relative
+-- and the other is absolute.
+--
+-- >>> isPrefixOf "a.b" "a.b.c"
+-- True
+--
+-- >>> isPrefixOf "a.b.c" "a.b.c"
+-- True
+--
+-- >>> isPrefixOf ".a.b" "a.b.c"
+-- False
+--
+-- /O(n)/, where /n/ is the number of name segments.
+isPrefixOf :: Name -> Name -> Bool
+isPrefixOf (Name p0 ss0) (Name p1 ss1) =
+  p0 == p1 && List.isPrefixOf (reverse (toList ss0)) (reverse (toList ss1))
+
+joinDot :: HasCallStack => Name -> Name -> Name
+joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
+  case p1 of
+    Relative -> Name p0 (ss1 <> ss0)
+    Absolute ->
+      error $
+        reportBug
+          "E261635"
+          ("joinDot: second name cannot be absolute. (name 1 = " ++ show n1 ++ ", name 2 = " ++ show n2 ++ ")")
+
+-- | Make a name absolute. No-op if the name is already absolute.
+--
+-- /O(1)/.
+makeAbsolute :: Name -> Name
+makeAbsolute (Name _ ss) =
+  Name Absolute ss
+
+-- | Make a name relative. No-op if the name is already relative.
+--
+-- /O(1)/.
+makeRelative :: Name -> Name
+makeRelative (Name _ ss) =
+  Name Relative ss
+
+-- | Compute the "parent" of a name, unless the name is only a single segment, in which case it has no parent.
+--
+-- >>> parent "a.b.c"
+-- Just "b.c"
+--
+-- >>> parent ".a.b.c"
+-- Just ".a.b"
+--
+-- >>> parent "a"
+-- Nothing
+parent :: Name -> Maybe Name
+parent (Name p ss0) =
+  Name p <$> List.NonEmpty.nonEmpty (List.NonEmpty.tail ss0)
+
+-- | Construct a relative name from a name segment.
+--
+-- /O(1)/.
+fromSegment :: NameSegment -> Name
+fromSegment s =
+  Name Relative (s :| [])
+
+-- | Construct a relative name from a list of name segments.
+--
+-- >>> fromSegments ("a" :| ["b", "c"])
+-- "a.b.c"
+--
+-- /O(n)/, where /n/ is the number of name segments.
+fromSegments :: NonEmpty NameSegment -> Name
+fromSegments ss =
+  Name Relative (List.NonEmpty.reverse ss)
+
+-- | Return the name segments of a name, in reverse order.
+--
+-- >>> reverseSegments "a.b.c"
+-- "c" :| ["b", "a"]
+--
+-- /O(1)/.
+reverseSegments :: Name -> NonEmpty NameSegment
+reverseSegments (Name _ ss) =
+  ss
 
 -- If there's no exact matches for `suffix` in `rel`, find all
 -- `r` in `rel` whose corresponding name `suffix` as a suffix.
@@ -239,19 +284,170 @@ searchBySuffix suffix rel =
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 
--- `compareSuffix suffix n` is equal to `compare n' suffix`, where
--- n' is `n` with only the last `countSegments suffix` segments.
+-- | Return the name segments of a name.
 --
--- Used for suffix-based lookup of a name. For instance, given a `r : Relation Name x`,
--- `Relation.searchDom (compareSuffix "foo.bar") r` will find all `r` whose name
--- has `foo.bar` as a suffix.
-compareSuffix :: Name -> Name -> Ordering
-compareSuffix suffix =
-  let
-    suffixSegs = reverseSegments suffix
-    len = length suffixSegs
-  in
-    \n -> take len (reverseSegments n) `compare` suffixSegs
+-- >>> segments "a.b.c"
+-- "a" :| ["b", "c"]
+--
+-- /O(n)/, where /n/ is the number of name segments.
+segments :: Name -> NonEmpty NameSegment
+segments (Name _ ss) =
+  List.NonEmpty.reverse ss
+
+sortByText :: (a -> Text) -> [a] -> [a]
+sortByText by as =
+  let as' = [(a, by a) | a <- as]
+      comp (_, s) (_, s2) = RFC5051.compareUnicode s s2
+   in fst <$> List.sortBy comp as'
+
+sortNamed :: (a -> Name) -> [a] -> [a]
+sortNamed f =
+  sortByText (toText . f)
+
+sortNames :: [Name] -> [Name]
+sortNames =
+  sortNamed id
+
+-- | Return all "splits" of a relative name, which pair a possibly-empty prefix of name segments with a suffix, such
+-- that the original name is equivalent to @prefix + suffix@.
+--
+-- Note: always returns a non-empty list, but (currently) does not use @NonEmpty@ for convenience, as none of the
+-- call-sites care if the list is empty or not.
+--
+-- @
+-- > splits foo.bar.baz
+--
+--   prefix    suffix
+--   ------    ------
+--   ∅         foo.bar.baz
+--   foo       bar.baz
+--   foo.bar   baz
+-- @
+--
+-- /Precondition/: the name is relative.
+splits :: HasCallStack => Name -> [([NameSegment], Name)]
+splits (Name p ss0) =
+  ss0
+    & List.NonEmpty.toList
+    & reverse
+    & splits0
+    & over (mapped . _2) (Name p . List.NonEmpty.reverse)
+  where
+    -- splits a.b.c
+    -- ([], a.b.c) : over (mapped . _1) (a.) (splits b.c)
+    -- ([], a.b.c) : over (mapped . _1) (a.) (([], b.c) : over (mapped . _1) (b.) (splits c))
+    -- [([], a.b.c), ([a], b.c), ([a.b], c)]
+    splits0 :: HasCallStack => [a] -> [([a], NonEmpty a)]
+    splits0 = \case
+      [] -> []
+      [x] -> [([], x :| [])]
+      x : xs -> ([], x :| xs) : over (mapped . _1) (x :) (splits0 xs)
+
+-- | @stripNamePrefix x y@ strips prefix @x@ from name @y@, and returns the resulting name. Returns @Nothing@ @x@ is not
+-- a proper (meaning shorter-than) prefix of @y@.
+--
+-- >>> stripNamePrefix "a.b" "a.b.c"
+-- Just "c"
+--
+-- >>> stripNamePrefix ".a.b" "a.b.c"
+-- Nothing
+--
+-- >>> stripNamePrefix "a.b.c" "a.b.c"
+-- Nothing
+stripNamePrefix :: Name -> Name -> Maybe Name
+stripNamePrefix (Name p0 ss0) (Name p1 ss1) = do
+  guard (p0 == p1)
+  s : ss <- List.stripPrefix (reverse (toList ss0)) (reverse (toList ss1))
+  pure (Name Relative (List.NonEmpty.reverse (s :| ss)))
+
+-- | Return all relative suffixes of a name, in descending-length order. The returned list will always be non-empty.
+--
+-- >>> suffixes "a.b.c"
+-- ["a.b.c", "a.b", "c"]
+--
+-- >>> suffixes ".a.b.c"
+-- ["a.b.c", "a.b", "c"]
+suffixes :: Name -> [Name]
+suffixes =
+  reverse . suffixes'
+
+-- Like `suffixes`, but returns names in ascending-length order. Currently unexported, as it's only used in the
+-- implementation of `shortestUniqueSuffix`.
+suffixes' :: Name -> [Name]
+suffixes' (Name _ ss0) = do
+  ss <- List.NonEmpty.tail (List.NonEmpty.inits ss0)
+  -- fromList is safe here because all elements of `tail . inits` are non-empty
+  pure (Name Relative (List.NonEmpty.fromList ss))
+
+-- suffixFrom Int builtin.Int.+ ==> Int.+
+-- suffixFrom Int Int.negate    ==> Int.negate
+--
+-- Currently used as an implementation detail of expanding wildcard
+-- imports, (like `use Int` should catch `builtin.Int.+`)
+-- but it may be generally useful elsewhere. See `expandWildcardImports`
+-- for details.
+suffixFrom :: Name -> Name -> Maybe Name
+suffixFrom (Name p0 ss0) (Name _ ss1) = do
+  -- it doesn't make sense to pass an absolute name as the first arg
+  Relative <- Just p0
+  s : ss <- align (toList ss0) (toList ss1)
+  -- the returned name is always relative... right?
+  pure (Name Relative (s :| ss))
+  where
+    -- Slide the first non-empty list along the second; if there's a match, return the prefix of the second that ends on
+    -- that match.
+    --
+    -- align [a,b] [x,a,b,y] = Just [x,a,b]
+    align :: forall a. Eq a => [a] -> [a] -> Maybe [a]
+    align xs =
+      go id
+      where
+        go :: ([a] -> [a]) -> [a] -> Maybe [a]
+        go prepend = \case
+          [] -> Nothing
+          ys0@(y : ys) ->
+            if List.isPrefixOf xs ys0
+              then Just (prepend xs)
+              else go (prepend . (y :)) ys
+
+-- | Convert a name to a string representation.
+toString :: Name -> String
+toString =
+  Text.unpack . toText
+
+-- | Convert a name to a string representation.
+toText :: Name -> Text
+toText (Name pos (x0 :| xs)) =
+  build (buildPos pos <> foldr step mempty xs <> NameSegment.toTextBuilder x0)
+  where
+    step :: NameSegment -> Text.Builder -> Text.Builder
+    step x acc =
+      acc <> NameSegment.toTextBuilder x <> "."
+
+    build :: Text.Builder -> Text
+    build =
+      Text.Lazy.toStrict . Text.Builder.toLazyText
+
+    buildPos :: Position -> Text.Builder
+    buildPos = \case
+      Absolute -> "."
+      Relative -> ""
+
+-- | Convert a name to a string representation, then parse that as a var.
+toVar :: Var v => Name -> v
+toVar =
+  Var.named . toText
+
+-- | Drop all leading segments from a name, retaining only the last segment as a relative name.
+--
+-- >>> unqualified "a.b.c"
+-- "c"
+--
+-- >>> unqualified ".a.b.c"
+-- "c"
+unqualified :: Name -> Name
+unqualified (Name _ (s :| _)) =
+  Name Relative (s :| [])
 
 -- Tries to shorten `fqn` to the smallest suffix that still refers
 -- to to `r`. Uses an efficient logarithmic lookup in the provided relation.
@@ -260,16 +456,60 @@ compareSuffix suffix =
 --
 -- NB: Only works if the `Ord` instance for `Name` orders based on
 -- `Name.reverseSegments`.
-shortestUniqueSuffix :: Ord r => Name -> r -> R.Relation Name r -> Name
+shortestUniqueSuffix :: forall r. Ord r => Name -> r -> R.Relation Name r -> Name
 shortestUniqueSuffix fqn r rel =
-  maybe fqn (convert . reverse) (find isOk suffixes)
+  fromMaybe fqn (List.find isOk (suffixes' fqn))
   where
-  allowed = R.lookupDom fqn rel
-  suffixes = drop 1 (inits (reverseSegments fqn))
-  isOk suffix = (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
-    where rs = R.searchDom compareEnd rel
-          compareEnd n = compare (take len (reverseSegments n)) suffix
-          len = length suffix
+    allowed :: Set r
+    allowed =
+      R.lookupDom fqn rel
+    isOk :: Name -> Bool
+    isOk suffix =
+      (Set.size rs == 1 && Set.findMin rs == r) || rs == allowed
+      where
+        rs :: Set r
+        rs =
+          R.searchDom (compareSuffix suffix) rel
+
+-- | Unsafely parse a name from a string literal.
+--
+-- See 'unsafeFromText'.
+unsafeFromString :: String -> Name
+unsafeFromString =
+  unsafeFromText . Text.pack
+
+-- | Unsafely parse a name from a string literal.
+--
+-- Performs very minor validation (a name can't be empty, nor contain a '#' character [at least currently?]) but makes
+-- no attempt at rejecting bogus names like "foo...bar...baz".
+unsafeFromText :: HasCallStack => Text -> Name
+unsafeFromText = \case
+  "" -> error "empty name"
+  "." -> Name Relative ("." :| [])
+  ".." -> Name Absolute ("." :| [])
+  name
+    | Text.any (== '#') name -> error ("not a name: " <> show name)
+    | Text.head name == '.' -> Name Absolute (go (Text.tail name))
+    | otherwise -> Name Relative (go name)
+  where
+    go :: Text -> List.NonEmpty NameSegment
+    go name =
+      if ".." `Text.isSuffixOf` name
+        then "." :| split (Text.dropEnd 2 name)
+        else case split name of
+          [] -> error "empty name"
+          s : ss -> s :| ss
+
+    split :: Text -> [NameSegment]
+    split =
+      reverse . map NameSegment . Text.split (== '.')
+
+-- | Unsafely parse a name from a var, by first rendering the var as a string.
+--
+-- See 'unsafeFromText'.
+unsafeFromVar :: Var v => v -> Name
+unsafeFromVar =
+  unsafeFromText . Var.name
 
 class Convert a b where
   convert :: a -> b
@@ -277,28 +517,23 @@ class Convert a b where
 class Parse a b where
   parse :: a -> Maybe b
 
-instance Convert Name Text where convert = toText
-instance Convert Name [NameSegment] where convert = segments
-instance Convert NameSegment Name where convert = fromSegment
-instance Convert [NameSegment] Name where
-  convert sgs = unsafeFromText (Text.intercalate "." (map NameSegment.toText sgs))
-
 instance Parse Text NameSegment where
   parse txt = case NameSegment.segments' txt of
     [n] -> Just (NameSegment.NameSegment n)
     _ -> Nothing
 
-instance (Parse a a2, Parse b b2) => Parse (a,b) (a2,b2) where
-  parse (a,b) = (,) <$> parse a <*> parse b
+instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
+  parse (a, b) = (,) <$> parse a <*> parse b
 
 instance Lens.Snoc Name Name NameSegment NameSegment where
-  _Snoc = Lens.prism snoc unsnoc
-   where
-    snoc :: (Name, NameSegment) -> Name
-    snoc (n, s) = joinDot n (fromSegment s)
-    unsnoc :: Name -> Either Name (Name, NameSegment)
-    unsnoc n@(segments -> ns) = case Lens.unsnoc (NameSegment.toText <$> ns) of
-      Nothing      -> Left n
-      Just ([], _) -> Left n
-      Just (init, last) ->
-        Right (Name (Text.intercalate "." init), NameSegment last)
+  _Snoc =
+    Lens.prism snoc unsnoc
+    where
+      snoc :: (Name, NameSegment) -> Name
+      snoc (Name p (x :| xs), y) =
+        Name p (y :| x : xs)
+      unsnoc :: Name -> Either Name (Name, NameSegment)
+      unsnoc name =
+        case name of
+          Name _ (_ :| []) -> Left name
+          Name p (x :| y : ys) -> Right (Name p (y :| ys), x)

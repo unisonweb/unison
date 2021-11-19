@@ -201,6 +201,40 @@ testSystemTime _ =
 .> io.test testSystemTime
 ```
 
+### Get temp directory
+
+```unison:hide
+testGetTempDirectory : '{io2.IO} [Result]
+testGetTempDirectory _ =
+  test = 'let
+    tempDir = reraise !getTempDirectory.impl
+    check "Temp directory is directory" (isDirectory tempDir)
+    check "Temp directory should exist" (fileExists tempDir)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetTempDirectory
+```
+
+### Get current directory
+
+```unison:hide
+testGetCurrentDirectory : '{io2.IO} [Result]
+testGetCurrentDirectory _ =
+  test = 'let
+    currentDir = reraise !getCurrentDirectory.impl
+    check "Current directory is directory" (isDirectory currentDir)
+    check "Current directory should exist" (fileExists currentDir)
+  runTest test
+```
+
+```ucm
+.> add
+.> io.test testGetCurrentDirectory
+```
+
 ### Get directory contents
 
 ```unison:hide
@@ -236,4 +270,64 @@ testHomeEnvVar _ =
 ```ucm
 .> add
 .> io.test testHomeEnvVar
+```
+
+### Read command line args
+
+`runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions 
+unless they called with the right number of arguments.
+
+```unison:hide
+testGetArgs.fail : Text -> Failure
+testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
+
+testGetArgs.runMeWithNoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithNoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> printLine "called with no args"
+    _ -> raise (fail "called with args")
+
+testGetArgs.runMeWithOneArg : '{io2.IO, Exception} ()
+testGetArgs.runMeWithOneArg = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> printLine "called with one arg"
+    _ -> raise (fail "called with too many args")
+
+testGetArgs.runMeWithTwoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithTwoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> raise (fail "called with one arg")
+    [_, _] -> printLine "called with two args"
+    _ -> raise (fail "called with too many args")
+```
+
+Test that they can be run with the right number of args.
+```ucm
+.> add
+.> cd testGetArgs
+.> run runMeWithNoArgs
+.> run runMeWithOneArg foo
+.> run runMeWithTwoArgs foo bar
+```
+
+Calling our examples with the wrong number of args will error.
+
+```ucm:error
+.> run runMeWithNoArgs foo
+```
+
+```ucm:error
+.> run runMeWithOneArg
+```
+```ucm:error
+.> run runMeWithOneArg foo bar
+```
+
+```ucm:error
+.> run runMeWithTwoArgs
 ```

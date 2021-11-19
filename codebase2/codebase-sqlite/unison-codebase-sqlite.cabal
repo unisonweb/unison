@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 3106bd32bedf162883882818669a81a3e1ca7c60af26ec9cd945fadb39f0d5aa
 
 name:           unison-codebase-sqlite
 version:        0.0.0
@@ -63,6 +61,7 @@ library
     , unison-codebase
     , unison-codebase-sync
     , unison-core
+    , unison-prelude
     , unison-util
     , unison-util-serialization
     , unison-util-term

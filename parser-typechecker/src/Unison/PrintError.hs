@@ -56,6 +56,11 @@ import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 import Unison.NamePrinter (prettyHashQualified0)
+import qualified Unison.PrettyPrintEnv.Names as PPE
+import qualified Unison.NamesWithHistory as NamesWithHistory
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NES
+import qualified Unison.Names as Names
 
 type Env = PPE.PrettyPrintEnv
 
@@ -591,6 +596,9 @@ renderTypeError e env src = case e of
   simplePath' :: C.PathElement v loc -> Pretty ColorText
   simplePath' = \case
     C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
+    C.InEquate t1 t2 ->
+      "InEquate t1=" <> renderType' env t1 <>
+      ", t2=" <> renderType' env t2
     C.InSubtype t1 t2 ->
       "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
     C.InCheck e t ->
@@ -989,9 +997,6 @@ printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
-printNoteWithSource _env s (InvalidPath path term) =
-  fromString ("Invalid Path: " ++ show path ++ "\n")
-    <> annotatedAsErrorSite s term
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
@@ -1171,7 +1176,7 @@ prettyParseError s = \case
           Nothing -> useExamples
           Just parent -> Pr.wrap $
             "You can write" <>
-            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
+            Pr.group (Pr.blue $ "use " <> Pr.shown (Name.makeRelative parent) <> " "
                                        <> Pr.shown (Name.unqualified (L.payload tok))) <>
             "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
             "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))
@@ -1430,42 +1435,54 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
       <> "."
   _ -> ""
 
-prettyResolutionFailures
-  :: (Annotated a, Var v)
-  => String
-  -> [Names.ResolutionFailure v a]
-  -> Pretty ColorText
-prettyResolutionFailures s failures = Pr.callout "❓" $ Pr.linesNonEmpty
-  [ Pr.wrap
-    ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:")
-  , ""
-  , annotatedsAsErrorSite s
-  $  [ a | Names.TermResolutionFailure _ a _ <- failures ]
-  ++ [ a | Names.TypeResolutionFailure _ a _ <- failures ]
-  , let
-      conflicts =
-        nubOrd
-          $  [ v
-             | Names.TermResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-          ++ [ v
-             | Names.TypeResolutionFailure v _ s <- failures
-             , Set.size s > 1
-             ]
-      allVars =
-        nubOrd
-          $  [ v | Names.TermResolutionFailure v _ _ <- failures ]
-          ++ [ v | Names.TypeResolutionFailure v _ _ <- failures ]
-    in
-      "Using these fully qualified names:"
-      `Pr.hang` Pr.spaced (prettyVar <$> allVars)
-      <>        "\n"
-      <>        if null conflicts
-                  then ""
-                  else Pr.spaced (prettyVar <$> conflicts)
-                    <> Pr.bold " are currently conflicted symbols"
-  ]
+-- | Pretty prints resolution failure annotations, including a table of disambiguation
+-- suggestions.
+prettyResolutionFailures ::
+  forall v a.
+  (Annotated a, Var v, Ord a) =>
+  -- | src
+  String ->
+  [Names.ResolutionFailure v a] ->
+  Pretty ColorText
+prettyResolutionFailures s allFailures =
+  Pr.callout "❓" $
+    Pr.linesNonEmpty
+      [ Pr.wrap
+          ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
+        "",
+        annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
+        "",
+        ambiguitiesToTable allFailures
+      ]
+  where
+    -- Collapses identical failures which may have multiple annotations into a single failure.
+    -- uniqueFailures
+    ambiguitiesToTable :: [Names.ResolutionFailure v a] -> Pretty ColorText
+    ambiguitiesToTable failures =
+      let pairs :: ([(v, Maybe (NESet String))])
+          pairs = nubOrd . fmap toAmbiguityPair $ failures
+          spacerRow = ("", "")
+       in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
+
+    toAmbiguityPair :: Names.ResolutionFailure v annotation -> (v, Maybe (NESet String))
+    toAmbiguityPair = \case
+      (Names.TermResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+        let ppe = ppeFromNames names
+         in (v, Just $ NES.map (showTermRef ppe) refs)
+      (Names.TypeResolutionFailure v _ (Names.Ambiguous names refs)) -> do
+        let ppe = ppeFromNames names
+         in (v, Just $ NES.map (showTypeRef ppe) refs)
+      (Names.TermResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+      (Names.TypeResolutionFailure v _ Names.NotFound) -> (v, Nothing)
+
+    ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
+    ppeFromNames names0 =
+      PPE.fromNames PPE.todoHashLength (NamesWithHistory.NamesWithHistory {currentNames = names0, oldNames = mempty})
+
+    prettyRow :: (v, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
+    prettyRow (v, mSet) = case mSet of
+      Nothing -> [(prettyVar v, Pr.hiBlack "No matches")]
+      Just suggestions -> zip ([prettyVar v] ++ repeat "") (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples = Pr.lines [

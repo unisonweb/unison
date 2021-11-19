@@ -4,6 +4,7 @@ import Unison.Prelude
 
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo, ReadRemoteNamespace)
+import Unison.Codebase.Path
 
 type CodebasePath = FilePath
 
@@ -24,4 +25,5 @@ data GitCodebaseError h
   | RemoteNamespaceHashAmbiguous ReadRepo ShortBranchHash (Set h)
   | CouldntLoadRootBranch ReadRepo h
   | CouldntLoadSyncedBranch ReadRemoteNamespace h
+  | CouldntFindRemoteBranch ReadRepo Path
   deriving Show

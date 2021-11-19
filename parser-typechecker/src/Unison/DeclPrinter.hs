@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.DeclPrinter where
+module Unison.DeclPrinter (prettyDecl, prettyDeclHeader, prettyDeclOrBuiltinHeader) where
 
 import Unison.Prelude
 
@@ -41,8 +41,8 @@ prettyDecl
   -> HashQualified Name
   -> DD.Decl v a
   -> Pretty SyntaxText
-prettyDecl ppe@(PrettyPrintEnvDecl unsuffixifiedPPE _) r hq d = case d of
-  Left e -> prettyEffectDecl unsuffixifiedPPE r hq e
+prettyDecl ppe r hq d = case d of
+  Left e -> prettyEffectDecl (suffixifiedPPE ppe) r hq e
   Right dd -> prettyDataDecl ppe r hq dd
 
 prettyEffectDecl
@@ -80,7 +80,7 @@ prettyPattern
   -> Int
   -> Pretty SyntaxText
 prettyPattern env ctorType ref namespace cid = styleHashQualified''
-  (fmt (S.Referent conRef))
+  (fmt (S.TermReference conRef))
   ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
   $ PPE.termName env conRef
   )
@@ -110,7 +110,7 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> (fmt S.DelimiterChar " }")
-  field (fname, typ) = P.group $ styleHashQualified'' (fmt (S.Reference r)) fname <>
+  field (fname, typ) = P.group $ styleHashQualified'' (fmt (S.TypeReference r)) fname <>
     (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw suffixifiedPPE Map.empty (-1) typ
   header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 

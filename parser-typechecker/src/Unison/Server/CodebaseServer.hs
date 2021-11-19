@@ -13,7 +13,7 @@ import Control.Concurrent.Async (race)
 import Data.ByteString.Char8 (unpack)
 import Control.Exception (ErrorCall (..), throwIO)
 import qualified Network.URI.Encode as URI
-import Control.Lens ((&), (.~))
+import Control.Lens ((.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Char8 as C8

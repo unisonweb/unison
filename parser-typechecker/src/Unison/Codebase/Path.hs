@@ -46,6 +46,7 @@ module Unison.Codebase.Path
     toName',
     toPath',
     toText,
+    toText',
     unsplit,
     unsplit',
     unsplitHQ,
@@ -61,6 +62,9 @@ module Unison.Codebase.Path
     -- * things that could be replaced with `Snoc` instances
     snoc,
     unsnoc,
+
+  -- This should be moved to a common util module, or we could use the 'witch' package.
+  Convert(..)
   )
 where
 import Unison.Prelude hiding (empty, toList)
@@ -69,11 +73,12 @@ import Control.Lens hiding (Empty, cons, snoc, unsnoc)
 import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
+import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
 import qualified Unison.HashQualified' as HQ'
-import Unison.Name (Convert, Name, Parse)
+import Unison.Name (Convert(..), Name, Parse)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
@@ -224,7 +229,7 @@ uncons = Lens.uncons
 -- todo: fromName needs to be a little more complicated if we want to allow
 --       identifiers called Function.(.)
 fromName :: Name -> Path
-fromName = fromList . Name.segments
+fromName = fromList . List.NonEmpty.toList . Name.segments
 
 fromName' :: Name -> Path'
 fromName' n = case take 1 (Name.toString n) of
@@ -249,13 +254,14 @@ empty = Path mempty
 instance Show Path where
   show = Text.unpack . toText
 
+-- | Note: This treats the path as relative.
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
 
 fromText :: Text -> Path
 fromText = \case
   "" -> empty
-  t -> fromList $ NameSegment <$> Name.segments' t
+  t -> fromList $ NameSegment <$> NameSegment.segments' t
 
 toText' :: Path' -> Text
 toText' = \case
@@ -346,6 +352,10 @@ instance Resolve Absolute Path' Absolute where
   resolve _ (Path' (Left a)) = a
   resolve a (Path' (Right r)) = resolve a r
 
+instance Convert Absolute Text where convert = toText' . absoluteToPath'
+instance Convert Relative Text where convert = toText . unrelative
+instance Convert Absolute String where convert = Text.unpack . convert
+instance Convert Relative String where convert = Text.unpack . convert
 instance Convert [NameSegment] Path where convert = fromList
 instance Convert Path [NameSegment] where convert = toList
 instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ

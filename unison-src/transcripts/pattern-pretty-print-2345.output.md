@@ -69,7 +69,7 @@ doc = cases
       pokey     : [t] -> ()
       sleepy    : [t] -> ()
       sneezy    : Int -> ()
-      throaty   : Request {Ab} x -> ()
+      throaty   : Request {g, Ab} x -> ()
       tremulous : (Nat, Nat) -> ()
 
 ```
@@ -91,7 +91,7 @@ doc = cases
     pokey     : [t] -> ()
     sleepy    : [t] -> ()
     sneezy    : Int -> ()
-    throaty   : Request {Ab} x -> ()
+    throaty   : Request {g, Ab} x -> ()
     tremulous : (Nat, Nat) -> ()
 
 .> view dopey
@@ -151,7 +151,7 @@ doc = cases
 
 .> view throaty
 
-  throaty : Request {Ab} x -> ()
+  throaty : Request {g, Ab} x -> ()
   throaty = cases {a a -> k} -> ()
 
 .> view agitated

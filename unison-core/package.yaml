@@ -9,6 +9,7 @@ library:
     - base
     - bytestring
     - containers >= 0.6.3
+    - nonempty-containers
     - cryptonite
     - either
     - extra
@@ -19,10 +20,10 @@ library:
     - mtl
     - rfc5051
     - safe
-    - sandi
     - text
     - transformers
     - unison-prelude
+    - unison-util
     - unison-util-relation
     - util
     - vector
@@ -31,15 +32,21 @@ default-extensions:
   - ApplicativeDo
   - BlockArguments
   - DeriveFunctor
+  - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
   - FlexibleContexts
   - FlexibleInstances
+  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
+  - ViewPatterns
 
 flags:
   optimized:

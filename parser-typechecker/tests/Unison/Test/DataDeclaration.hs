@@ -4,11 +4,12 @@ module Unison.Test.DataDeclaration where
 
 import Data.Map (Map, (!))
 import qualified Data.Map as Map
+import Data.Text.Encoding (encodeUtf8)
 import EasyTest
 import Text.RawString.QQ
+import qualified U.Util.Hash as Hash
 import Unison.DataDeclaration (DataDeclaration (..), Decl)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hash as Hash
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers (unsafeParseFile)
@@ -87,7 +88,7 @@ unhashComponentTest = tests
         app = Type.app ()
         forall = Type.forall ()
         (-->) = Type.arrow ()
-        h = Hash.unsafeFromBase32Hex "abcd"
+        h = Hash.fromByteString (encodeUtf8 "abcd")
         ref = R.Derived h 0 1
         a = Var.refNamed ref
         b = Var.named "b"

@@ -84,7 +84,7 @@ data Doc
 
 type UnisonHash = Text
 
-data Ref a = Term a | Type a deriving (Eq,Show,Generic,Functor,Foldable,Traversable)
+data Ref a = Term a | Type a deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
@@ -161,9 +161,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
-      TypePrinter.prettySignatures''
+      TypePrinter.prettySignaturesST
         (PPE.suffixifiedPPE pped)
-        [ (PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
+        [ (r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
 
   goSpecial :: Term v () -> m SpecialForm
   goSpecial = \case
@@ -189,9 +189,9 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     DD.Doc2SpecialFormLink e -> let
       ppe = PPE.suffixifiedPPE pped
       tm :: Referent -> P.Pretty SSyntaxText
-      tm r = (NP.styleHashQualified'' (NP.fmt (S.Referent r)) . PPE.termName ppe) r
+      tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
       ty :: Reference -> P.Pretty SSyntaxText
-      ty r = (NP.styleHashQualified'' (NP.fmt (S.Reference r)) . PPE.typeName ppe) r
+      ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
         DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
@@ -236,7 +236,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
         goType :: Reference -> m (Ref (UnisonHash, DisplayObject SyntaxText Src))
         goType r@(Reference.Builtin _) =
           pure (Type (Reference.toText r, DO.BuiltinObject name))
-          where name = formatPretty . NP.styleHashQualified (NP.fmt (S.Reference r))
+          where name = formatPretty . NP.styleHashQualified (NP.fmt (S.TypeReference r))
                      . PPE.typeName ppe $ r
         goType r = Type . (Reference.toText r,) <$> do
           d <- types r
@@ -259,14 +259,15 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             acc' = case tm of
               Term.Ref' r | Set.notMember r seen -> (:acc) . Term . (Reference.toText r,) <$> case r of
                 Reference.Builtin _ -> typeOf (Referent.Ref r) <&> \case
-                  Nothing -> DO.BuiltinObject ("🆘 missing type signature")
+                  Nothing -> DO.BuiltinObject "🆘 missing type signature"
                   Just ty -> DO.BuiltinObject (formatPrettyType ppe ty)
                 ref -> terms ref >>= \case
                   Nothing -> pure $ DO.MissingObject (SH.unsafeFromText $ Reference.toText ref)
                   Just tm -> do
                     typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
-                    let folded = formatPretty . P.lines $ TypePrinter.prettySignatures'' ppe [(name, typ)]
+                    let folded = formatPretty . P.lines
+                               $ TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
                     let full tm@(Term.Ann' _ _) _ =
                           formatPretty (TermPrinter.prettyBinding ppe name tm)
                         full tm typ =
@@ -279,4 +280,3 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
             -> (Set.insert ref seen,) . (:acc) <$> goType ref
           _ -> pure s1
     reverse . snd <$> foldM go mempty es
-

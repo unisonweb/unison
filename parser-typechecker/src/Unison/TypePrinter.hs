@@ -1,7 +1,20 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module Unison.TypePrinter where
+module Unison.TypePrinter
+  (
+  pretty
+  , pretty0
+  , prettyRaw
+  , prettyStr
+  , prettySyntax
+  , prettySignaturesST
+  , prettySignaturesCT
+  , prettySignaturesCTCollapsed
+
+  , prettySignaturesAlt
+  , prettySignaturesAlt'
+  ) where
 
 import Unison.Prelude
 
@@ -21,6 +34,7 @@ import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.Builtin.Decls as DD
+import           Unison.Referent       (Referent)
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -30,10 +44,10 @@ pretty ppe = PP.syntaxToColor . prettySyntax ppe
 prettySyntax :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettySyntax ppe = pretty0 ppe mempty (-1)
 
-pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
-pretty' (Just width) n t =
+prettyStr :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
+prettyStr (Just width) n t =
   toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
-pretty' Nothing n t =
+prettyStr Nothing n t =
   toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
 
 {- Explanation of precedence handling
@@ -84,7 +98,7 @@ prettyRaw n im p tp = go n im p tp
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
     DD.TupleType' xs | length xs /= 1 -> PP.parenthesizeCommas $ map (go n im 0) xs
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
-    Ref' r     -> styleHashQualified'' (fmt $ S.Reference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
+    Ref' r     -> styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
@@ -146,25 +160,34 @@ fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
-prettySignatures'
+prettySignaturesCT
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
+  -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
+prettySignaturesCT env ts = map PP.syntaxToColor $ prettySignaturesST env ts
 
-prettySignatures''
+prettySignaturesCTCollapsed
+  :: Var v
+  => PrettyPrintEnv
+  -> [(Referent, HashQualified Name, Type v a)]
+  -> Pretty ColorText
+prettySignaturesCTCollapsed env ts = PP.lines $
+  PP.group <$> prettySignaturesCT env ts
+
+
+prettySignaturesST
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
+  -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty SyntaxText]
-prettySignatures'' env ts = PP.align
-  [ ( styleHashQualified'' (fmt $ S.HashQualifier name) name
-    , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
-      `PP.orElse` (  fmt S.TypeAscriptionColon ": "
-                  <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)
-                  )
-    )
-  | (name, typ) <- ts
-  ]
+prettySignaturesST env ts =
+  PP.align [ (name r hq, sig typ) | (r, hq, typ) <- ts ]
+  where
+  name r hq =
+    styleHashQualified'' (fmt $ S.TermReference r) hq
+  sig typ =
+    (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
+    `PP.orElse`
+    (fmt S.TypeAscriptionColon ": " <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ))
 
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
@@ -183,14 +206,6 @@ prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
 
 -- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, Type v a)] -> [Pretty ColorText]
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
-
-prettySignatures
-  :: Var v
-  => PrettyPrintEnv
-  -> [(HashQualified Name, Type v a)]
-  -> Pretty ColorText
-prettySignatures env ts = PP.lines $
-  PP.group <$> prettySignatures' env ts
 
 prettySignaturesAlt
   :: Var v

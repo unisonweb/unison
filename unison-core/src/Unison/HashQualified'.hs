@@ -35,12 +35,13 @@ fromHQ = \case
   HQ.HashQualified n sh -> Just $ HashQualified n sh
   HQ.HashOnly{} -> Nothing
 
--- Like fromHQ, but turns hashes into hash-qualified empty names
-fromHQ' :: Monoid n => HQ.HashQualified n -> HashQualified n
-fromHQ' = \case
-  HQ.NameOnly n -> NameOnly n
-  HQ.HashQualified n sh -> HashQualified n sh
-  HQ.HashOnly h -> HashQualified mempty h
+-- | Like 'fromHQ', but if the 'HQ.HashQualified' is just a 'ShortHash', return it on the 'Left', rather than as a
+-- 'Nothing'.
+fromHQ2 :: HQ.HashQualified n -> Either ShortHash (HashQualified n)
+fromHQ2 = \case
+  HQ.NameOnly n -> Right $ NameOnly n
+  HQ.HashQualified n sh -> Right $ HashQualified n sh
+  HQ.HashOnly sh -> Left sh
 
 toName :: HashQualified n -> n
 toName = \case
@@ -48,7 +49,7 @@ toName = \case
   HashQualified name _ ->  name
 
 nameLength :: HashQualified Name -> Int
-nameLength = Text.length . toText
+nameLength = Text.length . toTextWith Name.toText
 
 take :: Int -> HashQualified n -> HashQualified n
 take i = \case
@@ -82,9 +83,13 @@ fromString :: String -> Maybe (HashQualified Name)
 fromString = fromText . Text.pack
 
 toText :: Show n => HashQualified n -> Text
-toText = \case
-  NameOnly name           -> Text.pack (show name)
-  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
+toText =
+  toTextWith (Text.pack . show)
+
+toTextWith :: (n -> Text) -> HashQualified n -> Text
+toTextWith f = \case
+  NameOnly name           -> f name
+  HashQualified name hash -> f name <> SH.toText hash
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: n -> Referent -> HashQualified n
@@ -112,6 +117,13 @@ requalify :: HashQualified Name -> Referent -> HashQualified Name
 requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
+
+-- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
+sortByLength :: [HashQualified Name] -> [HashQualified Name]
+sortByLength =
+  sortOn \case
+    NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
+    HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
 
 -- `HashQualified` is usually used for display, so we sort it alphabetically
 instance Name.Alphabetical n => Ord (HashQualified n) where

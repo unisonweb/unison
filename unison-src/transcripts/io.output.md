@@ -312,6 +312,70 @@ testSystemTime _ =
   Tip: Use view testSystemTime to view the source of a test.
 
 ```
+### Get temp directory
+
+```unison
+testGetTempDirectory : '{io2.IO} [Result]
+testGetTempDirectory _ =
+  test = 'let
+    tempDir = reraise !getTempDirectory.impl
+    check "Temp directory is directory" (isDirectory tempDir)
+    check "Temp directory should exist" (fileExists tempDir)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetTempDirectory : '{IO} [Result]
+
+.> io.test testGetTempDirectory
+
+    New test results:
+  
+  ◉ testGetTempDirectory   Temp directory is directory
+  ◉ testGetTempDirectory   Temp directory should exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetTempDirectory to view the source of a
+       test.
+
+```
+### Get current directory
+
+```unison
+testGetCurrentDirectory : '{io2.IO} [Result]
+testGetCurrentDirectory _ =
+  test = 'let
+    currentDir = reraise !getCurrentDirectory.impl
+    check "Current directory is directory" (isDirectory currentDir)
+    check "Current directory should exist" (fileExists currentDir)
+  runTest test
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetCurrentDirectory : '{IO} [Result]
+
+.> io.test testGetCurrentDirectory
+
+    New test results:
+  
+  ◉ testGetCurrentDirectory   Current directory is directory
+  ◉ testGetCurrentDirectory   Current directory should exist
+  
+  ✅ 2 test(s) passing
+  
+  Tip: Use view testGetCurrentDirectory to view the source of a
+       test.
+
+```
 ### Get directory contents
 
 ```unison
@@ -376,5 +440,102 @@ testHomeEnvVar _ =
   ✅ 2 test(s) passing
   
   Tip: Use view testHomeEnvVar to view the source of a test.
+
+```
+### Read command line args
+
+`runMeWithNoArgs`, `runMeWithOneArg`, and `runMeWithTwoArgs` raise exceptions 
+unless they called with the right number of arguments.
+
+```unison
+testGetArgs.fail : Text -> Failure
+testGetArgs.fail descr = Failure (typeLink IOFailure) descr !Any
+
+testGetArgs.runMeWithNoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithNoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> printLine "called with no args"
+    _ -> raise (fail "called with args")
+
+testGetArgs.runMeWithOneArg : '{io2.IO, Exception} ()
+testGetArgs.runMeWithOneArg = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> printLine "called with one arg"
+    _ -> raise (fail "called with too many args")
+
+testGetArgs.runMeWithTwoArgs : '{io2.IO, Exception} ()
+testGetArgs.runMeWithTwoArgs = 'let
+  args = reraise !getArgs.impl
+  match args with
+    [] -> raise (fail "called with no args")
+    [_] -> raise (fail "called with one arg")
+    [_, _] -> printLine "called with two args"
+    _ -> raise (fail "called with too many args")
+```
+
+Test that they can be run with the right number of args.
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    testGetArgs.fail             : Text -> Failure
+    testGetArgs.runMeWithNoArgs  : '{IO, Exception} ()
+    testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
+    testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
+
+.> cd testGetArgs
+
+.> run runMeWithNoArgs
+
+.> run runMeWithOneArg foo
+
+.> run runMeWithTwoArgs foo bar
+
+```
+Calling our examples with the wrong number of args will error.
+
+```ucm
+.> run runMeWithNoArgs foo
+
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure (typeLink IOFailure) "called with args" !Any
+
+```
+```ucm
+.> run runMeWithOneArg
+
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure (typeLink IOFailure) "called with no args" !Any
+
+```
+```ucm
+.> run runMeWithOneArg foo bar
+
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure
+      (typeLink IOFailure) "called with too many args" !Any
+
+```
+```ucm
+.> run runMeWithTwoArgs
+
+  💔💥
+  
+  The program halted with an unhandled exception:
+  
+    Failure (typeLink IOFailure) "called with no args" !Any
 
 ```
