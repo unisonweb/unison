@@ -352,10 +352,6 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
--- hashing of branches isn't currently delegated here, because it's enmeshed
--- with every `cons` or `step` function.  I think it would be good to do while
--- we're updating the hash function, but I'm also not looking forward to doing it
--- and it's not clearly a problem yet.
 hashBranch :: Memory.Branch.Branch m -> Hash
 hashBranch = Hashing.Causal.hashCausal . m2hCausal . Memory.Branch._history
 

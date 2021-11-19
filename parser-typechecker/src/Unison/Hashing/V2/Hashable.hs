@@ -63,7 +63,7 @@ instance (Hashable d1, Hashable d2, Hashable d3) => Hashable (Relation3 d1 d2 d3
 instance (Hashable d1, Hashable d2, Hashable d3, Hashable d4) => Hashable (Relation4 d1 d2 d3 d4) where
   tokens s = [accumulateToken $ Relation4.toNestedList s]
 
-class Functor f => Hashable1 f where
+class Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
   -- If there is a notion of order-independence in some aspect of a subterm
   -- of `f`, then the first argument (`hashUnordered :: [a] -> ([h], a -> h)`)
