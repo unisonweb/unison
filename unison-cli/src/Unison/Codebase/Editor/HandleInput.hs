@@ -598,7 +598,7 @@ loop = do
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
                   else do
                     ppeDecl <- currentPrettyPrintEnvDecl
-                    respond $ CantDeleteDefinitions ppeDecl endangerments
+                    respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             CreateMessage pretty ->
               respond $ PrintMessage pretty
@@ -799,10 +799,10 @@ loop = do
                        Force -> do
                          ppeDecl <- currentPrettyPrintEnvDecl
                          doDelete b0
-                         respond $ DeletedDespiteDependents ppeDecl endangerments
+                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
                        Try -> do
                          ppeDecl <- currentPrettyPrintEnvDecl
-                         respond $ CantDeleteNamespace ppeDecl endangerments
+                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
                       stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty

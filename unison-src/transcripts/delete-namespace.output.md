@@ -33,14 +33,14 @@ Deleting a namespace with external dependencies should fail and list all depende
   definitions are still in use.
   
   Dependency   Referenced In
-  term2        dependents.usage2
-               dependents.usage1
+  term2        1. dependents.usage2
+               2. dependents.usage1
                
-  term1        dependents.usage2
-               dependents.usage1
+  term1        3. dependents.usage2
+               4. dependents.usage1
   
   If you want to proceed anyways and leave those definitions
-  without names, use namespace.delete.force
+  without names, usedelete.namespace.force
 
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
@@ -57,16 +57,27 @@ Deleting a namespace with external dependencies should succeed when using `delet
 
   ⚠️
   
-  The following definitions are still depended upon.
+  The following definitions still have named dependents.
   I've deleted them for you, but the listed dependents now
   contain some unnamed references.
   
   Dependency   Referenced In
-  term2        dependents.usage2
-               dependents.usage1
+  term2        1. dependents.usage2
+               2. dependents.usage1
                
-  term1        dependents.usage2
-               dependents.usage1
+  term1        3. dependents.usage2
+               4. dependents.usage1
+
+```
+I should be able to view an effected dependency by number
+
+```ucm
+.> view 2
+
+  dependents.usage1 : Nat
+  dependents.usage1 =
+    use Nat +
+    #jk19sm5bf8 + #0ja1qfpej6
 
 ```
 Deleting the root namespace should require confirmation if not forced.

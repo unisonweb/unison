@@ -6,6 +6,7 @@ module Unison.PrettyPrintEnv
     patternName,
     termName,
     typeName,
+    labeledRefName,
     -- | Exported only for cases where the codebase's configured hash length is unavailable.
     todoHashLength,
   )
@@ -21,6 +22,8 @@ import           Unison.Referent                ( Referent )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
+import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.LabeledDependency as LD
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -56,6 +59,11 @@ typeName env r =
   case types env r of
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
+
+labeledRefName :: PrettyPrintEnv -> LabeledDependency -> HashQualified Name
+labeledRefName ppe = \case
+  LD.TermReferent ref -> termName ppe ref
+  LD.TypeReference ref -> typeName ppe ref
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
 patternName env r cid =
