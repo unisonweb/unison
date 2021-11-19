@@ -92,10 +92,10 @@ import UnliftIO (MonadUnliftIO)
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
 --    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
 --          [x] store type annotation in the term
---    * [ ] Refactor Causal helper functions to use V2 hashing
---          * [ ] I guess move Hashable to V2.Hashing pseudo-package
---          * [ ] Delete V1 Hashing to ensure it's unused
---          * [ ] Salt V2 hashes with version number
+--    * [x] Refactor Causal helper functions to use V2 hashing
+--          * [x] I guess move Hashable to V2.Hashing pseudo-package
+--          * [x] Delete V1 Hashing to ensure it's unused
+--          * [x] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
 --    * [ ] Make a backup of the v1 codebase before migrating, in a temp directory.
 --          Include a message explaining where we put it.
