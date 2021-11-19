@@ -101,7 +101,7 @@ makeMapStore = \case
           case Map.lookup k store of
             Nothing -> do
               v <- mv
-              liftIO (writeIORef storeRef $! Map.insert k v store)
+              liftIO (modifyIORef' storeRef (Map.insert k v))
               pure v
             Just v -> pure v
     pure (Store fetch)
@@ -136,7 +136,7 @@ makeDependentMapStore = \case
           case Dependent.Map.lookup k store of
             Nothing -> do
               v <- mv
-              liftIO (writeIORef storeRef $! Dependent.Map.insert k (Identity v) store)
+              liftIO (modifyIORef' storeRef (Dependent.Map.insert k (Identity v)))
               pure v
             Just (Identity v) -> pure v
     pure (StoreD fetch)
