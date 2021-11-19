@@ -210,7 +210,13 @@ data Output v
   | NotImplemented
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
-  | ListDependents Int LabeledDependency [(Name, Reference)] (Set Reference)
+  | -- | List dependents of a type or term.
+    ListDependents Int LabeledDependency [(Reference, Maybe Name)]
+  | -- | List all direct dependencies which don't have any names in the current branch
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -340,6 +346,7 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False
+  ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty _ -> False

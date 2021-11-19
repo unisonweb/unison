@@ -100,10 +100,10 @@ library
     , prelude-extras
     , rfc5051
     , safe
-    , sandi
     , text
     , transformers
     , unison-prelude
+    , unison-util
     , unison-util-relation
     , util
     , vector

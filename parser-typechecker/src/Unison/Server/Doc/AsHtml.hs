@@ -94,11 +94,11 @@ foldedToHtml attrs isFolded =
     IsFolded isFolded summary details ->
       let attrsWithOpen =
             if isFolded
-              then open_ "open" : attrs
-              else attrs
+              then attrs
+              else open_ "open" : attrs
        in details_ attrsWithOpen $ do
-            summary_ [class_ "folded-content"] $ sequence_ summary
-            div_ [class_ "folded-content"] $ sequence_ details
+            summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
+            div_ [class_ "folded-content folded-details"] $ sequence_ details
 
 foldedToHtmlSource :: Bool -> EmbeddedSource -> Html ()
 foldedToHtmlSource isFolded source =
@@ -185,9 +185,30 @@ toHtml docNamesByRef document =
               toHtml_ sectionLevel
 
             sectionContentToHtml renderer doc_ =
+              -- Block elements can't be children for <p> elements
               case doc_ of
-                Paragraph _ ->
-                  p_ [] $ renderer doc_
+                Paragraph [CodeBlock {}] -> renderer doc_
+                Paragraph [Blockquote _] -> renderer doc_
+                Paragraph [Blankline] -> renderer doc_
+                Paragraph [SectionBreak] -> renderer doc_
+                Paragraph [Callout {} ] -> renderer doc_
+                Paragraph [Table _] -> renderer doc_
+                Paragraph [Folded {} ] -> renderer doc_
+                Paragraph [BulletedList _] -> renderer doc_
+                Paragraph [NumberedList {}] -> renderer doc_
+                -- Paragraph [Section _ _] -> renderer doc_
+                Paragraph [Image {} ] -> renderer doc_
+                Paragraph [Special (Source _)] -> renderer doc_
+                Paragraph [Special (FoldedSource _)] -> renderer doc_
+                Paragraph [Special (ExampleBlock _)] -> renderer doc_
+                Paragraph [Special (Signature _)] -> renderer doc_
+                Paragraph [Special Eval {}] ->renderer doc_
+                Paragraph [Special (Embed _)] -> renderer doc_
+                Paragraph [UntitledSection ds] -> mapM_ (sectionContentToHtml renderer) ds
+                Paragraph [Column _] -> renderer doc_
+
+                Paragraph _ -> p_ [] $ renderer doc_
+
                 _ ->
                   renderer doc_
          in case doc of
@@ -196,7 +217,7 @@ toHtml docNamesByRef document =
               Code code ->
                 span_ [class_ "rich source inline-code"] $ inlineCode [] (currentSectionLevelToHtml code)
               CodeBlock lang code ->
-                div_ [class_ "rich source code", class_ $ textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
+                div_ [class_ $ "rich source code " <> textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
               Bold d ->
                 strong_ [] $ currentSectionLevelToHtml d
               Italic d ->
@@ -206,7 +227,7 @@ toHtml docNamesByRef document =
               Style cssclass_ d ->
                 span_ [class_ $ textToClass cssclass_] $ currentSectionLevelToHtml d
               Anchor id' d ->
-                a_ [id_ id', target_ id'] $ currentSectionLevelToHtml d
+                a_ [id_ id', href_ $ "#" <> id'] $ currentSectionLevelToHtml d
               Blockquote d ->
                 blockquote_ [] $ currentSectionLevelToHtml d
               Blankline ->
@@ -249,7 +270,12 @@ toHtml docNamesByRef document =
                   IsFolded
                     isFolded
                     [currentSectionLevelToHtml summary]
-                    [currentSectionLevelToHtml details]
+                    -- We include the summary in the details slot to make it
+                    -- symmetric with code folding, which currently always
+                    -- includes the type signature in the details portion
+                    [ div_ [] $ currentSectionLevelToHtml summary,
+                    currentSectionLevelToHtml details
+                    ]
               Paragraph docs ->
                 case docs of
                   [d] ->
@@ -271,7 +297,11 @@ toHtml docNamesByRef document =
               NamedLink label href ->
                 case normalizeHref docNamesByRef href of
                   Href h ->
-                    a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
+                    -- Fragments (starting with a #) are links internal to the page
+                    if Text.isPrefixOf "#" h then
+                      a_ [class_ "named-link", href_ h ] $ currentSectionLevelToHtml label
+                    else
+                      a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
                   DocLinkHref name ->
                     let href = "/" <> Text.replace "." "/" (Name.toText name) <> ".html"
                      in a_ [class_ "named-link doc-link", href_ href] $ currentSectionLevelToHtml label
@@ -314,14 +344,14 @@ toHtml docNamesByRef document =
                   Link syntax ->
                     inlineCode ["rich", "source"] $ Syntax.toHtml syntax
                   Signature signatures ->
-                    div_
+                    codeBlock
                       [class_ "rich source signatures"]
                       ( mapM_
                           (div_ [class_ "signature"] . Syntax.toHtml)
                           signatures
                       )
                   SignatureInline sig ->
-                    span_ [class_ "rich source signature-inline"] $ Syntax.toHtml sig
+                    inlineCode ["rich", "source", "signature-inline"] $ Syntax.toHtml sig
                   Eval source result ->
                     div_ [class_ "source rich eval"] $
                       codeBlock [] $

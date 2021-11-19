@@ -30,6 +30,7 @@ module Unison.Reference
    showShort,
    showSuffix,
    toId,
+   fromId,
    toText,
    unsafeId,
    toShortHash,
@@ -162,6 +163,9 @@ idFromText s = case fromText s of
 toId :: Reference -> Maybe Id
 toId (DerivedId id) = Just id
 toId Builtin{} = Nothing
+
+fromId :: Id -> Reference
+fromId = DerivedId
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles

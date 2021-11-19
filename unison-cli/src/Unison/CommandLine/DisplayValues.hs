@@ -235,7 +235,7 @@ displayPretty pped terms typeOf eval types tm = go tm
   goSignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.suffixifiedPPE pped) r
     Just typ -> pure . P.group $
-      TypePrinter.prettySignatures
+      TypePrinter.prettySignaturesCTCollapsed
         (PPE.suffixifiedPPE pped)
         [(r, PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
 
@@ -296,7 +296,7 @@ displayDoc pped terms typeOf evaluated types = go
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
     Just typ -> pure . P.group $
-      TypePrinter.prettySignatures
+      TypePrinter.prettySignaturesCTCollapsed
         (PPE.suffixifiedPPE pped)
         [(r, PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
   prettyEval terms r = case r of
