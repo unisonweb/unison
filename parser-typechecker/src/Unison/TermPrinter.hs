@@ -303,13 +303,12 @@ pretty0
           -- this let block provides to add a use statement.  Not so bad.
           (fmt S.ControlKeyword "let") `PP.hang` x
       lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
-         <> printGuard guard
+         `PP.hang` printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') =
         let (_,g) = ABT.unabs g'
-         in PP.hang (fmt S.DelimiterChar " |") $
-              pretty0 n (ac 2 Normal im doc) g
-      eq = fmt S.BindingEquals " ="
+         in (fmt S.DelimiterChar "| ") <> pretty0 n (ac 2 Normal im doc) g
+      eq = fmt S.BindingEquals "="
       rhs =
         let (im', uses) = calcImports im scrutinee in
         uses $ [pretty0 n (ac (-1) Block im' doc) scrutinee]
@@ -553,14 +552,16 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
   justify rows =
     zip (fmap fst . PP.align' $ fmap patternGuards rows) $ fmap gbs rows
    where
-     patternGuards (p, True, _, _) = (p, Nothing)
      patternGuards (p, _, _, _) = (p, Just "")
      gbs (_, _, gs, bs) = zip gs bs
   alignGrid = fmap alignCase . justify
-  alignCase (p, gbs) = PP.hang p guardBlock
+  alignCase (p, gbs) =
+    if not (null (drop 1 gbs)) then PP.hang p guardBlock
+    else p <> guardBlock
    where
     guardBlock = PP.lines
-      $ fmap (\(g, (a, b)) -> PP.hang (PP.spaceIfNeeded g a) b) justified
+      $ fmap (\(g, (a, b)) ->
+          PP.hang (PP.group (PP.wrap (g <> " " <> a))) b) justified
     justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
   grid = go <$> ms
   patLhs vs pats = case pats of
@@ -586,14 +587,12 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
     noGuards = all (== Nothing) guards
     printGuard Nothing | noGuards = mempty
     printGuard Nothing =
-      fmt S.DelimiterChar "|" <> fmt S.ControlKeyword " otherwise"
+      fmt S.DelimiterChar " |" <> fmt S.ControlKeyword " otherwise"
     printGuard (Just (ABT.AbsN' _ g)) =
       -- strip off any Abs-chain around the guard, guard variables are rendered
       -- like any other variable, ex: case Foo x y | x < y -> ...
-      PP.softHang (fmt S.DelimiterChar "|") $ pretty0
-        env
-        (ac 2 Normal im doc)
-        g
+      PP.spaceIfNeeded (fmt S.DelimiterChar " |") $
+        pretty0 env (ac 2 Normal im doc) g
     printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
 {- Render a binding, producing output of the form

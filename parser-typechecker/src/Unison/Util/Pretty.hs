@@ -50,6 +50,7 @@ module Unison.Util.Pretty (
    hangUngrouped,
    softHang',
    softHang,
+   softHangNoSpace',
    indent,
    indentAfterNewline,
    indentN,
@@ -721,6 +722,15 @@ softHang' :: (LL.ListLike s Char, IsString s)
   -> Pretty s
 softHang' from by p = group $
   (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+
+softHangNoSpace'
+  :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+softHangNoSpace' from by p =
+  group $ (from <> group p) `orElse` (from <> "\n" <> group (indent by p))
 
 -- Same as `hang`, except instead of indenting by two spaces, it indents by
 -- the `by` argument.
