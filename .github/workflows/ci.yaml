@@ -108,7 +108,7 @@ jobs:
       - name: unison-cli tests
         run: stack --no-terminal build --fast --test unison-cli
       - name: unison-parser-typechecker tests
-        run: stack --no-terminal exec tests
+        run: stack --no-terminal build --fast --test unison-parser-typechecker
       - name: unison-util-relation tests
         run: stack --no-terminal build --fast --test unison-util-relation
       - name: transcripts
