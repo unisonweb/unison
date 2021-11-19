@@ -106,7 +106,7 @@ import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirec
 import UnliftIO.STM
 import UnliftIO.Exception (bracket)
 import Control.Monad.Trans.Except (mapExceptT)
-import qualified U.Codebase.Sqlite.JournalMode as JournalMode
+import U.Codebase.Sqlite.Queries (walCheckpoint)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -1133,10 +1133,9 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
             Just True -> do
               setRepoRoot newRootHash
               Q.release "push"
+      walCheckpoint
 
-      Q.setJournalMode JournalMode.DELETE
   liftIO do
-    -- runReaderT walCheckpoint destConn
     void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
