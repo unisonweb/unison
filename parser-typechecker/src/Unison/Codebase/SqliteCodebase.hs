@@ -104,9 +104,9 @@ import qualified Unison.WatchKind as UF
 import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import U.Codebase.Sqlite.Queries (walCheckpoint)
 import UnliftIO.Exception (bracket)
 import Control.Monad.Trans.Except (mapExceptT)
+import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -1134,9 +1134,9 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
               setRepoRoot newRootHash
               Q.release "push"
 
-      -- Q.setJournalMode JournalMode.DELETE
+      Q.setJournalMode JournalMode.DELETE
   liftIO do
-    runReaderT walCheckpoint destConn
+    -- runReaderT walCheckpoint destConn
     void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
