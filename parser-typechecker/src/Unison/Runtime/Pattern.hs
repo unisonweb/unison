@@ -153,13 +153,13 @@ extractVars = catMaybes . fmap extractVar
 -- convenient to yield a list here.
 decomposePattern
   :: Var v
-  => Reference -> Int -> Int -> P.Pattern v
+  => Maybe Reference -> Int -> Int -> P.Pattern v
   -> [[P.Pattern v]]
-decomposePattern rf0 t _       (P.Boolean _ b)
+decomposePattern (Just rf0) t _       (P.Boolean _ b)
   | rf0 == Rf.booleanRef
   , t == if b then 1 else 0
   = [[]]
-decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
+decomposePattern (Just rf0) t nfields p@(P.Constructor _ rf u ps)
   | t == u
   , rf0 == rf
   = if length ps == nfields
@@ -168,7 +168,7 @@ decomposePattern rf0 t nfields p@(P.Constructor _ rf u ps)
   where
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
-decomposePattern rf0 t nfields p@(P.EffectBind _ rf u ps pk)
+decomposePattern (Just rf0) t nfields p@(P.EffectBind _ rf u ps pk)
   | t == u
   , rf0 == rf
   = if length ps + 1 == nfields
@@ -311,7 +311,7 @@ decomposeSeqP _ _ _ = Overlap
 splitRow
   :: Var v
   => v
-  -> Reference
+  -> Maybe Reference
   -> Int
   -> Int
   -> PatternRow v
@@ -467,7 +467,7 @@ splitMatrixSeq avoid v (PM rs)
 splitMatrix
   :: Var v
   => v
-  -> Reference
+  -> Maybe Reference
   -> NCons
   -> PatternMatrix v
   -> [(Int, [(v,PType)], PatternMatrix v)]
@@ -604,17 +604,17 @@ compile spec ctx m@(PM (r:rs))
       Right cons ->
         match () (var () v)
           $ buildCase spec rf False cons ctx
-         <$> splitMatrix v rf (numberCons cons) m
+         <$> splitMatrix v (Just rf) (numberCons cons) m
       Left err -> internalBug err
   | PReq rfs <- ty
   = match () (var () v) $
       [ buildCasePure spec ctx tup
-      | tup <- splitMatrix v undefined [(-1,1)] m
+      | tup <- splitMatrix v Nothing [(-1,1)] m
       ] ++
       [ buildCase spec rf True cons ctx tup
       | rf <- Set.toList rfs
       , Right cons <- [lookupAbil rf spec]
-      , tup <- splitMatrix v rf (numberCons cons) m
+      , tup <- splitMatrix v (Just rf) (numberCons cons) m
       ]
   | Unknown <- ty
   = internalBug "unknown pattern compilation type"
