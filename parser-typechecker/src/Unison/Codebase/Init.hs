@@ -11,7 +11,7 @@ module Unison.Codebase.Init
     Pretty,
     createCodebase,
     initCodebaseAndExit,
-    openOrCreateCodebase,
+    withOpenOrCreateCodebase,
     openNewUcmCodebaseOrExit,
   )
 where
@@ -26,16 +26,16 @@ import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath)
-import Unison.Codebase.Init.CreateCodebaseError 
+import Unison.Codebase.Init.CreateCodebaseError
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
-data CodebaseInitOptions 
+data CodebaseInitOptions
   = Home CodebasePath
   | Specified SpecifiedCodebase
 
-data SpecifiedCodebase 
-  = CreateWhenMissing CodebasePath 
+data SpecifiedCodebase
+  = CreateWhenMissing CodebasePath
   | DontCreateWhenMissing CodebasePath
 
 initOptionsToDir :: CodebaseInitOptions -> CodebasePath
@@ -47,28 +47,25 @@ type DebugName = String
 
 data Init m v a = Init
   { -- | open an existing codebase
-    openCodebase :: DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
+    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r),
     -- | create a new codebase
-    createCodebase' :: DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
+    withCreatedCodebase' :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
     -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
 
-type FinalizerAndCodebase m v a = (m (), Codebase m v a) 
-
-data InitError 
+data InitError
   = NoCodebaseFoundAtSpecifiedDir
   | FoundV1Codebase
   | CouldntCreateCodebase Pretty
 
-data InitResult m v a 
-  = OpenedCodebase CodebasePath (FinalizerAndCodebase m v a) 
-  | CreatedCodebase CodebasePath (FinalizerAndCodebase m v a) 
-  | Error CodebasePath InitError 
+data InitResult m v a
+  = OpenedCodebase CodebasePath (Codebase m v a)
+  | CreatedCodebase CodebasePath (Codebase m v a)
 
 createCodebaseWithResult :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> m (InitResult m v a)
-createCodebaseWithResult cbInit debugName dir = 
+createCodebaseWithResult cbInit debugName dir =
   createCodebase cbInit debugName dir >>= \case
     Left errorMessage -> do
       pure (Error dir (CouldntCreateCodebase errorMessage))
@@ -81,11 +78,13 @@ whenNoV1Codebase dir initResult =
     (pure (Error dir FoundV1Codebase))
     initResult
 
-openOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> m (InitResult m v a)
-openOrCreateCodebase cbInit debugName initOptions = do
+withOpenOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> (InitResult m v a -> m r) -> m (Either (CodebasePath, InitError) r)
+withOpenOrCreateCodebase cbInit debugName initOptions = do
   let resolvedPath = initOptionsToDir initOptions
-  openCodebase cbInit debugName resolvedPath >>= \case 
+  result <- withOpenCodebase cbInit debugName resolvedPath $ \case
     Right cb -> pure (OpenedCodebase resolvedPath cb)
+  case result of
+    Right _ -> _
     Left _ ->
       case initOptions of
         Home homeDir -> do
@@ -97,7 +96,7 @@ openOrCreateCodebase cbInit debugName initOptions = do
             )
 
         Specified specified ->
-          whenNoV1Codebase resolvedPath $ do 
+          whenNoV1Codebase resolvedPath $ do
             case specified of
               DontCreateWhenMissing dir ->
                 pure (Error dir NoCodebaseFoundAtSpecifiedDir)
@@ -139,6 +138,6 @@ openNewUcmCodebaseOrExit cbInit debugName path = do
       pure x
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
-initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m () 
+initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m ()
 initCodebaseAndExit i debugName mdir =
   void $ openNewUcmCodebaseOrExit i debugName =<< Codebase.getCodebaseDir mdir
