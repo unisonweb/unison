@@ -60,16 +60,16 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 .> dependencies B
 
-  Dependencies of #muulibntaq:
-  
-       Reference Name
-    1. ##Int     builtin.Int
-
   Dependencies of #muulibntaq#0:
   
        Reference   Name
     1. #muulibntaq outside.B
     2. ##Int       builtin.Int
+
+  Dependencies of #muulibntaq:
+  
+       Reference Name
+    1. ##Int     builtin.Int
 
 .> dependencies d
 
