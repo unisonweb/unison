@@ -10,7 +10,6 @@ module Unison.LabeledDependency
   , effectConstructor
   , fold
   , referents
-  -- , toReference
   , LabeledDependency(..)
   , pattern ConstructorReference
   , pattern TermReference
@@ -26,8 +25,8 @@ import qualified Data.Set as Set
 import qualified Unison.Referent as Referent
 
 data LabeledDependency =
-  TermReferent Referent
-  | TypeReference Reference
+    TypeReference Reference
+  | TermReferent Referent
   deriving (Eq, Ord, Show)
 
 pattern ConstructorReference :: Reference -> ConstructorId -> ConstructorType -> LabeledDependency
@@ -63,12 +62,3 @@ partition =
   foldMap \case
     TypeReference ref -> ([ref], [])
     TermReferent ref -> ([], [ref])
-
--- -- | Left TypeRef | Right TermRef
--- toReference :: LabeledDependency -> Either Reference Reference
--- toReference = \case
---   TermReference (Ref r) ->
---   TermReference (Con r)
---   X (Left r)             -> Left r
---   X (Right (Ref r))     -> Right r
---   X (Right (Con r _ _)) -> Left r
