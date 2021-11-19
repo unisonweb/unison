@@ -550,9 +550,9 @@ printCase
 printCase env im doc ms0 = PP.lines $ alignGrid grid where
   ms = groupCases ms0
   justify rows =
-    zip (fmap fst . PP.align' $ fmap patternGuards rows) $ fmap gbs rows
+    zip (fmap fst . PP.align' $ fmap alignPatterns rows) $ fmap gbs rows
    where
-     patternGuards (p, _, _, _) = (p, Just "")
+     alignPatterns (p, _, _, _) = (p, Just "")
      gbs (_, _, gs, bs) = zip gs bs
   alignGrid = fmap alignCase . justify
   alignCase (p, gbs) =
@@ -560,8 +560,7 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
     else p <> guardBlock
    where
     guardBlock = PP.lines
-      $ fmap (\(g, (a, b)) ->
-          PP.hang (PP.group (PP.wrap (g <> " " <> a))) b) justified
+      $ fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
     justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
   grid = go <$> ms
   patLhs vs pats = case pats of
@@ -587,11 +586,11 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
     noGuards = all (== Nothing) guards
     printGuard Nothing | noGuards = mempty
     printGuard Nothing =
-      fmt S.DelimiterChar " |" <> fmt S.ControlKeyword " otherwise"
+      fmt S.DelimiterChar "|" <> " " <> fmt S.ControlKeyword "otherwise"
     printGuard (Just (ABT.AbsN' _ g)) =
       -- strip off any Abs-chain around the guard, guard variables are rendered
       -- like any other variable, ex: case Foo x y | x < y -> ...
-      PP.spaceIfNeeded (fmt S.DelimiterChar " |") $
+      PP.spaceIfNeeded (fmt S.DelimiterChar "|") $
         pretty0 env (ac 2 Normal im doc) g
     printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 

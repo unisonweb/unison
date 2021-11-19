@@ -639,8 +639,15 @@ wrapColumn2 rows = lines (align rows) where
 
 -- Pad with enough space on the right to make all rows the same width
 leftJustify
-  :: (LL.ListLike s Char, IsString s) => [(Pretty s, a)] -> [(Pretty s, a)]
-leftJustify rows = zip (fmap fst . align' $ fmap (, Just "") ss) as
+  :: (Eq s, Show s, LL.ListLike s Char, IsString s)
+  => [(Pretty s, a)]
+  -> [(Pretty s, a)]
+leftJustify rows = zip
+  (fmap fst . align' $ fmap
+    (\x -> (x, if isEmpty x then Nothing else Just ""))
+    ss
+  )
+  as
   where (ss, as) = unzip rows
 
 align

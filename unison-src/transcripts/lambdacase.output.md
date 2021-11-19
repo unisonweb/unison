@@ -196,7 +196,7 @@ merge3 = cases
     [], ys           -> ys
     xs, []           -> xs
     h +: t, h2 +: t2 
-      | h <= h2 -> h +: merge3 t (h2 +: t2)
+      | h <= h2   -> h +: merge3 t (h2 +: t2)
       | otherwise -> h2 +: merge3 (h +: t) t2
 
 ```
