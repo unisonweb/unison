@@ -1797,6 +1797,29 @@ createAuthor =
         _ -> Left $ showPatternHelp createAuthor
     )
 
+gist :: InputPattern
+gist =
+  InputPattern
+    "gist"
+    []
+    [(Required, gitUrlArg)]
+    ( P.lines
+        [ "Publish the current namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`gist remote`",
+                "publishes the contents of the current namespace into the repo `remote`."
+              )
+            ]
+        ]
+    )
+    ( \case
+        [repoString] -> do
+          repo <- parseWriteRepo "repo" repoString
+          pure (Input.GistI (Input.GistInput repo))
+        _ -> Left (showPatternHelp gist)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help,
@@ -1876,7 +1899,8 @@ validInputs =
     debugFileHashes,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
-    debugClearWatchCache
+    debugClearWatchCache,
+    gist
   ]
 
 commandNames :: [String]

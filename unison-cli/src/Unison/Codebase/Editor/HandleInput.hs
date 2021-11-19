@@ -10,7 +10,7 @@ where
 
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -31,6 +31,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
+import Unison.Codebase (PushGitBranchOpts (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -41,6 +42,9 @@ import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
+import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
@@ -136,9 +140,6 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
-import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -413,7 +414,7 @@ loop = do
             ListEditsI {} -> wat
             ListDependenciesI {} -> wat
             ListDependentsI {} -> wat
-            NamespaceDependenciesI{} -> wat
+            NamespaceDependenciesI {} -> wat
             HistoryI {} -> wat
             TestI {} -> wat
             LinksI {} -> wat
@@ -433,6 +434,7 @@ loop = do
             QuitI {} -> wat
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
+            GistI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -1654,7 +1656,7 @@ loop = do
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch0 mayRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1763,6 +1765,7 @@ loop = do
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
             QuitI -> MaybeT $ pure Nothing
+            GistI input -> handleGist input
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1820,51 +1823,83 @@ handleDependents hq = do
         LoopState.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
         respond (ListDependents hqLength ld results)
 
-handlePushRemoteBranch ::
+-- | Handle a @gist@ command.
+handleGist :: Applicative m => GistInput -> Action' m v ()
+handleGist (GistInput repo) =
+  handlePushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
+
+-- | Handle a @push@ command.
+handlePushRemoteBranch0 ::
   forall m v.
   Applicative m =>
-  -- | The URL to push to. If missing, it is looked up in `.unisonConfig`.
+  -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
   Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   -- | The push behavior (whether the remote branch is required to be empty or non-empty).
   PushBehavior ->
-  -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
-  srcb <- do
-    currentPath' <- use LoopState.currentPath
-    getAt (Path.resolve currentPath' path)
+handlePushRemoteBranch0 mayRepo path pushBehavior syncMode = do
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    (cleanup, remoteRoot) <-
-      unsafeTime "Push viewRemoteBranch" do
-        withExceptT Output.GitError do
-          viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-    -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
-    -- updates in the remote branch that aren't in `srcb` already.
-    case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
-      Nothing -> lift do
-        eval (Eval cleanup)
-        respond (RefusedToPush pushBehavior)
-      Just newRemoteRoot -> do
-        unsafeTime "Push syncRemoteRootBranch" do
-          withExceptT Output.GitError do
-            syncRemoteRootBranch repo newRemoteRoot syncMode
-        lift do
-          eval (Eval cleanup)
-          respond Success
+    lift (handlePushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
+
+-- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
+handlePushRemoteBranch ::
+  forall m v.
+  Applicative m =>
+  -- | The repo to push to.
+  WriteRepo ->
+  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
+  Path' ->
+  SyncMode.SyncMode ->
+  -- | The remote target. If missing, the given branch contents should be pushed to the repo repo without updating the
+  -- root namespace.
+  Maybe (Path, PushBehavior) ->
+  Action' m v ()
+handlePushRemoteBranch repo localPath syncMode remoteTarget = do
+  sourceBranch <- do
+    currentPath' <- use LoopState.currentPath
+    getAt (Path.resolve currentPath' localPath)
+
+  unlessError do
+    (cleanup, remoteRoot) <- viewRemoteBranch (writeToRead repo, Nothing, Path.empty) & withExceptT Output.GitError
+    (`finallyE` lift (eval (Eval cleanup))) do
+      case remoteTarget of
+        Nothing -> do
+          let opts = PushGitBranchOpts {setRoot = False, syncMode}
+          syncRemoteBranch sourceBranch repo opts & withExceptT Output.GitError
+          sbhLength <- lift (eval BranchHashLength)
+          lift (respond (GistCreated sbhLength repo (Branch.headHash sourceBranch)))
+        Just (remotePath, pushBehavior) -> do
+          let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+              -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+              f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+          newRemoteRoot <-
+            Branch.modifyAtM remotePath f remoteRoot & onNothing (throwError (RefusedToPush (pushBehavior)))
+          let opts = PushGitBranchOpts {setRoot = True, syncMode}
+          syncRemoteBranch newRemoteRoot repo opts & withExceptT Output.GitError
+          lift (respond Success)
   where
     -- Per `pushBehavior`, we are either:
     --
     --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
     --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
-    shouldPushTo :: Branch m -> Bool
-    shouldPushTo remoteBranch = do
+    shouldPushTo :: PushBehavior -> Branch m -> Bool
+    shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
         PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
+
+-- This is defined in transformers-0.6
+finallyE :: Monad m => ExceptT e m a -> ExceptT e m () -> ExceptT e m a
+finallyE (ExceptT action) cleanup =
+  ExceptT do
+    result <- action
+    runExceptT cleanup <&> \case
+      Left err -> Left err
+      Right () -> result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
@@ -1959,9 +1994,9 @@ configKey k p =
 viewRemoteBranch :: ReadRemoteNamespace -> ExceptT GitError (Action' m v) (m (), Branch m)
 viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
 
-syncRemoteRootBranch :: WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError (Action' m v) ()
-syncRemoteRootBranch repo b mode =
-  ExceptT . eval $ SyncRemoteRootBranch repo b mode
+syncRemoteBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> ExceptT GitError (Action' m v) ()
+syncRemoteBranch b repo opts =
+  ExceptT . eval $ SyncRemoteBranch b repo opts
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
