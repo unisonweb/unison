@@ -69,7 +69,7 @@ Deleting a namespace with external dependencies should succeed when using `delet
                4. dependents.usage1
 
 ```
-I should be able to view an effected dependency by number
+I should be able to view an affected dependency by number
 
 ```ucm
 .> view 2

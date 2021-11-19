@@ -36,7 +36,7 @@ Deleting a namespace with external dependencies should succeed when using `delet
 .> delete.namespace.force dependencies
 ```
 
-I should be able to view an effected dependency by number
+I should be able to view an affected dependency by number
 
 ```ucm
 .> view 2
