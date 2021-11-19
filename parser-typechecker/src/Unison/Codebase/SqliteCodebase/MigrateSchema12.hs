@@ -55,7 +55,7 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Monoid (foldMapM)
 import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
-import Unison.Codebase (Codebase (Codebase))
+import Unison.Codebase.Type (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers as Hashing

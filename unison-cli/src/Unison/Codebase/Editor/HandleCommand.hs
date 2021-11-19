@@ -202,11 +202,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
 
-  watchCache (Reference.DerivedId h) = do
-    m1 <- Codebase.getWatch codebase WK.RegularWatch h
-    m2 <- maybe (Codebase.getWatch codebase WK.TestWatch h) (pure . Just) m1
-    pure $ Term.amap (const ()) <$> m2
-  watchCache Reference.Builtin{} = pure Nothing
+  watchCache :: Reference.Id -> IO (Maybe (Term v ()))
+  watchCache h = do
+    maybeTerm <- Codebase.lookupWatchCache codebase h
+    pure (Term.amap (const ()) <$> maybeTerm)
 
   eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> _
   eval1 ppe useCache tm = do
@@ -228,11 +227,9 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Right rs@(_,map) -> do
         forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
           if isHit then pure ()
-          else case hash of
-            Reference.DerivedId h -> do
-              let value' = Term.amap (const Ann.External) value
-              Codebase.putWatch codebase kind h value'
-            Reference.Builtin{} -> pure ()
+          else do
+            let value' = Term.amap (const Ann.External) value
+            Codebase.putWatch codebase kind hash value'
         pure $ Right rs
 
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)

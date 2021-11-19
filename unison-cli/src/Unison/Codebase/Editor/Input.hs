@@ -145,6 +145,9 @@ data Input
     | MergeIOBuiltinsI
     | ListDependenciesI (HQ.HashQualified Name)
     | ListDependentsI (HQ.HashQualified Name)
+    -- | List all external dependencies of a given namespace, or the current namespace if
+    -- no path is provided.
+    | NamespaceDependenciesI (Maybe Path')
     | DebugNumberedArgsI
     | DebugTypecheckedUnisonFileI
     | DebugDumpNamespacesI

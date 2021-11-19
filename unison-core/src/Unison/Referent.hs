@@ -10,6 +10,9 @@ module Unison.Referent
     pattern ConId,
     fold,
     toReference,
+    toReferenceId,
+    fromTermReference,
+    fromTermReferenceId,
     fromText,
 
     -- * Lenses
@@ -35,6 +38,7 @@ import qualified Unison.Reference as R
 import Unison.Referent' (Referent' (..), toReference', reference_)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
+import qualified Unison.Reference as Reference
 
 -- | Specifies a term.
 --
@@ -93,6 +97,16 @@ toString = Text.unpack . toText
 
 toReference :: Referent -> Reference
 toReference = toReference'
+
+toReferenceId :: Referent -> Maybe Reference.Id
+toReferenceId = Reference.toId . toReference
+
+-- | Inject a Term Reference into a Referent
+fromTermReference :: Reference -> Referent
+fromTermReference r = Ref r
+
+fromTermReferenceId :: Reference.Id -> Referent
+fromTermReferenceId = fromTermReference . Reference.fromId
 
 isPrefixOf :: ShortHash -> Referent -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)

@@ -29,6 +29,7 @@ module Unison.Reference
    showSuffix,
    toHash,
    toId,
+   fromId,
    toText,
    unsafeId,
    toShortHash,
@@ -150,6 +151,9 @@ idFromText s = case fromText s of
 toId :: Reference -> Maybe Id
 toId (DerivedId id) = Just id
 toId Builtin{} = Nothing
+
+fromId :: Id -> Reference
+fromId = DerivedId
 
 toHash :: Reference -> Maybe H.Hash
 toHash r = idToHash <$> toId r

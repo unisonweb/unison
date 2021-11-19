@@ -25,6 +25,7 @@ dependencies:
   - lens
   - megaparsec >= 5.0.0 && < 7.0.0
   - mtl
+  - transformers
   - open-browser
   - random >= 1.2.0
   - regex-tdfa
@@ -97,6 +98,8 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse
