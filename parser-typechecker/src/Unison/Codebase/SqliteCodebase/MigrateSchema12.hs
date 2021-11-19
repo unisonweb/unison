@@ -75,17 +75,19 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
+import UnliftIO.Exception (bracket_, onException)
+import UnliftIO (MonadUnliftIO)
 
 -- todo:
 --  * write a harness to call & seed algorithm
---    * [ ] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
+--    * [x] embed migration in a transaction/savepoint and ensure that we never leave the codebase in a
 --            weird state even if we crash.
 --    * [x] may involve writing a `Progress`
 --    * raw DB things:
---    * [ ] write new namespace root after migration.
---    * [ ] overwrite object_id column in hash_object table to point at new objects <-- mitchell has started
---    * [ ] delete references to old objects in index tables (where else?)
---    * [ ] delete old objects
+--    * [x] write new namespace root after migration.
+--    * [x] overwrite object_id column in hash_object table to point at new objects
+--    * [x] delete references to old objects in index tables (where else?)
+--    * [x] delete old objects
 --
 --  * refer to github megaticket https://github.com/unisonweb/unison/issues/2471
 --    ☢️ [x] incorporate type signature into hash of term <- chris/arya have started ☢️
@@ -93,28 +95,42 @@ import Unison.Var (Var)
 --    * [ ] Refactor Causal helper functions to use V2 hashing
 --          * [ ] I guess move Hashable to V2.Hashing pseudo-package
 --          * [ ] Delete V1 Hashing to ensure it's unused
---          * [x] Salt V2 hashes with version number
+--          * [ ] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
---    * [ ] Update the schema version in the database after migrating so we only migrate
+--    * [ ] Make a backup of the v1 codebase before migrating, in a temp directory.
+--          Include a message explaining where we put it.
+--    * [ ] Improved error message (don't crash) if loading a codebase newer than your ucm
+--    * [x] Update the schema version in the database after migrating so we only migrate
 --    once.
 
-migrateSchema12 :: forall a m v. (MonadIO m, Var v) => Connection -> Codebase m v a -> m ()
+migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
-  rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
-  watches <-
-    foldMapM
-      (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
-      [WK.RegularWatch, WK.TestWatch]
-  migrationState <-
-    (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
-      `runReaderT` Env {db = conn, codebase}
-      `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
-  ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
-    (runDB conn . liftQ) do
-      Q.recordObjectRehash oldObjId newObjId
-  -- what about deleting old watches?
-  runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+  withinSavepoint "MIGRATESCHEMA12" $ do
+        rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
+        watches <-
+          foldMapM
+            (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
+            [WK.RegularWatch, WK.TestWatch]
+        migrationState <-
+          (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+            `runReaderT` Env {db = conn, codebase}
+            `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+        let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+        runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
+        ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
+          (runDB conn . liftQ) do
+            Q.recordObjectRehash oldObjId newObjId
+        runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+        runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
+        runDB conn . liftQ $ Q.setSchemaVersion 2
+  runDB conn (liftQ Q.vacuum)
   where
+    withinSavepoint :: (String -> m c -> m c)
+    withinSavepoint name act =
+      bracket_
+        (runDB conn $ Q.savepoint name)
+        (runDB conn $ Q.release name)
+        (act `onException` runDB conn (Q.rollbackTo name))
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
       let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
@@ -124,7 +140,7 @@ migrateSchema12 conn codebase = do
           error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
           error e = liftIO $ putStrLn $ "Error: " ++ show e
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = liftIO $ putStrLn $ "All Done"
+          allDone = liftIO $ putStrLn $ "Finished migrating, initiating cleanup."
        in Sync.Progress {need, done, error, allDone}
 
 type Old a = a
@@ -826,22 +842,6 @@ someReferenceIdToEntity = \case
   (TypeReference ref) -> DeclComponent (Reference.idToHash ref)
   -- Constructors are migrated by their decl component.
   (ConstructorReference ref _conId) -> DeclComponent (Reference.idToHash ref)
-
--- -- | migrate sqlite codebase from version 1 to 2, return False and rollback on failure
--- migrateSchema12 :: Applicative m => Connection -> m Bool
--- migrateSchema12 _db = do
---   -- todo: drop and recreate corrected type/mentions index schema
---   -- do we want to garbage collect at this time? ✅
---   -- or just convert everything without going in dependency order? ✅
---   error "todo: go through "
---   -- todo: double-hash all the types and produce an constructor mapping
---   -- object ids will stay the same
---   -- todo: rehash all the terms using the new constructor mapping
---   -- and adding the type to the term
---   -- do we want to diff namespaces at this time? ❌
---   -- do we want to look at supporting multiple simultaneous representations of objects at this time?
---   pure "todo: migrate12"
---   pure True
 
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)

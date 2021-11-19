@@ -107,11 +107,14 @@ module U.Codebase.Sqlite.Queries (
   causalHashIdByBase32Prefix,
 
   -- * garbage collection
+  vacuum,
   garbageCollectObjectsWithoutHashes,
+  garbageCollectWatchesWithoutObjects,
 
   -- * db misc
   createSchema,
   schemaVersion,
+  setSchemaVersion,
   setFlags,
 
   DataVersion,
@@ -120,6 +123,8 @@ module U.Codebase.Sqlite.Queries (
   savepoint,
   release,
   rollbackRelease,
+  rollbackTo,
+  withSavepoint,
 
   setJournalMode,
   traceConnectionFile,
@@ -186,6 +191,7 @@ import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import UnliftIO.Concurrent (myThreadId)
+import UnliftIO.Exception (bracket_, onException)
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -255,6 +261,14 @@ schemaVersion = queryAtoms_ sql >>= \case
   [v] -> pure v
   vs -> error $ show (MultipleSchemaVersions vs)
   where sql = "SELECT version from schema_version;"
+
+setSchemaVersion :: DB m => SchemaVersion -> m ()
+setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
+  where
+    sql = [here|
+     UPDATE schema_version
+     SET version = ?
+     |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
@@ -552,7 +566,6 @@ clearWatches :: DB m => m ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
   execute_ "DELETE FROM watch"
-  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
@@ -692,6 +705,21 @@ garbageCollectObjectsWithoutHashes = do
     [here|
       DROP TABLE object_without_hash
     |]
+
+-- | Delete all
+garbageCollectWatchesWithoutObjects :: DB m => m ()
+garbageCollectWatchesWithoutObjects = do
+  execute_
+    [here|
+      DELETE FROM watch
+      WHERE watch.hash_id NOT IN
+      (SELECT hash_object.hash_id FROM hash_object)
+    |]
+
+-- | Clean the database and recover disk space.
+-- This is an expensive operation. Also note that it cannot be executed within a transaction.
+vacuum :: DB m => m ()
+vacuum = execute_ "VACUUM"
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
@@ -918,11 +946,39 @@ withImmediateTransaction action = do
 
 
 -- | low-level transaction stuff
-savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+
+-- | Create a savepoint, which is a named transaction which may wrap many nested
+-- sub-transactions.
+savepoint :: DB m => String -> m ()
 savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+
+-- | Release a savepoint, which will commit the results once all
+-- wrapping transactions/savepoints are commited.
+release :: DB m => String -> m ()
 release name = execute_ (fromString $ "RELEASE " ++ name)
+
+-- | Roll the database back to its state from when the savepoint was created.
+-- Note: this also re-starts the savepoint and it must still be released if that is the
+-- intention. See 'rollbackRelease'.
+rollbackTo :: DB m => String -> m ()
 rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+
+-- | Roll back the savepoint and immediately release it.
+-- This effectively _aborts_ the savepoint, useful if an irrecoverable error is
+-- encountered.
+rollbackRelease :: DB m => String -> m ()
 rollbackRelease name = rollbackTo name *> release name
+
+-- | Runs the provided action within a savepoint.
+-- Releases the savepoint on completion.
+-- If an exception occurs, the savepoint will be rolled-back and released,
+-- abandoning all changes.
+withSavepoint :: (DB m, MonadUnliftIO m) => String -> m a -> m a
+withSavepoint name act =
+  bracket_
+    (savepoint name)
+    (release name)
+    (act `onException` rollbackTo name)
 
 -- * orphan instances
 
