@@ -118,7 +118,7 @@ library
         unix
   default-language: Haskell2010
 
-executable integration-tests
+executable cli-integration-tests
   main-is: Suite.hs
   other-modules:
       IntegrationTests.ArgumentParsing
@@ -338,7 +338,7 @@ executable unison
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
 
-test-suite tests
+test-suite cli-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:

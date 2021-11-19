@@ -18,11 +18,18 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 ## Running Tests
 
-* `stack exec tests` runs the tests
+* `stack test --fast` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
+
+Most test suites support selecting a specific test to run by passing a prefix as a test argument:
+
+* `stack test parser-typechecker --fast --test-arguments my-test-prefix` builds and runs most test suites, see below for exceptions to this (e.g. transcript tests).
+
+Some tests are executables instead:
+
 * `stack exec transcripts` runs the transcripts-related integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
-* `stack exec integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `trancscripts`.
-* `stack exec tests -- prefix-of-test` and `stack exec transcripts -- prefix-of-test` only run tests with a matching prefix.
+* `stack exec transcripts -- prefix-of-filename` runs only transcript tests with a matching filename prefix.
 * `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
+
 
 ### What if you want a profiled build?
 

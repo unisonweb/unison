@@ -152,7 +152,8 @@ executables:
       - text
       - unison-parser-typechecker
 
-  tests:
+tests:
+  parser-typechecker-tests:
     source-dirs: tests
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
