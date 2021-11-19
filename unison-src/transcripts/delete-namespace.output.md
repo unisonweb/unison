@@ -57,9 +57,8 @@ Deleting a namespace with external dependencies should succeed when using `delet
 
   ⚠️
   
-  The following definitions still have named dependents.
-  I've deleted them for you, but the listed dependents now
-  contain some unnamed references.
+  Of the things I deleted, the following are still used in the
+  following definitions. They now contain un-named references.
   
   Dependency   Referenced In
   term2        1. dependents.usage2
