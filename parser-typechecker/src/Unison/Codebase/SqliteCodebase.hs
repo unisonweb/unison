@@ -107,7 +107,6 @@ import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO)
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import UnliftIO.Exception (bracket)
-import Control.Concurrent.Extra (once)
 import Control.Monad.Trans.Except (mapExceptT)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
@@ -276,9 +275,7 @@ unsafeGetConnection name root = do
   Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
   (Connection name path -> conn) <- liftIO $ Sqlite.open path
   runReaderT Q.setFlags conn
-  -- Closing the connection more than once is a no-op
-  cleanup <- liftIO $ once (shutdownConnection conn)
-  pure (liftIO cleanup, conn)
+  pure (shutdownConnection conn, conn)
   where
     shutdownConnection :: MonadIO m => Connection -> m ()
     shutdownConnection conn = do
