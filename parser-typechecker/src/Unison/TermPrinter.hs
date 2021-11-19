@@ -552,8 +552,8 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
   justify rows =
     zip (fmap fst . PP.align' $ fmap alignPatterns rows) $ fmap gbs rows
    where
-     alignPatterns (p, _, _, _) = (p, Just "")
-     gbs (_, _, gs, bs) = zip gs bs
+     alignPatterns (p, _, _) = (p, Just "")
+     gbs (_, gs, bs) = zip gs bs
   alignGrid = fmap alignCase . justify
   alignCase (p, gbs) =
     if not (null (drop 1 gbs)) then PP.hang p guardBlock
@@ -581,7 +581,7 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
   --   | otherguard x y -> 2
   --   | otherwise      -> 3
   go (pats, vs, unzip -> (guards, bodies)) =
-    (patLhs vs pats, noGuards, printGuard <$> guards, printBody <$> bodies)
+    (patLhs vs pats, printGuard <$> guards, printBody <$> bodies)
    where
     noGuards = all (== Nothing) guards
     printGuard Nothing | noGuards = mempty
