@@ -4,6 +4,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Unison.Codebase.Editor.HandleCommand where
 
@@ -50,6 +51,8 @@ import Web.Browser (openBrowser)
 import System.Environment (withArgs)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.Codebase.Path as Path
+import Control.Monad.Reader (ReaderT)
+import qualified Control.Concurrent.STM as STM
 
 typecheck
   :: (Monad m, Var v)
@@ -77,6 +80,18 @@ typecheck' ambient codebase file = do
   typeLookup <- (<> B.typeLookup)
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
+
+data CommandState i v m =
+  CommandState { awaitInput :: m i
+               }
+newtype CommandT i v m a =
+  CommandT {runCommandT :: ReaderT (STM.TVar Int) m a}
+
+class MonadCommand n m v i | n -> m v i where
+  eval :: Command m v i a -> n a
+
+instance MonadCommand (CommandT i v m) m v i where
+  eval = _
 
 commandLine
   :: forall i v a gen
@@ -134,8 +149,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    ViewRemoteBranch ns ->
-      lift $ Codebase.viewRemoteBranch codebase ns
+    ViewRemoteBranch ns action ->
+      lift $ Codebase.viewRemoteBranch codebase ns action
     ImportRemoteBranch ns syncMode ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->

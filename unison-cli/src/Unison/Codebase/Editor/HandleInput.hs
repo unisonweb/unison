@@ -139,6 +139,9 @@ import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import qualified UnliftIO
+import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -702,16 +705,12 @@ loop = do
                 _ -> do
                   (ppe, outputDiff) <- diffHelper before after
                   respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
-            CreatePullRequestI baseRepo headRepo -> unlessGitError do
-              (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
-              (cleanupHead, headBranch) <- viewRemoteBranch headRepo
-              lift do
-                merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-                (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
-                respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-                eval . Eval $ do
-                  cleanupBase
-                  cleanupHead
+            CreatePullRequestI baseRepo headRepo -> UnliftIO.handle (respond . Output.GitError) $ do
+              void . lift . lift $ viewRemoteBranch baseRepo \baseBranch -> do
+                 viewRemoteBranch headRepo \headBranch -> do
+                   merged <- Free.eval $ Merge Branch.RegularMerge baseBranch headBranch
+                   (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+                   respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
             LoadPullRequestI baseRepo headRepo dest0 -> do
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
@@ -1956,8 +1955,8 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-viewRemoteBranch :: ReadRemoteNamespace -> ExceptT GitError (Action' m v) (m (), Branch m)
-viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
+viewRemoteBranch :: ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> Free (Command m i v) (Either GitError r)
+viewRemoteBranch ns action = Free.eval $ ViewRemoteBranch ns action
 
 syncRemoteRootBranch :: WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError (Action' m v) ()
 syncRemoteRootBranch repo b mode =

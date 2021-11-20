@@ -65,6 +65,8 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import UnliftIO (MonadUnliftIO)
+import Unison.Util.Free (Free)
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -196,7 +198,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
