@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Unison.Codebase.Editor.HandleInput.LoopState where
 
 import Control.Lens
@@ -22,6 +24,22 @@ type F m i v = Free (Command m i v)
 
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
+
+class Monad n => MonadCommand n m v i | n -> m v i where
+  eval :: Command m v i a -> n a
+
+instance MonadCommand (Free (Command m i v)) m i v where
+  eval = Free.eval
+
+instance MonadCommand n m i v => MonadCommand (StateT s n) m i v where
+  eval = lift . eval
+
+instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
+  eval = lift . eval
+
+
+-- eval :: Command m i v a -> Action m i v a
+-- eval = lift . lift . Free.eval
 
 type NumberedArgs = [String]
 
@@ -61,6 +79,3 @@ currentPath = currentPathStack . to Nel.head
 
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b b (pure p) Nothing Nothing Nothing []
-
-eval :: Command m i v a -> Action m i v a
-eval = lift . lift . Free.eval

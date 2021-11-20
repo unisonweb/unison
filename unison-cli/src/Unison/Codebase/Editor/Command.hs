@@ -65,8 +65,10 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
-import UnliftIO (MonadUnliftIO)
+import UnliftIO (MonadUnliftIO(..), UnliftIO)
+import qualified UnliftIO
 import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -198,7 +200,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> Command m i v (Either GitError r)
+    ReadRemoteNamespace -> (Branch m -> m r) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
@@ -262,6 +264,16 @@ data Command
               -> (a -> Text) -- ^ Select the text to fuzzy find on
               -> [a] -- ^ The elements to select from
               -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
+
+  CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+
+instance MonadIO m => MonadIO (Free (Command m i v)) where
+  liftIO io = Free.eval $ Eval (liftIO io)
+
+instance MonadIO m => MonadUnliftIO (Free (Command m i v)) where
+  withRunInIO f = do
+    UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
+    liftIO $ f toIO
 
 type UseCache = Bool
 
@@ -327,3 +339,4 @@ commandName = \case
   ClearWatchCache {} -> "ClearWatchCache"
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
+  CmdUnliftIO {} -> "UnliftIO"
