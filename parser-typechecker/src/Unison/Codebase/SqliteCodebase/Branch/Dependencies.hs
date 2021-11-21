@@ -16,6 +16,7 @@ import Unison.Codebase.Branch (Branch (Branch), Branch0, EditHash)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Patch (Patch)
+import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference, pattern Derived)
 import Unison.Referent (Referent)
@@ -77,7 +78,7 @@ fromBranch0 b =
       [ h | Referent.Ref (Derived h _) <- references s] ++
       [ h | (Derived h _) <- mdValues s]
     decls = Set.fromList $
-      [ h | Referent.Con (Derived h _i) _ _ <- references s ]
+      [ h | Referent.Con (ConstructorReference (Derived h _i) _) _ <- references s ]
   fromTypesStar :: Branch.Star Reference NameSegment -> Dependencies
   fromTypesStar s = Dependencies mempty terms decls where
     terms = Set.fromList [ h | (Derived h _) <- mdValues s ]

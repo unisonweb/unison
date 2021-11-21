@@ -37,6 +37,7 @@ termRef_ f = bitraverse pure f
 
 _Ref :: Prism (Referent' tmr tyr) (Referent' tmr' tyr) tmr tmr'
 _Ref = _Ctor @"Ref"
+
 _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr', ConstructorId)
 _Con = _Ctor @"Con"
 

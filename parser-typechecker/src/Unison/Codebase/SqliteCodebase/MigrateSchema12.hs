@@ -55,10 +55,11 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Monoid (foldMapM)
 import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
-import Unison.Codebase.Type (Codebase (Codebase))
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers as Hashing
+import Unison.Codebase.Type (Codebase (Codebase))
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
@@ -75,8 +76,8 @@ import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
-import UnliftIO.Exception (bracket_, onException)
 import UnliftIO (MonadUnliftIO)
+import UnliftIO.Exception (bracket_, onException)
 
 -- todo:
 --  * write a harness to call & seed algorithm
@@ -106,23 +107,23 @@ import UnliftIO (MonadUnliftIO)
 migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
-        rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
-        watches <-
-          foldMapM
-            (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
-            [WK.RegularWatch, WK.TestWatch]
-        migrationState <-
-          (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
-            `runReaderT` Env {db = conn, codebase}
-            `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
-        let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
-        runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
-        ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
-          (runDB conn . liftQ) do
-            Q.recordObjectRehash oldObjId newObjId
-        runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
-        runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
-        runDB conn . liftQ $ Q.setSchemaVersion 2
+    rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
+    watches <-
+      foldMapM
+        (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
+        [WK.RegularWatch, WK.TestWatch]
+    migrationState <-
+      (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+        `runReaderT` Env {db = conn, codebase}
+        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+    let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+    runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
+    ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
+      (runDB conn . liftQ) do
+        Q.recordObjectRehash oldObjId newObjId
+    runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+    runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
+    runDB conn . liftQ $ Q.setSchemaVersion 2
   runDB conn (liftQ Q.vacuum)
   where
     withinSavepoint :: (String -> m c -> m c)
@@ -452,9 +453,15 @@ someReferent_ typeOrTermTraversal_ =
               )
   where
     asPair_ f (UReference.ReferenceDerived id', conId) =
-      f (id', fromIntegral conId)
-        <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
+      f (ConstructorReference.ConstructorReference id' (fromIntegral conId))
+        <&> \(ConstructorReference.ConstructorReference newId newConId) ->
+          (UReference.ReferenceDerived newId, fromIntegral newConId)
     asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
+
+-- asPair_ f (UReference.ReferenceDerived id', conId) =
+--   f (id', fromIntegral conId)
+--     <&> \(newId, newConId) -> (UReference.ReferenceDerived newId, fromIntegral newConId)
+-- asPair_ _ (UReference.ReferenceBuiltin x, conId) = pure (UReference.ReferenceBuiltin x, conId)
 
 someReference_ ::
   (forall ref. Traversal' ref (SomeReference ref)) ->
@@ -723,14 +730,18 @@ termFReferences_ f t =
     >>= Term._TypeLink . Reference._DerivedId . asTypeReference_ %%~ f
 
 -- | Build a SomeConstructorReference
-someRefCon_ :: Traversal' (Reference.Reference, ConstructorId) SomeReferenceId
+someRefCon_ :: Traversal' ConstructorReference.ConstructorReference SomeReferenceId
 someRefCon_ = refConPair_ . asConstructorReference_
   where
-    refConPair_ :: Traversal' (Reference.Reference, ConstructorId) (Reference.Id, ConstructorId)
+    refConPair_ :: Traversal' ConstructorReference.ConstructorReference ConstructorReference.ConstructorReferenceId
     refConPair_ f s =
       case s of
-        (Reference.Builtin _, _) -> pure s
-        (Reference.DerivedId n, c) -> (\(n', c') -> (Reference.DerivedId n', c')) <$> f (n, c)
+        ConstructorReference.ConstructorReference (Reference.Builtin _) _ -> pure s
+        ConstructorReference.ConstructorReference (Reference.DerivedId n) c ->
+          ( \(ConstructorReference.ConstructorReference n' c') ->
+              ConstructorReference.ConstructorReference (Reference.DerivedId n') c'
+          )
+            <$> f (ConstructorReference.ConstructorReference n c)
 
 patternReferences_ :: Traversal' (Pattern loc) SomeReferenceId
 patternReferences_ f = \case
@@ -742,16 +753,16 @@ patternReferences_ f = \case
   p@(Pattern.Float {}) -> pure p
   p@(Pattern.Text {}) -> pure p
   p@(Pattern.Char {}) -> pure p
-  (Pattern.Constructor loc ref conId patterns) ->
-    (\(newRef, newConId) newPatterns -> Pattern.Constructor loc newRef newConId newPatterns)
-      <$> ((ref, conId) & someRefCon_ %%~ f)
+  (Pattern.Constructor loc ref patterns) ->
+    (\newRef newPatterns -> Pattern.Constructor loc newRef newPatterns)
+      <$> (ref & someRefCon_ %%~ f)
       <*> (patterns & traversed . patternReferences_ %%~ f)
   (Pattern.As loc pat) -> Pattern.As loc <$> patternReferences_ f pat
   (Pattern.EffectPure loc pat) -> Pattern.EffectPure loc <$> patternReferences_ f pat
-  (Pattern.EffectBind loc ref conId patterns pat) ->
+  (Pattern.EffectBind loc ref patterns pat) ->
     do
-      (\(newRef, newConId) newPatterns newPat -> Pattern.EffectBind loc newRef newConId newPatterns newPat)
-      <$> ((ref, conId) & someRefCon_ %%~ f)
+      (\newRef newPatterns newPat -> Pattern.EffectBind loc newRef newPatterns newPat)
+      <$> (ref & someRefCon_ %%~ f)
       <*> (patterns & traversed . patternReferences_ %%~ f)
       <*> (patternReferences_ f pat)
   (Pattern.SequenceLiteral loc patterns) ->
@@ -764,9 +775,12 @@ referentAsSomeTermReference_ f = \case
   (Referent'.Ref' (Reference.DerivedId refId)) -> do
     newRefId <- refId & asTermReference_ %%~ f
     pure (Referent'.Ref' (Reference.DerivedId newRefId))
-  (Referent'.Con' (Reference.DerivedId refId) conId conType) ->
-    ((refId, conId) & asConstructorReference_ %%~ f)
-      <&> (\(newRefId, newConId) -> (Referent'.Con' (Reference.DerivedId newRefId) newConId conType))
+  (Referent'.Con' (ConstructorReference.ConstructorReference (Reference.DerivedId refId) conId) conType) ->
+    (ConstructorReference.ConstructorReference refId conId & asConstructorReference_ %%~ f)
+      <&> \(ConstructorReference.ConstructorReference newRefId newConId) ->
+        Referent'.Con'
+          (ConstructorReference.ConstructorReference (Reference.DerivedId newRefId) newConId)
+          conType
   r -> pure r
 
 type SomeReferenceId = SomeReference Reference.Id
@@ -830,10 +844,10 @@ asTypeReference_ f ref =
     _ -> error "asTypeReference_: SomeReferenceId constructor was changed."
 
 -- | This is only safe as long as you don't change the constructor of your SomeReference
-asConstructorReference_ :: Traversal' (ref, ConstructorId) (SomeReference ref)
-asConstructorReference_ f (ref, cId) =
+asConstructorReference_ :: Traversal' (ConstructorReference.GConstructorReference ref) (SomeReference ref)
+asConstructorReference_ f (ConstructorReference.ConstructorReference ref cId) =
   f (ConstructorReference ref cId) <&> \case
-    (ConstructorReference ref' cId) -> (ref', cId)
+    ConstructorReference ref' cId -> ConstructorReference.ConstructorReference ref' cId
     _ -> error "asConstructorReference_: SomeReferenceId constructor was changed."
 
 someReferenceIdToEntity :: SomeReferenceId -> Entity
