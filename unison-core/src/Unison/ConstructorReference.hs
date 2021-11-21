@@ -18,9 +18,7 @@ import qualified Unison.ShortHash as ShortHash
 
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
-  -- Implementation note: a bang pattern on `r` would be nice, but currently (as of 21-11-10) trips a bug in the runtime where we pass an
-  -- `undefined`, which itself could probably be refactored to be less trixy. Anyway, for now, no bang pattern.
-  = ConstructorReference r !ConstructorId
+  = ConstructorReference !r !ConstructorId
   deriving stock (Eq, Functor, Ord, Show)
 
 type ConstructorReference = GConstructorReference TypeReference
