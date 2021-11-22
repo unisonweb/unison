@@ -265,6 +265,9 @@ data Command
               -> [a] -- ^ The elements to select from
               -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
 
+  -- | This allows us to implement MonadUnliftIO for (Free (Command m i v)).
+  -- Ideally we will eventually remove the Command type entirely and won't need
+  -- this anymore.
   CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
 
 instance MonadIO m => MonadIO (Free (Command m i v)) where
