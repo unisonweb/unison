@@ -588,6 +588,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Branch m)
 updateChildren seg updatedChild =
   if isEmpty updatedChild
+  -- TODO: Shouldn't this preserve history on deletion?
   then Map.delete seg
   else Map.insert seg updatedChild
 
