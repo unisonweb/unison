@@ -24,6 +24,7 @@ import qualified System.IO.Temp as Temp
 import qualified System.Path as Path
 import Text.Megaparsec (runParser)
 import qualified Unison.Codebase as Codebase
+import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase.Init (InitResult(..), InitError(..), CodebaseInitOptions(..), SpecifiedCodebase(..))
 import qualified Unison.Codebase.Init as CodebaseInit
 import qualified Unison.Codebase.Editor.Input as Input
@@ -95,10 +96,9 @@ main = do
                   ])
 
      Run (RunFromSymbol mainName) args -> do
-      ((closeCodebase, theCodebase),_) <- getCodebaseOrExit mCodePathOption
-      runtime <- RTI.startRuntime Version.gitDescribeWithDate
-      withArgs args $ execute theCodebase runtime mainName
-      closeCodebase
+      getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
+        runtime <- RTI.startRuntime Version.gitDescribeWithDate
+        withArgs args $ execute theCodebase runtime mainName
      Run (RunFromFile file mainName) args
        | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
        | otherwise -> do
@@ -106,26 +106,24 @@ main = do
             case e of
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
-                ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-                rt <- RTI.startRuntime Version.gitDescribeWithDate
-                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
-                closeCodebase
+                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                  rt <- RTI.startRuntime Version.gitDescribeWithDate
+                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                  launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
      Run (RunFromPipe mainName) args -> do
       e <- safeReadUtf8StdIn
       case e of
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
-          ((closeCodebase, theCodebase), initRes) <- getCodebaseOrExit mCodePathOption
-          rt <- RTI.startRuntime Version.gitDescribeWithDate
-          let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
-          launch
-            currentDir config rt theCodebase
-            [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
-            Nothing
-            ShouldNotDownloadBase
-            initRes
-          closeCodebase
+          getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+            rt <- RTI.startRuntime Version.gitDescribeWithDate
+            let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
+            launch
+              currentDir config rt theCodebase
+              [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+              Nothing
+              ShouldNotDownloadBase
+              initRes
      Run (RunCompiled file) args ->
        BL.readFile file >>= \bs ->
        try (evaluate $ RTI.decodeStandalone bs) >>= \case
@@ -225,7 +223,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
     DontFork -> do
       PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      void $ CodebaseInit.openNewUcmCodebaseOrExit cbInit "main.transcript" tmp
+      CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp (const $ pure ())
   pure tmp
 
 runTranscripts'
@@ -247,9 +245,8 @@ runTranscripts' mcodepath transcriptDir args = do
       Right stanzas -> do
         configFilePath <- getConfigFilePath mcodepath
         -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-        ((closeCodebase, theCodebase),_) <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir))
-        mdOut <- TR.run Version.gitDescribeWithDate transcriptDir configFilePath stanzas theCodebase
-        closeCodebase
+        mdOut <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, _, theCodebase) -> do
+          TR.run Version.gitDescribeWithDate transcriptDir configFilePath stanzas theCodebase
         let out = currentDir FP.</>
                    FP.addExtension (FP.dropExtension fileName ++ ".output")
                                    (FP.takeExtension fileName)
@@ -306,7 +303,7 @@ launch
   -> [Either Input.Event Input.Input]
   -> Maybe Server.BaseUrl
   -> ShouldDownloadBase
-  -> InitResult IO Symbol Ann
+  -> InitResult
   -> IO ()
 launch dir config runtime codebase inputs serverBaseUrl shouldDownloadBase initResult =
   let
@@ -353,17 +350,27 @@ defaultBaseLib = rightMay $
   where
     (gitRef, _date) = Version.gitDescribe
 -- (Unison.Codebase.Init.FinalizerAndCodebase IO Symbol Ann, InitResult IO Symbol Ann)
-getCodebaseOrExit :: Maybe CodebasePathOption -> IO ((IO (), Codebase.Codebase IO Symbol Ann), InitResult IO Symbol Ann)
-getCodebaseOrExit codebasePathOption = do
+getCodebaseOrExit :: Maybe CodebasePathOption -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
+getCodebaseOrExit codebasePathOption action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
-  CodebaseInit.openOrCreateCodebase SC.init "main" initOptions >>= \case
-    Error dir error ->
+  result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions \case
+    c@(CreatedCodebase, dir, cb) -> do
+      pDir <- prettyDir dir
+      PT.putPrettyLn' ""
+      PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
+      action c
+
+    o@(OpenedCodebase, _, cb) ->
+      action o
+
+  case result of
+    Left (dir, err) ->
       let
         message = do
           pDir <- prettyDir dir
           executableName <- P.text . Text.pack <$> getProgName
 
-          case error of
+          case err of
             NoCodebaseFoundAtSpecifiedDir ->
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".",
@@ -382,16 +389,6 @@ getCodebaseOrExit codebasePathOption = do
         msg <- message
         PT.putPrettyLn' msg
         Exit.exitFailure
-
-    c@(CreatedCodebase dir cb) -> do
-      pDir <- prettyDir dir
-      PT.putPrettyLn' ""
-      PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
-      pure (cb, c)
-
-    o@(OpenedCodebase _ cb) ->
-      pure (cb, o)
-
   where
     prettyDir dir = P.string <$> canonicalizePath dir
 

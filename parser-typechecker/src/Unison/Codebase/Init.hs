@@ -12,7 +12,7 @@ module Unison.Codebase.Init
     createCodebase,
     initCodebaseAndExit,
     withOpenOrCreateCodebase,
-    openNewUcmCodebaseOrExit,
+    withNewUcmCodebaseOrExit,
   )
 where
 
@@ -60,20 +60,23 @@ data InitError
   | FoundV1Codebase
   | CouldntCreateCodebase Pretty
 
-data InitResult m v a
-  = OpenedCodebase CodebasePath (Codebase m v a)
-  | CreatedCodebase CodebasePath (Codebase m v a)
+data InitResult
+  = OpenedCodebase
+  | CreatedCodebase
+  deriving (Show, Eq)
+
+-- CodebasePath (Codebase m v a)
 
 createCodebaseWithResult :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either (CodebasePath, InitError) r)
 createCodebaseWithResult cbInit debugName dir action =
   createCodebase cbInit debugName dir action <&> mapLeft \case
     errorMessage -> (dir, (CouldntCreateCodebase errorMessage))
 
-withOpenOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> (InitResult m v a -> m r) -> m (Either (CodebasePath, InitError) r)
+withOpenOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> ((InitResult, CodebasePath, Codebase m v a) -> m r) -> m (Either (CodebasePath, InitError) r)
 withOpenOrCreateCodebase cbInit debugName initOptions action = do
   let resolvedPath = initOptionsToDir initOptions
   result <- withOpenCodebase cbInit debugName resolvedPath $ \codebase -> do
-    action (OpenedCodebase resolvedPath codebase)
+    action (OpenedCodebase, resolvedPath, codebase)
   case result of
     Right r -> pure $ Right r
     Left _ ->
@@ -83,7 +86,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
             (do pure (Left (homeDir, FoundV1Codebase)))
             (do
               -- Create V2 codebase if neither a V1 or V2 exists
-              createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase homeDir codebase))
+              createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase, homeDir, codebase))
             )
 
         Specified specified ->
@@ -93,7 +96,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
                DontCreateWhenMissing dir ->
                  pure (Left (dir, NoCodebaseFoundAtSpecifiedDir))
                CreateWhenMissing dir ->
-                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase dir codebase))
+                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path action = do
@@ -115,8 +118,8 @@ createCodebase cbInit debugName path action = do
 
 -- previously: initCodebaseOrExit :: CodebasePath -> m (m (), Codebase m v a)
 -- previously: FileCodebase.initCodebase :: CodebasePath -> m (m (), Codebase m v a)
-openNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> (Codebase m Symbol Ann -> m r) -> m r
-openNewUcmCodebaseOrExit cbInit debugName path action = do
+withNewUcmCodebaseOrExit :: MonadIO m => Init m Symbol Ann -> DebugName -> CodebasePath -> (Codebase m Symbol Ann -> m r) -> m r
+withNewUcmCodebaseOrExit cbInit debugName path action = do
   prettyDir <- P.string <$> canonicalizePath path
   let codebaseSetup codebase = do
         liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
@@ -130,4 +133,4 @@ openNewUcmCodebaseOrExit cbInit debugName path action = do
 initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m ()
 initCodebaseAndExit i debugName mdir = do
   codebaseDir <- Codebase.getCodebaseDir mdir
-  openNewUcmCodebaseOrExit i debugName  codebaseDir (const $ pure ())
+  withNewUcmCodebaseOrExit i debugName  codebaseDir (const $ pure ())

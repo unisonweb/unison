@@ -26,7 +26,7 @@ test = scope "Codebase.Init" $ tests
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
         r <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Home tmp) \case
-          CI.OpenedCodebase _ _ -> pure True
+          (CI.OpenedCodebase, _, _) -> pure True
           _ -> pure False
         case r of
           Left _ -> expect False
@@ -35,7 +35,7 @@ test = scope "Codebase.Init" $ tests
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
         r <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Home tmp) \case
-          CI.CreatedCodebase _ _ -> pure True
+          (CI.CreatedCodebase, _, _) -> pure True
           _ -> pure False
         case r of
           Left _ -> expect False
@@ -46,7 +46,7 @@ test = scope "Codebase.Init" $ tests
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
-          CI.OpenedCodebase _ _ -> pure True
+          (CI.OpenedCodebase, _, _) -> pure True
           _ -> pure False
         case res of
           Left _ -> expect False
@@ -65,7 +65,7 @@ test = scope "Codebase.Init" $ tests
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)) \case
-          CI.CreatedCodebase _ _ -> pure True
+          (CI.CreatedCodebase, _, _) -> pure True
           _ -> pure False
         case res of
           Left _ -> expect False
@@ -75,7 +75,7 @@ test = scope "Codebase.Init" $ tests
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)) \case
-          CI.OpenedCodebase _ _ -> pure True
+          (CI.OpenedCodebase, _, _) -> pure True
           _ -> pure False
         case res of
           Left _ -> expect False
