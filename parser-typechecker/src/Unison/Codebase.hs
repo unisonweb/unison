@@ -124,8 +124,10 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
-import qualified UnliftIO
 import UnliftIO (MonadUnliftIO)
+import Control.Monad.Except (ExceptT(ExceptT))
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Except (throwE)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -329,15 +331,16 @@ importRemoteBranch ::
   ReadRemoteNamespace ->
   SyncMode ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = UnliftIO.try $ do
-  h <- UnliftIO.fromEitherM $ viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+importRemoteBranch codebase ns mode = runExceptT $ do
+  branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
          withStatus "Importing downloaded files into local codebase..." $
            time "SyncFromDirectory" $
              syncFromDirectory codebase cacheDir mode branch
          pure $ Branch.headHash branch
-  let err = UnliftIO.throwIO . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-  time "load fresh local branch after sync" $
-        (getBranchForHash codebase h >>= maybe err pure)
+  time "load fresh local branch after sync" $ do
+    lift (getBranchForHash codebase branchHash) >>= \case
+      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Just result -> pure $ result
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.

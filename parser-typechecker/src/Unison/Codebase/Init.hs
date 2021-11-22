@@ -65,8 +65,6 @@ data InitResult
   | CreatedCodebase
   deriving (Show, Eq)
 
--- CodebasePath (Codebase m v a)
-
 createCodebaseWithResult :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either (CodebasePath, InitError) r)
 createCodebaseWithResult cbInit debugName dir action =
   createCodebase cbInit debugName dir action <&> mapLeft \case
