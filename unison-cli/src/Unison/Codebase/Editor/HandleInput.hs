@@ -754,7 +754,7 @@ loop = do
                 srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
                 destOk b = do
                   stepManyAt
-                    [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty,
+                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                       BranchUtil.makeSetBranch (resolveSplit' dest) b
                     ]
                   success -- could give rando stats about new defns

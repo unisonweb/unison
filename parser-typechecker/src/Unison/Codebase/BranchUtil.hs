@@ -135,7 +135,10 @@ makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
 makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
--- to delete, just set with Branch.empty
 makeSetBranch ::
   Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
+
+makeDeleteBranch ::
+  Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeleteBranch p = BranchUtil.makeSetBranch p Branch.empty,
