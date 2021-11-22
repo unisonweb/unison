@@ -1610,7 +1610,7 @@ dependents =
     "dependents"
     []
     []
-    "List the dependents of the specified definition."
+    "List the named dependents of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
         _ -> Left (I.help dependents)
@@ -1625,6 +1625,17 @@ dependencies =
         [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
         _ -> Left (I.help dependencies)
     )
+
+namespaceDependencies :: InputPattern
+namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
+  "List the external dependencies of the specified namespace."
+  (\case
+    [p] -> first fromString $ do
+             p <- Path.parsePath' p
+             pure $ Input.NamespaceDependenciesI (Just p)
+    [] -> pure (Input.NamespaceDependenciesI Nothing)
+    _ -> Left (I.help namespaceDependencies)
+  )
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
@@ -1860,6 +1871,7 @@ validInputs =
     mergeIOBuiltins,
     dependents,
     dependencies,
+    namespaceDependencies,
     debugNumberedArgs,
     debugFileHashes,
     debugDumpNamespace,
