@@ -97,7 +97,7 @@ import UnliftIO (MonadUnliftIO)
 --          * [ ] Delete V1 Hashing to ensure it's unused
 --          * [ ] Salt V2 hashes with version number
 --    * [ ] confirm that pulls are handled ok
---    * [ ] Make a backup of the v1 codebase before migrating, in a temp directory.
+--    * [x] Make a backup of the v1 codebase before migrating, in a temp directory.
 --          Include a message explaining where we put it.
 --    * [ ] Improved error message (don't crash) if loading a codebase newer than your ucm
 --    * [x] Update the schema version in the database after migrating so we only migrate
