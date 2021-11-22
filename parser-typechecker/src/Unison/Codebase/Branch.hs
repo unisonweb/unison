@@ -615,9 +615,11 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
--- | Efficiently perform updates over many locations within a branch.
--- All updates are performed over the current branch, all causal changes
--- must be performed in the updates themselves.
+-- | Perform updates over many locations within a branch by batching up operations on
+-- sub-branches as much as possible without affecting semantics.
+-- This operation does not create any causal conses, the operations are performed directly
+-- on the current head of the provided branch and child branches. It's the caller's
+-- responsibility to apply updates in history however they choose.
 batchUpdates :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
@@ -651,13 +653,13 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
       )
     execActions b = \case
       (HereActions, acts) -> foldM (\b (_, act) -> act b) b acts
-      (ChildActions, acts) -> b & children %%~ stepChildren (groupByNextSegment acts)
+      (ChildActions, acts) -> b & children %%~ adjustChildren (groupByNextSegment acts)
 
-    stepChildren ::
+    adjustChildren ::
       Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] ->
       Map NameSegment (Branch m) ->
       n (Map NameSegment (Branch m))
-    stepChildren childActions children0 =
+    adjustChildren childActions children0 =
       foldM go children0 $ Map.toList childActions
       where
         -- Recursively applies the relevant actions to the child branch
