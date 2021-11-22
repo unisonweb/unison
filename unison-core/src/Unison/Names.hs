@@ -58,6 +58,7 @@ import qualified Data.Set                     as Set
 import qualified Data.Text                    as Text
 import           Prelude                      hiding (filter, map)
 import qualified Prelude
+import           Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.HashQualified         as HQ
 import qualified Unison.HashQualified'        as HQ'
 import           Unison.Name                  (Name)
@@ -432,8 +433,8 @@ constructorsForType :: Reference -> Names -> [(Name,Referent)]
 constructorsForType r ns = let
   -- rather than searching all of names, we use the known possible forms
   -- that the constructors can take
-  possibleDatas =   [ Referent.Con r cid CT.Data | cid <- [0..] ]
-  possibleEffects = [ Referent.Con r cid CT.Effect | cid <- [0..] ]
+  possibleDatas =   [ Referent.Con (ConstructorReference r cid) CT.Data | cid <- [0..] ]
+  possibleEffects = [ Referent.Con (ConstructorReference r cid) CT.Effect | cid <- [0..] ]
   trim [] = []
   trim (h:t) = case R.lookupRan h (terms ns) of
     s | Set.null s -> []

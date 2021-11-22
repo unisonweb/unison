@@ -13,6 +13,7 @@ where
 
 import Unison.Prelude
 
+import Unison.ConstructorReference (ConstructorReference)
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified' as HQ'
 import           Unison.Name                    ( Name )
@@ -28,9 +29,9 @@ data PrettyPrintEnv = PrettyPrintEnv {
   -- names for types
   types :: Reference -> Maybe (HQ'.HashQualified Name) }
 
-patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe (HQ'.HashQualified Name)
-patterns ppe r cid = terms ppe (Referent.Con r cid CT.Data)
-                  <|>terms ppe (Referent.Con r cid CT.Effect)
+patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
+patterns ppe r = terms ppe (Referent.Con r CT.Data)
+             <|> terms ppe (Referent.Con r CT.Effect)
 
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
@@ -57,11 +58,11 @@ typeName env r =
     Nothing -> HQ.take todoHashLength (HQ.fromReference r)
     Just name -> HQ'.toHQ name
 
-patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified Name
-patternName env r cid =
-  case patterns env r cid of
+patternName :: PrettyPrintEnv -> ConstructorReference -> HashQualified Name
+patternName env r =
+  case patterns env r of
     Just name -> HQ'.toHQ name
-    Nothing -> HQ.take todoHashLength $ HQ.fromPattern r cid
+    Nothing -> HQ.take todoHashLength $ HQ.fromPattern r
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)

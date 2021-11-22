@@ -44,6 +44,7 @@ import qualified Data.Map.Strict as Map
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Builtin.Decls as RF
@@ -92,10 +93,10 @@ data EvalCtx
   , ccache :: CCache
   }
 
-uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
+uncurryDspec :: DataSpec -> Map.Map ConstructorReference Int
 uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
-  f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
+  f (r,l) = zipWith (\n c -> (ConstructorReference r n,c)) [0..] $ either id id l
 
 cacheContext :: CCache -> EvalCtx
 cacheContext
