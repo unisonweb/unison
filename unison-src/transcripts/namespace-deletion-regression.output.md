@@ -12,16 +12,20 @@ unexpectedly 😬.
 
   Done.
 
-.> ls
+.> ls Nat
 
-  1. Nat/ (1 definition)
+  1. + (##Nat -> ##Nat -> ##Nat)
 
 .> move.namespace Nat Nat.operators
 
   Done.
 
-.> ls
+.> ls Nat
 
-  1. Nat/ (1 definition)
+  1. operators/ (1 definition)
+
+.> ls Nat.operators
+
+  1. + (##Nat -> ##Nat -> ##Nat)
 
 ```

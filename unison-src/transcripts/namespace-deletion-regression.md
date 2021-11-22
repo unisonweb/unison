@@ -9,7 +9,8 @@ unexpectedly 😬.
 
 ```ucm
 .> alias.term ##Nat.+ .Nat.+
-.> ls
+.> ls Nat
 .> move.namespace Nat Nat.operators
-.> ls
+.> ls Nat
+.> ls Nat.operators
 ```
