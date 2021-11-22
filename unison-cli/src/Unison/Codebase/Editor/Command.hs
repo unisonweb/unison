@@ -200,7 +200,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> (Branch m -> m r) -> Command m i v (Either GitError r)
+    ReadRemoteNamespace -> (Branch m -> (Free (Command m i v) r)) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully

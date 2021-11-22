@@ -139,9 +139,7 @@ import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval, MonadCommand(..))
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
-import qualified UnliftIO
 import Unison.Util.Free (Free)
-import qualified Unison.Util.Free as Free
 import UnliftIO (MonadUnliftIO)
 
 defaultPatchNameSegment :: NameSegment
@@ -706,13 +704,15 @@ loop = do
                 _ -> do
                   (ppe, outputDiff) <- diffHelper before after
                   respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
-            CreatePullRequestI baseRepo headRepo -> unlessException Output.GitError $ do
-              diff <- lift . lift . throwExceptT $ viewRemoteBranch baseRepo \baseBranch -> do
-                 throwExceptT $ viewRemoteBranch headRepo \headBranch -> do
-                   merged <- Free.eval $ Merge Branch.RegularMerge baseBranch headBranch
-                   (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
+            CreatePullRequestI baseRepo headRepo -> do
+              result <- join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
+                 viewRemoteBranch headRepo \headBranch -> do
+                   merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+                   (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
                    pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-              respondNumbered diff
+              case result of
+                Left gitErr -> respond (Output.GitError gitErr)
+                Right diff -> respondNumbered diff
             LoadPullRequestI baseRepo headRepo dest0 -> do
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
@@ -1833,25 +1833,27 @@ handlePushRemoteBranch ::
   -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
+handlePushRemoteBranch mayRepo path pushBehavior syncMode = unlessError $ do
+  (repo, remotePath) <- case mayRepo of
+      Nothing -> resolveConfiguredGitUrl Push path
+      Just r -> pure r
   srcb <- do
     currentPath' <- use LoopState.currentPath
-    getAt (Path.resolve currentPath' path)
-  unlessException Output.GitError do
-    (repo, remotePath) <- maybe (throwExceptT $ resolveConfiguredGitUrl Push path) pure mayRepo
-    unsafeTime "Push viewRemoteBranch" do
-       lift . lift . throwExceptT $ viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
-          -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
-          -- updates in the remote branch that aren't in `srcb` already.
-          case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
-            Nothing -> do
-              respond (RefusedToPush pushBehavior)
-            Just newRemoteRoot -> do
-              unsafeTime "Push syncRemoteRootBranch" do
-                  throwExceptT $ syncRemoteRootBranch repo newRemoteRoot syncMode
-              respond Success
+    lift $ getAt (Path.resolve currentPath' path)
+  withExceptT Output.GitError . ExceptT $ unsafeTime "Push viewRemoteBranch" do
+    viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
+            -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
+            -- updates in the remote branch that aren't in `srcb` already.
+      case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
+        Nothing -> do
+          respond (RefusedToPush pushBehavior)
+        Just newRemoteRoot -> do
+          unsafeTime "Push syncRemoteRootBranch" do
+            runExceptT (syncRemoteRootBranch repo newRemoteRoot syncMode) >>= \case
+              Left err -> respond (Output.GitError err)
+              Right _ -> respond Success
   where
-    -- Per `pushBehavior`, we are either:
+      -- Per `pushBehavior`, we are either:
     --
     --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
     --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
@@ -1951,10 +1953,9 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-viewRemoteBranch :: (MonadUnliftIO m) => ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> ExceptT GitError (Free (Command m i v)) r
+viewRemoteBranch :: (MonadCommand n m i v, MonadUnliftIO m) => ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> n (Either GitError r)
 viewRemoteBranch ns action = do
-  toIO <- lift $ UnliftIO.askRunInIO
-  ExceptT . Free.eval $ ViewRemoteBranch ns (liftIO . toIO . action)
+  eval $ ViewRemoteBranch ns action
 
 syncRemoteRootBranch :: MonadCommand n m i v => WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError n ()
 syncRemoteRootBranch repo b mode =
@@ -2317,10 +2318,6 @@ respondNumbered output = do
   args <- eval $ NotifyNumbered output
   unless (null args) $
     LoopState.numberedArgs .= toList args
-
-unlessException :: (MonadCommand m n i v, MonadUnliftIO m, Exception e) => (e -> Output v) -> m () -> m ()
-unlessException toOutput =
-  UnliftIO.handle (respond . toOutput)
 
 unlessError :: ExceptT (Output v) (Action' m v) () -> Action' m v ()
 unlessError ma = runExceptT ma >>= either respond pure
@@ -3155,7 +3152,7 @@ findHistoricalHQs lexedHQs0 = do
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root'
   pure rawHistoricalNames
 
-basicPrettyPrintNamesA :: (Functor m, MonadCommand n m i v) => n Names
+basicPrettyPrintNamesA :: Functor m => Action' m v Names
 basicPrettyPrintNamesA = snd <$> basicNames'
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set (HQ.HashQualified Name) -> Names -> Action' m v NamesWithHistory
@@ -3286,14 +3283,28 @@ displayNames unisonFile =
     (UF.typecheckedToNames unisonFile)
 
 diffHelper ::
+  (Monad m) =>
   Branch0 m ->
   Branch0 m ->
   Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
 diffHelper before after = do
+  currentRoot <- use LoopState.root
+  currentPath <- use LoopState.currentPath
+  diffHelperCmd currentRoot currentPath before after
+
+-- | A version of diffHelper that only requires a MonadCommand constraint
+diffHelperCmd ::
+  (Monad m, MonadCommand n m i v) =>
+  Branch m ->
+  Path.Absolute ->
+  Branch0 m ->
+  Branch0 m ->
+  n (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
+diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  names0 <- basicPrettyPrintNamesA
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory names0 mempty)
+  let (_parseNames, prettyNames0) = Backend.basicNames' currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
       loadTypeOfTerm
@@ -3303,6 +3314,7 @@ diffHelper before after = do
       (Branch.toNames after)
       ppe
       diff
+
 
 loadTypeOfTerm :: MonadCommand n m i v => Referent -> n (Maybe (Type v Ann))
 loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
@@ -3340,6 +3352,3 @@ fuzzySelectNamespace searchBranch0 =
           Path.toText
           (Set.toList $ Branch.deepPaths searchBranch0)
       )
-
-throwExceptT :: forall m e a. MonadIO m => ExceptT e m a -> m a
-throwExceptT = UnliftIO.fromEitherM . runExceptT

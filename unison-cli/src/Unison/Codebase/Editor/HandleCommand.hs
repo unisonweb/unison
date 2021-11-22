@@ -153,8 +153,10 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    ViewRemoteBranch ns action ->
-      lift $ Codebase.viewRemoteBranch codebase ns action
+    ViewRemoteBranch ns action -> do
+      -- TODO: This should be cleaned up when we remove the Command type.
+      toIO <- UnliftIO.askRunInIO
+      lift $ Codebase.viewRemoteBranch codebase ns (toIO . Free.fold go . action)
     ImportRemoteBranch ns syncMode ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode
     SyncRemoteRootBranch repo branch syncMode ->

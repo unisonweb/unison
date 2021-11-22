@@ -19,6 +19,7 @@ import Unison.Util.Free (Free)
 import Unison.Codebase.Editor.Command
 import qualified Data.List.NonEmpty as Nel
 import qualified Unison.Util.Free as Free
+import Control.Monad.Except (ExceptT)
 
 type F m i v = Free (Command m i v)
 
@@ -35,6 +36,9 @@ instance MonadCommand n m i v => MonadCommand (StateT s n) m i v where
   eval = lift . eval
 
 instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
+  eval = lift . eval
+
+instance MonadCommand n m i v => MonadCommand (ExceptT e n) m i v where
   eval = lift . eval
 
 
