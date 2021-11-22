@@ -23,9 +23,9 @@ import Control.Monad.Except (ExceptT)
 
 type F m i v = Free (Command m i v)
 
--- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
+-- | A typeclass representing monads which can evaluate 'Command's.
 class Monad n => MonadCommand n m v i | n -> m v i where
   eval :: Command m v i a -> n a
 
@@ -40,10 +40,6 @@ instance MonadCommand n m i v => MonadCommand (MaybeT n) m i v where
 
 instance MonadCommand n m i v => MonadCommand (ExceptT e n) m i v where
   eval = lift . eval
-
-
--- eval :: Command m i v a -> Action m i v a
--- eval = lift . lift . Free.eval
 
 type NumberedArgs = [String]
 

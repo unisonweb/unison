@@ -81,18 +81,6 @@ typecheck' ambient codebase file = do
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
--- data CommandState i v m =
---   CommandState { awaitInput :: m i
---                }
--- newtype CommandT i v m a =
---   CommandT {runCommandT :: ReaderT (STM.TVar Int) m a}
-
--- class MonadCommand n m v i | n -> m v i where
---   eval :: Command m v i a -> n a
-
--- instance MonadCommand (CommandT i v m) m v i where
---   eval = _
-
 commandLine
   :: forall i v a gen
    . (Var v, Random.DRG gen)
@@ -109,8 +97,8 @@ commandLine
   -> Free (Command IO i v) a
   -> IO a
 commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
- v <- STM.newTVarIO 0
- flip runReaderT v . Free.fold go $ free
+ rndSeed <- STM.newTVarIO 0
+ flip runReaderT rndSeed . Free.fold go $ free
  where
   go :: forall x . Command IO i v x -> ReaderT (STM.TVar Int) IO x
   go x = case x of
@@ -154,7 +142,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     ViewRemoteBranch ns action -> do
-      -- TODO: This should be cleaned up when we remove the Command type.
+      -- TODO: We probably won'd need to unlift anything once we remove the Command
+      -- abstraction.
       toIO <- UnliftIO.askRunInIO
       lift $ Codebase.viewRemoteBranch codebase ns (toIO . Free.fold go . action)
     ImportRemoteBranch ns syncMode ->
@@ -220,9 +209,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
     CmdUnliftIO -> do
+      -- Get the unlifter for the ReaderT we're currently working in.
       unlifted <- UnliftIO.askUnliftIO
+      -- Built an unliftIO for the Free monad
       let runF :: UnliftIO.UnliftIO (Free (Command IO i v))
           runF = UnliftIO.UnliftIO $ case unlifted of
+                   -- We need to case-match on the UnliftIO within this function
+                   -- because `toIO` is existential and we need the right types
+                   -- in-scope.
                    UnliftIO.UnliftIO toIO -> toIO . Free.fold go
       pure runF
 

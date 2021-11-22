@@ -1834,12 +1834,12 @@ handlePushRemoteBranch ::
   SyncMode.SyncMode ->
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode = unlessError $ do
+  srcb <- lift $ do
+    currentPath' <- use LoopState.currentPath
+    getAt (Path.resolve currentPath' path)
   (repo, remotePath) <- case mayRepo of
       Nothing -> resolveConfiguredGitUrl Push path
       Just r -> pure r
-  srcb <- do
-    currentPath' <- use LoopState.currentPath
-    lift $ getAt (Path.resolve currentPath' path)
   withExceptT Output.GitError . ExceptT $ unsafeTime "Push viewRemoteBranch" do
     viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
             -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
@@ -1853,7 +1853,7 @@ handlePushRemoteBranch mayRepo path pushBehavior syncMode = unlessError $ do
               Left err -> respond (Output.GitError err)
               Right _ -> respond Success
   where
-      -- Per `pushBehavior`, we are either:
+    -- Per `pushBehavior`, we are either:
     --
     --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
     --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
