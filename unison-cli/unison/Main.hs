@@ -182,30 +182,29 @@ main = do
      Transcript shouldFork shouldSaveCodebase transcriptFiles ->
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
-       ((closeCodebase, theCodebase),initRes)  <- getCodebaseOrExit mCodePathOption
-       runtime <- RTI.startRuntime Version.gitDescribeWithDate
-       Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
-         case isHeadless of
-             Headless -> do
-                 PT.putPrettyLn $
-                   P.lines
-                     [ "I've started the Codebase API server at",
-                       P.string $ Server.urlFor Server.Api baseUrl,
-                       "and the Codebase UI at",
-                       P.string $ Server.urlFor Server.UI baseUrl
-                     ]
+       getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+         runtime <- RTI.startRuntime Version.gitDescribeWithDate
+         Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
+           case isHeadless of
+               Headless -> do
+                   PT.putPrettyLn $
+                     P.lines
+                       [ "I've started the Codebase API server at",
+                         P.string $ Server.urlFor Server.Api baseUrl,
+                         "and the Codebase UI at",
+                         P.string $ Server.urlFor Server.UI baseUrl
+                       ]
 
-                 PT.putPrettyLn $ P.string "Running the codebase manager headless with "
-                     <> P.shown GHC.Conc.numCapabilities
-                     <> " "
-                     <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                     <> "."
-                 mvar <- newEmptyMVar
-                 takeMVar mvar
-             WithCLI -> do
-                 PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-                 launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
-                 closeCodebase
+                   PT.putPrettyLn $ P.string "Running the codebase manager headless with "
+                       <> P.shown GHC.Conc.numCapabilities
+                       <> " "
+                       <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                       <> "."
+                   mvar <- newEmptyMVar
+                   takeMVar mvar
+               WithCLI -> do
+                   PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                   launch currentDir config runtime theCodebase [] (Just baseUrl) downloadBase initRes
 
 prepareTranscriptDir :: ShouldForkCodebase -> Maybe CodebasePathOption -> IO FilePath
 prepareTranscriptDir shouldFork mCodePathOption = do
@@ -214,7 +213,7 @@ prepareTranscriptDir shouldFork mCodePathOption = do
   case shouldFork of
     UseFork -> do
       -- A forked codebase does not need to Create a codebase, because it already exists
-      getCodebaseOrExit mCodePathOption
+      getCodebaseOrExit mCodePathOption $ const (pure ())
       path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
       PT.putPrettyLn $ P.lines [
         P.wrap "Transcript will be run on a copy of the codebase at: ", "",
@@ -354,16 +353,17 @@ getCodebaseOrExit :: Maybe CodebasePathOption -> ((InitResult, CodebasePath, Cod
 getCodebaseOrExit codebasePathOption action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
   result <- CodebaseInit.withOpenOrCreateCodebase SC.init "main" initOptions \case
-    c@(CreatedCodebase, dir, cb) -> do
+    cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
       PT.putPrettyLn' . P.indentN 2 . P.wrap $ "I created a new codebase for you at" <> P.blue pDir
-      action c
+      action cbInit
 
-    o@(OpenedCodebase, _, cb) ->
-      action o
+    cbInit@(OpenedCodebase, _, _) ->
+      action cbInit
 
   case result of
+    Right r -> pure r
     Left (dir, err) ->
       let
         message = do
