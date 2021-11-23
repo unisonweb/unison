@@ -6,6 +6,8 @@ It isn't prescriptive about how merges _should_ work with respect to child branc
 but I think we should at least notice if we change things by accident.
 
 
+## Setting up some history
+
 ```ucm:hide
 .> builtins.merge
 ```
@@ -34,31 +36,62 @@ parent.child.thing2 = "parent.child.thing2"
 .> history parent.child
 ```
 
+## Forking off some history on a separate branch
+
 Now we fork the parent namespace to make some changes.
 
 ```ucm
-.> fork parent parentfork
+.> fork parent parent_fork
 ```
 
 ```unison
-parentfork.child.thing3 = "parentfork.child.thing3"
+parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 
 ```ucm
 .> add
-.> history parentfork.child
+.> history parent_fork.child
 ```
 
-Now, if I squash-merge parentfork back into parent, we expect `parentfork.child.thing3` to be added.
+## Saving our parent state
 
 ```ucm
-.> merge.squash parentfork parent
-.> history parentfork
+.> fork parent parent_squash_base
+.> fork parent parent_merge_base
 ```
 
-Notice that with the current behaviour, the history of `parent.child` is completely wiped out.
+## Squash merge
+
+Now, if I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
+
+```ucm
+.> merge.squash parent_fork parent_squash_base
+.> history parent_squash_base
+```
+
+Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
 This doesn't seem desirable.
 
 ```ucm
 .> history parent.child
+.> history parent_fork.child
+.> history parent_squash_base.child
+```
+
+## Standard merge
+
+Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
+
+```ucm
+.> merge.squash parent_fork parent_merge_base
+.> history parent_merge_base
+```
+
+Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
+This doesn't seem desirable.
+
+```ucm
+.> history parent.child
+.> history parent_fork.child
+.> history parent_merge_base.child
 ```
