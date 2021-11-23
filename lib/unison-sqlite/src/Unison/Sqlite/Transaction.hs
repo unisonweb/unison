@@ -48,7 +48,8 @@ import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
 import Unison.Sqlite.Sql
 
-newtype Transaction a = Transaction {unTransaction :: Connection -> IO a}
+newtype Transaction a
+  = Transaction (Connection -> IO a)
   -- Omit MonadIO instance because transactions may be retried
   -- Omit MonadThrow instance so we always throw SqliteException (via *Check) with lots of context
   deriving (Applicative, Functor, Monad) via (ReaderT Connection IO)

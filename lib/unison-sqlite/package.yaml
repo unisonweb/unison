@@ -16,6 +16,7 @@ dependencies:
   - transformers
   - unison-prelude
   - unliftio
+  - unliftio-core
 
 ghc-options:
   -Wall

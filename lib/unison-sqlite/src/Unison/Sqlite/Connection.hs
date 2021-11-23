@@ -299,7 +299,6 @@ rollbackTo :: Connection -> Text -> IO ()
 rollbackTo conn name =
   execute_ conn (Sql ("ROLLBACK TO " <> name))
 
--- surgi-careinc
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
 withStatement conn@(Connection _ _ conn0) s params callback =
   thing `catch` \(exception :: Sqlite.SQLError) ->

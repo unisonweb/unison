@@ -63,4 +63,5 @@ library
     , transformers
     , unison-prelude
     , unliftio
+    , unliftio-core
   default-language: Haskell2010

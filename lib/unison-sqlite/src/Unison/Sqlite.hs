@@ -68,13 +68,10 @@ import Unison.Sqlite.Connection
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
     SqliteException (..),
-    rollbackTo,
     withConnection,
-    withSavepoint,
-    withStatement,
   )
 import Unison.Sqlite.DB
 import Unison.Sqlite.DataVersion
 import Unison.Sqlite.JournalMode
 import Unison.Sqlite.Sql
-import Unison.Sqlite.Transaction hiding (runTransaction)
+import Unison.Sqlite.Transaction (Transaction)
