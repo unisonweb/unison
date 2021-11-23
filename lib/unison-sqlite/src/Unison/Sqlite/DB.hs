@@ -52,7 +52,6 @@ module Unison.Sqlite.DB
 
     -- * Low-level operations
     withSavepoint,
-    rollbackTo,
     withStatement,
   )
 where
@@ -67,7 +66,6 @@ import qualified Unison.Sqlite.Connection as Connection
 import Unison.Sqlite.Sql (Sql (..))
 import Unison.Sqlite.Transaction (Transaction)
 import qualified Unison.Sqlite.Transaction as Transaction
-import UnliftIO.Exception (bracket_)
 
 type DB m =
   (MonadIO m, MonadReader Connection m)
@@ -260,21 +258,15 @@ queryOneOneCheck_ s check = do
 
 -- Low-level
 
-withSavepoint :: (DB m, MonadUnliftIO m) => Text -> m a -> m a
+-- | Perform an action within a named savepoint. The action is provided a rollback action.
+withSavepoint :: (DB m, MonadUnliftIO m) => Text -> (m () -> m a) -> m a
 withSavepoint name action = do
   conn <- ask
-  bracket_
-    (liftIO (Connection.execute_ conn (Sql ("SAVEPOINT " <> name))))
-    (liftIO (Connection.execute_ conn (Sql ("RELEASE " <> name))))
-    action
-
-rollbackTo :: DB m => Text -> m ()
-rollbackTo name = do
-  conn <- ask
-  liftIO (Connection.execute_ conn (Sql ("ROLLBACK TO " <> name)))
+  withRunInIO \unlift ->
+    liftIO (Connection.withSavepoint conn name (unlift . action . liftIO))
 
 withStatement :: (DB m, MonadUnliftIO m, Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> (m (Maybe a) -> m c) -> m c
 withStatement s params callback = do
   conn <- ask
-  withRunInIO \runInIO ->
-    Connection.withStatement conn s params (runInIO . callback . liftIO)
+  withRunInIO \unlift ->
+    Connection.withStatement conn s params (unlift . callback . liftIO)

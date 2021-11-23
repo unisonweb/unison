@@ -52,7 +52,6 @@ module Unison.Sqlite.Connection
 
     -- * Low-level operations
     withSavepoint,
-    rollbackTo,
     withStatement,
 
     -- * Exceptions
@@ -84,12 +83,25 @@ instance Show Connection where
     "Connection " ++ show name ++ " " ++ show file ++ " " ++ show conn
 
 -- | Perform an action with a connection to a SQLite database.
-withConnection :: MonadUnliftIO m => String -> FilePath -> (Connection -> m a) -> m a
+withConnection ::
+  MonadUnliftIO m =>
+  -- | Connection name, for debugging.
+  String ->
+  -- | Path to SQLite database file.
+  FilePath ->
+  (Connection -> m a) ->
+  m a
 withConnection name file =
   bracket (openConnection name file) closeConnection
 
 -- | Open a connection to a SQLite database. Prefer 'withConnection'.
-openConnection :: MonadIO m => String -> FilePath -> m Connection
+openConnection ::
+  MonadIO m =>
+  -- | Connection name, for debugging.
+  String ->
+  -- | Path to SQLite database file.
+  FilePath ->
+  m Connection
 openConnection name file = do
   conn <- liftIO (Sqlite.open file)
   liftIO (Sqlite.execute_ conn "PRAGMA foreign_keys = ON")
@@ -368,11 +380,13 @@ queryOneOneCheck_ conn s check =
 
 -- Low-level
 
-withSavepoint :: Connection -> Text -> IO a -> IO a
-withSavepoint conn name =
+-- | Perform an action within a named savepoint. The action is provided a rollback action.
+withSavepoint :: Connection -> Text -> (IO () -> IO a) -> IO a
+withSavepoint conn name action =
   bracket_
     (execute_ conn (Sql ("SAVEPOINT " <> name)))
     (execute_ conn (Sql ("RELEASE " <> name)))
+    (action (rollbackTo conn name))
 
 rollbackTo :: Connection -> Text -> IO ()
 rollbackTo conn name =
@@ -436,6 +450,22 @@ data SomeShowTypeable
 instance Show SomeShowTypeable where
   show (SomeShowTypeable x) = show x
 
+-- | A @SqliteException@ represents an exception paired with some context that resulted in the exception.
+--
+-- A @SqliteException@ may result from a number of different conditions:
+--
+-- * The underlying sqlite library threw an exception, as when establishing a connection to a non-existent database.
+-- * A postcondition violation of a function like 'queryMaybe', which asserts that the resulting relation will have
+--   certain number of rows,
+-- * A postcondition violation of a function like 'queryListCheck', which takes a user-defined check as an argument.
+--
+-- A @SqliteException@ should not be inspected or used for control flow when run in a trusted environment, where the
+-- database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code that
+-- is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible, it
+-- should be considered a bug in this library.
+--
+-- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
+-- just one exception type, @SqliteException@.
 data SqliteException e = SqliteException
   { sql :: Sql,
     params :: String,
