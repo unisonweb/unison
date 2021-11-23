@@ -492,9 +492,11 @@ empty0 :: Branch0 m
 empty0 =
   Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
+-- | Checks whether a Branch0 is empty.
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)
 
+-- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
