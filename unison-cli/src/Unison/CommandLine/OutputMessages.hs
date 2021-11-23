@@ -16,6 +16,7 @@ import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Text.IO (readFile, writeFile)
 import Data.Tuple (swap)
@@ -305,6 +306,33 @@ notifyNumbered o = case o of
             ]
       )
       (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
+  CantDeleteDefinitions ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the following definitions because they are still in use:",
+          "",
+          endangeredDependentsTable ppeDecl endangerments
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
+  CantDeleteNamespace ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
+          "",
+          endangeredDependentsTable ppeDecl endangerments,
+          "",
+          P.wrap "If you want to proceed anyways and leave those definitions without names, use"
+            <> IP.patternName IP.deleteNamespaceForce
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
+  DeletedDespiteDependents ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "Of the things I deleted, the following are still used in the following definitions. They now contain un-named references.",
+          "",
+          endangeredDependentsTable ppeDecl endangerments
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
   where
     e = Path.absoluteEmpty
     undoTip =
@@ -553,17 +581,6 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       "I was expecting the namespace " <> prettyPath' path
         <> " to be empty for this operation, but it isn't."
-  CantDelete ppe failed failedDependents ->
-    pure . P.warnCallout $
-      P.lines
-        [ P.wrap "I couldn't delete ",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failed,
-          "",
-          "because it's still being used by these definitions:",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failedDependents
-        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -2539,6 +2556,11 @@ prettyTermName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.termName ppe r)
 
+prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
+prettyTypeName ppe r =
+  P.syntaxToColor $
+    prettyHashQualified (PPE.typeName ppe r)
+
 prettyReadRepo :: ReadRepo -> Pretty
 prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
 
@@ -2554,3 +2576,53 @@ isTestOk tm = case tm of
           && ref == DD.testResultRef
       isSuccess _ = False
   _ -> False
+
+-- | Get the list of numbered args corresponding to an endangerment map, which is used by a
+-- few outputs. See 'endangeredDependentsTable'.
+numberedArgsForEndangerments ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  NumberedArgs
+numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
+  m
+    & Map.elems
+    & concatMap toList
+    & fmap (HQ.toString . PPE.labeledRefName ppe)
+
+-- | Format and render all dependents which are endangered by references going extinct.
+endangeredDependentsTable ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  P.Pretty P.ColorText
+endangeredDependentsTable ppeDecl m =
+  m
+    & Map.toList
+    & fmap (second toList)
+    & numberDependents
+    & map
+      ( \(dependency, dependents) ->
+          (prettyLabeled suffixifiedEnv dependency, prettyDependents dependents)
+      )
+    & List.intersperse spacer
+    & P.column2Header "Dependency" "Referenced In"
+  where
+    numberDependents :: [(x, [LabeledDependency])] -> [(x, [(Int, LabeledDependency)])]
+    numberDependents xs =
+      let (_acc, numbered) =
+            mapAccumLOf
+              (traversed . _2 . traversed)
+              (\n ld -> (n + 1, (n, ld)))
+              1
+              xs
+       in numbered
+    spacer = ("", "")
+    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    prettyLabeled ppe = \case
+      LD.TermReferent ref -> prettyTermName ppe ref
+      LD.TypeReference ref -> prettyTypeName ppe ref
+    numArg = (\n -> P.hiBlack . fromString $ show n <> ". ")
+    prettyDependents refs =
+      refs
+        & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
+        & P.lines

@@ -140,6 +140,8 @@ import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
 import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import qualified Data.Set.NonEmpty as NESet
+import Data.Set.NonEmpty (NESet)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -276,8 +278,7 @@ loop = do
         then modifying LoopState.latestFile (fmap (const False) <$>)
         else loadUnisonFile sourceName text
     Right input ->
-      let ifConfirmed = ifM (confirmedCommand input)
-          branchNotFound = respond . BranchNotFound
+      let branchNotFound = respond . BranchNotFound
           branchNotFound' = respond . BranchNotFound . Path.unsplit'
           patchNotFound :: Path.Split' -> Action' m v ()
           patchNotFound s = respond $ PatchNotFound s
@@ -354,7 +355,8 @@ loop = do
             DeleteI thing -> "delete " <> hqs' thing
             DeleteTermI def -> "delete.term " <> hqs' def
             DeleteTypeI def -> "delete.type " <> hqs' def
-            DeleteBranchI opath -> "delete.namespace " <> ops' opath
+            DeleteBranchI Try opath -> "delete.namespace " <> ops' opath
+            DeleteBranchI Force opath -> "delete.namespace.force " <> ops' opath
             DeletePatchI path -> "delete.patch " <> ps' path
             ReplaceI src target p ->
               "replace " <> HQ.toText src <> " "
@@ -460,14 +462,6 @@ loop = do
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
           loadSearchResults = eval . LoadSearchResults
-          handleFailedDelete failed failedDependents = do
-            failed <- loadSearchResults $ SR.fromNames failed
-            failedDependents <- loadSearchResults $ SR.fromNames failedDependents
-            ppe <-
-              fqnPPE
-                =<< makePrintNamesFromLabeled'
-                  (foldMap SR'.labeledDependencies $ failed <> failedDependents)
-            respond $ CantDelete ppe failed failedDependents
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
               (inputDescription <> " (1/2)")
@@ -593,9 +587,9 @@ loop = do
                     toRel = R.fromList . fmap (name,) . toList
                     -- these names are relative to the root
                     toDelete = Names (toRel tms) (toRel tys)
-                (failed, failedDependents) <-
+                endangerments <-
                   getEndangeredDependents (eval . GetDependents) toDelete rootNames
-                if failed == mempty
+                if null endangerments
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
@@ -603,7 +597,9 @@ loop = do
                     root'' <- use LoopState.root
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
-                  else handleFailedDelete failed failedDependents
+                  else do
+                    ppeDecl <- currentPrettyPrintEnvDecl
+                    respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
             CreateMessage pretty ->
               respond $ PrintMessage pretty
@@ -787,35 +783,45 @@ loop = do
                 Just _ -> do
                   stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
                   success
-            DeleteBranchI Nothing ->
-              ifConfirmed
-                ( do
-                    stepAt (Path.empty, const Branch.empty0)
-                    respond DeletedEverything
-                )
-                (respond DeleteEverythingConfirmation)
-            DeleteBranchI (Just p) ->
-              maybe (branchNotFound' p) go $ getAtSplit' p
+            DeleteBranchI insistence Nothing -> do
+              hasConfirmed <- confirmedCommand input
+              if (hasConfirmed || insistence == Force)
+                then do stepAt (Path.empty, const Branch.empty0)
+                        respond DeletedEverything
+                else respond DeleteEverythingConfirmation
+            DeleteBranchI insistence (Just p) -> do
+              case getAtSplit' p of
+                Nothing -> branchNotFound' p
+                Just (Branch.head -> b0) -> do
+                  endangerments <- computeEndangerments b0
+                  if null endangerments
+                     then doDelete b0
+                     else case insistence of
+                       Force -> do
+                         ppeDecl <- currentPrettyPrintEnvDecl
+                         doDelete b0
+                         respondNumbered $ DeletedDespiteDependents ppeDecl endangerments
+                       Try -> do
+                         ppeDecl <- currentPrettyPrintEnvDecl
+                         respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
-                go (Branch.head -> b) = do
-                  (failed, failedDependents) <-
-                    let rootNames = Branch.toNames root0
-                        toDelete =
-                          Names.prefix0
-                            (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
-                            (Branch.toNames b)
-                     in getEndangeredDependents (eval . GetDependents) toDelete rootNames
-                  if failed == mempty
-                    then do
+                doDelete b0 = do
                       stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
                       -- Looks similar to the 'toDelete' above... investigate me! ;)
-                      diffHelper b Branch.empty0
+                      diffHelper b0 Branch.empty0
                         >>= respondNumbered
                           . uncurry
                             ( ShowDiffAfterDeleteBranch $
                                 resolveToAbsolute (Path.unsplit' p)
                             )
-                    else handleFailedDelete failed failedDependents
+                computeEndangerments :: Branch0 m1 -> Action' m v (Map LabeledDependency (NESet LabeledDependency))
+                computeEndangerments b0 = do
+                  let rootNames = Branch.toNames root0
+                      toDelete =
+                        Names.prefix0
+                          (Path.toName . Path.unsplit . resolveSplit' $ p) -- resolveSplit' incorporates currentPath
+                          (Branch.toNames b0)
+                  getEndangeredDependents (eval . GetDependents) toDelete rootNames
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
@@ -1502,20 +1508,6 @@ loop = do
 
                 let m = Map.fromList computedTests
                 respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
-
-            -- ListBranchesI ->
-            --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
-            -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
-            --   uniqueToDelete <- prettyUniqueDefinitions bnbs
-            --   let deleteBranches b =
-            --         traverse (eval . DeleteBranch) b >> respond (Success input)
-            --   if (currentBranchName' `elem` branchNames)
-            --     then respond DeletingCurrentBranch
-            --     else if null uniqueToDelete
-            --       then deleteBranches branchNames
-            --       else ifM (confirmedCommand input)
-            --                (deleteBranches branchNames)
-            --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
             PropagatePatchI patchPath scopePath -> do
               patch <- getPatchAt patchPath
@@ -2560,37 +2552,42 @@ zeroOneOrMore f zero one more = case toList f of
   a : _ -> one a
   _ -> zero
 
--- Goal: If `remaining = root - toBeDeleted` contains definitions X which
--- depend on definitions Y not in `remaining` (which should also be in
--- `toBeDeleted`), then complain by returning (Y, X).
+-- | Goal: When deleting, we might be removing the last name of a given definition (i.e. the
+-- definition is going "extinct"). In this case we may wish to take some action or warn the
+-- user about these "endangered" definitions which would now contain unnamed references.
 getEndangeredDependents ::
   forall m.
   Monad m =>
+  -- | Function to acquire dependencies
   (Reference -> m (Set Reference)) ->
+  -- | Which names we want to delete
   Names ->
+  -- | All names from the root branch
   Names ->
-  m (Names, Names)
-getEndangeredDependents getDependents toDelete root = do
-  let remaining = root `Names.difference` toDelete
-      toDelete', remaining', extinct :: Set Reference
-      toDelete' = Names.allReferences toDelete
-      remaining' = Names.allReferences remaining -- left over after delete
-      extinct = toDelete' `Set.difference` remaining' -- deleting and not left over
-      accumulateDependents m r = getDependents r <&> \ds -> Map.insert r ds m
-  dependentsOfExtinct :: Map Reference (Set Reference) <-
-    foldM accumulateDependents mempty extinct
-  let orphaned, endangered, failed :: Set Reference
-      orphaned = fold dependentsOfExtinct
-      endangered = orphaned `Set.intersection` remaining'
-      failed = Set.filter hasEndangeredDependent extinct
-      hasEndangeredDependent r =
-        any
-          (`Set.member` endangered)
-          (dependentsOfExtinct Map.! r)
-  pure
-    ( Names.restrictReferences failed toDelete,
-      Names.restrictReferences endangered root `Names.difference` toDelete
-    )
+  -- | map from references going extinct to the set of endangered dependents
+  m (Map LabeledDependency (NESet LabeledDependency))
+getEndangeredDependents getDependents namesToDelete rootNames = do
+  let remainingNames :: Names
+      remainingNames = rootNames `Names.difference` namesToDelete
+      refsToDelete, remainingRefs, extinct :: Set LabeledDependency
+      refsToDelete = Names.labeledReferences namesToDelete
+      remainingRefs = Names.labeledReferences remainingNames -- left over after delete
+      extinct = refsToDelete `Set.difference` remainingRefs -- deleting and not left over
+      accumulateDependents :: LabeledDependency -> m (Map LabeledDependency (Set LabeledDependency))
+      accumulateDependents ld =
+        let ref = LD.fold id Referent.toReference ld
+         in Map.singleton ld . Set.map LD.termRef <$> getDependents ref
+  -- All dependents of extinct, including terms which might themselves be in the process of being deleted.
+  allDependentsOfExtinct :: Map LabeledDependency (Set LabeledDependency) <-
+    Map.unionsWith (<>) <$> for (Set.toList extinct) accumulateDependents
+
+  -- Filtered to only include dependencies which are not being deleted, but depend one which
+  -- is going extinct.
+  let extinctToEndangered :: Map LabeledDependency (NESet LabeledDependency)
+      extinctToEndangered = allDependentsOfExtinct & Map.mapMaybe \endangeredDeps ->
+        let remainingEndangered = endangeredDeps `Set.intersection` remainingRefs
+         in NESet.nonEmptySet remainingEndangered
+  pure extinctToEndangered
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive

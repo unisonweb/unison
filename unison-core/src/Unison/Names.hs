@@ -8,7 +8,7 @@ module Unison.Names
   ( Names(..)
   , addTerm
   , addType
-  , allReferences
+  , labeledReferences
   , conflicts
   , contains
   , difference
@@ -73,6 +73,9 @@ import qualified Unison.ShortHash             as SH
 import           Unison.ShortHash             (ShortHash)
 import qualified Text.FuzzyFind               as FZF
 import qualified Unison.ConstructorType as CT
+import Unison.LabeledDependency (LabeledDependency)
+import qualified Unison.LabeledDependency as LD
+import qualified Unison.Util.Relation as Relation
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References.
@@ -146,10 +149,15 @@ fuzzyFind query names =
                          query
           )
 
-termReferences, typeReferences, allReferences :: Names -> Set Reference
+termReferences, typeReferences :: Names -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 typeReferences Names{..} = R.ran types
-allReferences n = termReferences n <> typeReferences n
+
+-- | Collect all references in the given Names, tagged with their type.
+labeledReferences :: Names -> Set LabeledDependency
+labeledReferences Names{..} =
+  Set.map LD.typeRef (Relation.ran types)
+  <> Set.map LD.referent (Relation.ran terms)
 
 termReferents :: Names -> Set Referent
 termReferents Names{..} = R.ran terms
