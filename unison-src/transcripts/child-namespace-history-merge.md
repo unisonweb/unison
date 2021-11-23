@@ -70,7 +70,6 @@ Now, if I squash-merge back into parent, we expect `parent_fork.child.thing3` to
 ```
 
 Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
-This doesn't seem desirable.
 
 ```ucm
 .> history parent.child
@@ -87,8 +86,7 @@ Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be add
 .> history parent_merge_base
 ```
 
-Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
-This doesn't seem desirable.
+Child histories should also be merged.
 
 ```ucm
 .> history parent.child
