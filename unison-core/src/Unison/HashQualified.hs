@@ -9,7 +9,8 @@ import Unison.Prelude hiding (fromString)
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.ConstructorReference (ConstructorReference)
+import qualified Unison.ConstructorReference as ConstructorReference
 import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
@@ -128,8 +129,8 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified Name
 fromReference = HashOnly . Reference.toShortHash
 
-fromPattern :: Reference -> ConstructorId -> HashQualified Name
-fromPattern r cid = HashOnly $ Referent.patternShortHash r cid
+fromPattern :: ConstructorReference -> HashQualified Name
+fromPattern r = HashOnly $ ConstructorReference.toShortHash r
 
 fromName :: n -> HashQualified n
 fromName = NameOnly

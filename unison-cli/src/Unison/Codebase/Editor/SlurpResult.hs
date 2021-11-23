@@ -7,6 +7,7 @@ module Unison.Codebase.Editor.SlurpResult where
 
 import Unison.Prelude
 
+import Control.Lens ((^.))
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
 import Unison.Parser.Ann ( Ann )
@@ -14,6 +15,7 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
@@ -75,7 +77,7 @@ constructorsFor types uf = let
   names = UF.typecheckedToNames uf
   typesRefs = Set.unions $ Names.typesNamed names . Name.unsafeFromVar <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
-  isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
+  isOkCtor (Referent.Con r _) | Set.member (r ^. ConstructorReference.reference_) typesRefs = True
   isOkCtor _ = False
   in Set.map Name.toVar $ R.dom ctorNames
 

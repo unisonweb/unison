@@ -89,6 +89,7 @@ import Unison.Codebase.SqliteCodebase.MigrateSchema12 (migrateSchema12)
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
 import qualified Unison.Codebase.Type as C
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
@@ -784,7 +785,7 @@ sqliteCodebase debugName root localOrRemote = do
                 >>= traverse (Cv.referentid2to1 getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
-                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid) (Cv.decltype2to1 ct)
+                  [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
                     | (h, pos, ct, cids) <- declReferents',
                       cid <- cids
                   ]

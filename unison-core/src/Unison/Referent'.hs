@@ -19,6 +19,7 @@ module Unison.Referent'
 where
 
 import Control.Lens (Lens, lens)
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude
@@ -33,7 +34,7 @@ import Unison.Prelude
 -- | When @Ref'@ then @r@ represents a term.
 --
 -- When @Con'@ then @r@ is a type declaration.
-data Referent' r = Ref' r | Con' r ConstructorId ConstructorType
+data Referent' r = Ref' r | Con' (GConstructorReference r) ConstructorType
   deriving (Show, Ord, Eq, Functor, Generic)
 
 -- | A lens onto the reference in a referent.
@@ -42,7 +43,7 @@ reference_ =
   lens toReference' \rt rc ->
     case rt of
       Ref' _ -> Ref' rc
-      Con' _ cid ct -> Con' rc cid ct
+      Con' (ConstructorReference _ cid) ct -> Con' (ConstructorReference rc cid) ct
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True
@@ -56,14 +57,14 @@ toTermReference = \case
 toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
-  Con' r _i _t -> r
+  Con' (ConstructorReference r _i) _t -> r
 
 toTypeReference :: Referent' r -> Maybe r
 toTypeReference = \case
-  Con' r _i _t -> Just r
+  Con' (ConstructorReference r _i) _t -> Just r
   _ -> Nothing
 
 fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
-  Con' r i ct -> fc r i ct
+  Con' (ConstructorReference r i) ct -> fc r i ct
