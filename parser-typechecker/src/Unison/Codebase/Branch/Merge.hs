@@ -34,7 +34,7 @@ merge'' :: forall m . Monad m
 merge'' _ _ b1 b2      | isEmpty b1 = pure b2
 merge'' _ mode b1 b2 | isEmpty b2 = case mode of
   RegularMerge -> pure b1
-  SquashMerge -> pure $ cons (discardHistory0 (head b1)) b2
+  SquashMerge -> pure $ discardHistory b1
 merge'' lca mode (Branch x) (Branch y) =
   Branch <$> case mode of
     RegularMerge -> Causal.threeWayMerge' lca' combine x y

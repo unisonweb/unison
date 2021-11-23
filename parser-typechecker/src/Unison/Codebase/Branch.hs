@@ -23,6 +23,7 @@ module Unison.Codebase.Branch
   , empty
   , empty0
   , discardHistory0
+  , discardHistory
   , toCausalRaw
   , transform
   -- * Branch tests
@@ -338,10 +339,15 @@ deepEdits' = go id where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
     f (c, b) =  go (addPrefix . Name.cons c) (head b)
 
--- Discards the history of a Branch0's children, recursively
+-- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
-discardHistory0 = over children (fmap tweak) where
-  tweak b = cons (discardHistory0 (head b)) empty
+discardHistory0 = over (children . traversed) discardHistory
+
+-- | Discards the history of a Branch and its children recursively.
+-- results in a single Causal entry for every branch.
+discardHistory :: Applicative m => Branch m -> Branch m
+discardHistory b = one $ (head b & children . traversed %~ discardHistory)
+
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
