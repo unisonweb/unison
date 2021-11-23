@@ -34,15 +34,16 @@ import Data.Sequence as X (Seq)
 import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
+import qualified Data.Text as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
 import Data.Traversable as X (for)
+import Data.Typeable as X (Typeable)
 import Data.Word as X
 import Debug.Trace as X
 import GHC.Generics as X (Generic, Generic1)
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
-import qualified Data.Text as Text
 
 tShow :: Show a => a -> Text
 tShow = Text.pack . show
