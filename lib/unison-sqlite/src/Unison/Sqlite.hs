@@ -1,3 +1,17 @@
+-- | The Unison monorepo interface to SQLite.
+--
+-- This module provides a high(-er) level interface to SQLite than the @sqlite-simple@ library, which it wraps. Code
+-- that interacts with SQLite in this monorepo should use this interface, rather than @sqlite-simple@ or @direct-sqlite@
+-- directly.
+--
+-- Three variants of the main query interface are provided:
+--
+--   * "Unison.Sqlite.Connection" provides an interface in @IO@, which takes the 'Connection' argument as an explicit
+--     argument.
+--   * "Unison.Sqlite.DB" provides a type class interface, which moves the 'Connection' to an implicit argument. This
+--     interface is also re-exported by this module, for convenient backwards compatibility with the existing queries.
+--   * "Unison.Sqlite.Transaction" provides a newer, yet-unused interface that executes queries in transactions, with
+--     automatic retries on @SQLITE_BUSY@ due to concurrent writers.
 module Unison.Sqlite
   ( -- * Connection management
     Connection,
@@ -8,7 +22,7 @@ module Unison.Sqlite
     runDB,
 
     -- * Executing queries
-    Sql,
+    Sql(..),
 
     -- ** Without results
 
@@ -70,6 +84,9 @@ module Unison.Sqlite
     SqliteException (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
+
+    -- * Misc
+    SomeShowTypeable(..),
   )
 where
 
@@ -77,6 +94,7 @@ import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
+    SomeShowTypeable(..),
     SqliteException (..),
     withConnection,
   )

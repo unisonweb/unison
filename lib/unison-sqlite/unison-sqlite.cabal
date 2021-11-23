@@ -19,13 +19,12 @@ library
   exposed-modules:
       Unison.Sqlite
       Unison.Sqlite.Connection
-      Unison.Sqlite.DataVersion
       Unison.Sqlite.DB
-      Unison.Sqlite.JournalMode
       Unison.Sqlite.Sql
       Unison.Sqlite.Transaction
   other-modules:
-      Paths_unison_sqlite
+      Unison.Sqlite.DataVersion
+      Unison.Sqlite.JournalMode
   hs-source-dirs:
       src
   default-extensions:

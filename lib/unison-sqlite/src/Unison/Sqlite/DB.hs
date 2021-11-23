@@ -226,32 +226,32 @@ queryOneOne_ s = do
 
 -- With results, without parameters, with checks
 
-queryListCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> ([a] -> Either e r) -> m r
+queryListCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> m r
 queryListCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryListCheck_ conn s check)
 
-queryListOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> ([a] -> Either e r) -> m r
+queryListOneCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> m r
 queryListOneCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryListOneCheck_ conn s check)
 
-queryMaybeCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> m r
 queryMaybeCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeCheck_ conn s check)
 
-queryMaybeOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeOneCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> m r
 queryMaybeOneCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeOneCheck_ conn s check)
 
-queryOneCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> (a -> Either e r) -> m r
+queryOneCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> m r
 queryOneCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryOneCheck_ conn s check)
 
-queryOneOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> (a -> Either e r) -> m r
+queryOneOneCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> m r
 queryOneOneCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryOneOneCheck_ conn s check)

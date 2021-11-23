@@ -56,6 +56,7 @@ module Unison.Sqlite.Connection
 
     -- * Exceptions
     SqliteException (..),
+    SomeShowTypeable(..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
   )
@@ -71,7 +72,7 @@ import Unison.Sqlite.Sql
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Exception
 
--- | A non-thread safe, named connection to a SQLite database.
+-- | A /non-thread safe/ connection to a SQLite database.
 data Connection = Connection
   { name :: String,
     file :: FilePath,
@@ -103,9 +104,10 @@ openConnection ::
   FilePath ->
   m Connection
 openConnection name file = do
-  conn <- liftIO (Sqlite.open file)
-  liftIO (Sqlite.execute_ conn "PRAGMA foreign_keys = ON")
-  pure Connection {name, file, conn}
+  conn0 <- liftIO (Sqlite.open file)
+  let conn = Connection {conn = conn0, file, name}
+  liftIO (execute_ conn "PRAGMA foreign_keys = ON")
+  pure conn
 
 -- | Close a connection opened with 'openConnection'.
 closeConnection :: MonadIO m => Connection -> m ()
@@ -386,11 +388,7 @@ withSavepoint conn name action =
   bracket_
     (execute_ conn (Sql ("SAVEPOINT " <> name)))
     (execute_ conn (Sql ("RELEASE " <> name)))
-    (action (rollbackTo conn name))
-
-rollbackTo :: Connection -> Text -> IO ()
-rollbackTo conn name =
-  execute_ conn (Sql ("ROLLBACK TO " <> name))
+    (action (execute_ conn (Sql ("ROLLBACK TO " <> name))))
 
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
 withStatement conn@(Connection _ _ conn0) s params callback =
@@ -433,7 +431,7 @@ data SqliteExceptionInfo a = SqliteExceptionInfo
   }
 
 throwSqliteException :: SqliteExceptionInfo params -> IO a
-throwSqliteException SqliteExceptionInfo {connection, exception = SomeShowTypeable exception, params, sql} = do
+throwSqliteException SqliteExceptionInfo {connection, exception, params, sql} = do
   threadId <- myThreadId
   throwIO
     SqliteException
@@ -466,10 +464,12 @@ instance Show SomeShowTypeable where
 --
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
 -- just one exception type, @SqliteException@.
-data SqliteException e = SqliteException
+data SqliteException = SqliteException
   { sql :: Sql,
     params :: String,
-    exception :: e,
+    -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
+    -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
+    exception :: SomeShowTypeable,
     connection :: Connection,
     threadId :: ThreadId
   }

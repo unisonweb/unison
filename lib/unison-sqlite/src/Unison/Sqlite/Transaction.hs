@@ -67,7 +67,7 @@ newtype Transaction a
 -- | Run a transaction on the given connection.
 runTransaction :: MonadIO m => Connection -> Transaction a -> m a
 runTransaction conn@(Connection _ _ conn0) (Transaction f) =
-  -- TODO retry on busy
+  -- TODO some sensible retry logic
   liftIO do
     Sqlite.execute_ conn0 "BEGIN"
     result <- f conn

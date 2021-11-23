@@ -4,6 +4,10 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 library:
   source-dirs: src
+  other-modules:
+    - Unison.Sqlite.DataVersion
+    - Unison.Sqlite.JournalMode
+    - Unison.Sqlite.Sql
 
 dependencies:
   - base
