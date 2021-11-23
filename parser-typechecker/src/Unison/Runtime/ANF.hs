@@ -85,6 +85,7 @@ import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
 import Unison.Blank (nameb)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
@@ -206,7 +207,7 @@ enclose keep rec t@(Handle' h body)
   a = ABT.annotation body
   lbody = rec keep body
   fv = Var.freshIn fvs $ typed Var.Eta
-  args | null evs = [constructor a Ty.unitRef 0]
+  args | null evs = [constructor a (ConstructorReference Ty.unitRef 0)]
        | otherwise = var a <$> evs
   lamb | null evs = lam' a [fv] lbody
        | otherwise = lam' a evs lbody
@@ -220,7 +221,7 @@ isStructured (Int' _) = False
 isStructured (Float' _) = False
 isStructured (Text' _) = False
 isStructured (Char' _) = False
-isStructured (Constructor' _ _) = False
+isStructured (Constructor' _) = False
 isStructured (Apps' Constructor'{} args) = any isStructured args
 isStructured (If' b t f)
   = isStructured b || isStructured t || isStructured f
@@ -328,18 +329,18 @@ lamLift = float . close Set.empty . deannotate
 
 saturate
   :: (Var v, Monoid a)
-  => Map (Reference,Int) Int -> Term v a -> Term v a
+  => Map ConstructorReference Int -> Term v a -> Term v a
 saturate dat = ABT.visitPure $ \case
-  Apps' f@(Constructor' r t) args -> sat r t f args
-  Apps' f@(Request' r t) args -> sat r t f args
-  f@(Constructor' r t) -> sat r t f []
-  f@(Request' r t) -> sat r t f []
+  Apps' f@(Constructor' r) args -> sat r f args
+  Apps' f@(Request' r) args -> sat r f args
+  f@(Constructor' r) -> sat r f []
+  f@(Request' r) -> sat r f []
   _ -> Nothing
   where
   frsh avoid _ =
     let v = Var.freshIn avoid $ typed Var.Eta
     in (Set.insert v avoid, v)
-  sat r t f args = case Map.lookup (r,t) dat of
+  sat r f args = case Map.lookup r dat of
       Just n
         | m < n
         , vs <- snd $ mapAccumL frsh fvs [1..n-m]
@@ -1077,9 +1078,9 @@ anfBlock (Apps' f args) = do
   (fctx, (d, cf)) <- anfFunc f
   (actx, cas) <- anfArgs args
   pure (fctx <> actx, (d, TApp cf cas))
-anfBlock (Constructor' r t)
+anfBlock (Constructor' (ConstructorReference r t))
   = pure (mempty, pure $ TCon r (toEnum t) [])
-anfBlock (Request' r t)
+anfBlock (Request' (ConstructorReference r t))
   = pure (mempty, (Indirect (), TReq r (toEnum t) []))
 anfBlock (Boolean' b)
   = pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
@@ -1139,7 +1140,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.Text _ t <- p
   , [] <- vs
   = AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
-  | P.Constructor _ r t ps <- p = do
+  | P.Constructor _ (ConstructorReference r t) ps <- p = do
     (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us,bd)
       -> AccumData r Nothing
        . EC.mapSingleton (toEnum t)
@@ -1149,7 +1150,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.EffectPure _ q <- p =
     (,) <$> expandBindings [q] vs <*> anfBody bd <&> \(us,bd) ->
       AccumPure $ ABTN.TAbss us bd
-  | P.EffectBind _ r t ps pk <- p = do
+  | P.EffectBind _ (ConstructorReference r t) ps pk <- p = do
     (,,) <$> expandBindings (snoc ps pk) vs
          <*> Compose (pure <$> fresh)
          <*> anfBody bd
@@ -1303,8 +1304,8 @@ anfCases u = getCompose . fmap fold . traverse (anfInitCase u)
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Directed () (Func v))
 anfFunc (Var' v) = pure (mempty, (Indirect (), FVar v))
 anfFunc (Ref' r) = pure (mempty, (Indirect (), FComb r))
-anfFunc (Constructor' r t) = pure (mempty, (Direct, FCon r $ toEnum t))
-anfFunc (Request' r t) = pure (mempty, (Indirect (), FReq r $ toEnum t))
+anfFunc (Constructor' (ConstructorReference r t)) = pure (mempty, (Direct, FCon r $ toEnum t))
+anfFunc (Request' (ConstructorReference r t)) = pure (mempty, (Indirect (), FReq r $ toEnum t))
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm

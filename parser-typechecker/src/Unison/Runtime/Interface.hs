@@ -44,6 +44,7 @@ import qualified Data.Map.Strict as Map
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Builtin.Decls as RF
@@ -82,6 +83,7 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.ConstructorReference as RF
 
 type Term v = Tm.Term v ()
 
@@ -92,10 +94,10 @@ data EvalCtx
   , ccache :: CCache
   }
 
-uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
+uncurryDspec :: DataSpec -> Map.Map ConstructorReference Int
 uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
-  f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
+  f (r,l) = zipWith (\n c -> (ConstructorReference r n,c)) [0..] $ either id id l
 
 cacheContext :: CCache -> EvalCtx
 cacheContext
@@ -149,7 +151,7 @@ categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize
   = \case
       RF.TypeReference ref -> (Set.singleton ref, mempty)
-      RF.ConstructorReference ref _con _conType -> (Set.singleton ref, mempty)
+      RF.ConReference (RF.ConstructorReference ref _conId) _conType -> (Set.singleton ref, mempty)
       RF.TermReference ref -> (mempty, Set.singleton ref)
 
 recursiveTermDeps ::
@@ -159,7 +161,7 @@ recursiveTermDeps ::
   IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
   rec <- for (toList (deps \\ seen0)) $ \case
-    RF.ConstructorReference (RF.DerivedId refId) _ _ -> handleTypeReferenceId refId
+    RF.ConReference (RF.ConstructorReference (RF.DerivedId refId) _conId)  _conType -> handleTypeReferenceId refId
     RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
     RF.TermReference r -> recursiveRefDeps seen cl r
     _ -> pure mempty

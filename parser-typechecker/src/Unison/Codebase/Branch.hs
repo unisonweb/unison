@@ -105,7 +105,7 @@ import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( TypeReference )
 import           Unison.Referent                ( Referent )
 
 import qualified U.Util.Cache             as Cache
@@ -135,7 +135,7 @@ type Star r n = Metadata.Star r n
 -- The @deep*@ fields are derived from the four above.
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
-  , _types :: Star Reference NameSegment
+  , _types :: Star TypeReference NameSegment
   , _children :: Map NameSegment (Branch m)
     -- ^ Note the 'Branch' here, not 'Branch0'.
     -- Every level in the tree has a history.
@@ -143,9 +143,9 @@ data Branch0 m = Branch0
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
   , deepTerms :: Relation Referent Name
-  , deepTypes :: Relation Reference Name
+  , deepTypes :: Relation TypeReference Name
   , deepTermMetadata :: Metadata.R4 Referent Name
-  , deepTypeMetadata :: Metadata.R4 Reference Name
+  , deepTypeMetadata :: Metadata.R4 TypeReference Name
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
@@ -156,8 +156,8 @@ data Branch0 m = Branch0
 data BranchDiff = BranchDiff
   { addedTerms :: Star Referent NameSegment
   , removedTerms :: Star Referent NameSegment
-  , addedTypes :: Star Reference NameSegment
-  , removedTypes :: Star Reference NameSegment
+  , addedTypes :: Star TypeReference NameSegment
+  , removedTypes :: Star TypeReference NameSegment
   , changedPatches :: Map NameSegment Patch.PatchDiff
   } deriving (Eq, Ord, Show)
 
@@ -178,7 +178,7 @@ instance Monoid BranchDiff where
 -- The raw Branch
 data Raw = Raw
   { _termsR :: Star Referent NameSegment
-  , _typesR :: Star Reference NameSegment
+  , _typesR :: Star TypeReference NameSegment
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
   }
@@ -189,7 +189,7 @@ makeLensesFor [("_edits", "edits")] ''Branch0
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
 
-deepTypeReferences :: Branch0 m -> Set Reference
+deepTypeReferences :: Branch0 m -> Set TypeReference
 deepTypeReferences = R.dom . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
@@ -201,7 +201,7 @@ terms =
         & deriveDeepTerms
         & deriveDeepTermMetadata
 
-types :: Lens' (Branch0 m) (Star Reference NameSegment)
+types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
 types =
   lens
     _types
@@ -217,7 +217,7 @@ children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 branch0 ::
   forall m.
   Metadata.Star Referent NameSegment ->
-  Metadata.Star Reference NameSegment ->
+  Metadata.Star TypeReference NameSegment ->
   Map NameSegment (Branch m) ->
   Map NameSegment (EditHash, m Patch) ->
   Branch0 m
@@ -260,11 +260,11 @@ deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
   branch {deepTypes = makeDeepTypes (_types branch) (_children branch)}
   where
-    makeDeepTypes :: Metadata.Star Reference NameSegment -> Map NameSegment (Branch m) -> Relation Reference Name
+    makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
     makeDeepTypes types children =
       R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> ifoldMap go children
       where
-        go :: NameSegment -> Branch m -> Relation Reference Name
+        go :: NameSegment -> Branch m -> Relation TypeReference Name
         go n b =
           R.mapRan (Name.cons n) (deepTypes $ head b)
 
@@ -286,11 +286,11 @@ deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
   branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (_children branch)}
   where
-    makeDeepTypeMetadata :: Metadata.Star Reference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Reference Name
+    makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
     makeDeepTypeMetadata types children =
       R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> ifoldMap go children
       where
-        go :: NameSegment -> Branch m -> Metadata.R4 Reference Name
+        go :: NameSegment -> Branch m -> Metadata.R4 TypeReference Name
         go n b =
           R4.mapD2 (Name.cons n) (deepTypeMetadata $ head b)
 
@@ -636,7 +636,7 @@ addTermName r new md =
   over terms (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
 addTypeName
-  :: Reference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
+  :: TypeReference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
 addTypeName r new md =
   over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
@@ -645,7 +645,7 @@ deleteTermName r n b | Star3.memberD1 (r,n) (view terms b)
                      = over terms (Star3.deletePrimaryD1 (r,n)) b
 deleteTermName _ _ b = b
 
-deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
+deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | Star3.memberD1 (r,n) (view types b)
                      = over types (Star3.deletePrimaryD1 (r,n)) b
 deleteTypeName _ _ b = b
