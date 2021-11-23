@@ -20,11 +20,11 @@ library
       Unison.Sqlite
       Unison.Sqlite.Connection
       Unison.Sqlite.DB
-      Unison.Sqlite.Sql
       Unison.Sqlite.Transaction
   other-modules:
       Unison.Sqlite.DataVersion
       Unison.Sqlite.JournalMode
+      Unison.Sqlite.Sql
   hs-source-dirs:
       src
   default-extensions:
