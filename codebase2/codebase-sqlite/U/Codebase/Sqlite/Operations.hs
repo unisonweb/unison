@@ -817,11 +817,11 @@ saveDeclComponent h decls = do
       unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
-            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> Maybe S.Reference.Reference
-            getSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
-            getSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
-            getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
-         in Set.mapMaybe (fmap (,self) . getSRef) dependencies
+            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> S.Reference.Reference
+            getSRef = \case
+              C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+              C.Reference.Derived mh i -> C.Reference.Derived (maybe oId (\h -> oIds Vector.! fromIntegral h) mh) i
+         in Set.map ((,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   pure oId
