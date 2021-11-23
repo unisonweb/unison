@@ -77,9 +77,6 @@ module Unison.Codebase.Branch
   , cachedRead
   , Cache
   , sync
-
-  -- ** Merges
-  , squashedOnto
   ) where
 
 import Unison.Prelude hiding (empty)
@@ -553,7 +550,7 @@ stepManyAt actions startBranch =
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions startBranch =
-  (\changes -> changes `squashedOnto` startBranch) <$> (startBranch & head_ %%~ batchUpdatesM actions)
+  (\changes -> startBranch `consBranch` changes) <$> (startBranch & head_ %%~ batchUpdatesM actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -773,20 +770,20 @@ children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
 
 
--- | @head `squashedOnto` base@ Applies any changes in head as a single Causal Cons on top of
--- base's history.
--- We do the same recursively for child branches.
---
--- The two branches don't need to share a common ancestor.
-squashedOnto ::
+-- | @base `consBranch` head@ Cons's the current state of @head@ onto @base@ as-is.
+-- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
+-- That is, it does not perform any common ancestor detection, or change reconciliation, it
+-- sets the current state of the base branch to the new state as a new causal step (or returns
+-- the existing base if there are no)
+consBranch ::
   forall m.
   Monad m =>
   Branch m ->
   Branch m ->
   Branch m
 -- If the target branch is empty we just replace it.
-squashedOnto headBranch Empty = discardHistory headBranch
-squashedOnto headBranch baseBranch =
+consBranch Empty headBranch = discardHistory headBranch
+consBranch baseBranch headBranch =
   Branch $
     Causal.consDistinct
       (head headBranch & children .~ squashedChildren)
@@ -796,9 +793,9 @@ squashedOnto headBranch baseBranch =
     squashChild = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> head `squashedOnto` base
+      (These base head) -> base `consBranch` head
       -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> empty `squashedOnto` base
+      (This base) -> base `consBranch` empty
       -- This child didn't exist in the base, we add any changes as a single commit
       (That head) -> discardHistory head
     squashedChildren :: Map NameSegment (Branch m)
