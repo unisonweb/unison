@@ -8,7 +8,6 @@
 
 module Unison.TermParser
   ( verifyRelativeVarName
-  , binding
   , doc2Block
   , blockTerm
   , binding
@@ -61,8 +60,6 @@ import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 import qualified Unison.NamesWithHistory as NamesWithHistory
 
-watch :: Show a => String -> a -> a
-watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -835,8 +832,6 @@ bang = P.label "bang" $ do
   e <- termLeaf
   pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
-var :: Var v => L.Token v -> Term v Ann
-var t = Term.var (ann t) (L.payload t)
 
 seqOp :: Ord v => P v Pattern.SeqOp
 seqOp =
@@ -873,11 +868,6 @@ verifyRelativeVarName p = do
   verifyRelativeName' (Name.unsafeFromVar <$> v)
   pure v
 
-verifyRelativeName :: Ord v => P v (L.Token Name) -> P v (L.Token Name)
-verifyRelativeName name = do
-  name <- name
-  verifyRelativeName' name
-  pure name
 
 verifyRelativeName' :: Ord v => L.Token Name -> P v ()
 verifyRelativeName' name = do
