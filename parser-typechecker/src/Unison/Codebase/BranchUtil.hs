@@ -14,6 +14,7 @@ module Unison.Codebase.BranchUtil
 
   -- * Branch modifications
   , makeSetBranch
+  , makeDeleteBranch
   , makeAddTypeName
   , makeDeleteTypeName
   , makeAddTermName
@@ -141,4 +142,4 @@ makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
 
 makeDeleteBranch ::
   Path.Split -> (Path, Branch0 m -> Branch0 m)
-makeDeleteBranch p = BranchUtil.makeSetBranch p Branch.empty,
+makeDeleteBranch p = makeSetBranch p Branch.empty
