@@ -77,6 +77,9 @@ module Unison.Codebase.Branch
   , cachedRead
   , Cache
   , sync
+
+  -- ** Merges
+  , squashedOnto
   ) where
 
 import Unison.Prelude hiding (empty)
@@ -350,12 +353,12 @@ deepEdits' = go id where
 -- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
 discardHistory0 = over children (fmap tweak) where
-  tweak b = cons (discardHistory0 (head b)) empty
+  tweak b = one (discardHistory0 (head b))
 
 -- | Discards the history of a Branch and its children, recursively
 discardHistory  :: Applicative m => Branch m -> Branch m
 discardHistory b =
-  cons (discardHistory0 (head b)) empty
+  one (discardHistory0 (head b))
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
