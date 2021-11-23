@@ -2,7 +2,9 @@
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
 
-module Unison.FileParser where
+module Unison.FileParser
+  ( file
+  ) where
 
 import Unison.Prelude
 

@@ -6,7 +6,17 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.TermParser where
+module Unison.TermParser
+  ( verifyRelativeVarName
+  , binding
+  , doc2Block
+  , blockTerm
+  , binding
+  , substImports
+  , imports
+  , term
+  , lam
+  ) where
 
 import Unison.Prelude
 

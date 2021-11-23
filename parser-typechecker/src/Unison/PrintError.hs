@@ -3,7 +3,16 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.PrintError where
+module Unison.PrintError (
+  defaultWidth,
+  prettyParseError,
+  renderParseErrorAsANSI,
+  renderNoteAsANSI,
+  Env,
+  printNoteWithSource,
+  renderCompilerBug,
+  prettyResolutionFailures,
+  ) where
 
 import Unison.Prelude
 

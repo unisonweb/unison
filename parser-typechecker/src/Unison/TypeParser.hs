@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.TypeParser where
+module Unison.TypeParser
+  ( valueType
+  , computationType
+  , valueTypeLeaf
+  ) where
 
 import Unison.Prelude
 
