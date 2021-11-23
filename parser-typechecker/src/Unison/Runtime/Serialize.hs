@@ -21,6 +21,7 @@ import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Word (Word8, Word64)
 
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.Reference (Reference(..), pattern Derived, Id(..))
 import Unison.Referent (Referent, pattern Ref, pattern Con)
 
@@ -162,10 +163,9 @@ putReferent = \case
   Ref r -> do
     putWord8 0
     putReference r
-  Con r i ct -> do
+  Con r ct -> do
     putWord8 1
-    putReference r
-    putLength i
+    putConstructorReference r
     putConstructorType ct
 
 getReferent :: MonadGet m => m Referent
@@ -173,7 +173,7 @@ getReferent = do
   tag <- getWord8
   case tag of
     0 -> Ref <$> getReference
-    1 -> Con <$> getReference <*> getLength <*> getConstructorType
+    1 -> Con <$> getConstructorReference <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
 getConstructorType :: MonadGet m => m CT.ConstructorType
@@ -217,6 +217,15 @@ getReference = do
     0 -> Builtin <$> getText
     1 -> DerivedId <$> (Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
+
+putConstructorReference :: MonadPut m => ConstructorReference -> m ()
+putConstructorReference (ConstructorReference r i) = do
+  putReference r
+  putLength i
+
+getConstructorReference :: MonadGet m => m ConstructorReference
+getConstructorReference =
+  ConstructorReference <$> getReference <*> getLength
 
 instance Tag UPrim1 where
   tag2word DECI =  0

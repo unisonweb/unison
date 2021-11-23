@@ -114,6 +114,7 @@ import Unison.Codebase.Type
     SyncToDir,
   )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -204,14 +205,14 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -276,7 +277,7 @@ getTypeOfReferent ::
   m (Maybe (Type v a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
-  Referent.Con r cid _ -> getTypeOfConstructor c r cid
+  Referent.Con r _ -> getTypeOfConstructor c r
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
