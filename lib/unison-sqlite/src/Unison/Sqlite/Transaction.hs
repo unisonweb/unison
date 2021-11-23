@@ -25,7 +25,12 @@ module Unison.Sqlite.Transaction
     queryOneOne,
 
     -- **** With checks
+    queryListCheck,
+    queryListOneCheck,
+    queryMaybeCheck,
+    queryMaybeOneCheck,
     queryOneCheck,
+    queryOneOneCheck,
 
     -- *** Without parameters
     queryList_,
@@ -36,7 +41,12 @@ module Unison.Sqlite.Transaction
     queryOneOne_,
 
     -- **** With checks
+    queryListCheck_,
+    queryListOneCheck_,
+    queryMaybeCheck_,
+    queryMaybeOneCheck_,
     queryOneCheck_,
+    queryOneOneCheck_,
   )
 where
 
@@ -108,6 +118,42 @@ queryOneOne s params =
 
 -- With results, with parameters, with checks
 
+queryListCheck ::
+  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  ([b] -> Either e r) ->
+  Transaction r
+queryListCheck s params check =
+  Transaction \conn -> Connection.queryListCheck conn s params check
+
+queryListOneCheck ::
+  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  ([b] -> Either e r) ->
+  Transaction r
+queryListOneCheck s params check =
+  Transaction \conn -> Connection.queryListOneCheck conn s params check
+
+queryMaybeCheck ::
+  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (Maybe b -> Either e r) ->
+  Transaction r
+queryMaybeCheck s params check =
+  Transaction \conn -> Connection.queryMaybeCheck conn s params check
+
+queryMaybeOneCheck ::
+  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (Maybe b -> Either e r) ->
+  Transaction r
+queryMaybeOneCheck s params check =
+  Transaction \conn -> Connection.queryMaybeOneCheck conn s params check
+
 queryOneCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
@@ -116,6 +162,15 @@ queryOneCheck ::
   Transaction r
 queryOneCheck s params check =
   Transaction \conn -> Connection.queryOneCheck conn s params check
+
+queryOneOneCheck ::
+  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (b -> Either e r) ->
+  Transaction r
+queryOneOneCheck s params check =
+  Transaction \conn -> Connection.queryOneOneCheck conn s params check
 
 -- With results, without parameters, without checks
 
@@ -145,6 +200,26 @@ queryOneOne_ s =
 
 -- With results, without parameters, with checks
 
+queryListCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListCheck_ s check =
+  Transaction \conn -> Connection.queryListCheck_ conn s check
+
+queryListOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListOneCheck_ s check =
+  Transaction \conn -> Connection.queryListOneCheck_ conn s check
+
+queryMaybeCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeCheck_ s check =
+  Transaction \conn -> Connection.queryMaybeCheck_ conn s check
+
+queryMaybeOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeOneCheck_ s check =
+  Transaction \conn -> Connection.queryMaybeOneCheck_ conn s check
+
 queryOneCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneCheck_ s check =
   Transaction \conn -> Connection.queryOneCheck_ conn s check
+
+queryOneOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
+queryOneOneCheck_ s check =
+  Transaction \conn -> Connection.queryOneOneCheck_ conn s check
