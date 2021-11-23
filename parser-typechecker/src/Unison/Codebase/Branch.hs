@@ -126,6 +126,17 @@ import Data.These (These(..))
 -- along with its history.
 newtype Branch m = Branch { _history :: UnwrappedBranch m }
   deriving (Eq, Ord)
+
+history :: Iso' (Branch m) (UnwrappedBranch m)
+history = iso _history Branch
+
+instance AsEmpty (Branch m) where
+  _Empty = prism' (const empty) matchEmpty
+    where
+      matchEmpty b0
+        | b0 == empty = Just ()
+        | otherwise = Nothing
+
 type UnwrappedBranch m = Causal m Raw (Branch0 m)
 
 type Hash = Causal.RawHash Raw
@@ -156,6 +167,9 @@ data Branch0 m = Branch0
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
+
+edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
+edits = lens _edits (\b0 e -> b0{_edits=e})
 
 -- Represents a shallow diff of a Branch0.
 -- Each of these `Star`s contain metadata as well, so an entry in
@@ -189,9 +203,6 @@ data Raw = Raw
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
   }
-
-makeLenses ''Branch
-makeLensesFor [("_edits", "edits")] ''Branch0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -773,6 +784,8 @@ squashedOnto ::
   Branch m ->
   Branch m ->
   Branch m
+-- If the target branch is empty we just replace it.
+squashedOnto headBranch Empty = discardHistory headBranch
 squashedOnto headBranch baseBranch =
   Branch $
     Causal.consDistinct
