@@ -600,7 +600,6 @@ updateChildren ::NameSegment
                -> Map NameSegment (Branch m)
 updateChildren seg updatedChild =
   if isEmpty updatedChild
-  -- TODO: Shouldn't this preserve history on deletion?
   then Map.delete seg
   else Map.insert seg updatedChild
 
@@ -642,6 +641,8 @@ batchUpdates actions =
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce $ toList actions
 
+-- | Helper type for grouping up actions according to whether they should be applied at
+-- the current branch, or at a child location.
 data ActionLocation = HereActions | ChildActions
   deriving Eq
 
@@ -785,11 +786,11 @@ consBranch Empty headBranch = discardHistory headBranch
 consBranch baseBranch headBranch =
   Branch $
     Causal.consDistinct
-      (head headBranch & children .~ squashedChildren)
+      (head headBranch & children .~ combinedChildren)
       (_history baseBranch)
   where
-    squashChild :: These (Branch m) (Branch m) -> Branch m
-    squashChild = \case
+    combineChildren :: These (Branch m) (Branch m) -> Branch m
+    combineChildren = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
       (These base head) -> base `consBranch` head
@@ -797,9 +798,9 @@ consBranch baseBranch headBranch =
       (This base) -> base `consBranch` empty
       -- This child didn't exist in the base, we add any changes as a single commit
       (That head) -> discardHistory head
-    squashedChildren :: Map NameSegment (Branch m)
-    squashedChildren =
+    combinedChildren :: Map NameSegment (Branch m)
+    combinedChildren =
         Align.alignWith
-          squashChild
+          combineChildren
           (head baseBranch ^. children)
           (head headBranch ^. children)
