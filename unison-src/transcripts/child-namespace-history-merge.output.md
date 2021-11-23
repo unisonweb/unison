@@ -236,7 +236,7 @@ This doesn't seem desirable.
 Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.squash parent_fork parent_merge_base
+.> merge parent_fork parent_merge_base
 
   Here's what's changed in parent_merge_base after the merge:
   
@@ -254,7 +254,7 @@ Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be add
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #0ddrpnkqfj
+  ⊙ #ug6q7n5bos
   
     + Adds / updates:
     
@@ -310,8 +310,18 @@ This doesn't seem desirable.
   Note: The most recent namespace hash is immediately below this
         message.
   
+  ⊙ #tppoolbkem
   
+    + Adds / updates:
+    
+      thing3
   
-  □ #mjdnabl5c5 (start of history)
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
 
 ```

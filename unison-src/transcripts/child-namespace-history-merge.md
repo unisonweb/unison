@@ -83,7 +83,7 @@ This doesn't seem desirable.
 Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
-.> merge.squash parent_fork parent_merge_base
+.> merge parent_fork parent_merge_base
 .> history parent_merge_base
 ```
 
