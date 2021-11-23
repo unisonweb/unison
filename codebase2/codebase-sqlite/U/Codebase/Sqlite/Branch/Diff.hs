@@ -11,7 +11,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import U.Codebase.Reference (Reference')
-import U.Codebase.Referent (Referent')
+import U.Codebase.Referent (GReferent)
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
 import qualified U.Util.Map as Map
@@ -39,10 +39,10 @@ addsRemoves map = (adds, removes)
   where
     (fmap fst -> adds, fmap fst -> removes) = List.partition snd (Map.toList map)
 
-type Referent'' t h = Referent' (Reference' t h) (Reference' t h)
+type GReferent' t h = GReferent (Reference' t h) (Reference' t h)
 
 data Diff' t h p c = Diff
-  { terms :: Map t (Map (Referent'' t h) (DefinitionOp' (Metadata t h))),
+  { terms :: Map t (Map (GReferent' t h) (DefinitionOp' (Metadata t h))),
     types :: Map t (Map (Reference' t h) (DefinitionOp' (Metadata t h))),
     patches :: Map t (PatchOp' p),
     children :: Map t (ChildOp' c)

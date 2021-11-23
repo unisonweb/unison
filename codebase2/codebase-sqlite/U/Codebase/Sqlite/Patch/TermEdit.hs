@@ -12,9 +12,9 @@ type TermEdit = TermEdit' Db.TextId Db.ObjectId
 
 type LocalTermEdit = TermEdit' LocalTextId LocalDefnId
 
-type Referent' t h = Referent.Referent' (Reference' t h) (Reference' t h)
+type GReferent t h = Referent.GReferent (Reference' t h) (Reference' t h)
 
-data TermEdit' t h = Replace (Referent' t h) Typing | Deprecate
+data TermEdit' t h = Replace (GReferent t h) Typing | Deprecate
   deriving (Eq, Ord, Show)
 
 -- Replacements with the Same type can be automatically propagated.

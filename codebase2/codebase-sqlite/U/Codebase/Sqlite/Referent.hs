@@ -8,19 +8,19 @@ module U.Codebase.Sqlite.Referent where
 import Control.Applicative (liftA3)
 import Database.SQLite.Simple (FromRow (..), Only (..), SQLData (..), ToRow (..), field)
 import qualified U.Codebase.Reference as Reference
-import U.Codebase.Referent (Id', Referent')
+import U.Codebase.Referent (Id', GReferent)
 import qualified U.Codebase.Referent as Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.Reference as Sqlite
 
-type Referent = Referent' Sqlite.Reference Sqlite.Reference
+type Referent = GReferent Sqlite.Reference Sqlite.Reference
 
-type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
+type ReferentH = GReferent Sqlite.ReferenceH Sqlite.ReferenceH
 
 type Id = Id' ObjectId ObjectId
 
-type LocalReferent = Referent' Sqlite.LocalReference Sqlite.LocalReference
-type LocalReferentH = Referent' Sqlite.LocalReferenceH Sqlite.LocalReferenceH
+type LocalReferent = GReferent Sqlite.LocalReference Sqlite.LocalReference
+type LocalReferentH = GReferent Sqlite.LocalReferenceH Sqlite.LocalReferenceH
 
 instance ToRow Id where
   toRow = \case

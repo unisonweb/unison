@@ -475,7 +475,7 @@ var' = var() . Var.named
 ref :: Ord v => a -> Reference -> Term2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
-pattern Referent' r <- (unReferent -> Just r)
+pattern GReferent r <- (unReferent -> Just r)
 
 unReferent :: Term2 vt at ap v a -> Maybe Referent
 unReferent (Ref' r) = Just $ Referent.Ref r

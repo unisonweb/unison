@@ -196,15 +196,15 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
       ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
       in Link <$> case e of
         DD.EitherLeft' (Term.TypeLink' r) -> (pure . formatPretty . ty) r
-        DD.EitherRight' (DD.Doc2Term (Term.Referent' r)) -> (pure . formatPretty . tm) r
+        DD.EitherRight' (DD.Doc2Term (Term.GReferent r)) -> (pure . formatPretty . tm) r
         _ -> source e
 
     DD.Doc2SpecialFormSignature (Term.List' tms) ->
-      let rs = [ r | DD.Doc2Term (Term.Referent' r) <- toList tms ]
+      let rs = [ r | DD.Doc2Term (Term.GReferent r) <- toList tms ]
       in goSignatures rs <&> \s -> Signature (map formatPretty s)
 
     -- SignatureInline Doc2.Term
-    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.Referent' r)) ->
+    DD.Doc2SpecialFormSignatureInline (DD.Doc2Term (Term.GReferent r)) ->
       goSignatures [r] <&> \s -> SignatureInline (formatPretty (P.lines s))
 
     -- Eval Doc2.Term

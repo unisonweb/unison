@@ -13,10 +13,10 @@ import Data.Bifoldable (Bifoldable(..))
 import Data.Bitraversable (Bitraversable(..))
 import U.Codebase.Decl (ConstructorId)
 
-type Referent = Referent' Reference Reference
-type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type Referent = GReferent Reference Reference
+type ReferentH = GReferent (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
-data Referent' rTm rTp
+data GReferent rTm rTp
   = Ref rTm
   | Con rTp ConstructorId
   deriving (Eq, Ord, Show)
@@ -27,17 +27,17 @@ data Id' hTm hTp
   | ConId (Reference.Id' hTp) ConstructorId
   deriving (Eq, Ord, Show)
 
-instance Bifunctor Referent' where
+instance Bifunctor GReferent where
   bimap f g = \case
     Ref r -> Ref (f r)
     Con r i -> Con (g r) i
 
-instance Bifoldable Referent' where
+instance Bifoldable GReferent where
   bifoldMap f g = \case
     Ref r -> f r
     Con r _ -> g r
 
-instance Bitraversable Referent' where
+instance Bitraversable GReferent where
   bitraverse f g = \case
     Ref r -> Ref <$> f r
     Con r c -> flip Con c <$> g r

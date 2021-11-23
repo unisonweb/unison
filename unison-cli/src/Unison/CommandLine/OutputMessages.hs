@@ -103,7 +103,7 @@ import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent
+import qualified Unison.GReferent as Referent
 import qualified Unison.Result as Result
 import Unison.Server.Backend (ShallowListEntry (..), TermEntry (..), TypeEntry (..))
 import qualified Unison.Server.SearchResult' as SR'

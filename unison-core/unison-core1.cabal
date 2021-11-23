@@ -31,6 +31,7 @@ library
       Unison.DataDeclaration
       Unison.DataDeclaration.ConstructorId
       Unison.DataDeclaration.Names
+      Unison.GReferent
       Unison.Hash
       Unison.Hashable
       Unison.HashQualified
@@ -46,7 +47,6 @@ library
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
-      Unison.Referent'
       Unison.Settings
       Unison.ShortHash
       Unison.Symbol

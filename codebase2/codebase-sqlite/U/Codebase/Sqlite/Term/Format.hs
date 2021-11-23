@@ -5,7 +5,7 @@ module U.Codebase.Sqlite.Term.Format where
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
-import U.Codebase.Referent (Referent')
+import U.Codebase.Referent (GReferent)
 import U.Codebase.Sqlite.LocalIds
     ( LocalIds', LocalTextId, LocalDefnId, WatchLocalIds )
 import U.Codebase.Sqlite.Symbol ( Symbol )
@@ -17,7 +17,7 @@ import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 
 type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 type TypeRef = Reference' LocalTextId LocalDefnId
-type TermLink = Referent' TermRef TypeRef
+type TermLink = GReferent TermRef TypeRef
 type TypeLink = TypeRef
 
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId

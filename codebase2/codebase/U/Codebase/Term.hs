@@ -25,7 +25,7 @@ import Data.Text (Text)
 import Data.Word (Word64)
 import GHC.Generics (Generic, Generic1)
 import U.Codebase.Reference (Reference, Reference')
-import U.Codebase.Referent (Referent')
+import U.Codebase.Referent (GReferent)
 import U.Codebase.Type (TypeR)
 import qualified U.Codebase.Type as Type
 import qualified U.Core.ABT as ABT
@@ -41,7 +41,7 @@ type TermRef = Reference' Text (Maybe Hash)
 
 type TypeRef = Reference
 
-type TermLink = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
+type TermLink = GReferent (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
 type TypeLink = Reference
 

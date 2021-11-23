@@ -5,7 +5,7 @@ module Unison.Hashing.V2.Referent where
 
 import Unison.Prelude
 import Unison.ConstructorReference (GConstructorReference(..))
-import Unison.Referent' ( Referent'(..), toReference' )
+import Unison.GReferent ( GReferent(..), toReference' )
 
 import qualified Data.Char              as Char
 import qualified Data.Text              as Text
@@ -23,7 +23,7 @@ import qualified Unison.ConstructorType as CT
 --
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
-type Referent = Referent' Reference
+type Referent = GReferent Reference
 type ConstructorId = Int
 pattern Ref :: Reference -> Referent
 pattern Ref r = Ref' r
@@ -32,7 +32,7 @@ pattern Con r i t = Con' (ConstructorReference r i) t
 {-# COMPLETE Ref, Con #-}
 
 -- | Cannot be a builtin.
-type Id = Referent' R.Id
+type Id = GReferent R.Id
 
 -- todo: move these to ShortHash module
 toShortHash :: Referent -> ShortHash
@@ -115,7 +115,7 @@ fromText t = either (const Nothing) Just $
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
 
-fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
+fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> GReferent r -> a
 fold fr fc = \case
   Ref' r -> fr r
   Con' (ConstructorReference r i) ct -> fc r i ct

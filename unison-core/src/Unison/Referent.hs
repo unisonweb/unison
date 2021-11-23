@@ -37,7 +37,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as R
-import Unison.Referent' (Referent' (..), toReference', reference_)
+import Unison.GReferent (GReferent (..), toReference', reference_)
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.Reference as Reference
@@ -48,7 +48,7 @@ import qualified Unison.Reference as Reference
 --
 -- Slightly odd naming. This is the "referent of term name in the codebase",
 -- rather than the target of a Reference.
-type Referent = Referent' Reference
+type Referent = GReferent Reference
 
 pattern Ref :: TermReference -> Referent
 pattern Ref r = Ref' r
@@ -59,7 +59,7 @@ pattern Con r t = Con' r t
 {-# COMPLETE Ref, Con #-}
 
 -- | By definition, cannot be a builtin.
-type Id = Referent' R.Id
+type Id = GReferent R.Id
 
 pattern RefId :: R.Id -> Unison.Referent.Id
 pattern RefId r = Ref' r
@@ -133,7 +133,7 @@ fromText t = either (const Nothing) Just $
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
 
-fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
+fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> GReferent r -> a
 fold fr fc = \case
   Ref' r -> fr r
   Con' (ConstructorReference r i) ct -> fc r i ct

@@ -24,7 +24,7 @@ import U.Codebase.Kind (Kind)
 import qualified U.Codebase.Kind as Kind
 import U.Codebase.Reference (Reference' (ReferenceBuiltin, ReferenceDerived))
 import qualified U.Codebase.Reference as Reference
-import U.Codebase.Referent (Referent')
+import U.Codebase.Referent (GReferent)
 import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.Branch.Diff as BranchDiff
 import qualified U.Codebase.Sqlite.Branch.Format as BranchFormat
@@ -205,7 +205,7 @@ putTerm t = putABT putSymbol putUnit putF t
       Term.Char c ->
         putWord8 19 *> putChar c
       Term.TermLink r ->
-        putWord8 20 *> putReferent' putRecursiveReference putReference r
+        putWord8 20 *> putGReferent putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
     putMatchCase :: MonadPut m => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
@@ -285,7 +285,7 @@ getTerm = getABT getSymbol getUnit getF
         21 -> Term.TypeLink <$> getReference
         tag -> unknownTag "getTerm" tag
       where
-        getReferent :: MonadGet m => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
+        getReferent :: MonadGet m => m (GReferent TermFormat.TermRef TermFormat.TypeRef)
         getReferent =
           getWord8 >>= \case
             0 -> Referent.Ref <$> getRecursiveReference
@@ -698,12 +698,12 @@ putReferent ::
     Bits t2,
     Bits h2
   ) =>
-  Referent' (Reference' t1 h1) (Reference' t2 h2) ->
+  GReferent (Reference' t1 h1) (Reference' t2 h2) ->
   m ()
-putReferent = putReferent' putReference putReference
+putReferent = putGReferent putReference putReference
 
-putReferent' :: MonadPut m => (r1 -> m ()) -> (r2 -> m ()) -> Referent' r1 r2 -> m ()
-putReferent' putRefRef putConRef = \case
+putGReferent :: MonadPut m => (r1 -> m ()) -> (r2 -> m ()) -> GReferent r1 r2 -> m ()
+putGReferent putRefRef putConRef = \case
   Referent.Ref r -> do
     putWord8 0
     putRefRef r
@@ -722,8 +722,8 @@ putReference = \case
   ReferenceDerived (Reference.Id r index) ->
     putWord8 1 *> putVarInt r *> putVarInt index
 
-getReferent' :: MonadGet m => m r1 -> m r2 -> m (Referent' r1 r2)
-getReferent' getRefRef getConRef =
+getGReferent :: MonadGet m => m r1 -> m r2 -> m (GReferent r1 r2)
+getGReferent getRefRef getConRef =
   getWord8 >>= \case
     0 -> Referent.Ref <$> getRefRef
     1 -> Referent.Con <$> getConRef <*> getVarInt
@@ -740,8 +740,8 @@ getReferent ::
     Bits t2,
     Bits h2
   ) =>
-  m (Referent' (Reference' t1 h1) (Reference' t2 h2))
-getReferent = getReferent' getReference getReference
+  m (GReferent (Reference' t1 h1) (Reference' t2 h2))
+getReferent = getGReferent getReference getReference
 
 getReference ::
   (MonadGet m, Integral t, Bits t, Integral r, Bits r) =>

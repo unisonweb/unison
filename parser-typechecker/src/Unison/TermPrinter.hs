@@ -1556,7 +1556,7 @@ toDocParagraph ppe (App' (Ref' r) (List' tms))
 toDocParagraph _ _ = Nothing
 
 toDocEmbedTermLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
-toDocEmbedTermLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
+toDocEmbedTermLink ppe (App' (Ref' r) (Delay' (GReferent tm)))
   | nameEndsWith ppe ".docEmbedTermLink" r = Just tm
 toDocEmbedTermLink _ _ = Nothing
 
@@ -1606,7 +1606,7 @@ toDocSignatureInline ppe (App' (Ref' r) (toDocEmbedSignatureLink ppe -> Just tm)
 toDocSignatureInline _ _ = Nothing
 
 toDocEmbedSignatureLink :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe Referent
-toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' (Referent' tm)))
+toDocEmbedSignatureLink ppe (App' (Ref' r) (Delay' (GReferent tm)))
   | nameEndsWith ppe ".docEmbedSignatureLink" r = Just tm
 toDocEmbedSignatureLink _ _ = Nothing
 

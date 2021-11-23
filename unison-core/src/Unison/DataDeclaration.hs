@@ -53,7 +53,7 @@ import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
-import qualified Unison.Referent' as Referent'
+import qualified Unison.GReferent as GReferent
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -185,7 +185,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- reliable way of doing that. —AI
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
-  [ Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl) ]
+  [ GReferent.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [ConstructorId]

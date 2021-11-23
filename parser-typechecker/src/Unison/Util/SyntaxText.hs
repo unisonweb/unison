@@ -4,7 +4,7 @@ module Unison.Util.SyntaxText where
 
 import Unison.Prelude
 import Unison.Name (Name)
-import Unison.Referent' (Referent')
+import Unison.GReferent (GReferent)
 import Unison.HashQualified (HashQualified)
 import Unison.Pattern (SeqOp)
 
@@ -21,7 +21,7 @@ data Element r = NumericLiteral
              | Blank
              | Var
              | TypeReference r
-             | TermReference (Referent' r)
+             | TermReference (GReferent r)
              | Op SeqOp
              | AbilityBraces
              -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
