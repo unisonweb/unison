@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   ( namespaceDependencies,
   )

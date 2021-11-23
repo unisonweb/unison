@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Reflog where

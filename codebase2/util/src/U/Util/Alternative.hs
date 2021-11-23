@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE ApplicativeDo #-}
 
 module U.Util.Alternative where

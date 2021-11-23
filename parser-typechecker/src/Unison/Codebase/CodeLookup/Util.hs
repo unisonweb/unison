@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.CodeLookup.Util where

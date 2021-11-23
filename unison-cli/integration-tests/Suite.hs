@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 

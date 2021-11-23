@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | A utility type for saving memory in the presence of many duplicate ByteStrings, etc. If you have data that may be

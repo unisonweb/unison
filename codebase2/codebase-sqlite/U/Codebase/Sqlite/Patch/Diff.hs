@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 module U.Codebase.Sqlite.Patch.Diff where
 
 import Data.Bifunctor (Bifunctor (bimap))

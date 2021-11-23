@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Core.Test.Name where

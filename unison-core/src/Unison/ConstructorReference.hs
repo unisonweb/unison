@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 -- | The constructor reference type.
 module Unison.ConstructorReference
   ( GConstructorReference (..),

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 module U.Codebase.Sqlite.Patch.TermEdit where
 
 import Data.Bifoldable (Bifoldable (bifoldMap))
