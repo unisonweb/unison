@@ -30,7 +30,7 @@ transcriptOutputFile name =
 -- output, which causes the test output to change, and the "no change" check
 -- to fail
 writeTranscriptOutput :: Bool
-writeTranscriptOutput = True
+writeTranscriptOutput = False
 
 test :: Test ()
 test = scope "gitsync22" . tests $
