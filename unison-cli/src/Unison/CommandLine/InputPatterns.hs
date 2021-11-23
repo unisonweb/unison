@@ -1800,8 +1800,8 @@ createAuthor =
 gist :: InputPattern
 gist =
   InputPattern
-    "gist"
-    []
+    "push.gist"
+    ["gist"]
     [(Required, gitUrlArg)]
     ( P.lines
         [ "Publish the current namespace.",
