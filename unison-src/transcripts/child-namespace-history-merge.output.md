@@ -6,6 +6,8 @@ It isn't prescriptive about how merges _should_ work with respect to child branc
 but I think we should at least notice if we change things by accident.
 
 
+## Setting up some history
+
 ```unison
 parent.top = "top"
 parent.child.thing = "parent.child.thing"
@@ -81,16 +83,18 @@ parent.child.thing2 = "parent.child.thing2"
   □ #0pu6u21kb4 (start of history)
 
 ```
+## Forking off some history on a separate branch
+
 Now we fork the parent namespace to make some changes.
 
 ```ucm
-.> fork parent parentfork
+.> fork parent parent_fork
 
   Done.
 
 ```
 ```unison
-parentfork.child.thing3 = "parentfork.child.thing3"
+parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 
 ```ucm
@@ -101,7 +105,7 @@ parentfork.child.thing3 = "parentfork.child.thing3"
   
     ⍟ These new definitions are ok to `add`:
     
-      parentfork.child.thing3 : Text
+      parent_fork.child.thing3 : Text
 
 ```
 ```ucm
@@ -109,14 +113,14 @@ parentfork.child.thing3 = "parentfork.child.thing3"
 
   ⍟ I've added these definitions:
   
-    parentfork.child.thing3 : Text
+    parent_fork.child.thing3 : Text
 
-.> history parentfork.child
+.> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #8gv5c01mvv
+  ⊙ #tppoolbkem
   
     + Adds / updates:
     
@@ -131,12 +135,26 @@ parentfork.child.thing3 = "parentfork.child.thing3"
   □ #0pu6u21kb4 (start of history)
 
 ```
-Now, if I squash-merge parentfork back into parent, we expect `parentfork.child.thing3` to be added.
+## Saving our parent state
 
 ```ucm
-.> merge.squash parentfork parent
+.> fork parent parent_squash_base
 
-  Here's what's changed in parent after the merge:
+  Done.
+
+.> fork parent parent_merge_base
+
+  Done.
+
+```
+## Squash merge
+
+Now, if I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
+
+```ucm
+.> merge.squash parent_fork parent_squash_base
+
+  Here's what's changed in parent_squash_base after the merge:
   
   Added definitions:
   
@@ -147,12 +165,12 @@ Now, if I squash-merge parentfork back into parent, we expect `parentfork.child.
        can use `undo` or `reflog` to undo the results of this
        merge.
 
-.> history parentfork
+.> history parent_squash_base
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ee2tj05pfq
+  ⊙ #0ddrpnkqfj
   
     + Adds / updates:
     
@@ -167,7 +185,7 @@ Now, if I squash-merge parentfork back into parent, we expect `parentfork.child.
   □ #gdahjt281d (start of history)
 
 ```
-Notice that with the current behaviour, the history of `parent.child` is completely wiped out.
+Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
 This doesn't seem desirable.
 
 ```ucm
@@ -176,8 +194,134 @@ This doesn't seem desirable.
   Note: The most recent namespace hash is immediately below this
         message.
   
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
+
+.> history parent_fork.child
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #tppoolbkem
+  
+    + Adds / updates:
+    
+      thing3
+  
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
+
+.> history parent_squash_base.child
+
+  Note: The most recent namespace hash is immediately below this
+        message.
   
   
-  □ #8u7hu07qs1 (start of history)
+  
+  □ #mjdnabl5c5 (start of history)
+
+```
+## Standard merge
+
+Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
+
+```ucm
+.> merge parent_fork parent_merge_base
+
+  Here's what's changed in parent_merge_base after the merge:
+  
+  Added definitions:
+  
+    1. child.thing3 : Text
+  
+  Tip: You can use `todo` to see if this generated any work to
+       do in this namespace and `test` to run the tests. Or you
+       can use `undo` or `reflog` to undo the results of this
+       merge.
+
+.> history parent_merge_base
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #ug6q7n5bos
+  
+    + Adds / updates:
+    
+      child.thing3
+  
+  ⊙ #9uakh0rhhe
+  
+    + Adds / updates:
+    
+      child.thing2
+  
+  □ #gdahjt281d (start of history)
+
+```
+Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
+This doesn't seem desirable.
+
+```ucm
+.> history parent.child
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
+
+.> history parent_fork.child
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #tppoolbkem
+  
+    + Adds / updates:
+    
+      thing3
+  
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
+
+.> history parent_merge_base.child
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #tppoolbkem
+  
+    + Adds / updates:
+    
+      thing3
+  
+  ⊙ #o0ig5fooud
+  
+    + Adds / updates:
+    
+      thing2
+  
+  □ #0pu6u21kb4 (start of history)
 
 ```
