@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 -- | "Unison.Codebase.Branch" tests.
 module Unison.Test.Codebase.Branch
   ( test,

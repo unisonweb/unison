@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Codebase.Sqlite.Patch.TypeEdit where
 
 import Data.Bifoldable (Bifoldable (bifoldMap))

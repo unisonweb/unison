@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}

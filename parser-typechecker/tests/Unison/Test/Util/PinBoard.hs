@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 

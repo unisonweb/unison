@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
@@ -241,7 +242,7 @@ setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
   setJournalMode JournalMode.WAL
 
-{- ORMOLU_DISABLE -}
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms_ sql >>= \case
   [] -> error $ show NoSchemaVersion

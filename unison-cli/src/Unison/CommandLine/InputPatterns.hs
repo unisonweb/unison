@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}

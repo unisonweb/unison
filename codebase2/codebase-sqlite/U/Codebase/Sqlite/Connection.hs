@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Codebase.Sqlite.Connection where
 
 import qualified Database.SQLite.Simple as Sqlite

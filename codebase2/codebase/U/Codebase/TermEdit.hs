@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Codebase.TermEdit where
 
 import U.Codebase.Referent (Referent)

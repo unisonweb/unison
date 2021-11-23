@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module Main where
 
 import EasyTest

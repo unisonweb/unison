@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module Unison.Codebase.TermEdit.Typing where
 
 import Unison.Codebase.TermEdit (Typing (Different, Same, Subtype))

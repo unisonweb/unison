@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RecordWildCards #-}

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module Unison.Util.Map
   ( foldMapM,
     unionWithM,

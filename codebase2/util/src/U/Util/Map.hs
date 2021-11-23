@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Util.Map where
 
 import qualified Data.Bifunctor as B

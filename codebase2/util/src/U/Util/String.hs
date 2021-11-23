@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Util.String where
 
 import qualified Data.Text as Text

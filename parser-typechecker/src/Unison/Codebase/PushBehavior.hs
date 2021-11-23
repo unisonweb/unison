@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 -- | This module defines the 'PushBehavior' type.
 module Unison.Codebase.PushBehavior
   ( PushBehavior (..),

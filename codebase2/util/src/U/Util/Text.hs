@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}

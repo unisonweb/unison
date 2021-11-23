@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 module U.Codebase.Sqlite.Patch.Full where
 
 import Data.Bifunctor (Bifunctor (bimap))

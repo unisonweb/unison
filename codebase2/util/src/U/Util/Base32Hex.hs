@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Util.Base32Hex
