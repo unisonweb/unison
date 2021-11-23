@@ -27,7 +27,12 @@ module Unison.Sqlite.DB
     queryOneOne,
 
     -- **** With checks
+    queryListCheck,
+    queryListOneCheck,
+    queryMaybeCheck,
+    queryMaybeOneCheck,
     queryOneCheck,
+    queryOneOneCheck,
 
     -- *** Without parameters
     queryList_,
@@ -38,7 +43,12 @@ module Unison.Sqlite.DB
     queryOneOne_,
 
     -- **** With checks
+    queryListCheck_,
+    queryListOneCheck_,
+    queryMaybeCheck_,
+    queryMaybeOneCheck_,
     queryOneCheck_,
+    queryOneOneCheck_,
 
     -- * Low-level operations
     withSavepoint,
@@ -54,7 +64,7 @@ import qualified Database.SQLite.Simple.FromField as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection (Connection)
 import qualified Unison.Sqlite.Connection as Connection
-import Unison.Sqlite.Sql (Sql(..))
+import Unison.Sqlite.Sql (Sql (..))
 import Unison.Sqlite.Transaction (Transaction)
 import qualified Unison.Sqlite.Transaction as Transaction
 import UnliftIO.Exception (bracket_)
@@ -124,6 +134,46 @@ queryOneOne s params = do
 
 -- With results, with parameters, with checks
 
+queryListCheck ::
+  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  ([b] -> Either e r) ->
+  m r
+queryListCheck s params check = do
+  conn <- ask
+  liftIO (Connection.queryListCheck conn s params check)
+
+queryListOneCheck ::
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  ([b] -> Either e r) ->
+  m r
+queryListOneCheck s params check = do
+  conn <- ask
+  liftIO (Connection.queryListOneCheck conn s params check)
+
+queryMaybeCheck ::
+  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (Maybe b -> Either e r) ->
+  m r
+queryMaybeCheck s params check = do
+  conn <- ask
+  liftIO (Connection.queryMaybeCheck conn s params check)
+
+queryMaybeOneCheck ::
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (Maybe b -> Either e r) ->
+  m r
+queryMaybeOneCheck s params check = do
+  conn <- ask
+  liftIO (Connection.queryMaybeOneCheck conn s params check)
+
 queryOneCheck ::
   (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
@@ -133,6 +183,16 @@ queryOneCheck ::
 queryOneCheck s params check = do
   conn <- ask
   liftIO (Connection.queryOneCheck conn s params check)
+
+queryOneOneCheck ::
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  Sql ->
+  a ->
+  (b -> Either e r) ->
+  m r
+queryOneOneCheck s params check = do
+  conn <- ask
+  liftIO (Connection.queryOneOneCheck conn s params check)
 
 -- With results, without parameters, without checks
 
@@ -168,10 +228,35 @@ queryOneOne_ s = do
 
 -- With results, without parameters, with checks
 
+queryListCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> ([a] -> Either e r) -> m r
+queryListCheck_ s check = do
+  conn <- ask
+  liftIO (Connection.queryListCheck_ conn s check)
+
+queryListOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> ([a] -> Either e r) -> m r
+queryListOneCheck_ s check = do
+  conn <- ask
+  liftIO (Connection.queryListOneCheck_ conn s check)
+
+queryMaybeCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeCheck_ s check = do
+  conn <- ask
+  liftIO (Connection.queryMaybeCheck_ conn s check)
+
+queryMaybeOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeOneCheck_ s check = do
+  conn <- ask
+  liftIO (Connection.queryMaybeOneCheck_ conn s check)
+
 queryOneCheck_ :: (DB m, (Sqlite.FromRow a, Show e, Typeable e)) => Sql -> (a -> Either e r) -> m r
 queryOneCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryOneCheck_ conn s check)
+
+queryOneOneCheck_ :: (DB m, (Sqlite.FromField a, Show e, Typeable e)) => Sql -> (a -> Either e r) -> m r
+queryOneOneCheck_ s check = do
+  conn <- ask
+  liftIO (Connection.queryOneOneCheck_ conn s check)
 
 -- Low-level
 
