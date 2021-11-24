@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -20,6 +21,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import Unison.Builtin.Decls                   (pattern TupleType')
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -673,14 +675,14 @@ renderTypeError e env src = case e of
       , "}\n"
       , renderContext env c
       ]
-    C.EffectConstructorWrongArgCount e a r cid -> mconcat
+    C.EffectConstructorWrongArgCount e a r -> mconcat
       [ "EffectConstructorWrongArgCount:"
       , "  expected="
       , (fromString . show) e
       , ", actual="
       , (fromString . show) a
       , ", reference="
-      , showConstructor env r cid
+      , showConstructor env r 
       ]
     C.MalformedEffectBind ctorType ctorResult es -> mconcat
       [ "MalformedEffectBind: "
@@ -746,7 +748,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
     , "  reerence = "
     , showTypeRef env rf
     ]
-  C.UnknownConstructor sort rf i _decl ->
+  C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
     [ "UnknownConstructor:\n"
     , case sort of
         C.Data -> "  data type\n"
@@ -913,9 +915,9 @@ showTypeRef :: IsString s => Env -> R.Reference -> s
 showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
-showConstructor :: IsString s => Env -> R.Reference -> Int -> s
-showConstructor env r cid = fromString . HQ.toString $
-  PPE.patternName env r cid
+showConstructor :: IsString s => Env -> ConstructorReference -> s
+showConstructor env r = fromString . HQ.toString $
+  PPE.patternName env r
 
 styleInOverallType
   :: (Var v, Annotated a, Eq a)

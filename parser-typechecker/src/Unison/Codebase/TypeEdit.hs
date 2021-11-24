@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.TypeEdit where
 
 import Unison.Reference (Reference)

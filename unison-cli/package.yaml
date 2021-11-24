@@ -16,6 +16,7 @@ dependencies:
   - bytestring
   - configurator
   - containers >= 0.6.3
+  - nonempty-containers
   - cryptonite
   - directory
   - errors

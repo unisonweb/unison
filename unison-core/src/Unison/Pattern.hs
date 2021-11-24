@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
 module Unison.Pattern where
@@ -8,6 +9,7 @@ import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hashable as H
@@ -27,10 +29,10 @@ data Pattern loc
   | Float loc !Double
   | Text loc !Text
   | Char loc !Char
-  | Constructor loc !Reference !ConstructorId [Pattern loc]
+  | Constructor loc !ConstructorReference [Pattern loc]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
-  | EffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
+  | EffectBind loc !ConstructorReference [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
     deriving (Ord,Generic,Functor,Foldable,Traversable)
@@ -50,16 +52,16 @@ updateDependencies tms p = case p of
   Float{} -> p
   Text{} -> p
   Char{} -> p
-  Constructor loc r cid ps -> case Map.lookup (Referent.Con r cid CT.Data) tms of
-    Just (Referent.Con r cid CT.Data) -> Constructor loc r cid (updateDependencies tms <$> ps)
-    _ -> Constructor loc r cid (updateDependencies tms <$> ps)
+  Constructor loc r ps -> case Map.lookup (Referent.Con r CT.Data) tms of
+    Just (Referent.Con r CT.Data) -> Constructor loc r (updateDependencies tms <$> ps)
+    _ -> Constructor loc r (updateDependencies tms <$> ps)
   As loc p -> As loc (updateDependencies tms p)
   EffectPure loc p -> EffectPure loc (updateDependencies tms p)
-  EffectBind loc r cid pats k -> case Map.lookup (Referent.Con r cid CT.Effect) tms of
-    Just (Referent.Con r cid CT.Effect) ->
-      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+  EffectBind loc r pats k -> case Map.lookup (Referent.Con r CT.Effect) tms of
+    Just (Referent.Con r CT.Effect) ->
+      EffectBind loc r (updateDependencies tms <$> pats) (updateDependencies tms k)
     _ ->
-      EffectBind loc r cid (updateDependencies tms <$> pats) (updateDependencies tms k)
+      EffectBind loc r (updateDependencies tms <$> pats) (updateDependencies tms k)
   SequenceLiteral loc ps -> SequenceLiteral loc (updateDependencies tms <$> ps)
   SequenceOp loc lhs op rhs ->
     SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
@@ -78,17 +80,17 @@ instance Show (Pattern loc) where
   show (Float   _ x) = "Float " <> show x
   show (Text   _ t) = "Text " <> show t
   show (Char   _ c) = "Char " <> show c
-  show (Constructor _ r i ps) =
+  show (Constructor _ (ConstructorReference r i) ps) =
     "Constructor " <> unwords [show r, show i, show ps]
   show (As         _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
-  show (EffectBind _ r i ps k) =
+  show (EffectBind _ (ConstructorReference r i) ps k) =
     "EffectBind " <> unwords [show r, show i, show ps, show k]
   show (SequenceLiteral _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
   show (SequenceOp _ ph op pt) = "Sequence " <> show ph <> " " <> show op <> " " <> show pt
 
 application :: Pattern loc -> Bool
-application (Constructor _ _ _ (_ : _)) = True
+application (Constructor _ _ (_ : _)) = True
 application _ = False
 
 loc :: Pattern loc -> loc
@@ -96,10 +98,10 @@ loc p = head $ Foldable.toList p
 
 setLoc :: Pattern loc -> loc -> Pattern loc
 setLoc p loc = case p of
-  EffectBind _ a b c d -> EffectBind loc a b c d
+  EffectBind _ a b c -> EffectBind loc a b c
   EffectPure _ a -> EffectPure loc a
   As _ a -> As loc a
-  Constructor _ a b c -> Constructor loc a b c
+  Constructor _ a b -> Constructor loc a b
   SequenceLiteral _ ps -> SequenceLiteral loc ps
   SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
@@ -111,10 +113,10 @@ instance H.Hashable (Pattern p) where
   tokens (Int _ n) = H.Tag 3 : [H.Int n]
   tokens (Nat _ n) = H.Tag 4 : [H.Nat n]
   tokens (Float _ f) = H.Tag 5 : H.tokens f
-  tokens (Constructor _ r n args) =
+  tokens (Constructor _ (ConstructorReference r n) args) =
     [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
   tokens (EffectPure _ p) = H.Tag 7 : H.tokens p
-  tokens (EffectBind _ r n args k) =
+  tokens (EffectBind _ (ConstructorReference r n) args k) =
     [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (As _ p) = H.Tag 9 : H.tokens p
   tokens (Text _ t) = H.Tag 10 : H.tokens t
@@ -130,9 +132,9 @@ instance Eq (Pattern loc) where
   Int _ n == Int _ m = n == m
   Nat _ n == Nat _ m = n == m
   Float _ f == Float _ g = f == g
-  Constructor _ r n args == Constructor _ s m brgs = r == s && n == m && args == brgs
+  Constructor _ r args == Constructor _ s brgs = r == s && args == brgs
   EffectPure _ p == EffectPure _ q = p == q
-  EffectBind _ r ctor ps k == EffectBind _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
+  EffectBind _ r ps k == EffectBind _ r2 ps2 k2 = r == r2 && ps == ps2 && k == k2
   As _ p == As _ q = p == q
   Text _ t == Text _ t2 = t == t2
   SequenceLiteral _ ps == SequenceLiteral _ ps2 = ps == ps2
@@ -149,10 +151,10 @@ foldMap' f p = case p of
     Float _ _              -> f p
     Text _ _               -> f p
     Char _ _               -> f p
-    Constructor _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
+    Constructor _ _ ps     -> f p <> foldMap (foldMap' f) ps
     As _ p'                -> f p <> foldMap' f p'
     EffectPure _ p'        -> f p <> foldMap' f p'
-    EffectBind _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
+    EffectBind _ _ ps p'   -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
     SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
     SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
 
@@ -171,9 +173,9 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
       Unbound _             -> mempty
       Var     _             -> mempty
       As _ _                -> mempty
-      Constructor _ r cid _ -> [dataType r, dataConstructor r cid]
+      Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
       EffectPure _ _        -> [effectType Type.effectRef]
-      EffectBind _ r cid _ _ ->
+      EffectBind _ (ConstructorReference r cid) _ _ ->
         [effectType Type.effectRef, effectType r, effectConstructor r cid]
       SequenceLiteral _ _ -> [literalType Type.listRef]
       SequenceOp {}        -> [literalType Type.listRef]
@@ -187,7 +189,7 @@ generalizedDependencies literalType dataConstructor dataType effectConstructor e
 
 labeledDependencies :: Pattern loc -> Set LabeledDependency
 labeledDependencies = generalizedDependencies LD.typeRef
-                                              LD.dataConstructor
+                                              (\r i -> LD.dataConstructor (ConstructorReference r i))
                                               LD.typeRef
-                                              LD.effectConstructor
+                                              (\r i -> LD.effectConstructor (ConstructorReference r i))
                                               LD.typeRef
