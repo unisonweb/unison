@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.Relation
   ( Relation,
 
@@ -10,7 +9,6 @@ module Unison.Util.Relation
     fromManyRan,
     fromMap,
     fromMultimap,
-
     fromSet,
     unsafeFromMultimaps,
 
@@ -107,6 +105,7 @@ module Unison.Util.Relation
   )
 where
 
+import Control.DeepSeq
 import qualified Control.Monad as Monad
 import qualified Data.List as List
 import qualified Data.Map as M
@@ -114,8 +113,8 @@ import qualified Data.Map as Map
 import qualified Data.Map.Internal as Map
 import qualified Data.Set as S
 import Unison.Prelude hiding (empty, toList)
+import qualified Unison.Util.Set as Set
 import Prelude hiding (filter, map, null)
-import Control.DeepSeq
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -162,15 +161,8 @@ unsafeFromMultimaps domain range =
 difference :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
 difference (Relation d1 r1) (Relation d2 r2) =
   Relation
-    (Map.differenceWith setDifference1 d1 d2)
-    (Map.differenceWith setDifference1 r1 r2)
-  where
-    -- Set difference, but return Nothing if the difference is empty.
-    setDifference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
-    setDifference1 xs ys =
-      if S.null zs then Nothing else Just zs
-      where
-        zs = S.difference xs ys
+    (Map.differenceWith Set.difference1 d1 d2)
+    (Map.differenceWith Set.difference1 r1 r2)
 
 -- | Like 'difference', but returns @Nothing@ if the difference is empty.
 difference1 :: (Ord a, Ord b) => Relation a b -> Relation a b -> Maybe (Relation a b)
@@ -518,16 +510,28 @@ r |> t =
     filtrar x = M.filterWithKey (\k _ -> k == x) rr
     rr = range r -- just to memoize the value
 
--- | Restrict the range to not include these `b`s
+-- | Restrict the range to not include these `b`s.
 (||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
-r ||> t = fromList [(a, b) | (a, b) <- toList r, not (b `S.member` t)]
+Relation {domain, range} ||> t =
+  Relation
+    { domain = Map.mapMaybe (`Set.difference1` t) domain,
+      range = Map.restrictKeys range t
+    }
 
+-- | Named version of ('||>').
 subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
 subtractRan = flip (||>)
 
--- | Restrict the domain to not include these `a`
-(<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
-s <|| r = fromList [(a, b) | (a, b) <- toList r, not (a `S.member` s)]
+-- | Restrict the domain to not include these `a`s.
+(<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+s <|| Relation {domain, range} =
+  Relation
+    { domain = Map.restrictKeys domain s,
+      range = Map.mapMaybe (`Set.difference1` s) range
+    }
+
+-- | Named version of ('<||').
+subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 subtractDom = (<||)
 
 -- Note:
