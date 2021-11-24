@@ -30,7 +30,7 @@ import qualified Data.Set as S
 
 import Control.Exception
 import Control.Lens ((<&>))
-import Control.Concurrent (forkIO, ThreadId)
+import Control.Concurrent (forkFinally, ThreadId, myThreadId)
 
 import qualified Data.Primitive.PrimArray as PA
 
@@ -398,8 +398,11 @@ eval !_   !_    !_    !_    !_ (Die s) = die s
 
 forkEval :: CCache -> Closure -> IO ThreadId
 forkEval env clo
-  = forkIO (apply1 err env clo)
+  = forkFinally (apply1 err env clo) $ \case
+      Right _ -> pure ()
+      Left _ -> myThreadId >>= putStrLn . msg
   where
+  msg tid = "Thread with id `" ++ show tid ++ "` exiting exceptionally.\n"
   err :: Stack 'UN -> Stack 'BX -> IO ()
   err _ _ = pure ()
 {-# inline forkEval #-}
