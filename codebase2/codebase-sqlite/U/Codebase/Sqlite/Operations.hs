@@ -199,7 +199,7 @@ import qualified Unison.Util.Map as Map
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import qualified U.Util.Term as TermUtil
 
 -- * Error handling

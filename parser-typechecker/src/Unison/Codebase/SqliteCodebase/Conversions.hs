@@ -33,7 +33,7 @@ import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
 import qualified Unison.Util.Map as Map
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal as V1.Causal
