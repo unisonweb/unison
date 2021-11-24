@@ -16,6 +16,8 @@ import qualified Unison.ShortHash     as SH
 import qualified Unison.Util.SyntaxText as S
 import           Unison.Util.Pretty   (Pretty)
 import qualified Unison.Util.Pretty   as PP
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -58,6 +60,9 @@ prettyLabeledDependency len = LD.fold (prettyReference len) (prettyReferent len)
 
 prettyShortHash :: IsString s => ShortHash -> Pretty s
 prettyShortHash = fromString . SH.toString
+
+prettyShortBranchHash :: IsString s => ShortBranchHash -> Pretty s
+prettyShortBranchHash = fromString . SBH.toString
 
 styleHashQualified ::
   IsString s => (Pretty s -> Pretty s) -> HQ.HashQualified Name -> Pretty s

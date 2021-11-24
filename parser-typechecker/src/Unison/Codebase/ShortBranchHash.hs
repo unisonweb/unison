@@ -1,14 +1,27 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-module Unison.Codebase.ShortBranchHash where
+module Unison.Codebase.ShortBranchHash
+  ( prefixName,
+    toString,
+    toHash,
+    fromHash,
+    fullFromHash,
+    fromText,
+    ShortBranchHash (..),
+  )
+where
 
-import Unison.Prelude
-import qualified Unison.Hash as Hash
-import qualified Data.Text as Text
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.Hash as Hash
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment (NameSegment))
+import Unison.Prelude
 
-newtype ShortBranchHash =
-  ShortBranchHash { toText :: Text } -- base32hex characters
+newtype ShortBranchHash = ShortBranchHash {toText :: Text} -- base32hex characters
   deriving stock (Eq, Ord, Generic)
+
+prefixName :: ShortBranchHash -> Name -> Name
+prefixName sbh name = Name.cons (NameSegment $ toText sbh) name
 
 toString :: ShortBranchHash -> String
 toString = Text.unpack . toText
@@ -26,9 +39,10 @@ fullFromHash = ShortBranchHash . Hash.base32Hex . coerce
 -- abc -> SBH abc
 -- #abc -> SBH abc
 fromText :: Text -> Maybe ShortBranchHash
-fromText (Text.dropWhile (=='#') -> t)
-  | Text.all (`Set.member` Hash.validBase32HexChars) t = Just
-  $ ShortBranchHash t
+fromText (Text.dropWhile (== '#') -> t)
+  | Text.all (`Set.member` Hash.validBase32HexChars) t =
+    Just $
+      ShortBranchHash t
 fromText _ = Nothing
 
 instance Show ShortBranchHash where

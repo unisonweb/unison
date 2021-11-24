@@ -16,6 +16,7 @@ module Unison.Codebase.Path
     Unison.Codebase.Path.uncons,
     empty,
     absoluteEmpty,
+    absoluteEmpty',
     relativeEmpty',
     currentPath,
     prefix,
@@ -165,6 +166,9 @@ fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute empty
+
+absoluteEmpty' :: Path'
+absoluteEmpty' = Path' (Left (Absolute empty))
 
 relativeEmpty' :: Path'
 relativeEmpty' = Path' (Right (Relative empty))
