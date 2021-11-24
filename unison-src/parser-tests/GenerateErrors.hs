@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {- For every file foo.u in the current directory write the parse error to foo.message.txt -}
 module GenerateErrors where
 import qualified Data.Text                as Text
