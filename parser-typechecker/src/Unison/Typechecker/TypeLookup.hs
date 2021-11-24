@@ -1,9 +1,11 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Typechecker.TypeLookup where
 
 import Unison.Prelude
 
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.Reference (Reference)
-import Unison.Referent (Referent, ConstructorId)
+import Unison.Referent (Referent)
 import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
@@ -21,8 +23,8 @@ data TypeLookup v a =
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r
-  Referent.Con r cid CT.Data   -> typeOfDataConstructor   tl r cid
-  Referent.Con r cid CT.Effect -> typeOfEffectConstructor tl r cid
+  Referent.Con r CT.Data   -> typeOfDataConstructor   tl r
+  Referent.Con r CT.Effect -> typeOfEffectConstructor tl r
 
 -- bombs if not found
 unsafeConstructorType :: TypeLookup v a -> Reference -> CT.ConstructorType
@@ -35,12 +37,12 @@ constructorType tl r =
   (const CT.Data <$> Map.lookup r (dataDecls tl)) <|>
   (const CT.Effect <$> Map.lookup r (effectDecls tl))
 
-typeOfDataConstructor :: TypeLookup v a -> Reference -> ConstructorId -> Maybe (Type v a)
-typeOfDataConstructor tl r cid = go =<< Map.lookup r (dataDecls tl)
+typeOfDataConstructor :: TypeLookup v a -> ConstructorReference -> Maybe (Type v a)
+typeOfDataConstructor tl (ConstructorReference r cid) = go =<< Map.lookup r (dataDecls tl)
   where go dd = DD.typeOfConstructor dd cid
 
-typeOfEffectConstructor :: TypeLookup v a -> Reference -> ConstructorId -> Maybe (Type v a)
-typeOfEffectConstructor tl r cid = go =<< Map.lookup r (effectDecls tl)
+typeOfEffectConstructor :: TypeLookup v a -> ConstructorReference -> Maybe (Type v a)
+typeOfEffectConstructor tl (ConstructorReference r cid) = go =<< Map.lookup r (effectDecls tl)
   where go dd = DD.typeOfConstructor (DD.toDataDecl dd) cid
 
 typeOfTerm :: TypeLookup v a -> Reference -> Maybe (Type v a)

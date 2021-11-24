@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 
@@ -28,6 +29,7 @@ import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Text.Regex.TDFA               as RE
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
@@ -58,7 +60,7 @@ names = NamesWithHistory names0 mempty
 names0 :: Names
 names0 = Names terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
-    Rel.fromList [ (Name.unsafeFromVar vc, Referent.Con (R.DerivedId r) cid ct)
+    Rel.fromList [ (Name.unsafeFromVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
                  | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>

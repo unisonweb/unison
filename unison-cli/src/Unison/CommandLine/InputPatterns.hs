@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
@@ -704,22 +705,36 @@ back =
         _ -> Left (I.help cd)
     )
 
-deleteBranch :: InputPattern
-deleteBranch =
+deleteNamespace :: InputPattern
+deleteNamespace =
   InputPattern
     "delete.namespace"
     []
     [(Required, namespaceArg)]
     "`delete.namespace <foo>` deletes the namespace `foo`"
+    (deleteNamespaceParser (I.help deleteNamespace) Input.Try)
+
+deleteNamespaceForce :: InputPattern
+deleteNamespaceForce =
+  InputPattern
+    "delete.namespace.force"
+    []
+    [(Required, namespaceArg)]
+    ("`delete.namespace.force <foo>` deletes the namespace `foo`,"
+    <> "deletion will proceed even if other code depends on definitions in foo.")
+    (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
+
+deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
+deleteNamespaceParser helpText insistence =
     ( \case
         ["."] ->
           first fromString
             . pure
-            $ Input.DeleteBranchI Nothing
+            $ Input.DeleteBranchI insistence Nothing
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeleteBranchI $ Just p
-        _ -> Left (I.help deleteBranch)
+          pure . Input.DeleteBranchI insistence $ Just p
+        _ -> Left helpText
     )
 
 deletePatch :: InputPattern
@@ -1626,6 +1641,17 @@ dependencies =
         _ -> Left (I.help dependencies)
     )
 
+namespaceDependencies :: InputPattern
+namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
+  "List the external dependencies of the specified namespace."
+  (\case
+    [p] -> first fromString $ do
+             p <- Path.parsePath' p
+             pure $ Input.NamespaceDependenciesI (Just p)
+    [] -> pure (Input.NamespaceDependenciesI Nothing)
+    _ -> Left (I.help namespaceDependencies)
+  )
+
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
   InputPattern
@@ -1813,7 +1839,8 @@ validInputs =
     cd,
     up,
     back,
-    deleteBranch,
+    deleteNamespace,
+    deleteNamespaceForce,
     renameBranch,
     deletePatch,
     renamePatch,
@@ -1860,6 +1887,7 @@ validInputs =
     mergeIOBuiltins,
     dependents,
     dependencies,
+    namespaceDependencies,
     debugNumberedArgs,
     debugFileHashes,
     debugDumpNamespace,

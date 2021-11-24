@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -9,6 +10,7 @@
 
 module Unison.Server.Doc where
 
+import Control.Lens ((^.), view)
 import Control.Monad
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.Foldable
@@ -30,6 +32,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Decls as Decls
 import qualified Unison.Codebase.Editor.DisplayObject as DO
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.NamePrinter as NP
@@ -161,7 +164,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   goSignatures rs = runMaybeT (traverse (MaybeT . typeOf) rs) >>= \case
     Nothing -> pure ["🆘  codebase is missing type signature for these definitions"]
     Just types -> pure . fmap P.group $
-      TypePrinter.prettySignatures''
+      TypePrinter.prettySignaturesST
         (PPE.suffixifiedPPE pped)
         [ (r, PPE.termName (PPE.suffixifiedPPE pped) r, ty) | (r,ty) <- zip rs types]
 
@@ -230,7 +233,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
   goSrc :: [Term v ()] -> m [Ref (UnisonHash, DisplayObject SyntaxText Src)]
   goSrc es = do
     let toRef (Term.Ref' r) = Set.singleton r
-        toRef (Term.RequestOrCtor' r _) = Set.singleton r
+        toRef (Term.RequestOrCtor' r) = Set.singleton (r ^. ConstructorReference.reference_)
         toRef _ = mempty
         ppe = PPE.suffixifiedPPE pped
         goType :: Reference -> m (Ref (UnisonHash, DisplayObject SyntaxText Src))
@@ -266,14 +269,14 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
                   Just tm -> do
                     typ <- fromMaybe (Type.builtin() "unknown") <$> typeOf (Referent.Ref ref)
                     let name = PPE.termName ppe (Referent.Ref ref)
-                    let folded = formatPretty . P.lines 
-                               $ TypePrinter.prettySignatures'' ppe [(Referent.Ref ref, name, typ)]
+                    let folded = formatPretty . P.lines
+                               $ TypePrinter.prettySignaturesST ppe [(Referent.Ref ref, name, typ)]
                     let full tm@(Term.Ann' _ _) _ =
                           formatPretty (TermPrinter.prettyBinding ppe name tm)
                         full tm typ =
                           formatPretty (TermPrinter.prettyBinding ppe name (Term.ann() tm typ))
                     pure (DO.UserObject (Src folded (full tm typ)))
-              Term.RequestOrCtor' r _ | Set.notMember r seen -> (:acc) <$> goType r
+              Term.RequestOrCtor' (view ConstructorReference.reference_ -> r) | Set.notMember r seen -> (:acc) <$> goType r
               _ -> pure acc
           DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref), _anns]
             | Set.notMember ref seen

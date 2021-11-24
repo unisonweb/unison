@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Editor.Output
@@ -60,6 +61,7 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
+import Data.Set.NonEmpty (NESet)
 
 type ListDetailed = Bool
 
@@ -87,6 +89,12 @@ data NumberedOutput v
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
+    DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
 
 --  | ShowDiff
 
@@ -136,8 +144,6 @@ data Output v
     -- the path is deleted.
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
-  | -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-    CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
@@ -212,6 +218,11 @@ data Output v
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | -- | List dependents of a type or term.
     ListDependents Int LabeledDependency [(Reference, Maybe Name)]
+  | -- | List all direct dependencies which don't have any names in the current branch
+    ListNamespaceDependencies
+      PPE.PrettyPrintEnv -- PPE containing names for everything from the root namespace.
+      Path.Absolute -- The namespace we're checking dependencies for.
+      (Map LabeledDependency (Set Name)) -- Mapping of external dependencies to their local dependents.
   | DumpNumberedArgs NumberedArgs
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -289,7 +300,6 @@ isFailure o = case o of
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
-  CantDelete {} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames _ tys tms -> null tms && null tys
@@ -341,6 +351,7 @@ isFailure o = case o of
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False
+  ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
   NamespaceEmpty _ -> False
@@ -359,3 +370,6 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
+  CantDeleteDefinitions {} -> True
+  CantDeleteNamespace {} -> True
+  DeletedDespiteDependents {} -> False

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -19,6 +20,7 @@ module Unison.Referent'
 where
 
 import Control.Lens (Lens, lens)
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashable (Hashable (tokens))
@@ -35,7 +37,7 @@ import Unison.Prelude (Word64)
 -- | When @Ref'@ then @r@ represents a term.
 --
 -- When @Con'@ then @r@ is a type declaration.
-data Referent' r = Ref' r | Con' r ConstructorId ConstructorType
+data Referent' r = Ref' r | Con' (GConstructorReference r) ConstructorType
   deriving (Show, Ord, Eq, Functor)
 
 -- | A lens onto the reference in a referent.
@@ -44,7 +46,7 @@ reference_ =
   lens toReference' \rt rc ->
     case rt of
       Ref' _ -> Ref' rc
-      Con' _ cid ct -> Con' rc cid ct
+      Con' (ConstructorReference _ cid) ct -> Con' (ConstructorReference rc cid) ct
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True
@@ -58,18 +60,18 @@ toTermReference = \case
 toReference' :: Referent' r -> r
 toReference' = \case
   Ref' r -> r
-  Con' r _i _t -> r
+  Con' (ConstructorReference r _i) _t -> r
 
 toTypeReference :: Referent' r -> Maybe r
 toTypeReference = \case
-  Con' r _i _t -> Just r
+  Con' (ConstructorReference r _i) _t -> Just r
   _ -> Nothing
 
 fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
-  Con' r i ct -> fc r i ct
+  Con' (ConstructorReference r i) ct -> fc r i ct
 
 instance Hashable r => Hashable (Referent' r) where
   tokens (Ref' r) = [H.Tag 0] ++ H.tokens r
-  tokens (Con' r i dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt
+  tokens (Con' (ConstructorReference r i) dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

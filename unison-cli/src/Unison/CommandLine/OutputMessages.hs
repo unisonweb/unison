@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RankNTypes #-}
@@ -11,10 +12,12 @@ import Control.Lens
 import qualified Control.Monad.State.Strict as State
 import Data.Bifunctor (first, second)
 import Data.List (sort, stripPrefix)
+import qualified Data.List as List
 import Data.List.Extra (notNull, nubOrd, nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
 import Data.Text.IO (readFile, writeFile)
 import Data.Tuple (swap)
@@ -58,6 +61,7 @@ import Unison.CommandLine
   )
 import Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.Hash as Hash
@@ -303,6 +307,33 @@ notifyNumbered o = case o of
             ]
       )
       (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
+  CantDeleteDefinitions ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the following definitions because they are still in use:",
+          "",
+          endangeredDependentsTable ppeDecl endangerments
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
+  CantDeleteNamespace ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "I didn't delete the namespace because the following definitions are still in use.",
+          "",
+          endangeredDependentsTable ppeDecl endangerments,
+          "",
+          P.wrap "If you want to proceed anyways and leave those definitions without names, use"
+            <> IP.patternName IP.deleteNamespaceForce
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
+  DeletedDespiteDependents ppeDecl endangerments ->
+    (P.warnCallout $
+      P.lines
+        [ P.wrap "Of the things I deleted, the following are still used in the following definitions. They now contain un-named references.",
+          "",
+          endangeredDependentsTable ppeDecl endangerments
+        ]
+    , numberedArgsForEndangerments ppeDecl endangerments)
   where
     e = Path.absoluteEmpty
     undoTip =
@@ -551,17 +582,6 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       "I was expecting the namespace " <> prettyPath' path
         <> " to be empty for this operation, but it isn't."
-  CantDelete ppe failed failedDependents ->
-    pure . P.warnCallout $
-      P.lines
-        [ P.wrap "I couldn't delete ",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failed,
-          "",
-          "because it's still being used by these definitions:",
-          "",
-          P.indentN 2 $ listOfDefinitions' ppe False failedDependents
-        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -1353,6 +1373,28 @@ notifyUser dir o = case o of
         )
       p = prettyShortHash . SH.take hqLength
       c = P.syntaxToColor
+  ListNamespaceDependencies _ppe _path Empty -> pure $ "This namespace has no external dependencies."
+  ListNamespaceDependencies ppe path' externalDependencies -> do
+    let spacer = ("", "")
+    pure . P.column2Header (P.hiBlack "External dependency") ("Dependents in " <> prettyAbsolute path') $
+      List.intersperse spacer (externalDepsTable externalDependencies)
+    where
+      externalDepsTable :: Map LabeledDependency (Set Name) -> [(P.Pretty P.ColorText, P.Pretty P.ColorText)]
+      externalDepsTable = ifoldMap $ \ld dependents ->
+        [(prettyLD ld, prettyDependents dependents)]
+      prettyLD :: LabeledDependency -> P.Pretty P.ColorText
+      prettyLD =
+        P.syntaxToColor
+          . prettyHashQualified
+          . LD.fold
+            (PPE.typeName ppe)
+            (PPE.termName ppe)
+      prettyDependents :: Set Name -> P.Pretty P.ColorText
+      prettyDependents refs =
+        refs
+          & Set.toList
+          & fmap prettyName
+          & P.lines
   DumpUnisonFileHashes hqLength datas effects terms ->
     pure . P.syntaxToColor . P.lines $
       ( effects <&> \(n, r) ->
@@ -1416,6 +1458,9 @@ prettyPath' p' =
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
+
+prettyAbsolute :: Path.Absolute -> Pretty
+prettyAbsolute = P.blue . P.shown
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
 prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
@@ -1636,7 +1681,7 @@ unsafePrettyTermResultSig' ::
   Pretty
 unsafePrettyTermResultSig' ppe = \case
   SR'.TermResult' name (Just typ) r _aliases ->
-    head (TypePrinter.prettySignatures' ppe [(r, name, typ)])
+    head (TypePrinter.prettySignaturesCT ppe [(r, name, typ)])
   _ -> error "Don't pass Nothing"
 
 -- produces:
@@ -1823,13 +1868,13 @@ todoOutput ppe todo =
             ),
           P.indentN 2 . P.lines $
             ( (prettyDeclPair ppeu <$> toList frontierTypes)
-                ++ TypePrinter.prettySignatures' ppes (goodTerms frontierTerms)
+                ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
             ),
           P.wrap "I recommend working on them in the following order:",
           P.numberedList $
             let unscore (_score, a, b) = (a, b)
              in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes)
-                  ++ TypePrinter.prettySignatures'
+                  ++ TypePrinter.prettySignaturesCT
                     ppes
                     (goodTerms $ unscore <$> dirtyTerms),
           formatMissingStuff corruptTerms corruptTypes
@@ -2372,7 +2417,7 @@ watchPrinter src ppe ann kind term isHit =
         extra = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
         line = lines !! (lineNum - 1)
         addCache p = if isHit then p <> " (cached)" else p
-        renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
+        renderTest (Term.App' (Term.Constructor' (ConstructorReference _ id)) (Term.Text' msg)) =
           "\n"
             <> if id == DD.okConstructorId
               then
@@ -2512,6 +2557,11 @@ prettyTermName ppe r =
   P.syntaxToColor $
     prettyHashQualified (PPE.termName ppe r)
 
+prettyTypeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
+prettyTypeName ppe r =
+  P.syntaxToColor $
+    prettyHashQualified (PPE.typeName ppe r)
+
 prettyReadRepo :: ReadRepo -> Pretty
 prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
 
@@ -2522,8 +2572,58 @@ isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
   Term.List' ts -> all isSuccess ts
     where
-      isSuccess (Term.App' (Term.Constructor' ref cid) _) =
+      isSuccess (Term.App' (Term.Constructor' (ConstructorReference ref cid)) _) =
         cid == DD.okConstructorId
           && ref == DD.testResultRef
       isSuccess _ = False
   _ -> False
+
+-- | Get the list of numbered args corresponding to an endangerment map, which is used by a
+-- few outputs. See 'endangeredDependentsTable'.
+numberedArgsForEndangerments ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  NumberedArgs
+numberedArgsForEndangerments (PPE.unsuffixifiedPPE -> ppe) m =
+  m
+    & Map.elems
+    & concatMap toList
+    & fmap (HQ.toString . PPE.labeledRefName ppe)
+
+-- | Format and render all dependents which are endangered by references going extinct.
+endangeredDependentsTable ::
+  PPE.PrettyPrintEnvDecl ->
+  Map LabeledDependency (NESet LabeledDependency) ->
+  P.Pretty P.ColorText
+endangeredDependentsTable ppeDecl m =
+  m
+    & Map.toList
+    & fmap (second toList)
+    & numberDependents
+    & map
+      ( \(dependency, dependents) ->
+          (prettyLabeled suffixifiedEnv dependency, prettyDependents dependents)
+      )
+    & List.intersperse spacer
+    & P.column2Header "Dependency" "Referenced In"
+  where
+    numberDependents :: [(x, [LabeledDependency])] -> [(x, [(Int, LabeledDependency)])]
+    numberDependents xs =
+      let (_acc, numbered) =
+            mapAccumLOf
+              (traversed . _2 . traversed)
+              (\n ld -> (n + 1, (n, ld)))
+              1
+              xs
+       in numbered
+    spacer = ("", "")
+    suffixifiedEnv = (PPE.suffixifiedPPE ppeDecl)
+    fqnEnv = (PPE.unsuffixifiedPPE ppeDecl)
+    prettyLabeled ppe = \case
+      LD.TermReferent ref -> prettyTermName ppe ref
+      LD.TypeReference ref -> prettyTypeName ppe ref
+    numArg = (\n -> P.hiBlack . fromString $ show n <> ". ")
+    prettyDependents refs =
+      refs
+        & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
+        & P.lines

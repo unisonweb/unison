@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable   #-}
@@ -556,7 +557,7 @@ column2Header left right = column2sep "  " . ((fmap CT.hiBlack left, fmap CT.hiB
 
 column2sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s)] -> Pretty s
-column2sep sep rows = lines . (group <$>) . align $ [(a, sep <> b) | (a, b) <- rows]
+column2sep sep rows = lines . (group <$>) . align $ [(a, indent sep b) | (a, b) <- rows]
 
 column2M
   :: (Applicative m, LL.ListLike s Char, IsString s)

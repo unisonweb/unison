@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Hashing.V2.Convert
@@ -16,6 +17,7 @@ import Data.Map (Map)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.ConstructorReference as Memory.ConstructorReference
 import qualified Unison.DataDeclaration as Memory.DD
 import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
 import qualified Unison.Hashing.V2.Pattern as Hashing.Pattern
@@ -56,8 +58,8 @@ m2hTerm = ABT.transform \case
   Memory.Term.Char c -> Hashing.Term.Char c
   Memory.Term.Blank b -> Hashing.Term.Blank b
   Memory.Term.Ref r -> Hashing.Term.Ref (m2hReference r)
-  Memory.Term.Constructor r i -> Hashing.Term.Constructor (m2hReference r) i
-  Memory.Term.Request r i -> Hashing.Term.Request (m2hReference r) i
+  Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> Hashing.Term.Constructor (m2hReference r) i
+  Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> Hashing.Term.Request (m2hReference r) i
   Memory.Term.Handle x y -> Hashing.Term.Handle x y
   Memory.Term.App f x -> Hashing.Term.App f x
   Memory.Term.Ann e t -> Hashing.Term.Ann e (m2hType t)
@@ -85,10 +87,12 @@ m2hPattern = \case
   Memory.Pattern.Float loc f -> Hashing.Pattern.Float loc f
   Memory.Pattern.Text loc t -> Hashing.Pattern.Text loc t
   Memory.Pattern.Char loc c -> Hashing.Pattern.Char loc c
-  Memory.Pattern.Constructor loc r i ps -> Hashing.Pattern.Constructor loc (m2hReference r) i (fmap m2hPattern ps)
+  Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps -> 
+    Hashing.Pattern.Constructor loc (m2hReference r) i (fmap m2hPattern ps)
   Memory.Pattern.As loc p -> Hashing.Pattern.As loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.Pattern.EffectPure loc (m2hPattern p)
-  Memory.Pattern.EffectBind loc r i ps k -> Hashing.Pattern.EffectBind loc (m2hReference r) i (fmap m2hPattern ps) (m2hPattern k)
+  Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k -> 
+    Hashing.Pattern.EffectBind loc (m2hReference r) i (fmap m2hPattern ps) (m2hPattern k)
   Memory.Pattern.SequenceLiteral loc ps -> Hashing.Pattern.SequenceLiteral loc (fmap m2hPattern ps)
   Memory.Pattern.SequenceOp loc l op r -> Hashing.Pattern.SequenceOp loc (m2hPattern l) (m2hSequenceOp op) (m2hPattern r)
 
@@ -101,7 +105,7 @@ m2hSequenceOp = \case
 m2hReferent :: Memory.Referent.Referent -> Hashing.Referent.Referent
 m2hReferent = \case
   Memory.Referent.Ref ref -> Hashing.Referent.Ref (m2hReference ref)
-  Memory.Referent.Con ref n ct -> Hashing.Referent.Con (m2hReference ref) n ct
+  Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference ref n) ct -> Hashing.Referent.Con (m2hReference ref) n ct
 
 h2mTerm :: Ord v => Hashing.Term.Term v a -> Memory.Term.Term v a
 h2mTerm = ABT.transform \case
@@ -113,8 +117,8 @@ h2mTerm = ABT.transform \case
   Hashing.Term.Char c -> Memory.Term.Char c
   Hashing.Term.Blank b -> Memory.Term.Blank b
   Hashing.Term.Ref r -> Memory.Term.Ref (h2mReference r)
-  Hashing.Term.Constructor r i -> Memory.Term.Constructor (h2mReference r) i
-  Hashing.Term.Request r i -> Memory.Term.Request (h2mReference r) i
+  Hashing.Term.Constructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
+  Hashing.Term.Request r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.Term.Handle x y -> Memory.Term.Handle x y
   Hashing.Term.App f x -> Memory.Term.App f x
   Hashing.Term.Ann e t -> Memory.Term.Ann e (h2mType t)
@@ -142,10 +146,12 @@ h2mPattern = \case
   Hashing.Pattern.Float loc f -> Memory.Pattern.Float loc f
   Hashing.Pattern.Text loc t -> Memory.Pattern.Text loc t
   Hashing.Pattern.Char loc c -> Memory.Pattern.Char loc c
-  Hashing.Pattern.Constructor loc r i ps -> Memory.Pattern.Constructor loc (h2mReference r) i (h2mPattern <$> ps)
+  Hashing.Pattern.Constructor loc r i ps -> 
+    Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
   Hashing.Pattern.As loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.Pattern.EffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
-  Hashing.Pattern.EffectBind loc r i ps k -> Memory.Pattern.EffectBind loc (h2mReference r) i (h2mPattern <$> ps) (h2mPattern k)
+  Hashing.Pattern.EffectBind loc r i ps k -> 
+    Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps) (h2mPattern k)
   Hashing.Pattern.SequenceLiteral loc ps -> Memory.Pattern.SequenceLiteral loc (h2mPattern <$> ps)
   Hashing.Pattern.SequenceOp loc l op r -> Memory.Pattern.SequenceOp loc (h2mPattern l) (h2mSequenceOp op) (h2mPattern r)
 
@@ -158,7 +164,7 @@ h2mSequenceOp = \case
 h2mReferent :: Hashing.Referent.Referent -> Memory.Referent.Referent
 h2mReferent = \case
   Hashing.Referent.Ref ref -> Memory.Referent.Ref (h2mReference ref)
-  Hashing.Referent.Con ref n ct -> Memory.Referent.Con (h2mReference ref) n ct
+  Hashing.Referent.Con ref n ct -> Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference (h2mReference ref) n) ct
 
 hashDecls ::
   Var v =>

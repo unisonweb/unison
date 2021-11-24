@@ -1,7 +1,21 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
-module Unison.TypePrinter where
+module Unison.TypePrinter
+  (
+  pretty
+  , pretty0
+  , prettyRaw
+  , prettyStr
+  , prettySyntax
+  , prettySignaturesST
+  , prettySignaturesCT
+  , prettySignaturesCTCollapsed
+
+  , prettySignaturesAlt
+  , prettySignaturesAlt'
+  ) where
 
 import Unison.Prelude
 
@@ -31,10 +45,10 @@ pretty ppe = PP.syntaxToColor . prettySyntax ppe
 prettySyntax :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettySyntax ppe = pretty0 ppe mempty (-1)
 
-pretty' :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
-pretty' (Just width) n t =
+prettyStr :: Var v => Maybe Width -> PrettyPrintEnv -> Type v a -> String
+prettyStr (Just width) n t =
   toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
-pretty' Nothing n t =
+prettyStr Nothing n t =
   toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
 
 {- Explanation of precedence handling
@@ -147,24 +161,33 @@ fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
 
 -- todo: provide sample output in comment
-prettySignatures'
+prettySignaturesCT
   :: Var v => PrettyPrintEnv
   -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = map PP.syntaxToColor $ prettySignatures'' env ts
+prettySignaturesCT env ts = map PP.syntaxToColor $ prettySignaturesST env ts
 
-prettySignatures''
+prettySignaturesCTCollapsed
+  :: Var v
+  => PrettyPrintEnv
+  -> [(Referent, HashQualified Name, Type v a)]
+  -> Pretty ColorText
+prettySignaturesCTCollapsed env ts = PP.lines $
+  PP.group <$> prettySignaturesCT env ts
+
+
+prettySignaturesST
   :: Var v => PrettyPrintEnv
   -> [(Referent, HashQualified Name, Type v a)]
   -> [Pretty SyntaxText]
-prettySignatures'' env ts = 
+prettySignaturesST env ts =
   PP.align [ (name r hq, sig typ) | (r, hq, typ) <- ts ]
   where
-  name r hq = 
+  name r hq =
     styleHashQualified'' (fmt $ S.TermReference r) hq
-  sig typ = 
+  sig typ =
     (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
-    `PP.orElse` 
+    `PP.orElse`
     (fmt S.TypeAscriptionColon ": " <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ))
 
 -- todo: provide sample output in comment; different from prettySignatures'
@@ -184,14 +207,6 @@ prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
 
 -- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, Type v a)] -> [Pretty ColorText]
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
-
-prettySignatures
-  :: Var v
-  => PrettyPrintEnv
-  -> [(Referent, HashQualified Name, Type v a)]
-  -> Pretty ColorText
-prettySignatures env ts = PP.lines $
-  PP.group <$> prettySignatures' env ts
 
 prettySignaturesAlt
   :: Var v

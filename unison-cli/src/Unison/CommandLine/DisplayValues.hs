@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language PatternSynonyms #-}
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
@@ -6,6 +7,8 @@ module Unison.CommandLine.DisplayValues where
 
 import Unison.Prelude
 
+import Control.Lens ((^.))
+import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Term (Term)
@@ -13,6 +16,7 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.Runtime.IOSource as DD
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.DataDeclaration as DD
@@ -68,7 +72,7 @@ displayTerm' :: (Var v, Monad m)
            -> Term v ()
            -> m Pretty
 displayTerm' elideUnit pped terms typeOf eval types = \case
-  tm@(Term.Apps' (Term.Constructor' typ _) _)
+  tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
     | typ == DD.docRef             -> displayDoc pped terms typeOf eval types tm
     | typ == DD.doc2Ref            -> do
       -- Pretty.get (doc.formatConsole tm)
@@ -130,7 +134,7 @@ displayPretty pped terms typeOf eval types tm = go tm
     -- to do some ascii art rendering
     let tys = [ ref | DD.TupleTerm' [DD.EitherLeft' (Term.TypeLink' ref),_anns] <- toList es ]
         toRef (Term.Ref' r) = Just r
-        toRef (Term.RequestOrCtor' r _) = Just r
+        toRef (Term.RequestOrCtor' r) = Just (r ^. ConstructorReference.reference_)
         toRef _ = Nothing
         tms = [ ref | DD.TupleTerm' [DD.EitherRight' (DD.Doc2Term (toRef -> Just ref)),_anns] <- toList es ]
     typeMap <- let
@@ -179,10 +183,10 @@ displayPretty pped terms typeOf eval types tm = go tm
       in case e of
         DD.EitherLeft' (Term.TypeLink' ref) -> go $ PPE.typeName ppe ref
         DD.EitherRight' (DD.Doc2Term (Term.Ref' ref)) -> go $ PPE.termName ppe (Referent.Ref ref)
-        DD.EitherRight' (DD.Doc2Term (Term.Request' ref cid)) ->
-          go $ PPE.termName ppe (Referent.Con ref cid CT.Effect)
-        DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref cid)) ->
-          go $ PPE.termName ppe (Referent.Con ref cid CT.Data)
+        DD.EitherRight' (DD.Doc2Term (Term.Request' ref)) ->
+          go $ PPE.termName ppe (Referent.Con ref CT.Effect)
+        DD.EitherRight' (DD.Doc2Term (Term.Constructor' ref)) ->
+          go $ PPE.termName ppe (Referent.Con ref CT.Data)
         _ -> P.red <$> displayTerm pped terms typeOf eval types e
 
     -- Signature [Doc2.Term]
@@ -225,14 +229,14 @@ displayPretty pped terms typeOf eval types tm = go tm
 
   toReferent tm = case tm of
     Term.Ref' r -> Just (Referent.Ref r)
-    Term.Constructor' r cid -> Just (Referent.Con r cid CT.Data)
-    Term.Request' r cid -> Just (Referent.Con r cid CT.Effect)
+    Term.Constructor' r -> Just (Referent.Con r CT.Data)
+    Term.Request' r -> Just (Referent.Con r CT.Effect)
     _ -> Nothing
 
   goSignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.suffixifiedPPE pped) r
     Just typ -> pure . P.group $
-      TypePrinter.prettySignatures
+      TypePrinter.prettySignaturesCTCollapsed
         (PPE.suffixifiedPPE pped)
         [(r, PPE.termName (PPE.suffixifiedPPE pped) r, typ)]
 
@@ -293,7 +297,7 @@ displayDoc pped terms typeOf evaluated types = go
   prettySignature r = typeOf r >>= \case
     Nothing -> pure $ termName (PPE.unsuffixifiedPPE pped) r
     Just typ -> pure . P.group $
-      TypePrinter.prettySignatures
+      TypePrinter.prettySignaturesCTCollapsed
         (PPE.suffixifiedPPE pped)
         [(r, PPE.termName (PPE.unsuffixifiedPPE pped) r, typ)]
   prettyEval terms r = case r of
@@ -303,13 +307,13 @@ displayDoc pped terms typeOf evaluated types = go
       in  terms ref >>= \case
             Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
             Just tm -> pure $ TP.pretty ppe tm
-    Referent.Con r _ _ -> pure $ typeName (PPE.declarationPPE pped r) r
+    Referent.Con (ConstructorReference r _) _ -> pure $ typeName (PPE.declarationPPE pped r) r
   prettyTerm terms r = case r of
     Referent.Ref (Reference.Builtin _) -> prettySignature r
     Referent.Ref ref -> let ppe = PPE.declarationPPE pped ref in terms ref >>= \case
       Nothing -> pure $ "😶  Missing term source for: " <> termName ppe r
       Just tm -> pure . P.syntaxToColor $ P.group $ TP.prettyBinding ppe (PPE.termName ppe r) tm
-    Referent.Con r _ _ -> prettyType r
+    Referent.Con (ConstructorReference r _) _ -> prettyType r
   prettyType r = let ppe = PPE.declarationPPE pped r in types r >>= \case
     Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
     Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped r (PPE.typeName ppe r) ty
