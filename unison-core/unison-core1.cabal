@@ -43,6 +43,7 @@ library
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern
+      Unison.Position
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
