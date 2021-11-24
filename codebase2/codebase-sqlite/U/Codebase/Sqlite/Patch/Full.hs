@@ -10,7 +10,7 @@ import qualified U.Codebase.Sqlite.DbId as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
 import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
-import qualified U.Util.Map as Map
+import qualified Unison.Util.Map as Map
 
 type Patch = Patch' Db.TextId Db.HashId Db.ObjectId
 

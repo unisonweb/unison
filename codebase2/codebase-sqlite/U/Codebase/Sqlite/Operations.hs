@@ -195,7 +195,7 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Lens as Lens
-import qualified U.Util.Map as Map
+import qualified Unison.Util.Map as Map
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S

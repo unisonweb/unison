@@ -18,6 +18,7 @@ source-repository head
 library
   exposed-modules:
       Unison.Prelude
+      Unison.Util.Map
   other-modules:
       Paths_unison_prelude
   hs-source-dirs:
