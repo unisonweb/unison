@@ -326,8 +326,7 @@ notifyNumbered o = case o of
           "",
           endangeredDependentsTable ppeDecl endangerments,
           "",
-          P.wrap "If you want to proceed anyways and leave those definitions without names, use"
-            <> IP.patternName IP.deleteNamespaceForce
+          P.wrap ("If you want to proceed anyways and leave those definitions without names, use " <> IP.patternName IP.deleteNamespaceForce)
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
   History _cap sbhLength history tail ->
