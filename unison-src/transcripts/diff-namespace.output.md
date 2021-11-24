@@ -153,8 +153,6 @@ Here's what we've done so far:
 ```ucm
 .> diff.namespace nothing ns1
 
-  ☝️  The namespace .nothing is empty.
-
   ⚠️
   
   The namespace .nothing is empty. Was there a typo?

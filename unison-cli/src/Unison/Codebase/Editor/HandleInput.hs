@@ -3350,7 +3350,5 @@ branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v
 branchForBranchId = \case
   Left hash -> do
     resolveShortBranchHash hash
-  Right path -> lift $ do
-    branch' <- getAt path
-    when (Branch.isEmpty branch') $ respond (CreatedNewBranch path)
-    pure branch'
+  Right path -> do
+    lift $ getAt path
