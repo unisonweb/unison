@@ -7,6 +7,8 @@ import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
 import qualified Data.Map as Map
 import qualified Unison.Util.Relation as R
+import Data.Function (on)
+import Data.Ord (comparing)
 import Data.Semigroup (Sum(Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
 
@@ -15,7 +17,13 @@ data Relation3 a b c
   { d1 :: Map a (Relation b c)
   , d2 :: Map b (Relation a c)
   , d3 :: Map c (Relation a b)
-  } deriving (Eq,Ord)
+  }
+
+instance (Eq a, Eq b, Eq c) => Eq (Relation3 a b c) where
+  (==) = (==) `on` d1
+
+instance (Ord a, Ord b, Ord c) => Ord (Relation3 a b c) where
+  compare = comparing d1
 
 instance (Show a, Show b, Show c) => Show (Relation3 a b c) where
   show = show . toList

@@ -5,12 +5,13 @@ module Unison.Util.Relation4 where
 import Unison.Prelude hiding (toList, empty)
 import Prelude
 import qualified Data.Map as Map
---import qualified Data.Set as Set
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation3 as R3
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation3 (Relation3(Relation3))
+import Data.Function (on)
 import Data.List.Extra (nubOrd)
+import Data.Ord (comparing)
 import Data.Semigroup (Sum(Sum, getSum))
 
 data Relation4 a b c d
@@ -19,7 +20,13 @@ data Relation4 a b c d
   , d2 :: Map b (Relation3 a c d)
   , d3 :: Map c (Relation3 a b d)
   , d4 :: Map d (Relation3 a b c)
-  } deriving (Eq,Ord)
+  }
+
+instance (Eq a, Eq b, Eq c, Eq d) => Eq (Relation4 a b c d) where
+  (==) = (==) `on` d1
+
+instance (Ord a, Ord b, Ord c, Ord d) => Ord (Relation4 a b c d) where
+  compare = comparing d1
 
 instance (Show a, Show b, Show c, Show d) => Show (Relation4 a b c d) where
   show = show . toList
@@ -59,7 +66,7 @@ selectD34 c d r =
            ]
 
 keys :: Relation4 a b c d -> (Set a, Set b, Set c, Set d)
-keys Relation4{d1, d2, d3, d4} = 
+keys Relation4{d1, d2, d3, d4} =
   (Map.keysSet d1, Map.keysSet d2, Map.keysSet d3, Map.keysSet d4)
 
 d1set :: Ord a => Relation4 a b c d -> Set a
