@@ -107,10 +107,12 @@ where
 
 import Control.DeepSeq
 import qualified Control.Monad as Monad
+import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as M
 import qualified Data.Map as Map
 import qualified Data.Map.Internal as Map
+import Data.Ord (comparing)
 import qualified Data.Set as S
 import Unison.Prelude hiding (empty, toList)
 import qualified Unison.Util.Set as Set
@@ -137,10 +139,15 @@ data Relation a b = Relation
   { domain :: Map a (Set b),
     range :: Map b (Set a)
   }
-  deriving (Eq, Ord)
+
+instance (Eq a, Eq b) => Eq (Relation a b) where
+  (==) = (==) `on` domain
 
 instance (NFData a, NFData b) => NFData (Relation a b) where
   rnf (Relation d r) = rnf d `seq` rnf r
+
+instance (Ord a, Ord b) => Ord (Relation a b) where
+  compare = comparing domain
 
 instance (Show a, Show b) => Show (Relation a b) where
   show = show . toList
