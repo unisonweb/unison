@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 04a02074ea0a2e0cf51830a146f4307ac18b44ae4f4803fe67afefba17d51943
 
 name:           unison-util-relation
 version:        0.0.0
@@ -26,7 +24,21 @@ library
       Paths_unison_util_relation
   hs-source-dirs:
       src
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses NamedFieldPuns ScopedTypeVariables TupleSections TypeApplications ViewPatterns
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
@@ -43,7 +55,21 @@ test-suite tests
       Paths_unison_util_relation
   hs-source-dirs:
       test
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses NamedFieldPuns ScopedTypeVariables TupleSections TypeApplications ViewPatterns
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
@@ -63,7 +89,21 @@ benchmark relation
       Paths_unison_util_relation
   hs-source-dirs:
       benchmarks/relation
-  default-extensions: ApplicativeDo BlockArguments DeriveFunctor DerivingStrategies DoAndIfThenElse FlexibleContexts FlexibleInstances LambdaCase MultiParamTypeClasses NamedFieldPuns ScopedTypeVariables TupleSections TypeApplications ViewPatterns
+  default-extensions:
+      ApplicativeDo
+      BlockArguments
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
   ghc-options: -Wall
   build-depends:
       base
