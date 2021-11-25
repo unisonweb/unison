@@ -515,7 +515,7 @@ r |> t =
 Relation {domain, range} ||> t =
   Relation
     { domain = Map.mapMaybe (`Set.difference1` t) domain,
-      range = Map.restrictKeys range t
+      range = range `Map.withoutKeys` t
     }
 
 -- | Named version of ('||>').
@@ -526,7 +526,7 @@ subtractRan = flip (||>)
 (<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 s <|| Relation {domain, range} =
   Relation
-    { domain = Map.restrictKeys domain s,
+    { domain = domain `Map.withoutKeys` s,
       range = Map.mapMaybe (`Set.difference1` s) range
     }
 
