@@ -63,7 +63,7 @@ import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
