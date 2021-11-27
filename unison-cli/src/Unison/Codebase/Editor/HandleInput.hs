@@ -1847,7 +1847,7 @@ handlePushRemoteBranch ::
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   SyncMode.SyncMode ->
-  -- | The remote target. If missing, the given branch contents should be pushed to the repo repo without updating the
+  -- | The remote target. If missing, the given branch contents should be pushed to the remote repo without updating the
   -- root namespace.
   Maybe (Path, PushBehavior) ->
   Action' m v ()
