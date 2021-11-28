@@ -38,7 +38,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -54,11 +54,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (GitCould
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.CommandLine
-  ( bigproblem,
-    note,
-    tip,
-  )
+import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference(..))
@@ -343,14 +339,9 @@ notifyNumbered o = case o of
           <> IP.makeExample' IP.viewReflog
           <> "to undo this change."
 
-prettyRemoteNamespace ::
-  ( RemoteRepo.ReadRepo,
-    Maybe ShortBranchHash,
-    Path.Path
-  ) ->
-  P.Pretty P.ColorText
+prettyRemoteNamespace :: ReadRemoteNamespace -> P.Pretty P.ColorText
 prettyRemoteNamespace =
-  P.group . P.text . uncurry3 RemoteRepo.printNamespace
+  P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -1420,6 +1411,16 @@ notifyUser dir o = case o of
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]
+  GistCreated hqLength repo hash ->
+    pure $
+      P.lines
+        [ "Gist created. Pull via:",
+          "",
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyRemoteNamespace remoteNamespace)
+        ]
+    where
+      remoteNamespace =
+        (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
