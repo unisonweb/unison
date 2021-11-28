@@ -1649,7 +1649,7 @@ loop = do
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch0 mayRepo path pushBehavior syncMode
+            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1819,10 +1819,10 @@ handleDependents hq = do
 -- | Handle a @gist@ command.
 handleGist :: Applicative m => GistInput -> Action' m v ()
 handleGist (GistInput repo) =
-  handlePushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
+  doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
 
 -- | Handle a @push@ command.
-handlePushRemoteBranch0 ::
+handlePushRemoteBranch ::
   forall m v.
   Applicative m =>
   -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
@@ -1833,13 +1833,13 @@ handlePushRemoteBranch0 ::
   PushBehavior ->
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch0 mayRepo path pushBehavior syncMode = do
+handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    lift (handlePushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
+    lift (doPushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
-handlePushRemoteBranch ::
+doPushRemoteBranch ::
   forall m v.
   Applicative m =>
   -- | The repo to push to.
@@ -1851,7 +1851,7 @@ handlePushRemoteBranch ::
   -- root namespace.
   Maybe (Path, PushBehavior) ->
   Action' m v ()
-handlePushRemoteBranch repo localPath syncMode remoteTarget = do
+doPushRemoteBranch repo localPath syncMode remoteTarget = do
   sourceBranch <- do
     currentPath' <- use LoopState.currentPath
     getAt (Path.resolve currentPath' localPath)
