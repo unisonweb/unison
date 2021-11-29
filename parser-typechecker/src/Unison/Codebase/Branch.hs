@@ -531,8 +531,7 @@ uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
--- | Run a series of updates at specific locations efficiently, aggregating all changes
--- into a single causal step.
+-- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
@@ -545,8 +544,7 @@ stepManyAt actions startBranch =
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
 
--- | Run a series of updates at specific locations efficiently, aggregating all changes
--- into a single causal step.
+-- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions startBranch =
@@ -647,9 +645,12 @@ batchUpdates actions =
 data ActionLocation = HereActions | ChildActions
   deriving Eq
 
--- | Efficiently perform updates over many locations within a branch.
--- All updates are performed over the current branch, all causal changes
--- must be performed in the updates themselves.
+-- | Batch many updates. This allows us to apply the updates while minimizing redundant traversals.
+-- Semantics of operations are preserved by ensuring that all updates will always see changes
+-- by updates before them in the list.
+--
+-- This method does not 'step' any branches on its own, all causal changes must be performed in the updates themselves,
+-- or this batch update must be provided to 'stepManyAt(M)'.
 batchUpdatesM ::
   forall m n f.
   (Monad m, Monad n, Foldable f) =>

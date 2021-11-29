@@ -13,18 +13,6 @@ parent.top = "top"
 parent.child.thing = "parent.child.thing"
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      parent.child.thing : Text
-      parent.top         : Text
-
-```
 The child branch has a single history node representing the addition of `parent.child.thing`.
 
 ```ucm
@@ -51,17 +39,6 @@ If we add another thing to the child namespace it should add another history nod
 parent.child.thing2 = "parent.child.thing2"
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      parent.child.thing2 : Text
-
-```
 ```ucm
 .> add
 
@@ -97,17 +74,6 @@ Now we fork the parent namespace to make some changes.
 parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      parent_fork.child.thing3 : Text
-
-```
 ```ucm
 .> add
 

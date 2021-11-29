@@ -12,7 +12,7 @@ but I think we should at least notice if we change things by accident.
 .> builtins.merge
 ```
 
-```unison
+```unison:hide
 parent.top = "top"
 parent.child.thing = "parent.child.thing"
 ```
@@ -26,10 +26,9 @@ The child branch has a single history node representing the addition of `parent.
 
 If we add another thing to the child namespace it should add another history node.
 
-```unison
+```unison:hide
 parent.child.thing2 = "parent.child.thing2"
 ```
-
 
 ```ucm
 .> add
@@ -44,7 +43,7 @@ Now we fork the parent namespace to make some changes.
 .> fork parent parent_fork
 ```
 
-```unison
+```unison:hide
 parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 
