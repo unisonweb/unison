@@ -91,6 +91,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
+import Unison.Position (Position(..))
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
@@ -832,7 +833,7 @@ loop = do
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
-                  fuzzySelectNamespace root0 <&> \case
+                  fuzzySelectNamespace Absolute root0 <&> \case
                     [] -> Nothing
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
@@ -1025,7 +1026,7 @@ loop = do
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
-                  fuzzySelectTermsAndTypes root0
+                  fuzzySelectDefinition Absolute root0
                     -- HQ names should always parse as a valid split, so we just discard any
                     -- that don't to satisfy the type-checker.
                     <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
@@ -1095,7 +1096,7 @@ loop = do
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
             DisplayI outputLoc names' -> do
               names <- case names' of
-                [] -> fuzzySelectTermsAndTypes root0
+                [] -> fuzzySelectDefinition Absolute root0
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
@@ -1907,7 +1908,7 @@ handleShowDefinition outputLoc inputQuery = do
     if null inputQuery
       then do
         branch <- fuzzyBranch
-        fuzzySelectTermsAndTypes branch
+        fuzzySelectDefinition Relative branch
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
@@ -3360,24 +3361,42 @@ declOrBuiltin r = case r of
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
 
-fuzzySelectTermsAndTypes :: Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
-fuzzySelectTermsAndTypes searchBranch0 = do
+-- | Select a definition from the given branch.
+-- Returned names will match the provided 'Position' type.
+fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectDefinition pos searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  fromMaybe [] <$> eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+  let inputs :: [HQ.HashQualified Name]
+      inputs =
+          termsAndTypes
+        & Set.toList
+        & map (fmap (Name.setPosition pos))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs) >>= \case
+    Nothing -> pure []
+    Just results -> pure results
 
-fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
-fuzzySelectNamespace searchBranch0 =
-  do
-    fmap Path.toPath'
-    . fromMaybe []
-    <$> eval
-      ( FuzzySelect
-          Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-          Path.toText
-          (Set.toList $ Branch.deepPaths searchBranch0)
-      )
+-- | Select a namespace from the given branch.
+-- Returned Path's will match the provided 'Position' type.
+fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace pos searchBranch0 = do
+  let intoPath' :: Path -> Path'
+      intoPath' = case pos of
+        Relative -> Path' . Right . Path.Relative
+        Absolute -> Path' . Left . Path.Absolute
+  let inputs :: [Path']
+      inputs =
+          searchBranch0
+        & Branch.deepPaths
+        & Set.toList
+        & map intoPath'
+  fromMaybe [] <$> eval
+                    ( FuzzySelect
+                        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+                        tShow
+                        inputs
+                    )
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.
