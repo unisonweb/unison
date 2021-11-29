@@ -90,7 +90,7 @@ data Codebase m v a = Codebase
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
-    viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath)),
+    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
     pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
@@ -166,3 +166,5 @@ data GitError
   | GitCodebaseError (GitCodebaseError Branch.Hash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
   deriving (Show)
+
+instance Exception GitError
