@@ -232,8 +232,10 @@ data Output v
   | CouldntLoadBranch Branch.Hash
   | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
   | NoOp
-    -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-  | RefusedToPush PushBehavior
+  | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
+    RefusedToPush PushBehavior
+  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
+    GistCreated Int WriteRepo Branch.Hash
   deriving (Show)
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
@@ -354,8 +356,9 @@ isFailure o = case o of
   ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
-  NamespaceEmpty _ -> False
-  RefusedToPush{} -> True
+  NamespaceEmpty {} -> True
+  RefusedToPush {} -> True
+  GistCreated {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
