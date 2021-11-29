@@ -21,6 +21,8 @@ import Control.Monad.State.Strict (State, modify, execState)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
 import Control.DeepSeq (NFData)
+import Control.Concurrent (ThreadId)
+import System.IO (Handle)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -1644,6 +1646,15 @@ declareForeigns = do
     . mkForeignIOF $ \(mhst :: Maybe Util.Text.Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
+
+  declareForeign "Socket.toText" boxDirect
+    . mkForeign $ \(sock :: Socket) -> pure $ show sock
+
+  declareForeign "Handle.toText" boxDirect
+    . mkForeign $ \(hand :: Handle) -> pure $ show hand
+
+  declareForeign "ThreadId.toText" boxDirect
+    . mkForeign $ \(threadId :: ThreadId) -> pure $ show threadId
 
   declareForeign "IO.socketPort.impl.v3" boxToEFNat
     . mkForeignIOF $ \(handle :: Socket) -> do
