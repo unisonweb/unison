@@ -1836,27 +1836,6 @@ handlePushRemoteBranch ::
   PushBehavior ->
   SyncMode.SyncMode ->
   Action' m v ()
--- <<<<<<< HEAD
--- handlePushRemoteBranch mayRepo path pushBehavior syncMode = unlessError $ do
---   srcb <- lift $ do
---     currentPath' <- use LoopState.currentPath
---     getAt (Path.resolve currentPath' path)
---   (repo, remotePath) <- case mayRepo of
---       Nothing -> resolveConfiguredGitUrl Push path
---       Just r -> pure r
---   withExceptT Output.GitError . ExceptT $ unsafeTime "Push viewRemoteBranch" do
---     viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
---             -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
---             -- updates in the remote branch that aren't in `srcb` already.
---       case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
---         Nothing -> do
---           respond (RefusedToPush pushBehavior)
---         Just newRemoteRoot -> do
---           unsafeTime "Push syncRemoteRootBranch" do
---             runExceptT (syncRemoteRootBranch repo newRemoteRoot syncMode) >>= \case
---               Left err -> respond (Output.GitError err)
---               Right _ -> respond Success
--- =======
 handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
