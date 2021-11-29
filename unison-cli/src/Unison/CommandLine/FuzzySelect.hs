@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 {- | Command-line fuzzy selection of arbitrary values.

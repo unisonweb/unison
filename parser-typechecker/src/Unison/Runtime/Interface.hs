@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
 {-# language NamedFieldPuns #-}
@@ -83,6 +84,7 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.ConstructorReference as RF
 
 type Term v = Tm.Term v ()
 
@@ -148,25 +150,31 @@ recursiveDeclDeps seen0 cl d = do
 
 categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize
-  = either ((,mempty) . singleton) ((mempty,) . singleton)
-  . RF.toReference
+  = \case
+      RF.TypeReference ref -> (Set.singleton ref, mempty)
+      RF.ConReference (RF.ConstructorReference ref _conId) _conType -> (Set.singleton ref, mempty)
+      RF.TermReference ref -> (mempty, Set.singleton ref)
 
-recursiveTermDeps
-  :: Set RF.LabeledDependency
-  -> CodeLookup Symbol IO ()
-  -> Term Symbol
-  -> IO (Set Reference, Set Reference)
+recursiveTermDeps ::
+  Set RF.LabeledDependency ->
+  CodeLookup Symbol IO () ->
+  Term Symbol ->
+  IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
-    rec <- for (RF.toReference <$> toList (deps \\ seen0)) $ \case
-      Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+  rec <- for (toList (deps \\ seen0)) $ \case
+    RF.ConReference (RF.ConstructorReference (RF.DerivedId refId) _conId)  _conType -> handleTypeReferenceId refId
+    RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
+    RF.TermReference r -> recursiveRefDeps seen cl r
+    _ -> pure mempty
+  pure $ foldMap categorize deps <> fold rec
+  where
+    handleTypeReferenceId :: RF.Id -> IO (Set Reference, Set Reference)
+    handleTypeReferenceId refId =
+      getTypeDeclaration cl refId >>= \case
         Just d -> recursiveDeclDeps seen cl d
         Nothing -> pure mempty
-      Right r -> recursiveRefDeps seen cl r
-      _ -> pure mempty
-    pure $ foldMap categorize deps <> fold rec
-  where
-  deps = Tm.labeledDependencies tm
-  seen = seen0 <> deps
+    deps = Tm.labeledDependencies tm
+    seen = seen0 <> deps
 
 recursiveRefDeps
   :: Set RF.LabeledDependency

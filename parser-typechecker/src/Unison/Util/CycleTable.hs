@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.CycleTable where
 
 import Data.HashTable.IO (BasicHashTable)

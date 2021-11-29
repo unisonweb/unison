@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Server.QueryResult where
 
 import qualified Unison.HashQualified          as HQ

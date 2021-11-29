@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE GADTs #-}
@@ -138,8 +139,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       lift $ Codebase.viewRemoteBranch codebase ns
     ImportRemoteBranch ns syncMode ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode
-    SyncRemoteRootBranch repo branch syncMode ->
-      lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
+    SyncRemoteBranch branch repo opts ->
+      lift $ Codebase.pushGitBranch codebase branch repo opts
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r

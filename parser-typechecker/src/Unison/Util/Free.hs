@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language ExistentialQuantification, Rank2Types #-}
 
 module Unison.Util.Free where

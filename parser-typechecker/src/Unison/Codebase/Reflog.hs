@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Reflog (Entry(..), fromText, toText) where

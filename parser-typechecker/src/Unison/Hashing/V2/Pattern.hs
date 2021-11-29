@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
 module Unison.Hashing.V2.Pattern where

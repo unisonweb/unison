@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase.Conversions where
@@ -31,8 +32,8 @@ import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal as V1.Causal
@@ -198,7 +199,7 @@ term2to1 h lookupSize lookupCT tm =
             V1.Pattern.Constructor a <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure i) <*> (traverse goPat ps)
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
-          V2.Term.PEffectBind r i ps p -> 
+          V2.Term.PEffectBind r i ps p ->
             V1.Pattern.EffectBind a <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure i) <*> traverse goPat ps <*> goPat p
           V2.Term.PSequenceLiteral ps -> V1.Pattern.SequenceLiteral a <$> traverse goPat ps
           V2.Term.PSequenceOp p1 op p2 -> V1.Pattern.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
@@ -344,7 +345,7 @@ referent1to2 = \case
 referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupSize lookupCT = \case
   V2.RefId r -> V1.RefId <$> referenceid2to1 lookupSize r
-  V2.ConId r i -> 
+  V2.ConId r i ->
     V1.ConId <$> (V1.ConstructorReference <$>referenceid2to1 lookupSize r <*> pure (fromIntegral i)) <*> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
