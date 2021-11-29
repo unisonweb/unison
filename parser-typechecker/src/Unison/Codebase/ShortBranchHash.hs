@@ -1,6 +1,5 @@
 module Unison.Codebase.ShortBranchHash
-  ( prefixName,
-    toString,
+  ( toString,
     toHash,
     fromHash,
     fullFromHash,
@@ -12,16 +11,10 @@ where
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.Hash as Hash
-import Unison.Name (Name)
-import qualified Unison.Name as Name
-import Unison.NameSegment (NameSegment (NameSegment))
 import Unison.Prelude
 
 newtype ShortBranchHash = ShortBranchHash {toText :: Text} -- base32hex characters
   deriving stock (Eq, Ord, Generic)
-
-prefixName :: ShortBranchHash -> Name -> Name
-prefixName sbh name = Name.cons (NameSegment $ toText sbh) name
 
 toString :: ShortBranchHash -> String
 toString = Text.unpack . toText

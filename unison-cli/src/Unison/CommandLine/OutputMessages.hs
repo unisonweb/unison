@@ -125,7 +125,6 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
-import qualified Unison.Codebase.ShortBranchHash as ShortBranchHash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -2311,22 +2310,23 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg . Name.toString $ prefixBranchId prefix name
+      addNumberedArg $ prefixBranchId prefix name
 
     numHQ :: Input.AbsBranchId -> HQ.HashQualified Name -> Referent -> Numbered Pretty
-    numHQ prefix hq r = addNumberedArg (HQ.toString hq')
-      where
-        hq' = HQ.requalify (prefixBranchId prefix <$> hq) r
+    numHQ prefix hq r =
+      addNumberedArg . HQ.toStringWith (prefixBranchId prefix) . HQ.requalify hq $ r
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
-    numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
-      where
-        hq' = HQ'.requalify (prefixBranchId prefix <$> hq) r
+    numHQ' prefix hq r =
+      addNumberedArg . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
 
-    prefixBranchId :: Input.AbsBranchId -> Name -> Name
+    -- E.g.
+    -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef.base.List.map"
+    -- prefixBranchId ".base" "List.map" -> ".base.List.map"
+    prefixBranchId :: Input.AbsBranchId -> Name -> String
     prefixBranchId branchId name = case branchId of
-      Left sbh -> Name.makeAbsolute $ ShortBranchHash.prefixName sbh name
-      Right pathPrefix -> Name.makeAbsolute . Path.prefixName pathPrefix $ name
+      Left sbh -> "#" <> SBH.toString sbh <> Name.toString name
+      Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
     addNumberedArg :: String -> Numbered Pretty
     addNumberedArg s = case sn of
