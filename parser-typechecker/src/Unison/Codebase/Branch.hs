@@ -509,12 +509,10 @@ isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
 -- | Perform an update over the current branch and create a new causal step.
--- Note: this does not step history on updated child branches, see 'stepManyAt'.
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = runIdentity . stepM (Identity . f)
 
 -- | Perform an update over the current branch and create a new causal step.
--- Note: this does not step history on updated child branches, see 'stepManyAtM'.
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
   Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
