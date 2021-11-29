@@ -61,7 +61,7 @@ import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
@@ -82,6 +82,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.Type (PushGitBranchOpts(..))
 import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
@@ -809,7 +810,7 @@ sqliteCodebase debugName root = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (\b r _s -> pushGitRootBranch conn b r)
+            (pushGitBranch conn)
             watches
             getWatch
             putWatch
@@ -1087,22 +1088,25 @@ viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
     -- I'm thinking we should probably return an error value instead.
     (pure (pure (), Branch.empty, remotePath))
 
--- Given a branch that is "after" the existing root of a given git repo,
--- stage and push the branch (as the new root) + dependencies to the repo.
-pushGitRootBranch ::
+-- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
+-- the existing root.
+pushGitBranch ::
   (MonadUnliftIO m) =>
   Connection ->
   Branch m ->
   WriteRepo ->
+  PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExceptT @C.GitError do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
   -- create a savepoint on the staging codebase
   -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
-  -- do a `before` check on the staging codebase
-  -- if it passes, then release the savepoint (commit it), clean up, and git-push the result
-  -- if it fails, rollback to the savepoint and clean up.
+  -- if setting the remote root,
+  --   do a `before` check on the staging codebase
+  --   if it passes, proceed (see below)
+  --   if it fails, rollback to the savepoint and clean up.
+  -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
 
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
@@ -1112,31 +1116,32 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
     lift . flip State.execStateT emptySyncProgressState $
       syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
     flip runReaderT destConn do
-      let newRootHash = Branch.headHash branch
-      -- the call to runDB "handles" the possible DB error by bombing
-      (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-        Nothing -> do
-          setRepoRoot newRootHash
-          Q.release "push"
-        Just oldRootHash -> do
-          before oldRootHash newRootHash >>= \case
-            Nothing ->
-              error $
-                "I couldn't find the hash " ++ show newRootHash
-                  ++ " that I just synced to the cached copy of "
-                  ++ repoString
-                  ++ " in "
-                  ++ show remotePath
-                  ++ "."
-            Just False -> do
-              Q.rollbackRelease "push"
-              throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-
-            Just True -> do
+      if setRoot
+        then do
+          let newRootHash = Branch.headHash branch
+          -- the call to runDB "handles" the possible DB error by bombing
+          (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+            Nothing -> do
               setRepoRoot newRootHash
               Q.release "push"
+            Just oldRootHash -> do
+              before oldRootHash newRootHash >>= \case
+                Nothing ->
+                  error $
+                    "I couldn't find the hash " ++ show newRootHash
+                      ++ " that I just synced to the cached copy of "
+                      ++ repoString
+                      ++ " in "
+                      ++ show remotePath
+                      ++ "."
+                Just False -> do
+                  Q.rollbackRelease "push"
+                  throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                Just True -> do
+                  setRepoRoot newRootHash
+                  Q.release "push"
+        else Q.release "push"
       walCheckpoint
-
   liftIO do
     void $ push remotePath repo
   where

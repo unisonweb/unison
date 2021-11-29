@@ -74,7 +74,8 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
-    pushGitRootBranch,
+    pushGitBranch,
+    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
@@ -106,7 +107,13 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.Codebase.Type
+  ( Codebase (..),
+    GetRootBranchError (..),
+    GitError (GitCodebaseError),
+    PushGitBranchOpts (..),
+    SyncToDir,
+  )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
@@ -221,9 +228,11 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
-typeLookupForDependencies
-  :: (Monad m, Var v, BuiltinAnnotation a)
-  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies ::
+  (Monad m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Set Reference ->
+  m (TL.TypeLookup v a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s

@@ -150,6 +150,7 @@ structural ability X a1 a2 where x : Nat
 
 ```
 Here's what we've done so far:
+
 ```ucm
 .> diff.namespace nothing ns1
 
@@ -157,6 +158,8 @@ Here's what we've done so far:
   
   The namespace .nothing is empty. Was there a typo?
 
+```
+```ucm
 .> diff.namespace ns1 ns2
 
   The namespaces are identical.
