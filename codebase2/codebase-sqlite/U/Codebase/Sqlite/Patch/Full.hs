@@ -11,11 +11,11 @@ import qualified U.Codebase.Referent as Referent
 import qualified U.Codebase.Sqlite.DbId as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalHashId, LocalTextId)
 import U.Codebase.Sqlite.Patch.TermEdit (TermEdit')
-import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
 import qualified U.Codebase.Sqlite.Patch.TermEdit as TermEdit
+import U.Codebase.Sqlite.Patch.TypeEdit (TypeEdit')
 import qualified U.Codebase.Sqlite.Patch.TypeEdit as TypeEdit
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 
 -- |
 -- @

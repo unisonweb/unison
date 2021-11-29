@@ -22,9 +22,7 @@ library
       U.Util.Components
       U.Util.Hash
       U.Util.Lens
-      U.Util.Map
       U.Util.Monoid
-      U.Util.Set
       U.Util.String
       U.Util.Text
       U.Util.Timing

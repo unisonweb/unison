@@ -53,7 +53,6 @@ import qualified U.Codebase.Sync as Sync
 import U.Codebase.WatchKind (WatchKind)
 import qualified U.Codebase.WatchKind as WK
 import U.Util.Monoid (foldMapM)
-import qualified U.Util.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
@@ -75,6 +74,7 @@ import qualified Unison.Referent' as Referent'
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Exception (bracket_, onException)

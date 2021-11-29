@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
@@ -704,22 +705,36 @@ back =
         _ -> Left (I.help cd)
     )
 
-deleteBranch :: InputPattern
-deleteBranch =
+deleteNamespace :: InputPattern
+deleteNamespace =
   InputPattern
     "delete.namespace"
     []
     [(Required, namespaceArg)]
     "`delete.namespace <foo>` deletes the namespace `foo`"
+    (deleteNamespaceParser (I.help deleteNamespace) Input.Try)
+
+deleteNamespaceForce :: InputPattern
+deleteNamespaceForce =
+  InputPattern
+    "delete.namespace.force"
+    []
+    [(Required, namespaceArg)]
+    ("`delete.namespace.force <foo>` deletes the namespace `foo`,"
+    <> "deletion will proceed even if other code depends on definitions in foo.")
+    (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
+
+deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
+deleteNamespaceParser helpText insistence =
     ( \case
         ["."] ->
           first fromString
             . pure
-            $ Input.DeleteBranchI Nothing
+            $ Input.DeleteBranchI insistence Nothing
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeleteBranchI $ Just p
-        _ -> Left (I.help deleteBranch)
+          pure . Input.DeleteBranchI insistence $ Just p
+        _ -> Left helpText
     )
 
 deletePatch :: InputPattern
@@ -1797,6 +1812,29 @@ createAuthor =
         _ -> Left $ showPatternHelp createAuthor
     )
 
+gist :: InputPattern
+gist =
+  InputPattern
+    "push.gist"
+    ["gist"]
+    [(Required, gitUrlArg)]
+    ( P.lines
+        [ "Publish the current namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`gist remote`",
+                "publishes the contents of the current namespace into the repo `remote`."
+              )
+            ]
+        ]
+    )
+    ( \case
+        [repoString] -> do
+          repo <- parseWriteRepo "repo" repoString
+          pure (Input.GistI (Input.GistInput repo))
+        _ -> Left (showPatternHelp gist)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help,
@@ -1824,7 +1862,8 @@ validInputs =
     cd,
     up,
     back,
-    deleteBranch,
+    deleteNamespace,
+    deleteNamespaceForce,
     renameBranch,
     deletePatch,
     renamePatch,
@@ -1876,7 +1915,8 @@ validInputs =
     debugFileHashes,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
-    debugClearWatchCache
+    debugClearWatchCache,
+    gist
   ]
 
 commandNames :: [String]
