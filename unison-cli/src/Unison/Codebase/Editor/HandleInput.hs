@@ -550,8 +550,8 @@ loop = do
                       else
                         respondNumbered $
                           ShowDiffNamespace
-                            Path.absoluteEmpty
-                            Path.absoluteEmpty
+                            (Right Path.absoluteEmpty)
+                            (Right Path.absoluteEmpty)
                             ppe
                             outputDiff
             where
@@ -694,18 +694,22 @@ loop = do
                     else
                       diffHelper (Branch.head destb) (Branch.head merged)
                         >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
-            DiffNamespaceI before0 after0 -> do
-              let [beforep, afterp] =
-                    resolveToAbsolute <$> [before0, after0]
-              before <- Branch.head <$> getAt beforep
-              after <- Branch.head <$> getAt afterp
-              case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
-                (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
-                (True, False) -> respond . NamespaceEmpty $ Left beforep
-                (False, True) -> respond . NamespaceEmpty $ Left afterp
+            DiffNamespaceI before after -> unlessError do
+              let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
+              beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
+              afterBranch0 <- Branch.head <$> branchForBranchId absAfter
+              lift $ case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
+                (True, True) -> respond . NamespaceEmpty $ (absBefore Nel.:| [absAfter])
+                (True, False) -> respond . NamespaceEmpty $ (absBefore Nel.:| [])
+                (False, True) -> respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 _ -> do
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
+                  (ppe, outputDiff) <- diffHelper beforeBranch0 afterBranch0
+                  respondNumbered $
+                    ShowDiffNamespace
+                      (resolveToAbsolute <$> before)
+                      (resolveToAbsolute <$> after)
+                      ppe
+                      outputDiff
             CreatePullRequestI baseRepo headRepo -> do
               result <- join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
                  viewRemoteBranch headRepo \headBranch -> do
@@ -3403,3 +3407,12 @@ fuzzySelectNamespace pos searchBranch0 = do
                         tShow
                         inputs
                     )
+
+-- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
+-- appropriate error message if a hash cannot be found.
+branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
+branchForBranchId = \case
+  Left hash -> do
+    resolveShortBranchHash hash
+  Right path -> do
+    lift $ getAt path
