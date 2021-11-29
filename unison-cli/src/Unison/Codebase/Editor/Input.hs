@@ -1,6 +1,7 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.Editor.Input
   ( Input(..)
+  , GistInput(..)
   , Event(..)
   , OutputLocation(..)
   , PatchPath
@@ -163,7 +164,14 @@ data Input
     | QuitI
     | UiI
     | DocsToHtmlI Path' FilePath
+    | GistI GistInput
     deriving (Eq, Show)
+
+-- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+data GistInput = GistInput
+  { repo :: WriteRepo
+  }
+  deriving stock (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation

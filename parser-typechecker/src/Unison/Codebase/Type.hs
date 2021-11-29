@@ -2,14 +2,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Type (Codebase (..), CodebasePath, GitError(..), GetRootBranchError (..), SyncToDir) where
+module Unison.Codebase.Type
+  ( Codebase (..),
+    CodebasePath,
+    PushGitBranchOpts (..),
+    GitError (..),
+    GetRootBranchError (..),
+    SyncToDir,
+  )
+where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
@@ -21,8 +31,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
-import Unison.Codebase.GitError (GitProtocolError, GitCodebaseError)
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -83,8 +91,8 @@ data Codebase m v a = Codebase
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath)),
-    -- | Push the given branch to the given repo, and set it as the root branch.
-    pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ()),
+    -- | Push the given branch to the given repo, and optionally set it as the root branch.
+    pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
@@ -141,14 +149,20 @@ data Codebase m v a = Codebase
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
   }
 
+data PushGitBranchOpts = PushGitBranchOpts
+  { -- | Set the branch as root?
+    setRoot :: Bool,
+    syncMode :: SyncMode
+  }
+
 data GetRootBranchError
   = NoRootBranch
   | CouldntParseRootBranch String
   | CouldntLoadRootBranch Branch.Hash
-  deriving Show
+  deriving (Show)
 
 data GitError
   = GitProtocolError GitProtocolError
   | GitCodebaseError (GitCodebaseError Branch.Hash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
-  deriving Show
+  deriving (Show)
