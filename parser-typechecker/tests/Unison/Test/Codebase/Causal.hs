@@ -1,9 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.Test.Codebase.Causal
-  ( test
-  )
-where
+module Unison.Test.Codebase.Causal (test) where
 
 import Control.Monad (replicateM_)
 import Data.Functor.Identity (Identity (runIdentity))
@@ -14,41 +11,41 @@ import EasyTest
 import Unison.Codebase.Causal (Causal, one)
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Hash (Hash)
+
 test :: Test ()
 test =
   scope "causal"
     . tests
     $ [ scope "threeWayMerge.ex1"
-        .  expect
-        $  Causal.head testThreeWay
-        == Set.fromList [3, 4]
-      , scope "threeWayMerge.idempotent"
-        .  expect
-        $  testIdempotent oneCausal -- == oneCausal
-        --  $  prop_mergeIdempotent
-
-      , scope "threeWayMerge.identity"
-        .  expect
-        $  testIdentity oneCausal emptyCausal
+          . expect
+          $ Causal.head testThreeWay
+            == Set.fromList [3, 4],
+        scope "threeWayMerge.idempotent"
+          . expect
+          $ testIdempotent oneCausal, -- == oneCausal
+          --  $  prop_mergeIdempotent
+        scope "threeWayMerge.identity"
+          . expect
+          $ testIdentity oneCausal emptyCausal,
         --  $  prop_mergeIdentity
-      , scope "threeWayMerge.commutative"
-        .  expect
-        $  testCommutative (Set.fromList [3,4]) oneRemoved
+        scope "threeWayMerge.commutative"
+          . expect
+          $ testCommutative (Set.fromList [3, 4]) oneRemoved,
         --  $  prop_mergeCommutative
-          {- , scope "threeWayMerge.commonAncestor"
+        {- , scope "threeWayMerge.commonAncestor"
         .  expect
         $  testCommonAncestor
         -- $  prop_mergeCommonAncestor --}
-      , scope "lca.hasLca" lcaPairTest
-      , scope "lca.noLca" noLcaPairTest
-      , scope "beforeHash" $ beforeHashTests
-    ]
+        scope "lca.hasLca" lcaPairTest,
+        scope "lca.noLca" noLcaPairTest,
+        scope "beforeHash" $ beforeHashTests
+      ]
 
 beforeHashTests :: Test ()
 beforeHashTests = do
   -- c1 and c2 have unrelated histories
-  c1  <- pure $ Causal.one (0 :: Int64)
-  c2  <- pure $ Causal.one (1 :: Int64)
+  c1 <- pure $ Causal.one (0 :: Int64)
+  c2 <- pure $ Causal.one (1 :: Int64)
   -- c1' and c2' are extension of c1 and c2, respectively
   c1' <- pure $ Causal.cons 2 c1
   c2' <- pure $ Causal.cons 3 c2
@@ -79,14 +76,14 @@ beforeHashTests = do
 int64 :: Test Int64
 int64 = random
 
-extend
-  :: Int
-  -> Causal Identity Hash Int64
-  -> Test (Causal Identity Hash Int64)
+extend ::
+  Int ->
+  Causal Identity Hash Int64 ->
+  Test (Causal Identity Hash Int64)
 extend 0 ca = pure ca
 extend n ca = do
   i <- int64
-  extend (n-1) (Causal.cons i ca)
+  extend (n -1) (Causal.cons i ca)
 
 lcaPair :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
 lcaPair = do
@@ -98,12 +95,13 @@ lcaPair = do
 lcaPairTest :: Test ()
 lcaPairTest = replicateM_ 50 test >> ok
   where
-  test = runIdentity . uncurry Causal.lca <$> lcaPair >>= \case
-    Just _  -> pure ()
-    Nothing -> crash "expected lca"
+    test =
+      runIdentity . uncurry Causal.lca <$> lcaPair >>= \case
+        Just _ -> pure ()
+        Nothing -> crash "expected lca"
 
-noLcaPair
-  :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
+noLcaPair ::
+  Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
 noLcaPair = do
   basel <- one <$> int64
   baser <- one <$> int64
@@ -114,23 +112,29 @@ noLcaPair = do
 noLcaPairTest :: Test ()
 noLcaPairTest = replicateM_ 50 test >> ok
   where
-  test = runIdentity . uncurry Causal.lca <$> noLcaPair >>= \case
-    Nothing -> pure ()
-    Just _ -> crash "expected no lca"
+    test =
+      runIdentity . uncurry Causal.lca <$> noLcaPair >>= \case
+        Nothing -> pure ()
+        Just _ -> crash "expected no lca"
 
 oneRemoved :: Causal Identity Hash (Set Int64)
-oneRemoved = foldr Causal.cons
-                   (one (Set.singleton 1))
-                   (Set.fromList <$> [[2, 3, 4], [1, 2, 3, 4], [1, 2]])
+oneRemoved =
+  foldr
+    Causal.cons
+    (one (Set.singleton 1))
+    (Set.fromList <$> [[2, 3, 4], [1, 2, 3, 4], [1, 2]])
 
 twoRemoved :: Causal Identity Hash (Set Int64)
-twoRemoved = foldr Causal.cons
-                   (one (Set.singleton 1))
-                   (Set.fromList <$> [[1, 3, 4], [1, 2, 3], [1, 2]])
+twoRemoved =
+  foldr
+    Causal.cons
+    (one (Set.singleton 1))
+    (Set.fromList <$> [[1, 3, 4], [1, 2, 3], [1, 2]])
 
 testThreeWay :: Causal Identity Hash (Set Int64)
-testThreeWay = runIdentity
-  $ threeWayMerge' oneRemoved twoRemoved
+testThreeWay =
+  runIdentity $
+    threeWayMerge' oneRemoved twoRemoved
 
 setCombine :: Applicative m => Ord a => Set a -> Set a -> m (Set a)
 setCombine a b = pure $ a <> b
@@ -144,8 +148,8 @@ setPatch s (added, removed) = pure (added <> Set.difference s removed)
 -- merge x x == x, should not add a new head, and also the value at the head should be the same of course
 testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
 testIdempotent causal =
-     runIdentity (threeWayMerge' causal causal)
-  == causal
+  runIdentity (threeWayMerge' causal causal)
+    == causal
 
 -- prop_mergeIdempotent :: Bool
 -- prop_mergeIdempotent = and (map testIdempotent (take 1000 generateRandomCausals))
@@ -156,34 +160,35 @@ oneCausal = Causal.one (Set.fromList [1])
 -- generateRandomCausals :: Causal Identity Hash (Set Int64)
 -- generateRandomCausals = undefined
 
-easyCombine
-  :: (Monad m, Semigroup d)
-  => (e -> e -> m e)
-  -> (e -> e -> m d)
-  -> (e -> d -> m e)
-  -> (Maybe e -> e -> e -> m e)
-easyCombine comb _    _    Nothing l r = comb l r
-easyCombine _    diff appl (Just ca) l r = do
+easyCombine ::
+  (Monad m, Semigroup d) =>
+  (e -> e -> m e) ->
+  (e -> e -> m d) ->
+  (e -> d -> m e) ->
+  (Maybe e -> e -> e -> m e)
+easyCombine comb _ _ Nothing l r = comb l r
+easyCombine _ diff appl (Just ca) l r = do
   dl <- diff ca l
   dr <- diff ca r
   appl ca (dl <> dr)
 
-threeWayMerge'
-  :: Causal Identity Hash (Set Int64)
-  -> Causal Identity Hash (Set Int64)
-  -> Identity (Causal Identity Hash (Set Int64))
+threeWayMerge' ::
+  Causal Identity Hash (Set Int64) ->
+  Causal Identity Hash (Set Int64) ->
+  Identity (Causal Identity Hash (Set Int64))
 threeWayMerge' = Causal.threeWayMerge (easyCombine setCombine setDiff setPatch)
 
 -- merge x mempty == x, merge mempty x == x
 testIdentity :: Causal Identity Hash (Set Int64) -> Causal Identity Hash (Set Int64) -> Bool
 testIdentity causal mempty =
-     (threeWayMerge' causal mempty)
-  == (threeWayMerge' mempty causal)
+  (threeWayMerge' causal mempty)
+    == (threeWayMerge' mempty causal)
 
 emptyCausal :: Causal Identity Hash (Set Int64)
 emptyCausal = one (Set.empty)
 
 -- merge (cons hd tl) tl == cons hd tl, merge tl (cons hd tl) == cons hd tl
 testCommutative :: Set Int64 -> Causal Identity Hash (Set Int64) -> Bool
-testCommutative hd tl = (threeWayMerge' (Causal.cons hd tl) tl)
-  == (threeWayMerge' tl (Causal.cons hd tl))
+testCommutative hd tl =
+  (threeWayMerge' (Causal.cons hd tl) tl)
+    == (threeWayMerge' tl (Causal.cons hd tl))
