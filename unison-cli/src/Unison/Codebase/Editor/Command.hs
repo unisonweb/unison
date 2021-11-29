@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 
@@ -52,6 +53,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
+import           Unison.Codebase (PushGitBranchOpts)
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
@@ -213,8 +215,7 @@ data Command
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
-  SyncRemoteRootBranch ::
-    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+  SyncRemoteBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
@@ -318,7 +319,7 @@ commandName = \case
   ViewRemoteBranch {} -> "ViewRemoteBranch"
   ImportRemoteBranch {} -> "ImportRemoteBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  SyncRemoteRootBranch {} -> "SyncRemoteRootBranch"
+  SyncRemoteBranch {} -> "SyncRemoteBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   LoadTerm {} -> "LoadTerm"

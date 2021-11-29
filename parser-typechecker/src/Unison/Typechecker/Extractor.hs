@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Typechecker.Extractor where
 
 import Unison.Prelude hiding (whenM)
@@ -6,7 +7,7 @@ import           Control.Monad.Reader
 import qualified Data.List                     as List
 import           Data.List.NonEmpty            ( NonEmpty )
 import qualified Data.Set                      as Set
-import           Unison.Reference               ( Reference )
+import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context    as C
@@ -259,10 +260,10 @@ effectConstructorWrongArgCount
   :: ErrorExtractor
        v
        loc
-       (C.ExpectedArgCount, C.ActualArgCount, Reference, C.ConstructorId)
+       (C.ExpectedArgCount, C.ActualArgCount, ConstructorReference)
 effectConstructorWrongArgCount = cause >>= \case
-  C.EffectConstructorWrongArgCount expected actual r cid ->
-    pure (expected, actual, r, cid)
+  C.EffectConstructorWrongArgCount expected actual r ->
+    pure (expected, actual, r)
   _ -> mzero
 
 malformedEffectBind

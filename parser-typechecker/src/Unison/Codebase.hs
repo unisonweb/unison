@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase
   ( Codebase,
 
@@ -73,7 +74,8 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
-    pushGitRootBranch,
+    pushGitBranch,
+    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
@@ -104,8 +106,15 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.Codebase.Type
+  ( Codebase (..),
+    GetRootBranchError (..),
+    GitError (GitCodebaseError),
+    PushGitBranchOpts (..),
+    SyncToDir,
+  )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -200,14 +209,14 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -222,9 +231,11 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
-typeLookupForDependencies
-  :: (Monad m, Var v, BuiltinAnnotation a)
-  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies ::
+  (Monad m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Set Reference ->
+  m (TL.TypeLookup v a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -270,7 +281,7 @@ getTypeOfReferent ::
   m (Maybe (Type v a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
-  Referent.Con r cid _ -> getTypeOfConstructor c r cid
+  Referent.Con r _ -> getTypeOfConstructor c r
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.

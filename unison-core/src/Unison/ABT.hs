@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -283,20 +284,25 @@ renames rn0 t0@(Term fvs ann t)
   = annotatedVar ann u
   | Cycle body <- t
   = cycle' ann (renames rn body)
-  | Abs v body <- t
-  , (u, rn) <- mangle (freeVars body) v rn
+  | Abs v t <- t
+  -- rename iterated variables all at once to avoid a capture issue
+  , AbsNA' (unzip -> (as,vs)) body <- t
+  , (rn, us) <- mangle (freeVars body) rn (v:vs)
   , not $ Map.null rn
-  = abs' ann u (renames rn body)
+  = absChain' (zip (ann:as) us) (renames rn body)
   | Tm body <- t
   = tm' ann (renames rn <$> body)
   | otherwise = t0
   where
   rn = Map.restrictKeys rn0 fvs
-  mangle fvs v m
+  mangle fvs m vs
+    = let avs = Set.fromList vs <> fvs
+      in mapAccumL (mangle1 avs) m vs
+  mangle1 avs m v
     | any (==v) vs
-    , u <- freshIn (fvs <> Set.fromList vs) v
-    = (u, Map.insert v u m)
-    | otherwise = (v, Map.delete v m)
+    , u <- freshIn (avs <> Set.fromList vs) v
+    = (Map.insert v u m, u)
+    | otherwise = (Map.delete v m, v)
     where
     vs = toList m
 

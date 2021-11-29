@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language ViewPatterns #-}
 {-# language PatternGuards #-}
 {-# language TupleSections #-}
@@ -10,6 +11,7 @@ module Unison.Runtime.Decompile
 import Unison.Prelude
 
 import Unison.ABT (substs)
+import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
@@ -39,7 +41,7 @@ import qualified Unison.Term as Term
 import Unsafe.Coerce -- for Int -> Double
 
 con :: Var v => Reference -> Word64 -> Term v ()
-con rf ct = constructor () rf $ fromIntegral ct
+con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)
 
 err :: String -> Either Error a
 err = Left . lit . fromString
