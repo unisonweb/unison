@@ -218,7 +218,7 @@ joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
 --
 -- /O(1)/.
 makeAbsolute :: Name -> Name
-makeAbsolute = setPosition Relative
+makeAbsolute = setPosition Absolute
 
 -- | Make a name relative. No-op if the name is already relative.
 --
