@@ -28,7 +28,7 @@ printNamespace repo sbh path =
   printReadRepo repo <> case sbh of
     Nothing -> if path == Path.empty then mempty
       else ":." <> Path.toText path
-    Just sbh -> ":" <> SBH.toText sbh <>
+    Just sbh -> ":#" <> SBH.toText sbh <>
       if path == Path.empty then mempty
       else "." <> Path.toText path
 

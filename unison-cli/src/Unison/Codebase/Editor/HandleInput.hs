@@ -608,7 +608,7 @@ loop = do
               respond $ PrintMessage pretty
             ShowReflogI -> do
               entries <- convertEntries Nothing [] <$> eval LoadReflog
-              LoopState.numberedArgs .= fmap (SBH.toString . Output.hash) entries
+              LoopState.numberedArgs .= fmap (('#' :) . SBH.toString . Output.hash) entries
               respond $ ShowReflog entries
               where
                 -- reverses & formats entries, adds synthetic entries when there is a

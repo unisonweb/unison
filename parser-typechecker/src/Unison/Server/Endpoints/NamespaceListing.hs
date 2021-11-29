@@ -149,7 +149,7 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
   Backend.ShallowTypeEntry te -> TypeObject $ Backend.typeEntryToNamedType te
   Backend.ShallowBranchEntry name hash size -> Subnamespace $ NamedNamespace
     { namespaceName = NameSegment.toText name
-    , namespaceHash = SBH.toText hash
+    , namespaceHash = "#" <> SBH.toText hash
     , namespaceSize = size
     }
   Backend.ShallowPatchEntry name ->

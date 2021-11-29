@@ -960,7 +960,7 @@ notifyUser dir o = case o of
         P.wrap $
           "The repository at" <> prettyReadRepo repo
             <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . prettySBH) sbh
+            <> (P.blue . P.text . SBH.toText) sbh
       RemoteNamespaceHashAmbiguous repo sbh hashes ->
         P.lines
           [ P.wrap $
@@ -972,7 +972,7 @@ notifyUser dir o = case o of
             "",
             P.indentN 2 $
               P.lines
-                ( prettySBH . SBH.fromHash (SBH.base32HexLength sbh * 2)
+                ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
                     <$> Set.toList hashes
                 ),
             "",
@@ -1469,7 +1469,7 @@ prettyAbsolute :: Path.Absolute -> Pretty
 prettyAbsolute = P.blue . P.shown
 
 prettySBH :: IsString s => ShortBranchHash -> P.Pretty s
-prettySBH hash = P.group $ P.text (SBH.toText hash)
+prettySBH hash = P.group $ "#" <> P.text (SBH.toText hash)
 
 formatMissingStuff ::
   (Show tm, Show typ) =>
