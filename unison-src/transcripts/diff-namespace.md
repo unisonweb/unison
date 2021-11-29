@@ -159,10 +159,12 @@ x = 1
 
 ```unison
 y = 2
+meta = "hi"
 ```
 
 ```ucm
 .hashdiff> add
+.hashdiff> link meta y
 .hashdiff> history
 .hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
 ```
