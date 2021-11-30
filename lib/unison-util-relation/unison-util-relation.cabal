@@ -108,10 +108,10 @@ benchmark relation
   build-depends:
       base
     , containers
-    , criterion
     , deepseq
     , extra
     , random
+    , tasty-bench
     , unison-prelude
     , unison-util-relation
   default-language: Haskell2010
