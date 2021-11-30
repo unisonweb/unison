@@ -442,7 +442,7 @@ throwSqliteException SqliteExceptionInfo {connection, exception, params, sql} = 
       { sql,
         params = maybe "" anythingToString params,
         exception,
-        connection,
+        connection = show connection,
         threadId
       }
 
@@ -474,7 +474,7 @@ data SqliteException = SqliteException
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
     exception :: SomeShowTypeable,
-    connection :: Connection,
+    connection :: String,
     threadId :: ThreadId
   }
   deriving stock (Show)
