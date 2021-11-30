@@ -1022,10 +1022,14 @@ loop = do
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
-                  fuzzySelectDefinition Absolute root0
-                    -- HQ names should always parse as a valid split, so we just discard any
-                    -- that don't to satisfy the type-checker.
-                    <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
+                  fuzzySelectDefinition Absolute root0 >>= \case
+                    Nothing -> do
+                      respond (HelpMessage InputPatterns.docs)
+                      pure []
+                    Just defs -> do
+                      -- HQ names should always parse as a valid split, so we just discard any
+                      -- that don't to satisfy the type-checker.
+                      pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
@@ -3359,19 +3363,17 @@ declOrBuiltin r = case r of
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [HQ.HashQualified Name])
 fuzzySelectDefinition pos searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
   let inputs :: [HQ.HashQualified Name]
       inputs =
-          termsAndTypes
-        & Set.toList
-        & map (fmap (Name.setPosition pos))
-  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs) >>= \case
-    Nothing -> pure []
-    Just results -> pure results
+        termsAndTypes
+          & Set.toList
+          & map (fmap (Name.setPosition pos))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs)
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
