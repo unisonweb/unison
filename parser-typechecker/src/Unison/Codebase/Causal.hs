@@ -50,7 +50,6 @@ import Unison.Codebase.Causal.Type
   )
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Hashing.V2.Hashable (Hashable)
-import qualified Unison.Hashing.V2.Hashable as Hashable
 import Prelude hiding (head, read, tail)
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
@@ -135,7 +134,7 @@ stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 one :: Hashable e => e -> Causal m h e
 one e =
-  let h = Hashable.hash e
+  let h = Hashing.hashCausal e mempty
   in One (RawHash h) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
