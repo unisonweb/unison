@@ -2,8 +2,6 @@ module Unison.Sqlite.Connection
   ( -- * Connection management
     Connection (..),
     withConnection,
-    openConnection,
-    closeConnection,
 
     -- * Executing queries
 
@@ -99,12 +97,12 @@ withConnection ::
 withConnection name file =
   bracket (openConnection name file) closeConnection
 
--- | Open a connection to a SQLite database. Prefer 'withConnection'.
+-- Open a connection to a SQLite database.
 openConnection ::
   MonadIO m =>
-  -- | Connection name, for debugging.
+  -- Connection name, for debugging.
   String ->
-  -- | Path to SQLite database file.
+  -- Path to SQLite database file.
   FilePath ->
   m Connection
 openConnection name file = do
@@ -113,7 +111,7 @@ openConnection name file = do
   liftIO (execute_ conn "PRAGMA foreign_keys = ON")
   pure conn
 
--- | Close a connection opened with 'openConnection'.
+-- Close a connection opened with 'openConnection'.
 closeConnection :: MonadIO m => Connection -> m ()
 closeConnection (Connection _ _ conn) =
   liftIO (Sqlite.close conn)
