@@ -683,6 +683,7 @@ cd =
     [(Required, namespaceArg)]
     ( P.lines
         [ "Moves your perspective to a different namespace.",
+          "",
           P.wrapColumn2
             [ ( makeExample cd ["foo.bar"],
                 "descends into foo.bar from the current namespace."

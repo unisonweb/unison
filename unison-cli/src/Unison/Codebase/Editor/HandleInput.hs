@@ -1096,7 +1096,9 @@ loop = do
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
             DisplayI outputLoc names' -> do
               names <- case names' of
-                [] -> fuzzySelectDefinition Absolute root0
+                [] -> fuzzySelectDefinition Absolute root0 >>= \case
+                        Nothing -> respond (HelpMessage InputPatterns.display) $> []
+                        Just defs -> pure defs
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
@@ -1901,14 +1903,23 @@ finallyE (ExceptT action) cleanup =
       Right () -> result
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition ::
+  forall m v.
+  Functor m =>
+  OutputLocation ->
+  [HQ.HashQualified Name] ->
+  Action' m v ()
 handleShowDefinition outputLoc inputQuery = do
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
       then do
         branch <- fuzzyBranch
-        fuzzySelectDefinition Relative branch
+        fuzzySelectDefinition Relative branch >>= \case
+          Nothing -> case outputLoc of
+            ConsoleLocation -> respond (HelpMessage InputPatterns.view) $> []
+            _ -> respond (HelpMessage InputPatterns.edit) $> []
+          Just defs -> pure defs
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
