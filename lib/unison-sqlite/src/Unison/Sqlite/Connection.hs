@@ -56,7 +56,7 @@ module Unison.Sqlite.Connection
 
     -- * Exceptions
     SqliteException (..),
-    SomeShowTypeable(..),
+    SomeShowTypeable (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
   )
@@ -84,6 +84,10 @@ instance Show Connection where
     "Connection " ++ show name ++ " " ++ show file ++ " " ++ show conn
 
 -- | Perform an action with a connection to a SQLite database.
+--
+-- Note: the connection is created with @PRAGMA foreign_keys = ON@ automatically, to work around the fact that SQLite
+-- does not automatically enforce foreign key integrity, because it elected to maintain backwards compatibility with
+-- code that was written before the foreign key integrity feature was implemented.
 withConnection ::
   MonadUnliftIO m =>
   -- | Connection name, for debugging.
