@@ -524,8 +524,8 @@ saveTermComponent h terms = do
                   getTermSRef :: S.Term.TermRef -> S.Reference
                   getTermSRef = \case
                     C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-                    C.Reference.Derived mh i ->
-                      C.Reference.Derived (maybe oId (\h -> oIds Vector.! fromIntegral h) mh) i
+                    C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+                    C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
                   getTypeSRef :: S.Term.TypeRef -> S.Reference
                   getTypeSRef = \case
                     C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
@@ -822,7 +822,8 @@ saveDeclComponent h decls = do
             getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> S.Reference.Reference
             getSRef = \case
               C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-              C.Reference.Derived mh i -> C.Reference.Derived (maybe oId (\h -> oIds Vector.! fromIntegral h) mh) i
+              C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+              C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
          in Set.map ((,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
