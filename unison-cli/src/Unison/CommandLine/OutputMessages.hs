@@ -1291,6 +1291,7 @@ notifyUser dir o = case o of
   DumpNumberedArgs args -> pure . P.numberedList $ fmap P.string args
   NoConflictsOrEdits ->
     pure (P.okCallout "No conflicts or edits in progress.")
+  HelpMessage pat -> pure $ IP.showPatternHelp pat
   NoOp -> pure $ P.string "I didn't make any changes."
   DefaultMetadataNotification -> pure $ P.wrap "I added some default metadata."
   DumpBitBooster head map ->

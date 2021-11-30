@@ -829,11 +829,11 @@ loop = do
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
-                  fuzzySelectNamespace Absolute root0 <&> \case
-                    [] -> Nothing
+                  fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
-                    (p : _) -> Just p
+                    Just (p : _) -> pure $ Just p
+                    _ -> respond (HelpMessage InputPatterns.cd) $> Nothing
                 Just p -> pure $ Just p
               case mpath' of
                 Nothing -> pure ()
@@ -3375,7 +3375,7 @@ fuzzySelectDefinition pos searchBranch0 = do
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [Path'])
 fuzzySelectNamespace pos searchBranch0 = do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of
@@ -3383,13 +3383,13 @@ fuzzySelectNamespace pos searchBranch0 = do
         Absolute -> Path' . Left . Path.Absolute
   let inputs :: [Path']
       inputs =
-          searchBranch0
-        & Branch.deepPaths
-        & Set.toList
-        & map intoPath'
-  fromMaybe [] <$> eval
-                    ( FuzzySelect
-                        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-                        tShow
-                        inputs
-                    )
+        searchBranch0
+          & Branch.deepPaths
+          & Set.toList
+          & map intoPath'
+  eval
+    ( FuzzySelect
+        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+        tShow
+        inputs
+    )
