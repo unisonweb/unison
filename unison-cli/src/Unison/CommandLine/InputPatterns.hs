@@ -302,7 +302,7 @@ view =
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
         [ "`view foo` prints the definition of `foo`.",
-          "`view` without arguments invokes a search to select definitions to view. `fzf` must be found on your PATH."
+          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
         ]
     )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
@@ -317,7 +317,7 @@ display =
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
         [ "`display foo` prints a rendered version of the term `foo`.",
-          "`display` without arguments invokes a search to select a definition to display. `fzf` must be found on your PATH."
+          "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
         ]
     )
     ( \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
@@ -347,7 +347,7 @@ docs =
     [(ZeroPlus, definitionQueryArg)]
     ( P.lines
         [ "`docs foo` shows documentation for the definition `foo`.",
-          "`docs` without arguments invokes a search to select which definition to view documentation for. `fzf` must be found on your PATH."
+          "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
         ]
     )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
@@ -695,7 +695,7 @@ cd =
                 "moves to the parent of the current namespace. E.g. moves from '.cat.dog' to '.cat'"
               ),
               ( makeExample cd [],
-                "invokes a search to select which namespace to move to. `fzf` must be found on your PATH."
+                "invokes a search to select which namespace to move to, which requires that `fzf` can be found within your PATH."
               )
             ]
         ]
@@ -1336,7 +1336,7 @@ edit =
     ( P.lines
         [ "`edit foo` prepends the definition of `foo` to the top of the most "
             <> "recently saved file.",
-          "`edit` without arguments invokes a search to select a definition for editing. `fzf` must be found on your PATH."
+          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
         ]
     )
     ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
