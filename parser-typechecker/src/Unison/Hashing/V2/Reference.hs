@@ -17,8 +17,8 @@ import Unison.Prelude
 
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
-import Unison.Hashing.V2.Hashable (Hashable)
-import qualified Unison.Hashing.V2.Hashable as Hashable
+import Unison.Hashing.V2.BuildHashable (Hashable)
+import qualified Unison.Hashing.V2.BuildHashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 
@@ -45,8 +45,7 @@ pattern Derived h i = DerivedId (Id h i)
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
 
--- todo: move these to ShortHash module?
--- but Show Reference currently depends on SH
+-- todo: delete these, but `instance Show Reference` currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
 toShortHash (Derived h 0) = SH.ShortHash (H.base32Hex h) Nothing Nothing

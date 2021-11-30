@@ -109,6 +109,7 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation4 as R4
 import qualified Unison.Util.Star3 as Star3
+import qualified Unison.Hashing.V2.Hashable as H
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -488,8 +489,10 @@ transform f b = case _history b of
                -> Causal m Raw (Branch0 n)
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
-
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
+
+instance H.Hashable (Branch0 m) where
+  hash = H.hashBranch0

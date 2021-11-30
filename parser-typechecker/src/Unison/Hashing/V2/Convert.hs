@@ -3,7 +3,7 @@
 
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
-    hashBranch,
+    hashBranch0,
     hashCausal,
     hashDataDecls,
     hashDecls,
@@ -28,6 +28,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified U.Util.Map as Map
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Branch.Type as Memory.Branch
 import qualified Unison.Codebase.Causal.Type as Memory.Causal
@@ -41,6 +42,8 @@ import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Causal as Hashing.Causal
 import qualified Unison.Hashing.V2.DataDeclaration as Hashing.DD
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as Hashable
 import qualified Unison.Hashing.V2.Kind as Hashing.Kind
 import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Pattern as Hashing.Pattern
@@ -60,7 +63,6 @@ import qualified Unison.Term as Memory.Term
 import qualified Unison.Type as Memory.Type
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as Memory.Star3
-import qualified U.Util.Map as Map
 import Unison.Var (Var)
 
 typeToReference :: Var v => Memory.Type.Type v a -> Memory.Reference.Reference
@@ -223,7 +225,7 @@ h2mReferent getCT = \case
   Hashing.Referent.Ref ref -> Memory.Referent.Ref (h2mReference ref)
   Hashing.Referent.Con ref n ->
     let mRef = h2mReference ref
-    in Memory.Referent.Con mRef n (getCT mRef)
+     in Memory.Referent.Con mRef n (getCT mRef)
 
 hashDataDecls ::
   Var v =>
@@ -352,22 +354,10 @@ hashPatch = Hashing.Patch.hashPatch . m2hPatch
 hashBranch0 :: Memory.Branch.Branch0 m -> Hash
 hashBranch0 = Hashing.Branch.hashBranch . m2hBranch0
 
-hashBranch :: Memory.Branch.Branch m -> Hash
-hashBranch = Hashing.Causal.hashCausal . m2hCausal . Memory.Branch._history
-
-hashCausal :: Memory.Branch.Branch0 m -> Set (Memory.Causal.RawHash h) -> Hash
-hashCausal b0 tails =
+hashCausal :: Hashable e => e -> Set (Memory.Causal.RawHash h) -> Hash
+hashCausal e tails =
   Hashing.Causal.hashCausal $
-    Hashing.Causal.Causal (hashBranch0 b0) (Set.map Memory.Causal.unRawHash tails)
-
-m2hCausal :: Memory.Branch.UnwrappedBranch m -> Hashing.Causal.Causal
-m2hCausal = \case
-  Memory.Causal.One _h e ->
-   Hashing.Causal.Causal (hashBranch0 e) mempty
-  Memory.Causal.Cons _h e (ht, _) ->
-   Hashing.Causal.Causal (hashBranch0 e) $ Set.singleton (Memory.Causal.unRawHash ht)
-  Memory.Causal.Merge _h e ts ->
-   Hashing.Causal.Causal (hashBranch0 e) $ Set.map Memory.Causal.unRawHash (Map.keysSet ts)
+    Hashing.Causal.Causal (Hashable.hash e) (Set.map Memory.Causal.unRawHash tails)
 
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch.Raw
 m2hBranch0 b =

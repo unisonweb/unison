@@ -32,7 +32,6 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Unison.Codebase.Branch.Type (Branch0, UnwrappedBranch)
 import Unison.Codebase.Causal.Type
   ( Causal
       ( Cons,
@@ -50,22 +49,22 @@ import Unison.Codebase.Causal.Type
     lca,
   )
 import qualified Unison.Hashing.V2.Convert as Hashing
+import Unison.Hashing.V2.Hashable (Hashable)
+import qualified Unison.Hashing.V2.Hashable as Hashable
 import Prelude hiding (head, read, tail)
-import qualified Unison.Codebase.Branch.Raw as Branch
-
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
 -- (or is equal to `c2` if `c1` changes nothing).
 squashMerge'
-  :: forall m
-   . Monad m
-  => (UnwrappedBranch m -> UnwrappedBranch m -> m (Maybe (UnwrappedBranch m)))
-  -> (Branch0 m -> m (Branch0 m))
-  -> (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
-  -> UnwrappedBranch m
-  -> UnwrappedBranch m
-  -> m (UnwrappedBranch m)
+  :: forall m h e
+   . (Monad m, Hashable e, Eq e)
+  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (e -> m e)
+  -> (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
 squashMerge' lca discardHistory combine c1 c2 = do
   theLCA <- lca c1 c2
   let done newHead = consDistinct newHead c2
@@ -76,22 +75,22 @@ squashMerge' lca discardHistory combine c1 c2 = do
       | lca == c2 -> done <$> discardHistory (head c1)
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
 
-threeWayMerge :: forall m
-   . Monad m
-  => (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
-  -> UnwrappedBranch m
-  -> UnwrappedBranch m
-  -> m (UnwrappedBranch m)
+threeWayMerge :: forall m h e
+   . (Monad m, Hashable e)
+  => (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
 threeWayMerge = threeWayMerge' lca
 
 threeWayMerge'
-  :: forall m
-   . Monad m
-  => (UnwrappedBranch m -> UnwrappedBranch m -> m (Maybe (UnwrappedBranch m)))
-  -> (Maybe (Branch0 m) -> Branch0 m -> Branch0 m -> m (Branch0 m))
-  -> UnwrappedBranch m
-  -> UnwrappedBranch m
-  -> m (UnwrappedBranch m)
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (Causal m h e -> Causal m h e -> m (Maybe (Causal m h e)))
+  -> (Maybe e -> e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
 threeWayMerge' lca combine c1 c2 = do
   theLCA <- lca c1 c2
   case theLCA of
@@ -103,7 +102,7 @@ threeWayMerge' lca combine c1 c2 = do
  where
   children =
     Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
-  done :: Branch0 m -> UnwrappedBranch m
+  done :: e -> Causal m h e
   done newHead =
     let h = Hashing.hashCausal newHead (Map.keysSet children)
     in Merge (RawHash h) newHead children
@@ -126,28 +125,28 @@ beforeHash maxDepth h c =
       State.modify' (<> Set.fromList cs)
       Monad.anyM (Reader.local (1+) . go) unseens
 
-stepDistinct :: Applicative m => (Branch0 m -> Branch0 m) -> UnwrappedBranch m -> UnwrappedBranch m
+stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 stepDistinct f c = f (head c) `consDistinct` c
 
 stepDistinctM
-  :: (Applicative m, Functor n)
-  => (Branch0 m -> n (Branch0 m)) -> UnwrappedBranch m -> n (UnwrappedBranch m)
+  :: (Applicative m, Functor n, Eq e, Hashable e)
+  => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
-one :: Branch0 m -> UnwrappedBranch m
+one :: Hashable e => e -> Causal m h e
 one e =
-  let h = Hashing.hashCausal e mempty
+  let h = Hashable.hash e
   in One (RawHash h) e
 
-cons :: Applicative m => Branch0 m -> UnwrappedBranch m -> UnwrappedBranch m
+cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
 cons e tl = cons' e (currentHash tl) (pure tl)
 
-cons' :: Branch0 m -> RawHash Branch.Raw -> m (UnwrappedBranch m) -> UnwrappedBranch m
+cons' :: Hashable e => e -> RawHash h -> m (Causal m h e) -> Causal m h e
 cons' b0 hTail mTail =
   let h = Hashing.hashCausal b0 (Set.singleton hTail)
   in Cons (RawHash h) b0 (hTail, mTail)
 
-consDistinct :: Applicative m => Branch0 m -> UnwrappedBranch m -> UnwrappedBranch m
+consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
 consDistinct e tl =
   if head tl == e then tl
   else cons e tl

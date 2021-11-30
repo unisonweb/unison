@@ -1,7 +1,7 @@
 module Unison.Hashing.V2.TypeEdit (TypeEdit (..)) where
 
-import Unison.Hashing.V2.Hashable (Hashable)
-import qualified Unison.Hashing.V2.Hashable as H
+import Unison.Hashing.V2.BuildHashable (Hashable)
+import qualified Unison.Hashing.V2.BuildHashable as H
 import Unison.Hashing.V2.Reference (Reference)
 
 data TypeEdit = Replace Reference | Deprecate

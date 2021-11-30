@@ -6,8 +6,8 @@ module Unison.Hashing.V2.Patch (Patch (..), hashPatch) where
 
 import Data.Map (Map)
 import Data.Set (Set)
-import Unison.Hashing.V2.Hashable (Hashable)
-import qualified Unison.Hashing.V2.Hashable as H
+import Unison.Hashing.V2.BuildHashable (Hashable)
+import qualified Unison.Hashing.V2.BuildHashable as H
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.TermEdit (TermEdit)
