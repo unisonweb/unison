@@ -1237,12 +1237,12 @@ diffNamespace =
     )
     ( \case
         [before, after] -> first fromString $ do
-          before <- Path.parsePath' before
-          after <- Path.parsePath' after
+          before <- Input.parseBranchId before
+          after <- Input.parseBranchId after
           pure $ Input.DiffNamespaceI before after
         [before] -> first fromString $ do
-          before <- Path.parsePath' before
-          pure $ Input.DiffNamespaceI before Path.currentPath
+          before <- Input.parseBranchId before
+          pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
 
