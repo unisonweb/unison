@@ -137,43 +137,22 @@ createCodebaseOrError ::
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName dir action = do
-  prettyDir <- P.string <$> canonicalizePath dir
-  let convertError = \case
-        CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
-      prettyError :: SchemaVersion -> Codebase1.Pretty
-      prettyError v = P.wrap $
-        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir action
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseUnknownSchemaVersion SchemaVersion
-  deriving (Show)
-
-createCodebaseOrError' ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either CreateCodebaseError r)
-createCodebaseOrError' debugName path action = do
+createCodebaseOrError debugName path action = do
   ifM
     (doesFileExist $ path </> codebasePath)
-    (pure $ Left CreateCodebaseAlreadyExists)
+    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-      liftIO $
-        withConnection (debugName ++ ".createSchema") path $
-          ( runReaderT do
-              Q.createSchema
-              runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
-                Left e -> error $ show e
-                Right () -> pure ()
-          )
+      withConnection (debugName ++ ".createSchema") path $
+        runReaderT do
+          Q.createSchema
+          runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
+            Left e -> error $ show e
+            Right () -> pure ()
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
+      sqliteCodebase debugName path action >>= \case
+        Left schemaVersion -> error ("just created schema with version " ++ show schemaVersion)
+        Right result -> pure (Right result)
 
 openOrCreateCodebaseConnection ::
   MonadIO m =>
