@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 
@@ -52,6 +53,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
+import           Unison.Codebase (PushGitBranchOpts)
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
@@ -65,6 +67,10 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import UnliftIO (MonadUnliftIO(..), UnliftIO)
+import qualified UnliftIO
+import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -196,7 +202,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> (Branch m -> (Free (Command m i v) r)) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
@@ -209,8 +215,7 @@ data Command
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
-  SyncRemoteRootBranch ::
-    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+  SyncRemoteBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
@@ -233,7 +238,7 @@ data Command
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
 
-  -- Get the immediate (not transitive) dependents of the given reference
+  -- | Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
@@ -261,11 +266,24 @@ data Command
               -> [a] -- ^ The elements to select from
               -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
 
+  -- | This allows us to implement MonadUnliftIO for (Free (Command m i v)).
+  -- Ideally we will eventually remove the Command type entirely and won't need
+  -- this anymore.
+  CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+
+instance MonadIO m => MonadIO (Free (Command m i v)) where
+  liftIO io = Free.eval $ Eval (liftIO io)
+
+instance MonadIO m => MonadUnliftIO (Free (Command m i v)) where
+  withRunInIO f = do
+    UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
+    liftIO $ f toIO
+
 type UseCache = Bool
 
 type EvalResult v =
   ( [(v, Term v ())]
-  , Map v (Ann, WK.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)
+  , Map v (Ann, WK.WatchKind, Reference.Id, Term v (), Term v (), Runtime.IsCacheHit)
   )
 
 lookupEvalResult :: Ord v => v -> EvalResult v -> Maybe (Term v ())
@@ -273,55 +291,56 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 
 commandName :: Command m i v a -> String
 commandName = \case
-  Eval{}                      -> "Eval"
-  UI                          -> "UI"
-  DocsToHtml{}                -> "DocsToHtml"
-  ConfigLookup{}              -> "ConfigLookup"
-  Input                       -> "Input"
-  Notify{}                    -> "Notify"
-  NotifyNumbered{}            -> "NotifyNumbered"
-  AddDefsToCodebase{}         -> "AddDefsToCodebase"
-  CodebaseHashLength          -> "CodebaseHashLength"
-  TypeReferencesByShortHash{} -> "TypeReferencesByShortHash"
-  TermReferencesByShortHash{} -> "TermReferencesByShortHash"
-  TermReferentsByShortHash{}  -> "TermReferentsByShortHash"
-  BranchHashLength            -> "BranchHashLength"
-  BranchHashesByPrefix{}      -> "BranchHashesByPrefix"
-  ParseType{}                 -> "ParseType"
-  LoadSource{}                -> "LoadSource"
-  Typecheck{}                 -> "Typecheck"
-  TypecheckFile{}             -> "TypecheckFile"
-  Evaluate{}                  -> "Evaluate"
-  Evaluate1{}                 -> "Evaluate1"
-  PutWatch{}                  -> "PutWatch"
-  LoadWatches{}               -> "LoadWatches"
-  LoadLocalRootBranch         -> "LoadLocalRootBranch"
-  LoadLocalBranch{}           -> "LoadLocalBranch"
-  Merge{}                     -> "Merge"
-  ViewRemoteBranch{}          -> "ViewRemoteBranch"
-  ImportRemoteBranch{}        -> "ImportRemoteBranch"
-  SyncLocalRootBranch{}       -> "SyncLocalRootBranch"
-  SyncRemoteRootBranch{}      -> "SyncRemoteRootBranch"
-  AppendToReflog{}            -> "AppendToReflog"
-  LoadReflog                  -> "LoadReflog"
-  LoadTerm{}                  -> "LoadTerm"
-  LoadType{}                  -> "LoadType"
-  LoadTypeOfTerm{}            -> "LoadTypeOfTerm"
-  PutTerm{}                   -> "PutTerm"
-  PutDecl{}                   -> "PutDecl"
-  IsTerm{}                    -> "IsTerm"
-  IsType{}                    -> "IsType"
-  GetDependents{}             -> "GetDependents"
-  GetTermsOfType{}            -> "GetTermsOfType"
-  GetTermsMentioningType{}    -> "GetTermsMentioningType"
-  Execute{}                   -> "Execute"
-  CreateAuthorInfo{}          -> "CreateAuthorInfo"
-  RuntimeMain                 -> "RuntimeMain"
-  RuntimeTest                 -> "RuntimeTest"
-  HQNameQuery{}               -> "HQNameQuery"
-  LoadSearchResults{}         -> "LoadSearchResults"
-  GetDefinitionsBySuffixes{}  -> "GetDefinitionsBySuffixes"
-  FindShallow{}               -> "FindShallow"
-  ClearWatchCache{}           -> "ClearWatchCache"
-  MakeStandalone{}            -> "MakeStandalone"
-  FuzzySelect{}               -> "FuzzySelect"
+  Eval {} -> "Eval"
+  UI -> "UI"
+  DocsToHtml {} -> "DocsToHtml"
+  ConfigLookup {} -> "ConfigLookup"
+  Input -> "Input"
+  Notify {} -> "Notify"
+  NotifyNumbered {} -> "NotifyNumbered"
+  AddDefsToCodebase {} -> "AddDefsToCodebase"
+  CodebaseHashLength -> "CodebaseHashLength"
+  TypeReferencesByShortHash {} -> "TypeReferencesByShortHash"
+  TermReferencesByShortHash {} -> "TermReferencesByShortHash"
+  TermReferentsByShortHash {} -> "TermReferentsByShortHash"
+  BranchHashLength -> "BranchHashLength"
+  BranchHashesByPrefix {} -> "BranchHashesByPrefix"
+  ParseType {} -> "ParseType"
+  LoadSource {} -> "LoadSource"
+  Typecheck {} -> "Typecheck"
+  TypecheckFile {} -> "TypecheckFile"
+  Evaluate {} -> "Evaluate"
+  Evaluate1 {} -> "Evaluate1"
+  PutWatch {} -> "PutWatch"
+  LoadWatches {} -> "LoadWatches"
+  LoadLocalRootBranch -> "LoadLocalRootBranch"
+  LoadLocalBranch {} -> "LoadLocalBranch"
+  Merge {} -> "Merge"
+  ViewRemoteBranch {} -> "ViewRemoteBranch"
+  ImportRemoteBranch {} -> "ImportRemoteBranch"
+  SyncLocalRootBranch {} -> "SyncLocalRootBranch"
+  SyncRemoteBranch {} -> "SyncRemoteBranch"
+  AppendToReflog {} -> "AppendToReflog"
+  LoadReflog -> "LoadReflog"
+  LoadTerm {} -> "LoadTerm"
+  LoadType {} -> "LoadType"
+  LoadTypeOfTerm {} -> "LoadTypeOfTerm"
+  PutTerm {} -> "PutTerm"
+  PutDecl {} -> "PutDecl"
+  IsTerm {} -> "IsTerm"
+  IsType {} -> "IsType"
+  GetDependents {} -> "GetDependents"
+  GetTermsOfType {} -> "GetTermsOfType"
+  GetTermsMentioningType {} -> "GetTermsMentioningType"
+  Execute {} -> "Execute"
+  CreateAuthorInfo {} -> "CreateAuthorInfo"
+  RuntimeMain -> "RuntimeMain"
+  RuntimeTest -> "RuntimeTest"
+  HQNameQuery {} -> "HQNameQuery"
+  LoadSearchResults {} -> "LoadSearchResults"
+  GetDefinitionsBySuffixes {} -> "GetDefinitionsBySuffixes"
+  FindShallow {} -> "FindShallow"
+  ClearWatchCache {} -> "ClearWatchCache"
+  MakeStandalone {} -> "MakeStandalone"
+  FuzzySelect {} -> "FuzzySelect"
+  CmdUnliftIO {} -> "UnliftIO"

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -39,6 +40,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
@@ -193,7 +195,7 @@ hashConstructors
   :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)

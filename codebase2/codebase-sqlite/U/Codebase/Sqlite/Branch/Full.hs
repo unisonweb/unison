@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -9,7 +10,7 @@ import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
-import qualified U.Util.Map as Map
+import qualified Unison.Util.Map as Map
 import Data.Bifunctor (Bifunctor(bimap))
 import qualified Data.Set as Set
 

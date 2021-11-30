@@ -1,9 +1,11 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Hashing.V2.Referent where
 
 import Unison.Prelude
+import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.Referent' ( Referent'(..), toReference' )
 
 import qualified Data.Char              as Char
@@ -27,7 +29,7 @@ type ConstructorId = Int
 pattern Ref :: Reference -> Referent
 pattern Ref r = Ref' r
 pattern Con :: Reference -> ConstructorId -> ConstructorType -> Referent
-pattern Con r i t = Con' r i t
+pattern Con r i t = Con' (ConstructorReference r i) t
 {-# COMPLETE Ref, Con #-}
 
 -- | Cannot be a builtin.
@@ -117,4 +119,4 @@ fromText t = either (const Nothing) Just $
 fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
-  Con' r i ct -> fc r i ct
+  Con' (ConstructorReference r i) ct -> fc r i ct

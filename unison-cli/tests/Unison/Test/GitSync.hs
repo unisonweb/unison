@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -366,6 +367,7 @@ test = scope "gitsync22" . tests $
         traverse (Codebase.getWatch cb TestWatch) =<<
           Codebase.watches cb TestWatch)
   ,
+  gistTest fmt,
   pushPullTest "fix2068(a)" fmt
     -- this triggers
     {-
@@ -504,6 +506,31 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
+
+gistTest :: CodebaseFormat -> Test ()
+gistTest fmt =
+  pushPullTest "gist" fmt authorScript userScript
+  where
+    authorScript repo =
+      [i|
+        ```unison:hide
+        y = 3
+        ```
+        ```ucm
+        .> add
+        .> gist ${repo}
+        ```
+      |]
+    userScript repo =
+      [i|
+        ```ucm
+        .> pull ${repo}:#n611nnppp5
+        .> find
+        ```
+        ```unison
+        > y
+        ```
+      |]
 
 fastForwardPush :: Test ()
 fastForwardPush = scope "fastforward-push" do

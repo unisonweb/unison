@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language BangPatterns #-}
 {-# language PatternGuards #-}
@@ -50,6 +51,7 @@ ref2eq r
   | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
   -- Ditto
   | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
+  | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -58,6 +60,7 @@ ref2cmp r
   | r == Ty.termLinkRef = Just $ promote (compare @Referent)
   | r == Ty.typeLinkRef = Just $ promote (compare @Reference)
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
+  | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
   | otherwise = Nothing
 
 instance Eq Foreign where

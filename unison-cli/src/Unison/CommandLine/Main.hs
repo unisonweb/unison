@@ -1,8 +1,9 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.CommandLine.Main 
+module Unison.CommandLine.Main
   ( main
   ) where
 
@@ -19,7 +20,6 @@ import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..), Event)
 import qualified Unison.Server.CodebaseServer as Server
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Editor.Command (LoadSourceResult(..))
 import Unison.Codebase (Codebase)
@@ -48,6 +48,8 @@ import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
+import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 
 getUserInput
   :: forall m v a
@@ -180,9 +182,9 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   writeIORef pageOutput True
                   pure x) `catchSyncOrAsync` interruptHandler
 
-    let loop :: HandleInput.LoopState IO Symbol -> IO ()
+    let loop :: LoopState.LoopState IO Symbol -> IO ()
         loop state = do
-          writeIORef pathRef (view HandleInput.currentPath state)
+          writeIORef pathRef (view LoopState.currentPath state)
           let free = runStateT (runMaybeT HandleInput.loop) state
           (o, state') <- HandleCommand.commandLine config awaitInput
                                        (writeIORef rootRef)
@@ -198,10 +200,10 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
           case o of
             Nothing -> pure ()
             Just () -> do
-              writeIORef numberedArgsRef (HandleInput._numberedArgs state')
+              writeIORef numberedArgsRef (LoopState._numberedArgs state')
               loop state'
-    -- Run the main program loop, always run cleanup, 
+    -- Run the main program loop, always run cleanup,
     -- If an exception occurred, print it before exiting.
-    (loop (HandleInput.loopState0 root initialPath)
+    (loop (LoopState.loopState0 root initialPath)
       `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))
       `finally` cleanup
