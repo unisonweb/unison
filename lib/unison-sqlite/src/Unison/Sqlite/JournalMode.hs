@@ -50,7 +50,7 @@ trySetJournalMode mode0 = do
     (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
     \(Sqlite.Only mode1s) ->
       let mode1 = unsafeJournalModeFromText mode1s
-       in if mode0 == mode1
+       in if mode0 /= mode1
             then
               Left
                 SetJournalModeException
