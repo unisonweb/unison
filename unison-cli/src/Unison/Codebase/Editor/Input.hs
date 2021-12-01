@@ -5,7 +5,7 @@ module Unison.Codebase.Editor.Input
   , Event(..)
   , OutputLocation(..)
   , PatchPath
-  , BranchId, parseBranchId
+  , BranchId, AbsBranchId, parseBranchId
   , HashOrHQSplit'
   , Insistence(..)
   ) where
@@ -40,6 +40,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type AbsBranchId = Either ShortBranchHash Path.Absolute
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
 -- | Should we force the operation or not?
@@ -61,7 +62,7 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' -- old new
+    | DiffNamespaceI BranchId BranchId -- old new
     | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace

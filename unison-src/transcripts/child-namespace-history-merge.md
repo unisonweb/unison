@@ -24,7 +24,7 @@ The child branch has a single history node representing the addition of `parent.
 .> history parent.child
 ```
 
-If we add another thing to the child namespace it should add another history node.
+If we add another thing to the child namespace it should add another history node to both the child and parent.
 
 ```unison:hide
 parent.child.thing2 = "parent.child.thing2"
@@ -32,6 +32,7 @@ parent.child.thing2 = "parent.child.thing2"
 
 ```ucm
 .> add
+.> history parent
 .> history parent.child
 ```
 
@@ -47,6 +48,8 @@ Now we fork the parent namespace to make some changes.
 parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 
+The child should have a new history node after adding `thing3`
+
 ```ucm
 .> add
 .> history parent_fork.child
@@ -54,14 +57,16 @@ parent_fork.child.thing3 = "parent_fork.child.thing3"
 
 ## Saving our parent state
 
-```ucm
+Split off two separate forks, one for testing squash merges, one for standard merges.
+
+```ucm:hide
 .> fork parent parent_squash_base
 .> fork parent parent_merge_base
 ```
 
 ## Squash merge
 
-Now, if I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
+For a squash merge, when I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
 .> merge.squash parent_fork parent_squash_base
@@ -78,14 +83,14 @@ Notice that with the current behaviour, the history of `parent.child` is complet
 
 ## Standard merge
 
-Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
+For a standard merge, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
 .> merge parent_fork parent_merge_base
 .> history parent_merge_base
 ```
 
-Child histories should also be merged.
+Child histories should also be *merged*.
 
 ```ucm
 .> history parent.child

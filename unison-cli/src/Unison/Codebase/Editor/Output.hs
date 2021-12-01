@@ -62,6 +62,7 @@ import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
 import Data.Set.NonEmpty (NESet)
+import Data.List.NonEmpty (NonEmpty)
 
 type ListDetailed = Bool
 
@@ -77,7 +78,7 @@ pushPull push pull p = case p of
   Pull -> pull
 
 data NumberedOutput v
-  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -230,7 +231,7 @@ data Output v
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
-  | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
+  | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
     RefusedToPush PushBehavior

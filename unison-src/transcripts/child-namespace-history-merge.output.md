@@ -33,7 +33,7 @@ The child branch has a single history node representing the addition of `parent.
   □ #0pu6u21kb4 (start of history)
 
 ```
-If we add another thing to the child namespace it should add another history node.
+If we add another thing to the child namespace it should add another history node to both the child and parent.
 
 ```unison
 parent.child.thing2 = "parent.child.thing2"
@@ -45,6 +45,19 @@ parent.child.thing2 = "parent.child.thing2"
   ⍟ I've added these definitions:
   
     parent.child.thing2 : Text
+
+.> history parent
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #9uakh0rhhe
+  
+    + Adds / updates:
+    
+      child.thing2
+  
+  □ #gdahjt281d (start of history)
 
 .> history parent.child
 
@@ -73,6 +86,8 @@ Now we fork the parent namespace to make some changes.
 ```unison
 parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
+
+The child should have a new history node after adding `thing3`
 
 ```ucm
 .> add
@@ -103,19 +118,11 @@ parent_fork.child.thing3 = "parent_fork.child.thing3"
 ```
 ## Saving our parent state
 
-```ucm
-.> fork parent parent_squash_base
+Split off two separate forks, one for testing squash merges, one for standard merges.
 
-  Done.
-
-.> fork parent parent_merge_base
-
-  Done.
-
-```
 ## Squash merge
 
-Now, if I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
+For a squash merge, when I squash-merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
 .> merge.squash parent_fork parent_squash_base
@@ -198,7 +205,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
 ```
 ## Standard merge
 
-Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
+For a standard merge, if I merge back into parent, we expect `parent_fork.child.thing3` to be added.
 
 ```ucm
 .> merge parent_fork parent_merge_base
@@ -234,7 +241,7 @@ Now, if I merge back into parent, we expect `parent_fork.child.thing3` to be add
   □ #gdahjt281d (start of history)
 
 ```
-Child histories should also be merged.
+Child histories should also be *merged*.
 
 ```ucm
 .> history parent.child

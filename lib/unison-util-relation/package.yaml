@@ -20,10 +20,10 @@ benchmarks:
     main: Main.hs
     dependencies:
       - base
-      - criterion
       - containers
-      - unison-util-relation
       - random
+      - tasty-bench
+      - unison-util-relation
 
 dependencies:
   - base

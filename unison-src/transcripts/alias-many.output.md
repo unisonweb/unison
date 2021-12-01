@@ -138,334 +138,337 @@ Let's try it!
   115. Float.toRepresentation : Float -> Nat
   116. Float.toText : Float -> Text
   117. Float.truncate : Float -> Int
-  118. builtin type Int
-  119. Int.* : Int -> Int -> Int
-  120. Int.+ : Int -> Int -> Int
-  121. Int.- : Int -> Int -> Int
-  122. Int./ : Int -> Int -> Int
-  123. Int.and : Int -> Int -> Int
-  124. Int.complement : Int -> Int
-  125. Int.eq : Int -> Int -> Boolean
-  126. Int.fromRepresentation : Nat -> Int
-  127. Int.fromText : Text -> Optional Int
-  128. Int.gt : Int -> Int -> Boolean
-  129. Int.gteq : Int -> Int -> Boolean
-  130. Int.increment : Int -> Int
-  131. Int.isEven : Int -> Boolean
-  132. Int.isOdd : Int -> Boolean
-  133. Int.leadingZeros : Int -> Nat
-  134. Int.lt : Int -> Int -> Boolean
-  135. Int.lteq : Int -> Int -> Boolean
-  136. Int.mod : Int -> Int -> Int
-  137. Int.negate : Int -> Int
-  138. Int.or : Int -> Int -> Int
-  139. Int.popCount : Int -> Nat
-  140. Int.pow : Int -> Nat -> Int
-  141. Int.shiftLeft : Int -> Nat -> Int
-  142. Int.shiftRight : Int -> Nat -> Int
-  143. Int.signum : Int -> Int
-  144. Int.toFloat : Int -> Float
-  145. Int.toRepresentation : Int -> Nat
-  146. Int.toText : Int -> Text
-  147. Int.trailingZeros : Int -> Nat
-  148. Int.truncate0 : Int -> Nat
-  149. Int.xor : Int -> Int -> Int
-  150. unique type io2.BufferMode
-  151. io2.BufferMode.BlockBuffering : BufferMode
-  152. io2.BufferMode.LineBuffering : BufferMode
-  153. io2.BufferMode.NoBuffering : BufferMode
-  154. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
-  155. unique type io2.Failure
-  156. io2.Failure.Failure : Type -> Text -> Any -> Failure
-  157. unique type io2.FileMode
-  158. io2.FileMode.Append : FileMode
-  159. io2.FileMode.Read : FileMode
-  160. io2.FileMode.ReadWrite : FileMode
-  161. io2.FileMode.Write : FileMode
-  162. builtin type io2.Handle
-  163. builtin type io2.IO
-  164. io2.IO.clientSocket.impl : Text
+  118. Handle.toText : Handle -> Text
+  119. builtin type Int
+  120. Int.* : Int -> Int -> Int
+  121. Int.+ : Int -> Int -> Int
+  122. Int.- : Int -> Int -> Int
+  123. Int./ : Int -> Int -> Int
+  124. Int.and : Int -> Int -> Int
+  125. Int.complement : Int -> Int
+  126. Int.eq : Int -> Int -> Boolean
+  127. Int.fromRepresentation : Nat -> Int
+  128. Int.fromText : Text -> Optional Int
+  129. Int.gt : Int -> Int -> Boolean
+  130. Int.gteq : Int -> Int -> Boolean
+  131. Int.increment : Int -> Int
+  132. Int.isEven : Int -> Boolean
+  133. Int.isOdd : Int -> Boolean
+  134. Int.leadingZeros : Int -> Nat
+  135. Int.lt : Int -> Int -> Boolean
+  136. Int.lteq : Int -> Int -> Boolean
+  137. Int.mod : Int -> Int -> Int
+  138. Int.negate : Int -> Int
+  139. Int.or : Int -> Int -> Int
+  140. Int.popCount : Int -> Nat
+  141. Int.pow : Int -> Nat -> Int
+  142. Int.shiftLeft : Int -> Nat -> Int
+  143. Int.shiftRight : Int -> Nat -> Int
+  144. Int.signum : Int -> Int
+  145. Int.toFloat : Int -> Float
+  146. Int.toRepresentation : Int -> Nat
+  147. Int.toText : Int -> Text
+  148. Int.trailingZeros : Int -> Nat
+  149. Int.truncate0 : Int -> Nat
+  150. Int.xor : Int -> Int -> Int
+  151. unique type io2.BufferMode
+  152. io2.BufferMode.BlockBuffering : BufferMode
+  153. io2.BufferMode.LineBuffering : BufferMode
+  154. io2.BufferMode.NoBuffering : BufferMode
+  155. io2.BufferMode.SizedBlockBuffering : Nat -> BufferMode
+  156. unique type io2.Failure
+  157. io2.Failure.Failure : Type -> Text -> Any -> Failure
+  158. unique type io2.FileMode
+  159. io2.FileMode.Append : FileMode
+  160. io2.FileMode.Read : FileMode
+  161. io2.FileMode.ReadWrite : FileMode
+  162. io2.FileMode.Write : FileMode
+  163. builtin type io2.Handle
+  164. builtin type io2.IO
+  165. io2.IO.clientSocket.impl : Text
                                   -> Text
                                   ->{IO} Either Failure Socket
-  165. io2.IO.closeFile.impl : Handle ->{IO} Either Failure ()
-  166. io2.IO.closeSocket.impl : Socket ->{IO} Either Failure ()
-  167. io2.IO.createDirectory.impl : Text
+  166. io2.IO.closeFile.impl : Handle ->{IO} Either Failure ()
+  167. io2.IO.closeSocket.impl : Socket ->{IO} Either Failure ()
+  168. io2.IO.createDirectory.impl : Text
                                      ->{IO} Either Failure ()
-  168. io2.IO.createTempDirectory.impl : Text
+  169. io2.IO.createTempDirectory.impl : Text
                                          ->{IO} Either
                                            Failure Text
-  169. io2.IO.delay.impl : Nat ->{IO} Either Failure ()
-  170. io2.IO.directoryContents.impl : Text
+  170. io2.IO.delay.impl : Nat ->{IO} Either Failure ()
+  171. io2.IO.directoryContents.impl : Text
                                        ->{IO} Either
                                          Failure [Text]
-  171. io2.IO.fileExists.impl : Text
+  172. io2.IO.fileExists.impl : Text
                                 ->{IO} Either Failure Boolean
-  172. io2.IO.forkComp : '{IO} a ->{IO} ThreadId
-  173. io2.IO.getArgs.impl : '{IO} Either Failure [Text]
-  174. io2.IO.getBuffering.impl : Handle
+  173. io2.IO.forkComp : '{IO} a ->{IO} ThreadId
+  174. io2.IO.getArgs.impl : '{IO} Either Failure [Text]
+  175. io2.IO.getBuffering.impl : Handle
                                   ->{IO} Either
                                     Failure BufferMode
-  175. io2.IO.getBytes.impl : Handle
+  176. io2.IO.getBytes.impl : Handle
                               -> Nat
                               ->{IO} Either Failure Bytes
-  176. io2.IO.getCurrentDirectory.impl : '{IO} Either
+  177. io2.IO.getCurrentDirectory.impl : '{IO} Either
                                            Failure Text
-  177. io2.IO.getEnv.impl : Text ->{IO} Either Failure Text
-  178. io2.IO.getFileSize.impl : Text ->{IO} Either Failure Nat
-  179. io2.IO.getFileTimestamp.impl : Text
+  178. io2.IO.getEnv.impl : Text ->{IO} Either Failure Text
+  179. io2.IO.getFileSize.impl : Text ->{IO} Either Failure Nat
+  180. io2.IO.getFileTimestamp.impl : Text
                                       ->{IO} Either Failure Nat
-  180. io2.IO.getLine.impl : Handle ->{IO} Either Failure Text
-  181. io2.IO.getTempDirectory.impl : '{IO} Either Failure Text
-  182. io2.IO.handlePosition.impl : Handle
+  181. io2.IO.getLine.impl : Handle ->{IO} Either Failure Text
+  182. io2.IO.getTempDirectory.impl : '{IO} Either Failure Text
+  183. io2.IO.handlePosition.impl : Handle
                                     ->{IO} Either Failure Nat
-  183. io2.IO.isDirectory.impl : Text
+  184. io2.IO.isDirectory.impl : Text
                                  ->{IO} Either Failure Boolean
-  184. io2.IO.isFileEOF.impl : Handle
+  185. io2.IO.isFileEOF.impl : Handle
                                ->{IO} Either Failure Boolean
-  185. io2.IO.isFileOpen.impl : Handle
+  186. io2.IO.isFileOpen.impl : Handle
                                 ->{IO} Either Failure Boolean
-  186. io2.IO.isSeekable.impl : Handle
+  187. io2.IO.isSeekable.impl : Handle
                                 ->{IO} Either Failure Boolean
-  187. io2.IO.kill.impl : ThreadId ->{IO} Either Failure ()
-  188. io2.IO.listen.impl : Socket ->{IO} Either Failure ()
-  189. io2.IO.openFile.impl : Text
+  188. io2.IO.kill.impl : ThreadId ->{IO} Either Failure ()
+  189. io2.IO.listen.impl : Socket ->{IO} Either Failure ()
+  190. io2.IO.openFile.impl : Text
                               -> FileMode
                               ->{IO} Either Failure Handle
-  190. io2.IO.putBytes.impl : Handle
+  191. io2.IO.putBytes.impl : Handle
                               -> Bytes
                               ->{IO} Either Failure ()
-  191. io2.IO.ref : a ->{IO} Ref {IO} a
-  192. io2.IO.removeDirectory.impl : Text
+  192. io2.IO.ref : a ->{IO} Ref {IO} a
+  193. io2.IO.removeDirectory.impl : Text
                                      ->{IO} Either Failure ()
-  193. io2.IO.removeFile.impl : Text ->{IO} Either Failure ()
-  194. io2.IO.renameDirectory.impl : Text
+  194. io2.IO.removeFile.impl : Text ->{IO} Either Failure ()
+  195. io2.IO.renameDirectory.impl : Text
                                      -> Text
                                      ->{IO} Either Failure ()
-  195. io2.IO.renameFile.impl : Text
+  196. io2.IO.renameFile.impl : Text
                                 -> Text
                                 ->{IO} Either Failure ()
-  196. io2.IO.seekHandle.impl : Handle
+  197. io2.IO.seekHandle.impl : Handle
                                 -> SeekMode
                                 -> Int
                                 ->{IO} Either Failure ()
-  197. io2.IO.serverSocket.impl : Optional Text
+  198. io2.IO.serverSocket.impl : Optional Text
                                   -> Text
                                   ->{IO} Either Failure Socket
-  198. io2.IO.setBuffering.impl : Handle
+  199. io2.IO.setBuffering.impl : Handle
                                   -> BufferMode
                                   ->{IO} Either Failure ()
-  199. io2.IO.setCurrentDirectory.impl : Text
+  200. io2.IO.setCurrentDirectory.impl : Text
                                          ->{IO} Either
                                            Failure ()
-  200. io2.IO.socketAccept.impl : Socket
+  201. io2.IO.socketAccept.impl : Socket
                                   ->{IO} Either Failure Socket
-  201. io2.IO.socketPort.impl : Socket ->{IO} Either Failure Nat
-  202. io2.IO.socketReceive.impl : Socket
+  202. io2.IO.socketPort.impl : Socket ->{IO} Either Failure Nat
+  203. io2.IO.socketReceive.impl : Socket
                                    -> Nat
                                    ->{IO} Either Failure Bytes
-  203. io2.IO.socketSend.impl : Socket
+  204. io2.IO.socketSend.impl : Socket
                                 -> Bytes
                                 ->{IO} Either Failure ()
-  204. io2.IO.stdHandle : StdHandle -> Handle
-  205. io2.IO.systemTime.impl : '{IO} Either Failure Nat
-  206. io2.IO.systemTimeMicroseconds : '{IO} Int
-  207. unique type io2.IOError
-  208. io2.IOError.AlreadyExists : IOError
-  209. io2.IOError.EOF : IOError
-  210. io2.IOError.IllegalOperation : IOError
-  211. io2.IOError.NoSuchThing : IOError
-  212. io2.IOError.PermissionDenied : IOError
-  213. io2.IOError.ResourceBusy : IOError
-  214. io2.IOError.ResourceExhausted : IOError
-  215. io2.IOError.UserError : IOError
-  216. unique type io2.IOFailure
-  217. builtin type io2.MVar
-  218. io2.MVar.isEmpty : MVar a ->{IO} Boolean
-  219. io2.MVar.new : a ->{IO} MVar a
-  220. io2.MVar.newEmpty : '{IO} MVar a
-  221. io2.MVar.put.impl : MVar a -> a ->{IO} Either Failure ()
-  222. io2.MVar.read.impl : MVar a ->{IO} Either Failure a
-  223. io2.MVar.swap.impl : MVar a -> a ->{IO} Either Failure a
-  224. io2.MVar.take.impl : MVar a ->{IO} Either Failure a
-  225. io2.MVar.tryPut.impl : MVar a
+  205. io2.IO.stdHandle : StdHandle -> Handle
+  206. io2.IO.systemTime.impl : '{IO} Either Failure Nat
+  207. io2.IO.systemTimeMicroseconds : '{IO} Int
+  208. unique type io2.IOError
+  209. io2.IOError.AlreadyExists : IOError
+  210. io2.IOError.EOF : IOError
+  211. io2.IOError.IllegalOperation : IOError
+  212. io2.IOError.NoSuchThing : IOError
+  213. io2.IOError.PermissionDenied : IOError
+  214. io2.IOError.ResourceBusy : IOError
+  215. io2.IOError.ResourceExhausted : IOError
+  216. io2.IOError.UserError : IOError
+  217. unique type io2.IOFailure
+  218. builtin type io2.MVar
+  219. io2.MVar.isEmpty : MVar a ->{IO} Boolean
+  220. io2.MVar.new : a ->{IO} MVar a
+  221. io2.MVar.newEmpty : '{IO} MVar a
+  222. io2.MVar.put.impl : MVar a -> a ->{IO} Either Failure ()
+  223. io2.MVar.read.impl : MVar a ->{IO} Either Failure a
+  224. io2.MVar.swap.impl : MVar a -> a ->{IO} Either Failure a
+  225. io2.MVar.take.impl : MVar a ->{IO} Either Failure a
+  226. io2.MVar.tryPut.impl : MVar a
                               -> a
                               ->{IO} Either Failure Boolean
-  226. io2.MVar.tryRead.impl : MVar a
+  227. io2.MVar.tryRead.impl : MVar a
                                ->{IO} Either
                                  Failure (Optional a)
-  227. io2.MVar.tryTake : MVar a ->{IO} Optional a
-  228. unique type io2.SeekMode
-  229. io2.SeekMode.AbsoluteSeek : SeekMode
-  230. io2.SeekMode.RelativeSeek : SeekMode
-  231. io2.SeekMode.SeekFromEnd : SeekMode
-  232. builtin type io2.Socket
-  233. unique type io2.StdHandle
-  234. io2.StdHandle.StdErr : StdHandle
-  235. io2.StdHandle.StdIn : StdHandle
-  236. io2.StdHandle.StdOut : StdHandle
-  237. builtin type io2.STM
-  238. io2.STM.atomically : '{STM} a ->{IO} a
-  239. io2.STM.retry : '{STM} a
-  240. builtin type io2.ThreadId
-  241. builtin type io2.Tls
-  242. builtin type io2.Tls.Cipher
-  243. builtin type io2.Tls.ClientConfig
-  244. io2.Tls.ClientConfig.certificates.set : [SignedCert]
+  228. io2.MVar.tryTake : MVar a ->{IO} Optional a
+  229. unique type io2.SeekMode
+  230. io2.SeekMode.AbsoluteSeek : SeekMode
+  231. io2.SeekMode.RelativeSeek : SeekMode
+  232. io2.SeekMode.SeekFromEnd : SeekMode
+  233. builtin type io2.Socket
+  234. unique type io2.StdHandle
+  235. io2.StdHandle.StdErr : StdHandle
+  236. io2.StdHandle.StdIn : StdHandle
+  237. io2.StdHandle.StdOut : StdHandle
+  238. builtin type io2.STM
+  239. io2.STM.atomically : '{STM} a ->{IO} a
+  240. io2.STM.retry : '{STM} a
+  241. builtin type io2.ThreadId
+  242. builtin type io2.Tls
+  243. builtin type io2.Tls.Cipher
+  244. builtin type io2.Tls.ClientConfig
+  245. io2.Tls.ClientConfig.certificates.set : [SignedCert]
                                                -> ClientConfig
                                                -> ClientConfig
-  245. io2.TLS.ClientConfig.ciphers.set : [Cipher]
+  246. io2.TLS.ClientConfig.ciphers.set : [Cipher]
                                           -> ClientConfig
                                           -> ClientConfig
-  246. io2.Tls.ClientConfig.default : Text
+  247. io2.Tls.ClientConfig.default : Text
                                       -> Bytes
                                       -> ClientConfig
-  247. io2.Tls.ClientConfig.versions.set : [Version]
+  248. io2.Tls.ClientConfig.versions.set : [Version]
                                            -> ClientConfig
                                            -> ClientConfig
-  248. io2.Tls.decodeCert.impl : Bytes
+  249. io2.Tls.decodeCert.impl : Bytes
                                  -> Either Failure SignedCert
-  249. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
-  250. io2.Tls.encodeCert : SignedCert -> Bytes
-  251. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
-  252. io2.Tls.handshake.impl : Tls ->{IO} Either Failure ()
-  253. io2.Tls.newClient.impl : ClientConfig
+  250. io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
+  251. io2.Tls.encodeCert : SignedCert -> Bytes
+  252. io2.Tls.encodePrivateKey : PrivateKey -> Bytes
+  253. io2.Tls.handshake.impl : Tls ->{IO} Either Failure ()
+  254. io2.Tls.newClient.impl : ClientConfig
                                 -> Socket
                                 ->{IO} Either Failure Tls
-  254. io2.Tls.newServer.impl : ServerConfig
+  255. io2.Tls.newServer.impl : ServerConfig
                                 -> Socket
                                 ->{IO} Either Failure Tls
-  255. builtin type io2.Tls.PrivateKey
-  256. io2.Tls.receive.impl : Tls ->{IO} Either Failure Bytes
-  257. io2.Tls.send.impl : Tls -> Bytes ->{IO} Either Failure ()
-  258. builtin type io2.Tls.ServerConfig
-  259. io2.Tls.ServerConfig.certificates.set : [SignedCert]
+  256. builtin type io2.Tls.PrivateKey
+  257. io2.Tls.receive.impl : Tls ->{IO} Either Failure Bytes
+  258. io2.Tls.send.impl : Tls -> Bytes ->{IO} Either Failure ()
+  259. builtin type io2.Tls.ServerConfig
+  260. io2.Tls.ServerConfig.certificates.set : [SignedCert]
                                                -> ServerConfig
                                                -> ServerConfig
-  260. io2.Tls.ServerConfig.ciphers.set : [Cipher]
+  261. io2.Tls.ServerConfig.ciphers.set : [Cipher]
                                           -> ServerConfig
                                           -> ServerConfig
-  261. io2.Tls.ServerConfig.default : [SignedCert]
+  262. io2.Tls.ServerConfig.default : [SignedCert]
                                       -> PrivateKey
                                       -> ServerConfig
-  262. io2.Tls.ServerConfig.versions.set : [Version]
+  263. io2.Tls.ServerConfig.versions.set : [Version]
                                            -> ServerConfig
                                            -> ServerConfig
-  263. builtin type io2.Tls.SignedCert
-  264. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
-  265. builtin type io2.Tls.Version
-  266. unique type io2.TlsFailure
-  267. builtin type io2.TVar
-  268. io2.TVar.new : a ->{STM} TVar a
-  269. io2.TVar.newIO : a ->{IO} TVar a
-  270. io2.TVar.read : TVar a ->{STM} a
-  271. io2.TVar.readIO : TVar a ->{IO} a
-  272. io2.TVar.swap : TVar a -> a ->{STM} a
-  273. io2.TVar.write : TVar a -> a ->{STM} ()
-  274. unique type IsPropagated
-  275. IsPropagated.IsPropagated : IsPropagated
-  276. unique type IsTest
-  277. IsTest.IsTest : IsTest
-  278. unique type Link
-  279. builtin type Link.Term
-  280. Link.Term : Term -> Link
-  281. Link.Term.toText : Term -> Text
-  282. builtin type Link.Type
-  283. Link.Type : Type -> Link
-  284. builtin type List
-  285. List.++ : [a] -> [a] -> [a]
-  286. List.+: : a -> [a] -> [a]
-  287. List.:+ : [a] -> a -> [a]
-  288. List.at : Nat -> [a] -> Optional a
-  289. List.cons : a -> [a] -> [a]
-  290. List.drop : Nat -> [a] -> [a]
-  291. List.empty : [a]
-  292. List.size : [a] -> Nat
-  293. List.snoc : [a] -> a -> [a]
-  294. List.take : Nat -> [a] -> [a]
-  295. metadata.isPropagated : IsPropagated
-  296. metadata.isTest : IsTest
-  297. builtin type Nat
-  298. Nat.* : Nat -> Nat -> Nat
-  299. Nat.+ : Nat -> Nat -> Nat
-  300. Nat./ : Nat -> Nat -> Nat
-  301. Nat.and : Nat -> Nat -> Nat
-  302. Nat.complement : Nat -> Nat
-  303. Nat.drop : Nat -> Nat -> Nat
-  304. Nat.eq : Nat -> Nat -> Boolean
-  305. Nat.fromText : Text -> Optional Nat
-  306. Nat.gt : Nat -> Nat -> Boolean
-  307. Nat.gteq : Nat -> Nat -> Boolean
-  308. Nat.increment : Nat -> Nat
-  309. Nat.isEven : Nat -> Boolean
-  310. Nat.isOdd : Nat -> Boolean
-  311. Nat.leadingZeros : Nat -> Nat
-  312. Nat.lt : Nat -> Nat -> Boolean
-  313. Nat.lteq : Nat -> Nat -> Boolean
-  314. Nat.mod : Nat -> Nat -> Nat
-  315. Nat.or : Nat -> Nat -> Nat
-  316. Nat.popCount : Nat -> Nat
-  317. Nat.pow : Nat -> Nat -> Nat
-  318. Nat.shiftLeft : Nat -> Nat -> Nat
-  319. Nat.shiftRight : Nat -> Nat -> Nat
-  320. Nat.sub : Nat -> Nat -> Int
-  321. Nat.toFloat : Nat -> Float
-  322. Nat.toInt : Nat -> Int
-  323. Nat.toText : Nat -> Text
-  324. Nat.trailingZeros : Nat -> Nat
-  325. Nat.xor : Nat -> Nat -> Nat
-  326. structural type Optional a
-  327. Optional.None : Optional a
-  328. Optional.Some : a -> Optional a
-  329. builtin type Ref
-  330. Ref.read : Ref g a ->{g} a
-  331. Ref.write : Ref g a -> a ->{g} ()
-  332. builtin type Request
-  333. builtin type Scope
-  334. Scope.ref : a ->{Scope s} Ref {Scope s} a
-  335. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
-  336. structural type SeqView a b
-  337. SeqView.VElem : a -> b -> SeqView a b
-  338. SeqView.VEmpty : SeqView a b
-  339. unique type Test.Result
-  340. Test.Result.Fail : Text -> Result
-  341. Test.Result.Ok : Text -> Result
-  342. builtin type Text
-  343. Text.!= : Text -> Text -> Boolean
-  344. Text.++ : Text -> Text -> Text
-  345. Text.drop : Nat -> Text -> Text
-  346. Text.empty : Text
-  347. Text.eq : Text -> Text -> Boolean
-  348. Text.fromCharList : [Char] -> Text
-  349. Text.fromUtf8.impl : Bytes -> Either Failure Text
-  350. Text.gt : Text -> Text -> Boolean
-  351. Text.gteq : Text -> Text -> Boolean
-  352. Text.lt : Text -> Text -> Boolean
-  353. Text.lteq : Text -> Text -> Boolean
-  354. Text.repeat : Nat -> Text -> Text
-  355. Text.size : Text -> Nat
-  356. Text.take : Nat -> Text -> Text
-  357. Text.toCharList : Text -> [Char]
-  358. Text.toUtf8 : Text -> Bytes
-  359. Text.uncons : Text -> Optional (Char, Text)
-  360. Text.unsnoc : Text -> Optional (Text, Char)
-  361. todo : a -> b
-  362. structural type Tuple a b
-  363. Tuple.Cons : a -> b -> Tuple a b
-  364. structural type Unit
-  365. Unit.Unit : ()
-  366. Universal.< : a -> a -> Boolean
-  367. Universal.<= : a -> a -> Boolean
-  368. Universal.== : a -> a -> Boolean
-  369. Universal.> : a -> a -> Boolean
-  370. Universal.>= : a -> a -> Boolean
-  371. Universal.compare : a -> a -> Int
-  372. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  373. builtin type Value
-  374. Value.dependencies : Value -> [Term]
-  375. Value.deserialize : Bytes -> Either Text Value
-  376. Value.load : Value ->{IO} Either [Term] a
-  377. Value.serialize : Value -> Bytes
-  378. Value.value : a -> Value
+  264. builtin type io2.Tls.SignedCert
+  265. io2.Tls.terminate.impl : Tls ->{IO} Either Failure ()
+  266. builtin type io2.Tls.Version
+  267. unique type io2.TlsFailure
+  268. builtin type io2.TVar
+  269. io2.TVar.new : a ->{STM} TVar a
+  270. io2.TVar.newIO : a ->{IO} TVar a
+  271. io2.TVar.read : TVar a ->{STM} a
+  272. io2.TVar.readIO : TVar a ->{IO} a
+  273. io2.TVar.swap : TVar a -> a ->{STM} a
+  274. io2.TVar.write : TVar a -> a ->{STM} ()
+  275. unique type IsPropagated
+  276. IsPropagated.IsPropagated : IsPropagated
+  277. unique type IsTest
+  278. IsTest.IsTest : IsTest
+  279. unique type Link
+  280. builtin type Link.Term
+  281. Link.Term : Term -> Link
+  282. Link.Term.toText : Term -> Text
+  283. builtin type Link.Type
+  284. Link.Type : Type -> Link
+  285. builtin type List
+  286. List.++ : [a] -> [a] -> [a]
+  287. List.+: : a -> [a] -> [a]
+  288. List.:+ : [a] -> a -> [a]
+  289. List.at : Nat -> [a] -> Optional a
+  290. List.cons : a -> [a] -> [a]
+  291. List.drop : Nat -> [a] -> [a]
+  292. List.empty : [a]
+  293. List.size : [a] -> Nat
+  294. List.snoc : [a] -> a -> [a]
+  295. List.take : Nat -> [a] -> [a]
+  296. metadata.isPropagated : IsPropagated
+  297. metadata.isTest : IsTest
+  298. builtin type Nat
+  299. Nat.* : Nat -> Nat -> Nat
+  300. Nat.+ : Nat -> Nat -> Nat
+  301. Nat./ : Nat -> Nat -> Nat
+  302. Nat.and : Nat -> Nat -> Nat
+  303. Nat.complement : Nat -> Nat
+  304. Nat.drop : Nat -> Nat -> Nat
+  305. Nat.eq : Nat -> Nat -> Boolean
+  306. Nat.fromText : Text -> Optional Nat
+  307. Nat.gt : Nat -> Nat -> Boolean
+  308. Nat.gteq : Nat -> Nat -> Boolean
+  309. Nat.increment : Nat -> Nat
+  310. Nat.isEven : Nat -> Boolean
+  311. Nat.isOdd : Nat -> Boolean
+  312. Nat.leadingZeros : Nat -> Nat
+  313. Nat.lt : Nat -> Nat -> Boolean
+  314. Nat.lteq : Nat -> Nat -> Boolean
+  315. Nat.mod : Nat -> Nat -> Nat
+  316. Nat.or : Nat -> Nat -> Nat
+  317. Nat.popCount : Nat -> Nat
+  318. Nat.pow : Nat -> Nat -> Nat
+  319. Nat.shiftLeft : Nat -> Nat -> Nat
+  320. Nat.shiftRight : Nat -> Nat -> Nat
+  321. Nat.sub : Nat -> Nat -> Int
+  322. Nat.toFloat : Nat -> Float
+  323. Nat.toInt : Nat -> Int
+  324. Nat.toText : Nat -> Text
+  325. Nat.trailingZeros : Nat -> Nat
+  326. Nat.xor : Nat -> Nat -> Nat
+  327. structural type Optional a
+  328. Optional.None : Optional a
+  329. Optional.Some : a -> Optional a
+  330. builtin type Ref
+  331. Ref.read : Ref g a ->{g} a
+  332. Ref.write : Ref g a -> a ->{g} ()
+  333. builtin type Request
+  334. builtin type Scope
+  335. Scope.ref : a ->{Scope s} Ref {Scope s} a
+  336. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
+  337. structural type SeqView a b
+  338. SeqView.VElem : a -> b -> SeqView a b
+  339. SeqView.VEmpty : SeqView a b
+  340. Socket.toText : Socket -> Text
+  341. unique type Test.Result
+  342. Test.Result.Fail : Text -> Result
+  343. Test.Result.Ok : Text -> Result
+  344. builtin type Text
+  345. Text.!= : Text -> Text -> Boolean
+  346. Text.++ : Text -> Text -> Text
+  347. Text.drop : Nat -> Text -> Text
+  348. Text.empty : Text
+  349. Text.eq : Text -> Text -> Boolean
+  350. Text.fromCharList : [Char] -> Text
+  351. Text.fromUtf8.impl : Bytes -> Either Failure Text
+  352. Text.gt : Text -> Text -> Boolean
+  353. Text.gteq : Text -> Text -> Boolean
+  354. Text.lt : Text -> Text -> Boolean
+  355. Text.lteq : Text -> Text -> Boolean
+  356. Text.repeat : Nat -> Text -> Text
+  357. Text.size : Text -> Nat
+  358. Text.take : Nat -> Text -> Text
+  359. Text.toCharList : Text -> [Char]
+  360. Text.toUtf8 : Text -> Bytes
+  361. Text.uncons : Text -> Optional (Char, Text)
+  362. Text.unsnoc : Text -> Optional (Text, Char)
+  363. ThreadId.toText : ThreadId -> Text
+  364. todo : a -> b
+  365. structural type Tuple a b
+  366. Tuple.Cons : a -> b -> Tuple a b
+  367. structural type Unit
+  368. Unit.Unit : ()
+  369. Universal.< : a -> a -> Boolean
+  370. Universal.<= : a -> a -> Boolean
+  371. Universal.== : a -> a -> Boolean
+  372. Universal.> : a -> a -> Boolean
+  373. Universal.>= : a -> a -> Boolean
+  374. Universal.compare : a -> a -> Int
+  375. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  376. builtin type Value
+  377. Value.dependencies : Value -> [Term]
+  378. Value.deserialize : Bytes -> Either Text Value
+  379. Value.load : Value ->{IO} Either [Term] a
+  380. Value.serialize : Value -> Bytes
+  381. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib
