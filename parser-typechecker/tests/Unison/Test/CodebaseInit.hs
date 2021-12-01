@@ -59,7 +59,7 @@ test = scope "Codebase.Init" $ tests
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
           _ -> pure False
         case res of
-          Left (_, CI.NoCodebaseFoundAtSpecifiedDir) -> expect True
+          Left (_, CI.InitErrorOpen OpenCodebaseDoesntExist) -> expect True
           _ -> expect False
     ]
   , scope "*with* a --codebase-create flag" $ tests
