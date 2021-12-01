@@ -45,6 +45,7 @@ library
       Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata

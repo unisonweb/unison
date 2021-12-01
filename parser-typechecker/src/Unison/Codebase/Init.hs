@@ -28,6 +28,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath)
 import Unison.Codebase.Init.CreateCodebaseError
+import Unison.Codebase.Init.OpenCodebaseError
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
@@ -48,7 +49,7 @@ type DebugName = String
 
 data Init m v a = Init
   { -- | open an existing codebase
-    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r),
+    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either OpenCodebaseError r),
     -- | create a new codebase
     withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     -- | given a codebase root, and given that the codebase root may have other junk in it,

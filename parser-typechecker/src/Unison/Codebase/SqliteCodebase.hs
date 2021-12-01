@@ -14,34 +14,22 @@ where
 
 import qualified Control.Concurrent
 import qualified Control.Exception
-import Control.Monad (filterM, unless, when, (>=>))
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>))
 import qualified Data.List as List
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Traversable (for)
-import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
-import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
@@ -76,6 +64,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteG
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -92,7 +81,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -104,11 +93,10 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
+import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO)
 import qualified UnliftIO
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import UnliftIO.Exception (bracket)
 import Control.Monad.Trans.Except (mapExceptT)
@@ -172,15 +160,12 @@ getCodebaseOrError ::
   Codebase.DebugName ->
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
-  m (Either Codebase1.Pretty r)
+  m (Either Codebase1.OpenCodebaseError r)
 getCodebaseOrError debugName dir action = do
-  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (dir </> codebasePath) >>= \case
-    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
-    -- Unison.Codebase.Init.getCodebaseOrExit).
-    False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir action)
+    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    True ->
+      sqliteCodebase debugName dir action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
