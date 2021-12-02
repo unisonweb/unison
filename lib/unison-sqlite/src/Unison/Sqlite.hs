@@ -22,7 +22,7 @@ module Unison.Sqlite
     runDB,
 
     -- * Executing queries
-    Sql(..),
+    Sql (..),
 
     -- ** Without results
 
@@ -82,11 +82,11 @@ module Unison.Sqlite
 
     -- * Exceptions
     SqliteException (..),
+    SqliteExceptionReason,
+    SomeSqliteExceptionReason (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
-
-    -- * Misc
-    SomeShowTypeable(..),
+    SetJournalModeException (..),
   )
 where
 
@@ -94,14 +94,13 @@ import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
-    SomeShowTypeable(..),
-    SqliteException (..),
     withConnection,
   )
 import Unison.Sqlite.DB
-import Unison.Sqlite.DataVersion
-import Unison.Sqlite.JournalMode
-import Unison.Sqlite.Sql
+import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
+import Unison.Sqlite.Exception (SomeSqliteExceptionReason (..), SqliteException (..), SqliteExceptionReason)
+import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
+import Unison.Sqlite.Sql (Sql (..))
 
 -- $query-naming-convention
 --
@@ -110,19 +109,23 @@ import Unison.Sqlite.Sql
 -- Every function name begins with the string @__query__@.
 --
 --   1. /Row count/. The caller may expect /exactly one/, /zero or one/, or /zero or more/ rows, in which case the
---      function name includes the string @__List__@, @__Maybe__@, or @__One__@, respectively. Example: @query__List__@.
+--      function name includes the string @__List__@, @__Maybe__@, or @__One__@, respectively.
+--      Example: @query__List__Row@.
 --
---   2. /Row width/. The caller may expect the returned rows may contain /exactly one/ or /more than one/ column. In the
---      former case, the function name includes the string @__One__@. Example: @queryOne__One__@.
+--   2. /Row width/. The caller may expect the returned rows may contain /exactly one/ or /more than one/ column, in
+--      which case the function name includes the string @__Col__@ or @__Row__@, respectively.
+--      Example: @queryOne__Col__@.
 --
 --   3. /Result checks/. The caller may want to perform additional validation on the returned rows, in which case the
---      function name includes the string @__Check__@. Example: @queryMaybeOne__Check__@.
+--      function name includes the string @__Check__@.
+--      Example: @queryMaybeCol__Check__@.
 --
 --   4. /Parameter count/. The query may contain /zero/ or /one or more/ parameters. In the former case, the function
---      name includes the string @__\___@. Example: @queryList__\___@.
+--      name includes the string @__\___@.
+--      Example: @queryListRow__\___@.
 --
 -- All together, the full anatomy of a query function is:
 --
 -- @
--- query(List|Maybe|One)[One][Check][_]
+-- query(List|Maybe|One)(Row|Col)[Check][_]
 -- @

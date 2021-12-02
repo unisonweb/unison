@@ -53,19 +53,17 @@ module Unison.Sqlite.Connection
     withStatement,
 
     -- * Exceptions
-    SqliteException (..),
-    SomeShowTypeable (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
   )
 where
 
-import Control.Concurrent (ThreadId, myThreadId)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite3.Direct as Sqlite (Database (..))
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
+import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
 import UnliftIO (MonadUnliftIO)
 import UnliftIO.Exception
@@ -124,7 +122,7 @@ execute conn@(Connection _ _ conn0) s params =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = s
         }
@@ -135,7 +133,7 @@ executeMany conn@(Connection _ _ conn0) s params =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = s
         }
@@ -148,7 +146,7 @@ execute_ conn@(Connection _ _ conn0) s =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Nothing,
           sql = s
         }
@@ -161,7 +159,7 @@ queryListRow conn@(Connection _ _ conn0) s params =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = s
         }
@@ -194,21 +192,21 @@ queryOneCol conn s params = do
 -- With results, with parameters, with checks
 
 queryListRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
   ([b] -> Either e r) ->
   IO r
 queryListRowCheck conn s params check =
-  gqueryListCheck conn s params (mapLeft SomeShowTypeable . check)
+  gqueryListCheck conn s params (mapLeft SomeSqliteExceptionReason . check)
 
 gqueryListCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a) =>
   Connection ->
   Sql ->
   a ->
-  ([b] -> Either SomeShowTypeable r) ->
+  ([b] -> Either SomeSqliteExceptionReason r) ->
   IO r
 gqueryListCheck conn s params check = do
   xs <- queryListRow conn s params
@@ -225,7 +223,7 @@ gqueryListCheck conn s params check = do
 
 queryListColCheck ::
   forall a b e r.
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
@@ -235,7 +233,7 @@ queryListColCheck conn s params check =
   queryListRowCheck conn s params (coerce @([b] -> Either e r) @([Sqlite.Only b] -> Either e r) check)
 
 queryMaybeRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
@@ -243,13 +241,13 @@ queryMaybeRowCheck ::
   IO r
 queryMaybeRowCheck conn s params check =
   gqueryListCheck conn s params \case
-    [] -> mapLeft SomeShowTypeable (check Nothing)
-    [x] -> mapLeft SomeShowTypeable (check (Just x))
-    xs -> Left (SomeShowTypeable (ExpectedAtMostOneRowException (anythingToString xs)))
+    [] -> mapLeft SomeSqliteExceptionReason (check Nothing)
+    [x] -> mapLeft SomeSqliteExceptionReason (check (Just x))
+    xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
 queryMaybeColCheck ::
   forall a b e r.
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
@@ -259,7 +257,7 @@ queryMaybeColCheck conn s params check =
   queryMaybeRowCheck conn s params (coerce @(Maybe b -> Either e r) @(Maybe (Sqlite.Only b) -> Either e r) check)
 
 queryOneRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
@@ -267,12 +265,12 @@ queryOneRowCheck ::
   IO r
 queryOneRowCheck conn s params check =
   gqueryListCheck conn s params \case
-    [x] -> mapLeft SomeShowTypeable (check x)
-    xs -> Left (SomeShowTypeable (ExpectedExactlyOneRowException (anythingToString xs)))
+    [x] -> mapLeft SomeSqliteExceptionReason (check x)
+    xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
 
 queryOneColCheck ::
   forall a b e r.
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   a ->
@@ -289,7 +287,7 @@ queryListRow_ conn@(Connection _ _ conn0) s =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Nothing,
           sql = s
         }
@@ -303,7 +301,7 @@ queryMaybeRow_ conn s =
   queryListRowCheck_ conn s \case
     [] -> Right Nothing
     [x] -> Right (Just x)
-    xs -> Left (SomeShowTypeable (ExpectedAtMostOneRowException (anythingToString xs)))
+    xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
 queryMaybeCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO (Maybe a)
 queryMaybeCol_ conn s =
@@ -313,7 +311,7 @@ queryOneRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO a
 queryOneRow_ conn s =
   queryListRowCheck_ conn s \case
     [x] -> Right x
-    xs -> Left (SomeShowTypeable (ExpectedExactlyOneRowException (anythingToString xs)))
+    xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
 
 queryOneCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO a
 queryOneCol_ conn s =
@@ -321,11 +319,11 @@ queryOneCol_ conn s =
 
 -- With results, without parameters, with checks
 
-queryListRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Connection -> Sql -> ([a] -> Either e r) -> IO r
+queryListRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection -> Sql -> ([a] -> Either e r) -> IO r
 queryListRowCheck_ conn s check =
-  gqueryListCheck_ conn s (mapLeft SomeShowTypeable . check)
+  gqueryListCheck_ conn s (mapLeft SomeSqliteExceptionReason . check)
 
-gqueryListCheck_ :: Sqlite.FromRow a => Connection -> Sql -> ([a] -> Either SomeShowTypeable r) -> IO r
+gqueryListCheck_ :: Sqlite.FromRow a => Connection -> Sql -> ([a] -> Either SomeSqliteExceptionReason r) -> IO r
 gqueryListCheck_ conn s check = do
   xs <- queryListRow_ conn s
   case check xs of
@@ -341,7 +339,7 @@ gqueryListCheck_ conn s check = do
 
 queryListColCheck_ ::
   forall a e r.
-  (Sqlite.FromField a, Show e, Typeable e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   ([a] -> Either e r) ->
@@ -349,16 +347,16 @@ queryListColCheck_ ::
 queryListColCheck_ conn s check =
   queryListRowCheck_ conn s (coerce @([a] -> Either e r) @([Sqlite.Only a] -> Either e r) check)
 
-queryMaybeRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Connection -> Sql -> (Maybe a -> Either e r) -> IO r
+queryMaybeRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection -> Sql -> (Maybe a -> Either e r) -> IO r
 queryMaybeRowCheck_ conn s check =
   gqueryListCheck_ conn s \case
-    [] -> mapLeft SomeShowTypeable (check Nothing)
-    [x] -> mapLeft SomeShowTypeable (check (Just x))
-    xs -> Left (SomeShowTypeable (ExpectedAtMostOneRowException (anythingToString xs)))
+    [] -> mapLeft SomeSqliteExceptionReason (check Nothing)
+    [x] -> mapLeft SomeSqliteExceptionReason (check (Just x))
+    xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
 queryMaybeColCheck_ ::
   forall a e r.
-  (Sqlite.FromField a, Show e, Typeable e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   (Maybe a -> Either e r) ->
@@ -366,15 +364,15 @@ queryMaybeColCheck_ ::
 queryMaybeColCheck_ conn s check =
   queryMaybeRowCheck_ conn s (coerce @(Maybe a -> Either e r) @(Maybe (Sqlite.Only a) -> Either e r) check)
 
-queryOneRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Connection -> Sql -> (a -> Either e r) -> IO r
+queryOneRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection -> Sql -> (a -> Either e r) -> IO r
 queryOneRowCheck_ conn s check =
   gqueryListCheck_ conn s \case
-    [x] -> mapLeft SomeShowTypeable (check x)
-    xs -> Left (SomeShowTypeable (ExpectedExactlyOneRowException (anythingToString xs)))
+    [x] -> mapLeft SomeSqliteExceptionReason (check x)
+    xs -> Left (SomeSqliteExceptionReason (ExpectedExactlyOneRowException (anythingToString xs)))
 
 queryOneColCheck_ ::
   forall a e r.
-  (Sqlite.FromField a, Show e, Typeable e) =>
+  (Sqlite.FromField a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
   (a -> Either e r) ->
@@ -405,7 +403,7 @@ withStatement conn@(Connection _ _ conn0) s params callback =
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
-          exception = SomeShowTypeable exception,
+          exception = SomeSqliteExceptionReason exception,
           params = Just params,
           sql = s
         }
@@ -424,6 +422,7 @@ newtype ExpectedExactlyOneRowException = ExpectedExactlyOneRowException
   { rows :: String
   }
   deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)
 
 -- | A query was expected to return exactly one row, but it did not. The exception carries a string representation of
 -- the rows that were actually returned.
@@ -431,56 +430,4 @@ newtype ExpectedAtMostOneRowException = ExpectedAtMostOneRowException
   { rows :: String
   }
   deriving stock (Show)
-
-data SqliteExceptionInfo a = SqliteExceptionInfo
-  { sql :: Sql,
-    params :: Maybe a,
-    exception :: SomeShowTypeable,
-    connection :: Connection
-  }
-
-throwSqliteException :: SqliteExceptionInfo params -> IO a
-throwSqliteException SqliteExceptionInfo {connection, exception, params, sql} = do
-  threadId <- myThreadId
-  throwIO
-    SqliteException
-      { sql,
-        params = maybe "" anythingToString params,
-        exception,
-        connection = show connection,
-        threadId
-      }
-
-data SomeShowTypeable
-  = forall e. (Show e, Typeable e) => SomeShowTypeable e
-
-instance Show SomeShowTypeable where
-  show (SomeShowTypeable x) = show x
-
--- | A @SqliteException@ represents an exception paired with some context that resulted in the exception.
---
--- A @SqliteException@ may result from a number of different conditions:
---
--- * The underlying sqlite library threw an exception, as when establishing a connection to a non-existent database.
--- * A postcondition violation of a function like 'queryMaybe', which asserts that the resulting relation will have
---   certain number of rows,
--- * A postcondition violation of a function like 'queryListCheck', which takes a user-defined check as an argument.
---
--- A @SqliteException@ should not be inspected or used for control flow when run in a trusted environment, where the
--- database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code that
--- is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible, it
--- should be considered a bug in this library.
---
--- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
--- just one exception type, @SqliteException@.
-data SqliteException = SqliteException
-  { sql :: Sql,
-    params :: String,
-    -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
-    -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.
-    exception :: SomeShowTypeable,
-    connection :: String,
-    threadId :: ThreadId
-  }
-  deriving stock (Show)
-  deriving anyclass (Exception)
+  deriving anyclass (SqliteExceptionReason)

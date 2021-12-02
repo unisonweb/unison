@@ -8,6 +8,7 @@ where
 import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite
 import Unison.Prelude
+import Unison.Sqlite.Exception (SqliteExceptionReason)
 import Unison.Sqlite.Sql
 import Unison.Sqlite.Transaction
 
@@ -64,3 +65,4 @@ data SetJournalModeException = SetJournalModeException
     couldntSetTo :: JournalMode
   }
   deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)

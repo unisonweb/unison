@@ -63,6 +63,7 @@ import qualified Database.SQLite.Simple.FromField as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection (Connection)
 import qualified Unison.Sqlite.Connection as Connection
+import Unison.Sqlite.Exception (SqliteExceptionReason)
 import Unison.Sqlite.Sql (Sql (..))
 import Unison.Sqlite.Transaction (Transaction)
 import qualified Unison.Sqlite.Transaction as Transaction
@@ -133,7 +134,7 @@ queryOneCol s params = do
 -- With results, with parameters, with checks
 
 queryListRowCheck ::
-  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
@@ -143,7 +144,7 @@ queryListRowCheck s params check = do
   liftIO (Connection.queryListRowCheck conn s params check)
 
 queryListColCheck ::
-  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
@@ -153,7 +154,7 @@ queryListColCheck s params check = do
   liftIO (Connection.queryListColCheck conn s params check)
 
 queryMaybeRowCheck ::
-  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
@@ -163,7 +164,7 @@ queryMaybeRowCheck s params check = do
   liftIO (Connection.queryMaybeRowCheck conn s params check)
 
 queryMaybeColCheck ::
-  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
@@ -173,7 +174,7 @@ queryMaybeColCheck s params check = do
   liftIO (Connection.queryMaybeColCheck conn s params check)
 
 queryOneRowCheck ::
-  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
@@ -183,7 +184,7 @@ queryOneRowCheck s params check = do
   liftIO (Connection.queryOneRowCheck conn s params check)
 
 queryOneColCheck ::
-  (DB m, Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (DB m, Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
@@ -226,32 +227,32 @@ queryOneCol_ s = do
 
 -- With results, without parameters, with checks
 
-queryListRowCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> m r
+queryListRowCheck_ :: (DB m, Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> ([a] -> Either e r) -> m r
 queryListRowCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryListRowCheck_ conn s check)
 
-queryListColCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> m r
+queryListColCheck_ :: (DB m, Sqlite.FromField a, SqliteExceptionReason e) => Sql -> ([a] -> Either e r) -> m r
 queryListColCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryListColCheck_ conn s check)
 
-queryMaybeRowCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeRowCheck_ :: (DB m, Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> m r
 queryMaybeRowCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeRowCheck_ conn s check)
 
-queryMaybeColCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeColCheck_ :: (DB m, Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> m r
 queryMaybeColCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeColCheck_ conn s check)
 
-queryOneRowCheck_ :: (DB m, Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> m r
+queryOneRowCheck_ :: (DB m, Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> m r
 queryOneRowCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryOneRowCheck_ conn s check)
 
-queryOneColCheck_ :: (DB m, Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> m r
+queryOneColCheck_ :: (DB m, Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> m r
 queryOneColCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryOneColCheck_ conn s check)

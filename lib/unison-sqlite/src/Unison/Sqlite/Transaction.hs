@@ -56,6 +56,7 @@ import qualified Database.SQLite.Simple.FromField as Sqlite
 import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
+import Unison.Sqlite.Exception (SqliteExceptionReason)
 import Unison.Sqlite.Sql
 
 newtype Transaction a
@@ -119,7 +120,7 @@ queryOneCol s params =
 -- With results, with parameters, with checks
 
 queryListRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
@@ -128,7 +129,7 @@ queryListRowCheck s params check =
   Transaction \conn -> Connection.queryListRowCheck conn s params check
 
 queryListColCheck ::
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
@@ -137,7 +138,7 @@ queryListColCheck s params check =
   Transaction \conn -> Connection.queryListColCheck conn s params check
 
 queryMaybeRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
@@ -146,7 +147,7 @@ queryMaybeRowCheck s params check =
   Transaction \conn -> Connection.queryMaybeRowCheck conn s params check
 
 queryMaybeColCheck ::
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
@@ -155,7 +156,7 @@ queryMaybeColCheck s params check =
   Transaction \conn -> Connection.queryMaybeColCheck conn s params check
 
 queryOneRowCheck ::
-  (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
@@ -164,7 +165,7 @@ queryOneRowCheck s params check =
   Transaction \conn -> Connection.queryOneRowCheck conn s params check
 
 queryOneColCheck ::
-  (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
+  (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
@@ -200,26 +201,26 @@ queryOneCol_ s =
 
 -- With results, without parameters, with checks
 
-queryListRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> ([a] -> Either e r) -> Transaction r
 queryListRowCheck_ s check =
   Transaction \conn -> Connection.queryListRowCheck_ conn s check
 
-queryListColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> ([a] -> Either e r) -> Transaction r
 queryListColCheck_ s check =
   Transaction \conn -> Connection.queryListColCheck_ conn s check
 
-queryMaybeRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> Transaction r
 queryMaybeRowCheck_ s check =
   Transaction \conn -> Connection.queryMaybeRowCheck_ conn s check
 
-queryMaybeColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> Transaction r
 queryMaybeColCheck_ s check =
   Transaction \conn -> Connection.queryMaybeColCheck_ conn s check
 
-queryOneRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
+queryOneRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneRowCheck_ s check =
   Transaction \conn -> Connection.queryOneRowCheck_ conn s check
 
-queryOneColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
+queryOneColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction r
 queryOneColCheck_ s check =
   Transaction \conn -> Connection.queryOneColCheck_ conn s check
