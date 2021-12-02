@@ -32,6 +32,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
+import Unison.Codebase (PushGitBranchOpts (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -42,6 +43,9 @@ import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.Command as Command
 import Unison.Codebase.Editor.DisplayObject
+import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action')
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
+import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
@@ -87,6 +91,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import qualified Unison.Lexer as L
 import Unison.Name (Name)
+import Unison.Position (Position(..))
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (..))
 import qualified Unison.NameSegment as NameSegment
@@ -138,16 +143,16 @@ import Unison.Util.TransitiveClosure (transitiveClosure)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
-import Unison.Codebase.Editor.HandleInput.LoopState (Action, Action', eval)
-import qualified Unison.Codebase.Editor.HandleInput.NamespaceDependencies as NamespaceDependencies
+import Unison.Codebase.Editor.HandleInput.LoopState (eval, MonadCommand(..))
+import Unison.Util.Free (Free)
+import UnliftIO (MonadUnliftIO)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
 
-prettyPrintEnvDecl :: NamesWithHistory -> Action' m v PPE.PrettyPrintEnvDecl
+prettyPrintEnvDecl :: MonadCommand n m i v => NamesWithHistory -> n PPE.PrettyPrintEnvDecl
 prettyPrintEnvDecl ns = eval CodebaseHashLength <&> (`PPE.fromNamesDecl` ns)
 
 -- | Get a pretty print env decl for the current names at the current path.
@@ -157,7 +162,7 @@ currentPrettyPrintEnvDecl = do
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
 
-loop :: forall m v. (Monad m, Var v) => Action m (Either Event Input) v ()
+loop :: forall m v. (MonadUnliftIO m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf <- use LoopState.latestTypecheckedFile
   root' <- use LoopState.root
@@ -417,7 +422,7 @@ loop = do
             ListEditsI {} -> wat
             ListDependenciesI {} -> wat
             ListDependentsI {} -> wat
-            NamespaceDependenciesI{} -> wat
+            NamespaceDependenciesI {} -> wat
             HistoryI {} -> wat
             TestI {} -> wat
             LinksI {} -> wat
@@ -437,6 +442,7 @@ loop = do
             QuitI {} -> wat
             DeprecateTermI {} -> undefined
             DeprecateTypeI {} -> undefined
+            GistI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
             RemoveTypeReplacementI src p ->
@@ -544,8 +550,8 @@ loop = do
                       else
                         respondNumbered $
                           ShowDiffNamespace
-                            Path.absoluteEmpty
-                            Path.absoluteEmpty
+                            (Right Path.absoluteEmpty)
+                            (Right Path.absoluteEmpty)
                             ppe
                             outputDiff
             where
@@ -688,28 +694,31 @@ loop = do
                     else
                       diffHelper (Branch.head destb) (Branch.head merged)
                         >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
-            DiffNamespaceI before0 after0 -> do
-              let [beforep, afterp] =
-                    resolveToAbsolute <$> [before0, after0]
-              before <- Branch.head <$> getAt beforep
-              after <- Branch.head <$> getAt afterp
-              case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
-                (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
-                (True, False) -> respond . NamespaceEmpty $ Left beforep
-                (False, True) -> respond . NamespaceEmpty $ Left afterp
+            DiffNamespaceI before after -> unlessError do
+              let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
+              beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
+              afterBranch0 <- Branch.head <$> branchForBranchId absAfter
+              lift $ case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
+                (True, True) -> respond . NamespaceEmpty $ (absBefore Nel.:| [absAfter])
+                (True, False) -> respond . NamespaceEmpty $ (absBefore Nel.:| [])
+                (False, True) -> respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 _ -> do
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
-            CreatePullRequestI baseRepo headRepo -> unlessGitError do
-              (cleanupBase, baseBranch) <- viewRemoteBranch baseRepo
-              (cleanupHead, headBranch) <- viewRemoteBranch headRepo
-              lift do
-                merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
-                (ppe, diff) <- diffHelper (Branch.head baseBranch) (Branch.head merged)
-                respondNumbered $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
-                eval . Eval $ do
-                  cleanupBase
-                  cleanupHead
+                  (ppe, outputDiff) <- diffHelper beforeBranch0 afterBranch0
+                  respondNumbered $
+                    ShowDiffNamespace
+                      (resolveToAbsolute <$> before)
+                      (resolveToAbsolute <$> after)
+                      ppe
+                      outputDiff
+            CreatePullRequestI baseRepo headRepo -> do
+              result <- join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
+                 viewRemoteBranch headRepo \headBranch -> do
+                   merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
+                   (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
+                   pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
+              case result of
+                Left gitErr -> respond (Output.GitError gitErr)
+                Right diff -> respondNumbered diff
             LoadPullRequestI baseRepo headRepo dest0 -> do
               let desta = resolveToAbsolute dest0
               let dest = Path.unabsolute desta
@@ -826,7 +835,7 @@ loop = do
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
-                  fuzzySelectNamespace root0 <&> \case
+                  fuzzySelectNamespace Absolute root0 <&> \case
                     [] -> Nothing
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
@@ -1019,7 +1028,7 @@ loop = do
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
-                  fuzzySelectTermsAndTypes root0
+                  fuzzySelectDefinition Absolute root0
                     -- HQ names should always parse as a valid split, so we just discard any
                     -- that don't to satisfy the type-checker.
                     <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
@@ -1089,7 +1098,7 @@ loop = do
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
             DisplayI outputLoc names' -> do
               names <- case names' of
-                [] -> fuzzySelectTermsAndTypes root0
+                [] -> fuzzySelectDefinition Absolute root0
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
@@ -1757,6 +1766,7 @@ loop = do
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
             QuitI -> MaybeT $ pure Nothing
+            GistI input -> handleGist input
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1814,48 +1824,73 @@ handleDependents hq = do
         LoopState.numberedArgs .= map (Text.unpack . Reference.toText . fst) results
         respond (ListDependents hqLength ld results)
 
+-- | Handle a @gist@ command.
+handleGist :: MonadUnliftIO m => GistInput -> Action' m v ()
+handleGist (GistInput repo) =
+  doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
+
+-- | Handle a @push@ command.
 handlePushRemoteBranch ::
   forall m v.
-  Applicative m =>
-  -- | The URL to push to. If missing, it is looked up in `.unisonConfig`.
+  MonadUnliftIO m =>
+  -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
   Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
   Path' ->
   -- | The push behavior (whether the remote branch is required to be empty or non-empty).
   PushBehavior ->
-  -- | The sync mode. Unused as of 21-11-04, but do look for yourself.
   SyncMode.SyncMode ->
   Action' m v ()
 handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
-  srcb <- do
-    currentPath' <- use LoopState.currentPath
-    getAt (Path.resolve currentPath' path)
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    (cleanup, remoteRoot) <-
-      unsafeTime "Push viewRemoteBranch" do
-        withExceptT Output.GitError do
-          viewRemoteBranch (writeToRead repo, Nothing, Path.empty)
-    -- We don't merge `srcb` with the remote branch, we just replace it. This push will be rejected if this rewinds time or misses any new
-    -- updates in the remote branch that aren't in `srcb` already.
-    case Branch.modifyAtM remotePath (\remoteBranch -> if shouldPushTo remoteBranch then Just srcb else Nothing) remoteRoot of
-      Nothing -> lift do
-        eval (Eval cleanup)
-        respond (RefusedToPush pushBehavior)
-      Just newRemoteRoot -> do
-        unsafeTime "Push syncRemoteRootBranch" do
-          withExceptT Output.GitError do
-            syncRemoteRootBranch repo newRemoteRoot syncMode
-        lift do
-          eval (Eval cleanup)
-          respond Success
+    lift (doPushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
+
+-- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
+doPushRemoteBranch ::
+  forall m v.
+  MonadUnliftIO m =>
+  -- | The repo to push to.
+  WriteRepo ->
+  -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
+  Path' ->
+  SyncMode.SyncMode ->
+  -- | The remote target. If missing, the given branch contents should be pushed to the remote repo without updating the
+  -- root namespace.
+  Maybe (Path, PushBehavior) ->
+  Action' m v ()
+doPushRemoteBranch repo localPath syncMode remoteTarget = do
+  sourceBranch <- do
+    currentPath' <- use LoopState.currentPath
+    getAt (Path.resolve currentPath' localPath)
+
+  unlessError do
+    withExceptT Output.GitError $ do
+      case remoteTarget of
+        Nothing -> do
+          let opts = PushGitBranchOpts {setRoot = False, syncMode}
+          syncRemoteBranch sourceBranch repo opts
+          sbhLength <- (eval BranchHashLength)
+          respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
+        Just (remotePath, pushBehavior) -> do
+          ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
+            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+            Branch.modifyAtM remotePath f remoteRoot & \case
+              Nothing -> respond (RefusedToPush pushBehavior)
+              Just newRemoteRoot -> do
+                let opts = PushGitBranchOpts {setRoot = True, syncMode}
+                runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
+                  Left gitErr -> respond (Output.GitError gitErr)
+                  Right () -> respond Success
   where
     -- Per `pushBehavior`, we are either:
     --
     --   (1) updating an empty branch, which fails if the branch isn't empty (`push.create`)
     --   (2) updating a non-empty branch, which fails if the branch is empty (`push`)
-    shouldPushTo :: Branch m -> Bool
-    shouldPushTo remoteBranch = do
+    shouldPushTo :: PushBehavior -> Branch m -> Bool
+    shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
         PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
@@ -1868,7 +1903,7 @@ handleShowDefinition outputLoc inputQuery = do
     if null inputQuery
       then do
         branch <- fuzzyBranch
-        fuzzySelectTermsAndTypes branch
+        fuzzySelectDefinition Relative branch
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
@@ -1923,7 +1958,7 @@ handleShowDefinition outputLoc inputQuery = do
 resolveConfiguredGitUrl ::
   PushPull ->
   Path' ->
-  ExceptT (Output v) (Action' m v) WriteRemotePath
+  ExceptT (Output v) (Action m i v) WriteRemotePath
 resolveConfiguredGitUrl pushPull destPath' = ExceptT do
   currentPath' <- use LoopState.currentPath
   let destPath = Path.resolve currentPath' destPath'
@@ -1950,12 +1985,13 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-viewRemoteBranch :: ReadRemoteNamespace -> ExceptT GitError (Action' m v) (m (), Branch m)
-viewRemoteBranch ns = ExceptT . eval $ ViewRemoteBranch ns
+viewRemoteBranch :: (MonadCommand n m i v, MonadUnliftIO m) => ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> n (Either GitError r)
+viewRemoteBranch ns action = do
+  eval $ ViewRemoteBranch ns action
 
-syncRemoteRootBranch :: WriteRepo -> Branch m -> SyncMode.SyncMode -> ExceptT GitError (Action' m v) ()
-syncRemoteRootBranch repo b mode =
-  ExceptT . eval $ SyncRemoteRootBranch repo b mode
+syncRemoteBranch :: MonadCommand n m i v => Branch m -> WriteRepo -> PushGitBranchOpts -> ExceptT GitError n ()
+syncRemoteBranch b repo opts =
+  ExceptT . eval $ SyncRemoteBranch b repo opts
 
 -- todo: compare to `getHQTerms` / `getHQTypes`.  Is one universally better?
 resolveHQToLabeledDependencies :: Functor m => HQ.HashQualified Name -> Action' m v (Set LabeledDependency)
@@ -2306,7 +2342,7 @@ handleBackendError = \case
   Backend.MissingSignatureForTerm r ->
     respond $ TermMissingType r
 
-respond :: Output v -> Action m i v ()
+respond :: MonadCommand n m i v => Output v -> n ()
 respond output = eval $ Notify output
 
 respondNumbered :: NumberedOutput v -> Action m i v ()
@@ -3180,7 +3216,7 @@ currentPathNames = do
   pure $ Branch.toNames (Branch.head currentBranch')
 
 -- implementation detail of basicParseNames and basicPrettyPrintNames
-basicNames' :: Functor m => Action' m v (Names, Names)
+basicNames' :: (Functor m) => Action m i v (Names, Names)
 basicNames' = do
   root' <- use LoopState.root
   currentPath' <- use LoopState.currentPath
@@ -3284,15 +3320,28 @@ displayNames unisonFile =
     (UF.typecheckedToNames unisonFile)
 
 diffHelper ::
-  Monad m =>
+  (Monad m) =>
   Branch0 m ->
   Branch0 m ->
   Action' m v (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
 diffHelper before after = do
+  currentRoot <- use LoopState.root
+  currentPath <- use LoopState.currentPath
+  diffHelperCmd currentRoot currentPath before after
+
+-- | A version of diffHelper that only requires a MonadCommand constraint
+diffHelperCmd ::
+  (Monad m, MonadCommand n m i v) =>
+  Branch m ->
+  Path.Absolute ->
+  Branch0 m ->
+  Branch0 m ->
+  n (PPE.PrettyPrintEnv, OBranchDiff.BranchDiffOutput v Ann)
+diffHelperCmd currentRoot currentPath before after = do
   hqLength <- eval CodebaseHashLength
   diff <- eval . Eval $ BranchDiff.diff0 before after
-  names0 <- basicPrettyPrintNamesA
-  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory names0 mempty)
+  let (_parseNames, prettyNames0) = Backend.basicNames' currentRoot (Backend.AllNames $ Path.unabsolute currentPath)
+  ppe <- PPE.suffixifiedPPE <$> prettyPrintEnvDecl (NamesWithHistory prettyNames0 mempty)
   (ppe,)
     <$> OBranchDiff.toOutput
       loadTypeOfTerm
@@ -3303,7 +3352,8 @@ diffHelper before after = do
       ppe
       diff
 
-loadTypeOfTerm :: Referent -> Action m i v (Maybe (Type v Ann))
+
+loadTypeOfTerm :: MonadCommand n m i v => Referent -> n (Maybe (Type v Ann))
 loadTypeOfTerm (Referent.Ref r) = eval $ LoadTypeOfTerm r
 loadTypeOfTerm (Referent.Con (ConstructorReference (Reference.DerivedId r) cid) _) = do
   decl <- eval $ LoadType r
@@ -3314,28 +3364,55 @@ loadTypeOfTerm Referent.Con {} =
   error $
     reportBug "924628772" "Attempt to load a type declaration which is a builtin!"
 
-declOrBuiltin :: Reference -> Action m i v (Maybe (DD.DeclOrBuiltin v Ann))
+declOrBuiltin :: MonadCommand n m i v => Reference -> n (Maybe (DD.DeclOrBuiltin v Ann))
 declOrBuiltin r = case r of
   Reference.Builtin {} ->
     pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
   Reference.DerivedId id ->
     fmap DD.Decl <$> eval (LoadType id)
 
-fuzzySelectTermsAndTypes :: Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
-fuzzySelectTermsAndTypes searchBranch0 = do
+-- | Select a definition from the given branch.
+-- Returned names will match the provided 'Position' type.
+fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectDefinition pos searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
-  fromMaybe [] <$> eval (FuzzySelect Fuzzy.defaultOptions HQ.toText (Set.toList termsAndTypes))
+  let inputs :: [HQ.HashQualified Name]
+      inputs =
+          termsAndTypes
+        & Set.toList
+        & map (fmap (Name.setPosition pos))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs) >>= \case
+    Nothing -> pure []
+    Just results -> pure results
 
-fuzzySelectNamespace :: Branch0 m -> Action m (Either Event Input) v [Path']
-fuzzySelectNamespace searchBranch0 =
-  do
-    fmap Path.toPath'
-    . fromMaybe []
-    <$> eval
-      ( FuzzySelect
-          Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-          Path.toText
-          (Set.toList $ Branch.deepPaths searchBranch0)
-      )
+-- | Select a namespace from the given branch.
+-- Returned Path's will match the provided 'Position' type.
+fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace pos searchBranch0 = do
+  let intoPath' :: Path -> Path'
+      intoPath' = case pos of
+        Relative -> Path' . Right . Path.Relative
+        Absolute -> Path' . Left . Path.Absolute
+  let inputs :: [Path']
+      inputs =
+          searchBranch0
+        & Branch.deepPaths
+        & Set.toList
+        & map intoPath'
+  fromMaybe [] <$> eval
+                    ( FuzzySelect
+                        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+                        tShow
+                        inputs
+                    )
+
+-- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
+-- appropriate error message if a hash cannot be found.
+branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
+branchForBranchId = \case
+  Left hash -> do
+    resolveShortBranchHash hash
+  Right path -> do
+    lift $ getAt path

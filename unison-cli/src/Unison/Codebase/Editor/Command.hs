@@ -53,6 +53,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
+import           Unison.Codebase (PushGitBranchOpts)
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
@@ -66,6 +67,10 @@ import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
+import UnliftIO (MonadUnliftIO(..), UnliftIO)
+import qualified UnliftIO
+import Unison.Util.Free (Free)
+import qualified Unison.Util.Free as Free
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -197,7 +202,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> Command m i v (Either GitError (m (), Branch m))
+    ReadRemoteNamespace -> (Branch m -> (Free (Command m i v) r)) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
@@ -210,8 +215,7 @@ data Command
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
-  SyncRemoteRootBranch ::
-    WriteRepo -> Branch m -> SyncMode -> Command m i v (Either GitError ())
+  SyncRemoteBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> Command m i v (Either GitError ())
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 
@@ -262,6 +266,19 @@ data Command
               -> [a] -- ^ The elements to select from
               -> Command m i v (Maybe [a]) -- ^ The selected results, or Nothing if a failure occurred.
 
+  -- | This allows us to implement MonadUnliftIO for (Free (Command m i v)).
+  -- Ideally we will eventually remove the Command type entirely and won't need
+  -- this anymore.
+  CmdUnliftIO :: Command m i v (UnliftIO (Free (Command m i v)))
+
+instance MonadIO m => MonadIO (Free (Command m i v)) where
+  liftIO io = Free.eval $ Eval (liftIO io)
+
+instance MonadIO m => MonadUnliftIO (Free (Command m i v)) where
+  withRunInIO f = do
+    UnliftIO.UnliftIO toIO <- Free.eval CmdUnliftIO
+    liftIO $ f toIO
+
 type UseCache = Bool
 
 type EvalResult v =
@@ -302,7 +319,7 @@ commandName = \case
   ViewRemoteBranch {} -> "ViewRemoteBranch"
   ImportRemoteBranch {} -> "ImportRemoteBranch"
   SyncLocalRootBranch {} -> "SyncLocalRootBranch"
-  SyncRemoteRootBranch {} -> "SyncRemoteRootBranch"
+  SyncRemoteBranch {} -> "SyncRemoteBranch"
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   LoadTerm {} -> "LoadTerm"
@@ -326,3 +343,4 @@ commandName = \case
   ClearWatchCache {} -> "ClearWatchCache"
   MakeStandalone {} -> "MakeStandalone"
   FuzzySelect {} -> "FuzzySelect"
+  CmdUnliftIO {} -> "UnliftIO"

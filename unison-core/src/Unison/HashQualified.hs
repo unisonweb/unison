@@ -85,6 +85,9 @@ take i = \case
 toString :: Show n => HashQualified n -> String
 toString = Text.unpack . toText
 
+toStringWith :: (n -> String) -> HashQualified n -> String
+toStringWith f = Text.unpack . toTextWith (Text.pack . f)
+
 fromString :: String -> Maybe (HashQualified Name)
 fromString = fromText . Text.pack
 

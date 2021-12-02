@@ -5,13 +5,13 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Unison.Codebase.Editor.HandleCommand where
 
 import Unison.Prelude
 
 import Control.Monad.Except (runExceptT)
-import qualified Control.Monad.State as State
 import qualified Crypto.Random as Random
 import qualified Data.Configurator as Config
 import Data.Configurator.Types (Config)
@@ -51,6 +51,9 @@ import Web.Browser (openBrowser)
 import System.Environment (withArgs)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import qualified Unison.Codebase.Path as Path
+import Control.Monad.Reader (ReaderT (runReaderT), ask)
+import qualified Control.Concurrent.STM as STM
+import qualified UnliftIO
 
 typecheck
   :: (Monad m, Var v)
@@ -94,10 +97,11 @@ commandLine
   -> (Int -> IO gen)
   -> Free (Command IO i v) a
   -> IO a
-commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen =
- flip State.evalStateT 0 . Free.fold go
+commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
+ rndSeed <- STM.newTVarIO 0
+ flip runReaderT rndSeed . Free.fold go $ free
  where
-  go :: forall x . Command IO i v x -> State.StateT Int IO x
+  go :: forall x . Command IO i v x -> ReaderT (STM.TVar Int) IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> lift m
@@ -119,8 +123,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
-      i <- State.get
-      State.modify' (+1)
+      iVar <- ask
+      i <- UnliftIO.atomically $ do
+             i <- STM.readTVar iVar
+             STM.writeTVar iVar (i + 1)
+             pure i
       rng <- lift $ rngGen i
       let namegen = Parser.uniqueBase32Namegen rng
           env = Parser.ParsingEnv namegen names
@@ -135,12 +142,15 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    ViewRemoteBranch ns ->
-      lift $ Codebase.viewRemoteBranch codebase ns
+    ViewRemoteBranch ns action -> do
+      -- TODO: We probably won'd need to unlift anything once we remove the Command
+      -- abstraction.
+      toIO <- UnliftIO.askRunInIO
+      lift $ Codebase.viewRemoteBranch codebase ns (toIO . Free.fold go . action)
     ImportRemoteBranch ns syncMode ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode
-    SyncRemoteRootBranch repo branch syncMode ->
-      lift $ Codebase.pushGitRootBranch codebase branch repo syncMode
+    SyncRemoteBranch branch repo opts ->
+      lift $ Codebase.pushGitBranch codebase branch repo opts
     LoadTerm r -> lift $ Codebase.getTerm codebase r
     LoadType r -> lift $ Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> lift $ Codebase.getTypeOfTerm codebase r
@@ -199,6 +209,17 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Runtime.compileTo rt (() <$ cl) ppe ref (out <> ".uc")
     ClearWatchCache -> lift $ Codebase.clearWatches codebase
     FuzzySelect opts display choices -> liftIO $ Fuzzy.fuzzySelect opts display choices
+    CmdUnliftIO -> do
+      -- Get the unlifter for the ReaderT we're currently working in.
+      unlifted <- UnliftIO.askUnliftIO
+      -- Built an unliftIO for the Free monad
+      let runF :: UnliftIO.UnliftIO (Free (Command IO i v))
+          runF = UnliftIO.UnliftIO $ case unlifted of
+                   -- We need to case-match on the UnliftIO within this function
+                   -- because `toIO` is existential and we need the right types
+                   -- in-scope.
+                   UnliftIO.UnliftIO toIO -> toIO . Free.fold go
+      pure runF
 
   watchCache :: Reference.Id -> IO (Maybe (Term v ()))
   watchCache h = do
@@ -295,3 +316,4 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
 --   else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
 --   else if q `isPrefixOf` n               then Just 3-- matching prefix
 --   else Nothing
+

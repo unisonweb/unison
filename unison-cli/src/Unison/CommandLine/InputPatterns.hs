@@ -1215,12 +1215,12 @@ diffNamespace =
     )
     ( \case
         [before, after] -> first fromString $ do
-          before <- Path.parsePath' before
-          after <- Path.parsePath' after
+          before <- Input.parseBranchId before
+          after <- Input.parseBranchId after
           pure $ Input.DiffNamespaceI before after
         [before] -> first fromString $ do
-          before <- Path.parsePath' before
-          pure $ Input.DiffNamespaceI before Path.currentPath
+          before <- Input.parseBranchId before
+          pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
 
@@ -1812,6 +1812,29 @@ createAuthor =
         _ -> Left $ showPatternHelp createAuthor
     )
 
+gist :: InputPattern
+gist =
+  InputPattern
+    "push.gist"
+    ["gist"]
+    [(Required, gitUrlArg)]
+    ( P.lines
+        [ "Publish the current namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`gist remote`",
+                "publishes the contents of the current namespace into the repo `remote`."
+              )
+            ]
+        ]
+    )
+    ( \case
+        [repoString] -> do
+          repo <- parseWriteRepo "repo" repoString
+          pure (Input.GistI (Input.GistInput repo))
+        _ -> Left (showPatternHelp gist)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help,
@@ -1892,7 +1915,8 @@ validInputs =
     debugFileHashes,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
-    debugClearWatchCache
+    debugClearWatchCache,
+    gist
   ]
 
 commandNames :: [String]

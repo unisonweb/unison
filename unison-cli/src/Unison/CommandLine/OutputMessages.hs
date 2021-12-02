@@ -38,7 +38,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as E
 import qualified Unison.Codebase.Editor.Output as Output
 import qualified Unison.Codebase.Editor.Output.BranchDiff as OBD
-import Unison.Codebase.Editor.RemoteRepo (ReadRepo, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import qualified Unison.Codebase.Editor.TodoOutput as TO
@@ -54,11 +54,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (GitCould
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.CommandLine
-  ( bigproblem,
-    note,
-    tip,
-  )
+import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference(..))
@@ -128,6 +124,7 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
+import qualified Data.List.NonEmpty as NEList
 
 type Pretty = P.Pretty P.ColorText
 
@@ -154,7 +151,7 @@ notifyNumbered o = case o of
               undoTip
             ]
       )
-      (showDiffNamespace ShowNumbers ppe e e diff)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -164,7 +161,7 @@ notifyNumbered o = case o of
               undoTip
             ]
       )
-      (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterModifyBranch b' _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed in" <> prettyPath' b' <> ".", mempty)
   ShowDiffAfterModifyBranch b' bAbs ppe diff ->
@@ -178,7 +175,7 @@ notifyNumbered o = case o of
               undoTip
             ]
       )
-      (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
     (P.wrap $ "Nothing changed as a result of the merge.", mempty)
   ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
@@ -202,7 +199,7 @@ notifyNumbered o = case o of
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
   ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
     first
       ( \p ->
@@ -228,7 +225,7 @@ notifyNumbered o = case o of
                   <> " to undo the results of this merge."
             ]
       )
-      (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
   ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
     first
       ( \p ->
@@ -238,11 +235,11 @@ notifyNumbered o = case o of
               p
             ]
       )
-      (showDiffNamespace ShowNumbers ppe destAbs destAbs diffOutput)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diffOutput)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
-      (showDiffNamespace ShowNumbers ppe e e diffOutput)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diffOutput)
   ShowDiffAfterPull dest' destAbs ppe diff ->
     if OBD.isEmpty diff
       then ("✅  Looks like " <> prettyPath' dest' <> " is up to date.", mempty)
@@ -257,7 +254,7 @@ notifyNumbered o = case o of
                   undoTip
                 ]
           )
-          (showDiffNamespace ShowNumbers ppe destAbs destAbs diff)
+          (showDiffNamespace ShowNumbers ppe (absPathToBranchId destAbs) (absPathToBranchId destAbs) diff)
   ShowDiffAfterCreatePR baseRepo headRepo ppe diff ->
     if OBD.isEmpty diff
       then
@@ -288,7 +285,7 @@ notifyNumbered o = case o of
                   ]
               )
           )
-          (showDiffNamespace HideNumbers ppe e e diff)
+          (showDiffNamespace HideNumbers ppe (absPathToBranchId Path.absoluteEmpty) (absPathToBranchId Path.absoluteEmpty) diff)
   -- todo: these numbers aren't going to work,
   --  since the content isn't necessarily here.
   -- Should we have a mode with no numbers? :P
@@ -306,7 +303,7 @@ notifyNumbered o = case o of
                   <> P.group (prettyPath' authorPath' <> ".")
             ]
       )
-      (showDiffNamespace ShowNumbers ppe bAbs bAbs diff)
+      (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
   CantDeleteDefinitions ppeDecl endangerments ->
     (P.warnCallout $
       P.lines
@@ -335,7 +332,7 @@ notifyNumbered o = case o of
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
   where
-    e = Path.absoluteEmpty
+    absPathToBranchId = Right
     undoTip =
       tip $
         "You can use" <> IP.makeExample' IP.undo
@@ -343,14 +340,9 @@ notifyNumbered o = case o of
           <> IP.makeExample' IP.viewReflog
           <> "to undo this change."
 
-prettyRemoteNamespace ::
-  ( RemoteRepo.ReadRepo,
-    Maybe ShortBranchHash,
-    Path.Path
-  ) ->
-  P.Pretty P.ColorText
+prettyRemoteNamespace :: ReadRemoteNamespace -> P.Pretty P.ColorText
 prettyRemoteNamespace =
-  P.group . P.text . uncurry3 RemoteRepo.printNamespace
+  P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
 
 notifyUser :: forall v. Var v => FilePath -> Output v -> IO Pretty
 notifyUser dir o = case o of
@@ -380,20 +372,18 @@ notifyUser dir o = case o of
         <> "when I tried to load it."
   NamespaceEmpty p ->
     case p of
-      Right (p0, p1) ->
-        pure
-          . P.warnCallout
-          $ "The namespaces "
-            <> P.string (show p0)
-            <> " and "
-            <> P.string (show p1)
-            <> " are empty. Was there a typo?"
-      Left p0 ->
+      (p0 NEList.:| []) ->
         pure
           . P.warnCallout
           $ "The namespace "
-            <> P.string (show p0)
+            <> prettyBranchId p0
             <> " is empty. Was there a typo?"
+      ps ->
+        pure
+          . P.warnCallout
+          $ "The namespaces "
+            <> P.commas (prettyBranchId <$> ps)
+            <> " are empty. Was there a typo?"
   WarnIncomingRootBranch current hashes ->
     pure $
       if null hashes
@@ -1420,6 +1410,16 @@ notifyUser dir o = case o of
           "",
           "Did you mean to use " <> IP.makeExample' IP.pushCreate <> " instead?"
         ]
+  GistCreated hqLength repo hash ->
+    pure $
+      P.lines
+        [ "Gist created. Pull via:",
+          "",
+          P.indentN 2 (IP.patternName IP.pull <> " " <> prettyRemoteNamespace remoteNamespace)
+        ]
+    where
+      remoteNamespace =
+        (RemoteRepo.writeToRead repo, Just (SBH.fromHash hqLength hash), Path.empty)
   where
     _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
 
@@ -1455,6 +1455,11 @@ prettyPath' p' =
   if Path.isCurrentPath p'
     then "the current namespace"
     else P.blue (P.shown p')
+
+prettyBranchId :: Input.AbsBranchId -> Pretty
+prettyBranchId = \case
+  Left sbh -> prettySBH sbh
+  Right absPath -> prettyAbsolute $ absPath
 
 prettyRelative :: Path.Relative -> Pretty
 prettyRelative = P.blue . P.shown
@@ -1921,8 +1926,8 @@ showDiffNamespace ::
   Var v =>
   ShowNumbers ->
   PPE.PrettyPrintEnv ->
-  Path.Absolute ->
-  Path.Absolute ->
+  Input.AbsBranchId ->
+  Input.AbsBranchId ->
   OBD.BranchDiffOutput v Ann ->
   (Pretty, NumberedArgs)
 showDiffNamespace _ _ _ _ diffOutput
@@ -2172,7 +2177,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               0 -> mempty
               c -> " (+" <> P.shown c <> " metadata)"
 
-    prettySummarizePatch, prettyNamePatch :: Path.Absolute -> OBD.PatchDisplay -> Numbered Pretty
+    prettySummarizePatch, prettyNamePatch :: Input.AbsBranchId -> OBD.PatchDisplay -> Numbered Pretty
     --  12. patch p (added 3 updates, deleted 1)
     prettySummarizePatch prefix (name, patchDiff) = do
       n <- numPatch prefix name
@@ -2236,7 +2241,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           pure (n, phq' hq, mempty)
 
     downArrow = P.bold "↓"
-    mdTypeLine :: Path.Absolute -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
+    mdTypeLine :: Input.AbsBranchId -> OBD.TypeDisplay v a -> Numbered (Pretty, Pretty)
     mdTypeLine p (hq, r, odecl, mddiff) = do
       n <- numHQ' p hq (Referent.Ref r)
       fmap ((n,) . P.linesNonEmpty) . sequence $
@@ -2247,7 +2252,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- + 2. MIT               : License
     -- - 3. AllRightsReserved : License
     mdTermLine ::
-      Path.Absolute ->
+      Input.AbsBranchId ->
       P.Width ->
       OBD.TermDisplay v a ->
       Numbered (Pretty, Pretty)
@@ -2301,21 +2306,27 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader (HQ'.toHQ hq))
     phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
     phq :: _ -> Pretty = P.syntaxToColor . prettyHashQualified
-    --
+
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
-    numPatch :: Path.Absolute -> Name -> Numbered Pretty
+    numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg . Name.toString . Name.makeAbsolute $ Path.prefixName prefix name
+      addNumberedArg $ prefixBranchId prefix name
 
-    numHQ :: Path.Absolute -> HQ.HashQualified Name -> Referent -> Numbered Pretty
-    numHQ prefix hq r = addNumberedArg (HQ.toString hq')
-      where
-        hq' = HQ.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
+    numHQ :: Input.AbsBranchId -> HQ.HashQualified Name -> Referent -> Numbered Pretty
+    numHQ prefix hq r =
+      addNumberedArg . HQ.toStringWith (prefixBranchId prefix) . HQ.requalify hq $ r
 
-    numHQ' :: Path.Absolute -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
-    numHQ' prefix hq r = addNumberedArg (HQ'.toString hq')
-      where
-        hq' = HQ'.requalify (fmap (Name.makeAbsolute . Path.prefixName prefix) hq) r
+    numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
+    numHQ' prefix hq r =
+      addNumberedArg . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
+
+    -- E.g.
+    -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef.base.List.map"
+    -- prefixBranchId ".base" "List.map" -> ".base.List.map"
+    prefixBranchId :: Input.AbsBranchId -> Name -> String
+    prefixBranchId branchId name = case branchId of
+      Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute  name)
+      Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
     addNumberedArg :: String -> Numbered Pretty
     addNumberedArg s = case sn of

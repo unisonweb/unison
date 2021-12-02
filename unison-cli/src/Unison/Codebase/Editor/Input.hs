@@ -1,10 +1,11 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.Editor.Input
   ( Input(..)
+  , GistInput(..)
   , Event(..)
   , OutputLocation(..)
   , PatchPath
-  , BranchId, parseBranchId
+  , BranchId, AbsBranchId, parseBranchId
   , HashOrHQSplit'
   , Insistence(..)
   ) where
@@ -39,6 +40,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type AbsBranchId = Either ShortBranchHash Path.Absolute
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
 
 -- | Should we force the operation or not?
@@ -60,7 +62,7 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' -- old new
+    | DiffNamespaceI BranchId BranchId -- old new
     | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
@@ -162,7 +164,14 @@ data Input
     | QuitI
     | UiI
     | DocsToHtmlI Path' FilePath
+    | GistI GistInput
     deriving (Eq, Show)
+
+-- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+data GistInput = GistInput
+  { repo :: WriteRepo
+  }
+  deriving stock (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
