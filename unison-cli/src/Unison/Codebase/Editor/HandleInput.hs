@@ -11,7 +11,7 @@ where
 
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -71,11 +71,12 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(NoDatabaseFile))
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError)
+import Unison.Codebase.Type (GitError(GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -1873,17 +1874,21 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
           sbhLength <- (eval BranchHashLength)
           respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
         Just (remotePath, pushBehavior) -> do
-          ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            Branch.modifyAtM remotePath f remoteRoot & \case
-              Nothing -> respond (RefusedToPush pushBehavior)
-              Just newRemoteRoot -> do
-                let opts = PushGitBranchOpts {setRoot = True, syncMode}
-                runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
-                  Left gitErr -> respond (Output.GitError gitErr)
-                  Right () -> respond Success
+          let withRemoteRoot remoteRoot = do
+                let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                    -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                    f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+                Branch.modifyAtM remotePath f remoteRoot & \case
+                  Nothing -> respond (RefusedToPush pushBehavior)
+                  Just newRemoteRoot -> do
+                    let opts = PushGitBranchOpts {setRoot = True, syncMode}
+                    runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
+                      Left gitErr -> respond (Output.GitError gitErr)
+                      Right () -> respond Success
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty) withRemoteRoot >>= \case
+            Left (GitSqliteCodebaseError NoDatabaseFile{}) -> withRemoteRoot Branch.empty
+            Left err -> throwError err
+            Right () -> pure ()
   where
     -- Per `pushBehavior`, we are either:
     --
