@@ -1055,7 +1055,7 @@ viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
   --
   -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps update
   -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
-  (withConnection "" remotePath \_ -> pure ()) `catch` \sqlError ->
+  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
     case Sqlite.sqlError sqlError of
       Sqlite.ErrorCan'tOpen -> throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
       -- Unexpected error from sqlite
