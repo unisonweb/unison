@@ -1879,17 +1879,22 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
           sbhLength <- (eval BranchHashLength)
           respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
         Just (remotePath, pushBehavior) -> do
-          ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            Branch.modifyAtM remotePath f remoteRoot & \case
-              Nothing -> respond (RefusedToPush pushBehavior)
-              Just newRemoteRoot -> do
-                let opts = PushGitBranchOpts {setRoot = True, syncMode}
-                runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
-                  Left gitErr -> respond (Output.GitError gitErr)
-                  Right () -> respond Success
+          maybeNewRemoteBranch <-
+            ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
+              let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                  -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                  f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+              pure $ Branch.modifyAtM remotePath f remoteRoot
+          case maybeNewRemoteBranch of
+            Nothing -> respond (RefusedToPush pushBehavior)
+            Just newRemoteRoot -> do
+              let opts = PushGitBranchOpts {setRoot = True, syncMode}
+              -- Ensure this sync happens outside of the 'viewRemoteBranch' block above or we end up with two
+              -- concurrently open connections to the remote repo and sqlite will complain.
+              -- We should probably find a more reliable way to prevent this in the future.
+              runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
+                Left gitErr -> respond (Output.GitError gitErr)
+                Right () -> respond Success
   where
     -- Per `pushBehavior`, we are either:
     --
