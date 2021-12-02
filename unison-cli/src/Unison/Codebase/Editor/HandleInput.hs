@@ -761,7 +761,7 @@ loop = do
                 srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
                 destOk b = do
                   stepManyAt
-                    [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty,
+                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                       BranchUtil.makeSetBranch (resolveSplit' dest) b
                     ]
                   success -- could give rando stats about new defns
@@ -2961,7 +2961,7 @@ doSlurpAdds ::
   SlurpComponent v ->
   UF.TypecheckedUnisonFile v Ann ->
   (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
+doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
   where
     typeActions = map doType . toList $ SC.types slurp
     termActions =
@@ -3008,7 +3008,7 @@ doSlurpUpdates ::
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
-  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
+  Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
     typeActions = join . map doType . Map.toList $ typeEdits
     termActions = join . map doTerm . Map.toList $ termEdits
