@@ -14,4 +14,4 @@ newtype DataVersion
 
 getDataVersion :: Transaction DataVersion
 getDataVersion =
-  coerce @(Transaction Int64) (queryOneOne_ "PRAGMA data_version")
+  coerce @(Transaction Int64) (queryOneCol_ "PRAGMA data_version")

@@ -17,36 +17,36 @@ module Unison.Sqlite.Transaction
     -- ** With results
 
     -- *** With parameters
-    queryList,
-    queryListOne,
-    queryMaybe,
-    queryMaybeOne,
-    queryOne,
-    queryOneOne,
+    queryListRow,
+    queryListCol,
+    queryMaybeRow,
+    queryMaybeCol,
+    queryOneRow,
+    queryOneCol,
 
     -- **** With checks
-    queryListCheck,
-    queryListOneCheck,
-    queryMaybeCheck,
-    queryMaybeOneCheck,
-    queryOneCheck,
-    queryOneOneCheck,
+    queryListRowCheck,
+    queryListColCheck,
+    queryMaybeRowCheck,
+    queryMaybeColCheck,
+    queryOneRowCheck,
+    queryOneColCheck,
 
     -- *** Without parameters
-    queryList_,
-    queryListOne_,
-    queryMaybe_,
-    queryMaybeOne_,
-    queryOne_,
-    queryOneOne_,
+    queryListRow_,
+    queryListCol_,
+    queryMaybeRow_,
+    queryMaybeCol_,
+    queryOneRow_,
+    queryOneCol_,
 
     -- **** With checks
-    queryListCheck_,
-    queryListOneCheck_,
-    queryMaybeCheck_,
-    queryMaybeOneCheck_,
-    queryOneCheck_,
-    queryOneOneCheck_,
+    queryListRowCheck_,
+    queryListColCheck_,
+    queryMaybeRowCheck_,
+    queryMaybeColCheck_,
+    queryOneRowCheck_,
+    queryOneColCheck_,
   )
 where
 
@@ -92,134 +92,134 @@ execute_ s =
 
 -- With results, with parameters, without checks
 
-queryList :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
-queryList s params =
-  Transaction \conn -> Connection.queryList conn s params
+queryListRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
+queryListRow s params =
+  Transaction \conn -> Connection.queryListRow conn s params
 
-queryListOne :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
-queryListOne s params =
-  Transaction \conn -> Connection.queryListOne conn s params
+queryListCol :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction [a]
+queryListCol s params =
+  Transaction \conn -> Connection.queryListCol conn s params
 
-queryMaybe :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
-queryMaybe s params =
-  Transaction \conn -> Connection.queryMaybe conn s params
+queryMaybeRow :: (Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
+queryMaybeRow s params =
+  Transaction \conn -> Connection.queryMaybeRow conn s params
 
-queryMaybeOne :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
-queryMaybeOne s params =
-  Transaction \conn -> Connection.queryMaybeOne conn s params
+queryMaybeCol :: (Sqlite.FromField a, Sqlite.ToRow b) => Sql -> b -> Transaction (Maybe a)
+queryMaybeCol s params =
+  Transaction \conn -> Connection.queryMaybeCol conn s params
 
-queryOne :: (Sqlite.FromRow b, Sqlite.ToRow a) => Sql -> a -> Transaction b
-queryOne s params =
-  Transaction \conn -> Connection.queryOne conn s params
+queryOneRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Sql -> a -> Transaction b
+queryOneRow s params =
+  Transaction \conn -> Connection.queryOneRow conn s params
 
-queryOneOne :: (Sqlite.FromField b, Sqlite.ToRow a) => Sql -> a -> Transaction b
-queryOneOne s params =
-  Transaction \conn -> Connection.queryOneOne conn s params
+queryOneCol :: (Sqlite.FromField b, Sqlite.ToRow a) => Sql -> a -> Transaction b
+queryOneCol s params =
+  Transaction \conn -> Connection.queryOneCol conn s params
 
 -- With results, with parameters, with checks
 
-queryListCheck ::
+queryListRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
   Transaction r
-queryListCheck s params check =
-  Transaction \conn -> Connection.queryListCheck conn s params check
+queryListRowCheck s params check =
+  Transaction \conn -> Connection.queryListRowCheck conn s params check
 
-queryListOneCheck ::
+queryListColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   ([b] -> Either e r) ->
   Transaction r
-queryListOneCheck s params check =
-  Transaction \conn -> Connection.queryListOneCheck conn s params check
+queryListColCheck s params check =
+  Transaction \conn -> Connection.queryListColCheck conn s params check
 
-queryMaybeCheck ::
+queryMaybeRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
   Transaction r
-queryMaybeCheck s params check =
-  Transaction \conn -> Connection.queryMaybeCheck conn s params check
+queryMaybeRowCheck s params check =
+  Transaction \conn -> Connection.queryMaybeRowCheck conn s params check
 
-queryMaybeOneCheck ::
+queryMaybeColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   (Maybe b -> Either e r) ->
   Transaction r
-queryMaybeOneCheck s params check =
-  Transaction \conn -> Connection.queryMaybeOneCheck conn s params check
+queryMaybeColCheck s params check =
+  Transaction \conn -> Connection.queryMaybeColCheck conn s params check
 
-queryOneCheck ::
+queryOneRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
   Transaction r
-queryOneCheck s params check =
-  Transaction \conn -> Connection.queryOneCheck conn s params check
+queryOneRowCheck s params check =
+  Transaction \conn -> Connection.queryOneRowCheck conn s params check
 
-queryOneOneCheck ::
+queryOneColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, Show e, Typeable e) =>
   Sql ->
   a ->
   (b -> Either e r) ->
   Transaction r
-queryOneOneCheck s params check =
-  Transaction \conn -> Connection.queryOneOneCheck conn s params check
+queryOneColCheck s params check =
+  Transaction \conn -> Connection.queryOneColCheck conn s params check
 
 -- With results, without parameters, without checks
 
-queryList_ :: Sqlite.FromRow a => Sql -> Transaction [a]
-queryList_ s =
-  Transaction \conn -> Connection.queryList_ conn s
+queryListRow_ :: Sqlite.FromRow a => Sql -> Transaction [a]
+queryListRow_ s =
+  Transaction \conn -> Connection.queryListRow_ conn s
 
-queryListOne_ :: Sqlite.FromField a => Sql -> Transaction [a]
-queryListOne_ s =
-  Transaction \conn -> Connection.queryListOne_ conn s
+queryListCol_ :: Sqlite.FromField a => Sql -> Transaction [a]
+queryListCol_ s =
+  Transaction \conn -> Connection.queryListCol_ conn s
 
-queryMaybe_ :: Sqlite.FromRow a => Sql -> Transaction (Maybe a)
-queryMaybe_ s =
-  Transaction \conn -> Connection.queryMaybe_ conn s
+queryMaybeRow_ :: Sqlite.FromRow a => Sql -> Transaction (Maybe a)
+queryMaybeRow_ s =
+  Transaction \conn -> Connection.queryMaybeRow_ conn s
 
-queryMaybeOne_ :: Sqlite.FromField a => Sql -> Transaction (Maybe a)
-queryMaybeOne_ s =
-  Transaction \conn -> Connection.queryMaybeOne_ conn s
+queryMaybeCol_ :: Sqlite.FromField a => Sql -> Transaction (Maybe a)
+queryMaybeCol_ s =
+  Transaction \conn -> Connection.queryMaybeCol_ conn s
 
-queryOne_ :: Sqlite.FromRow a => Sql -> Transaction a
-queryOne_ s =
-  Transaction \conn -> Connection.queryOne_ conn s
+queryOneRow_ :: Sqlite.FromRow a => Sql -> Transaction a
+queryOneRow_ s =
+  Transaction \conn -> Connection.queryOneRow_ conn s
 
-queryOneOne_ :: Sqlite.FromField a => Sql -> Transaction a
-queryOneOne_ s =
-  Transaction \conn -> Connection.queryOneOne_ conn s
+queryOneCol_ :: Sqlite.FromField a => Sql -> Transaction a
+queryOneCol_ s =
+  Transaction \conn -> Connection.queryOneCol_ conn s
 
 -- With results, without parameters, with checks
 
-queryListCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
-queryListCheck_ s check =
-  Transaction \conn -> Connection.queryListCheck_ conn s check
+queryListRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListRowCheck_ s check =
+  Transaction \conn -> Connection.queryListRowCheck_ conn s check
 
-queryListOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
-queryListOneCheck_ s check =
-  Transaction \conn -> Connection.queryListOneCheck_ conn s check
+queryListColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> ([a] -> Either e r) -> Transaction r
+queryListColCheck_ s check =
+  Transaction \conn -> Connection.queryListColCheck_ conn s check
 
-queryMaybeCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
-queryMaybeCheck_ s check =
-  Transaction \conn -> Connection.queryMaybeCheck_ conn s check
+queryMaybeRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeRowCheck_ s check =
+  Transaction \conn -> Connection.queryMaybeRowCheck_ conn s check
 
-queryMaybeOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
-queryMaybeOneCheck_ s check =
-  Transaction \conn -> Connection.queryMaybeOneCheck_ conn s check
+queryMaybeColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeColCheck_ s check =
+  Transaction \conn -> Connection.queryMaybeColCheck_ conn s check
 
-queryOneCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
-queryOneCheck_ s check =
-  Transaction \conn -> Connection.queryOneCheck_ conn s check
+queryOneRowCheck_ :: (Sqlite.FromRow a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
+queryOneRowCheck_ s check =
+  Transaction \conn -> Connection.queryOneRowCheck_ conn s check
 
-queryOneOneCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
-queryOneOneCheck_ s check =
-  Transaction \conn -> Connection.queryOneOneCheck_ conn s check
+queryOneColCheck_ :: (Sqlite.FromField a, Show e, Typeable e) => Sql -> (a -> Either e r) -> Transaction r
+queryOneColCheck_ s check =
+  Transaction \conn -> Connection.queryOneColCheck_ conn s check

@@ -37,36 +37,36 @@ module Unison.Sqlite
     -- $query-naming-convention
 
     -- *** With parameters
-    queryList,
-    queryListOne,
-    queryMaybe,
-    queryMaybeOne,
-    queryOne,
-    queryOneOne,
+    queryListRow,
+    queryListCol,
+    queryMaybeRow,
+    queryMaybeCol,
+    queryOneRow,
+    queryOneCol,
 
     -- **** With checks
-    queryListCheck,
-    queryListOneCheck,
-    queryMaybeCheck,
-    queryMaybeOneCheck,
-    queryOneCheck,
-    queryOneOneCheck,
+    queryListRowCheck,
+    queryListColCheck,
+    queryMaybeRowCheck,
+    queryMaybeColCheck,
+    queryOneRowCheck,
+    queryOneColCheck,
 
     -- *** Without parameters
-    queryList_,
-    queryListOne_,
-    queryMaybe_,
-    queryMaybeOne_,
-    queryOne_,
-    queryOneOne_,
+    queryListRow_,
+    queryListCol_,
+    queryMaybeRow_,
+    queryMaybeCol_,
+    queryOneRow_,
+    queryOneCol_,
 
     -- **** With checks
-    queryListCheck_,
-    queryListOneCheck_,
-    queryMaybeCheck_,
-    queryMaybeOneCheck_,
-    queryOneCheck_,
-    queryOneOneCheck_,
+    queryListRowCheck_,
+    queryListColCheck_,
+    queryMaybeRowCheck_,
+    queryMaybeColCheck_,
+    queryOneRowCheck_,
+    queryOneColCheck_,
 
     -- * Data version
     DataVersion (..),
