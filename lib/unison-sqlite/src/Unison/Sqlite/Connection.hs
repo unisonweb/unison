@@ -386,11 +386,18 @@ queryOneOneCheck_ conn s check =
 
 -- | Perform an action within a named savepoint. The action is provided a rollback action.
 withSavepoint :: Connection -> Text -> (IO () -> IO a) -> IO a
-withSavepoint conn name action =
-  bracket_
-    (execute_ conn (Sql ("SAVEPOINT " <> name)))
-    (execute_ conn (Sql ("RELEASE " <> name)))
-    (action (execute_ conn (Sql ("ROLLBACK TO " <> name))))
+withSavepoint conn name action = do
+  uninterruptibleMask \restore -> do
+    execute_ conn (Sql ("SAVEPOINT " <> name))
+    result <-
+      restore (action rollback) `onException` do
+        rollback
+        release
+    release
+    pure result
+  where
+    rollback = execute_ conn (Sql ("ROLLBACK TO " <> name))
+    release = execute_ conn (Sql ("RELEASE " <> name))
 
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
 withStatement conn@(Connection _ _ conn0) s params callback =
