@@ -891,19 +891,23 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
 
 pullWithoutHistory :: InputPattern
-pullWithoutHistory = pullImpl "pull.without-history" Verbosity.Default Input.PullWithoutHistory
+pullWithoutHistory =
+  pullImpl
+    "pull.without-history"
+    Verbosity.Default
+    Input.PullWithoutHistory
+    "without including the remote's history. This usually results in smaller codebase sizes."
 
-pullImpl :: String -> Verbosity -> Input.PullMode -> InputPattern
-pullImpl name verbosity pullMode = do
+pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name verbosity pullMode addendum = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self =
       InputPattern
         name
