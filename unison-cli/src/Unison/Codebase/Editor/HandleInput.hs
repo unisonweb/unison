@@ -1664,7 +1664,7 @@ loop = do
               respond $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
               let preprocess = case pullMode of
-                    Input.PullWithHistory -> pure -- Pull the whole branch
+                    Input.PullWithHistory -> pure
                     Input.PullWithoutHistory -> pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
               lift $ unlessGitError do
@@ -1672,17 +1672,19 @@ loop = do
                 let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-                case pullMode of
+                lift $ case pullMode of
                   Input.PullWithHistory -> do
-                    lift $ mergeBranchAndPropagateDefaultPatch
-                             Branch.RegularMerge
-                             inputDescription
-                             (Just unchangedMsg)
-                             remoteBranch
-                             printDiffPath
-                             destAbs
-                  Input.PullWithoutHistory -> lift $ do
-                    didUpdate <- updateAtM destAbs (\destBranch -> pure $ destBranch `Branch.consBranch` remoteBranch)
+                    mergeBranchAndPropagateDefaultPatch
+                      Branch.RegularMerge
+                      inputDescription
+                      (Just unchangedMsg)
+                      remoteBranch
+                      printDiffPath
+                      destAbs
+                  Input.PullWithoutHistory -> do
+                    didUpdate <- updateAtM
+                                   destAbs
+                                   (\destBranch -> pure $ destBranch `Branch.consSnapshot` remoteBranch)
                     if didUpdate
                        then respond $ PullSuccessful ns path
                        else respond unchangedMsg

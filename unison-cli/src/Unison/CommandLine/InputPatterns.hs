@@ -897,7 +897,7 @@ pull :: InputPattern
 pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory
 
 pullWithoutHistory :: InputPattern
-pullWithoutHistory = pullImpl "pull.without-history" Verbosity.Default Input.PullWithHistory
+pullWithoutHistory = pullImpl "pull.without-history" Verbosity.Default Input.PullWithoutHistory
 
 pullImpl :: String -> Verbosity -> Input.PullMode -> InputPattern
 pullImpl name verbosity pullMode = do
@@ -1882,6 +1882,7 @@ validInputs =
     push,
     pushCreate,
     pull,
+    pullWithoutHistory,
     pullSilent,
     pushExhaustive,
     pullExhaustive,
