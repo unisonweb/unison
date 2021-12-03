@@ -211,6 +211,7 @@ data Output v
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
+  | PullSuccessful ReadRemoteNamespace Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -344,6 +345,7 @@ isFailure o = case o of
   DumpBitBooster {} -> False
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
+  PullSuccessful {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
   NoConflictsOrEdits {} -> False

@@ -891,13 +891,16 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory
 
-pullImpl :: String -> Verbosity -> InputPattern
-pullImpl name verbosity = do
+pullWithoutHistory :: InputPattern
+pullWithoutHistory = pullImpl "pull.without-history" Verbosity.Default Input.PullWithHistory
+
+pullImpl :: String -> Verbosity -> Input.PullMode -> InputPattern
+pullImpl name verbosity pullMode = do
   self
   where
     addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
@@ -939,14 +942,14 @@ pullImpl name verbosity = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseUri "url" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseUri "url" url
               p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -967,14 +970,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
     )
 

@@ -77,6 +77,8 @@ module Unison.Codebase.Branch
   , cachedRead
   , Cache
   , sync
+
+  , consBranch
   ) where
 
 import Unison.Prelude hiding (empty)

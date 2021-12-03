@@ -208,7 +208,13 @@ data Command
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
-    ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
+    ReadRemoteNamespace ->
+    SyncMode ->
+    -- | A preprocessing step to perform on the branch before it's imported.
+    -- This is sometimes useful for minimizing the number of definitions to sync.
+    -- Simply pass 'pure' if you don't need to do any pre-processing.
+    (Branch m -> m (Branch m)) ->
+    Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target

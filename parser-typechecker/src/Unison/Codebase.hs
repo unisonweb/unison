@@ -341,10 +341,12 @@ importRemoteBranch ::
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
+  (Branch m -> m (Branch m)) ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT $ do
+importRemoteBranch codebase ns mode preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
-         withStatus "Importing downloaded files into local codebase..." $
+         branch <- preprocess branch
+         withStatus "Importing downloaded files into local codebase..." $ do
            time "SyncFromDirectory" $
              syncFromDirectory codebase cacheDir mode branch
          pure $ Branch.headHash branch

@@ -1289,6 +1289,11 @@ notifyUser dir o = case o of
       P.wrap $
         prettyPath' dest <> "was already up-to-date with"
           <> P.group (prettyRemoteNamespace ns <> ".")
+  PullSuccessful ns dest ->
+    pure . P.okCallout $
+      P.wrap $
+        "Successfully updated" <> prettyPath' dest <> "from"
+          <> P.group (prettyRemoteNamespace ns <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
       P.wrap $
