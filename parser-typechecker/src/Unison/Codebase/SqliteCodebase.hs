@@ -13,7 +13,6 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import qualified Control.Exception
 import Control.Monad (filterM, unless, when, (>=>))
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
@@ -110,7 +109,7 @@ import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
 import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
-import UnliftIO.Exception (bracket)
+import UnliftIO.Exception (catch, bracket)
 import Control.Monad.Trans.Except (mapExceptT)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
@@ -209,17 +208,6 @@ initSchemaIfNotExist path = liftIO do
     createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
   unlessM (doesFileExist $ path </> codebasePath) $
     withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
-
--- checks if a db exists at `path` with the minimum schema
-codebaseExists :: MonadIO m => CodebasePath -> m Bool
-codebaseExists root = liftIO do
-  Monad.when debug $ traceM $ "codebaseExists " ++ root
-  Control.Exception.catch @Sqlite.SQLError
-    ( sqliteCodebase "codebaseExists" root (const $ pure ()) >>= \case
-        Left _ -> pure False
-        Right _ -> pure True
-    )
-    (const $ pure False)
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -1057,43 +1045,51 @@ viewRemoteBranch' ::
   ReadRemoteNamespace ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try $ do
+viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
   -- set up the cache dir
-  remotePath <- (UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullBranch repo)
-  codebaseExists remotePath >>= \case
-    -- If there's no initialized codebase at this repo; we pretend there's an empty one.
-    -- I'm thinking we should probably return an error value instead.
-    False -> action (Branch.empty, remotePath)
-    True -> do
-      result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath $ \codebase -> do
-             -- try to load the requested branch from it
-             branch <- time "Git fetch (sbh)" $ case sbh of
-               -- no sub-branch was specified, so use the root.
-               Nothing ->
-                 (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
-                   -- this NoRootBranch case should probably be an error too.
-                   Left Codebase1.NoRootBranch -> pure Branch.empty
-                   Left (Codebase1.CouldntLoadRootBranch h) ->
-                     throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
-                   Left (Codebase1.CouldntParseRootBranch s) ->
-                     throwIO . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
-                   Right b -> pure b
-               -- load from a specific `ShortBranchHash`
-               Just sbh -> do
-                 branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
-                 case toList branchCompletions of
-                   [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                   [h] ->
-                     (Codebase1.getBranchForHash codebase h) >>= \case
-                       Just b -> pure b
-                       Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                   _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-             case Branch.getAt path branch of
-               Just b -> action (b, remotePath)
-               Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
-      case result of
-        Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
-        Right inner -> pure inner
+  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullBranch repo
+
+  -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
+  -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
+  -- somehow corrupt, or not even a Unison database.
+  --
+  -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps update
+  -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
+  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
+    case Sqlite.sqlError sqlError of
+      Sqlite.ErrorCan'tOpen -> throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
+      -- Unexpected error from sqlite
+      _ -> throwIO sqlError
+
+  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath \codebase -> do
+    -- try to load the requested branch from it
+    branch <- time "Git fetch (sbh)" $ case sbh of
+      -- no sub-branch was specified, so use the root.
+      Nothing ->
+        (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
+          -- this NoRootBranch case should probably be an error too.
+          Left Codebase1.NoRootBranch -> pure Branch.empty
+          Left (Codebase1.CouldntLoadRootBranch h) ->
+            throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
+          Left (Codebase1.CouldntParseRootBranch s) ->
+            throwIO . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
+          Right b -> pure b
+      -- load from a specific `ShortBranchHash`
+      Just sbh -> do
+        branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+        case toList branchCompletions of
+          [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+          [h] ->
+            (Codebase1.getBranchForHash codebase h) >>= \case
+              Just b -> pure b
+              Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+          _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+    case Branch.getAt path branch of
+      Just b -> action (b, remotePath)
+      Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
+  case result of
+    Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
+    Right inner -> pure inner
 
 -- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
 -- the existing root.
