@@ -11,6 +11,7 @@ import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
 import qualified Unison.Test.Codebase.Branch as Branch
+import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.DataDeclaration as DataDeclaration
@@ -56,6 +57,7 @@ test = tests
   , Text.test
   , Relation.test
   , Path.test
+  , Causal.test
   , Referent.test
   , ABT.test
   , ANF.test
