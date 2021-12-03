@@ -52,6 +52,7 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
 
 ```ucm
 .> delete.namespace .feature1
+.> history .feature1
 .> history
 ```
 
