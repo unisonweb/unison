@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -12,7 +13,12 @@ module Unison.Reference
      _DerivedId,
    Id(..),
    Pos,
-   CycleSize, Size,
+   CycleSize,
+   Size,
+   TermReference,
+   TermReferenceId,
+   TypeReference,
+   TypeReferenceId,
    derivedBase32Hex,
    component,
    components,
@@ -72,6 +78,16 @@ _DerivedId = _Ctor @"DerivedId"
 
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos deriving (Eq, Ord)
+
+-- | A term reference.
+type TermReference = Reference
+
+type TermReferenceId = Id
+
+-- | A type declaration reference.
+type TypeReference = Reference
+
+type TypeReferenceId = Id
 
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Editor.Output
@@ -60,6 +61,7 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
+import Data.Set.NonEmpty (NESet)
 
 type ListDetailed = Bool
 
@@ -87,6 +89,12 @@ data NumberedOutput v
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
+    CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
+    DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
 
 --  | ShowDiff
 
@@ -136,8 +144,6 @@ data Output v
     -- the path is deleted.
     DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
-  | -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-    CantDelete PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | DeleteEverythingConfirmation
   | DeletedEverything
   | ListNames
@@ -226,8 +232,10 @@ data Output v
   | CouldntLoadBranch Branch.Hash
   | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
   | NoOp
-    -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
-  | RefusedToPush PushBehavior
+  | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
+    RefusedToPush PushBehavior
+  | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
+    GistCreated Int WriteRepo Branch.Hash
   deriving (Show)
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
@@ -294,7 +302,6 @@ isFailure o = case o of
   TypeTermMismatch {} -> True
   SearchTermsNotFound ts -> not (null ts)
   DeleteBranchConfirmation {} -> False
-  CantDelete {} -> True
   DeleteEverythingConfirmation -> False
   DeletedEverything -> False
   ListNames _ tys tms -> null tms && null tys
@@ -349,8 +356,9 @@ isFailure o = case o of
   ListNamespaceDependencies {} -> False
   TermMissingType {} -> True
   DumpUnisonFileHashes _ x y z -> x == mempty && y == mempty && z == mempty
-  NamespaceEmpty _ -> False
-  RefusedToPush{} -> True
+  NamespaceEmpty {} -> True
+  RefusedToPush {} -> True
+  GistCreated {} -> False
 
 isNumberedFailure :: NumberedOutput v -> Bool
 isNumberedFailure = \case
@@ -365,3 +373,6 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
+  CantDeleteDefinitions {} -> True
+  CantDeleteNamespace {} -> True
+  DeletedDespiteDependents {} -> False

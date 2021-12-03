@@ -53,9 +53,9 @@ import U.Codebase.Sqlite.Patch.TermEdit (LocalTermEdit, TermEdit)
 import U.Codebase.Sqlite.Patch.TypeEdit (LocalTypeEdit, TypeEdit)
 import U.Codebase.Sqlite.Reference (LocalReference, LocalReferenceH, Reference, ReferenceH)
 import U.Codebase.Sqlite.Referent (LocalReferent, LocalReferentH, Referent, ReferentH)
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
 import Unison.Prelude
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 -- High-level localization

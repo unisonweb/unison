@@ -1,10 +1,13 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.Editor.Input
   ( Input(..)
+  , GistInput(..)
   , Event(..)
   , OutputLocation(..)
   , PatchPath
   , BranchId, parseBranchId
   , HashOrHQSplit'
+  , Insistence(..)
   ) where
 
 import Unison.Prelude
@@ -38,6 +41,10 @@ type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
+
+-- | Should we force the operation or not?
+data Insistence = Force | Try
+  deriving (Show, Eq)
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
@@ -87,7 +94,7 @@ data Input
     | DeleteI Path.HQSplit'
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
-    | DeleteBranchI (Maybe Path.Split')
+    | DeleteBranchI Insistence (Maybe Path.Split')
     | DeletePatchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
@@ -156,7 +163,14 @@ data Input
     | QuitI
     | UiI
     | DocsToHtmlI Path' FilePath
+    | GistI GistInput
     deriving (Eq, Show)
+
+-- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+data GistInput = GistInput
+  { repo :: WriteRepo
+  }
+  deriving stock (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation

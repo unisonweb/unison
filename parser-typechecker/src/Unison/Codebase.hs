@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase
   ( Codebase,
 
@@ -76,7 +77,8 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
-    pushGitRootBranch,
+    pushGitBranch,
+    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
@@ -95,7 +97,6 @@ where
 
 import Control.Error (rightMay)
 import Control.Error.Util (hush)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -110,11 +111,17 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.Codebase.Type
+  ( Codebase (..),
+    GetRootBranchError (..),
+    GitError (GitCodebaseError),
+    PushGitBranchOpts (..),
+    SyncToDir,
+  )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Parser.Ann as Parser
@@ -132,6 +139,10 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import UnliftIO (MonadUnliftIO)
+import Control.Monad.Except (ExceptT(ExceptT))
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Except (throwE)
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -204,14 +215,14 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> ConstructorId -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -226,9 +237,11 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
-typeLookupForDependencies
-  :: (Monad m, Var v, BuiltinAnnotation a)
-  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies ::
+  (Monad m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Set Reference ->
+  m (TL.TypeLookup v a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -274,7 +287,7 @@ getTypeOfReferent ::
   m (Maybe (Type v a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
-  Referent.Con r cid _ -> getTypeOfConstructor c r cid
+  Referent.Con r _ -> getTypeOfConstructor c r
 
 componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
 componentReferencesForReference c = \case
@@ -342,21 +355,21 @@ isBlank codebase = do
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
-  MonadIO m =>
+  MonadUnliftIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT do
-  (cleanup, branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
-  withStatus "Importing downloaded files into local codebase..." $
-    time "SyncFromDirectory" $
-      lift $ syncFromDirectory codebase cacheDir mode branch
-  ExceptT
-    let h = Branch.headHash branch
-        err = Left . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-     in time "load fresh local branch after sync" $
-          (getBranchForHash codebase h <&> maybe err Right) <* cleanup
+importRemoteBranch codebase ns mode = runExceptT $ do
+  branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+         withStatus "Importing downloaded files into local codebase..." $
+           time "SyncFromDirectory" $
+             syncFromDirectory codebase cacheDir mode branch
+         pure $ Branch.headHash branch
+  time "load fresh local branch after sync" $ do
+    lift (getBranchForHash codebase branchHash) >>= \case
+      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Just result -> pure $ result
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
@@ -364,10 +377,10 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
-  m (Either GitError (m (), Branch m))
-viewRemoteBranch codebase ns = runExceptT do
-  (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
-  pure (cleanup, branch)
+  (Branch m -> m r) ->
+  m (Either GitError r)
+viewRemoteBranch codebase ns action =
+  viewRemoteBranch' codebase ns (\(b, _dir) -> action b)
 
 unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
 unsafeGetComponentLength codebase h =

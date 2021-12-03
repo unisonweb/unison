@@ -22,8 +22,6 @@ import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as S
 import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Util.Hash
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Branch (NameSegment (..))
@@ -39,6 +37,8 @@ import qualified Unison.Hashing.V2.TermEdit as Hashing.TermEdit
 import qualified Unison.Hashing.V2.TypeEdit as Hashing (TypeEdit)
 import qualified Unison.Hashing.V2.TypeEdit as Hashing.TypeEdit
 import Unison.Prelude
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 
 dbBranchHash :: EDB m => S.DbBranch -> m Hash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =

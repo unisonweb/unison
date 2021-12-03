@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -22,6 +23,7 @@ import           Unison.Codebase.Editor.Command
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
+import Unison.ConstructorReference (GConstructorReference(..))
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
 import Unison.Hash (Hash)
@@ -126,8 +128,8 @@ propagateCtorMapping oldComponent newComponent = let
     , (newC, (_,newName,_)) <- zip [0 ..] $ Decl.constructors' newDecl
     , ol'Name == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
     , oldR /= newR
-    , let oldCon = Referent.Con oldR oldC t
-          newCon = Referent.Con newR newC t
+    , let oldCon = Referent.Con (ConstructorReference oldR oldC) t
+          newCon = Referent.Con (ConstructorReference newR newC) t
     ]
   in if debugMode then traceShow ("constructorMappings", r) r else r
 
@@ -185,8 +187,8 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
       , let t = Decl.constructorType oldDecl
       , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
       , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
-      , let oldCon = Referent.Con oldR oldC t
-            newCon = Referent.Con newR newC t
+      , let oldCon = Referent.Con (ConstructorReference oldR oldC) t
+            newCon = Referent.Con (ConstructorReference newR newC) t
       , ctorNamesMatch oldCon newCon
         || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
       , oldR /= newR
@@ -582,7 +584,7 @@ applyPropagate patch Edits {..} = do
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
     Branch.branch0 terms types _children _edits
    where
-    isPropagatedReferent (Referent.Con _ _ _) = True
+    isPropagatedReferent (Referent.Con _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
     terms0 :: Metadata.Star Referent NameSegment
@@ -615,7 +617,7 @@ applyPropagate patch Edits {..} = do
        else Metadata.delete (propagatedMd r')) $ s
 
     replaceConstructor :: Referent -> Referent -> _ -> _
-    replaceConstructor (Referent.Con _ _ _) !new s =
+    replaceConstructor (Referent.Con _ _) !new s =
       -- TODO: revisit this once patches have constructor mappings
       -- at the moment, all constructor replacements are autopropagated
       -- rather than added manually

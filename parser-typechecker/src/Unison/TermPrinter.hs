@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -6,6 +7,7 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
+import Control.Lens ((^.))
 import Control.Monad.State (evalState)
 import qualified Control.Monad.State as State
 import Data.List
@@ -20,6 +22,8 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (GConstructorReference(..))
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import Unison.Lexer (showEscapeChar, symbolyId)
@@ -212,16 +216,16 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' ref cid ->
+    Constructor' ref ->
       styleHashQualified'' (fmt $ S.TermReference conRef) name
       where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Data
-    Request' ref cid ->
+        conRef = Referent.Con ref CT.Data
+    Request' ref ->
       styleHashQualified'' (fmt $ S.TermReference conRef) name
       where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Effect
+        conRef = Referent.Con ref CT.Effect
     Handle' h body -> paren (p >= 2) $
       if PP.isMultiLine pb || PP.isMultiLine ph then PP.lines [
         (fmt S.ControlKeyword "handle") `PP.hang` pb,
@@ -237,7 +241,7 @@ pretty0
         ph = pblock h
         pblock tm = let (im', uses) = calcImports im tm
                     in uses $ [pretty0 n (ac 0 Block im' doc) tm]
-    App' x (Constructor' DD.UnitRef 0) ->
+    App' x (Constructor' (ConstructorReference DD.UnitRef 0)) ->
       paren (p >= 11 || isBlock x && p >= 3)  $
         fmt S.DelayForceChar (l "!")
         <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
@@ -376,7 +380,7 @@ pretty0
       $  letIntro
       $  uses [PP.lines (map printBinding bs ++ body e)]
    where
-    body (Constructor' DD.UnitRef 0) | elideUnit = []
+    body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = []
     body e = [PP.group $ pretty0 n (ac 0 Normal im doc) e]
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty0 n (ac (-1) Normal im doc) binding
@@ -397,9 +401,9 @@ pretty0
 
   nonForcePred :: Term3 v PrintAnnotation -> Bool
   nonForcePred = \case
-    Constructor' DD.UnitRef 0 -> False
-    Constructor' DD.DocRef _  -> False
-    _                         -> True
+    Constructor' (ConstructorReference DD.UnitRef 0) -> False
+    Constructor' (ConstructorReference DD.DocRef _) -> False
+    _ -> True
 
   nonUnitArgPred :: Var v => v -> Bool
   nonUnitArgPred v = (Var.name v) /= "()"
@@ -454,15 +458,15 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  Pattern.Constructor _ ref cid [] ->
+  Pattern.Constructor _ ref [] ->
     (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
     where
       name = elideFQN im $ PrettyPrintEnv.termName n conRef
-      conRef = Referent.Con ref cid CT.Data
-  Pattern.Constructor _ ref cid pats ->
+      conRef = Referent.Con ref CT.Data
+  Pattern.Constructor _ ref pats ->
     let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Data
+        conRef = Referent.Con ref CT.Data
     in  ( paren (p >= 10)
           $ styleHashQualified'' (fmt $ S.TermReference conRef) name
             `PP.hang` pats_printed
@@ -474,11 +478,11 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  Pattern.EffectBind _ ref cid pats k_pat ->
+  Pattern.EffectBind _ ref pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Effect
+        conRef = Referent.Con ref CT.Effect
     in  ( PP.group (
             fmt S.DelimiterChar "{"  <>
             (PP.sep " " . PP.nonEmpty $
@@ -919,9 +923,9 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnota
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
-    Constructor' r _ | noImportRefs r -> mempty
-    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
-    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
+    Constructor' r | noImportRefs (r ^. ConstructorReference.reference_) -> mempty
+    Constructor' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Data)
+    Request' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Effect)
     Ann' _ t -> countTypeUsages n t
     Match' _ bs -> let pat (MatchCase p _ _) = p
                    in foldMap ((countPatternUsages n) . pat) bs
@@ -945,22 +949,22 @@ countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
 countPatternUsages n p = Pattern.foldMap' f p where
   f = \case
-    Pattern.Unbound _            -> mempty
-    Pattern.Var _                -> mempty
-    Pattern.Boolean _ _          -> mempty
-    Pattern.Int _ _              -> mempty
-    Pattern.Nat _ _              -> mempty
-    Pattern.Float _ _            -> mempty
-    Pattern.Text _ _             -> mempty
-    Pattern.Char _ _             -> mempty
-    Pattern.As _ _               -> mempty
-    Pattern.SequenceLiteral _ _  -> mempty
-    Pattern.SequenceOp _ _ _ _   -> mempty
-    Pattern.EffectPure _ _       -> mempty
-    Pattern.EffectBind _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.Constructor _ r i _  ->
-      if noImportRefs r then mempty
-      else countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.Unbound _           -> mempty
+    Pattern.Var _               -> mempty
+    Pattern.Boolean _ _         -> mempty
+    Pattern.Int _ _             -> mempty
+    Pattern.Nat _ _             -> mempty
+    Pattern.Float _ _           -> mempty
+    Pattern.Text _ _            -> mempty
+    Pattern.Char _ _            -> mempty
+    Pattern.As _ _              -> mempty
+    Pattern.SequenceLiteral _ _ -> mempty
+    Pattern.SequenceOp _ _ _ _  -> mempty
+    Pattern.EffectPure _ _      -> mempty
+    Pattern.EffectBind _ r _ _  -> countHQ $ PrettyPrintEnv.patternName n r
+    Pattern.Constructor _ r _ ->
+      if noImportRefs (r ^. ConstructorReference.reference_) then mempty
+      else countHQ $ PrettyPrintEnv.patternName n r
 
 countHQ :: HQ.HashQualified Name -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
@@ -1176,10 +1180,10 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
       Pattern.Float _ _ -> True
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
-      Pattern.Constructor _ _ _ ps -> any hasLiteral ps
+      Pattern.Constructor _ _ ps -> any hasLiteral ps
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p
-      Pattern.EffectBind _ _ _ ps pk -> any hasLiteral (pk : ps)
+      Pattern.EffectBind _ _ ps pk -> any hasLiteral (pk : ps)
       Pattern.SequenceLiteral _ ps -> any hasLiteral ps
       Pattern.SequenceOp _ p _ p2 -> hasLiteral p || hasLiteral p2
       Pattern.Var _ -> False

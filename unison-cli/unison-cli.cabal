@@ -93,6 +93,7 @@ library
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , random >=1.2.0
     , regex-tdfa
@@ -158,6 +159,7 @@ executable integration-tests
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , process
     , random >=1.2.0
@@ -227,6 +229,7 @@ executable transcripts
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , process
     , random >=1.2.0
@@ -296,6 +299,7 @@ executable unison
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
@@ -376,6 +380,7 @@ test-suite tests
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , random >=1.2.0
     , regex-tdfa

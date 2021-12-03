@@ -1,7 +1,16 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Type (Codebase (..), CodebasePath, GitError(..), GetRootBranchError (..), SyncToDir) where
+module Unison.Codebase.Type
+  ( Codebase (..),
+    CodebasePath,
+    PushGitBranchOpts (..),
+    GitError (..),
+    GetRootBranchError (..),
+    SyncToDir,
+  )
+where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -87,9 +96,9 @@ data Codebase m v a = Codebase
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
-    viewRemoteBranch' :: ReadRemoteNamespace -> m (Either GitError (m (), Branch m, CodebasePath)),
-    -- | Push the given branch to the given repo, and set it as the root branch.
-    pushGitRootBranch :: Branch m -> WriteRepo -> SyncMode -> m (Either GitError ()),
+    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+    -- | Push the given branch to the given repo, and optionally set it as the root branch.
+    pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
@@ -146,14 +155,22 @@ data Codebase m v a = Codebase
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
   }
 
+data PushGitBranchOpts = PushGitBranchOpts
+  { -- | Set the branch as root?
+    setRoot :: Bool,
+    syncMode :: SyncMode
+  }
+
 data GetRootBranchError
   = NoRootBranch
   | CouldntParseRootBranch String
   | CouldntLoadRootBranch Branch.Hash
-  deriving Show
+  deriving (Show)
 
 data GitError
   = GitProtocolError GitProtocolError
   | GitCodebaseError (GitCodebaseError Branch.Hash)
   | GitSqliteCodebaseError GitSqliteCodebaseError
-  deriving Show
+  deriving (Show)
+
+instance Exception GitError

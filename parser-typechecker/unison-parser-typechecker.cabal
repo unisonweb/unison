@@ -171,7 +171,6 @@ library
       Unison.Util.Free
       Unison.Util.Less
       Unison.Util.Logger
-      Unison.Util.Map
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range

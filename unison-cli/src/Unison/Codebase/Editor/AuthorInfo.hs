@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.AuthorInfo where
@@ -9,6 +10,7 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Prelude (MonadIO, Word8)
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Reference as Reference
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -30,7 +32,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
             hashAndWrangle "guid" guidType $
               Term.app
                 a
-                (Term.constructor a guidTypeRef 0)
+                (Term.constructor a (ConstructorReference guidTypeRef 0))
                 ( Term.app
                     a
                     (Term.builtin a "Bytes.fromList")
@@ -40,7 +42,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
           [(authorRef, authorTerm)] =
             hashAndWrangle "author" authorType $
               Term.apps
-                (Term.constructor a authorTypeRef 0)
+                (Term.constructor a (ConstructorReference authorTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
                   (a, Term.text a t)
                 ]
@@ -48,7 +50,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
           [(chRef, chTerm)] =
             hashAndWrangle "copyrightHolder" chType $
               Term.apps
-                (Term.constructor a chTypeRef 0)
+                (Term.constructor a (ConstructorReference chTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
                   (a, Term.text a t)
                 ]

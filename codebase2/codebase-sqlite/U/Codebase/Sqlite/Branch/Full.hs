@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
@@ -14,9 +15,9 @@ import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import Unison.Prelude
+import qualified Unison.Util.Map as Map
 
 -- |
 -- @

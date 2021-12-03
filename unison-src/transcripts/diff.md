@@ -52,9 +52,14 @@ structural ability X a1 a2 where x : Nat
 .ns1> fork .ns1 .ns2
 .ns1> cd .
 ```
+
 Here's what we've done so far:
-```ucm
+
+```ucm:error
 .> diff.namespace nothing ns1
+```
+
+```ucm
 .> diff.namespace ns1 ns2
 ```
 

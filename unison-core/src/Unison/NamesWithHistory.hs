@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.NamesWithHistory where
@@ -6,7 +7,7 @@ import Unison.Prelude
 
 import Control.Lens (view, _4)
 import Data.List.Extra (nubOrd, sort)
-import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.ConstructorReference (ConstructorReference)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -264,10 +265,10 @@ lookupHQPattern
   :: HQ.HashQualified Name
   -> CT.ConstructorType
   -> NamesWithHistory
-  -> Set (Reference, ConstructorId)
+  -> Set ConstructorReference
 lookupHQPattern hq ctt names = Set.fromList
-  [ (r, cid)
-    | Referent.Con r cid ct <- toList $ lookupHQTerm hq names
+  [ r
+    | Referent.Con r ct <- toList $ lookupHQTerm hq names
     , ct == ctt
     ]
 
