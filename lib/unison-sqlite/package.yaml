@@ -12,11 +12,13 @@ library:
 
 dependencies:
   - base
+  - containers
   - direct-sqlite
   - exceptions
   - mtl
   - recover-rtti
   - sqlite-simple
+  - template-haskell
   - text
   - transformers
   - unison-prelude

@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Unison.Sqlite.JournalMode
   ( JournalMode (..),
     trySetJournalMode,
@@ -36,19 +38,10 @@ unsafeJournalModeFromText :: HasCallStack => Text -> JournalMode
 unsafeJournalModeFromText s =
   fromMaybe (error ("Unknown journal mode: " ++ Text.unpack s)) (journalModeFromText s)
 
-journalModeToText :: JournalMode -> Text
-journalModeToText = \case
-  JournalMode'DELETE -> "DELETE"
-  JournalMode'TRUNCATE -> "TRUNCATE"
-  JournalMode'PERSIST -> "PERSIST"
-  JournalMode'MEMORY -> "MEMORY"
-  JournalMode'WAL -> "WAL"
-  JournalMode'OFF -> "OFF"
-
 trySetJournalMode :: JournalMode -> Transaction ()
 trySetJournalMode mode0 = do
   queryOneRowCheck_
-    (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
+    (setJournalModeSql mode0)
     \(Sqlite.Only mode1s) ->
       let mode1 = unsafeJournalModeFromText mode1s
        in if mode0 /= mode1
@@ -59,6 +52,15 @@ trySetJournalMode mode0 = do
                     couldntSetTo = mode0
                   }
             else Right ()
+
+setJournalModeSql :: JournalMode -> Sql
+setJournalModeSql = \case
+  JournalMode'DELETE -> [sql| PRAGMA journal_mode = DELETE |]
+  JournalMode'TRUNCATE -> [sql| PRAGMA journal_mode = TRUNCATE |]
+  JournalMode'PERSIST -> [sql| PRAGMA journal_mode = PERSIST |]
+  JournalMode'MEMORY -> [sql| PRAGMA journal_mode = MEMORY |]
+  JournalMode'WAL -> [sql| PRAGMA journal_mode = WAL |]
+  JournalMode'OFF -> [sql| PRAGMA journal_mode = OFF |]
 
 data SetJournalModeException = SetJournalModeException
   { currentJournalMode :: JournalMode,
