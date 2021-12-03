@@ -3,12 +3,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Causal
-  ( Causal (..),
+  ( Causal(currentHash, head, tail, tails),
+    pattern One,
+    pattern Cons,
+    pattern Merge,
     RawHash (RawHash, unRawHash),
     head_,
     one,
     cons,
-    cons',
     consDistinct,
     uncons,
     children,
@@ -34,15 +36,18 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Codebase.Causal.Type
   ( Causal
-      ( Cons,
-        Merge,
-        One,
+      ( UnsafeCons,
+        UnsafeMerge,
+        UnsafeOne,
         currentHash,
         head,
         tail,
         tails
       ),
     RawHash (RawHash, unRawHash),
+    pattern One,
+    pattern Cons,
+    pattern Merge,
     before,
     children,
     head_,
@@ -51,6 +56,17 @@ import Unison.Codebase.Causal.Type
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Hashing.V2.Hashable (Hashable)
 import Prelude hiding (head, read, tail)
+import qualified Data.List.Extra as List
+
+fromList :: (Applicative m, Hashable e) => e -> [Causal m h e] -> Causal m h e
+fromList e (List.nubOrdOn currentHash -> tails) = case tails of
+  [] -> UnsafeOne h e
+  t : [] -> UnsafeCons h e (tailPair t)
+  _ : _ : _ -> UnsafeMerge h e (Map.fromList $ map tailPair tails)
+  where
+    tailPair c = (currentHash c, pure c)
+    h = RawHash $ Hashing.hashCausal e (Set.fromList $ map currentHash tails)
+
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
@@ -99,12 +115,8 @@ threeWayMerge' lca combine c1 c2 = do
       | lca == c2 -> pure c1
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
  where
-  children =
-    Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
   done :: e -> Causal m h e
-  done newHead =
-    let h = Hashing.hashCausal newHead (Map.keysSet children)
-    in Merge (RawHash h) newHead children
+  done newHead = fromList newHead [c1, c2]
 
 -- `True` if `h` is found in the history of `c` within `maxDepth` path length
 -- from the tip of `c`
@@ -132,18 +144,14 @@ stepDistinctM
   => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
+-- duplicated logic here instead of delegating to `fromList` to avoid `Applicative m` constraint.
 one :: Hashable e => e -> Causal m h e
 one e =
   let h = Hashing.hashCausal e mempty
-  in One (RawHash h) e
+  in UnsafeOne (RawHash h) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
-cons e tl = cons' e (currentHash tl) (pure tl)
-
-cons' :: Hashable e => e -> RawHash h -> m (Causal m h e) -> Causal m h e
-cons' b0 hTail mTail =
-  let h = Hashing.hashCausal b0 (Set.singleton hTail)
-  in Cons (RawHash h) b0 (hTail, mTail)
+cons e tail = fromList e [tail]
 
 consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
 consDistinct e tl =
@@ -157,14 +165,14 @@ uncons c = case c of
 
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
-  One h e -> One h e
-  Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
-  Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
+  One h e -> UnsafeOne h e
+  Cons h e (ht, tl) -> UnsafeCons h e (ht, nt (transform nt <$> tl))
+  Merge h e tls -> UnsafeMerge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
 unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
 unsafeMapHashPreserving f c = case c of
-  One h e -> One h (f e)
-  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
-  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
+  One h e -> UnsafeOne h (f e)
+  Cons h e (ht, tl) -> UnsafeCons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h e tls -> UnsafeMerge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
 
 data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)

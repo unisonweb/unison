@@ -5,6 +5,9 @@
 module Unison.Codebase.Causal.Type
   ( Causal (..),
     RawHash (..),
+    pattern One,
+    pattern Cons,
+    pattern Merge,
     before,
     children,
     lca,
@@ -48,35 +51,44 @@ instance Show (RawHash a) where
 
 instance Show e => Show (Causal m h e) where
   show = \case
-    One h e -> "One " ++ (take 3 . show) h ++ " " ++ show e
-    Cons h e t -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
-    Merge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
+    UnsafeOne h e -> "One " ++ (take 3 . show) h ++ " " ++ show e
+    UnsafeCons h e t -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
+    UnsafeMerge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m h e
-  = One
+  = UnsafeOne
       { currentHash :: RawHash h,
         head :: e
       }
-  | Cons
+  | UnsafeCons
       { currentHash :: RawHash h,
         head :: e,
         tail :: (RawHash h, m (Causal m h e))
       }
   | -- The merge operation `<>` flattens and normalizes for order
-    Merge
+    UnsafeMerge
       { currentHash :: RawHash h,
         head :: e,
         tails :: Map (RawHash h) (m (Causal m h e))
       }
 
+pattern One :: RawHash h -> e -> Causal m h e
+pattern One h e <- UnsafeOne h e
+pattern Cons :: RawHash h -> e -> (RawHash h, m (Causal m h e)) -> Causal m h e
+pattern Cons h e tail <- UnsafeCons h e tail
+pattern Merge :: RawHash h -> e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
+pattern Merge h e tails <- UnsafeMerge h e tails
+{-# COMPLETE One, Cons, Merge #-}
+
+
 Lens.makeLensesFor [("head", "head_")] ''Causal
 
 children :: Causal m h e -> Seq (m (Causal m h e))
-children (One _ _) = Seq.empty
-children (Cons _ _ (_, t)) = Seq.singleton t
-children (Merge _ _ ts) = Seq.fromList $ Map.elems ts
+children (UnsafeOne _ _) = Seq.empty
+children (UnsafeCons _ _ (_, t)) = Seq.singleton t
+children (UnsafeMerge _ _ ts) = Seq.fromList $ Map.elems ts
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b

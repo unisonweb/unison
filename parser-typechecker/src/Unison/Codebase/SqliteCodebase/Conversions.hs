@@ -414,16 +414,16 @@ causalbranch2to1' :: Monad m => (V2.Reference -> m CT.ConstructorType) -> V2.Bra
 causalbranch2to1' lookupCT (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
-    [] -> V1.Causal.One currentHash <$> (me >>= branch2to1 lookupCT)
+    [] -> V1.Causal.UnsafeOne currentHash <$> (me >>= branch2to1 lookupCT)
     [(hp, mp)] -> do
       let parentHash = causalHash2to1 hp
-      V1.Causal.Cons currentHash
+      V1.Causal.UnsafeCons currentHash
         <$> (me >>= branch2to1 lookupCT)
         <*> pure (parentHash, causalbranch2to1' lookupCT =<< mp)
     merge -> do
       let tailsList = map (bimap causalHash2to1 (causalbranch2to1' lookupCT =<<)) merge
       e <- me
-      V1.Causal.Merge currentHash <$> branch2to1 lookupCT e <*> pure (Map.fromList tailsList)
+      V1.Causal.UnsafeMerge currentHash <$> branch2to1 lookupCT e <*> pure (Map.fromList tailsList)
 
 causalbranch1to2 :: forall m. Monad m => V1.Branch.Branch m -> V2.Branch.Causal m
 causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1to2 c
