@@ -12,11 +12,10 @@ import Control.Concurrent (ThreadId, myThreadId)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
-import Unison.Sqlite.Sql
 import UnliftIO.Exception
 
 data SqliteExceptionInfo params connection = SqliteExceptionInfo
-  { sql :: Sql,
+  { sql :: Text,
     params :: Maybe params,
     exception :: SomeSqliteExceptionReason,
     connection :: connection
@@ -63,7 +62,7 @@ instance Show SomeSqliteExceptionReason where
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
 -- just one exception type, @SqliteException@.
 data SqliteException = SqliteException
-  { sql :: Sql,
+  { sql :: Text,
     params :: String,
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally
     -- 'throwIO' domain-specific exception types, but must instead use a @*Check@ query variant.

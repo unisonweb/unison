@@ -58,25 +58,30 @@ module Unison.Sqlite.Connection
   )
 where
 
+import Control.Monad.IO.Unlift
+import Data.IORef
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as IntMap
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
-import qualified Database.SQLite3.Direct as Sqlite (Database (..))
+import qualified Database.SQLite3 as Sqlite.Direct (StepResult, step)
+import qualified Database.SQLite3.Direct as Sqlite.Direct (Database (..))
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
-import UnliftIO (MonadUnliftIO)
-import UnliftIO.Exception
+import UnliftIO.Exception (bracket, catch, mask_, onException, uninterruptibleMask)
 
 -- | A /non-thread safe/ connection to a SQLite database.
 data Connection = Connection
   { name :: String,
     file :: FilePath,
-    conn :: Sqlite.Connection
+    conn :: Sqlite.Connection,
+    cacheRef :: IORef (IntMap Sqlite.Statement)
   }
 
 instance Show Connection where
-  show (Connection name file (Sqlite.Connection (Sqlite.Database conn))) =
+  show (Connection name file (Sqlite.Connection (Sqlite.Direct.Database conn)) _) =
     "Connection " ++ show name ++ " " ++ show file ++ " " ++ show conn
 
 -- | Perform an action with a connection to a SQLite database.
@@ -103,46 +108,43 @@ openConnection ::
   -- Path to SQLite database file.
   FilePath ->
   m Connection
-openConnection name file = do
-  conn0 <- liftIO (Sqlite.open file)
-  let conn = Connection {conn = conn0, file, name}
-  liftIO (execute_ conn "PRAGMA foreign_keys = ON")
+openConnection name file = liftIO do
+  conn0 <- Sqlite.open file
+  cacheRef <- newIORef IntMap.empty
+  let conn = Connection {cacheRef, conn = conn0, file, name}
+  executeRaw_ conn "PRAGMA foreign_keys = ON"
   pure conn
 
 -- Close a connection opened with 'openConnection'.
 closeConnection :: MonadIO m => Connection -> m ()
-closeConnection (Connection _ _ conn) =
+closeConnection (Connection _ _ conn _) =
   liftIO (Sqlite.close conn)
 
 -- Without results, with parameters
 
 execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
-execute conn@(Connection _ _ conn0) s params =
-  Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
+execute conn s params =
+  prepareBind conn s params \(Sqlite.Statement statement) -> do
+    _ :: Sqlite.Direct.StepResult <- Sqlite.Direct.step statement
+    pure ()
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
-executeMany conn@(Connection _ _ conn0) s params =
-  Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
+executeMany conn s params =
+  prepareBinds conn s params \(Sqlite.Statement statement) -> do
+    _ :: Sqlite.Direct.StepResult <- Sqlite.Direct.step statement
+    pure ()
 
 -- Without results, without parameters
 
 execute_ :: Connection -> Sql -> IO ()
-execute_ conn@(Connection _ _ conn0) s =
-  Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
+execute_ conn s =
+  prepare conn s \(Sqlite.Statement statement) -> do
+    _ :: Sqlite.Direct.StepResult <- Sqlite.Direct.step statement
+    pure ()
+
+executeRaw_ :: Connection -> Text -> IO ()
+executeRaw_ conn@(Connection _ _ conn0 _) s =
+  Sqlite.execute_ conn0 (Sqlite.Query s) `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteException
       SqliteExceptionInfo
         { connection = conn,
@@ -154,15 +156,8 @@ execute_ conn@(Connection _ _ conn0) s =
 -- With results, with parameters, without checks
 
 queryListRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
-queryListRow conn@(Connection _ _ conn0) s params =
-  Sqlite.query conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
+queryListRow conn s params =
+  withStatement conn s params drawRows
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol conn s params =
@@ -217,7 +212,7 @@ gqueryListCheck conn s params check = do
           { connection = conn,
             exception,
             params = Just params,
-            sql = s
+            sql = sqlToText s
           }
     Right result -> pure result
 
@@ -282,15 +277,8 @@ queryOneColCheck conn s params check =
 -- With results, without parameters, without checks
 
 queryListRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO [a]
-queryListRow_ conn@(Connection _ _ conn0) s =
-  Sqlite.query_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Nothing,
-          sql = s
-        }
+queryListRow_ conn s =
+  withStatement_ conn s drawRows
 
 queryListCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO [a]
 queryListCol_ conn s =
@@ -333,7 +321,7 @@ gqueryListCheck_ conn s check = do
           { connection = conn,
             exception,
             params = Nothing,
-            sql = s
+            sql = sqlToText s
           }
     Right result -> pure result
 
@@ -386,7 +374,7 @@ queryOneColCheck_ conn s check =
 withSavepoint :: Connection -> Text -> (IO () -> IO a) -> IO a
 withSavepoint conn name action = do
   uninterruptibleMask \restore -> do
-    execute_ conn (Sql ("SAVEPOINT " <> name))
+    executeRaw_ conn ("SAVEPOINT " <> name)
     result <-
       restore (action rollback) `onException` do
         rollback
@@ -394,24 +382,106 @@ withSavepoint conn name action = do
     release
     pure result
   where
-    rollback = execute_ conn (Sql ("ROLLBACK TO " <> name))
-    release = execute_ conn (Sql ("RELEASE " <> name))
+    rollback = executeRaw_ conn ("ROLLBACK TO " <> name)
+    release = executeRaw_ conn ("RELEASE " <> name)
 
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
-withStatement conn@(Connection _ _ conn0) s params callback =
-  thing `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
-        { connection = conn,
-          exception = SomeSqliteExceptionReason exception,
-          params = Just params,
-          sql = s
-        }
-  where
-    thing =
-      bracket (Sqlite.openStatement conn0 (coerce s)) Sqlite.closeStatement \statement -> do
+withStatement conn s params callback =
+  prepareBind conn s params \statement ->
+    -- FIXME sqlite-simple's withRow is needlessly slow, it calls 'length' on every row
+    callback (Sqlite.nextRow statement)
+
+withStatement_ :: Sqlite.FromRow a => Connection -> Sql -> (IO (Maybe a) -> IO c) -> IO c
+withStatement_ conn s callback =
+  prepare conn s \statement ->
+    callback (Sqlite.nextRow statement)
+
+------------------------------------------------------------------------------------------------------------------------
+-- Statement cache
+
+-- TODO rename
+prepare :: Connection -> Sql -> (Sqlite.Statement -> IO a) -> IO a
+prepare conn s action = do
+  catch
+    ( do
+        statement <- openStatement conn s
+        action statement
+    )
+    \(exception :: Sqlite.SQLError) ->
+      throwSqliteException
+        SqliteExceptionInfo
+          { connection = conn,
+            exception = SomeSqliteExceptionReason exception,
+            params = Nothing,
+            sql = sqlToText s
+          }
+
+prepareBind :: Sqlite.ToRow params => Connection -> Sql -> params -> (Sqlite.Statement -> IO a) -> IO a
+prepareBind conn s params action = do
+  catch
+    ( do
+        statement <- openStatement conn s
         Sqlite.bind statement params
-        callback (Sqlite.nextRow statement)
+        result <- action statement
+        Sqlite.reset statement
+        pure result
+    )
+    \(exception :: Sqlite.SQLError) ->
+      throwSqliteException
+        SqliteExceptionInfo
+          { connection = conn,
+            exception = SomeSqliteExceptionReason exception,
+            params = Just params,
+            sql = sqlToText s
+          }
+
+prepareBinds :: Sqlite.ToRow params => Connection -> Sql -> [params] -> (Sqlite.Statement -> IO ()) -> IO ()
+prepareBinds conn s paramss action = do
+  statement <-
+    openStatement conn s `catch` \(exception :: Sqlite.SQLError) ->
+      throwSqliteException
+        SqliteExceptionInfo
+          { connection = conn,
+            exception = SomeSqliteExceptionReason exception,
+            params = Nothing,
+            sql = sqlToText s
+          }
+  for_ paramss \params -> do
+    catch
+      ( do
+          Sqlite.bind statement params
+          result <- action statement
+          Sqlite.reset statement
+          pure result
+      )
+      \(exception :: Sqlite.SQLError) ->
+        throwSqliteException
+          SqliteExceptionInfo
+            { connection = conn,
+              exception = SomeSqliteExceptionReason exception,
+              params = Just params,
+              sql = sqlToText s
+            }
+
+openStatement :: Connection -> Sql -> IO Sqlite.Statement
+openStatement Connection {cacheRef, conn} Sql {uniqueId, string} = do
+  cache <- readIORef cacheRef
+  case IntMap.lookup uniqueId cache of
+    Nothing ->
+      mask_ do
+        statement <- Sqlite.openStatement conn (Sqlite.Query string)
+        writeIORef cacheRef $! IntMap.insert uniqueId statement cache
+        pure statement
+    Just statement -> pure statement
+
+drawRows :: Sqlite.FromRow a => IO (Maybe a) -> IO [a]
+drawRows get =
+  loop []
+  where
+    loop acc =
+      get >>= \case
+        Nothing -> pure (reverse acc)
+        Just row -> loop (row : acc)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Exceptions
