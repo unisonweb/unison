@@ -319,13 +319,14 @@ instance MEM 'UN where
   {-# inline grab #-}
 
   ensure stki@(US ap fp sp stk) sze
-    | sze <= 0
-    || bytes (sp+sze+1) < ssz = pure stki
+    | sze <= 0 || bytes (sp+sze+1) < ssz = pure stki
     | otherwise = do
-      stk' <- resizeMutableByteArray stk (ssz+10240)
+      stk' <- resizeMutableByteArray stk (ssz+ext)
       pure $ US ap fp sp stk'
    where
    ssz = sizeofMutableByteArray stk
+   ext | bytes sze > 10240 = bytes sze + 4096
+       | otherwise = 10240
   {-# inline ensure #-}
 
   bump (US ap fp sp stk) = pure $ US ap fp (sp+1) stk
@@ -524,10 +525,13 @@ instance MEM 'BX where
     | sz <= 0 = pure stki
     | sp+sz+1 < ssz = pure stki
     | otherwise = do
-      stk' <- newArray (ssz+1280) BlackHole
+      stk' <- newArray (ssz+ext) BlackHole
       copyMutableArray stk' 0 stk 0 (sp+1)
       pure $ BS ap fp sp stk'
-    where ssz = sizeofMutableArray stk
+    where
+    ssz = sizeofMutableArray stk
+    ext | sz > 1280 = sz + 512
+        | otherwise = 1280
   {-# inline ensure #-}
 
   bump (BS ap fp sp stk) = pure $ BS ap fp (sp+1) stk

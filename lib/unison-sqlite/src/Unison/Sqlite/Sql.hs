@@ -8,4 +8,4 @@ import Unison.Prelude
 -- | A SQL snippet.
 newtype Sql
   = Sql Text
-  deriving newtype (IsString, Monoid, Semigroup, Show)
+  deriving newtype (IsString, Show)

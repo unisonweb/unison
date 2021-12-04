@@ -8,6 +8,7 @@ where
 import qualified Data.Text as Text
 import qualified Database.SQLite.Simple as Sqlite
 import Unison.Prelude
+import Unison.Sqlite.Exception (SqliteExceptionReason)
 import Unison.Sqlite.Sql
 import Unison.Sqlite.Transaction
 
@@ -46,11 +47,11 @@ journalModeToText = \case
 
 trySetJournalMode :: JournalMode -> Transaction ()
 trySetJournalMode mode0 = do
-  queryOneCheck_
+  queryOneRowCheck_
     (Sql ("PRAGMA journal_mode = " <> journalModeToText mode0))
     \(Sqlite.Only mode1s) ->
       let mode1 = unsafeJournalModeFromText mode1s
-       in if mode0 == mode1
+       in if mode0 /= mode1
             then
               Left
                 SetJournalModeException
@@ -64,3 +65,4 @@ data SetJournalModeException = SetJournalModeException
     couldntSetTo :: JournalMode
   }
   deriving stock (Show)
+  deriving anyclass (SqliteExceptionReason)

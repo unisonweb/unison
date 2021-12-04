@@ -235,9 +235,11 @@ test = scope "termprinter" $ tests
                  \  12 -> x\n\
                  \  13 -> y\n\
                  \  14 -> z"
+  -- These used to align, but alignment looked very bad when guards were long.
+  -- -- R.Ó.B.
   , tcBreaks 21 "match x with\n\
-                 \  12 | p x   -> x\n\
-                 \  13 | q x   -> y\n\
+                 \  12 | p x -> x\n\
+                 \  13 | q x -> y\n\
                  \  14 | r x y -> z"
   , tcBreaks 9 "match x with\n\
                 \  112 ->\n\

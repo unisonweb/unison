@@ -98,6 +98,7 @@ library:
     - mwc-random
     - NanoID
     - lucid
+    - semialign
     - servant
     - servant-docs
     - servant-openapi3
@@ -111,6 +112,7 @@ library:
     - terminal-size
     - text
     - text-short
+    - these
     - time
     - tls
     - transformers
