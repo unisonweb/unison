@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ec8bplo3a5 : add
-  2. #umob2h2nfc : builtins.mergeio
+  1. #hmq8ode0gs : add
+  2. #oqt1jsjk91 : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #nf6v4skcpk : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #ec8bplo3a5 : add
-  4. #umob2h2nfc : builtins.mergeio
+  1. #e5ctdurcur : add
+  2. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  3. #hmq8ode0gs : add
+  4. #oqt1jsjk91 : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #6u70tqt1nb : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #nf6v4skcpk : add
-  4. #umob2h2nfc : reset-root #umob2h2nfc
-  5. #ec8bplo3a5 : add
-  6. #umob2h2nfc : builtins.mergeio
+  1. #ql7sn0ps1v : add
+  2. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  3. #e5ctdurcur : add
+  4. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  5. #hmq8ode0gs : add
+  6. #oqt1jsjk91 : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #8cfe45q2aq : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #6u70tqt1nb : add
-  4. #umob2h2nfc : reset-root #umob2h2nfc
-  5. #nf6v4skcpk : add
-  6. #umob2h2nfc : reset-root #umob2h2nfc
-  7. #ec8bplo3a5 : add
-  8. #umob2h2nfc : builtins.mergeio
+  1. #q6qaupqk4a : add
+  2. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  3. #ql7sn0ps1v : add
+  4. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  5. #e5ctdurcur : add
+  6. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  7. #hmq8ode0gs : add
+  8. #oqt1jsjk91 : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #lrkr6m9s84 : add
-  2.  #umob2h2nfc : reset-root #umob2h2nfc
-  3.  #8cfe45q2aq : add
-  4.  #umob2h2nfc : reset-root #umob2h2nfc
-  5.  #6u70tqt1nb : add
-  6.  #umob2h2nfc : reset-root #umob2h2nfc
-  7.  #nf6v4skcpk : add
-  8.  #umob2h2nfc : reset-root #umob2h2nfc
-  9.  #ec8bplo3a5 : add
-  10. #umob2h2nfc : builtins.mergeio
+  1.  #75hol9q7nl : add
+  2.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  3.  #q6qaupqk4a : add
+  4.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  5.  #ql7sn0ps1v : add
+  6.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  7.  #e5ctdurcur : add
+  8.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  9.  #hmq8ode0gs : add
+  10. #oqt1jsjk91 : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #oqt1jsjk91 .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #oqt1jsjk91`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #4bomvvof2t : add
-  2.  #umob2h2nfc : reset-root #umob2h2nfc
-  3.  #lrkr6m9s84 : add
-  4.  #umob2h2nfc : reset-root #umob2h2nfc
-  5.  #8cfe45q2aq : add
-  6.  #umob2h2nfc : reset-root #umob2h2nfc
-  7.  #6u70tqt1nb : add
-  8.  #umob2h2nfc : reset-root #umob2h2nfc
-  9.  #nf6v4skcpk : add
-  10. #umob2h2nfc : reset-root #umob2h2nfc
-  11. #ec8bplo3a5 : add
-  12. #umob2h2nfc : builtins.mergeio
+  1.  #j2jte1lhh2 : add
+  2.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  3.  #75hol9q7nl : add
+  4.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  5.  #q6qaupqk4a : add
+  6.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  7.  #ql7sn0ps1v : add
+  8.  #oqt1jsjk91 : reset-root #oqt1jsjk91
+  9.  #e5ctdurcur : add
+  10. #oqt1jsjk91 : reset-root #oqt1jsjk91
+  11. #hmq8ode0gs : add
+  12. #oqt1jsjk91 : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -757,5 +757,85 @@ x = 2
 .> add
 
   ⊡ Ignored previously added definitions: docTest2
+
+```
+## Guard patterns on long lines
+
+```unison
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+foo = let
+  go x = 
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+  go (SomethingUnusuallyLong "one" "two" "three")
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural type SomethingUnusuallyLong
+    foo : 'Nat
+
+.> edit SomethingUnusuallyLong foo 
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    structural type SomethingUnusuallyLong
+      = SomethingUnusuallyLong Text Text Text
+    
+    foo : 'Nat
+    foo =
+      go x =
+        'match (a -> a) x with
+          SomethingUnusuallyLong
+            lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij 
+            | lijaefliejalfijelfj == aefilaeifhlei -> 0
+            | lijaefliejalfijelfj == liaehjffeafijij -> 1
+      go (SomethingUnusuallyLong "one" "two" "three")
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. structural type SomethingUnusuallyLong
+    2. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
+                                                     -> Text
+                                                     -> Text
+                                                     -> #l6si6n2hsl
+    3. foo                                           : 'Nat
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type SomethingUnusuallyLong
+      foo : 'Nat
+
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural type SomethingUnusuallyLong
+    foo : 'Nat
 
 ```
