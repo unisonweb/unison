@@ -106,7 +106,6 @@ library:
     - shellmet
     - stm
     - strings
-    - sqlite-simple
     - tagged
     - temporary
     - terminal-size
@@ -133,6 +132,7 @@ library:
     - unison-core
     - unison-core1
     - unison-prelude
+    - unison-sqlite
     - unison-util
     - unison-util-relation
     - open-browser

@@ -414,10 +414,10 @@ type1to2' convertRef =
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)
 
 -- | forces loading v1 branches even if they may not exist
-causalbranch2to1 :: Monad m => (String -> Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.Branch m)
+causalbranch2to1 :: Monad m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.Branch m)
 causalbranch2to1 lookupSize lookupCT = fmap V1.Branch.Branch . causalbranch2to1' lookupSize lookupCT
 
-causalbranch2to1' :: Monad m => (String -> Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
+causalbranch2to1' :: Monad m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Branch.Causal m -> m (V1.Branch.UnwrappedBranch m)
 causalbranch2to1' lookupSize lookupCT (V2.Causal hc _he (Map.toList -> parents) me) = do
   let currentHash = causalHash2to1 hc
   case parents of
@@ -501,27 +501,27 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
 patch2to1 ::
   forall m.
   Monad m =>
-  (String -> Hash -> m V1.Reference.Size) ->
+  (Hash -> m V1.Reference.Size) ->
   V2.Branch.Patch ->
   m V1.Patch
 patch2to1 lookupSize (V2.Branch.Patch v2termedits v2typeedits) = do
   termEdits <- Map.bitraverse referent2to1' (Set.traverse termedit2to1) v2termedits
-  typeEdits <- Map.bitraverse (reference2to1 (lookupSize "patch->old type")) (Set.traverse typeedit2to1) v2typeedits
+  typeEdits <- Map.bitraverse (reference2to1 lookupSize) (Set.traverse typeedit2to1) v2typeedits
   pure $ V1.Patch (Relation.fromMultimap termEdits) (Relation.fromMultimap typeEdits)
   where
     referent2to1' :: V2.Referent -> m V1.Reference
     referent2to1' = \case
-      V2.Referent.Ref r -> reference2to1 (lookupSize "patch->old term") r
+      V2.Referent.Ref r -> reference2to1 lookupSize r
       V2.Referent.Con {} -> error "found referent on LHS when converting patch2to1"
     termedit2to1 :: V2.TermEdit.TermEdit -> m V1.TermEdit.TermEdit
     termedit2to1 = \case
       V2.TermEdit.Replace (V2.Referent.Ref r) t ->
-        V1.TermEdit.Replace <$> reference2to1 (lookupSize "patch->new term") r <*> typing2to1 t
+        V1.TermEdit.Replace <$> reference2to1 lookupSize r <*> typing2to1 t
       V2.TermEdit.Replace {} -> error "found referent on RHS when converting patch2to1"
       V2.TermEdit.Deprecate -> pure V1.TermEdit.Deprecate
     typeedit2to1 :: V2.TypeEdit.TypeEdit -> m V1.TypeEdit.TypeEdit
     typeedit2to1 = \case
-      V2.TypeEdit.Replace r -> V1.TypeEdit.Replace <$> reference2to1 (lookupSize "patch->new type") r
+      V2.TypeEdit.Replace r -> V1.TypeEdit.Replace <$> reference2to1 lookupSize r
       V2.TypeEdit.Deprecate -> pure V1.TypeEdit.Deprecate
     typing2to1 t = pure $ case t of
       V2.TermEdit.Same -> V1.TermEdit.Same
@@ -560,13 +560,13 @@ namesegment1to2 (V1.NameSegment t) = V2.Branch.NameSegment t
 
 branch2to1 ::
   Monad m =>
-  (String -> Hash -> m V1.Reference.Size) ->
+  (Hash -> m V1.Reference.Size) ->
   (V2.Reference -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->
   m (V1.Branch.Branch0 m)
 branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
-  v1terms <- toStar (reference2to1 $ lookupSize "term metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 (lookupSize "term") lookupCT) id) v2terms
-  v1types <- toStar (reference2to1 $ lookupSize "type metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 (lookupSize "type")) id) v2types
+  v1terms <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 lookupSize lookupCT) id) v2terms
+  v1types <- toStar (reference2to1 lookupSize) =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 lookupSize) id) v2types
   v1patches <- Map.bitraverse (pure . namesegment2to1) (bitraverse (pure . edithash2to1) (fmap (patch2to1 lookupSize))) v2patches
   v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupSize lookupCT) v2children
   pure $ V1.Branch.branch0 v1terms v1types v1children v1patches

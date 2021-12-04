@@ -8,6 +8,7 @@ extra-source-files:
   - sql/*
 
 dependencies:
+  - Only
   - base
   - bytes
   - bytestring
@@ -18,15 +19,15 @@ dependencies:
   - monad-validate
   - mtl
   - safe
-  - sqlite-simple
   - text
   - transformers
-  - unliftio
-  - vector
   - unison-codebase
   - unison-codebase-sync
   - unison-core
   - unison-prelude
+  - unison-sqlite
   - unison-util
   - unison-util-serialization
   - unison-util-term
+  - unliftio
+  - vector

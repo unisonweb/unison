@@ -12,9 +12,6 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Codebase.Sqlite.Operations (
-  -- * data version
-  dataVersion,
-
   -- * branches
   saveRootBranch,
   loadMaybeRootCausalHash,
@@ -147,7 +144,6 @@ import qualified U.Codebase.Sqlite.Branch.Format as S.BranchFormat
 import qualified U.Codebase.Sqlite.Branch.Full as S
 import qualified U.Codebase.Sqlite.Branch.Full as S.Branch.Full
 import qualified U.Codebase.Sqlite.Branch.Full as S.MetadataSet
-import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.DbId as Db
 import qualified U.Codebase.Sqlite.Decl.Format as S.Decl
 import U.Codebase.Sqlite.LocalIds
@@ -199,6 +195,7 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified Unison.Util.Set as Set
 import qualified U.Util.Term as TermUtil
+import Unison.Sqlite (Connection)
 
 -- * Error handling
 
@@ -1077,9 +1074,6 @@ saveBranch (C.Causal hc he parents me) = do
 
 loadRootCausal :: EDB m => m (C.Branch.Causal m)
 loadRootCausal = liftQ Q.loadNamespaceRoot >>= loadCausalByCausalHashId
-
-dataVersion :: DB m => m Q.DataVersion
-dataVersion = Q.dataVersion
 
 loadCausalBranchByCausalHash :: EDB m => CausalHash -> m (Maybe (C.Branch.Causal m))
 loadCausalBranchByCausalHash hc = do

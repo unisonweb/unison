@@ -39,7 +39,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Traversable (for)
 import Data.Word (Word64)
-import qualified Database.SQLite.Simple as Sqlite
 import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
@@ -47,10 +46,7 @@ import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
-import U.Codebase.Sqlite.Connection (Connection (Connection))
-import qualified U.Codebase.Sqlite.Connection as Connection
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
-import qualified U.Codebase.Sqlite.JournalMode as JournalMode
+import U.Codebase.Sqlite.DbId (ObjectId, SchemaVersion (SchemaVersion))
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -60,9 +56,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
-import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
@@ -83,13 +77,14 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts(..))
+import Unison.Codebase.Type (PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
-import Unison.ConstructorReference (GConstructorReference(..))
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
 import Unison.Reference (Reference)
@@ -98,18 +93,22 @@ import qualified Unison.Referent as Referent
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.ShortHash as ShortHash
+import Unison.Sqlite (Connection)
+import qualified Unison.Sqlite as Sqlite
+import qualified Unison.Sqlite.Transaction as Sqlite.Transaction
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
+import UnliftIO (MonadIO, MonadUnliftIO, catchIO, finally, liftIO, throwIO)
 import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Exception (catch)
 import UnliftIO.STM
-import UnliftIO.Exception (catch, bracket)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -258,29 +257,6 @@ type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
--- | Create a new sqlite connection to the database at the given path.
---   the caller is responsible for calling the returned cleanup method once finished with the
---   connection.
---   The connection may not be used after it has been cleaned up.
---   Prefer using 'withConnection' if you can, as it guarantees the connection will be properly
---   closed for you.
-unsafeGetConnection ::
-  MonadIO m =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  m (IO (), Connection)
-unsafeGetConnection name root = do
-  let path = root </> codebasePath
-  Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
-  (Connection name path -> conn) <- liftIO $ Sqlite.open path
-  runReaderT Q.setFlags conn
-  pure (shutdownConnection conn, conn)
-  where
-    shutdownConnection :: MonadIO m => Connection -> m ()
-    shutdownConnection conn = do
-      Monad.when debug $ traceM $ "shutdown connection " ++ show conn
-      liftIO $ Sqlite.close (Connection.underlying conn)
-
 -- | Run an action with a connection to the codebase, closing the connection on completion or
 -- failure.
 withConnection ::
@@ -289,11 +265,10 @@ withConnection ::
   CodebasePath ->
   (Connection -> m a) ->
   m a
-withConnection name root act = do
-  bracket
-    (unsafeGetConnection name root)
-    (\(closeConn, _) -> liftIO closeConn)
-    (\(_, conn) -> act conn)
+withConnection name root act =
+  Sqlite.withConnection name root \conn -> do
+    liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
+    act conn
 
 sqliteCodebase ::
   (MonadUnliftIO m) =>
@@ -321,13 +296,11 @@ sqliteCodebase debugName root action = do
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              lift $ Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
+              lift $ Cv.term2to1 h1 getCycleLen getDeclType term2
 
-          getCycleLen :: EDB m => String -> Hash -> m Reference.Size
-          getCycleLen source = Cache.apply cycleLengthCache \h ->
-            (Ops.getCycleLen . Cv.hash1to2) h `Except.catchError` \case
-              e@(Ops.DatabaseIntegrityError (Q.NoObjectForPrimaryHashId {})) -> pure . error $ show e ++ " in " ++ source
-              e -> Except.throwError e
+          getCycleLen :: EDB m => Hash -> m Reference.Size
+          getCycleLen = Cache.apply cycleLengthCache \h ->
+            (Ops.getCycleLen . Cv.hash1to2) h
 
           getDeclType :: EDB m => C.Reference.Reference -> m CT.ConstructorType
           getDeclType = Cache.apply declTypeCache \case
@@ -349,13 +322,13 @@ sqliteCodebase debugName root action = do
           getTypeOfTermImpl (Reference.Id (Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h2 i)
-              Cv.ttype2to1 (getCycleLen "getTypeOfTermImpl") type2
+              Cv.ttype2to1 getCycleLen type2
 
           getTypeDeclaration :: MonadIO m => Reference.Id -> m (Maybe (Decl Symbol Ann))
           getTypeDeclaration (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               decl2 <- Ops.loadDeclByReference (C.Reference.Id h2 i)
-              Cv.decl2to1 h1 (getCycleLen "getTypeDeclaration") decl2
+              Cv.decl2to1 h1 getCycleLen decl2
 
           putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
           putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
@@ -518,14 +491,14 @@ sqliteCodebase debugName root action = do
                     tryFlushDeclBuffer h
                 )
 
-          getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
+          getRootBranch :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
           getRootBranch rootBranchCache =
             readTVarIO rootBranchCache >>= \case
               Nothing -> forceReload
               Just (v, b) -> do
                 -- check to see if root namespace hash has been externally modified
                 -- and reload it if necessary
-                v' <- runDB conn Ops.dataVersion
+                v' <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
                 if v == v' then pure (Right b) else do
                   newRootHash <- runDB conn Ops.loadRootCausalHash
                   if Branch.headHash b == Cv.branchHash2to1 newRootHash
@@ -540,7 +513,7 @@ sqliteCodebase debugName root action = do
                     . flip runReaderT conn
                     . fmap (Branch.transform (runDB conn))
                     $ Cv.causalbranch2to1 getCycleLen getDeclType =<< Ops.loadRootCausal
-                v <- runDB conn Ops.dataVersion
+                v <- Sqlite.Transaction.runTransaction conn Sqlite.getDataVersion
                 for_ b (atomically . writeTVar rootBranchCache . Just . (v,))
                 pure b
               err :: Ops.Error -> Codebase1.GetRootBranchError
@@ -554,7 +527,7 @@ sqliteCodebase debugName root action = do
                   Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
                 e -> error $ show e
 
-          putRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> Branch m -> m ()
+          putRootBranch :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, Branch m)) -> Branch m -> m ()
           putRootBranch rootBranchCache branch1 = do
             -- todo: check to see if root namespace hash has been externally modified
             -- and do something (merge?) it if necessary. But for now, we just overwrite it.
@@ -565,7 +538,7 @@ sqliteCodebase debugName root action = do
               $ Branch.transform (lift . lift) branch1
             atomically $ modifyTVar rootBranchCache (fmap . second $ const branch1)
 
-          rootBranchUpdates :: MonadIO m => TVar (Maybe (Q.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
+          rootBranchUpdates :: MonadIO m => TVar (Maybe (Sqlite.DataVersion, a)) -> m (IO (), IO (Set Branch.Hash))
           rootBranchUpdates _rootBranchCache = do
             -- branchHeadChanges      <- TQueue.newIO
             -- (cancelWatch, watcher) <- Watch.watchDirectory' (v2dir root)
@@ -638,7 +611,7 @@ sqliteCodebase debugName root action = do
           dependentsImpl :: MonadIO m => Reference -> m (Set Reference.Id)
           dependentsImpl r =
             runDB conn $
-              Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
+              Set.traverse (Cv.referenceid2to1 getCycleLen)
                 =<< Ops.dependents (Cv.reference1to2 r)
 
           syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
@@ -658,14 +631,14 @@ sqliteCodebase debugName root action = do
           watches w =
             runDB conn $
               Ops.listWatches (Cv.watchKind1to2 w)
-                >>= traverse (Cv.referenceid2to1 (getCycleLen "watches"))
+                >>= traverse (Cv.referenceid2to1 getCycleLen)
 
           getWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> m (Maybe (Term Symbol Ann))
           getWatch k r@(Reference.Id h _i _n)
             | elem k standardWatchKinds =
               runDB' conn $
                 Ops.loadWatch (Cv.watchKind1to2 k) (Cv.referenceid1to2 r)
-                  >>= Cv.term2to1 h (getCycleLen "getWatch") getDeclType
+                  >>= Cv.term2to1 h getCycleLen getDeclType
           getWatch _unknownKind _ = pure Nothing
 
           standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
@@ -713,13 +686,13 @@ sqliteCodebase debugName root action = do
           termsOfTypeImpl r =
             runDB conn $
               Ops.termsHavingType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsOfTypeImpl") getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
 
           termsMentioningTypeImpl :: MonadIO m => Reference -> m (Set Referent.Id)
           termsMentioningTypeImpl r =
             runDB conn $
               Ops.termsMentioningType (Cv.reference1to2 r)
-                >>= Set.traverse (Cv.referentid2to1 (getCycleLen "termsMentioningTypeImpl") getDeclType)
+                >>= Set.traverse (Cv.referentid2to1 getCycleLen getDeclType)
 
           hashLength :: Applicative m => m Int
           hashLength = pure 10
@@ -736,7 +709,7 @@ sqliteCodebase debugName root action = do
                   >>= traverse (C.Reference.idH Ops.loadHashByObjectId)
                   >>= pure . Set.fromList
 
-              Set.fromList <$> traverse (Cv.referenceid2to1 (getCycleLen "defnReferencesByPrefix")) (Set.toList refs)
+              Set.fromList <$> traverse (Cv.referenceid2to1 getCycleLen) (Set.toList refs)
 
           termReferencesByPrefix :: MonadIO m => ShortHash -> m (Set Reference.Id)
           termReferencesByPrefix = defnReferencesByPrefix OT.TermComponent
@@ -749,7 +722,7 @@ sqliteCodebase debugName root action = do
           referentsByPrefix (SH.ShortHash prefix (fmap Cv.shortHashSuffix1to2 -> cycle) cid) = runDB conn do
             termReferents <-
               Ops.termReferentsByPrefix prefix cycle
-                >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
+                >>= traverse (Cv.referentid2to1 getCycleLen getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
                   [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid)) (Cv.decltype2to1 ct)
@@ -1055,11 +1028,10 @@ viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
   --
   -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps update
   -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
-  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
-    case Sqlite.sqlError sqlError of
-      Sqlite.ErrorCan'tOpen -> throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
-      -- Unexpected error from sqlite
-      _ -> throwIO sqlError
+  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \exception ->
+    if Sqlite.isCantOpenException exception
+      then throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
+      else throwIO exception
 
   result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath \codebase -> do
     -- try to load the requested branch from it
@@ -1148,7 +1120,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
           Q.release "push"
           pure $ Right ()
 
-      Q.setJournalMode JournalMode.DELETE
+      liftIO (Sqlite.trySetJournalMode destConn Sqlite.JournalMode'DELETE)
       pure result
   liftIO do
     void $ push remotePath repo

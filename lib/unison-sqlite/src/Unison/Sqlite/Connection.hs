@@ -93,26 +93,25 @@ withConnection ::
   (Connection -> m a) ->
   m a
 withConnection name file =
-  bracket (openConnection name file) closeConnection
+  bracket (liftIO (openConnection name file)) (liftIO . closeConnection)
 
 -- Open a connection to a SQLite database.
 openConnection ::
-  MonadIO m =>
   -- Connection name, for debugging.
   String ->
   -- Path to SQLite database file.
   FilePath ->
-  m Connection
+  IO Connection
 openConnection name file = do
-  conn0 <- liftIO (Sqlite.open file)
+  conn0 <- Sqlite.open file
   let conn = Connection {conn = conn0, file, name}
-  liftIO (execute_ conn "PRAGMA foreign_keys = ON")
+  execute_ conn "PRAGMA foreign_keys = ON"
   pure conn
 
 -- Close a connection opened with 'openConnection'.
-closeConnection :: MonadIO m => Connection -> m ()
+closeConnection :: Connection -> IO ()
 closeConnection (Connection _ _ conn) =
-  liftIO (Sqlite.close conn)
+  Sqlite.close conn
 
 -- Without results, with parameters
 

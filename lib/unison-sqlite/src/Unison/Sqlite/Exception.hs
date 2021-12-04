@@ -5,10 +5,12 @@ module Unison.Sqlite.Exception
     SomeSqliteExceptionReason (..),
     SqliteExceptionInfo (..),
     throwSqliteException,
+    isCantOpenException,
   )
 where
 
 import Control.Concurrent (ThreadId, myThreadId)
+import Data.Typeable (cast)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
@@ -73,3 +75,9 @@ data SqliteException = SqliteException
   }
   deriving stock (Show)
   deriving anyclass (Exception)
+
+isCantOpenException :: SqliteException -> Bool
+isCantOpenException SqliteException {exception = SomeSqliteExceptionReason reason} =
+  case cast reason of
+    Just (Sqlite.SQLError Sqlite.ErrorCan'tOpen _ _) -> True
+    _ -> False

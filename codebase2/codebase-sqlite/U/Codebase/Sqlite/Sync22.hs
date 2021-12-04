@@ -25,7 +25,6 @@ import Data.List.Extra (nubOrd)
 import qualified Data.Set as Set
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
-import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
@@ -42,6 +41,7 @@ import qualified U.Codebase.WatchKind as WK
 import U.Util.Cache (Cache)
 import qualified U.Util.Cache as Cache
 import Unison.Prelude
+import Unison.Sqlite (Connection)
 
 data Entity
   = O ObjectId

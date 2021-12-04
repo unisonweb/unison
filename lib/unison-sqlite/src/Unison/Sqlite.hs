@@ -82,23 +82,44 @@ module Unison.Sqlite
 
     -- * Exceptions
     SqliteException (..),
+    isCantOpenException,
     SqliteExceptionReason,
     SomeSqliteExceptionReason (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
     SetJournalModeException (..),
+
+    -- * Re-exports
+    Sqlite.Simple.field,
+    (Sqlite.Simple.:.) (..),
+    Sqlite.Simple.FromField (fromField),
+    Sqlite.Simple.FromRow (fromRow),
+    Sqlite.Simple.RowParser,
+    Sqlite.Simple.SQLData (..),
+    Sqlite.Simple.ToField (toField),
+    Sqlite.Simple.ToRow (toRow),
   )
 where
 
+import qualified Database.SQLite.Simple as Sqlite.Simple
+import qualified Database.SQLite.Simple.FromField as Sqlite.Simple
+import qualified Database.SQLite.Simple.FromRow as Sqlite.Simple
+import qualified Database.SQLite.Simple.ToField as Sqlite.Simple
 import Unison.Sqlite.Connection
   ( Connection,
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
     withConnection,
+    withStatement,
   )
 import Unison.Sqlite.DB
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
-import Unison.Sqlite.Exception (SomeSqliteExceptionReason (..), SqliteException (..), SqliteExceptionReason)
+import Unison.Sqlite.Exception
+  ( SomeSqliteExceptionReason (..),
+    SqliteException (..),
+    SqliteExceptionReason,
+    isCantOpenException,
+  )
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql (..))
 

@@ -10,8 +10,7 @@ module U.Codebase.Sqlite.DbId where
 
 import Data.Bits (Bits)
 import Data.Word (Word64)
-import Database.SQLite.Simple.FromField
-import Database.SQLite.Simple.ToField
+import Unison.Sqlite (FromField, ToField)
 
 newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64

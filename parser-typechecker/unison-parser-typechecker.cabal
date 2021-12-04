@@ -260,7 +260,6 @@ library
     , servant-openapi3
     , servant-server
     , shellmet
-    , sqlite-simple
     , stm
     , strings
     , tagged
@@ -279,6 +278,7 @@ library
     , unison-core
     , unison-core1
     , unison-prelude
+    , unison-sqlite
     , unison-util
     , unison-util-relation
     , unliftio

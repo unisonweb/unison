@@ -52,7 +52,6 @@ module Unison.Sqlite.DB
 
     -- * Low-level operations
     withSavepoint,
-    withStatement,
   )
 where
 
@@ -265,9 +264,3 @@ withSavepoint name action = do
   conn <- ask
   withRunInIO \unlift ->
     liftIO (Connection.withSavepoint conn name (unlift . action . liftIO))
-
-withStatement :: (DB m, MonadUnliftIO m, Sqlite.FromRow a, Sqlite.ToRow b) => Sql -> b -> (m (Maybe a) -> m c) -> m c
-withStatement s params callback = do
-  conn <- ask
-  withRunInIO \unlift ->
-    Connection.withStatement conn s params (unlift . callback . liftIO)
