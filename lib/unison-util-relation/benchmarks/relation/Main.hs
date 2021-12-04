@@ -18,6 +18,12 @@ main =
             bench "intersection" $ nf (uncurry R.intersection) rs,
             bench "union" $ nf (uncurry R.union) rs
           ],
+      env (pure (R.fromList ((,) <$> [(1 :: Int) .. 1000] <*> [(1 :: Int) .. 1000]))) \r ->
+        bgroup
+          "replaceDom"
+          [ bench "old implementation" (nf (oldReplaceDom 1 2) r),
+            bench "new implementation" (nf (R.replaceDom 2 2) r)
+          ],
       env (genRelation @Char @Char 10000 2) \r ->
         env (genSet @Char 100) \s ->
           bgroup
@@ -29,6 +35,10 @@ main =
                 ]
             ]
     ]
+
+oldReplaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
+oldReplaceDom a a' r =
+  foldl' (\r b -> R.insert a' b $ R.delete a b r) r (R.lookupDom a r)
 
 oldSubtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 oldSubtractDom s r =
