@@ -56,6 +56,8 @@ module Unison.Sqlite.Connection
 
     -- * Exceptions
     SqliteException (..),
+    pattern SqliteBusyException,
+    isSqliteBusyException,
     SomeShowTypeable (..),
     ExpectedAtMostOneRowException (..),
     ExpectedExactlyOneRowException (..),
@@ -63,6 +65,7 @@ module Unison.Sqlite.Connection
 where
 
 import Control.Concurrent (ThreadId, myThreadId)
+import Data.Typeable (cast)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite3.Direct as Sqlite (Database (..))
@@ -479,3 +482,12 @@ data SqliteException = SqliteException
   }
   deriving stock (Show)
   deriving anyclass (Exception)
+
+isSqliteBusyException :: SqliteException -> Bool
+isSqliteBusyException SqliteException {exception = SomeShowTypeable exception} =
+  case cast exception of
+    Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
+    _ -> False
+
+pattern SqliteBusyException :: SqliteException
+pattern SqliteBusyException <- (isSqliteBusyException -> True)
