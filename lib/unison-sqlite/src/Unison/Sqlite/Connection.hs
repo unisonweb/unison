@@ -103,7 +103,7 @@ openConnection ::
   FilePath ->
   IO Connection
 openConnection name file = do
-  conn0 <- Sqlite.open file
+  conn0 <- Sqlite.open file `catch` rethrowAsSqliteConnectException name file
   let conn = Connection {conn = conn0, file, name}
   execute_ conn "PRAGMA foreign_keys = ON"
   pure conn
@@ -111,6 +111,10 @@ openConnection name file = do
 -- Close a connection opened with 'openConnection'.
 closeConnection :: Connection -> IO ()
 closeConnection (Connection _ _ conn) =
+  -- FIXME if this throws an exception, it won't be under `SomeSqliteException`
+  -- Possible fixes:
+  --   1. Add close exception to the hierarchy, e.g. `SqliteCloseException`
+  --   2. Always ignore exceptions thrown by `close` (Mitchell prefers this one)
   Sqlite.close conn
 
 -- Without results, with parameters
@@ -118,8 +122,8 @@ closeConnection (Connection _ _ conn) =
 execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
 execute conn@(Connection _ _ conn0) s params =
   Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
@@ -129,8 +133,8 @@ execute conn@(Connection _ _ conn0) s params =
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
 executeMany conn@(Connection _ _ conn0) s params =
   Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
@@ -142,8 +146,8 @@ executeMany conn@(Connection _ _ conn0) s params =
 execute_ :: Connection -> Sql -> IO ()
 execute_ conn@(Connection _ _ conn0) s =
   Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Nothing,
@@ -155,8 +159,8 @@ execute_ conn@(Connection _ _ conn0) s =
 queryListRow :: (Sqlite.FromRow b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListRow conn@(Connection _ _ conn0) s params =
   Sqlite.query conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
@@ -211,8 +215,8 @@ gqueryListCheck conn s params check = do
   xs <- queryListRow conn s params
   case check xs of
     Left exception ->
-      throwSqliteException
-        SqliteExceptionInfo
+      throwSqliteQueryException
+        SqliteQueryExceptionInfo
           { connection = conn,
             exception,
             params = Just params,
@@ -283,8 +287,8 @@ queryOneColCheck conn s params check =
 queryListRow_ :: Sqlite.FromRow a => Connection -> Sql -> IO [a]
 queryListRow_ conn@(Connection _ _ conn0) s =
   Sqlite.query_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Nothing,
@@ -327,8 +331,8 @@ gqueryListCheck_ conn s check = do
   xs <- queryListRow_ conn s
   case check xs of
     Left exception ->
-      throwSqliteException
-        SqliteExceptionInfo
+      throwSqliteQueryException
+        SqliteQueryExceptionInfo
           { connection = conn,
             exception,
             params = Nothing,
@@ -346,7 +350,12 @@ queryListColCheck_ ::
 queryListColCheck_ conn s check =
   queryListRowCheck_ conn s (coerce @([a] -> Either e r) @([Sqlite.Only a] -> Either e r) check)
 
-queryMaybeRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection -> Sql -> (Maybe a -> Either e r) -> IO r
+queryMaybeRowCheck_ ::
+  (Sqlite.FromRow a, SqliteExceptionReason e) =>
+  Connection ->
+  Sql ->
+  (Maybe a -> Either e r) ->
+  IO r
 queryMaybeRowCheck_ conn s check =
   gqueryListCheck_ conn s \case
     [] -> mapLeft SomeSqliteExceptionReason (check Nothing)
@@ -399,8 +408,8 @@ withSavepoint conn name action = do
 withStatement :: (Sqlite.FromRow a, Sqlite.ToRow b) => Connection -> Sql -> b -> (IO (Maybe a) -> IO c) -> IO c
 withStatement conn@(Connection _ _ conn0) s params callback =
   thing `catch` \(exception :: Sqlite.SQLError) ->
-    throwSqliteException
-      SqliteExceptionInfo
+    throwSqliteQueryException
+      SqliteQueryExceptionInfo
         { connection = conn,
           exception = SomeSqliteExceptionReason exception,
           params = Just params,
