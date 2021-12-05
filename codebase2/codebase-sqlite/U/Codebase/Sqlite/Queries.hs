@@ -226,15 +226,15 @@ loadCausalByCausalHash ch = runMaybeT do
   bhId <- MaybeT $ loadMaybeCausalValueHashId hId
   pure (CausalHashId hId, bhId)
 
-expectHashIdByHash :: EDB m => Hash -> m HashId
+expectHashIdByHash :: DB m => Hash -> m HashId
 expectHashIdByHash = expectHashId . Hash.toBase32Hex
 
 -- FIXME rename to expectHashHashById
-loadHashHashById :: EDB m => HashId -> m Hash
+loadHashHashById :: DB m => HashId -> m Hash
 loadHashHashById h = Hash.fromBase32Hex <$> loadHashById h
 
 -- FIXME rename to expectHashById
-loadHashById :: EDB m => HashId -> m Base32Hex
+loadHashById :: DB m => HashId -> m Base32Hex
 loadHashById h = queryOneCol sql (Only h)
   where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
@@ -253,7 +253,7 @@ loadTextSql =
   [here| SELECT id FROM text WHERE text = ? |]
 
 -- FIXME rename to expectTextById
-loadTextById :: EDB m => TextId -> m Text
+loadTextById :: DB m => TextId -> m Text
 loadTextById h = queryOneCol sql (Only h)
   where sql = [here| SELECT text FROM text WHERE id = ? |]
 
@@ -278,7 +278,7 @@ saveObject h t blob = do
   |]
 
 -- FIXME rename to expectObjectById
-loadObjectById :: EDB m => ObjectId -> m ByteString
+loadObjectById :: DB m => ObjectId -> m ByteString
 loadObjectById id | debugQuery && trace ("loadObjectById " ++ show id) False = undefined
 loadObjectById oId = do
  result <- queryOneCol sql (Only oId)
@@ -289,14 +289,14 @@ loadObjectById oId = do
 |]
 
 -- FIXME rename to expectObjectWithTypeById
-loadObjectWithTypeById :: EDB m => ObjectId -> m (ObjectType, ByteString)
+loadObjectWithTypeById :: DB m => ObjectId -> m (ObjectType, ByteString)
 loadObjectWithTypeById oId = queryOneRow sql (Only oId)
   where sql = [here|
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
 
 -- | FIXME rename to expectObjectWithHashIdAndTypeById
-loadObjectWithHashIdAndTypeById :: EDB m => ObjectId -> m (HashId, ObjectType, ByteString)
+loadObjectWithHashIdAndTypeById :: DB m => ObjectId -> m (HashId, ObjectType, ByteString)
 loadObjectWithHashIdAndTypeById oId = queryOneRow sql (Only oId)
   where sql = [here|
     SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
@@ -314,7 +314,7 @@ maybeObjectIdForPrimaryHashIdSql :: Sql
 maybeObjectIdForPrimaryHashIdSql =
   [here| SELECT id FROM object WHERE primary_hash_id = ? |]
 
-expectObjectIdForAnyHashId :: EDB m => HashId -> m ObjectId
+expectObjectIdForAnyHashId :: DB m => HashId -> m ObjectId
 expectObjectIdForAnyHashId h =
   queryOneCol maybeObjectIdForAnyHashIdSql (Only h)
 
@@ -326,7 +326,7 @@ maybeObjectIdForAnyHashIdSql =
   [here| SELECT object_id FROM hash_object WHERE hash_id = ? |]
 
 -- |All objects have corresponding hashes.
-loadPrimaryHashByObjectId :: EDB m => ObjectId -> m Base32Hex
+loadPrimaryHashByObjectId :: DB m => ObjectId -> m Base32Hex
 loadPrimaryHashByObjectId oId = queryOneCol sql (Only oId)
  where sql = [here|
   SELECT hash.base32
@@ -380,11 +380,11 @@ saveCausal self value = execute sql (self, value) where sql = [here|
 --   |]
 
 -- FIXME rename to expectCausalValueHashId
-loadCausalValueHashId :: EDB m => CausalHashId -> m BranchHashId
+loadCausalValueHashId :: DB m => CausalHashId -> m BranchHashId
 loadCausalValueHashId (CausalHashId id) =
   queryOneCol loadMaybeCausalValueHashIdSql (Only id)
 
-loadCausalHash :: EDB m => CausalHashId -> m CausalHash
+loadCausalHash :: DB m => CausalHashId -> m CausalHash
 loadCausalHash (CausalHashId id) = CausalHash <$> loadHashHashById id
 
 loadMaybeCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
@@ -400,7 +400,7 @@ isCausalHash = queryOneCol sql . Only where sql = [here|
     SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
   |]
 
-loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
+loadBranchObjectIdByCausalHashId :: DB m => CausalHashId -> m (Maybe BranchObjectId)
 loadBranchObjectIdByCausalHashId id = queryMaybeCol sql (Only id) where sql = [here|
   SELECT object_id FROM hash_object
   INNER JOIN causal ON hash_id = causal.value_hash_id
@@ -425,7 +425,7 @@ loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
   Nothing -> throwError NoNamespaceRoot
   Just id -> pure id
 
-loadMaybeNamespaceRoot :: EDB m => m (Maybe CausalHashId)
+loadMaybeNamespaceRoot :: DB m => m (Maybe CausalHashId)
 loadMaybeNamespaceRoot =
   queryMaybeCol_ "SELECT causal_id FROM namespace_root"
 
@@ -510,7 +510,7 @@ getReferentsByType r = queryListRow sql r where sql = [here|
     AND type_reference_component_index IS ?
 |]
 
-getTypeReferenceForReferent :: EDB m => Referent.Id -> m (Reference' TextId HashId)
+getTypeReferenceForReferent :: DB m => Referent.Id -> m (Reference' TextId HashId)
 getTypeReferenceForReferent r =
   queryOneRow sql r
   where sql = [here|
@@ -525,7 +525,7 @@ getTypeReferenceForReferent r =
 |]
 
 -- todo: error if no results
-getTypeReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
+getTypeReferencesForComponent :: DB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
 getTypeReferencesForComponent oId =
   queryListRow sql (Only oId) <&> map fixupTypeIndexRow where sql = [here|
     SELECT
@@ -565,7 +565,7 @@ getReferentsByTypeMention r = queryListRow sql r where sql = [here|
 |]
 
 -- todo: error if no results
-getTypeMentionsReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
+getTypeMentionsReferencesForComponent :: DB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
 getTypeMentionsReferencesForComponent r =
   queryListRow sql (Only r) <&> map fixupTypeIndexRow where sql = [here|
     SELECT
