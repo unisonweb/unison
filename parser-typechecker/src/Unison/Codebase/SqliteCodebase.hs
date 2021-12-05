@@ -266,7 +266,7 @@ withConnection ::
   (Connection -> m a) ->
   m a
 withConnection name root act =
-  Sqlite.withConnection name root \conn -> do
+  Sqlite.withConnection name (root </> codebasePath) \conn -> do
     liftIO (Sqlite.trySetJournalMode conn Sqlite.JournalMode'WAL)
     act conn
 
