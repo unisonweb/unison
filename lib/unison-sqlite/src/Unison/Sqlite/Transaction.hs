@@ -80,12 +80,13 @@ runTransaction conn (Transaction f) = liftIO do
           rollback
           case exception of
             SqliteBusyException ->
-              (`fix` 100_000) \again microseconds -> do
-                restore (threadDelay microseconds)
-                try (Connection.execute_ conn "BEGIN IMMEDIATE") >>= \case
-                  Left SqliteBusyException -> again (microseconds * 2)
-                  Left exception -> throwIO exception
-                  Right () -> restore (f conn) `onException` ignoringExceptions rollback
+              let loop microseconds = do
+                    restore (threadDelay microseconds)
+                    try (Connection.execute_ conn "BEGIN IMMEDIATE") >>= \case
+                      Left SqliteBusyException -> loop (microseconds * 2)
+                      Left exception -> throwIO exception
+                      Right () -> restore (f conn) `onException` ignoringExceptions rollback
+              in loop 100_000
             _ -> throwIO exception
         Right result -> pure result
     Connection.execute_ conn "COMMIT"
