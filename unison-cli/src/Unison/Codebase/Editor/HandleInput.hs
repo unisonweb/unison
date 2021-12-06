@@ -848,7 +848,7 @@ loop = do
                   let path = resolveToAbsolute path'
                   LoopState.currentPathStack %= Nel.cons path
                   branch' <- getAt path
-                  when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+                  when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
             UpI ->
               use LoopState.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
                 Nothing -> pure ()
