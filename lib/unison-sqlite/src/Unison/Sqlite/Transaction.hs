@@ -53,7 +53,6 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
-import Data.Function (fix)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import Unison.Prelude
