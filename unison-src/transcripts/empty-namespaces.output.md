@@ -46,3 +46,30 @@ The history of the namespace should still exist if requested explicitly.
   □ #hkrqt3tm05 (start of history)
 
 ```
+Merging an empty namespace should still copy its history if it has some.
+
+```ucm
+  ☝️  The namespace .empty is empty.
+
+.empty> history
+
+  ☝️  The namespace .empty is empty.
+
+.empty> merge .mynamespace
+
+  Nothing changed as a result of the merge.
+
+.empty> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #qjc20aua9h
+  
+    - Deletes:
+    
+      x
+  
+  □ #hkrqt3tm05 (start of history)
+
+```
