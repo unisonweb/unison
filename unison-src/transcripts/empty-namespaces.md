@@ -1,36 +1,28 @@
 # Empty namespace behaviours
 
+## Operations on empty namespaces
+
+Add and then delete a term to add some history to a deleted namespace.
+
 ```unison:hide
-mynamespace.x = 1
+deleted.x = 1
+stuff.thing = 2
 ```
 
 ```ucm:hide
 .> add
-.> delete.namespace mynamespace
+.> delete.namespace .deleted
 ```
 
-The deleted namespace shouldn't appear in `ls` output.
-```ucm:error
-.> ls
-```
-```ucm:error
-.> ls.verbose
-```
-```ucm:error
-.> find mynamespace
-```
-
-
-The history of the namespace should still exist if requested explicitly.
+I should be allowed to fork over a deleted namespace
 
 ```ucm
-.> history mynamespace
+.> fork stuff deleted
 ```
 
-Merging an empty namespace should still copy its history if it has some.
+The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
 ```ucm
-.empty> history
-.empty> merge .mynamespace
-.empty> history
+.> history stuff
+.> history deleted
 ```
