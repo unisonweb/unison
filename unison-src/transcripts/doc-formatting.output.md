@@ -497,6 +497,7 @@ But note it's not obvious how display should best be handling this.  At the mome
 .> display test2
 
   Take a look at this:
+  foo : Nat -> Nat
   foo n =
     use Nat +
     [: do the thing :]

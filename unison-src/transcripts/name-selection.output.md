@@ -80,19 +80,19 @@ d = c + 10
   
   New name conflicts:
   
-    1. c#0ja1qfpej6 : Nat
+    1. c#0t5t522gs3 : Nat
        ↓
-    2. ┌ c#0ja1qfpej6 : Nat
-    3. └ c#jk19sm5bf8 : Nat
+    2. ┌ c#0t5t522gs3 : Nat
+    3. └ c#rrsqv1ogaq : Nat
     
-    4. d#gk1aqtfmh6 : Nat
+    4. d#libk4oh073 : Nat
        ↓
-    5. ┌ d#gk1aqtfmh6 : Nat
-    6. └ d#qk9ub6bngd : Nat
+    5. ┌ d#libk4oh073 : Nat
+    6. └ d#qc2aihi6pd : Nat
   
   Added definitions:
   
-    7. ┌ c#jk19sm5bf8         : Nat
+    7. ┌ c#rrsqv1ogaq         : Nat
     8. └ aaaa.tooManySegments : Nat
   
   Tip: You can use `todo` to see if this generated any work to
@@ -118,10 +118,10 @@ At this point, `a3` is conflicted for symbols `c` and `d`, but the original `a2`
   a2.d : Nat
   a2.d = a2.c + 10
   
-  a3.c#0ja1qfpej6 : Nat
-  a3.c#0ja1qfpej6 = 2
+  a3.c#0t5t522gs3 : Nat
+  a3.c#0t5t522gs3 = 2
   
-  a3.d#gk1aqtfmh6 : Nat
-  a3.d#gk1aqtfmh6 = c#0ja1qfpej6 + 10
+  a3.d#libk4oh073 : Nat
+  a3.d#libk4oh073 = c#0t5t522gs3 + 10
 
 ```

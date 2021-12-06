@@ -63,7 +63,7 @@ doc = cases
       demure    : [Nat] -> ()
       doc       : Nat -> ()
       dopey     : Char -> ()
-      grumpy    : p4kl4dn7b41 -> ()
+      grumpy    : q5g5surm1d1 -> ()
       happy     : Boolean -> ()
       mouthy    : [t] -> ()
       pokey     : [t] -> ()
@@ -85,7 +85,7 @@ doc = cases
     demure    : [Nat] -> ()
     doc       : Nat -> ()
     dopey     : Char -> ()
-    grumpy    : p4kl4dn7b41 -> ()
+    grumpy    : q5g5surm1d1 -> ()
     happy     : Boolean -> ()
     mouthy    : [t] -> ()
     pokey     : [t] -> ()
@@ -101,7 +101,7 @@ doc = cases
 
 .> view grumpy
 
-  grumpy : p4kl4dn7b41 -> ()
+  grumpy : q5g5surm1d1 -> ()
   grumpy = cases d -> ()
 
 .> view happy

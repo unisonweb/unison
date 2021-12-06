@@ -249,7 +249,6 @@ data Error
   = DecodeError DecodeError ByteString ErrString
   | DatabaseIntegrityError Q.Integrity
   | UnknownDependency H.Hash
-  | UnknownText Text
   | ExpectedBranch CausalHash BranchHash
   | ExpectedBranch' Db.CausalHashId
   | LegacyUnknownCycleLen H.Hash
@@ -269,12 +268,6 @@ liftQ a =
     Right a -> pure a
 
 -- * Database lookups
-
-lookupTextId :: EDB m => Text -> m Db.TextId
-lookupTextId t =
-  Q.loadText t >>= \case
-    Just textId -> pure textId
-    Nothing -> throwError $ UnknownText t
 
 loadTextById :: EDB m => Db.TextId -> m Text
 loadTextById = liftQ . Q.loadTextById
@@ -335,8 +328,11 @@ loadMaybeRootCausalHash =
 
 -- ** read existing references
 
+-- |Assumes that a derived reference would already exist in the database
+-- (by virtue of dependencies being stored before dependents), but does
+-- not assume a builtin reference would.
 c2sReference :: EDB m => C.Reference -> m S.Reference
-c2sReference = bitraverse lookupTextId primaryHashToExistingObjectId
+c2sReference = bitraverse Q.saveText primaryHashToExistingObjectId
 
 s2cReference :: EDB m => S.Reference -> m C.Reference
 s2cReference = bitraverse loadTextById loadHashByObjectId

@@ -32,15 +32,15 @@ x = 4
 
 .> links y
 
-  1. #kea5380m2n : #ffb7g9cull
+  1. #kvjtpqi06m : #pi9o52ongq
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
 
 .> view 1
 
-  #kea5380m2n : #ffb7g9cull
-  #kea5380m2n = #ffb7g9cull#0
+  #kvjtpqi06m : #pi9o52ongq
+  #kvjtpqi06m = #pi9o52ongq#0
 
 ```
 Well, it's hard to tell from those hashes, but those are right.  We can confirm

@@ -76,7 +76,7 @@ I should be able to view an affected dependency by number
   dependents.usage1 : Nat
   dependents.usage1 =
     use Nat +
-    #jk19sm5bf8 + #0ja1qfpej6
+    #rrsqv1ogaq + #0t5t522gs3
 
 ```
 Deleting the root namespace should require confirmation if not forced.
