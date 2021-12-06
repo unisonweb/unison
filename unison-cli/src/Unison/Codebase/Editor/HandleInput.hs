@@ -1684,7 +1684,7 @@ loop = do
                   Input.PullWithoutHistory -> do
                     didUpdate <- updateAtM
                                    destAbs
-                                   (\destBranch -> pure $ destBranch `Branch.consSnapshot` remoteBranch)
+                                   (\destBranch -> pure $ destBranch `Branch.consBranchSnapshot` remoteBranch)
                     if didUpdate
                        then respond $ PullSuccessful ns path
                        else respond unchangedMsg
