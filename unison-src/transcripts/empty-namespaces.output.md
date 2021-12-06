@@ -4,22 +4,28 @@
 mynamespace.x = 1
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      mynamespace.x : Nat
-
-```
 The deleted namespace shouldn't appear in `ls` output.
 ```ucm
 .> ls
 
-  1. builtin/     (381 definitions)
-  2. mynamespace/ (0 definitions)
+  nothing to show
+
+```
+```ucm
+.> ls.verbose
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
+
+```
+```ucm
+.> find mynamespace
+
+  😶
+  
+  No results. Check your spelling, or try using tab completion
+  to supply command arguments.
 
 ```

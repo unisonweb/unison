@@ -1,10 +1,6 @@
 # Empty namespace behaviours
 
-```ucm:hide
-.> builtins.merge
-```
-
-```unison
+```unison:hide
 mynamespace.x = 1
 ```
 
@@ -14,6 +10,12 @@ mynamespace.x = 1
 ```
 
 The deleted namespace shouldn't appear in `ls` output.
-```ucm
+```ucm:error
 .> ls
+```
+```ucm:error
+.> ls.verbose
+```
+```ucm:error
+.> find mynamespace
 ```
