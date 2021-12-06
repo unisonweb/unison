@@ -1,10 +1,10 @@
 -- | Sqlite exception utils
 module Unison.Sqlite.Exception
-  ( SqliteException (..),
+  ( SqliteQueryException (..),
     SqliteExceptionReason,
     SomeSqliteExceptionReason (..),
-    SqliteExceptionInfo (..),
-    throwSqliteException,
+    SqliteQueryExceptionInfo (..),
+    throwSqliteQueryException,
   )
 where
 
@@ -15,18 +15,18 @@ import Unison.Prelude
 import Unison.Sqlite.Sql
 import UnliftIO.Exception
 
-data SqliteExceptionInfo params connection = SqliteExceptionInfo
+data SqliteQueryExceptionInfo params connection = SqliteQueryExceptionInfo
   { sql :: Sql,
     params :: Maybe params,
     exception :: SomeSqliteExceptionReason,
     connection :: connection
   }
 
-throwSqliteException :: Show connection => SqliteExceptionInfo params connection -> IO a
-throwSqliteException SqliteExceptionInfo {connection, exception, params, sql} = do
+throwSqliteQueryException :: Show connection => SqliteQueryExceptionInfo params connection -> IO a
+throwSqliteQueryException SqliteQueryExceptionInfo {connection, exception, params, sql} = do
   threadId <- myThreadId
   throwIO
-    SqliteException
+    SqliteQueryException
       { sql,
         params = maybe "" anythingToString params,
         exception,
@@ -46,23 +46,25 @@ data SomeSqliteExceptionReason
 instance Show SomeSqliteExceptionReason where
   show (SomeSqliteExceptionReason x) = show x
 
--- | A @SqliteException@ represents an exception paired with some context that resulted in the exception.
+-- | A @SqliteQueryException@ represents an exception thrown during processing a query, paired with some context that
+-- resulted in the exception.
 --
--- A @SqliteException@ may result from a number of different conditions:
+-- A @SqliteQueryException@ may result from a number of different conditions:
 --
--- * The underlying sqlite library threw an exception, as when establishing a connection to a non-existent database.
--- * A postcondition violation of a function like 'queryMaybe', which asserts that the resulting relation will have
---   certain number of rows,
--- * A postcondition violation of a function like 'queryListCheck', which takes a user-defined check as an argument.
+-- * The underlying sqlite library threw an exception.
+-- * A postcondition violation of a function like 'Unison.Sqlite.queryMaybeRow', which asserts that the resulting
+--   relation will have certain number of rows,
+-- * A postcondition violation of a function like 'Unison.Sqlite.queryListRowCheck', which takes a user-defined check as
+--   an argument.
 --
--- A @SqliteException@ should not be inspected or used for control flow when run in a trusted environment, where the
--- database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code that
--- is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible, it
--- should be considered a bug in this library.
+-- A @SqliteQueryException@ should not be inspected or used for control flow when run in a trusted environment, where
+-- the database can be assumed to be uncorrupt. Rather, wherever possible, the user of this library should write code
+-- that is guaranteed not to throw exceptions, by checking the necessary preconditions first. If that is not possible,
+-- it should be considered a bug in this library.
 --
 -- When actions are run on an untrusted codebase, e.g. one downloaded from a remote server, it is sufficient to catch
--- just one exception type, @SqliteException@.
-data SqliteException = SqliteException
+-- just one exception type, @SqliteQueryException@.
+data SqliteQueryException = SqliteQueryException
   { sql :: Sql,
     params :: String,
     -- | The inner exception. It is intentionally not 'SomeException', so that calling code cannot accidentally

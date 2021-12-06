@@ -81,7 +81,7 @@ module Unison.Sqlite
     withStatement,
 
     -- * Exceptions
-    SqliteException (..),
+    SqliteQueryException (..),
     SqliteExceptionReason,
     SomeSqliteExceptionReason (..),
     ExpectedAtMostOneRowException (..),
@@ -98,7 +98,7 @@ import Unison.Sqlite.Connection
   )
 import Unison.Sqlite.DB
 import Unison.Sqlite.DataVersion (DataVersion (..), getDataVersion)
-import Unison.Sqlite.Exception (SomeSqliteExceptionReason (..), SqliteException (..), SqliteExceptionReason)
+import Unison.Sqlite.Exception (SomeSqliteExceptionReason (..), SqliteExceptionReason, SqliteQueryException (..))
 import Unison.Sqlite.JournalMode (JournalMode (..), SetJournalModeException (..), trySetJournalMode)
 import Unison.Sqlite.Sql (Sql (..))
 
