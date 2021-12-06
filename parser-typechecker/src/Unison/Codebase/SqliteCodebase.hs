@@ -894,11 +894,9 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
                         processBranches @m sync progress (os ++ bs ++ b0 : rest)
         processBranches sync progress (O h : rest) = do
           when debugProcessBranches $ traceM $ "processBranches O " ++ take 10 (show h)
-          (runExceptT $ flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)) >>= \case
-            Left e -> error $ show e
-            Right oId -> do
-              r $ Sync.sync' sync progress [Sync22.O oId]
-              processBranches sync progress rest
+          oId <- flip runReaderT srcConn (Q.expectHashIdByHash (Cv.hash1to2 h) >>= Q.expectObjectIdForAnyHashId)
+          r $ Sync.sync' sync progress [Sync22.O oId]
+          processBranches sync progress rest
     sync <- se . r $ Sync22.sync22
     let progress' = Sync.transformProgress (lift . lift) progress
         bHash = Branch.headHash b
