@@ -660,7 +660,7 @@ loop = do
                     let dest = resolveToAbsolute dest0
                     -- if dest isn't empty: leave dest unchanged, and complain.
                     destb <- getAt dest
-                    if Branch.isEmpty destb
+                    if Branch.isEmpty0 (Branch.head destb)
                       then do
                         ok <- updateAtM dest (const $ pure srcb)
                         if ok then success else respond $ BranchEmpty src0
@@ -677,7 +677,7 @@ loop = do
             MergeLocalBranchI src0 dest0 mergeMode -> do
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
-              if Branch.isEmpty srcb
+              if Branch.isEmpty0 (Branch.head srcb)
                 then branchNotFound src0
                 else do
                   let err = Just $ MergeAlreadyUpToDate src0 dest0
@@ -685,7 +685,7 @@ loop = do
             PreviewMergeLocalBranchI src0 dest0 -> do
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
-              if Branch.isEmpty srcb
+              if Branch.isEmpty0 (Branch.head srcb)
                 then branchNotFound src0
                 else do
                   destb <- getAt dest
@@ -1903,8 +1903,8 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
     shouldPushTo :: PushBehavior -> Branch m -> Bool
     shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
-        PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
-        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
+        PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
+        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
 handleShowDefinition ::
