@@ -76,7 +76,7 @@ runTransaction conn (Transaction f) = liftIO do
     result <-
       try (restore (f conn)) >>= \case
         Left exception -> do
-          rollback
+          ignoringExceptions rollback
           case exception of
             SqliteBusyException ->
               let loop microseconds = do
