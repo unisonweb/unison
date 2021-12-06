@@ -29,3 +29,20 @@ The deleted namespace shouldn't appear in `ls` output.
   to supply command arguments.
 
 ```
+The history of the namespace should still exist if requested explicitly.
+
+```ucm
+.> history mynamespace
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #qjc20aua9h
+  
+    - Deletes:
+    
+      x
+  
+  □ #hkrqt3tm05 (start of history)
+
+```

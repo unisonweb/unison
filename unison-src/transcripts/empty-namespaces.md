@@ -19,3 +19,11 @@ The deleted namespace shouldn't appear in `ls` output.
 ```ucm:error
 .> find mynamespace
 ```
+
+
+The history of the namespace should still exist if requested explicitly.
+
+```ucm
+.> history mynamespace
+```
+
