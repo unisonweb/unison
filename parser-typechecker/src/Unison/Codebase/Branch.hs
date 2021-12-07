@@ -513,12 +513,9 @@ empty0 =
 -- This is not as easy as checking whether the branch is equal to the `empty0` branch
 -- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
-isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes deepTermMetadata deepTypeMetadata deepPaths deepEdits) =
+isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
   Relation.null deepTerms
     && Relation.null deepTypes
-    && Relation4.null deepTermMetadata
-    && Relation4.null deepTypeMetadata
-    && Set.null deepPaths
     && Map.null deepEdits
 
 -- | Checks whether a branch is empty AND has no history.
