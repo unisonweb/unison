@@ -39,10 +39,12 @@ dependencies:
   - unison-util
   - unison-util-relation
   - unliftio
-  - unix
 
 library:
   source-dirs: src
+  when:
+    - condition: '!os(windows)'
+      dependencies: unix
 
 tests:
   tests:
@@ -66,9 +68,6 @@ executables:
       - template-haskell
       - temporary
       - unison-cli
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
 
   transcripts:
     source-dirs: transcripts
