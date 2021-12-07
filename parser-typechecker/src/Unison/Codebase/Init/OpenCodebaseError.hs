@@ -14,3 +14,4 @@ data OpenCodebaseError
     -- | The codebase exists, but its schema version is unknown to this application.
   | OpenCodebaseUnknownSchemaVersion Word64
   | OpenCodebaseOther (Pretty ColorText)
+  deriving stock (Show)
