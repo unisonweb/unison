@@ -14,6 +14,8 @@ import qualified GHC.ConsoleHandler as WinSig
 import qualified System.Posix.Signals as Sig
 #endif
 
+-- | Constructs a default interrupt handler which builds an interrupt handler which throws a
+-- UserInterrupt exception to the thread in which the setup was initially called.
 defaultInterruptHandler :: IO (IO ())
 defaultInterruptHandler = do
   main_thread <- myThreadId
