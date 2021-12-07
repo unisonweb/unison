@@ -31,17 +31,26 @@ defaultInterruptHandler = do
 -- action is running, restoring any existing handlers afterwards.
 withInterruptHandler :: IO () -> IO a -> IO a
 withInterruptHandler handler action = do
+  UnliftIO.bracket
+    installNewHandlers
+    restoreOldHandlers
+    (\_ -> action)
+  where
+    -- Installs the new handler and returns an action to restore the old handlers.
+    installNewHandlers :: IO (IO ())
+    installNewHandlers = do
 #if defined(mingw32_HOST_OS)
-  let sig_handler WinSig.ControlC = handler
-      sig_handler WinSig.Break    = handler
-      sig_handler _               = return ()
-  oldHandler <- WinSig.installHandler (WinSig.Catch sig_handler)
-  a <- action `UnliftIO.finally` (void $ WinSig.installHandler oldHandler)
+      let sig_handler WinSig.ControlC = handler
+          sig_handler WinSig.Break    = handler
+          sig_handler _               = return ()
+      oldHandler <- WinSig.installHandler (WinSig.Catch sig_handler)
+      pure (void $ WinSig.installHandler oldHandler)
 #else
-  oldQuitHandler <- Sig.installHandler Sig.sigQUIT  (Sig.Catch handler) Nothing
-  oldInterruptHandler <- Sig.installHandler Sig.sigINT   (Sig.Catch handler) Nothing
-  a <- action `UnliftIO.finally` do
-    void $ Sig.installHandler Sig.sigQUIT oldQuitHandler Nothing
-    void $ Sig.installHandler Sig.sigINT oldInterruptHandler Nothing
+      oldQuitHandler <- Sig.installHandler Sig.sigQUIT  (Sig.Catch handler) Nothing
+      oldInterruptHandler <- Sig.installHandler Sig.sigINT   (Sig.Catch handler) Nothing
+      pure do
+        void $ Sig.installHandler Sig.sigQUIT oldQuitHandler Nothing
+        void $ Sig.installHandler Sig.sigINT oldInterruptHandler Nothing
 #endif
-  pure a
+    restoreOldHandlers :: IO () -> IO ()
+    restoreOldHandlers restore = restore
