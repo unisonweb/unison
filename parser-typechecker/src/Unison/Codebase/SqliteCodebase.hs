@@ -70,7 +70,7 @@ import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
-import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch)
+import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullRepo, withIsolatedRepo)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), printWriteRepo, writeToRead)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
@@ -91,7 +91,7 @@ import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -110,6 +110,7 @@ import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import UnliftIO.Exception (catch, bracket)
+import Data.Either.Extra (mapLeft)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -124,7 +125,7 @@ v2dir root = root </> ".unison" </> "v2"
 
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
-  { withOpenCodebase=getCodebaseOrError
+  { withOpenCodebase=withCodebaseOrError
   , withCreatedCodebase=createCodebaseOrError
   , codebasePath=v2dir
   }
@@ -176,7 +177,7 @@ createCodebaseOrError' debugName path action = do
 withOpenOrCreateCodebaseConnection ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
-  FilePath ->
+  CodebasePath ->
   (Connection -> m r) ->
   m r
 withOpenOrCreateCodebaseConnection debugName path action = do
@@ -186,14 +187,14 @@ withOpenOrCreateCodebaseConnection debugName path action = do
   withConnection debugName path action
 
 -- get the codebase in dir
-getCodebaseOrError ::
+withCodebaseOrError ::
   forall m r.
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.Pretty r)
-getCodebaseOrError debugName dir action = do
+withCodebaseOrError debugName dir action = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (dir </> codebasePath) >>= \case
@@ -1047,7 +1048,7 @@ viewRemoteBranch' ::
   m (Either C.GitError r)
 viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
   -- set up the cache dir
-  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullBranch repo
+  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullRepo repo
 
   -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
   -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
@@ -1112,44 +1113,45 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
   -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
 
   -- set up the cache dir
-  remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
-  ExceptT . withOpenOrCreateCodebaseConnection "push.dest" remotePath $ \destConn -> do
-    flip runReaderT destConn $ Q.savepoint "push"
-    flip State.execStateT emptySyncProgressState $
-      syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-    flip runReaderT destConn do
-      result <- if setRoot
-        then do
-          let newRootHash = Branch.headHash branch
-          -- the call to runDB "handles" the possible DB error by bombing
-          (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-            Nothing -> do
-              setRepoRoot newRootHash
-              Q.release "push"
-              pure $ Right ()
-            Just oldRootHash -> do
-              before oldRootHash newRootHash >>= \case
-                Nothing ->
-                  error $
-                    "I couldn't find the hash " ++ show newRootHash
-                      ++ " that I just synced to the cached copy of "
-                      ++ repoString
-                      ++ " in "
-                      ++ show remotePath
-                      ++ "."
-                Just False -> do
-                  Q.rollbackRelease "push"
-                  pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                Just True -> do
+  pathToCachedRemote <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullRepo (writeToRead repo)
+  _ . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
+    withConnection "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
+      copyCodebase cachedRemoteConn tempRemotePath
+      withConnection "push.dest" repoPath $ \destConn -> do
+        flip runReaderT destConn $ Q.savepoint "push"
+        flip State.execStateT emptySyncProgressState $
+          syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
+        flip runReaderT destConn do
+          result <- if setRoot
+            then do
+              let newRootHash = Branch.headHash branch
+              -- the call to runDB "handles" the possible DB error by bombing
+              (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+                Nothing -> do
                   setRepoRoot newRootHash
                   Q.release "push"
                   pure $ Right ()
-        else do
-          Q.release "push"
-          pure $ Right ()
-
-      Q.setJournalMode JournalMode.DELETE
-      pure result
+                Just oldRootHash -> do
+                  before oldRootHash newRootHash >>= \case
+                    Nothing ->
+                      error $
+                        "I couldn't find the hash " ++ show newRootHash
+                          ++ " that I just synced to the cached copy of "
+                          ++ repoString
+                          ++ " in "
+                          ++ show remotePath
+                          ++ "."
+                    Just False -> do
+                      Q.rollbackRelease "push"
+                      pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                    Just True -> do
+                      setRepoRoot newRootHash
+                      Q.release "push"
+                      pure $ Right ()
+            else do
+              Q.release "push"
+              pure $ Right ()
+          pure result
   liftIO do
     void $ push remotePath repo
   where
@@ -1232,3 +1234,15 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
             -- Push our changes to the repo
             gitIn remotePath ["push", "--quiet", url]
             pure True
+
+
+-- -- | Execute the given block over an isolated instance of the given codebase.
+-- -- The codebase is ephemeral and will be deleted after the block is completed.
+-- withIsolatedRemote :: MonadUnliftIO m => Codebase.DebugName -> FilePath -> (Connection -> m r) -> m (Either C.GitError r)
+-- withIsolatedRemote debugName repoPath action = mapLeft C.GitProtocolError <$> do
+--   withIsolatedRepo repoPath $ \repoPath -> do
+--     withConnection debugName repoPath $ action
+
+copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
+copyCodebase srcConn destPath = runDB srcConn $ do
+  Q.vacuumInto (destPath </> codebasePath)

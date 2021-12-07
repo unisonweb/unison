@@ -115,6 +115,7 @@ module U.Codebase.Sqlite.Queries (
   release,
   rollbackRelease,
 
+  vacuumInto,
   setJournalMode,
   traceConnectionFile,
 ) where
@@ -242,6 +243,11 @@ setFlags :: DB m => m ()
 setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
   setJournalMode JournalMode.WAL
+
+-- | Copy the database into the specified location, performing a VACUUM in the process.
+vacuumInto :: DB m => FilePath -> m ()
+vacuumInto dest = do
+  execute "VACUUM INTO ?" [dest]
 
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
