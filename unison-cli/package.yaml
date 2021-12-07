@@ -39,6 +39,7 @@ dependencies:
   - unison-util
   - unison-util-relation
   - unliftio
+  - unix
 
 library:
   source-dirs: src

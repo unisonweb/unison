@@ -10,7 +10,7 @@ module Unison.CommandLine.Main
 import Unison.Prelude
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally, catch, AsyncException(UserInterrupt), asyncExceptionFromException)
+import Control.Exception (finally, catch)
 import Control.Monad.State (runStateT)
 import Data.Configurator.Types (Config)
 import Data.IORef
@@ -45,11 +45,12 @@ import qualified Unison.Util.TQueue as Q
 import qualified Unison.CommandLine.Welcome as Welcome
 import Control.Lens (view)
 import Control.Error (rightMay)
-import UnliftIO (catchSyncOrAsync, throwIO, withException)
+import qualified UnliftIO
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
 import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import Compat (withInterruptHandler)
 
 getUserInput
   :: forall m v a
@@ -115,7 +116,8 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <-Welcome.run codebase welcome
-  do
+  (onInterrupt, waitForInterrupt) <- buildInterruptHandler
+  withInterruptHandler onInterrupt $ do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
@@ -157,10 +159,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
               (putPrettyNonempty o)
               (putPrettyLnUnpaged o))
 
-    let interruptHandler :: SomeException -> IO (Either Event Input)
-        interruptHandler (asyncExceptionFromException -> Just UserInterrupt) = awaitInput
-        interruptHandler e = hPutStrLn stderr ("Exception: " <> show e) *> throwIO e
-        cleanup = do
+    let cleanup = do
           Runtime.terminate runtime
           cancelConfig
           cancelFileSystemWatch
@@ -168,8 +167,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
         awaitInput :: IO (Either Event Input)
         awaitInput = do
           -- use up buffered input before consulting external events
-          i <- readIORef initialInputsRef
-          (case i of
+          readIORef initialInputsRef >>= \case
             h:t -> writeIORef initialInputsRef t >> pure h
             [] ->
               -- Race the user input and file watch.
@@ -180,13 +178,12 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                   e
                 x      -> do
                   writeIORef pageOutput True
-                  pure x) `catchSyncOrAsync` interruptHandler
-
+                  pure x
     let loop :: LoopState.LoopState IO Symbol -> IO ()
         loop state = do
           writeIORef pathRef (view LoopState.currentPath state)
           let free = runStateT (runMaybeT HandleInput.loop) state
-          (o, state') <- HandleCommand.commandLine config awaitInput
+          let handleCommand = HandleCommand.commandLine config awaitInput
                                        (writeIORef rootRef)
                                        runtime
                                        notify
@@ -197,13 +194,39 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                                        serverBaseUrl
                                        (const Random.getSystemDRG)
                                        free
-          case o of
-            Nothing -> pure ()
-            Just () -> do
-              writeIORef numberedArgsRef (LoopState._numberedArgs state')
-              loop state'
+          UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
+            -- SIGINT
+            Left () -> do hPutStrLn stderr "\nAborted."
+                          loop state
+            -- Exception during command execution
+            Right (Left e) -> do printException e
+                                 loop state
+            -- Success
+            Right (Right (o, state')) -> do
+              case o of
+                Nothing -> pure ()
+                Just () -> do
+                  writeIORef numberedArgsRef (LoopState._numberedArgs state')
+                  loop state'
+
     -- Run the main program loop, always run cleanup,
     -- If an exception occurred, print it before exiting.
-    (loop (LoopState.loopState0 root initialPath)
-      `withException` \e -> hPutStrLn stderr ("Exception: " <> show (e :: SomeException)))
+    loop (LoopState.loopState0 root initialPath)
       `finally` cleanup
+  where
+    printException :: SomeException -> IO ()
+    printException e = hPutStrLn stderr ("Encountered Exception: " <> show (e :: SomeException))
+
+
+-- | Installs a posix interrupt handler for catching SIGINT.
+-- This replaces GHC's default sigint handler which throws a UserInterrupt async exception
+-- and kills the entire process.
+--
+-- Returns an IO action which blocks until a ctrl-c is detected. It may be used multiple
+-- times.
+buildInterruptHandler :: IO (IO (), IO ())
+buildInterruptHandler = do
+    ctrlCMarker <- UnliftIO.newEmptyMVar
+    let onInterrupt = void $ UnliftIO.tryPutMVar ctrlCMarker ()
+    let waitForInterrupt =  UnliftIO.takeMVar ctrlCMarker
+    pure $ (onInterrupt,waitForInterrupt)

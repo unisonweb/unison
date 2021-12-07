@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      Compat
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
@@ -106,6 +107,7 @@ library
     , unison-prelude
     , unison-util
     , unison-util-relation
+    , unix
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -175,6 +177,7 @@ executable integration-tests
     , unison-prelude
     , unison-util
     , unison-util-relation
+    , unix
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -244,6 +247,7 @@ executable transcripts
     , unison-prelude
     , unison-util
     , unison-util-relation
+    , unix
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -253,7 +257,6 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
-      Compat
       System.Path
       Version
       Paths_unison_cli
@@ -317,6 +320,7 @@ executable unison
     , unison-prelude
     , unison-util
     , unison-util-relation
+    , unix
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
@@ -396,6 +400,7 @@ test-suite tests
     , unison-prelude
     , unison-util
     , unison-util-relation
+    , unix
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
