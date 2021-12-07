@@ -120,7 +120,6 @@ import qualified Unison.Util.List as List
 import qualified Data.Semialign as Align
 import Data.These (These(..))
 import qualified Unison.Util.Relation as Relation
-import qualified Unison.Util.Relation4 as Relation4
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
