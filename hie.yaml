@@ -27,6 +27,9 @@ cradle:
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 
+    - path: "lib/unison-sqlite/src"
+      component: "unison-sqlite:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 

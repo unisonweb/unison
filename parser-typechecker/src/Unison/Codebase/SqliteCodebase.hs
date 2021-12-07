@@ -13,13 +13,12 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans.Except (mapExceptT)
 import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
@@ -141,16 +140,17 @@ createCodebaseOrError debugName path action = do
         Left schemaVersion -> error ("just created schema with version " ++ show schemaVersion)
         Right result -> pure (Right result)
 
-openOrCreateCodebaseConnection ::
-  MonadIO m =>
+withOpenOrCreateCodebaseConnection ::
+  (MonadUnliftIO m) =>
   Codebase.DebugName ->
   FilePath ->
-  m (IO (), Connection)
-openOrCreateCodebaseConnection debugName path = do
+  (Connection -> m r) ->
+  m r
+withOpenOrCreateCodebaseConnection debugName path action = do
   unlessM
     (doesFileExist $ path </> codebasePath)
     (initSchemaIfNotExist path)
-  unsafeGetConnection debugName path
+  withConnection debugName path action
 
 -- get the codebase in dir
 getCodebaseOrError ::
@@ -1077,13 +1077,12 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
 
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
-  (closeDestConn, destConn) <- openOrCreateCodebaseConnection "push.dest" remotePath
-  mapExceptT (`finally` liftIO closeDestConn) $ do
+  ExceptT . withOpenOrCreateCodebaseConnection "push.dest" remotePath $ \destConn -> do
     flip runReaderT destConn $ Q.savepoint "push"
-    lift . flip State.execStateT emptySyncProgressState $
+    flip State.execStateT emptySyncProgressState $
       syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
     flip runReaderT destConn do
-      if setRoot
+      result <- if setRoot
         then do
           let newRootHash = Branch.headHash branch
           -- the call to runDB "handles" the possible DB error by bombing
@@ -1091,6 +1090,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
             Nothing -> do
               setRepoRoot newRootHash
               Q.release "push"
+              pure $ Right ()
             Just oldRootHash -> do
               before oldRootHash newRootHash >>= \case
                 Nothing ->
@@ -1103,13 +1103,17 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
                       ++ "."
                 Just False -> do
                   Q.rollbackRelease "push"
-                  throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                  pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
                 Just True -> do
                   setRepoRoot newRootHash
                   Q.release "push"
-        else Q.release "push"
+                  pure $ Right ()
+        else do
+          Q.release "push"
+          pure $ Right ()
 
       Q.setJournalMode JournalMode.DELETE
+      pure result
   liftIO do
     void $ push remotePath repo
   where

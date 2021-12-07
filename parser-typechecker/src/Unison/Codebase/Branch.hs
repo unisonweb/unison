@@ -784,10 +784,13 @@ consBranch ::
 -- If the target branch is empty we just replace it.
 consBranch Empty headBranch = discardHistory headBranch
 consBranch baseBranch headBranch =
-  Branch $
-    Causal.consDistinct
-      (head headBranch & children .~ combinedChildren)
-      (_history baseBranch)
+  if baseBranch == headBranch
+    then baseBranch
+    else
+      Branch $
+        Causal.consDistinct
+          (head headBranch & children .~ combinedChildren)
+          (_history baseBranch)
   where
     combineChildren :: These (Branch m) (Branch m) -> Branch m
     combineChildren = \case
