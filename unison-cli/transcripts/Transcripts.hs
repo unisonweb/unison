@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 {- This module kicks off the Transcript Tests.
@@ -6,32 +5,34 @@
 -}
 module Main (main) where
 
-import           Unison.Prelude
-import           EasyTest
-import           Shellmet                       (($|))
-import           System.Directory
-import           System.FilePath                ( (</>)
-                                                , splitFileName
-                                                , takeExtensions
-                                                , takeBaseName
-                                                )
-import           System.Process                 ( readProcessWithExitCode )
-
-import           Data.Text                      ( pack
-                                                , unpack
-                                                )
-import           Data.List
-
+import Data.Bifunctor (second)
+import Data.List
+import Data.Text
+  ( pack,
+    unpack,
+  )
+import EasyTest
+import Shellmet (($|))
+import System.Directory
 import System.Environment (getArgs)
+import System.FilePath
+  ( splitFileName,
+    takeBaseName,
+    takeExtensions,
+    (</>),
+  )
+import System.Process (readProcessWithExitCode)
+import Unison.Prelude
 
 data TestConfig = TestConfig
-  { matchPrefix    :: Maybe String
-  } deriving Show
+  { matchPrefix :: Maybe String
+  }
+  deriving (Show)
 
 type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 
-testBuilder
-  :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder ::
+  FilePath -> FilePath -> [String] -> String -> Test ()
 testBuilder ucm dir prelude transcript = scope transcript $ do
   io $ fromString ucm args
   ok
@@ -39,8 +40,8 @@ testBuilder ucm dir prelude transcript = scope transcript $ do
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])
     args = ["transcript"] ++ files
 
-testBuilder'
-  :: FilePath -> FilePath -> [String] -> String -> Test ()
+testBuilder' ::
+  FilePath -> FilePath -> [String] -> String -> Test ()
 testBuilder' ucm dir prelude transcript = scope transcript $ do
   let output = dir </> takeBaseName transcript <> ".output.md"
   io $ runAndCaptureError ucm args output
@@ -60,31 +61,31 @@ testBuilder' ucm dir prelude transcript = scope transcript $ do
     dropRunMessage :: String -> String
     dropRunMessage = unlines . reverse . drop 3 . reverse . lines
 
-
 buildTests :: TestConfig -> TestBuilder -> FilePath -> Test ()
 buildTests config testBuilder dir = do
   io
-     . putStrLn
-     . unlines
-     $ [ ""
-       , "Searching for transcripts to run in: " ++ dir
-       ]
+    . putStrLn
+    . unlines
+    $ [ "",
+        "Searching for transcripts to run in: " ++ dir
+      ]
   files <- io $ listDirectory dir
-  let
-    -- Any files that start with _ are treated as prelude
-    (prelude, transcripts) =
-      partition ((isPrefixOf "_") . snd . splitFileName)
-      . sort
-        -- if there is a matchPrefix set, check for a prefix match - or return True
-      . filter (\f -> maybe True (`isPrefixOf` f) (matchPrefix config))
-      . filter (\f -> takeExtensions f == ".md") $ files
+  -- Any files that start with _ are treated as prelude
+  let (prelude, transcripts) =
+        files
+          & sort
+          & filter (\f -> takeExtensions f == ".md")
+          & partition ((isPrefixOf "_") . snd . splitFileName)
+          -- if there is a matchPrefix set, filter non-prelude files by that prefix - or return True
+          & second (filter (\f -> maybe True (`isPrefixOf` f) (matchPrefix config)))
 
   ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
   case length transcripts of
-    0 -> pure ()  -- EasyTest exits early with "no test results recorded"
-                  -- if you don't give it any tests, this keeps it going
-                  -- till the end so we can search all transcripts for
-                  -- prefix matches.
+    0 -> pure ()
+    -- EasyTest exits early with "no test results recorded"
+    -- if you don't give it any tests, this keeps it going
+    -- till the end so we can search all transcripts for
+    -- prefix matches.
     _ -> tests (testBuilder ucm dir prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
@@ -102,29 +103,27 @@ cleanup = do
     io
       . putStrLn
       . unlines
-      $ [ ""
-        , "NOTE: All transcript codebases have been moved into"
-        , "the `test-output` directory. Feel free to delete it."
+      $ [ "",
+          "NOTE: All transcript codebases have been moved into",
+          "the `test-output` directory. Feel free to delete it."
         ]
 
 test :: TestConfig -> Test ()
 test config = do
-  buildTests config testBuilder
-    $ "unison-src" </> "transcripts"
-  buildTests config testBuilder
-    $ "unison-src" </> "transcripts-using-base"
-  buildTests config testBuilder'
-    $ "unison-src" </> "transcripts" </> "errors"
+  buildTests config testBuilder $
+    "unison-src" </> "transcripts"
+  buildTests config testBuilder $
+    "unison-src" </> "transcripts-using-base"
+  buildTests config testBuilder' $
+    "unison-src" </> "transcripts" </> "errors"
   cleanup
 
 handleArgs :: [String] -> TestConfig
 handleArgs args =
-  let
-    matchPrefix = case args of
-      [prefix] -> Just prefix
-      _        -> Nothing
-  in
-    TestConfig matchPrefix
+  let matchPrefix = case args of
+        [prefix] -> Just prefix
+        _ -> Nothing
+   in TestConfig matchPrefix
 
 main :: IO ()
 main = do
