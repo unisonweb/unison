@@ -14,6 +14,7 @@ module Unison.Runtime.Interface
   , runStandalone
   , StoredCache
   , decodeStandalone
+  , RuntimeHost(..)
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -427,7 +428,7 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
     <*> getNat
     <*> getStoredCache
 
--- | Whether the runtime is being run within a UCM session or as a standalone process.
+-- | Whether the runtime is hosted within a UCM session or as a standalone process.
 data RuntimeHost
   = Standalone
   | UCM

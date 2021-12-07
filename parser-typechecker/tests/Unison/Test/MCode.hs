@@ -52,8 +52,10 @@ testEval0 env sect = do
   cc <- io baseCCache
   modifyTVarTest (combs cc) (env <>)
   modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
-  io $ eval0 cc sect
+  io $ eval0 cc dontTrackThreads sect
   ok
+    where
+      dontTrackThreads _ = pure ()
 
 builtins :: Reference -> Word64
 builtins r
