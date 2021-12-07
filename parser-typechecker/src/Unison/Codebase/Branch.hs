@@ -509,7 +509,8 @@ empty0 :: Branch0 m
 empty0 =
   Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
--- | Checks whether a Branch0 is empty.
+-- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
+-- types, and that the heads of all children are empty by the same definition.
 -- This is not as easy as checking whether the branch is equal to the `empty0` branch
 -- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
