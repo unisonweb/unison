@@ -116,8 +116,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
   root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <-Welcome.run codebase welcome
-  (onInterrupt, waitForInterrupt) <- buildInterruptHandler
-  withInterruptHandler onInterrupt $ do
+  do
     -- we watch for root branch tip changes, but want to ignore ones we expect.
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
@@ -179,40 +178,42 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                 x      -> do
                   writeIORef pageOutput True
                   pure x
-    let loop :: LoopState.LoopState IO Symbol -> IO ()
-        loop state = do
-          writeIORef pathRef (view LoopState.currentPath state)
-          let free = runStateT (runMaybeT HandleInput.loop) state
-          let handleCommand = HandleCommand.commandLine config awaitInput
-                                       (writeIORef rootRef)
-                                       runtime
-                                       notify
-                                       (\o -> let (p, args) = notifyNumbered o in
-                                        putPrettyNonempty p $> args)
-                                       loadSourceFile
-                                       codebase
-                                       serverBaseUrl
-                                       (const Random.getSystemDRG)
-                                       free
-          UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
-            -- SIGINT
-            Left () -> do hPutStrLn stderr "\nAborted."
-                          loop state
-            -- Exception during command execution
-            Right (Left e) -> do printException e
-                                 loop state
-            -- Success
-            Right (Right (o, state')) -> do
-              case o of
-                Nothing -> pure ()
-                Just () -> do
-                  writeIORef numberedArgsRef (LoopState._numberedArgs state')
-                  loop state'
+    (onInterrupt, waitForInterrupt) <- buildInterruptHandler
+    withInterruptHandler onInterrupt $ do
+      let loop :: LoopState.LoopState IO Symbol -> IO ()
+          loop state = do
+            writeIORef pathRef (view LoopState.currentPath state)
+            let free = runStateT (runMaybeT HandleInput.loop) state
+            let handleCommand = HandleCommand.commandLine config awaitInput
+                                         (writeIORef rootRef)
+                                         runtime
+                                         notify
+                                         (\o -> let (p, args) = notifyNumbered o in
+                                          putPrettyNonempty p $> args)
+                                         loadSourceFile
+                                         codebase
+                                         serverBaseUrl
+                                         (const Random.getSystemDRG)
+                                         free
+            UnliftIO.race waitForInterrupt (try handleCommand) >>= \case
+              -- SIGINT
+              Left () -> do hPutStrLn stderr "\nAborted."
+                            loop state
+              -- Exception during command execution
+              Right (Left e) -> do printException e
+                                   loop state
+              -- Success
+              Right (Right (o, state')) -> do
+                case o of
+                  Nothing -> pure ()
+                  Just () -> do
+                    writeIORef numberedArgsRef (LoopState._numberedArgs state')
+                    loop state'
 
-    -- Run the main program loop, always run cleanup,
-    -- If an exception occurred, print it before exiting.
-    loop (LoopState.loopState0 root initialPath)
-      `finally` cleanup
+      -- Run the main program loop, always run cleanup,
+      -- If an exception occurred, print it before exiting.
+      loop (LoopState.loopState0 root initialPath)
+        `finally` cleanup
   where
     printException :: SomeException -> IO ()
     printException e = hPutStrLn stderr ("Encountered Exception: " <> show (e :: SomeException))
