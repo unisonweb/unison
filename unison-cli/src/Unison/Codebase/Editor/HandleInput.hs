@@ -11,7 +11,7 @@ where
 
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -71,11 +71,12 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(NoDatabaseFile))
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError)
+import Unison.Codebase.Type (GitError(GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -761,7 +762,7 @@ loop = do
                 srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
                 destOk b = do
                   stepManyAt
-                    [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty,
+                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                       BranchUtil.makeSetBranch (resolveSplit' dest) b
                     ]
                   success -- could give rando stats about new defns
@@ -835,11 +836,11 @@ loop = do
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
-                  fuzzySelectNamespace Absolute root0 <&> \case
-                    [] -> Nothing
+                  fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
-                    (p : _) -> Just p
+                    Just (p : _) -> pure $ Just p
+                    _ -> respond (HelpMessage InputPatterns.cd) $> Nothing
                 Just p -> pure $ Just p
               case mpath' of
                 Nothing -> pure ()
@@ -1028,10 +1029,14 @@ loop = do
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
-                  fuzzySelectDefinition Absolute root0
-                    -- HQ names should always parse as a valid split, so we just discard any
-                    -- that don't to satisfy the type-checker.
-                    <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
+                  fuzzySelectDefinition Absolute root0 >>= \case
+                    Nothing -> do
+                      respond (HelpMessage InputPatterns.docs)
+                      pure []
+                    Just defs -> do
+                      -- HQ names should always parse as a valid split, so we just discard any
+                      -- that don't to satisfy the type-checker.
+                      pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
@@ -1098,7 +1103,9 @@ loop = do
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
             DisplayI outputLoc names' -> do
               names <- case names' of
-                [] -> fuzzySelectDefinition Absolute root0
+                [] -> fuzzySelectDefinition Absolute root0 >>= \case
+                        Nothing -> respond (HelpMessage InputPatterns.display) $> []
+                        Just defs -> pure defs
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
@@ -1873,17 +1880,21 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
           sbhLength <- (eval BranchHashLength)
           respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
         Just (remotePath, pushBehavior) -> do
-          ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            Branch.modifyAtM remotePath f remoteRoot & \case
-              Nothing -> respond (RefusedToPush pushBehavior)
-              Just newRemoteRoot -> do
-                let opts = PushGitBranchOpts {setRoot = True, syncMode}
-                runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
-                  Left gitErr -> respond (Output.GitError gitErr)
-                  Right () -> respond Success
+          let withRemoteRoot remoteRoot = do
+                let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                    -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                    f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+                Branch.modifyAtM remotePath f remoteRoot & \case
+                  Nothing -> respond (RefusedToPush pushBehavior)
+                  Just newRemoteRoot -> do
+                    let opts = PushGitBranchOpts {setRoot = True, syncMode}
+                    runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
+                      Left gitErr -> respond (Output.GitError gitErr)
+                      Right () -> respond Success
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty) withRemoteRoot >>= \case
+            Left (GitSqliteCodebaseError NoDatabaseFile{}) -> withRemoteRoot Branch.empty
+            Left err -> throwError err
+            Right () -> pure ()
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -1896,14 +1907,23 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
         PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition ::
+  forall m v.
+  Functor m =>
+  OutputLocation ->
+  [HQ.HashQualified Name] ->
+  Action' m v ()
 handleShowDefinition outputLoc inputQuery = do
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
       then do
         branch <- fuzzyBranch
-        fuzzySelectDefinition Relative branch
+        fuzzySelectDefinition Relative branch >>= \case
+          Nothing -> case outputLoc of
+            ConsoleLocation -> respond (HelpMessage InputPatterns.view) $> []
+            _ -> respond (HelpMessage InputPatterns.edit) $> []
+          Just defs -> pure defs
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
@@ -2946,7 +2966,7 @@ doSlurpAdds ::
   SlurpComponent v ->
   UF.TypecheckedUnisonFile v Ann ->
   (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
+doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
   where
     typeActions = map doType . toList $ SC.types slurp
     termActions =
@@ -2993,7 +3013,7 @@ doSlurpUpdates ::
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
-  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
+  Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
     typeActions = join . map doType . Map.toList $ typeEdits
     termActions = join . map doTerm . Map.toList $ termEdits
@@ -3373,23 +3393,21 @@ declOrBuiltin r = case r of
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [HQ.HashQualified Name])
 fuzzySelectDefinition pos searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
   let inputs :: [HQ.HashQualified Name]
       inputs =
-          termsAndTypes
-        & Set.toList
-        & map (fmap (Name.setPosition pos))
-  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs) >>= \case
-    Nothing -> pure []
-    Just results -> pure results
+        termsAndTypes
+          & Set.toList
+          & map (fmap (Name.setPosition pos))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs)
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [Path'])
 fuzzySelectNamespace pos searchBranch0 = do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of
@@ -3397,16 +3415,16 @@ fuzzySelectNamespace pos searchBranch0 = do
         Absolute -> Path' . Left . Path.Absolute
   let inputs :: [Path']
       inputs =
-          searchBranch0
-        & Branch.deepPaths
-        & Set.toList
-        & map intoPath'
-  fromMaybe [] <$> eval
-                    ( FuzzySelect
-                        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-                        tShow
-                        inputs
-                    )
+        searchBranch0
+          & Branch.deepPaths
+          & Set.toList
+          & map intoPath'
+  eval
+    ( FuzzySelect
+        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+        tShow
+        inputs
+    )
 
 -- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
 -- appropriate error message if a hash cannot be found.

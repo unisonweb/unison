@@ -114,7 +114,9 @@ import qualified Data.Map as Map
 import qualified Data.Map.Internal as Map
 import Data.Ord (comparing)
 import qualified Data.Set as S
+import qualified Data.Set as Set
 import Unison.Prelude hiding (empty, toList)
+import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 import Prelude hiding (filter, map, null)
 
@@ -602,13 +604,31 @@ searchDom f r = go (domain r)
 searchRan :: (Ord a, Ord b) => (b -> Ordering) -> Relation a b -> Set a
 searchRan f r = searchDom f (swap r)
 
+-- | @replaceDom x y r@ replaces all @(x, _)@ with @(y, _)@ in @r@.
 replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =
-  foldl' (\r b -> insert a' b $ delete a b r) r (lookupDom a r)
+  if a == a'
+    then r
+    else case Map.deleteLookup a (domain r) of
+      (Nothing, _) -> r
+      (Just bs, domain') ->
+        Relation
+          { domain = Map.insertWith Set.union a' bs domain',
+            range = foldl' (\acc b -> Map.adjust (Set.insert a' . Set.delete a) b acc) (range r) bs
+          }
 
+-- | @replaceRan x y r@ replaces all @(_, x)@ with @(_, y)@ in @r@.
 replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
-  foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)
+  if b == b'
+    then r
+    else case Map.deleteLookup b (range r) of
+      (Nothing, _) -> r
+      (Just as, range') ->
+        Relation
+          { domain = foldl' (\acc a -> Map.adjust (Set.insert b' . Set.delete b) a acc) (domain r) as,
+            range = Map.insertWith Set.union b' as range'
+          }
 
 updateDom :: (Ord a, Ord b) => (a -> a) -> b -> Relation a b -> Relation a b
 updateDom f b r =

@@ -195,9 +195,9 @@ merge3 = cases
   merge3 = cases
     [], ys           -> ys
     xs, []           -> xs
-    h +: t, h2 +: t2  
-      | h <= h2      -> h +: merge3 t (h2 +: t2)
-      | otherwise    -> h2 +: merge3 (h +: t) t2
+    h +: t, h2 +: t2 
+      | h <= h2   -> h +: merge3 t (h2 +: t2)
+      | otherwise -> h2 +: merge3 (h +: t) t2
 
 ```
 This is the same definition written with multiple patterns and not using the `cases` syntax; notice it is considered an alias of `merge3` above.

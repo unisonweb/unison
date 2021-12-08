@@ -300,7 +300,11 @@ view =
     "view"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`view foo` prints the definition of `foo`."
+    ( P.lines
+        [ "`view foo` prints the definition of `foo`.",
+          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
         . traverse parseHashQualifiedName
     )
@@ -311,7 +315,11 @@ display =
     "display"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`display foo` prints a rendered version of the term `foo`."
+    ( P.lines
+        [ "`display foo` prints a rendered version of the term `foo`.",
+          "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
     )
 
@@ -337,7 +345,11 @@ docs =
     "docs"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`docs foo` shows documentation for the definition `foo`."
+    ( P.lines
+        [ "`docs foo` shows documentation for the definition `foo`.",
+          "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
 
 ui :: InputPattern
@@ -669,13 +681,23 @@ cd =
     "namespace"
     ["cd", "j"]
     [(Required, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample cd ["foo.bar"],
-            "descends into foo.bar from the current namespace."
-          ),
-          ( makeExample cd [".cat.dog"],
-            "sets the current namespace to the abolute namespace .cat.dog."
-          )
+    ( P.lines
+        [ "Moves your perspective to a different namespace.",
+          "",
+          P.wrapColumn2
+            [ ( makeExample cd ["foo.bar"],
+                "descends into foo.bar from the current namespace."
+              ),
+              ( makeExample cd [".cat.dog"],
+                "sets the current namespace to the abolute namespace .cat.dog."
+              ),
+              ( makeExample cd [".."],
+                "moves to the parent of the current namespace. E.g. moves from '.cat.dog' to '.cat'"
+              ),
+              ( makeExample cd [],
+                "invokes a search to select which namespace to move to, which requires that `fzf` can be found within your PATH."
+              )
+            ]
         ]
     )
     ( \case
@@ -1311,8 +1333,11 @@ edit =
     "edit"
     []
     [(OnePlus, definitionQueryArg)]
-    ( "`edit foo` prepends the definition of `foo` to the top of the most "
-        <> "recently saved file."
+    ( P.lines
+        [ "`edit foo` prepends the definition of `foo` to the top of the most "
+            <> "recently saved file.",
+          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+        ]
     )
     ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
         . traverse parseHashQualifiedName

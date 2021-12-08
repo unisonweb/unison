@@ -107,12 +107,25 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
+.> history .feature1
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #gj7j96t88n
+  
+    - Deletes:
+    
+      y
+  
+  □ #aqh5c7qsod (start of history)
+
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #imio3687c4
+  ⊙ #5aa4qmhvur
   
     - Deletes:
     
