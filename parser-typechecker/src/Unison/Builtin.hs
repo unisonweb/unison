@@ -476,6 +476,7 @@ builtinsSrc =
   , B "ThreadId.toText" $ threadId --> text
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit)
   , B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)
