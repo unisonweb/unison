@@ -2057,7 +2057,7 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- |
+-- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2092,7 +2092,7 @@ namespaceArg =
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
 allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
+  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
     \(NameSegment k) (Branch.head -> b') ->
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
