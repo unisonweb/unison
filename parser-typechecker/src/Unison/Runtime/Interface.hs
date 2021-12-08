@@ -339,12 +339,12 @@ evalInContext ppe ctx w = do
 
       tr tx c = case decom c of
         Right dv -> do
-          putStrLn ("trace: " ++ UT.unpack tx)
+          putStrLn $ "trace: " ++ UT.unpack tx
           putStrLn . toANSI 50 $ pretty ppe dv
-        Left err -> do
-          putStrLn ("trace: " ++ UT.unpack tx)
+        Left _ -> do
+          putStrLn $ "trace: " ++ UT.unpack tx
           putStrLn "Couldn't decompile value."
-          putStrLn $ toANSI 50 err
+          print c
 
   result <- traverse (const $ readIORef r)
           . first prettyError
@@ -495,7 +495,7 @@ getStoredCache = SCache
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty)
-  = CCache builtinForeigns noTrace
+  = CCache builtinForeigns uglyTrace
       <$> newTVarIO (cs <> combs)
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO (trs <> builtinTypeBackref)
@@ -505,7 +505,9 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty)
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
   where
-  noTrace _ _ = pure ()
+  uglyTrace tx c = do
+    putStrLn $ "trace: " ++ UT.unpack tx
+    print c
   rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
   combs
     = mapWithKey
