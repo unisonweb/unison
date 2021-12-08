@@ -78,6 +78,7 @@ import Unison.Runtime.Machine
   ( apply0, eval0
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy, refLookup
+  , ActiveThreads
   )
 import Unison.Runtime.MCode
   ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
@@ -330,10 +331,10 @@ backReferenceTm ws rs c i = do
 evalInContext
   :: PrettyPrintEnv
   -> EvalCtx
-  -> (UnliftIO.ThreadId -> IO ())
+  -> ActiveThreads
   -> Word64
   -> IO (Either Error (Term Symbol))
-evalInContext ppe ctx threadTracker w = do
+evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
@@ -353,7 +354,7 @@ evalInContext ppe ctx threadTracker w = do
 
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) ((ccache ctx) { tracer = tr }) threadTracker w
+        <=< try $ apply0 (Just hook) ((ccache ctx) { tracer = tr }) activeThreads w
   pure $ decom =<< result
 
 executeMainComb
@@ -361,11 +362,9 @@ executeMainComb
   -> CCache
   -> IO ()
 executeMainComb init cc
-  = eval0 cc dontTrackThreads
+  = eval0 cc Nothing
   . Ins (Pack RF.unitRef 0 ZArgs)
   $ Call True init (BArg1 0)
-    where
-      dontTrackThreads _threadId = pure ()
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 
@@ -436,20 +435,18 @@ data RuntimeHost
 startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
 startRuntime runtimeHost version = do
   ctxVar <- newIORef =<< baseContext
-  (trackThreads, killThreads) <- case runtimeHost of
+  (activeThreads, cleanupThreads) <- case runtimeHost of
         -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
         -- when the process itself exits.
-         Standalone -> pure (\_ -> pure (), pure ())
+         Standalone -> pure (Nothing, pure ())
         -- Track all forked threads so that they can be killed when the main process returns,
         -- otherwise they'll be orphaned and left running.
          UCM -> do
-           threadIDsRef <- newIORef Set.empty
-           let trackThread threadID = do
-                 atomicModifyIORef threadIDsRef (\ids -> (Set.insert threadID ids, ()))
-           let killThreads = do
-                 threads <- readIORef threadIDsRef
+           activeThreads <- newIORef Set.empty
+           let cleanupThreads = do
+                 threads <- readIORef activeThreads
                  foldMap UnliftIO.killThread threads
-           pure (trackThread, killThreads)
+           pure (Just activeThreads, cleanupThreads)
   pure $ Runtime
        { terminate = pure ()
        , evaluate = \cl ppe tm -> catchInternalErrors $ do
@@ -458,7 +455,7 @@ startRuntime runtimeHost version = do
            ctx <- loadDeps cl ppe ctx tyrs tmrs
            (ctx, init) <- prepareEvaluation ppe tm ctx
            writeIORef ctxVar ctx
-           evalInContext ppe ctx trackThreads init `UnliftIO.finally` killThreads
+           evalInContext ppe ctx activeThreads init `UnliftIO.finally` cleanupThreads
        , compileTo = \cl ppe rf path -> tryM $ do
            ctx <- readIORef ctxVar
            (tyrs, tmrs) <- collectRefDeps cl rf
