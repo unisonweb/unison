@@ -199,6 +199,7 @@ import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
 import qualified Unison.Util.Set as Set
 import qualified U.Util.Term as TermUtil
+import UnliftIO (Exception)
 
 -- * Error handling
 
@@ -240,6 +241,8 @@ data Error
   | LegacyUnknownConstructorType H.Hash C.Reference.Pos
   | NeedTypeForBuiltinMetadata Text
   deriving (Show)
+
+instance Exception Error
 
 getFromBytesOr :: Err m => DecodeError -> Get a -> ByteString -> m a
 getFromBytesOr e get bs = case runGetS get bs of

@@ -14,7 +14,7 @@ where
 
 import qualified Control.Concurrent
 import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT, throwError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
@@ -110,7 +110,7 @@ import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
 import UnliftIO.Exception (catch, bracket)
-import Data.Either.Extra (mapLeft)
+import Data.Either.Extra ()
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -845,7 +845,7 @@ isCausalHash' (Causal.RawHash h) =
     Nothing -> pure False
     Just hId -> Q.isCausalHash hId
 
-before :: MonadIO m => Branch.Hash -> Branch.Hash -> ReaderT Connection m (Maybe Bool)
+before :: (MonadIO m, Q.DB m) => Branch.Hash -> Branch.Hash -> m (Maybe Bool)
 before h1 h2 =
   Ops.before (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2)
 
@@ -951,6 +951,12 @@ runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -
 runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
+
+runDBUnlifted :: (HasCallStack, MonadUnliftIO m) => Connection -> ReaderT Connection m a -> m a
+runDBUnlifted conn m =
+  UnliftIO.try (runReaderT m conn) >>= \case
+    Left (err :: Ops.Error) -> error $ show err
+    Right a -> pure a
 
 data Entity m
   = B Branch.Hash (m (Branch m))
@@ -1095,13 +1101,14 @@ viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
 -- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
 -- the existing root.
 pushGitBranch ::
+  forall m.
   (MonadUnliftIO m) =>
   Connection ->
   Branch m ->
   WriteRepo ->
   PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExceptT @C.GitError do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try $ do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
   -- create a savepoint on the staging codebase
@@ -1113,50 +1120,52 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
   -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
 
   -- set up the cache dir
-  pathToCachedRemote <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullRepo (writeToRead repo)
-  _ . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
+  pathToCachedRemote <- time "Git fetch" $ throwExceptT . withExceptT C.GitProtocolError $ pullRepo (writeToRead repo)
+  throwEither . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
+    -- Connect to codebase in the cached git repo so we can copy it over.
     withConnection "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
       copyCodebase cachedRemoteConn tempRemotePath
-      withConnection "push.dest" repoPath $ \destConn -> do
-        flip runReaderT destConn $ Q.savepoint "push"
-        flip State.execStateT emptySyncProgressState $
-          syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-        flip runReaderT destConn do
-          result <- if setRoot
-            then do
-              let newRootHash = Branch.headHash branch
-              -- the call to runDB "handles" the possible DB error by bombing
-              (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-                Nothing -> do
-                  setRepoRoot newRootHash
-                  Q.release "push"
-                  pure $ Right ()
-                Just oldRootHash -> do
-                  before oldRootHash newRootHash >>= \case
-                    Nothing ->
-                      error $
-                        "I couldn't find the hash " ++ show newRootHash
-                          ++ " that I just synced to the cached copy of "
-                          ++ repoString
-                          ++ " in "
-                          ++ show remotePath
-                          ++ "."
-                    Just False -> do
-                      Q.rollbackRelease "push"
-                      pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-                    Just True -> do
-                      setRepoRoot newRootHash
-                      Q.release "push"
-                      pure $ Right ()
-            else do
-              Q.release "push"
-              pure $ Right ()
-          pure result
-  liftIO do
-    void $ push remotePath repo
+      -- Connect to the newly copied database which we know has been properly closed and
+      -- nobody else could be using.
+      withConnection "push.dest" tempRemotePath $ \destConn -> do
+        result <- runDBUnlifted destConn $ Q.withSavepoint "push" \rollback -> do
+          throwExceptT $ doSync tempRemotePath srcConn destConn
+        void $ push tempRemotePath repo
+        pure result
   where
+    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError m ()
+    doSync remotePath srcConn destConn = do
+      _ <- flip State.execStateT emptySyncProgressState $
+        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift) branch)
+      when setRoot $ overwriteRoot remotePath destConn
+    overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT C.GitError m ()
+    overwriteRoot remotePath destConn = do
+      let newRootHash = Branch.headHash branch
+      -- the call to runDB "handles" the possible DB error by bombing
+      maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
+      case maybeOldRootHash of
+        Nothing -> runDB destConn $ do
+          setRepoRoot newRootHash
+          -- Q.release "push"
+        (Just oldRootHash) -> runDB destConn $ do
+          before oldRootHash newRootHash >>= \case
+            Nothing ->
+              error $
+                "I couldn't find the hash " ++ show newRootHash
+                  ++ " that I just synced to the cached copy of "
+                  ++ repoString
+                  ++ " in "
+                  ++ show remotePath
+                  ++ "."
+            Just False -> do
+              -- Q.rollbackRelease "push"
+              lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+            Just True -> do
+              setRepoRoot newRootHash
+              -- Q.release "push"
+
     repoString = Text.unpack $ printWriteRepo repo
-    setRepoRoot :: Q.DB m => Branch.Hash -> m ()
+    setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
     setRepoRoot h = do
       let h2 = Cv.causalHash1to2 h
           err = error $ "Called SqliteCodebase.setNamespaceRoot on unknown causal hash " ++ show h2
@@ -1203,7 +1212,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: CodebasePath -> WriteRepo -> IO Bool -- withIOError needs IO
+    push :: forall m. MonadIO m => CodebasePath -> WriteRepo -> m Bool -- withIOError needs IO
     push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
@@ -1242,7 +1251,15 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExc
 -- withIsolatedRemote debugName repoPath action = mapLeft C.GitProtocolError <$> do
 --   withIsolatedRepo repoPath $ \repoPath -> do
 --     withConnection debugName repoPath $ action
-
 copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
 copyCodebase srcConn destPath = runDB srcConn $ do
   Q.vacuumInto (destPath </> codebasePath)
+
+throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
+throwExceptT action = runExceptT action >>= \case
+  Left e -> UnliftIO.throwIO e
+  Right a -> pure a
+
+
+throwEither :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEither action = throwExceptT (ExceptT action)

@@ -114,6 +114,7 @@ module U.Codebase.Sqlite.Queries (
   savepoint,
   release,
   rollbackRelease,
+  withSavepoint,
 
   vacuumInto,
   setJournalMode,
@@ -181,6 +182,7 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
+import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
 -- * types
 
@@ -891,6 +893,14 @@ savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
 release name = execute_ (fromString $ "RELEASE " ++ name)
 rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
 rollbackRelease name = rollbackTo name *> release name
+
+withSavepoint :: (MonadUnliftIO m, DB m) => String -> (m () -> m r) -> m r
+withSavepoint name action =
+  UnliftIO.bracket_
+    (savepoint name)
+    (release name)
+    (action (rollbackTo name) `UnliftIO.onException` rollbackTo name)
+
 
 -- * orphan instances
 
