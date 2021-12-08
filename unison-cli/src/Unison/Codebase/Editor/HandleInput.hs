@@ -677,7 +677,7 @@ loop = do
             MergeLocalBranchI src0 dest0 mergeMode -> do
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
-              if Branch.isEmpty0 (Branch.head srcb)
+              if Branch.isEmpty srcb
                 then branchNotFound src0
                 else do
                   let err = Just $ MergeAlreadyUpToDate src0 dest0
@@ -685,7 +685,7 @@ loop = do
             PreviewMergeLocalBranchI src0 dest0 -> do
               let [src, dest] = resolveToAbsolute <$> [src0, dest0]
               srcb <- getAt src
-              if Branch.isEmpty0 (Branch.head srcb)
+              if Branch.isEmpty srcb
                 then branchNotFound src0
                 else do
                   destb <- getAt dest
