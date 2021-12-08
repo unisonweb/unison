@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.Editor.Input
   ( Input (..),
     GistInput (..),
@@ -33,6 +32,8 @@ import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.Util.Pretty as P
+
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 
 data Event
   = UnisonFileChanged SourceName Source

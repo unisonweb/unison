@@ -548,7 +548,7 @@ stepManyAt actions startBranch =
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM actions startBranch =
-  (\changes -> startBranch `consBranchSnapshot` changes) <$> (startBranch & head_ %%~ batchUpdatesM actions)
+  (\changes -> changes `consBranchSnapshot` startBranch) <$> (startBranch & head_ %%~ batchUpdatesM actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -772,7 +772,7 @@ children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
 
 
--- | @base `consBranchSnapshot` head@ Cons's the current state of @head@ onto @base@ as-is.
+-- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
 -- That is, it does not perform any common ancestor detection, or change reconciliation, it
 -- sets the current state of the base branch to the new state as a new causal step (or returns
@@ -784,8 +784,8 @@ consBranchSnapshot ::
   Branch m ->
   Branch m
 -- If the target branch is empty we just replace it.
-consBranchSnapshot Empty headBranch = discardHistory headBranch
-consBranchSnapshot baseBranch headBranch =
+consBranchSnapshot headBranch Empty = discardHistory headBranch
+consBranchSnapshot headBranch baseBranch =
   Branch $
     Causal.consDistinct
       (head headBranch & children .~ combinedChildren)
@@ -795,9 +795,9 @@ consBranchSnapshot baseBranch headBranch =
     combineChildren = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> base `consBranchSnapshot` head
+      (These base head) -> head `consBranchSnapshot` base
       -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> base `consBranchSnapshot` empty
+      (This base) -> empty `consBranchSnapshot` base
       -- This child didn't exist in the base, we add any changes as a single commit
       (That head) -> discardHistory head
     combinedChildren :: Map NameSegment (Branch m)
