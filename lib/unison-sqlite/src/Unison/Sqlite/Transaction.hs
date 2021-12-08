@@ -51,16 +51,16 @@ module Unison.Sqlite.Transaction
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (onException, throwIO)
+import Control.Exception (Exception (fromException), onException, throwIO)
 import Control.Monad.Trans.Reader (ReaderT (..))
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
-import Unison.Prelude
+import Unison.Prelude hiding (try)
 import Unison.Sqlite.Connection (Connection (..))
 import qualified Unison.Sqlite.Connection as Connection
-import Unison.Sqlite.Exception (SqliteExceptionReason, pattern SqliteBusyException)
+import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pattern SqliteBusyException)
 import Unison.Sqlite.Sql
-import UnliftIO.Exception (catchAny, uninterruptibleMask)
+import UnliftIO.Exception (catchAny, try, trySyncOrAsync, uninterruptibleMask)
 
 newtype Transaction a
   = Transaction (Connection -> IO a)
@@ -74,18 +74,19 @@ runTransaction conn (Transaction f) = liftIO do
   uninterruptibleMask \restore -> do
     Connection.execute_ conn "BEGIN"
     result <-
-      try (restore (f conn)) >>= \case
+      -- Catch all exceptions (sync or async), because we want to ROLLBACK the BEGIN no matter what.
+      trySyncOrAsync @_ @SomeException (restore (f conn)) >>= \case
         Left exception -> do
           ignoringExceptions rollback
-          case exception of
-            SqliteBusyException ->
+          case fromException exception of
+            Just SqliteBusyException ->
               let loop microseconds = do
                     restore (threadDelay microseconds)
-                    try (Connection.execute_ conn "BEGIN IMMEDIATE") >>= \case
+                    try @_ @SqliteQueryException (Connection.execute_ conn "BEGIN IMMEDIATE") >>= \case
                       Left SqliteBusyException -> loop (microseconds * 2)
                       Left exception -> throwIO exception
                       Right () -> restore (f conn) `onException` ignoringExceptions rollback
-              in loop 100_000
+               in loop 100_000
             _ -> throwIO exception
         Right result -> pure result
     Connection.execute_ conn "COMMIT"
