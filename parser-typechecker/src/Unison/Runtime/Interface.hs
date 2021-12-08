@@ -53,6 +53,7 @@ import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Referent as RF (pattern Ref)
 import qualified Unison.Reference as RF
+import qualified Unison.Util.Text as UT
 
 import Unison.Util.EnumContainers as EC
 
@@ -332,11 +333,22 @@ evalInContext ppe ctx w = do
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
+
       prettyError (PE _ p) = p
       prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
+
+      tr tx c = case decom c of
+        Right dv -> do
+          putStrLn ("trace: " ++ UT.unpack tx)
+          putStrLn . toANSI 50 $ pretty ppe dv
+        Left err -> do
+          putStrLn ("trace: " ++ UT.unpack tx)
+          putStrLn "Couldn't decompile value."
+          putStrLn $ toANSI 50 err
+
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) (ccache ctx) w
+        <=< try $ apply0 (Just hook) ((ccache ctx) { tracer = tr }) w
   pure $ decom =<< result
 
 executeMainComb
@@ -483,7 +495,7 @@ getStoredCache = SCache
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty)
-  = CCache builtinForeigns
+  = CCache builtinForeigns noTrace
       <$> newTVarIO (cs <> combs)
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO (trs <> builtinTypeBackref)
@@ -493,6 +505,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty)
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
   where
+  noTrace _ _ = pure ()
   rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
   combs
     = mapWithKey
