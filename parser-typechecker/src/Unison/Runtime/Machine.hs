@@ -65,7 +65,7 @@ import Unison.Util.EnumContainers as EC
 import UnliftIO (IORef)
 import qualified UnliftIO
 import qualified UnliftIO.Concurrent as UnliftIO
-import Unison.Prelude
+import Unison.Prelude hiding (Text)
 import qualified Data.Set as Set
 
 -- | A ref storing every currently active thread.
@@ -83,7 +83,7 @@ type DEnv = EnumMap Word64 Closure
 data CCache
   = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc
-  , tracer :: Text -> Closure -> IO ()
+  , tracer :: Unison.Util.Text.Text -> Closure -> IO ()
   , combs :: TVar (EnumMap Word64 Combs)
   , combRefs :: TVar (EnumMap Word64 Reference)
   , tagRefs :: TVar (EnumMap Word64 Reference)
@@ -201,15 +201,15 @@ apply1 callback env threadTracker clo = do
 -- unit value.
 jump0
   :: (Stack 'UN -> Stack 'BX -> IO ())
-  -> CCache -> Closure -> IO ()
-jump0 !callback !env !clo = do
+  -> CCache -> ActiveThreads -> Closure -> IO ()
+jump0 !callback !env !activeThreads !clo = do
   ustk <- alloc
   bstk <- alloc
   (denv, kf) <-
     topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
   bstk <- bump bstk
   poke bstk (Enum Rf.unitRef unitTag)
-  jump env denv ustk bstk (kf k0) (BArg1 0) clo
+  jump env denv activeThreads ustk bstk (kf k0) (BArg1 0) clo
   where
   k0 = CB (Hook callback)
 
