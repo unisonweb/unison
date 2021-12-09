@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Endpoints.Projects where
 
@@ -16,7 +15,6 @@ import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant (QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..))
-import Servant.OpenApi ()
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -96,38 +94,39 @@ serve ::
   Codebase IO v Ann ->
   Maybe ShortBranchHash ->
   Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot =
-  let errFromEither f = either (throwError . f) pure
+serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
+  where
+    projects :: Handler [ProjectListing]
+    projects = do
+      root <- case mayRoot of
+        Nothing -> do
+          gotRoot <- liftIO $ Codebase.getRootBranch codebase
+          errFromEither rootBranchError gotRoot
+        Just sbh -> do
+          ea <- liftIO . runExceptT $ do
+            h <- Backend.expandShortBranchHash codebase sbh
+            mayBranch <- lift $ Codebase.getBranchForHash codebase h
+            mayBranch ?? Backend.CouldntLoadBranch h
+          errFromEither backendError ea
 
-      doBackend a = do
-        ea <- liftIO $ runExceptT a
-        errFromEither backendError ea
+      ownerEntries <- findShallow root
+      let owners = mapMaybe entryToOwner ownerEntries
+      fmap join (traverse (ownerToProjectListings root) owners)
 
-      findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
+    ownerToProjectListings root owner = do
+      let (ProjectOwner ownerName) = owner
+      ownerPath' <- (parsePath . Text.unpack) ownerName
+      let path = Path.fromPath' ownerPath'
+      let ownerBranch = Branch.getAt' path root
+      entries <- findShallow ownerBranch
+      pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
-      parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
 
-      ownerToProjectListings root owner = do
-        let (ProjectOwner ownerName) = owner
-        ownerPath' <- (parsePath . Text.unpack) ownerName
-        let path = Path.fromPath' ownerPath'
-        let ownerBranch = Branch.getAt' path root
-        entries <- findShallow ownerBranch
-        pure $ mapMaybe (backendListEntryToProjectListing owner) entries
+    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
 
-      projects = do
-        root <- case mayRoot of
-          Nothing -> do
-            gotRoot <- liftIO $ Codebase.getRootBranch codebase
-            errFromEither rootBranchError gotRoot
-          Just sbh -> do
-            ea <- liftIO . runExceptT $ do
-              h <- Backend.expandShortBranchHash codebase sbh
-              mayBranch <- lift $ Codebase.getBranchForHash codebase h
-              mayBranch ?? Backend.CouldntLoadBranch h
-            errFromEither backendError ea
+    errFromEither f = either (throwError . f) pure
 
-        ownerEntries <- findShallow root
-        let owners = mapMaybe entryToOwner ownerEntries
-        fmap join (traverse (ownerToProjectListings root) owners)
-   in addHeaders <$> (tryAuth *> projects)
+    doBackend a = do
+      ea <- liftIO $ runExceptT a
+      errFromEither backendError ea
