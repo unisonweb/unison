@@ -2034,7 +2034,7 @@ resolveHQToLabeledDependencies = \case
       types <- eval $ TypeReferencesByShortHash sh
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: Var v => OutputLocation -> NamesWithHistory -> Term v () -> Action' m v ()
+doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
 doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
   tf <- use LoopState.latestTypecheckedFile
@@ -2843,11 +2843,11 @@ toSlurpResult curPath uf existingNames =
             go (n, _) = (not . R.memberDom n) existingNames
 
 displayI ::
-  (Monad m, Var v) =>
+  Monad m =>
   Names ->
   OutputLocation ->
   HQ.HashQualified Name ->
-  Action m (Either Event Input) v ()
+  Action m (Either Event Input) Symbol ()
 displayI prettyPrintNames outputLoc hq = do
   uf <- use LoopState.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
@@ -2878,11 +2878,11 @@ displayI prettyPrintNames outputLoc hq = do
             doDisplay outputLoc ns tm
 
 docsI ::
-  (Ord v, Monad m, Var v) =>
+  Monad m =>
   SrcLoc ->
   Names ->
   Path.HQSplit' ->
-  Action m (Either Event Input) v ()
+  Action m (Either Event Input) Symbol ()
 docsI srcLoc prettyPrintNames src = do
   fileByName
   where

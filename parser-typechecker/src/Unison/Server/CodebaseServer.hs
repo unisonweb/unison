@@ -89,7 +89,7 @@ import Unison.Server.Endpoints.GetDefinitions
 import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
 import Unison.Server.Types (mungeString)
-import Unison.Var (Var)
+import Unison.Symbol (Symbol)
 
 -- HTML content type
 data HTML = HTML
@@ -178,9 +178,8 @@ serverAPI :: Proxy AuthedServerAPI
 serverAPI = Proxy
 
 app
-  :: Var v
-  => Rt.Runtime v
-  -> Codebase IO v Ann
+  :: Rt.Runtime Symbol
+  -> Codebase IO Symbol Ann
   -> FilePath
   -> Strict.ByteString
   -> Application
@@ -230,10 +229,9 @@ data CodebaseServerOpts = CodebaseServerOpts
 
 -- The auth token required for accessing the server is passed to the function k
 startServer
-  :: Var v
-  => CodebaseServerOpts
-  -> Rt.Runtime v
-  -> Codebase IO v Ann
+  :: CodebaseServerOpts
+  -> Rt.Runtime Symbol
+  -> Codebase IO Symbol Ann
   -> (BaseUrl -> IO ())
   -> IO ()
 startServer opts rt codebase onStart = do
@@ -280,9 +278,8 @@ serveUI :: Handler () -> FilePath -> Server WebUI
 serveUI tryAuth path _ = tryAuth *> serveIndex path
 
 server ::
-  Var v =>
-  Rt.Runtime v ->
-  Codebase IO v Ann ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
   Server AuthedServerAPI

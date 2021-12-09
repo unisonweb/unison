@@ -38,8 +38,8 @@ import Unison.Server.Types
     branchToUnisonHash,
     mayDefaultWidth,
   )
+import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
-import Unison.Var (Var)
 
 type NamespaceDetailsAPI =
   "namespaces" :> Capture "namespace" NamespaceFQN
@@ -77,10 +77,9 @@ instance ToJSON NamespaceDetails where
 deriving instance ToSchema NamespaceDetails
 
 serve ::
-  Var v =>
   Handler () ->
-  Rt.Runtime v ->
-  Codebase IO v Ann ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
   NamespaceFQN ->
   Maybe ShortBranchHash ->
   Maybe Width ->

@@ -232,10 +232,10 @@ lookupWatchCache codebase h = do
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
 typeLookupForDependencies ::
-  (Monad m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Monad m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Set Reference ->
-  m (TL.TypeLookup v a)
+  m (TL.TypeLookup Symbol a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -261,10 +261,10 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 -- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
 -- 'putTerm'.
 getTypeOfTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
@@ -275,10 +275,10 @@ getTypeOfTerm c r = case r of
 
 -- | Get the type of a referent.
 getTypeOfReferent ::
-  (BuiltinAnnotation a, Var v, Monad m) =>
-  Codebase m v a ->
+  (BuiltinAnnotation a, Monad m) =>
+  Codebase m Symbol a ->
   Referent.Referent ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
@@ -313,8 +313,8 @@ termsMentioningType c ty =
 
 -- | Check whether a reference is a term.
 isTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
   m Bool
 isTerm code = fmap isJust . getTypeOfTerm code
