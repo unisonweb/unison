@@ -382,6 +382,9 @@ difference a b = Names (R.difference (terms a) (terms b))
 
 contains :: Names -> Reference -> Bool
 contains names =
+  -- We want to compute `termsReferences` only once, if `contains` is partially applied to a `Names`, and called over
+  -- and over for different references. GHC would probably float `termsReferences` out without the explicit lambda, but
+  -- it's written like this just to be sure.
   \r -> Set.member r termsReferences || R.memberRan r (types names)
   where
     -- this check makes `contains` O(n) instead of O(log n)
