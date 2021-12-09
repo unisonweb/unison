@@ -61,14 +61,14 @@ names0 :: Names
 names0 = Names terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.unsafeFromVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
-                 | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
+                 | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls) <>
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
     Rel.fromList [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
                  | (v,i) <- Map.toList $ TD.builtinTermsRef @Symbol Intrinsic]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.unsafeFromVar v, R.DerivedId r)
-                 | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
+                 | (v,(r,_)) <- builtinDataDecls ] <>
     Rel.fromList [ (Name.unsafeFromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinEffectDecls @Symbol ]
 
@@ -77,7 +77,7 @@ names0 = Names terms types where
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType r = elem r . fmap snd $ builtinTypes
 
-typeLookup :: Var v => TL.TypeLookup v Ann
+typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
   TL.TypeLookup
     (fmap (const Intrinsic) <$> termRefTypes)
@@ -85,17 +85,17 @@ typeLookup =
     (Map.fromList . map (first R.DerivedId) $ map snd builtinEffectDecls)
 
 constructorType :: R.Reference -> Maybe CT.ConstructorType
-constructorType r = TL.constructorType (typeLookup @Symbol) r
+constructorType r = TL.constructorType typeLookup r
                 <|> Map.lookup r builtinConstructorType
 
-builtinDataDecls :: Var v => [(v, (R.Id, DataDeclaration v))]
+builtinDataDecls :: [(Symbol, (R.Id, DataDeclaration Symbol))]
 builtinDataDecls =
   [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
 builtinEffectDecls :: Var v => [(v, (R.Id, EffectDeclaration v))]
 builtinEffectDecls = [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls ]
 
-codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
+codeLookup :: Applicative m => CodeLookup Symbol m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure
     $ lookup r [ (r, Right x) | (r, x) <- snd <$> builtinDataDecls ]

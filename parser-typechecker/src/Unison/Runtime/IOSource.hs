@@ -39,9 +39,9 @@ typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let x = typecheckedFile' in
   if debug then trace ("IOSource.typecheckedFile = " ++ show x) x else x
 
-typecheckedFile' :: forall v. Var.Var v => UF.TypecheckedUnisonFile v Ann
+typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile' = let
-  tl :: a -> Identity (TL.TypeLookup v Ann)
+  tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ Builtin.typeLookup)
   env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source

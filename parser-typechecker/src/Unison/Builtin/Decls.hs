@@ -36,7 +36,7 @@ lookupDeclRef str
   | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ]
+    decls = [ (a,b) | (a,b,_) <- builtinDataDecls ]
 
 lookupEffectRef :: Text -> Reference
 lookupEffectRef str
@@ -83,7 +83,7 @@ unitCtorRef = Referent.Con (ConstructorReference unitRef 0) CT.Data
 
 constructorId :: Reference -> Text -> Maybe Int
 constructorId ref name = do
-  (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
+  (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) builtinDataDecls
   elemIndex name $ DD.constructorNames dd
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
@@ -119,7 +119,7 @@ failConstructorReferent = Referent.Con (ConstructorReference testResultRef failC
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
+builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
 builtinDataDecls = rs1 ++ rs
  where
   rs1 = case hashDecls $ Map.fromList

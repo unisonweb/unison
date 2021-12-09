@@ -87,7 +87,7 @@ builtinDataSpec :: DataSpec
 builtinDataSpec = Map.fromList decls
  where
  decls = [ (DerivedId x, declFields $ Right y)
-         | (_,x,y) <- builtinDataDecls @Symbol ]
+         | (_,x,y) <- builtinDataDecls ]
       ++ [ (DerivedId x, declFields $ Left y)
          | (_,x,y) <- builtinEffectDecls @Symbol ]
 

@@ -149,6 +149,7 @@ import Unison.Util.Free (Free)
 import UnliftIO (MonadUnliftIO)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
+import Unison.Symbol (Symbol)
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -163,7 +164,7 @@ currentPrettyPrintEnvDecl = do
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
 
-loop :: forall m v. (MonadUnliftIO m, Var v) => Action m (Either Event Input) v ()
+loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
   uf <- use LoopState.latestTypecheckedFile
   root' <- use LoopState.root
@@ -319,7 +320,7 @@ loop = do
                     if isTerm
                       then Set.fromList $ SR.termName <$> termResults hits
                       else Set.fromList $ SR.typeName <$> typeResults hits
-                go :: Reference -> Action m (Either Event Input) v ()
+                go :: Reference -> Action m (Either Event Input) Symbol ()
                 go fr = do
                   let termPatch =
                         over Patch.termEdits (R.deleteDom fr) patch
@@ -490,6 +491,7 @@ loop = do
           --
           -- No-op if the slurp component is empty.
           addDefaultMetadata ::
+            Var v =>
             SlurpComponent v ->
             Action m (Either Event Input) v ()
           addDefaultMetadata adds =
@@ -525,6 +527,7 @@ loop = do
           -- `op` is the operation to add/remove/alter metadata mappings.
           --   e.g. `Metadata.insert` is passed to add metadata links.
           manageLinks ::
+            Var v =>
             Bool ->
             [(Path', HQ'.HQSegment)] ->
             [HQ.HashQualified Name] ->
@@ -1240,7 +1243,7 @@ loop = do
                   replaceTerms ::
                     Reference ->
                     Reference ->
-                    Action m (Either Event Input) v ()
+                    Action m (Either Event Input) Symbol ()
                   replaceTerms fr tr = do
                     mft <- eval $ LoadTypeOfTerm fr
                     mtt <- eval $ LoadTypeOfTerm tr
@@ -1266,7 +1269,7 @@ loop = do
                   replaceTypes ::
                     Reference ->
                     Reference ->
-                    Action m (Either Event Input) v ()
+                    Action m (Either Event Input) Symbol ()
                   replaceTypes fr tr = do
                     let patch' =
                           -- The modified patch
@@ -1365,7 +1368,7 @@ loop = do
                                 ++ show otherwise
                           where
                             n = Name.unsafeFromVar v
-                    hashTerms :: Map Reference (Type v Ann)
+                    hashTerms :: Map Reference (Type Symbol Ann)
                     hashTerms = Map.fromList (toList hashTerms0)
                       where
                         hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
@@ -1640,7 +1643,7 @@ loop = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let names0 =
                     Builtin.names0
-                      <> UF.typecheckedToNames @v IOSource.typecheckedFile'
+                      <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                 eval $ Merge Branch.RegularMerge srcb destb

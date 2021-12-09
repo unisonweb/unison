@@ -58,13 +58,12 @@ showParseError :: Var v
 showParseError s = Pr.toANSI 60 . prettyParseError s
 
 parseAndSynthesizeAsFile
-  :: Var v
-  => [Type v]
+  :: [Type Symbol]
   -> FilePath
   -> String
   -> Result
-       (Seq (Note v Ann))
-       (Either Names (TypecheckedUnisonFile v Ann))
+       (Seq (Note Symbol Ann))
+       (Either Names (TypecheckedUnisonFile Symbol Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)

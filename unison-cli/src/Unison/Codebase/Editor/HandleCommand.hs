@@ -45,7 +45,6 @@ import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
-import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import System.Environment (withArgs)
@@ -54,15 +53,16 @@ import qualified Unison.Codebase.Path as Path
 import Control.Monad.Reader (ReaderT (runReaderT), ask)
 import qualified Control.Concurrent.STM as STM
 import qualified UnliftIO
+import Unison.Symbol (Symbol)
 
 typecheck
-  :: (Monad m, Var v)
-  => [Type v Ann]
-  -> Codebase m v Ann
+  :: Monad m
+  => [Type Symbol Ann]
+  -> Codebase m Symbol Ann
   -> Parser.ParsingEnv
   -> SourceName
   -> LexedSource
-  -> m (TypecheckingResult v)
+  -> m (TypecheckingResult Symbol)
 typecheck ambient codebase parsingEnv sourceName src =
   Result.getResult $ parseAndSynthesizeFile ambient
     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
@@ -72,36 +72,35 @@ typecheck ambient codebase parsingEnv sourceName src =
 
 typecheck'
   :: Monad m
-  => Var v
-  => [Type v Ann]
-  -> Codebase m v Ann
-  -> UF.UnisonFile v Ann
-  -> m (TypecheckingResult v)
+  => [Type Symbol Ann]
+  -> Codebase m Symbol Ann
+  -> UF.UnisonFile Symbol Ann
+  -> m (TypecheckingResult Symbol)
 typecheck' ambient codebase file = do
   typeLookup <- (<> B.typeLookup)
     <$> Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   pure . fmap Right $ synthesizeFile' ambient typeLookup file
 
 commandLine
-  :: forall i v a gen
-   . (Var v, Random.DRG gen)
+  :: forall i a gen
+   . Random.DRG gen
   => Config
   -> IO i
   -> (Branch IO -> IO ())
-  -> Runtime v
-  -> (Output v -> IO ())
-  -> (NumberedOutput v -> IO NumberedArgs)
+  -> Runtime Symbol
+  -> (Output Symbol -> IO ())
+  -> (NumberedOutput Symbol -> IO NumberedArgs)
   -> (SourceName -> IO LoadSourceResult)
-  -> Codebase IO v Ann
+  -> Codebase IO Symbol Ann
   -> Maybe Server.BaseUrl
   -> (Int -> IO gen)
-  -> Free (Command IO i v) a
+  -> Free (Command IO i Symbol) a
   -> IO a
 commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSource codebase serverBaseUrl rngGen free = do
  rndSeed <- STM.newTVarIO 0
  flip runReaderT rndSeed . Free.fold go $ free
  where
-  go :: forall x . Command IO i v x -> ReaderT (STM.TVar Int) IO x
+  go :: forall x . Command IO i Symbol x -> ReaderT (STM.TVar Int) IO x
   go x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> lift m
@@ -213,7 +212,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       -- Get the unlifter for the ReaderT we're currently working in.
       unlifted <- UnliftIO.askUnliftIO
       -- Built an unliftIO for the Free monad
-      let runF :: UnliftIO.UnliftIO (Free (Command IO i v))
+      let runF :: UnliftIO.UnliftIO (Free (Command IO i Symbol))
           runF = UnliftIO.UnliftIO $ case unlifted of
                    -- We need to case-match on the UnliftIO within this function
                    -- because `toIO` is existential and we need the right types
@@ -221,12 +220,12 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
                    UnliftIO.UnliftIO toIO -> toIO . Free.fold go
       pure runF
 
-  watchCache :: Reference.Id -> IO (Maybe (Term v ()))
+  watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
   watchCache h = do
     maybeTerm <- Codebase.lookupWatchCache codebase h
     pure (Term.amap (const ()) <$> maybeTerm)
 
-  eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term v Ann -> _
+  eval1 :: PPE.PrettyPrintEnv -> UseCache -> Term Symbol Ann -> _
   eval1 ppe useCache tm = do
     let codeLookup = Codebase.toCodeLookup codebase
         cache = if useCache then watchCache else Runtime.noCache
@@ -237,7 +236,7 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       Left _ -> pure ()
     pure $ r <&> Term.amap (const Ann.External)
 
-  evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> [String] -> _
+  evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile Symbol Ann -> [String] -> _
   evalUnisonFile ppe unisonFile args = withArgs args do
     let codeLookup = Codebase.toCodeLookup codebase
     r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile

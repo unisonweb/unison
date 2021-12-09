@@ -1585,7 +1585,7 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $ 
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
     fmap Util.Text.fromText . Text.IO.hGetLine
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
@@ -1943,13 +1943,13 @@ declareForeigns = do
   declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
   declareForeign "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64
-  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ 
+  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
   declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
@@ -1974,7 +1974,7 @@ typeReferences :: [(Reference, Word64)]
 typeReferences = zip rs [1..]
   where
   rs = [ r | (_,r) <- Ty.builtinTypes ]
-    ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls @Symbol ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls ]
     ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls @Symbol ]
 
 foreignDeclResults
