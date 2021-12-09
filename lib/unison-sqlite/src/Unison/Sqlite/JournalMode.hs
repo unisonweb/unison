@@ -24,12 +24,12 @@ data JournalMode
 
 journalModeFromText :: Text -> Maybe JournalMode
 journalModeFromText = \case
-  "DELETE" -> Just JournalMode'DELETE
-  "TRUNCATE" -> Just JournalMode'TRUNCATE
-  "PERSIST" -> Just JournalMode'PERSIST
-  "MEMORY" -> Just JournalMode'MEMORY
-  "WAL" -> Just JournalMode'WAL
-  "OFF" -> Just JournalMode'OFF
+  "delete" -> Just JournalMode'DELETE
+  "truncate" -> Just JournalMode'TRUNCATE
+  "persist" -> Just JournalMode'PERSIST
+  "memory" -> Just JournalMode'MEMORY
+  "wal" -> Just JournalMode'WAL
+  "off" -> Just JournalMode'OFF
   _ -> Nothing
 
 unsafeJournalModeFromText :: HasCallStack => Text -> JournalMode
@@ -38,12 +38,12 @@ unsafeJournalModeFromText s =
 
 journalModeToText :: JournalMode -> Text
 journalModeToText = \case
-  JournalMode'DELETE -> "DELETE"
-  JournalMode'TRUNCATE -> "TRUNCATE"
-  JournalMode'PERSIST -> "PERSIST"
-  JournalMode'MEMORY -> "MEMORY"
-  JournalMode'WAL -> "WAL"
-  JournalMode'OFF -> "OFF"
+  JournalMode'DELETE -> "delete"
+  JournalMode'TRUNCATE -> "truncate"
+  JournalMode'PERSIST -> "persist"
+  JournalMode'MEMORY -> "memory"
+  JournalMode'WAL -> "wal"
+  JournalMode'OFF -> "off"
 
 trySetJournalMode :: JournalMode -> Transaction ()
 trySetJournalMode mode0 = do
