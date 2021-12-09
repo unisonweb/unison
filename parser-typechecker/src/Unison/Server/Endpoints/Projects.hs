@@ -29,6 +29,7 @@ import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors (backendError, badNamespace, rootBranchError)
 import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
+import Unison.Util.Monoid (foldMapM)
 import Unison.Var (Var)
 
 type ProjectsAPI =
@@ -111,7 +112,7 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
 
       ownerEntries <- findShallow root
       let owners = mapMaybe entryToOwner ownerEntries
-      fmap join (traverse (ownerToProjectListings root) owners)
+      foldMapM (ownerToProjectListings root) owners
 
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
