@@ -353,10 +353,10 @@ importRemoteBranch ::
 importRemoteBranch codebase ns mode preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
          withStatus "Importing downloaded files into local codebase..." $ do
-           branch <- preprocessOp branch
-           time "SyncFromDirectory" $
-             syncFromDirectory codebase cacheDir mode branch
-         pure $ Branch.headHash branch
+           processedBranch <- preprocessOp branch
+           time "SyncFromDirectory" $ do
+             syncFromDirectory codebase cacheDir mode processedBranch
+             pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
       Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
