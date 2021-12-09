@@ -14,6 +14,7 @@ class Hashable t where
 
 instance BuildHashable.Hashable a => Hashable [a] where
   hash = BuildHashable.hash
+
 instance BuildHashable.Hashable a => Hashable (Set a) where
   hash = BuildHashable.hash
 
