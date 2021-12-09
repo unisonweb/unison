@@ -32,7 +32,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase (PushGitBranchOpts (..))
+import Unison.Codebase (PushGitBranchOpts (..), Preprocessing (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -149,6 +149,7 @@ import Unison.Util.Free (Free)
 import UnliftIO (MonadUnliftIO)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
+import qualified Unison.Codebase.Editor.Input as Input
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -389,8 +390,12 @@ loop = do
             MergeIOBuiltinsI -> "builtins.mergeio"
             MakeStandaloneI out nm ->
               "compile.output " <> Text.pack out <> " " <> HQ.toText nm
-            PullRemoteBranchI orepo dest _syncMode _ ->
-              (Text.pack . InputPattern.patternName $ InputPatterns.pull)
+            PullRemoteBranchI orepo dest _syncMode pullMode _ ->
+              (Text.pack . InputPattern.patternName $
+                case pullMode of
+                  PullWithoutHistory -> InputPatterns.pullWithoutHistory
+                  PullWithHistory -> InputPatterns.pull
+              )
                 <> " "
                 -- todo: show the actual config-loaded namespace
                 <> maybe
@@ -466,7 +471,8 @@ loop = do
           syncRoot = use LoopState.root >>= updateRoot
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
-          importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
+          importRemoteBranch ns mode preprocess =
+            ExceptT . eval $ ImportRemoteBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
@@ -635,8 +641,8 @@ loop = do
               destb <- getAt desta
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessGitError do
-                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
-                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
+                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit Unmodified
+                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit Unmodified
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -1446,14 +1452,33 @@ loop = do
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               respond $ ListEdits patch ppe
-            PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
+            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
+              let preprocess = case pullMode of
+                    Input.PullWithHistory -> Unmodified
+                    Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
               lift $ unlessGitError do
-                b <- importRemoteBranch ns syncMode
-                let msg = Just $ PullAlreadyUpToDate ns path
+                remoteBranch <- importRemoteBranch ns syncMode preprocess
+                let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-                lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
+                lift $ case pullMode of
+                  Input.PullWithHistory -> do
+                    mergeBranchAndPropagateDefaultPatch
+                      Branch.RegularMerge
+                      inputDescription
+                      (Just unchangedMsg)
+                      remoteBranch
+                      printDiffPath
+                      destAbs
+                  Input.PullWithoutHistory -> do
+                    didUpdate <- updateAtM
+                                   destAbs
+                                   (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch )
+                    if didUpdate
+                       then respond $ PullSuccessful ns path
+                       else respond unchangedMsg
+
             PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
