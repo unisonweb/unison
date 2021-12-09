@@ -53,7 +53,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
-import           Unison.Codebase (PushGitBranchOpts)
+import           Unison.Codebase (PushGitBranchOpts, Preprocessing)
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
@@ -213,7 +213,7 @@ data Command
     -- | A preprocessing step to perform on the branch before it's imported.
     -- This is sometimes useful for minimizing the number of definitions to sync.
     -- Simply pass 'pure' if you don't need to do any pre-processing.
-    (Branch m -> m (Branch m)) ->
+    Preprocessing m ->
     Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.

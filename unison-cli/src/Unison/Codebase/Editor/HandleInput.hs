@@ -32,7 +32,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase (PushGitBranchOpts (..))
+import Unison.Codebase (PushGitBranchOpts (..), Preprocessing (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -732,8 +732,8 @@ loop = do
               destb <- getAt desta
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessGitError do
-                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit pure
-                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit pure
+                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit Unmodified
+                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit Unmodified
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -1664,8 +1664,8 @@ loop = do
               respond $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
               let preprocess = case pullMode of
-                    Input.PullWithHistory -> pure
-                    Input.PullWithoutHistory -> pure . Branch.discardHistory
+                    Input.PullWithHistory -> Unmodified
+                    Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
               lift $ unlessGitError do
                 remoteBranch <- importRemoteBranch ns syncMode preprocess
