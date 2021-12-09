@@ -54,7 +54,7 @@ pullBase ns = let
     seg = NameSegment "base"
     rootPath = Path.Path { Path.toSeq = singleton seg }
     abs = Path.Absolute {Path.unabsolute = rootPath}
-    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete PullWithoutHistory Verbosity.Silent
+    pullRemote = PullRemoteBranchI (Just ns) (Path.Path' {Path.unPath' = Left abs}) SyncMode.Complete PullWithHistory Verbosity.Silent
   in Right pullRemote
 
 run :: Codebase IO v a -> Welcome -> IO [Either Event Input]
