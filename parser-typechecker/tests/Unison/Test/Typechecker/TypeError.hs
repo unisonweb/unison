@@ -14,7 +14,6 @@ import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.Extractor (ErrorExtractor)
 import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
-import           Unison.Var                   (Var)
 import qualified Unison.Test.Common as Common
 
 test :: Test ()

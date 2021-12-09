@@ -70,7 +70,7 @@ names0 = Names terms types where
     Rel.fromList [ (Name.unsafeFromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinDataDecls ] <>
     Rel.fromList [ (Name.unsafeFromVar v, R.DerivedId r)
-                 | (v,(r,_)) <- builtinEffectDecls @Symbol ]
+                 | (v,(r,_)) <- builtinEffectDecls ]
 
 -- note: this function is really for deciding whether `r` is a term or type,
 -- but it can only answer correctly for Builtins.
@@ -92,7 +92,7 @@ builtinDataDecls :: [(Symbol, (R.Id, DataDeclaration Symbol))]
 builtinDataDecls =
   [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
-builtinEffectDecls :: Var v => [(v, (R.Id, EffectDeclaration v))]
+builtinEffectDecls :: [(Symbol, (R.Id, EffectDeclaration Symbol))]
 builtinEffectDecls = [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinEffectDecls ]
 
 codeLookup :: Applicative m => CodeLookup Symbol m Ann

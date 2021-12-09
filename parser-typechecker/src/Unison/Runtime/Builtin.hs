@@ -1975,7 +1975,7 @@ typeReferences = zip rs [1..]
   where
   rs = [ r | (_,r) <- Ty.builtinTypes ]
     ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls ]
-    ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls @Symbol ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls ]
 
 foreignDeclResults
   :: Var v

@@ -43,7 +43,7 @@ lookupEffectRef str
   | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls @Symbol ]
+    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls ]
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -309,7 +309,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
+builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
   case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
     Right a -> over _3 DD.EffectDeclaration <$> a
