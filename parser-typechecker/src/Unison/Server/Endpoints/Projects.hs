@@ -8,12 +8,12 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error (runExceptT)
+import Control.Error (ExceptT, runExceptT)
 import Control.Error.Util ((??))
 import Data.Aeson
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
-import Servant (QueryParam, throwError, (:>))
+import Servant (QueryParam, ServerError, throwError, (:>))
 import Servant.Docs (ToSample (..))
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
@@ -46,24 +46,23 @@ instance ToSample ProjectListing where
       )
     ]
 
-data ProjectOwner = ProjectOwner Text deriving (Generic, Show)
+newtype ProjectOwner = ProjectOwner Text
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON ProjectOwner where
   toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema ProjectOwner
 
 data ProjectListing = ProjectListing
   { owner :: ProjectOwner,
     name :: Text,
     hash :: UnisonHash
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (ToSchema)
 
 instance ToJSON ProjectListing where
   toEncoding = genericToEncoding defaultOptions
-
-deriving instance ToSchema ProjectListing
 
 backendListEntryToProjectListing ::
   Var v =>
@@ -90,6 +89,7 @@ entryToOwner = \case
   _ -> Nothing
 
 serve ::
+  forall v.
   Var v =>
   Handler () ->
   Codebase IO v Ann ->
@@ -114,6 +114,7 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
       let owners = mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings root) owners
 
+    ownerToProjectListings :: Branch.Branch IO -> ProjectOwner -> Handler [ProjectListing]
     ownerToProjectListings root owner = do
       let (ProjectOwner ownerName) = owner
       ownerPath' <- (parsePath . Text.unpack) ownerName
@@ -122,12 +123,21 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
       entries <- findShallow ownerBranch
       pure $ mapMaybe (backendListEntryToProjectListing owner) entries
 
-    findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
+    -- Minor helpers
 
-    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry v Ann]
+    findShallow branch =
+      doBackend $ Backend.findShallowInBranch codebase branch
 
-    errFromEither f = either (throwError . f) pure
+    parsePath :: String -> Handler Path.Path'
+    parsePath p =
+      errFromEither (`badNamespace` p) $ Path.parsePath' p
 
+    errFromEither :: (a -> ServerError) -> Either a a1 -> Handler a1
+    errFromEither f =
+      either (throwError . f) pure
+
+    doBackend :: ExceptT Backend.BackendError IO b -> Handler b
     doBackend a = do
       ea <- liftIO $ runExceptT a
       errFromEither backendError ea
