@@ -1,6 +1,8 @@
 -- | Sqlite exception utils
 module Unison.Sqlite.Exception
   ( SqliteQueryException (..),
+    pattern SqliteBusyException,
+    isSqliteBusyException,
     SqliteExceptionReason,
     SomeSqliteExceptionReason (..),
     SqliteQueryExceptionInfo (..),
@@ -9,6 +11,7 @@ module Unison.Sqlite.Exception
 where
 
 import Control.Concurrent (ThreadId, myThreadId)
+import Data.Typeable (cast)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
@@ -75,3 +78,12 @@ data SqliteQueryException = SqliteQueryException
   }
   deriving stock (Show)
   deriving anyclass (Exception)
+
+pattern SqliteBusyException :: SqliteQueryException
+pattern SqliteBusyException <- (isSqliteBusyException -> True)
+
+isSqliteBusyException :: SqliteQueryException -> Bool
+isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReason reason} =
+  case cast reason of
+    Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
+    _ -> False
