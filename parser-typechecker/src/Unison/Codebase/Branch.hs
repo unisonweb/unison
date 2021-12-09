@@ -39,6 +39,7 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , children
+  , nonEmptyChildren
   , deepEdits'
   , toList0
   -- * step
@@ -120,6 +121,7 @@ import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
 import qualified Data.Semialign as Align
 import Data.These (These(..))
+import qualified Unison.Util.Relation as Relation
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -230,6 +232,12 @@ types =
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
+nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
+nonEmptyChildren b =
+  b
+  & _children
+  & Map.filter (not . isEmpty0 . head)
+
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 ::
   forall m.
@@ -262,7 +270,7 @@ branch0 terms types children edits =
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
 deriveDeepTerms branch =
-  branch {deepTerms = makeDeepTerms (_terms branch) (_children branch)}
+  branch {deepTerms = makeDeepTerms (_terms branch) (nonEmptyChildren branch)}
   where
     makeDeepTerms :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Relation Referent Name
     makeDeepTerms terms children =
@@ -275,7 +283,7 @@ deriveDeepTerms branch =
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
-  branch {deepTypes = makeDeepTypes (_types branch) (_children branch)}
+  branch {deepTypes = makeDeepTypes (_types branch) (nonEmptyChildren branch)}
   where
     makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
     makeDeepTypes types children =
@@ -288,7 +296,7 @@ deriveDeepTypes branch =
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (_children branch)}
+  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (nonEmptyChildren branch)}
   where
     makeDeepTermMetadata :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Referent Name
     makeDeepTermMetadata terms children =
@@ -301,7 +309,7 @@ deriveDeepTermMetadata branch =
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (_children branch)}
+  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (nonEmptyChildren branch)}
   where
     makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
     makeDeepTypeMetadata types children =
@@ -314,7 +322,7 @@ deriveDeepTypeMetadata branch =
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: Branch0 m -> Branch0 m
 deriveDeepPaths branch =
-  branch {deepPaths = makeDeepPaths (_children branch)}
+  branch {deepPaths = makeDeepPaths (nonEmptyChildren branch)}
   where
     makeDeepPaths :: Map NameSegment (Branch m) -> Set Path
     makeDeepPaths children =
@@ -327,7 +335,7 @@ deriveDeepPaths branch =
 -- | Derive the 'deepEdits' field of a branch.
 deriveDeepEdits :: Branch0 m -> Branch0 m
 deriveDeepEdits branch =
-  branch {deepEdits = makeDeepEdits (_edits branch) (_children branch)}
+  branch {deepEdits = makeDeepEdits (_edits branch) (nonEmptyChildren branch)}
   where
     makeDeepEdits :: Map NameSegment (EditHash, m Patch) -> Map NameSegment (Branch m) -> Map Name EditHash
     makeDeepEdits edits children =
@@ -502,9 +510,15 @@ empty0 :: Branch0 m
 empty0 =
   Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
--- | Checks whether a Branch0 is empty.
+-- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
+-- types, and that the heads of all children are empty by the same definition.
+-- This is not as easy as checking whether the branch is equal to the `empty0` branch
+-- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
-isEmpty0 = (== empty0)
+isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
+  Relation.null deepTerms
+    && Relation.null deepTypes
+    && Map.null deepEdits
 
 -- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
@@ -786,10 +800,13 @@ consBranchSnapshot ::
 -- If the target branch is empty we just replace it.
 consBranchSnapshot headBranch Empty = discardHistory headBranch
 consBranchSnapshot headBranch baseBranch =
-  Branch $
-    Causal.consDistinct
-      (head headBranch & children .~ combinedChildren)
-      (_history baseBranch)
+  if baseBranch == headBranch
+    then baseBranch
+    else
+      Branch $
+        Causal.consDistinct
+          (head headBranch & children .~ combinedChildren)
+          (_history baseBranch)
   where
     combineChildren :: These (Branch m) (Branch m) -> Branch m
     combineChildren = \case

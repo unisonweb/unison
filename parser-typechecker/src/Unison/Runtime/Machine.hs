@@ -59,7 +59,10 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.Stack
 import Unison.Runtime.MCode
 
+import Unison.Util.Text (Text)
+
 import qualified Unison.Type as Rf
+import qualified Unison.Builtin.Decls as Rf
 
 import qualified Unison.Util.Bytes as By
 import Unison.Util.Pretty (toPlainUnbroken)
@@ -74,6 +77,7 @@ type DEnv = EnumMap Word64 Closure
 data CCache
   = CCache
   { foreignFuncs :: EnumMap Word64 ForeignFunc
+  , tracer :: Text -> Closure -> IO ()
   , combs :: TVar (EnumMap Word64 Combs)
   , combRefs :: TVar (EnumMap Word64 Reference)
   , tagRefs :: TVar (EnumMap Word64 Reference)
@@ -105,7 +109,7 @@ refNumTy' cc r = M.lookup r <$> refNumsTy cc
 
 baseCCache :: IO CCache
 baseCCache
-  = CCache builtinForeigns
+  = CCache builtinForeigns noTrace
       <$> newTVarIO combs
       <*> newTVarIO builtinTermBackref
       <*> newTVarIO builtinTypeBackref
@@ -115,6 +119,7 @@ baseCCache
       <*> newTVarIO builtinTermNumbering
       <*> newTVarIO builtinTypeNumbering
   where
+  noTrace _ _ = pure ()
   ftm = 1 + maximum builtinTermNumbering
   fty = 1 + maximum builtinTypeNumbering
 
@@ -184,6 +189,23 @@ apply1 callback env clo = do
   where
   k0 = CB $ Hook callback
 
+-- Entry point for evaluating a saved continuation.
+--
+-- The continuation must be from an evaluation context expecting a
+-- unit value.
+jump0
+  :: (Stack 'UN -> Stack 'BX -> IO ())
+  -> CCache -> Closure -> IO ()
+jump0 !callback !env !clo = do
+  ustk <- alloc
+  bstk <- alloc
+  (denv, kf) <-
+    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+  bstk <- bump bstk
+  poke bstk (Enum Rf.unitRef unitTag)
+  jump env denv ustk bstk (kf k0) (BArg1 0) clo
+  where
+  k0 = CB (Hook callback)
 
 lookupDenv :: Word64 -> DEnv -> Closure
 lookupDenv p denv = fromMaybe BlackHole $ EC.lookup p denv
@@ -299,6 +321,11 @@ exec !_   !denv !ustk !bstk !k (BPrim2 CMPU i j) = do
   y <- peekOff bstk j
   ustk <- bump ustk
   poke ustk . fromEnum $ universalCompare compare x y
+  pure (denv, ustk, bstk, k)
+exec !env !denv !ustk !bstk !k (BPrim2 TRCE i j) = do
+  tx <- peekOffBi bstk i
+  clo <- peekOff bstk j
+  tracer env tx clo
   pure (denv, ustk, bstk, k)
 exec !_   !denv !ustk !bstk !k (BPrim2 op i j) = do
   (ustk,bstk) <- bprim2 ustk bstk op i j
@@ -1373,6 +1400,7 @@ bprim2 !_    !bstk THRO i j = do
   name <- peekOffBi @Util.Text.Text bstk i
   x <- peekOff bstk j
   throwIO (BU (Util.Text.toText name) x)
+bprim2 !ustk !bstk TRCE _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
@@ -1771,6 +1799,13 @@ charTag
   , rt <- toEnum (fromIntegral n)
   = packTags rt 0
   | otherwise = error "internal error: charTag"
+
+unitTag :: Word64
+unitTag
+  | Just n <- M.lookup Rf.unitRef builtinTypeNumbering
+  , rt <- toEnum (fromIntegral n)
+  = packTags rt 0
+  | otherwise = error "internal error: unitTag"
 
 universalCompare
   :: (Foreign -> Foreign -> Ordering)
