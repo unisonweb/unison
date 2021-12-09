@@ -59,15 +59,6 @@ import Unison.Hashing.V2.Hashable (Hashable)
 import Prelude hiding (head, read, tail)
 import qualified Data.List.Extra as List
 
-fromList :: (Applicative m, Hashable e) => e -> [Causal m h e] -> Causal m h e
-fromList e (List.nubOrdOn currentHash -> tails) = case tails of
-  [] -> UnsafeOne h e
-  t : [] -> UnsafeCons h e (tailPair t)
-  _ : _ : _ -> UnsafeMerge h e (Map.fromList $ map tailPair tails)
-  where
-    tailPair c = (currentHash c, pure c)
-    h = RawHash $ Hashing.hashCausal e (Set.fromList $ map currentHash tails)
-
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
 -- result. Instead, the resulting causal is a simple `Cons` onto `c2`
@@ -145,11 +136,22 @@ stepDistinctM
   => (e -> n e) -> Causal m h e -> n (Causal m h e)
 stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
+-- | Causal construction should go through here for uniformity;
+-- with an exception for `one`, which avoids an Applicative constraint.
+fromList :: (Applicative m, Hashable e) => e -> [Causal m h e] -> Causal m h e
+fromList e (List.nubOrdOn currentHash -> tails) = case tails of
+  [] -> UnsafeOne h e
+  t : [] -> UnsafeCons h e (tailPair t)
+  _ : _ : _ -> UnsafeMerge h e (Map.fromList $ map tailPair tails)
+  where
+    tailPair c = (currentHash c, pure c)
+    h = RawHash $ Hashing.hashCausal e (Set.fromList $ map currentHash tails)
+
 -- duplicated logic here instead of delegating to `fromList` to avoid `Applicative m` constraint.
 one :: Hashable e => e -> Causal m h e
-one e =
-  let h = Hashing.hashCausal e mempty
-  in UnsafeOne (RawHash h) e
+one e = UnsafeOne h e
+  where
+    h = RawHash $ Hashing.hashCausal e mempty
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
 cons e tail = fromList e [tail]
@@ -164,12 +166,15 @@ uncons c = case c of
   Cons _ e (_,tl) -> fmap (e,) . Just <$> tl
   _ -> pure Nothing
 
+-- it's okay to call "Unsafe"* here with the existing hashes because `nt` can't
+-- affect `e`.
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
   One h e -> UnsafeOne h e
   Cons h e (ht, tl) -> UnsafeCons h e (ht, nt (transform nt <$> tl))
   Merge h e tls -> UnsafeMerge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
+-- "unsafe" because the hashes will be wrong if `f` affects aspects of `e` that impact hashing
 unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
 unsafeMapHashPreserving f c = case c of
   One h e -> UnsafeOne h (f e)
