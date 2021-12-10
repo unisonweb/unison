@@ -1,9 +1,8 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -11,15 +10,15 @@ module Unison.Server.CodebaseServer where
 
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Control.Concurrent.Async (race)
-import Data.ByteString.Char8 (unpack)
 import Control.Exception (ErrorCall (..), throwIO)
-import qualified Network.URI.Encode as URI
 import Control.Lens ((.~))
 import Data.Aeson ()
 import qualified Data.ByteString as Strict
+import Data.ByteString.Char8 (unpack)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Data.OpenApi (Info (..), License (..), OpenApi, URL (..))
 import qualified Data.OpenApi.Lens as OpenApi
 import Data.Proxy (Proxy (..))
@@ -27,8 +26,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GHC.Generics ()
 import Network.HTTP.Media ((//), (/:))
-import Data.NanoID (customNanoID, defaultAlphabet, unNanoID)
 import Network.HTTP.Types.Status (ok200)
+import qualified Network.URI.Encode as URI
 import Network.Wai (responseLBS)
 import Network.Wai.Handler.Warp
   ( Port,
@@ -88,13 +87,14 @@ import Unison.Server.Endpoints.GetDefinitions
   )
 import qualified Unison.Server.Endpoints.NamespaceDetails as NamespaceDetails
 import qualified Unison.Server.Endpoints.NamespaceListing as NamespaceListing
+import qualified Unison.Server.Endpoints.Projects as Projects
 import Unison.Server.Types (mungeString)
 import Unison.Symbol (Symbol)
 
 -- HTML content type
 data HTML = HTML
 
-newtype RawHtml = RawHtml { unRaw :: Lazy.ByteString }
+newtype RawHtml = RawHtml {unRaw :: Lazy.ByteString}
 
 instance Accept HTML where
   contentType _ = "text" // "html" /: ("charset", "utf-8")
@@ -109,9 +109,9 @@ type DocAPI = UnisonAPI :<|> OpenApiJSON :<|> Raw
 type UnisonAPI =
   NamespaceListing.NamespaceListingAPI
     :<|> NamespaceDetails.NamespaceDetailsAPI
+    :<|> Projects.ProjectsAPI
     :<|> DefinitionsAPI
     :<|> FuzzyFindAPI
-
 
 type WebUI = CaptureAll "route" Text :> Get '[HTML] RawHtml
 
@@ -141,32 +141,37 @@ urlFor path baseUrl =
     UI -> show baseUrl <> "/ui"
     Api -> show baseUrl <> "/api"
 
-
 handleAuth :: Strict.ByteString -> Text -> Handler ()
 handleAuth expectedToken gotToken =
   if Text.decodeUtf8 expectedToken == gotToken
     then pure ()
     else throw401 "Authentication token missing or incorrect."
-  where throw401 msg = throwError $ err401 { errBody = msg }
+  where
+    throw401 msg = throwError $ err401 {errBody = msg}
 
 openAPI :: OpenApi
 openAPI = toOpenApi api & OpenApi.info .~ infoObject
 
 infoObject :: Info
-infoObject = mempty
-  { _infoTitle       = "Unison Codebase Manager API"
-  , _infoDescription =
-    Just "Provides operations for querying and manipulating a Unison codebase."
-  , _infoLicense     = Just . License "MIT" . Just $ URL
-                         "https://github.com/unisonweb/unison/blob/trunk/LICENSE"
-  , _infoVersion     = "1.0"
-  }
+infoObject =
+  mempty
+    { _infoTitle = "Unison Codebase Manager API",
+      _infoDescription =
+        Just "Provides operations for querying and manipulating a Unison codebase.",
+      _infoLicense =
+        Just . License "MIT" . Just $
+          URL
+            "https://github.com/unisonweb/unison/blob/trunk/LICENSE",
+      _infoVersion = "1.0"
+    }
 
 docsBS :: Lazy.ByteString
 docsBS = mungeString . markdown $ docsWithIntros [intro] api
- where
-  intro = DocIntro (Text.unpack $ _infoTitle infoObject)
-                   (toList $ Text.unpack <$> _infoDescription infoObject)
+  where
+    intro =
+      DocIntro
+        (Text.unpack $ _infoTitle infoObject)
+        (toList $ Text.unpack <$> _infoDescription infoObject)
 
 docAPI :: Proxy DocAPI
 docAPI = Proxy
@@ -177,12 +182,12 @@ api = Proxy
 serverAPI :: Proxy AuthedServerAPI
 serverAPI = Proxy
 
-app
-  :: Rt.Runtime Symbol
-  -> Codebase IO Symbol Ann
-  -> FilePath
-  -> Strict.ByteString
-  -> Application
+app ::
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  FilePath ->
+  Strict.ByteString ->
+  Application
 app rt codebase uiPath expectedToken =
   serve serverAPI $ server rt codebase uiPath expectedToken
 
@@ -194,19 +199,19 @@ genToken = do
   n <- customNanoID defaultAlphabet 16 g
   pure $ unNanoID n
 
-data Waiter a
-  = Waiter {
-    notify :: a -> IO (),
+data Waiter a = Waiter
+  { notify :: a -> IO (),
     waitFor :: IO a
   }
 
 mkWaiter :: IO (Waiter a)
 mkWaiter = do
   mvar <- newEmptyMVar
-  return Waiter {
-    notify = putMVar mvar,
-    waitFor = readMVar mvar
-  }
+  return
+    Waiter
+      { notify = putMVar mvar,
+        waitFor = readMVar mvar
+      }
 
 ucmUIVar :: String
 ucmUIVar = "UCM_WEB_UI"
@@ -221,41 +226,45 @@ ucmTokenVar :: String
 ucmTokenVar = "UCM_TOKEN"
 
 data CodebaseServerOpts = CodebaseServerOpts
-  { token :: Maybe String
-  , host :: Maybe String
-  , port :: Maybe Int
-  , codebaseUIPath :: Maybe FilePath
-  } deriving (Show, Eq)
+  { token :: Maybe String,
+    host :: Maybe String,
+    port :: Maybe Int,
+    codebaseUIPath :: Maybe FilePath
+  }
+  deriving (Show, Eq)
 
 -- The auth token required for accessing the server is passed to the function k
-startServer
-  :: CodebaseServerOpts
-  -> Rt.Runtime Symbol
-  -> Codebase IO Symbol Ann
-  -> (BaseUrl -> IO ())
-  -> IO ()
+startServer ::
+  CodebaseServerOpts ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  (BaseUrl -> IO ()) ->
+  IO ()
 startServer opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
   token <- case token opts of
     Just t -> return $ C8.pack t
-    _      -> genToken
+    _ -> genToken
   let baseUrl = BaseUrl "http://127.0.0.1" token
-  let settings = defaultSettings
-               & maybe id setPort (port opts)
-               & maybe id (setHost . fromString) (host opts)
+  let settings =
+        defaultSettings
+          & maybe id setPort (port opts)
+          & maybe id (setHost . fromString) (host opts)
   let a = app rt codebase envUI token
   case port opts of
     Nothing -> withApplicationSettings settings (pure a) (onStart . baseUrl)
-    Just p  -> do
+    Just p -> do
       started <- mkWaiter
       let settings' = setBeforeMainLoop (notify started ()) settings
-      result <- race (runSettings settings' a)
-                     (waitFor started *> onStart (baseUrl p))
+      result <-
+        race
+          (runSettings settings' a)
+          (waitFor started *> onStart (baseUrl p))
       case result of
-        Left  () -> throwIO $ ErrorCall "Server exited unexpectedly!"
-        Right x  -> pure x
+        Left () -> throwIO $ ErrorCall "Server exited unexpectedly!"
+        Right x -> pure x
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = do
@@ -264,15 +273,17 @@ serveIndex path = do
   if exists
     then fmap RawHtml . liftIO . Lazy.readFile $ path </> "index.html"
     else fail
- where
-  fail = throwError $ err404
-    { errBody =
-      BLU.fromString
-      $  "No codebase UI configured."
-      <> " Set the "
-      <> ucmUIVar
-      <> " environment variable to the directory where the UI is installed."
-    }
+  where
+    fail =
+      throwError $
+        err404
+          { errBody =
+              BLU.fromString $
+                "No codebase UI configured."
+                  <> " Set the "
+                  <> ucmUIVar
+                  <> " environment variable to the directory where the UI is installed."
+          }
 
 serveUI :: Handler () -> FilePath -> Server WebUI
 serveUI tryAuth path _ = tryAuth *> serveIndex path
@@ -299,5 +310,6 @@ server rt codebase uiPath token =
     unisonApi t =
       NamespaceListing.serve (tryAuth t) codebase
         :<|> NamespaceDetails.serve (tryAuth t) rt codebase
+        :<|> Projects.serve (tryAuth t) codebase
         :<|> serveDefinitions (tryAuth t) rt codebase
         :<|> serveFuzzyFind (tryAuth t) codebase

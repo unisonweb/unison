@@ -51,7 +51,7 @@ testEval0 env sect = do
   cc <- io baseCCache
   modifyTVarTest (combs cc) (env <>)
   modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
-  io $ eval0 cc sect
+  io $ eval0 cc Nothing sect
   ok
 
 builtins :: Reference -> Word64

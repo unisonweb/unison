@@ -63,6 +63,43 @@ test = scope "gitsync22" . tests $
       ```
     |])
   ,
+  pushPullTest  "pull.without-history" fmt
+    (\repo -> [i|
+      ```unison:hide
+      child.x = 1
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.y = 2
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.x = 3
+      ```
+
+      ```ucm:hide
+      .> update
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      Should be able to pull the branch from the remote without its history.
+      Note that this only tests that the pull succeeds, since (at time of writing) we don't
+      track/test transcript output for these tests in the unison repo.
+      ```ucm
+      .> pull.without-history ${repo}:.child .child
+      .> history .child
+      ```
+    |])
+  ,
   pushPullTest  "push-over-deleted-namespace" fmt
     (\repo -> [i|
       ```unison:hide
