@@ -9,7 +9,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.ABT 
+module Unison.ABT
   ( -- * Types
     ABT(..)
   , Term(..)
@@ -191,14 +191,15 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
     Tm x -> Tm (fmap (extraMap p) (p x))
 
 pattern Var' v <- Term _ _ (Var v)
-pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
--- pattern Abs' v body <- Term _ _ (Abs v body)
+pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
+pattern Abs'' v body <- Term _ _ (Abs v body)
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 {-# COMPLETE AbsN' #-}
 pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
+{-# COMPLETE Var', Cycle', Abs'', Tm' #-}
 
 unabsA :: Term f v a -> ([(a,v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
@@ -707,8 +708,8 @@ hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulat
      => Term f v a -> h
 hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
-  hash' env (Term _ _ t) = case t of
-    Var v -> maybe die hashInt ind
+  hash' env = \case
+    Var' v -> maybe die hashInt ind
       where lookup (Left cycle) = v `elem` cycle
             lookup (Right v') = v == v'
             ind = findIndex lookup env
@@ -716,21 +717,19 @@ hash = hash' [] where
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show v
                         ++ " environment = " ++ show env
-    Cycle (AbsN' vs t) -> hash' (Left vs : env) t
-    -- Cycle t -> hash' env t
-    Abs v t -> hash' (Right v : env) t
-    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
+    Cycle' vs t -> Hashable.hash1 (hashCycle vs env) undefined t
+    Abs'' v t -> hash' (Right v : env) t
+    Tm' t -> Hashable.hash1 undefined (hash' env) t
 
-  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
-  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
+  hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+  hashCycle cycle env ts =
     let
       permute p xs = case Vector.fromList xs of xs -> map (xs !) p
-      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
+      hashed = map (\(i,t) -> ((i,t), hash' (Left cycle : env) t)) (zip [0..] ts)
       pt = fst <$> sortOn snd hashed
       (p,ts') = unzip pt
-    in case map Right (permute p cycle) ++ envTl of
+    in case map Right (permute p cycle) ++ env of
       env -> (map (hash' env) ts', hash' env)
-  hashCycle env ts = (map (hash' env) ts, hash' env)
 
 instance (Show1 f, Show v) => Show (Term f v a) where
   -- annotations not shown

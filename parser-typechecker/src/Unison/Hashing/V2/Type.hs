@@ -31,6 +31,7 @@ module Unison.Hashing.V2.Type
 import Unison.Prelude
 
 import qualified Control.Monad.Writer.Strict as Writer
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -138,7 +139,7 @@ toReferenceMentions ty =
   in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
 instance Hashable1 F where
-  hash1 hashCycle hash e =
+  hash1 _ hash e =
     let
       (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
       -- Note: start each layer with leading `0` byte, to avoid collisions with
@@ -152,9 +153,7 @@ instance Hashable1 F where
       --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
       --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
       --   c) {Remote, Abort} (() -> {Abort} ())
-      Effects es -> let
-        (hs, _) = hashCycle es
-        in tag 4 : map hashed hs
+      Effects es -> tag 4 : map hashed (List.sort (map hash es))
       Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
       Forall a -> [tag 6, hashed (hash a)]
       IntroOuter a -> [tag 7, hashed (hash a)]

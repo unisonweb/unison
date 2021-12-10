@@ -24,6 +24,7 @@ where
 
 import Control.Lens (over, _3)
 import Data.Bifunctor (first, second)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Unison.Var (Var)
@@ -84,10 +85,7 @@ dependencies dd =
 toABT :: Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
-  dd' = ABT.absChain (bound dd) $ ABT.cycle
-          (ABT.absChain
-            (fst <$> constructors dd)
-            (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
+  dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
@@ -154,9 +152,7 @@ instance Hashable1 F where
             LetRec bindings body ->
               let (hashes, hash') = hashCycle bindings
                in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
-            Constructors cs ->
-              let (hashes, _) = hashCycle cs
-               in tag 2 : map hashed hashes
+            Constructors cs -> tag 2 : map hashed (List.sort (map hash cs))
             Modified m t ->
               [tag 3, Hashable.accumulateToken m, hashed $ hash t]
 
