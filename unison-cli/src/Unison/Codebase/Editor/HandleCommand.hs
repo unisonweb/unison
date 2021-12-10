@@ -147,8 +147,8 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
       -- abstraction.
       toIO <- UnliftIO.askRunInIO
       lift $ Codebase.viewRemoteBranch codebase ns (toIO . Free.fold go . action)
-    ImportRemoteBranch ns syncMode ->
-      lift $ Codebase.importRemoteBranch codebase ns syncMode
+    ImportRemoteBranch ns syncMode preprocess ->
+      lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
     SyncRemoteBranch branch repo opts ->
       lift $ Codebase.pushGitBranch codebase branch repo opts
     LoadTerm r -> lift $ Codebase.getTerm codebase r

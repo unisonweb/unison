@@ -14,6 +14,7 @@ module Unison.Runtime.Interface
   , runStandalone
   , StoredCache
   , decodeStandalone
+  , RuntimeHost(..)
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -35,6 +36,7 @@ import Data.IORef
 import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
+import qualified Data.Set as Set
 import Data.Map.Strict (Map)
 import Data.Traversable (for)
 import Data.Text (Text, isPrefixOf, pack)
@@ -53,6 +55,7 @@ import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Referent as RF (pattern Ref)
 import qualified Unison.Reference as RF
+import qualified Unison.Util.Text as UT
 
 import Unison.Util.EnumContainers as EC
 
@@ -75,6 +78,7 @@ import Unison.Runtime.Machine
   ( apply0, eval0
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy, refLookup
+  , ActiveThreads
   )
 import Unison.Runtime.MCode
   ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
@@ -85,6 +89,8 @@ import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.ConstructorReference as RF
+import qualified UnliftIO.Concurrent as UnliftIO
+import qualified UnliftIO
 
 type Term v = Tm.Term v ()
 
@@ -325,18 +331,30 @@ backReferenceTm ws rs c i = do
 evalInContext
   :: PrettyPrintEnv
   -> EvalCtx
+  -> ActiveThreads
   -> Word64
   -> IO (Either Error (Term Symbol))
-evalInContext ppe ctx w = do
+evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
+
       prettyError (PE _ p) = p
       prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
+
+      tr tx c = case decom c of
+        Right dv -> do
+          putStrLn $ "trace: " ++ UT.unpack tx
+          putStrLn . toANSI 50 $ pretty ppe dv
+        Left _ -> do
+          putStrLn $ "trace: " ++ UT.unpack tx
+          putStrLn "Couldn't decompile value."
+          print c
+
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) (ccache ctx) w
+        <=< try $ apply0 (Just hook) ((ccache ctx) { tracer = tr }) activeThreads w
   pure $ decom =<< result
 
 executeMainComb
@@ -344,7 +362,7 @@ executeMainComb
   -> CCache
   -> IO ()
 executeMainComb init cc
-  = eval0 cc
+  = eval0 cc Nothing
   . Ins (Pack RF.unitRef 0 ZArgs)
   $ Call True init (BArg1 0)
 
@@ -409,9 +427,26 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
     <*> getNat
     <*> getStoredCache
 
-startRuntime :: String -> IO (Runtime Symbol)
-startRuntime version = do
+-- | Whether the runtime is hosted within a UCM session or as a standalone process.
+data RuntimeHost
+  = Standalone
+  | UCM
+
+startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
+startRuntime runtimeHost version = do
   ctxVar <- newIORef =<< baseContext
+  (activeThreads, cleanupThreads) <- case runtimeHost of
+        -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
+        -- when the process itself exits.
+         Standalone -> pure (Nothing, pure ())
+        -- Track all forked threads so that they can be killed when the main process returns,
+        -- otherwise they'll be orphaned and left running.
+         UCM -> do
+           activeThreads <- newIORef Set.empty
+           let cleanupThreads = do
+                 threads <- readIORef activeThreads
+                 foldMap UnliftIO.killThread threads
+           pure (Just activeThreads, cleanupThreads)
   pure $ Runtime
        { terminate = pure ()
        , evaluate = \cl ppe tm -> catchInternalErrors $ do
@@ -420,7 +455,7 @@ startRuntime version = do
            ctx <- loadDeps cl ppe ctx tyrs tmrs
            (ctx, init) <- prepareEvaluation ppe tm ctx
            writeIORef ctxVar ctx
-           evalInContext ppe ctx init
+           evalInContext ppe ctx activeThreads init `UnliftIO.finally` cleanupThreads
        , compileTo = \cl ppe rf path -> tryM $ do
            ctx <- readIORef ctxVar
            (tyrs, tmrs) <- collectRefDeps cl rf
@@ -483,7 +518,7 @@ getStoredCache = SCache
 
 restoreCache :: StoredCache -> IO CCache
 restoreCache (SCache cs crs trs ftm fty int rtm rty)
-  = CCache builtinForeigns
+  = CCache builtinForeigns uglyTrace
       <$> newTVarIO (cs <> combs)
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO (trs <> builtinTypeBackref)
@@ -493,6 +528,9 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty)
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
   where
+  uglyTrace tx c = do
+    putStrLn $ "trace: " ++ UT.unpack tx
+    print c
   rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
   combs
     = mapWithKey
