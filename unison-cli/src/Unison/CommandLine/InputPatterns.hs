@@ -352,6 +352,15 @@ docs =
     )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
 
+api :: InputPattern
+api =
+  InputPattern
+    "api"
+    []
+    []
+    "`api` provides details about the API."
+    (const $ pure Input.ApiI)
+
 ui :: InputPattern
 ui =
   InputPattern
@@ -1907,6 +1916,7 @@ validInputs =
     view,
     display,
     displayTo,
+    api,
     ui,
     docs,
     docsToHtml,
