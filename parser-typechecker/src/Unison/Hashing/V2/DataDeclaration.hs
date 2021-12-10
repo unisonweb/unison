@@ -18,7 +18,6 @@ where
 
 import Control.Lens (over, _3)
 import Data.Bifunctor (first, second)
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import Unison.Hash (Hash)
@@ -129,7 +128,9 @@ instance Hashable1 F where
             LetRec bindings body ->
               let (hashes, hash') = hashCycle bindings
                in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
-            Constructors cs -> tag 2 : map hashed (List.sort (map hash cs))
+            Constructors cs ->
+              let (hashes, _) = hashCycle cs
+               in tag 2 : map hashed hashes
             Modified m t ->
               [tag 3, Hashable.accumulateToken m, hashed $ hash t]
 
