@@ -891,16 +891,23 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
 
-pullImpl :: String -> Verbosity -> InputPattern
-pullImpl name verbosity = do
+pullWithoutHistory :: InputPattern
+pullWithoutHistory =
+  pullImpl
+    "pull.without-history"
+    Verbosity.Default
+    Input.PullWithoutHistory
+    "without including the remote's history. This usually results in smaller codebase sizes."
+
+pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name verbosity pullMode addendum = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self =
       InputPattern
         name
@@ -939,14 +946,14 @@ pullImpl name verbosity = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseUri "url" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseUri "url" url
               p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -967,14 +974,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
     )
 
@@ -1879,6 +1886,7 @@ validInputs =
     push,
     pushCreate,
     pull,
+    pullWithoutHistory,
     pullSilent,
     pushExhaustive,
     pullExhaustive,
@@ -2057,7 +2065,7 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- |
+-- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2092,7 +2100,7 @@ namespaceArg =
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
 allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
+  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
     \(NameSegment k) (Branch.head -> b') ->
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 

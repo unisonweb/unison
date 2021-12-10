@@ -40,6 +40,90 @@ test = scope "gitsync22" . tests $
   destroyedRemote :
   flip map [(Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
+  pushPullTest  "pull-over-deleted-namespace" fmt
+    (\repo -> [i|
+      ```unison:hide
+      x = 1
+      ```
+      ```ucm:hide
+      .> add
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```unison:hide
+      child.y = 2
+      ```
+
+      Should be able to pull a branch from the repo over top of our deleted local branch.
+      ```ucm
+      .> add
+      .> delete.namespace child
+      .> pull ${repo} child
+      ```
+    |])
+  ,
+  pushPullTest  "pull.without-history" fmt
+    (\repo -> [i|
+      ```unison:hide
+      child.x = 1
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.y = 2
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.x = 3
+      ```
+
+      ```ucm:hide
+      .> update
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      Should be able to pull the branch from the remote without its history.
+      Note that this only tests that the pull succeeds, since (at time of writing) we don't
+      track/test transcript output for these tests in the unison repo.
+      ```ucm
+      .> pull.without-history ${repo}:.child .child
+      .> history .child
+      ```
+    |])
+  ,
+  pushPullTest  "push-over-deleted-namespace" fmt
+    (\repo -> [i|
+      ```unison:hide
+      child.x = 1
+      y = 2
+      ```
+      ```ucm:hide
+      .> add
+      .> delete.namespace child
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```unison:hide
+      child.z = 3
+      ```
+
+      Should be able to push a branch over top of a deleted remote branch.
+      ```ucm
+      .> add
+      .> push.create ${repo}:.child child
+      ```
+    |])
+  ,
   pushPullTest  "typeAlias" fmt
     (\repo -> [i|
       ```ucm

@@ -352,7 +352,7 @@ data BPrim2
   -- bytes
   | TAKB | DRPB | IDXB | CATB -- take,drop,index,append
   -- general
-  | THRO               -- throw
+  | THRO | TRCE        -- throw
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -1074,6 +1074,7 @@ emitPOp ANF.VALU = emitBP1 VALU
 
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO
+emitPOp ANF.TRCE = emitBP2 TRCE
 
 -- non-prim translations
 emitPOp ANF.BLDS = Seq

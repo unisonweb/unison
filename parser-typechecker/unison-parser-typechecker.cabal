@@ -122,6 +122,7 @@ library
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
+      Unison.Server.Endpoints.Projects
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult

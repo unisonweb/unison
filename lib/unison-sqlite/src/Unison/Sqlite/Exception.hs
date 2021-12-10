@@ -10,6 +10,8 @@ module Unison.Sqlite.Exception
 
     -- ** @SqliteQueryException@
     SqliteQueryException (..),
+    pattern SqliteBusyException,
+    isSqliteBusyException,
     SqliteQueryExceptionInfo (..),
     throwSqliteQueryException,
     SomeSqliteExceptionReason (..),
@@ -107,6 +109,15 @@ data SqliteQueryException = SqliteQueryException
 instance Exception SqliteQueryException where
   toException = toException . SomeSqliteException
   fromException = fromException >=> \(SomeSqliteException e) -> cast e
+
+pattern SqliteBusyException :: SqliteQueryException
+pattern SqliteBusyException <- (isSqliteBusyException -> True)
+
+isSqliteBusyException :: SqliteQueryException -> Bool
+isSqliteBusyException SqliteQueryException {exception = SomeSqliteExceptionReason reason} =
+  case cast reason of
+    Just (Sqlite.SQLError Sqlite.ErrorBusy _ _) -> True
+    _ -> False
 
 data SqliteQueryExceptionInfo params connection = SqliteQueryExceptionInfo
   { connection :: connection,

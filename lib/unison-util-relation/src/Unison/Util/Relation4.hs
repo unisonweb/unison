@@ -47,6 +47,9 @@ toList = fmap (\(a,(b,(c,d))) -> (a,b,c,d)) . toNestedList
 empty :: (Ord a, Ord b, Ord c, Ord d) => Relation4 a b c d
 empty = mempty
 
+null :: Relation4 a b c d -> Bool
+null r = Map.null $ d1 r
+
 fromList :: (Ord a, Ord b, Ord c, Ord d) => [(a,b,c,d)] -> Relation4 a b c d
 fromList xs = insertAll xs empty
 

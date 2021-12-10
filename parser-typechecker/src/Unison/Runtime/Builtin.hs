@@ -736,6 +736,12 @@ raise
   where
   i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
+gen'trace :: Var v => SuperNormal v
+gen'trace
+  = binop0 0 $ \[t,v]
+ -> TLets Direct [] [] (TPrm TRCE [t,v])
+  $ TCon Ty.unitRef 0 []
+
 code'missing :: Var v => SuperNormal v
 code'missing
   = unop0 1 $ \[link,b]
@@ -1457,6 +1463,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("Debug.trace", gen'trace)
   , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
