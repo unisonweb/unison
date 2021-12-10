@@ -2077,9 +2077,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                     (Term.Term
                                                       (Any
                                                         '(f x ->
-                                                          f x
-                                                            Nat.+ sqr
-                                                                    1))))),
+                                                            f x
+                                                              Nat.+ sqr
+                                                                      1))))),
                                                 !Lit
                                                 (Right
                                                   (Plain "-")),
@@ -2276,8 +2276,8 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                                         (Term.Term
                                                           (Any
                                                             '(x ->
-                                                              sqr
-                                                                x))))),
+                                                                sqr
+                                                                  x))))),
                                                     !Lit
                                                     (Right
                                                       (Plain ".")) ]) ])) ]))) ]))) ])))),

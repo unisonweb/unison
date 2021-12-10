@@ -255,3 +255,61 @@ x = 2
 .> add
 ```
 
+## Unison Cloud roundtrip issues
+
+Regression tests for  https://github.com/unisonweb/unison/issues/2650
+
+```unison:hide
+broken =
+    addNumbers: 'Nat
+    addNumbers = 'let
+      use Nat +
+      y = 12
+      13 + y
+    !addNumbers    
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+tvarmodify tvar fun = ()
+
+broken tvar = 
+  '(tvarmodify tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+```
+
+``` ucm
+.> add
+.> edit tvarmodify broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+broken = cases 
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
