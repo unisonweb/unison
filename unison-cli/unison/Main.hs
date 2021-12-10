@@ -381,7 +381,7 @@ getCodebaseOrExit codebasePathOption action = do
 
             InitErrorOpen (OpenCodebaseUnknownSchemaVersion _) ->
               pure (P.lines
-                [ "The codebase in " <> pDir <> " is more recent than any codebase I know about."
+                [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison."
                 , "Please upgrade your version of UCM."
                 ])
 

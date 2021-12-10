@@ -137,7 +137,7 @@ createCodebaseOrError debugName path action = do
             Right () -> pure ()
 
       sqliteCodebase debugName path action >>= \case
-        Left schemaVersion -> error ("just created schema with version " ++ show schemaVersion)
+        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
 withOpenOrCreateCodebaseConnection ::
