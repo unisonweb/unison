@@ -93,6 +93,7 @@ import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
 import Unison.Hashable (Accumulate,Hashable1,hash1)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
@@ -719,7 +720,7 @@ hash = hash' [] where
                         ++ " environment = " ++ show env
     Cycle' vs t -> Hashable.hash1 (hashCycle vs env) undefined t
     Abs'' v t -> hash' (Right v : env) t
-    Tm' t -> Hashable.hash1 undefined (hash' env) t
+    Tm' t -> Hashable.hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
 
   hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
   hashCycle cycle env ts =
