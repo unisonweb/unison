@@ -8,9 +8,11 @@ import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -1165,8 +1167,26 @@ loadPullRequest =
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
 parseUri label input = do
   first
-    (fromString . show) -- turn any parsing errors into a Pretty.
+    prettyPrint
     (P.parse UriParser.repoPath label (Text.pack input))
+  where
+    prettyPrint :: P.ParseError Char Void -> P.Pretty P.ColorText
+    prettyPrint (P.TrivialError sp _ _) =
+      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
+          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+          errorLine = lines input !! row
+      in P.lines ["I couldn't parse the repository address given above.",
+               P.newline,
+               P.string errorLine,
+               P.string $ replicate col ' ' <> "^-- This is where I gave up."
+              ]
+    prettyPrint (P.FancyError sp _) =
+      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
+      in P.lines ["I couldn't parse the repository address given above.",
+               P.newline,
+               P.string input,
+               P.string $ replicate col ' ' <> "^-- This is where I gave up."
+              ]
 
 parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
 parseWriteRepo label input = do

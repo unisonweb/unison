@@ -7,6 +7,7 @@ import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Text as Text
+import Data.Void
 
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
@@ -19,7 +20,7 @@ import Unison.NameSegment (NameSegment(..))
 import Data.Sequence as Seq
 import Data.Char (isAlphaNum, isSpace, isDigit)
 
-type P = P.Parsec () Text
+type P = P.Parsec Void Text.Text
 
 -- Here are the git protocols that we know how to parse
 -- Local Protocol
