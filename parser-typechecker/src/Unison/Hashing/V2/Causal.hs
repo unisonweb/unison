@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.BuildHashable as H
 
-hashCausal :: H.Accumulate h => Causal -> h
+hashCausal :: Causal -> Hash
 hashCausal = H.accumulate'
 
 data Causal = Causal {branchHash :: Hash, parents :: Set Hash}
