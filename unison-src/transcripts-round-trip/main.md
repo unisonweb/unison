@@ -313,3 +313,28 @@ broken = cases
 .> load scratch.u
 ```
 
+## Guard patterns on long lines
+
+```unison:hide
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+foo = let
+  go x = 
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+  go (SomethingUnusuallyLong "one" "two" "three")
+```
+
+```ucm
+.> add
+.> edit SomethingUnusuallyLong foo 
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+

@@ -50,7 +50,13 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError (GitCouldntParseRootBranchHash, UnrecognizedSchemaVersion))
+import Unison.Codebase.SqliteCodebase.GitError
+  ( GitSqliteCodebaseError
+      ( GitCouldntParseRootBranchHash,
+        NoDatabaseFile,
+        UnrecognizedSchemaVersion
+      ),
+  )
 import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
@@ -875,6 +881,12 @@ notifyUser dir o = case o of
   TodoOutput names todo -> pure (todoOutput names todo)
   GitError e -> pure $ case e of
     GitSqliteCodebaseError e -> case e of
+      NoDatabaseFile repo localPath ->
+        P.wrap $
+          "I didn't find a codebase in the repository at"
+            <> prettyReadRepo repo
+            <> "in the cache directory at"
+            <> P.backticked' (P.string localPath) "."
       UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
@@ -1276,6 +1288,11 @@ notifyUser dir o = case o of
     pure . P.callout "😶" $
       P.wrap $
         prettyPath' dest <> "was already up-to-date with"
+          <> P.group (prettyRemoteNamespace ns <> ".")
+  PullSuccessful ns dest ->
+    pure . P.okCallout $
+      P.wrap $
+        "Successfully updated" <> prettyPath' dest <> "from"
           <> P.group (prettyRemoteNamespace ns <> ".")
   MergeAlreadyUpToDate src dest ->
     pure . P.callout "😶" $
