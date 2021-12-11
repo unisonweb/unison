@@ -652,5 +652,8 @@ computeFrontier getDependents patch names = do
     -> m (R.Relation Reference Reference)
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents)
-      .   Set.filter (Names.contains names)
+      .   Set.filter isNamed
       <$> getDependents ref
+  isNamed :: Reference -> Bool
+  isNamed =
+    Names.contains names
