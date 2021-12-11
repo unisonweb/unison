@@ -28,6 +28,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase.Init (InitResult(..), InitError(..), CodebaseInitOptions(..), SpecifiedCodebase(..))
 import qualified Unison.Codebase.Init as CodebaseInit
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -372,11 +373,20 @@ getCodebaseOrExit codebasePathOption action = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case err of
-            NoCodebaseFoundAtSpecifiedDir ->
+            InitErrorOpen OpenCodebaseDoesntExist ->
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
+
+            InitErrorOpen (OpenCodebaseUnknownSchemaVersion _) ->
+              pure (P.lines
+                [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison."
+                , "Please upgrade your version of UCM."
+                ])
+
+            InitErrorOpen (OpenCodebaseOther errMessage) ->
+              pure errMessage
 
             FoundV1Codebase ->
               pure (P.lines

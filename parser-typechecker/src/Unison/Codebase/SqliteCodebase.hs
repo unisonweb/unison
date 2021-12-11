@@ -13,34 +13,22 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad (filterM, unless, when, (>=>))
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>))
 import qualified Data.List as List
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Traversable (for)
-import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
-import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
@@ -49,7 +37,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
+import U.Codebase.Sqlite.DbId (ObjectId, SchemaVersion (SchemaVersion))
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
@@ -60,9 +48,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
-import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
@@ -75,6 +61,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteG
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -83,15 +70,16 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts(..))
+import Unison.Codebase.Type (PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
-import Unison.ConstructorReference (GConstructorReference(..))
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -103,13 +91,13 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
+import UnliftIO (MonadUnliftIO, catchIO, finally, throwIO)
 import qualified UnliftIO
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
-import UnliftIO.Exception (catch, bracket)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -135,43 +123,22 @@ createCodebaseOrError ::
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName dir action = do
-  prettyDir <- P.string <$> canonicalizePath dir
-  let convertError = \case
-        CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
-      prettyError :: SchemaVersion -> Codebase1.Pretty
-      prettyError v = P.wrap $
-        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir action
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseUnknownSchemaVersion SchemaVersion
-  deriving (Show)
-
-createCodebaseOrError' ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either CreateCodebaseError r)
-createCodebaseOrError' debugName path action = do
+createCodebaseOrError debugName path action = do
   ifM
     (doesFileExist $ path </> codebasePath)
-    (pure $ Left CreateCodebaseAlreadyExists)
+    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-      liftIO $
-        withConnection (debugName ++ ".createSchema") path $
-          ( runReaderT do
-              Q.createSchema
-              runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
-                Left e -> error $ show e
-                Right () -> pure ()
-          )
+      withConnection (debugName ++ ".createSchema") path $
+        runReaderT do
+          Q.createSchema
+          runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
+            Left e -> error $ show e
+            Right () -> pure ()
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
+      sqliteCodebase debugName path action >>= \case
+        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
+        Right result -> pure (Right result)
 
 withOpenOrCreateCodebaseConnection ::
   (MonadUnliftIO m) =>
@@ -192,15 +159,12 @@ getCodebaseOrError ::
   Codebase.DebugName ->
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
-  m (Either Codebase1.Pretty r)
+  m (Either Codebase1.OpenCodebaseError r)
 getCodebaseOrError debugName dir action = do
-  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (dir </> codebasePath) >>= \case
-    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
-    -- Unison.Codebase.Init.getCodebaseOrExit).
-    False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir action)
+    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    True ->
+      sqliteCodebase debugName dir action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
