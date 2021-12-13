@@ -16,6 +16,7 @@ module Unison.Codebase.BranchUtil
   -- * Branch modifications
   , makeSetBranch
   , makeDeleteBranch
+  , makeObliterateBranch
   , makeAddTypeName
   , makeDeleteTypeName
   , makeAddTermName
@@ -49,6 +50,7 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
+import Control.Lens
 
 -- | Creates a branch containing all of the given names, with a single history node.
 fromNames :: Monad m => Names -> Branch m
@@ -142,6 +144,16 @@ makeSetBranch ::
   Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
 
+-- | "delete"s a branch by cons'ing an empty Branch0 onto the history at that location.
+-- See also 'makeObliterateBranch'.
 makeDeleteBranch ::
+  Applicative m =>
   Path.Split -> (Path, Branch0 m -> Branch0 m)
-makeDeleteBranch p = makeSetBranch p Branch.empty
+makeDeleteBranch (p, name) = (p, Branch.children . ix name %~ Branch.cons Branch.empty0)
+
+-- | Erase a branch and its history
+-- See also 'makeDeleteBranch'.
+-- Note that this requires a PreserveHistory update strategy to behave correctly.
+makeObliterateBranch ::
+  Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeObliterateBranch p = makeSetBranch p Branch.empty
