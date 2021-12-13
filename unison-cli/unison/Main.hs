@@ -50,7 +50,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
 import UnliftIO.Directory ( getHomeDirectory )
-import Compat ( installSignalHandlers )
+import Compat ( defaultInterruptHandler, withInterruptHandler )
 import ArgParse
     ( UsageRenderer,
       GlobalOptions(GlobalOptions, codebasePathOption),
@@ -68,10 +68,11 @@ import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
 
 main :: IO ()
 main = do
+ interruptHandler <- defaultInterruptHandler
+ withInterruptHandler interruptHandler $ do
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
-  void installSignalHandlers
   (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
   let GlobalOptions{codebasePathOption=mCodePathOption} = globalOptions
   let mcodepath = fmap codebasePathOptionToPath mCodePathOption
