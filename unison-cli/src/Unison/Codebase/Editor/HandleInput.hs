@@ -1472,7 +1472,9 @@ loop = do
                   Input.PullWithHistory -> do
                     destBranch <- getAt destAbs
                     if Branch.isEmpty0 (Branch.head destBranch)
-                       then void $ updateAtM destAbs (const $ pure remoteBranch)
+                       then do
+                         void $ updateAtM destAbs (const $ pure remoteBranch)
+                         respond $ MergeOverEmpty path
                        else mergeBranchAndPropagateDefaultPatch
                               Branch.RegularMerge
                               inputDescription
