@@ -151,18 +151,8 @@ The history should be that of the moved namespace.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #3ahcthnkvt
   
-    + Adds / updates:
-    
-      y
   
-  ⊙ #qjc20aua9h
-  
-    - Deletes:
-    
-      x
-  
-  □ #hkrqt3tm05 (start of history)
+  □ #ldl7o5e9i5 (start of history)
 
 ```
