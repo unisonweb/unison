@@ -724,7 +724,7 @@ loop = do
               hasConfirmed <- confirmedCommand input
               if (hasConfirmed || insistence == Force)
                 then do stepAt
-                          Branch.PreserveHistory  -- Wipe out all definitions, but keep root branch history.
+                          Branch.CompressHistory  -- Wipe out all definitions, but keep root branch history.
                           (Path.empty, const Branch.empty0)
                         respond DeletedEverything
                 else respond DeleteEverythingConfirmation
@@ -745,7 +745,7 @@ loop = do
                          respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
-                      stepAt Branch.PreserveHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
+                      stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
                       -- Looks similar to the 'toDelete' above... investigate me! ;)
                       diffHelper b0 Branch.empty0
                         >>= respondNumbered
