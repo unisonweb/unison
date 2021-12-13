@@ -377,6 +377,7 @@ loop = do
             UpdateI p _selection -> "update " <> opatch p
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
+            ApiI -> "api"
             UiI -> "ui"
             DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
             ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s : args))
@@ -524,6 +525,7 @@ loop = do
                     ppeDecl <- currentPrettyPrintEnvDecl
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
+            ApiI -> eval API
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do

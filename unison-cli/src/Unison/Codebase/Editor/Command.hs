@@ -96,6 +96,8 @@ data Command
 
   UI :: Command m i v ()
 
+  API :: Command m i v ()
+
   DocsToHtml
     :: Branch m -- Root branch
     -> Path -- ^ namespace source
@@ -298,6 +300,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval {} -> "Eval"
+  API -> "API"
   UI -> "UI"
   DocsToHtml {} -> "DocsToHtml"
   ConfigLookup {} -> "ConfigLookup"
