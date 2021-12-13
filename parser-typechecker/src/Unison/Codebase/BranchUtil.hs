@@ -50,8 +50,9 @@ import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
 
+-- | Creates a branch containing all of the given names, with a single history node.
 fromNames :: Monad m => Names -> Branch m
-fromNames names0 = Branch.stepManyAt (typeActions <> termActions) Branch.empty
+fromNames names0 = Branch.stepManyAt Branch.CompressHistory (typeActions <> termActions) Branch.empty
   where
   typeActions = map doType . R.toList $ Names.types names0
   termActions = map doTerm . R.toList $ Names.terms names0

@@ -48,6 +48,7 @@ module Unison.Codebase.Branch
   , stepEverywhere
   , batchUpdates
   , batchUpdatesM
+  , UpdateStrategy(..)
   -- *
   , addTermName
   , addTypeName
@@ -546,23 +547,55 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 -- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
+-- Note: This does not allow you to manipulate history yourself. All changes are compressed
+-- into a single causal cons.
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
+  UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Branch m ->
   Branch m
-stepManyAt actions startBranch =
-  runIdentity $ stepManyAtM actionsIdentity startBranch
+stepManyAt strat actions startBranch =
+  runIdentity $ stepManyAtM strat actionsIdentity startBranch
   where
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
 
--- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
+data UpdateStrategy
+  -- | Compress all changes into a single causal cons.
+  -- The resulting branch will have at most one new causal cons at each branch.
+  --
+  -- Note that this does NOT allow updates to add histories at children.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
+  -- I.e., the 'snapshot' of the updated branch is appended to the existing history.
+  = CompressHistory
+
+  -- | Preserves any history changes made within the update.
+  --
+  -- Note that this allows you to clobber history over children.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- PreserveHistory will result in a history for root.editme of: X -> Y -> Z.
+  -- I.e., the history of the updated branch is replaced entirely.
+  | PreserveHistory
+
+-- | Run a series of updates at specific locations.
+-- History is managed according to the 'BranchUpdateStrategy'
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepManyAtM actions startBranch =
-  (\changes -> changes `consBranchSnapshot` startBranch) <$> (startBranch & head_ %%~ batchUpdatesM actions)
+            => UpdateStrategy -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepManyAtM strat actions startBranch =
+  case strat of
+    PreserveHistory -> steppedUpdates
+    CompressHistory -> squashedUpdates
+  where
+    steppedUpdates = do
+      stepM (batchUpdatesM actions) startBranch
+    squashedUpdates = do
+      updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
+      pure $ updatedBranch `consBranchSnapshot` startBranch
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -607,7 +640,7 @@ replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)
 
-updateChildren ::NameSegment
+updateChildren :: NameSegment
                -> Branch m
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
