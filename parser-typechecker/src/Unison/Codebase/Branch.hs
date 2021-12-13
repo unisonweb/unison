@@ -570,17 +570,18 @@ data UpdateStrategy
   -- E.g. if the root.editme branch has history: A -> B -> C
   -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
   -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
-  -- I.e., the 'snapshot' of the updated branch is appended to the existing history.
+  -- A 'snapshot' of the most recent state of the updated branch is appended to the existing history,
+  -- if the new state is equal to the existing state, no new history nodes are appended.
   = CompressHistory
 
   -- | Preserves any history changes made within the update.
   --
-  -- Note that this allows you to clobber history over children.
+  -- Note that this allows you to clobber the history child branches if you want.
   -- E.g. if the root.editme branch has history: A -> B -> C
   -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
-  -- PreserveHistory will result in a history for root.editme of: X -> Y -> Z.
-  -- I.e., the history of the updated branch is replaced entirely.
-  | PreserveHistory
+  -- AllowRewritingHistory will result in a history for root.editme of: X -> Y -> Z.
+  -- The history of the updated branch is replaced entirely.
+  | AllowRewritingHistory
 
 -- | Run a series of updates at specific locations.
 -- History is managed according to the 'BranchUpdateStrategy'
@@ -588,7 +589,7 @@ stepManyAtM :: (Monad m, Monad n, Foldable f)
             => UpdateStrategy -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM strat actions startBranch =
   case strat of
-    PreserveHistory -> steppedUpdates
+    AllowRewritingHistory -> steppedUpdates
     CompressHistory -> squashedUpdates
   where
     steppedUpdates = do

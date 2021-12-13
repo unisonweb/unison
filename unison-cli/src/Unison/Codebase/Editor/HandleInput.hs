@@ -651,7 +651,7 @@ loop = do
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
-                    stepManyAt Branch.PreserveHistory
+                    stepManyAt Branch.AllowRewritingHistory
                       [ BranchUtil.makeSetBranch (dest, "base") baseb,
                         BranchUtil.makeSetBranch (dest, "head") headb,
                         BranchUtil.makeSetBranch (dest, "merged") mergedb,
@@ -672,7 +672,7 @@ loop = do
             MoveBranchI Nothing dest -> do
               b <- use LoopState.root
               -- Overwrite history at destination.
-              stepManyAt Branch.PreserveHistory
+              stepManyAt Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (resolveSplit' dest) b
                 ]
@@ -682,7 +682,7 @@ loop = do
               where
                 srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
                 destOk b = do
-                  stepManyAt Branch.PreserveHistory
+                  stepManyAt Branch.AllowRewritingHistory
                     [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                       BranchUtil.makeSetBranch (resolveSplit' dest) b
                     ]

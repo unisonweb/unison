@@ -153,7 +153,7 @@ makeDeleteBranch (p, name) = (p, Branch.children . ix name %~ Branch.cons Branch
 
 -- | Erase a branch and its history
 -- See also 'makeDeleteBranch'.
--- Note that this requires a PreserveHistory update strategy to behave correctly.
+-- Note that this requires a AllowRewritingHistory update strategy to behave correctly.
 makeObliterateBranch ::
   Path.Split -> (Path, Branch0 m -> Branch0 m)
 makeObliterateBranch p = makeSetBranch p Branch.empty
