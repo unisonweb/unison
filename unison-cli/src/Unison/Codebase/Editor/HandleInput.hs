@@ -345,8 +345,6 @@ loop = do
             unless (Set.null misses) $
               respond $ SearchTermsNotFound (Set.toList misses)
             traverse_ go (if isTerm then tmRefs else tpRefs)
-          branchExists dest _x = respond $ BranchAlreadyExists dest
-          branchExistsSplit = branchExists . Path.unsplit'
           typeExists dest = respond . TypeAlreadyExists dest
           termExists dest = respond . TermAlreadyExists dest
           inputDescription :: LoopState.InputDescription
@@ -683,16 +681,23 @@ loop = do
                   BranchUtil.makeSetBranch (resolveSplit' dest) b
                 ]
               success
-            MoveBranchI (Just src) dest ->
-              maybe (branchNotFound' src) srcOk (getAtSplit' src)
-              where
-                srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
-                destOk b = do
-                  stepManyAt Branch.AllowRewritingHistory
-                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
-                      BranchUtil.makeSetBranch (resolveSplit' dest) b
-                    ]
-                  success -- could give rando stats about new defns
+            MoveBranchI (Just src) dest -> unlessError $ do
+              srcBranch <- case getAtSplit' src of
+                Just existingSrc | not (Branch.isEmpty0 (Branch.head existingSrc)) -> do
+                  pure existingSrc
+                _ -> throwError $ BranchNotFound (Path.unsplit' src)
+              case getAtSplit' dest of
+                Just existingDest
+                  | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                _ -> pure ()
+              -- allow rewriting history to ensure we move the branch's history too.
+              lift $ stepManyAt Branch.AllowRewritingHistory
+                [ BranchUtil.makeDeleteBranch (resolveSplit' src),
+                  BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
+                ]
+              lift $ success -- could give rando stats about new defns
             MovePatchI src dest -> do
               psrc <- getPatchAtSplit' src
               pdest <- getPatchAtSplit' dest

@@ -82,6 +82,8 @@ deleted.x = 1
 stuff.thing = 2
 ```
 
+## fork
+
 I should be allowed to fork over a deleted namespace
 
 ```ucm
@@ -110,5 +112,47 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   □ #3bm1524lb7 (start of history)
+
+```
+## move.namespace
+
+```unison
+moveoverme.x = 1
+moveme.y = 2
+```
+
+I should be able to move a namespace over-top of a deleted namespace.
+The history should be that of the moved namespace.
+
+```ucm
+.> delete.namespace moveoverme
+
+  Removed definitions:
+  
+    1. x : ##Nat
+  
+  Tip: You can use `undo` or `reflog` to undo this change.
+
+.> history moveme
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ #ldl7o5e9i5 (start of history)
+
+.> move.namespace moveme moveoverme
+
+  Done.
+
+.> history moveoverme
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  
+  
+  □ #ldl7o5e9i5 (start of history)
 
 ```
