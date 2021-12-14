@@ -576,8 +576,10 @@ notifyUser dir o = case o of
       P.group (either P.shown prettyPath' b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $
-      "I was expecting the namespace " <> prettyPath' path
-        <> " to be empty for this operation, but it isn't."
+      P.lines
+        [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
+          "Please switch to an empty namespace and try again." 
+        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
