@@ -470,6 +470,10 @@ loop = do
           stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use LoopState.root >>= updateRoot
+          updateAtM ::
+            Path.Absolute
+            -> (Branch m -> Action m i v1 (Branch m))
+            -> Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode preprocess =
@@ -1466,13 +1470,18 @@ loop = do
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ case pullMode of
                   Input.PullWithHistory -> do
-                    mergeBranchAndPropagateDefaultPatch
-                      Branch.RegularMerge
-                      inputDescription
-                      (Just unchangedMsg)
-                      remoteBranch
-                      printDiffPath
-                      destAbs
+                    destBranch <- getAt destAbs
+                    if Branch.isEmpty0 (Branch.head destBranch)
+                       then do
+                         void $ updateAtM destAbs (const $ pure remoteBranch)
+                         respond $ MergeOverEmpty path
+                       else mergeBranchAndPropagateDefaultPatch
+                              Branch.RegularMerge
+                              inputDescription
+                              (Just unchangedMsg)
+                              remoteBranch
+                              printDiffPath
+                              destAbs
                   Input.PullWithoutHistory -> do
                     didUpdate <- updateAtM
                                    destAbs
