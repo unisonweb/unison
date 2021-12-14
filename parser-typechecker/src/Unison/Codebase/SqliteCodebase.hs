@@ -1,4 +1,5 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
+
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -13,12 +14,8 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT, withExceptT)
-import qualified Control.Exception
-import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT, withExceptT)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT, runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (ExceptT))
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
@@ -30,8 +27,6 @@ import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
 import qualified Data.List as List
 import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
-import Data.Map (Map)
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
@@ -39,10 +34,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time (NominalDiffTime)
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Traversable (for)
-import Data.Word (Word64)
-import Data.Traversable (for)
-import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Console.ANSI as ANSI
 import System.Directory (copyFile)
@@ -110,9 +101,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, try, liftIO, MonadUnliftIO, throwIO)
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
-import UnliftIO (MonadUnliftIO, catchIO, finally, throwIO)
+import UnliftIO (catchIO, finally, try, MonadUnliftIO, throwIO)
 import qualified UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (bracket, catch)

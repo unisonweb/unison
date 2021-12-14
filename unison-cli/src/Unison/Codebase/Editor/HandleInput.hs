@@ -2007,8 +2007,8 @@ manageLinks silent srcs mdValues op = do
             else
               respondNumbered $
                 ShowDiffNamespace
-                  Path.absoluteEmpty
-                  Path.absoluteEmpty
+                  (Right Path.absoluteEmpty)
+                  (Right Path.absoluteEmpty)
                   ppe
                   outputDiff
   where
