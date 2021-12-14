@@ -679,6 +679,75 @@ a = 777
     a#75jrr0qj1c + 1
 
 ```
+## Should be able to diff a namespace hash from history.
+
+```unison
+x = 1
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      x : Nat
+
+```
+```ucm
+  ☝️  The namespace .hashdiff is empty.
+
+.hashdiff> add
+
+  ⍟ I've added these definitions:
+  
+    x : Nat
+
+```
+```unison
+y = 2
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      y : Nat
+
+```
+```ucm
+.hashdiff> add
+
+  ⍟ I've added these definitions:
+  
+    y : Nat
+
+.hashdiff> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #is7tu6katt
+  
+    + Adds / updates:
+    
+      y
+  
+  □ #hkrqt3tm05 (start of history)
+
+.hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
+
+  Added definitions:
+  
+    1. y : Nat
+
+```
 ##
 
 Updates:  -- 1 to 1

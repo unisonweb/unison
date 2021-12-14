@@ -22,6 +22,8 @@ import Control.Monad.State.Strict (State, modify, execState)
 import qualified Control.Exception.Safe as Exception
 import Control.Monad.Catch (MonadCatch)
 import Control.DeepSeq (NFData)
+import Control.Concurrent (ThreadId)
+import System.IO (Handle)
 
 import Unison.ABT.Normalized hiding (TTm)
 import Unison.Reference
@@ -733,6 +735,12 @@ raise
   ]
   where
   i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
+
+gen'trace :: Var v => SuperNormal v
+gen'trace
+  = binop0 0 $ \[t,v]
+ -> TLets Direct [] [] (TPrm TRCE [t,v])
+  $ TCon Ty.unitRef 0 []
 
 code'missing :: Var v => SuperNormal v
 code'missing
@@ -1455,6 +1463,7 @@ builtinLookup
   , ("bug", bug "builtin.bug")
   , ("todo", bug "builtin.todo")
   , ("Debug.watch", watch)
+  , ("Debug.trace", gen'trace)
   , ("unsafe.coerceAbilities", poly'coerce)
 
   , ("Char.toNat", cast Ty.charRef Ty.natRef)
@@ -1645,6 +1654,15 @@ declareForeigns = do
     . mkForeignIOF $ \(mhst :: Maybe Util.Text.Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
+
+  declareForeign "Socket.toText" boxDirect
+    . mkForeign $ \(sock :: Socket) -> pure $ show sock
+
+  declareForeign "Handle.toText" boxDirect
+    . mkForeign $ \(hand :: Handle) -> pure $ show hand
+
+  declareForeign "ThreadId.toText" boxDirect
+    . mkForeign $ \(threadId :: ThreadId) -> pure $ show threadId
 
   declareForeign "IO.socketPort.impl.v3" boxToEFNat
     . mkForeignIOF $ \(handle :: Socket) -> do

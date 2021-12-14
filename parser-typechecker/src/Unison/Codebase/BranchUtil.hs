@@ -1,5 +1,28 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-module Unison.Codebase.BranchUtil where
+module Unison.Codebase.BranchUtil
+  (
+  -- * Branch creation
+    fromNames
+
+  -- * Branch queries
+  , getBranch
+  , getTerm
+  , getType
+  , getTermMetadataAt
+  , getTypeMetadataAt
+  , getTermMetadataHQNamed
+  , getTypeMetadataHQNamed
+
+  -- * Branch modifications
+  , makeSetBranch
+  , makeDeleteBranch
+  , makeAddTypeName
+  , makeDeleteTypeName
+  , makeAddTermName
+  , makeDeleteTermName
+  , makeDeletePatch
+  , makeReplacePatch
+  ) where
 
 import Unison.Prelude
 
@@ -26,20 +49,9 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
 import Unison.Codebase.Patch (Patch)
 import Unison.NameSegment (NameSegment)
-import Control.Lens (view)
 
 fromNames :: Monad m => Names -> Branch m
-fromNames names0 = Branch.one $ addFromNames names0 Branch.empty0
-
--- can produce a pure value because there's no history to traverse
-hashesFromNames :: Monad m => Names -> Map Branch.Hash (Branch m)
-hashesFromNames = deepHashes . fromNames where
-  deepHashes :: Branch m -> Map Branch.Hash (Branch m)
-  deepHashes b = Map.singleton (Branch.headHash b) b
-    <> (foldMap deepHashes . view Branch.children . Branch.head) b
-
-addFromNames :: Monad m => Names -> Branch0 m -> Branch0 m
-addFromNames names0 = Branch.stepManyAt0 (typeActions <> termActions)
+fromNames names0 = Branch.stepManyAt (typeActions <> termActions) Branch.empty
   where
   typeActions = map doType . R.toList $ Names.types names0
   termActions = map doTerm . R.toList $ Names.terms names0
@@ -92,11 +104,6 @@ getType (p, hq) b = case hq of
   filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
   types = Branch._types (Branch.getAt0 p b)
 
-getTypeByShortHash :: SH.ShortHash -> Branch0 m -> Set Reference
-getTypeByShortHash sh b = filter sh $ Branch.deepTypeReferences b
-  where
-  filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
-
 getTypeMetadataAt :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
 getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
@@ -130,7 +137,10 @@ makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
 makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
--- to delete, just set with Branch.empty
 makeSetBranch ::
   Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
+
+makeDeleteBranch ::
+  Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeleteBranch p = makeSetBranch p Branch.empty

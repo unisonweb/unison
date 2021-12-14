@@ -2,7 +2,7 @@
 
 module Unison.Codebase.Branch.Type where
 
-import Control.Lens (makeLenses, makeLensesFor)
+import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Branch.Raw (Raw)
@@ -61,11 +61,15 @@ data Branch0 m = Branch0
     deepEdits :: Map Name EditHash
   }
 
-makeLenses ''Branch
-makeLensesFor [("_edits", "edits")] ''Branch0
-
 instance Eq (Branch0 m) where
-  a == b = _terms a == _terms b
-    && _types a == _types b
-    && _children a == _children b
-    && (fmap fst . _edits) a == (fmap fst . _edits) b
+  a == b =
+    _terms a == _terms b
+      && _types a == _types b
+      && _children a == _children b
+      && (fmap fst . _edits) a == (fmap fst . _edits) b
+
+history :: Iso' (Branch m) (UnwrappedBranch m)
+history = iso _history Branch
+
+edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
+edits = lens _edits (\b0 e -> b0 {_edits = e})

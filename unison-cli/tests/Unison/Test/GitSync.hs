@@ -23,6 +23,10 @@ import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
 import Unison.WatchKind (pattern TestWatch)
 
+transcriptOutputFile :: String -> FilePath
+transcriptOutputFile name =
+  (".." </> "unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
+
 -- keep it off for CI, since the random temp dirs it generates show up in the
 -- output, which causes the test output to change, and the "no change" check
 -- to fail
@@ -36,6 +40,90 @@ test = scope "gitsync22" . tests $
   destroyedRemote :
   flip map [(Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
+  pushPullTest  "pull-over-deleted-namespace" fmt
+    (\repo -> [i|
+      ```unison:hide
+      x = 1
+      ```
+      ```ucm:hide
+      .> add
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```unison:hide
+      child.y = 2
+      ```
+
+      Should be able to pull a branch from the repo over top of our deleted local branch.
+      ```ucm
+      .> add
+      .> delete.namespace child
+      .> pull ${repo} child
+      ```
+    |])
+  ,
+  pushPullTest  "pull.without-history" fmt
+    (\repo -> [i|
+      ```unison:hide
+      child.x = 1
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.y = 2
+      ```
+
+      ```ucm:hide
+      .> add
+      ```
+
+      ```unison:hide
+      child.x = 3
+      ```
+
+      ```ucm:hide
+      .> update
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      Should be able to pull the branch from the remote without its history.
+      Note that this only tests that the pull succeeds, since (at time of writing) we don't
+      track/test transcript output for these tests in the unison repo.
+      ```ucm
+      .> pull.without-history ${repo}:.child .child
+      .> history .child
+      ```
+    |])
+  ,
+  pushPullTest  "push-over-deleted-namespace" fmt
+    (\repo -> [i|
+      ```unison:hide
+      child.x = 1
+      y = 2
+      ```
+      ```ucm:hide
+      .> add
+      .> delete.namespace child
+      .> push.create ${repo}
+      ```
+    |])
+    (\repo -> [i|
+      ```unison:hide
+      child.z = 3
+      ```
+
+      Should be able to push a branch over top of a deleted remote branch.
+      ```ucm
+      .> add
+      .> push.create ${repo}:.child child
+      ```
+    |])
+  ,
   pushPullTest  "typeAlias" fmt
     (\repo -> [i|
       ```ucm
@@ -374,7 +462,7 @@ test = scope "gitsync22" . tests $
           Codebase.watches cb TestWatch)
   ,
   gistTest fmt,
-  pushPullTest "fix2068(a)" fmt
+  pushPullTest "fix2068_a_" fmt
     -- this triggers
     {-
 gitsync22.sc.fix2068(a) EXCEPTION!!!: Called SqliteCodebase.setNamespaceRoot on unknown causal hash CausalHash (fromBase32Hex "codddvgt1ep57qpdkhe2j4pe1ehlpi5iitcrludtb8ves1aaqjl453onvfphqg83vukl7bbrj49itceqfob2b3alf47u4vves5s7pog")
@@ -396,7 +484,7 @@ CallStack (from HasCallStack):
       ```
     |])
   ,
-  pushPullTest "fix2068(b)" fmt
+  pushPullTest "fix2068_b_" fmt
     -- this triggers
     {-
      - gitsync22.sc.fix2068(b) EXCEPTION!!!: I couldn't find the hash ndn6fa85ggqtbgffqhd4d3bca2d08pgp3im36oa8k6p257aid90ovjq75htmh7lmg7akaqneva80ml1o21iscjmp9n1uc3lmqgg9rgg that I just synced to the cached copy of /private/var/folders/6m/p3szds2j67d8vwmxr51yrf5c0000gn/T/git-simple-1047398c149d3d5c/repo.git in "/Users/pchiusano/.cache/unisonlanguage/gitfiles/$x2F$private$x2F$var$x2F$folders$x2F$6m$x2F$p3szds2j67d8vwmxr51yrf5c0000gn$x2F$T$x2F$git-simple-1047398c149d3d5c$x2F$repo$dot$git".
@@ -484,7 +572,7 @@ pushPullTest name fmt authorScript userScript = scope name do
     userOutput <- Ucm.runTranscript user (userScript repo)
 
     when writeTranscriptOutput $ writeFile
-      ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
+      (transcriptOutputFile name)
       (authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
@@ -504,7 +592,7 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     Ucm.lowLevel user codebaseCheck
 
     when writeTranscriptOutput $ writeFile
-      ("unison-src"</>"transcripts"</>("GitSync22." ++ name ++ ".output.md"))
+      (transcriptOutputFile name)
       (authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!

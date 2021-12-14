@@ -431,7 +431,7 @@ findShallowInBranch codebase b = do
       [ ShallowBranchEntry ns
                            (SBH.fullFromHash $ Branch.headHash b)
                            (defnCount b)
-      | (ns, b) <- Map.toList $ Branch._children b0
+      | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
       ]
     patchEntries =
       [ ShallowPatchEntry ns

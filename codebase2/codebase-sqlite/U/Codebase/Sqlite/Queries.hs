@@ -167,7 +167,8 @@ import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
 import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
-import U.Codebase.Reference (Reference')
+import U.Codebase.Reference (Reference' (..))
+import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId
@@ -735,39 +736,76 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
     ON CONFLICT DO NOTHING
   |]
 
+-- | Get non-self, user-defined dependents of a dependency.
 getDependentsForDependency :: DB m => Reference.Reference -> m [Reference.Id]
-getDependentsForDependency dependency = query sql dependency where sql = [here|
-  SELECT dependent_object_id, dependent_component_index
-  FROM dependents_index
-  WHERE dependency_builtin IS ?
-    AND dependency_object_id IS ?
-    AND dependency_component_index IS ?
-|]
+getDependentsForDependency dependency =
+  filter isNotSelfReference <$> query sql dependency
+  where
+    sql =
+      [here|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS ?
+          AND dependency_object_id IS ?
+          AND dependency_component_index IS ?
+      |]
+
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference =
+      case dependency of
+        ReferenceBuiltin _ -> const True
+        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
 
 getDependentsForDependencyComponent :: DB m => ObjectId -> m [Reference.Id]
-getDependentsForDependencyComponent dependency = query sql (Only dependency) where sql = [here|
-  SELECT dependent_object_id, dependent_component_index
-  FROM dependents_index
-  WHERE dependency_builtin IS NULL
-    AND dependency_object_id IS ?
-|]
+getDependentsForDependencyComponent dependency =
+  filter isNotSelfReference <$> query sql (Only dependency)
+  where
+    sql =
+      [here|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS NULL
+          AND dependency_object_id IS ?
+      |]
 
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference = \case
+      (C.Reference.Id oid1 _pos1) -> dependency /= oid1
+
+-- | Get non-self dependencies of a user-defined dependent.
 getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
-getDependenciesForDependent dependent = query sql dependent where sql = [here|
-  SELECT dependency_builtin, dependency_object_id, dependency_component_index
-  FROM dependents_index
-  WHERE dependent_object_id IS ?
-    AND dependent_component_index IS ?
-|]
+getDependenciesForDependent dependent@(C.Reference.Id oid0 _) =
+  filter isNotSelfReference <$> query sql dependent
+  where
+    sql = [here|
+      SELECT dependency_builtin, dependency_object_id, dependency_component_index
+      FROM dependents_index
+      WHERE dependent_object_id IS ?
+        AND dependent_component_index IS ?
+    |]
 
+    isNotSelfReference :: Reference.Reference -> Bool
+    isNotSelfReference = \case
+      ReferenceBuiltin _ -> True
+      ReferenceDerived (C.Reference.Id oid1 _) -> oid0 /= oid1
+
+-- | Get non-self, user-defined dependencies of a user-defined dependent.
 getDependencyIdsForDependent :: DB m => Reference.Id -> m [Reference.Id]
-getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
-  SELECT dependency_object_id, dependency_component_index
-  FROM dependents_index
-  WHERE dependency_builtin IS NULL
-    AND dependent_object_id = ?
-    AND dependen_component_index = ?
-|]
+getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
+  filter isNotSelfReference <$> query sql dependent
+  where
+    sql =
+      [here|
+        SELECT dependency_object_id, dependency_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS NULL
+          AND dependent_object_id = ?
+          AND dependen_component_index = ?
+      |]
+
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference (C.Reference.Id oid1 _) =
+      oid0 /= oid1
 
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
 objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%") where sql = [here|

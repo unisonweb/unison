@@ -48,6 +48,7 @@ library
       Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
@@ -133,6 +134,7 @@ library
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
+      Unison.Server.Endpoints.Projects
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
@@ -280,6 +282,7 @@ library
     , terminal-size
     , text
     , text-short
+    , these
     , time
     , tls
     , transformers

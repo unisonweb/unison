@@ -11,7 +11,7 @@ where
 
 import qualified Control.Error.Util as ErrorUtil
 import Control.Lens
-import Control.Monad.Except (ExceptT (..), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (..), runExceptT, throwError, withExceptT)
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Data.Bifunctor (first, second)
@@ -32,7 +32,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Builtin.Terms as Builtin
-import Unison.Codebase (PushGitBranchOpts (..))
+import Unison.Codebase (PushGitBranchOpts (..), Preprocessing (..))
 import Unison.Codebase.Branch (Branch (..), Branch0 (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
@@ -71,11 +71,12 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(NoDatabaseFile))
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError)
+import Unison.Codebase.Type (GitError(GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -148,6 +149,7 @@ import Unison.Util.Free (Free)
 import UnliftIO (MonadUnliftIO)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
+import qualified Unison.Codebase.Editor.Input as Input
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -375,6 +377,7 @@ loop = do
             UpdateI p _selection -> "update " <> opatch p
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
+            ApiI -> "api"
             UiI -> "ui"
             DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
             ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s : args))
@@ -388,8 +391,12 @@ loop = do
             MergeIOBuiltinsI -> "builtins.mergeio"
             MakeStandaloneI out nm ->
               "compile.output " <> Text.pack out <> " " <> HQ.toText nm
-            PullRemoteBranchI orepo dest _syncMode _ ->
-              (Text.pack . InputPattern.patternName $ InputPatterns.pull)
+            PullRemoteBranchI orepo dest _syncMode pullMode _ ->
+              (Text.pack . InputPattern.patternName $
+                case pullMode of
+                  PullWithoutHistory -> InputPatterns.pullWithoutHistory
+                  PullWithHistory -> InputPatterns.pull
+              )
                 <> " "
                 -- todo: show the actual config-loaded namespace
                 <> maybe
@@ -463,9 +470,14 @@ loop = do
           stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use LoopState.root >>= updateRoot
+          updateAtM ::
+            Path.Absolute
+            -> (Branch m -> Action m i v1 (Branch m))
+            -> Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
-          importRemoteBranch ns mode = ExceptT . eval $ ImportRemoteBranch ns mode
+          importRemoteBranch ns mode preprocess =
+            ExceptT . eval $ ImportRemoteBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
             stepAtM
@@ -517,6 +529,7 @@ loop = do
                     ppeDecl <- currentPrettyPrintEnvDecl
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
+            ApiI -> eval API
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do
@@ -568,7 +581,7 @@ loop = do
                     let dest = resolveToAbsolute dest0
                     -- if dest isn't empty: leave dest unchanged, and complain.
                     destb <- getAt dest
-                    if Branch.isEmpty destb
+                    if Branch.isEmpty0 (Branch.head destb)
                       then do
                         ok <- updateAtM dest (const $ pure srcb)
                         if ok then success else respond $ BranchEmpty src0
@@ -603,18 +616,22 @@ loop = do
                     else
                       diffHelper (Branch.head destb) (Branch.head merged)
                         >>= respondNumbered . uncurry (ShowDiffAfterMergePreview dest0 dest)
-            DiffNamespaceI before0 after0 -> do
-              let [beforep, afterp] =
-                    resolveToAbsolute <$> [before0, after0]
-              before <- Branch.head <$> getAt beforep
-              after <- Branch.head <$> getAt afterp
-              case (Branch.isEmpty0 before, Branch.isEmpty0 after) of
-                (True, True) -> respond . NamespaceEmpty $ Right (beforep, afterp)
-                (True, False) -> respond . NamespaceEmpty $ Left beforep
-                (False, True) -> respond . NamespaceEmpty $ Left afterp
+            DiffNamespaceI before after -> unlessError do
+              let (absBefore, absAfter) = (resolveToAbsolute <$> before, resolveToAbsolute <$> after)
+              beforeBranch0 <- Branch.head <$> branchForBranchId absBefore
+              afterBranch0 <- Branch.head <$> branchForBranchId absAfter
+              lift $ case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
+                (True, True) -> respond . NamespaceEmpty $ (absBefore Nel.:| [absAfter])
+                (True, False) -> respond . NamespaceEmpty $ (absBefore Nel.:| [])
+                (False, True) -> respond . NamespaceEmpty $ (absAfter Nel.:| [])
                 _ -> do
-                  (ppe, outputDiff) <- diffHelper before after
-                  respondNumbered $ ShowDiffNamespace beforep afterp ppe outputDiff
+                  (ppe, outputDiff) <- diffHelper beforeBranch0 afterBranch0
+                  respondNumbered $
+                    ShowDiffNamespace
+                      (resolveToAbsolute <$> before)
+                      (resolveToAbsolute <$> after)
+                      ppe
+                      outputDiff
             CreatePullRequestI baseRepo headRepo -> do
               result <- join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
                  viewRemoteBranch headRepo \headBranch -> do
@@ -630,8 +647,8 @@ loop = do
               destb <- getAt desta
               if Branch.isEmpty0 (Branch.head destb)
                 then unlessGitError do
-                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit
-                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit
+                  baseb <- importRemoteBranch baseRepo SyncMode.ShortCircuit Unmodified
+                  headb <- importRemoteBranch headRepo SyncMode.ShortCircuit Unmodified
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
@@ -666,7 +683,7 @@ loop = do
                 srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
                 destOk b = do
                   stepManyAt
-                    [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty,
+                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
                       BranchUtil.makeSetBranch (resolveSplit' dest) b
                     ]
                   success -- could give rando stats about new defns
@@ -740,11 +757,11 @@ loop = do
             SwitchBranchI maybePath' -> do
               mpath' <- case maybePath' of
                 Nothing ->
-                  fuzzySelectNamespace Absolute root0 <&> \case
-                    [] -> Nothing
+                  fuzzySelectNamespace Absolute root0 >>= \case
                     -- Shouldn't be possible to get multiple paths here, we can just take
                     -- the first.
-                    (p : _) -> Just p
+                    Just (p : _) -> pure $ Just p
+                    _ -> respond (HelpMessage InputPatterns.cd) $> Nothing
                 Just p -> pure $ Just p
               case mpath' of
                 Nothing -> pure ()
@@ -752,7 +769,7 @@ loop = do
                   let path = resolveToAbsolute path'
                   LoopState.currentPathStack %= Nel.cons path
                   branch' <- getAt path
-                  when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+                  when (Branch.isEmpty0 $ Branch.head branch') (respond $ CreatedNewBranch path)
             UpI ->
               use LoopState.currentPath >>= \p -> case Path.unsnoc (Path.unabsolute p) of
                 Nothing -> pure ()
@@ -933,10 +950,14 @@ loop = do
             DocsI srcs -> do
               srcs' <- case srcs of
                 [] ->
-                  fuzzySelectDefinition Absolute root0
-                    -- HQ names should always parse as a valid split, so we just discard any
-                    -- that don't to satisfy the type-checker.
-                    <&> mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString)
+                  fuzzySelectDefinition Absolute root0 >>= \case
+                    Nothing -> do
+                      respond (HelpMessage InputPatterns.docs)
+                      pure []
+                    Just defs -> do
+                      -- HQ names should always parse as a valid split, so we just discard any
+                      -- that don't to satisfy the type-checker.
+                      pure . mapMaybe (eitherToMaybe . Path.parseHQSplit' . HQ.toString) $ defs
                 xs -> pure xs
               for_ srcs' (docsI (show input) basicPrettyPrintNames)
             CreateAuthorI authorNameSegment authorFullName -> do
@@ -1003,7 +1024,9 @@ loop = do
             DeleteTermI hq -> delete getHQ'Terms (const Set.empty) hq
             DisplayI outputLoc names' -> do
               names <- case names' of
-                [] -> fuzzySelectDefinition Absolute root0
+                [] -> fuzzySelectDefinition Absolute root0 >>= \case
+                        Nothing -> respond (HelpMessage InputPatterns.display) $> []
+                        Just defs -> pure defs
                 ns -> pure ns
               traverse_ (displayI basicPrettyPrintNames outputLoc) names
             ShowDefinitionI outputLoc query -> handleShowDefinition outputLoc query
@@ -1435,14 +1458,38 @@ loop = do
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
               respond $ ListEdits patch ppe
-            PullRemoteBranchI mayRepo path syncMode verbosity -> unlessError do
+            PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
+              let preprocess = case pullMode of
+                    Input.PullWithHistory -> Unmodified
+                    Input.PullWithoutHistory -> Preprocessed $ pure . Branch.discardHistory
               ns <- maybe (writePathToRead <$> resolveConfiguredGitUrl Pull path) pure mayRepo
               lift $ unlessGitError do
-                b <- importRemoteBranch ns syncMode
-                let msg = Just $ PullAlreadyUpToDate ns path
+                remoteBranch <- importRemoteBranch ns syncMode preprocess
+                let unchangedMsg = PullAlreadyUpToDate ns path
                 let destAbs = resolveToAbsolute path
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
-                lift $ mergeBranchAndPropagateDefaultPatch Branch.RegularMerge inputDescription msg b printDiffPath destAbs
+                lift $ case pullMode of
+                  Input.PullWithHistory -> do
+                    destBranch <- getAt destAbs
+                    if Branch.isEmpty0 (Branch.head destBranch)
+                       then do
+                         void $ updateAtM destAbs (const $ pure remoteBranch)
+                         respond $ MergeOverEmpty path
+                       else mergeBranchAndPropagateDefaultPatch
+                              Branch.RegularMerge
+                              inputDescription
+                              (Just unchangedMsg)
+                              remoteBranch
+                              printDiffPath
+                              destAbs
+                  Input.PullWithoutHistory -> do
+                    didUpdate <- updateAtM
+                                   destAbs
+                                   (\destBranch -> pure $ remoteBranch `Branch.consBranchSnapshot` destBranch )
+                    if didUpdate
+                       then respond $ PullSuccessful ns path
+                       else respond unchangedMsg
+
             PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
@@ -1646,17 +1693,21 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
           sbhLength <- (eval BranchHashLength)
           respond (GistCreated sbhLength repo (Branch.headHash sourceBranch))
         Just (remotePath, pushBehavior) -> do
-          ExceptT . viewRemoteBranch (writeToRead repo, Nothing, Path.empty) $ \remoteRoot -> do
-            let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
-                -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
-                f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
-            Branch.modifyAtM remotePath f remoteRoot & \case
-              Nothing -> respond (RefusedToPush pushBehavior)
-              Just newRemoteRoot -> do
-                let opts = PushGitBranchOpts {setRoot = True, syncMode}
-                runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
-                  Left gitErr -> respond (Output.GitError gitErr)
-                  Right () -> respond Success
+          let withRemoteRoot remoteRoot = do
+                let -- We don't merge `sourceBranch` with `remoteBranch`, we just replace it. This push will be rejected if this
+                    -- rewinds time or misses any new updates in the remote branch that aren't in `sourceBranch` already.
+                    f remoteBranch = if shouldPushTo pushBehavior remoteBranch then Just sourceBranch else Nothing
+                Branch.modifyAtM remotePath f remoteRoot & \case
+                  Nothing -> respond (RefusedToPush pushBehavior)
+                  Just newRemoteRoot -> do
+                    let opts = PushGitBranchOpts {setRoot = True, syncMode}
+                    runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
+                      Left gitErr -> respond (Output.GitError gitErr)
+                      Right () -> respond Success
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty) withRemoteRoot >>= \case
+            Left (GitSqliteCodebaseError NoDatabaseFile{}) -> withRemoteRoot Branch.empty
+            Left err -> throwError err
+            Right () -> pure ()
   where
     -- Per `pushBehavior`, we are either:
     --
@@ -1665,18 +1716,27 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
     shouldPushTo :: PushBehavior -> Branch m -> Bool
     shouldPushTo pushBehavior remoteBranch =
       case pushBehavior of
-        PushBehavior.RequireEmpty -> Branch.isEmpty remoteBranch
-        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty remoteBranch)
+        PushBehavior.RequireEmpty -> Branch.isEmpty0 (Branch.head remoteBranch)
+        PushBehavior.RequireNonEmpty -> not (Branch.isEmpty0 (Branch.head remoteBranch))
 
 -- | Handle a @ShowDefinitionI@ input command, i.e. `view` or `edit`.
-handleShowDefinition :: forall m v. Functor m => OutputLocation -> [HQ.HashQualified Name] -> Action' m v ()
+handleShowDefinition ::
+  forall m v.
+  Functor m =>
+  OutputLocation ->
+  [HQ.HashQualified Name] ->
+  Action' m v ()
 handleShowDefinition outputLoc inputQuery = do
   -- If the query is empty, run a fuzzy search.
   query <-
     if null inputQuery
       then do
         branch <- fuzzyBranch
-        fuzzySelectDefinition Relative branch
+        fuzzySelectDefinition Relative branch >>= \case
+          Nothing -> case outputLoc of
+            ConsoleLocation -> respond (HelpMessage InputPatterns.view) $> []
+            _ -> respond (HelpMessage InputPatterns.edit) $> []
+          Just defs -> pure defs
       else pure inputQuery
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   root' <- use LoopState.root
@@ -2949,7 +3009,7 @@ doSlurpAdds ::
   SlurpComponent v ->
   UF.TypecheckedUnisonFile v Ann ->
   (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
+doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
   where
     typeActions = map doType . toList $ SC.types slurp
     termActions =
@@ -2996,7 +3056,7 @@ doSlurpUpdates ::
   [(Name, Referent)] ->
   (Branch0 m -> Branch0 m)
 doSlurpUpdates typeEdits termEdits deprecated b0 =
-  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
+  Branch.batchUpdates (typeActions <> termActions <> deprecateActions) b0
   where
     typeActions = join . map doType . Map.toList $ typeEdits
     termActions = join . map doTerm . Map.toList $ termEdits
@@ -3376,23 +3436,21 @@ declOrBuiltin r = case r of
 
 -- | Select a definition from the given branch.
 -- Returned names will match the provided 'Position' type.
-fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v [HQ.HashQualified Name]
+fuzzySelectDefinition :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [HQ.HashQualified Name])
 fuzzySelectDefinition pos searchBranch0 = do
   let termsAndTypes =
         Relation.dom (Names.hashQualifyTermsRelation (Relation.swap $ Branch.deepTerms searchBranch0))
           <> Relation.dom (Names.hashQualifyTypesRelation (Relation.swap $ Branch.deepTypes searchBranch0))
   let inputs :: [HQ.HashQualified Name]
       inputs =
-          termsAndTypes
-        & Set.toList
-        & map (fmap (Name.setPosition pos))
-  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs) >>= \case
-    Nothing -> pure []
-    Just results -> pure results
+        termsAndTypes
+          & Set.toList
+          & map (fmap (Name.setPosition pos))
+  eval (FuzzySelect Fuzzy.defaultOptions HQ.toText inputs)
 
 -- | Select a namespace from the given branch.
 -- Returned Path's will match the provided 'Position' type.
-fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v [Path']
+fuzzySelectNamespace :: Position -> Branch0 m -> Action m (Either Event Input) v (Maybe [Path'])
 fuzzySelectNamespace pos searchBranch0 = do
   let intoPath' :: Path -> Path'
       intoPath' = case pos of
@@ -3400,13 +3458,22 @@ fuzzySelectNamespace pos searchBranch0 = do
         Absolute -> Path' . Left . Path.Absolute
   let inputs :: [Path']
       inputs =
-          searchBranch0
-        & Branch.deepPaths
-        & Set.toList
-        & map intoPath'
-  fromMaybe [] <$> eval
-                    ( FuzzySelect
-                        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
-                        tShow
-                        inputs
-                    )
+        searchBranch0
+          & Branch.deepPaths
+          & Set.toList
+          & map intoPath'
+  eval
+    ( FuzzySelect
+        Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = False}
+        tShow
+        inputs
+    )
+
+-- | Get a branch from a BranchId, returning an empty one if missing, or failing with an
+-- appropriate error message if a hash cannot be found.
+branchForBranchId :: Functor m => AbsBranchId -> ExceptT (Output v) (Action' m v) (Branch m)
+branchForBranchId = \case
+  Left hash -> do
+    resolveShortBranchHash hash
+  Right path -> do
+    lift $ getAt path

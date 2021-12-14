@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ec8bplo3a5 : add
-  2. #umob2h2nfc : builtins.mergeio
+  1. #edkeq4dlqo : add
+  2. #ehfimtkqge : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #nf6v4skcpk : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #ec8bplo3a5 : add
-  4. #umob2h2nfc : builtins.mergeio
+  1. #dne7ugdlmg : add
+  2. #ehfimtkqge : reset-root #ehfimtkqge
+  3. #edkeq4dlqo : add
+  4. #ehfimtkqge : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #6u70tqt1nb : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #nf6v4skcpk : add
-  4. #umob2h2nfc : reset-root #umob2h2nfc
-  5. #ec8bplo3a5 : add
-  6. #umob2h2nfc : builtins.mergeio
+  1. #ps96u84es8 : add
+  2. #ehfimtkqge : reset-root #ehfimtkqge
+  3. #dne7ugdlmg : add
+  4. #ehfimtkqge : reset-root #ehfimtkqge
+  5. #edkeq4dlqo : add
+  6. #ehfimtkqge : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #8cfe45q2aq : add
-  2. #umob2h2nfc : reset-root #umob2h2nfc
-  3. #6u70tqt1nb : add
-  4. #umob2h2nfc : reset-root #umob2h2nfc
-  5. #nf6v4skcpk : add
-  6. #umob2h2nfc : reset-root #umob2h2nfc
-  7. #ec8bplo3a5 : add
-  8. #umob2h2nfc : builtins.mergeio
+  1. #13i3s2120q : add
+  2. #ehfimtkqge : reset-root #ehfimtkqge
+  3. #ps96u84es8 : add
+  4. #ehfimtkqge : reset-root #ehfimtkqge
+  5. #dne7ugdlmg : add
+  6. #ehfimtkqge : reset-root #ehfimtkqge
+  7. #edkeq4dlqo : add
+  8. #ehfimtkqge : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #lrkr6m9s84 : add
-  2.  #umob2h2nfc : reset-root #umob2h2nfc
-  3.  #8cfe45q2aq : add
-  4.  #umob2h2nfc : reset-root #umob2h2nfc
-  5.  #6u70tqt1nb : add
-  6.  #umob2h2nfc : reset-root #umob2h2nfc
-  7.  #nf6v4skcpk : add
-  8.  #umob2h2nfc : reset-root #umob2h2nfc
-  9.  #ec8bplo3a5 : add
-  10. #umob2h2nfc : builtins.mergeio
+  1.  #29at46a9as : add
+  2.  #ehfimtkqge : reset-root #ehfimtkqge
+  3.  #13i3s2120q : add
+  4.  #ehfimtkqge : reset-root #ehfimtkqge
+  5.  #ps96u84es8 : add
+  6.  #ehfimtkqge : reset-root #ehfimtkqge
+  7.  #dne7ugdlmg : add
+  8.  #ehfimtkqge : reset-root #ehfimtkqge
+  9.  #edkeq4dlqo : add
+  10. #ehfimtkqge : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #umob2h2nfc .old`   to make an old namespace
+    `fork #ehfimtkqge .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #umob2h2nfc`  to reset the root namespace and
+    `reset-root #ehfimtkqge`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #4bomvvof2t : add
-  2.  #umob2h2nfc : reset-root #umob2h2nfc
-  3.  #lrkr6m9s84 : add
-  4.  #umob2h2nfc : reset-root #umob2h2nfc
-  5.  #8cfe45q2aq : add
-  6.  #umob2h2nfc : reset-root #umob2h2nfc
-  7.  #6u70tqt1nb : add
-  8.  #umob2h2nfc : reset-root #umob2h2nfc
-  9.  #nf6v4skcpk : add
-  10. #umob2h2nfc : reset-root #umob2h2nfc
-  11. #ec8bplo3a5 : add
-  12. #umob2h2nfc : builtins.mergeio
+  1.  #7b35f5f5ue : add
+  2.  #ehfimtkqge : reset-root #ehfimtkqge
+  3.  #29at46a9as : add
+  4.  #ehfimtkqge : reset-root #ehfimtkqge
+  5.  #13i3s2120q : add
+  6.  #ehfimtkqge : reset-root #ehfimtkqge
+  7.  #ps96u84es8 : add
+  8.  #ehfimtkqge : reset-root #ehfimtkqge
+  9.  #dne7ugdlmg : add
+  10. #ehfimtkqge : reset-root #ehfimtkqge
+  11. #edkeq4dlqo : add
+  12. #ehfimtkqge : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -757,5 +757,251 @@ x = 2
 .> add
 
   ⊡ Ignored previously added definitions: docTest2
+
+```
+## Unison Cloud roundtrip issues
+
+Regression tests for  https://github.com/unisonweb/unison/issues/2650
+
+```unison
+broken =
+    addNumbers: 'Nat
+    addNumbers = 'let
+      use Nat +
+      y = 12
+      13 + y
+    !addNumbers    
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    broken : Nat
+
+.> edit broken
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    broken : Nat
+    broken =
+      addNumbers : 'Nat
+      addNumbers = 'let
+        use Nat +
+        y = 12
+        13 + y
+      !addNumbers
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. broken : Nat
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      broken : Nat
+
+```
+```unison
+tvarmodify tvar fun = ()
+
+broken tvar = 
+  '(tvarmodify tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    broken     : tvar -> () -> ()
+    tvarmodify : tvar -> fun -> ()
+
+.> edit tvarmodify broken
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    broken : tvar -> () -> ()
+    broken tvar =
+      '(tvarmodify
+          tvar
+          (cases
+            Some _ ->
+              "oh boy isn't this a very very very very very very very long string?"
+            None   -> ""))
+    
+    tvarmodify : tvar -> fun -> ()
+    tvarmodify tvar fun = ()
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. broken     : tvar -> () -> ()
+    2. tvarmodify : tvar -> fun -> ()
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      broken     : tvar -> '()
+      tvarmodify : tvar -> fun -> ()
+
+```
+```unison
+broken = cases 
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    broken : Optional Nat -> ()
+
+.> edit broken
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    broken : Optional Nat -> ()
+    broken = cases
+      Some
+        loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong
+        == 1 ->
+        ()
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. broken : Optional Nat -> ()
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      broken : Optional Nat -> ()
+
+```
+## Guard patterns on long lines
+
+```unison
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+foo = let
+  go x = 
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+  go (SomethingUnusuallyLong "one" "two" "three")
+```
+
+```ucm
+.> add
+
+  ⍟ I've added these definitions:
+  
+    structural type SomethingUnusuallyLong
+    foo : 'Nat
+
+.> edit SomethingUnusuallyLong foo 
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/scratch.u
+  
+    structural type SomethingUnusuallyLong
+      = SomethingUnusuallyLong Text Text Text
+    
+    foo : 'Nat
+    foo =
+      go x =
+        'match (a -> a) x with
+            SomethingUnusuallyLong
+              lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij 
+              | lijaefliejalfijelfj == aefilaeifhlei   -> 0
+              | lijaefliejalfijelfj == liaehjffeafijij -> 1
+      go (SomethingUnusuallyLong "one" "two" "three")
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. structural type SomethingUnusuallyLong
+    2. SomethingUnusuallyLong.SomethingUnusuallyLong : Text
+                                                     -> Text
+                                                     -> Text
+                                                     -> #l6si6n2hsl
+    3. foo                                           : 'Nat
+
+```
+```ucm
+.> load scratch.u
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      structural type SomethingUnusuallyLong
+      foo : 'Nat
 
 ```

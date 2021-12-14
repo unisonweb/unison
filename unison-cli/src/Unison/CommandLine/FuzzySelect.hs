@@ -66,7 +66,7 @@ fuzzySelect opts intoSearchText choices =
     . restoreBuffering
     . runExceptT $ do
     fzfPath <- liftIO (findExecutable "fzf") >>= \case
-      Nothing -> throwError "fzf not found. Consider installing fzf to improve your experience with unison."
+      Nothing -> throwError "I couldn't find the `fzf` executable on your path, consider installing `fzf` to enable fuzzy searching."
       Just fzfPath -> pure fzfPath
     let fzfArgs :: [String]
           = optsToArgs opts

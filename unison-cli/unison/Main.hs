@@ -28,6 +28,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase.Init (InitResult(..), InitError(..), CodebaseInitOptions(..), SpecifiedCodebase(..))
 import qualified Unison.Codebase.Init as CodebaseInit
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 import qualified Unison.Codebase.Editor.Input as Input
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.Editor.VersionParser as VP
@@ -49,7 +50,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import qualified Version
 import UnliftIO.Directory ( getHomeDirectory )
-import Compat ( installSignalHandlers )
+import Compat ( defaultInterruptHandler, withInterruptHandler )
 import ArgParse
     ( UsageRenderer,
       GlobalOptions(GlobalOptions, codebasePathOption),
@@ -67,10 +68,11 @@ import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
 
 main :: IO ()
 main = do
+ interruptHandler <- defaultInterruptHandler
+ withInterruptHandler interruptHandler $ do
   progName <- getProgName
   -- hSetBuffering stdout NoBuffering -- cool
 
-  void installSignalHandlers
   (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName Version.gitDescribeWithDate
   let GlobalOptions{codebasePathOption=mCodePathOption} = globalOptions
   let mcodepath = fmap codebasePathOptionToPath mCodePathOption
@@ -98,7 +100,7 @@ main = do
 
      Run (RunFromSymbol mainName) args -> do
       getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
-        runtime <- RTI.startRuntime Version.gitDescribeWithDate
+        runtime <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
         withArgs args $ execute theCodebase runtime mainName
      Run (RunFromFile file mainName) args
        | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
@@ -108,7 +110,7 @@ main = do
               Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
               Right contents -> do
                 getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                  rt <- RTI.startRuntime Version.gitDescribeWithDate
+                  rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
                   let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                   launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
      Run (RunFromPipe mainName) args -> do
@@ -117,7 +119,7 @@ main = do
         Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I had trouble reading this input."
         Right contents -> do
           getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-            rt <- RTI.startRuntime Version.gitDescribeWithDate
+            rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
             let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
             launch
               currentDir config rt theCodebase
@@ -184,7 +186,7 @@ main = do
        runTranscripts renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
      Launch isHeadless codebaseServerOpts downloadBase -> do
        getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-         runtime <- RTI.startRuntime Version.gitDescribeWithDate
+         runtime <- RTI.startRuntime RTI.UCM Version.gitDescribeWithDate
          Server.startServer codebaseServerOpts runtime theCodebase $ \baseUrl -> do
            case isHeadless of
                Headless -> do
@@ -372,11 +374,20 @@ getCodebaseOrExit codebasePathOption action = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case err of
-            NoCodebaseFoundAtSpecifiedDir ->
+            InitErrorOpen OpenCodebaseDoesntExist ->
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
+
+            InitErrorOpen (OpenCodebaseUnknownSchemaVersion _) ->
+              pure (P.lines
+                [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison."
+                , "Please upgrade your version of UCM."
+                ])
+
+            InitErrorOpen (OpenCodebaseOther errMessage) ->
+              pure errMessage
 
             FoundV1Codebase ->
               pure (P.lines

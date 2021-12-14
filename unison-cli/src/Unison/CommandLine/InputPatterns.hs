@@ -300,7 +300,11 @@ view =
     "view"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`view foo` prints the definition of `foo`."
+    ( P.lines
+        [ "`view foo` prints the definition of `foo`.",
+          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
         . traverse parseHashQualifiedName
     )
@@ -311,7 +315,11 @@ display =
     "display"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`display foo` prints a rendered version of the term `foo`."
+    ( P.lines
+        [ "`display foo` prints a rendered version of the term `foo`.",
+          "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
     )
 
@@ -337,8 +345,21 @@ docs =
     "docs"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`docs foo` shows documentation for the definition `foo`."
+    ( P.lines
+        [ "`docs foo` shows documentation for the definition `foo`.",
+          "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+
+api :: InputPattern
+api =
+  InputPattern
+    "api"
+    []
+    []
+    "`api` provides details about the API."
+    (const $ pure Input.ApiI)
 
 ui :: InputPattern
 ui =
@@ -669,13 +690,23 @@ cd =
     "namespace"
     ["cd", "j"]
     [(Required, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample cd ["foo.bar"],
-            "descends into foo.bar from the current namespace."
-          ),
-          ( makeExample cd [".cat.dog"],
-            "sets the current namespace to the abolute namespace .cat.dog."
-          )
+    ( P.lines
+        [ "Moves your perspective to a different namespace.",
+          "",
+          P.wrapColumn2
+            [ ( makeExample cd ["foo.bar"],
+                "descends into foo.bar from the current namespace."
+              ),
+              ( makeExample cd [".cat.dog"],
+                "sets the current namespace to the abolute namespace .cat.dog."
+              ),
+              ( makeExample cd [".."],
+                "moves to the parent of the current namespace. E.g. moves from '.cat.dog' to '.cat'"
+              ),
+              ( makeExample cd [],
+                "invokes a search to select which namespace to move to, which requires that `fzf` can be found within your PATH."
+              )
+            ]
         ]
     )
     ( \case
@@ -869,16 +900,23 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
 
-pullImpl :: String -> Verbosity -> InputPattern
-pullImpl name verbosity = do
+pullWithoutHistory :: InputPattern
+pullWithoutHistory =
+  pullImpl
+    "pull.without-history"
+    Verbosity.Default
+    Input.PullWithoutHistory
+    "without including the remote's history. This usually results in smaller codebase sizes."
+
+pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name verbosity pullMode addendum = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self =
       InputPattern
         name
@@ -917,14 +955,14 @@ pullImpl name verbosity = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseUri "url" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseUri "url" url
               p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -945,14 +983,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
     )
 
@@ -1215,12 +1253,12 @@ diffNamespace =
     )
     ( \case
         [before, after] -> first fromString $ do
-          before <- Path.parsePath' before
-          after <- Path.parsePath' after
+          before <- Input.parseBranchId before
+          after <- Input.parseBranchId after
           pure $ Input.DiffNamespaceI before after
         [before] -> first fromString $ do
-          before <- Path.parsePath' before
-          pure $ Input.DiffNamespaceI before Path.currentPath
+          before <- Input.parseBranchId before
+          pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
 
@@ -1311,8 +1349,11 @@ edit =
     "edit"
     []
     [(OnePlus, definitionQueryArg)]
-    ( "`edit foo` prepends the definition of `foo` to the top of the most "
-        <> "recently saved file."
+    ( P.lines
+        [ "`edit foo` prepends the definition of `foo` to the top of the most "
+            <> "recently saved file.",
+          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+        ]
     )
     ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
         . traverse parseHashQualifiedName
@@ -1854,6 +1895,7 @@ validInputs =
     push,
     pushCreate,
     pull,
+    pullWithoutHistory,
     pullSilent,
     pushExhaustive,
     pullExhaustive,
@@ -1874,6 +1916,7 @@ validInputs =
     view,
     display,
     displayTo,
+    api,
     ui,
     docs,
     docsToHtml,
@@ -2032,7 +2075,7 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- |
+-- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2067,7 +2110,7 @@ namespaceArg =
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
 allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
+  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
     \(NameSegment k) (Branch.head -> b') ->
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 

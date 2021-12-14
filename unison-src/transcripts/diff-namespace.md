@@ -152,6 +152,26 @@ a = 777
 .nsw> view a b
 ```
 
+## Should be able to diff a namespace hash from history.
+
+```unison
+x = 1
+```
+
+```ucm
+.hashdiff> add
+```
+
+```unison
+y = 2
+```
+
+```ucm
+.hashdiff> add
+.hashdiff> history
+.hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
+```
+
 ##
 
 Updates:  -- 1 to 1

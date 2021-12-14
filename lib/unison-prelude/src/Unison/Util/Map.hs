@@ -5,6 +5,7 @@ module Unison.Util.Map
   ( bimap,
     bitraverse,
     bitraversed,
+    deleteLookup,
     foldMapM,
     unionWithM,
     traverseKeys,
@@ -42,6 +43,11 @@ swap =
 valuesVector :: Map k v -> Vector v
 valuesVector =
   Vector.fromList . Map.elems
+
+-- | Like 'Map.delete', but returns the value as well.
+deleteLookup :: Ord k => k -> Map k v -> (Maybe v, Map k v)
+deleteLookup =
+  Map.alterF (,Nothing)
 
 -- | Construct a map from a foldable container by mapping each element to monadic action that returns a key and a value.
 --

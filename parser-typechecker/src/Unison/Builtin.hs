@@ -482,8 +482,12 @@ builtinsSrc =
   , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
   , B "List.size" $ forall1 "a" (\a -> list a --> nat)
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optionalt a)
+  , B "Socket.toText" $ socket --> text
+  , B "Handle.toText" $ handle --> text
+  , B "ThreadId.toText" $ threadId --> text
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "Debug.trace" $ forall1 "a" (\a -> text --> a --> unit)
   , B "unsafe.coerceAbilities" $
       forall4 "a" "b" "e1" "e2" $ \a b e1 e2 ->
         (a --> Type.effect1 () e1 b) --> (a --> Type.effect1 () e2 b)

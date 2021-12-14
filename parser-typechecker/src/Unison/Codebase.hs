@@ -77,6 +77,7 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
+    Preprocessing(..),
     pushGitBranch,
     PushGitBranchOpts (..),
 
@@ -350,6 +351,12 @@ isBlank codebase = do
 
 -- * Git stuff
 
+-- | An optional preprocessing step to run on branches
+-- before they're imported into the local codebase.
+data Preprocessing m
+  = Unmodified
+  | Preprocessed (Branch m -> m (Branch m))
+
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
@@ -359,17 +366,24 @@ importRemoteBranch ::
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
+  Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT $ do
+importRemoteBranch codebase ns mode preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
-         withStatus "Importing downloaded files into local codebase..." $
-           time "SyncFromDirectory" $
-             syncFromDirectory codebase cacheDir mode branch
-         pure $ Branch.headHash branch
+         withStatus "Importing downloaded files into local codebase..." $ do
+           processedBranch <- preprocessOp branch
+           time "SyncFromDirectory" $ do
+             syncFromDirectory codebase cacheDir mode processedBranch
+             pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
       Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
       Just result -> pure $ result
+  where
+    preprocessOp :: Branch m -> m (Branch m)
+    preprocessOp = case preprocess of
+      Preprocessed f -> f
+      Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
