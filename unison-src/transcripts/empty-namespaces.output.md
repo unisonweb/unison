@@ -39,13 +39,13 @@ The history of the namespace should still exist if requested explicitly.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qjc20aua9h
+  ⊙ #3fdue8bl8c
   
     - Deletes:
     
       x
   
-  □ #hkrqt3tm05 (start of history)
+  □ #q9cdigs0bo (start of history)
 
 ```
 Merging an empty namespace should still copy its history if it has some.
@@ -66,13 +66,13 @@ Merging an empty namespace should still copy its history if it has some.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #qjc20aua9h
+  ⊙ #3fdue8bl8c
   
     - Deletes:
     
       x
   
-  □ #hkrqt3tm05 (start of history)
+  □ #q9cdigs0bo (start of history)
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
@@ -100,7 +100,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #3bm1524lb7 (start of history)
+  □ #ag66d092nt (start of history)
 
 .> history deleted
 
@@ -109,6 +109,6 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #3bm1524lb7 (start of history)
+  □ #ag66d092nt (start of history)
 
 ```
