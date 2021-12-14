@@ -618,7 +618,7 @@ gistTest fmt =
     userScript repo =
       [i|
         ```ucm
-        .> pull ${repo}:#n611nnppp5
+        .> pull ${repo}:#frj8ob9ugr
         .> find
         ```
         ```unison
