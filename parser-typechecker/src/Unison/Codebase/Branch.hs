@@ -547,8 +547,7 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 -- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
--- Note: This does not allow you to manipulate history yourself. All changes are compressed
--- into a single causal cons.
+-- History is managed according to 'UpdateStrategy'.
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
@@ -584,7 +583,7 @@ data UpdateStrategy
   | AllowRewritingHistory
 
 -- | Run a series of updates at specific locations.
--- History is managed according to the 'BranchUpdateStrategy'
+-- History is managed according to the 'UpdateStrategy'
 stepManyAtM :: (Monad m, Monad n, Foldable f)
             => UpdateStrategy -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepManyAtM strat actions startBranch =
