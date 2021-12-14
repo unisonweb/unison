@@ -314,7 +314,7 @@ test = scope "gitsync22" . tests $
       .> alias.term ##Nat.+ +
       ```
       ```unison
-      > #msp7bv40rv + 1
+      > #fs7la111vn + 1
       ```
     |])
   ,
