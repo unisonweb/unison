@@ -733,17 +733,17 @@ y = 2
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #is7tu6katt
+  ⊙ #r0471p61ch
   
     + Adds / updates:
     
       y
   
-  □ #hkrqt3tm05 (start of history)
+  □ #q9cdigs0bo (start of history)
 
-.hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
+.hashdiff> diff.namespace #r0471p61ch #q9cdigs0bo
 
-  Added definitions:
+  Removed definitions:
   
     1. y : Nat
 
