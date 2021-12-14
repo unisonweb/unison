@@ -283,7 +283,7 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #97u
+        .> reset-root #0u7no051k7
         .> history
         ```
     |]) -- Not sure why this hash is here.
