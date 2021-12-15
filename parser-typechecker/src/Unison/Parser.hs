@@ -325,13 +325,9 @@ symbolyIdString = queryToken $ \case
   L.SymbolyId s Nothing -> Just s
   _                     -> Nothing
 
--- Parse an infix id e.g. + or `cons`, discarding any hash
+-- Parse an infix id e.g. + or Docs.++, discarding any hash
 infixDefinitionName :: Var v => P v (L.Token v)
-infixDefinitionName = symbolyDefinitionName <|> backticked where
-  backticked :: Var v => P v (L.Token v)
-  backticked = queryToken $ \case
-    L.Backticks s _ -> Just $ Var.nameds s
-    _               -> Nothing
+infixDefinitionName = symbolyDefinitionName
 
 -- Parse a symboly ID like >>= or &&, discarding any hash
 symbolyDefinitionName :: Var v => P v (L.Token v)
@@ -344,7 +340,7 @@ parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
 
 hqPrefixId, hqInfixId :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
-hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
+hqInfixId = hqSymbolyId_
 
 -- Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
@@ -362,13 +358,6 @@ hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromString s)
-  _ -> Nothing
-
-hqBacktickedId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
-hqBacktickedId_ = queryToken $ \case
-  L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromString s)
   _ -> Nothing
 
 -- Parse a reserved word

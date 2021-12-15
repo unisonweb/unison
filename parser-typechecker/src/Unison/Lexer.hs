@@ -108,7 +108,6 @@ data Lexeme
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
   | Character Char   -- character literals, `?X`
-  | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String   (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
@@ -295,7 +294,7 @@ lexemes' eof = P.optional space >> do
   where
   toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved
      <|> token symbolyId <|> token blank <|> token wordyId
-     <|> (asum . map token) [ semi, textual, backticks, hash ]
+     <|> (asum . map token) [ semi, textual, hash ]
 
   wordySep c = isSpace c || not (wordyIdChar c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
@@ -682,10 +681,6 @@ lexemes' eof = P.optional space >> do
            where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's' $> ' ')
-  backticks = tick <$> (t *> wordyId <* t)
-    where tick (WordyId n sh) = Backticks n sh
-          tick t = t
-          t = char '`' <* P.notFollowedBy (char '`')
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
@@ -1233,8 +1228,6 @@ instance ShowToken (Token Lexeme) where
         case showEscapeChar c of
           Just c -> "?\\" ++ [c]
           Nothing -> '?' : [c]
-      pretty (Backticks n h) =
-        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
       pretty (Blank s) = "_" ++ s
