@@ -25,9 +25,9 @@ isWin board =
     Board a b c
           d e f
           g h i ->
-      (orElse (same a b c) <| orElse (same d e f) <| orElse (same g h i) <| orElse
-       (same a d g) <| orElse (same b e h) <| orElse (same c f i) <| orElse
-       (same a e i) <| same g e c)
+      (same a b c |> orElse (same d e f) |> orElse (same g h i)
+          |> orElse (same a d g) |> orElse (same b e h) |> orElse (same c f i)
+          |> orElse (same a e i) |> orElse (same g e c))
 
 > isWin (Board X O X
              O X X

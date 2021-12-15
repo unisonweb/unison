@@ -47,7 +47,7 @@ List.map : (a ->{e} b) -> [a] ->{e} [b]
 List.map f as =
   go f acc as i = match List.at i as with
     None -> acc
-    Some a -> go f (snoc acc f a) as (i + 1)
+    Some a -> go f (snoc acc (f a)) as (i + 1)
   go f [] as 0
 
 structural type Monoid a = Monoid (a -> a -> a) a
