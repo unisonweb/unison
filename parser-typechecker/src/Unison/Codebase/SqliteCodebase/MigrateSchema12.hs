@@ -117,13 +117,19 @@ migrateSchema12 conn codebase = do
         `runReaderT` Env {db = conn, codebase}
         `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
     let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
+    liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
+    liftIO $ putStrLn $ "Rewriting old object IDs..."
     ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
       (runDB conn . liftQ) do
         Q.recordObjectRehash oldObjId newObjId
+    liftIO $ putStrLn $ "Garbage collecting orphaned objects..."
     runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
+    liftIO $ putStrLn $ "Garbage collecting orphaned watches..."
     runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
+    liftIO $ putStrLn $ "Updating Schema Version..."
     runDB conn . liftQ $ Q.setSchemaVersion 2
+  liftIO $ putStrLn $ "Cleaning up..."
   runDB conn (liftQ Q.vacuum)
   where
     withinSavepoint :: (String -> m c -> m c)

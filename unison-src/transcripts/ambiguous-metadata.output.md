@@ -14,10 +14,10 @@ x = 1
   
   New name conflicts:
   
-    1. doc#mqm91b53vp : #qpp8bgqet0
+    1. doc#lgjhda02he : #2k64c46bkd
        ↓
-    2. ┌ doc#a09ch66esd : #qpp8bgqet0
-    3. └ doc#mqm91b53vp : #qpp8bgqet0
+    2. ┌ doc#lgjhda02he : #2k64c46bkd
+    3. └ doc#n1n1e95rjc : #2k64c46bkd
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -31,8 +31,8 @@ x = 1
   I'm not sure which metadata value you're referring to since
   there are multiple matches:
   
+    doc#lgjhda02he
     foo.doc
-    doc#mqm91b53vp
   
   Tip: Try again and supply one of the above definitions
        explicitly.

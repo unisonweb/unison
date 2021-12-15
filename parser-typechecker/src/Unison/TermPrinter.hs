@@ -248,7 +248,13 @@ pretty0
     Delay' x ->
       paren (p >= 11 || isBlock x && p >= 3) $
         fmt S.DelayForceChar (l "'")
-        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
+        <> (case x of
+              Lets' _ _ -> id
+              -- Add indentation below if we're opening parens with '(
+              -- This is in case the contents are a long function application
+              -- in which case the arguments should be indented.
+              _ -> PP.indentAfterNewline "  ")
+             (pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x)
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
@@ -305,13 +311,14 @@ pretty0
           -- corequisite step in immediateChildBlockTerms (because it doesn't
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
-          (fmt S.ControlKeyword "let") `PP.hang` x
+          fmt S.ControlKeyword "let" `PP.hang` x
       lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
-         <> printGuard guard
+              `PP.hang` printGuard guard
       printGuard Nothing = mempty
-      printGuard (Just g') = let (_,g) = ABT.unabs g' in
-        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im doc) g]
-      eq = fmt S.BindingEquals " ="
+      printGuard (Just g') =
+        let (_,g) = ABT.unabs g'
+         in (fmt S.DelimiterChar "| ") <> pretty0 n (ac 2 Normal im doc) g
+      eq = fmt S.BindingEquals "="
       rhs =
         let (im', uses) = calcImports im scrutinee in
         uses $ [pretty0 n (ac (-1) Block im' doc) scrutinee]
@@ -550,51 +557,51 @@ printCase
   -> DocLiteralContext
   -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
-printCase env im doc ms0 = PP.lines $ map each gridArrowsAligned where
+printCase env im doc ms0 = PP.lines $ alignGrid grid where
   ms = groupCases ms0
-  each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
-  grid = go =<< ms
-  gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
-    f (a, b, _) = (a, Just b)
-    tidy ((a', b'), (_, _, c)) = (a', b', c)
-
+  justify rows =
+    zip (fmap fst . PP.align' $ fmap alignPatterns rows) $ fmap gbs rows
+   where
+     alignPatterns (p, _, _) = (p, Just "")
+     gbs (_, gs, bs) = zip gs bs
+  alignGrid = fmap alignCase . justify
+  alignCase (p, gbs) =
+    if not (null (drop 1 gbs)) then PP.hang p guardBlock
+    else p <> guardBlock
+   where
+    guardBlock = PP.lines
+      $ fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
+    justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+  grid = go <$> ms
   patLhs vs pats = case pats of
     [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-    pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
+    pats  -> PP.group . PP.sep ("," <> PP.softbreak)
+                      . (`evalState` vs)
+                      . for pats $ \pat -> do
       vs <- State.get
       let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
       State.put rem
       pure p
-
   arrow = fmt S.ControlKeyword "->"
   goBody im' uses body = uses [pretty0 env (ac 0 Block im' doc) body]
-  printGuard (Just (ABT.AbsN' _ g)) =
-    -- strip off any Abs-chain around the guard, guard variables are rendered
-    -- like any other variable, ex: case Foo x y | x < y -> ...
-    PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
-  printGuard Nothing  = mempty
-
-  go (pats, vs, [(guard, body)]) =
-    [(lhs, arrow, goBody im' uses body)]
-    where
-    lhs = patLhs vs pats <> printGuard guard
-    (im', uses) = calcImports im body
   -- If there's multiple guarded cases for this pattern, prints as:
   -- MyPattern x y
   --   | guard 1        -> 1
   --   | otherguard x y -> 2
   --   | otherwise      -> 3
   go (pats, vs, unzip -> (guards, bodies)) =
-    (patLhs vs pats, mempty, mempty)
-      : zip3 (PP.indentN 2 . printGuard <$> guards)
-             (repeat arrow)
-             (printBody <$> bodies)
-    where
-    printGuard Nothing = (fmt S.DelimiterChar "|") <> fmt S.ControlKeyword " otherwise"
+    (patLhs vs pats, printGuard <$> guards, printBody <$> bodies)
+   where
+    noGuards = all (== Nothing) guards
+    printGuard Nothing | noGuards = mempty
+    printGuard Nothing =
+      fmt S.DelimiterChar "|" <> " " <> fmt S.ControlKeyword "otherwise"
     printGuard (Just (ABT.AbsN' _ g)) =
-      PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g]
-    printBody b = let (im', uses) = calcImports im b
-                  in goBody im' uses b
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      PP.spaceIfNeeded (fmt S.DelimiterChar "|") $
+        pretty0 env (ac 2 Normal im doc) g
+    printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
 {- Render a binding, producing output of the form
 
@@ -1097,65 +1104,104 @@ calcImports im tm = (im', render $ getUses result)
                    |> map snd
       in PP.lines (uses ++ rest)
 
--- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- blockterm within it, containing all usages of that name?  A blockterm is a place
--- where the syntax lets us put a use statement, like the branches of an if/then/else.
--- We traverse the block terms by traversing the whole subtree with ABT.find, and paying
--- attention to those subterms that look like a blockterm.  This is complicated
--- by the fact that you can't always tell if a term is a blockterm just
--- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  So actually we traverse the tree, at each term
--- looking for child terms that are block terms, and see if any of those contain
--- all the usages of the name.
+-- Given a block term and a name (Prefix, Suffix) of interest, is there a
+-- strictly smaller blockterm within it, containing all usages of that name?
+-- A blockterm is a place where the syntax lets us put a use statement, like the
+-- branches of an if/then/else.
+-- We traverse the block terms by traversing the whole subtree with ABT.find,
+-- and paying attention to those subterms that look like a blockterm.
+-- This is complicated by the fact that you can't always tell if a term is a
+-- blockterm just by looking at it: in some cases you can only tell when you can
+-- see it in the context of the wider term that contains it. So actually we
+-- traverse the tree, at each term looking for child terms that are block terms,
+-- and see if any of those contain all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
-allInSubBlock :: (Var v, Ord v) => Term3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
-allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
-                             result = any (/= tm) $ found
-                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
-                                                    show s ++ ", " ++ show i ++ "): returns " ++
-                                                    show result ++ "\nInput:\n" ++ show tm ++
-                                                    "\nFound: \n" ++ show found ++ "\n\n")
-                         in tr result where
-  getUsages t =    annotation t
-                |> usages
-                |> Map.lookup s
-                |> fmap (Map.lookup p)
-                |> join
-                |> fromMaybe 0
-  finder t = let result = let i' = getUsages t
-                          in if i' < i
-                             then ABT.Prune
-                             else
-                               let found = filter hit $ immediateChildBlockTerms t
-                               in if (i' == i) && (not $ null found)
-                                  then ABT.Found found
-                                  else ABT.Continue
-                 children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
-                 tr = const id $ trace ("\nfinder: returns " ++ show result ++
-                                        "\n  children:" ++ children ++
-                                        "\n  input: \n" ++ show t ++ "\n\n")
-             in tr $ result
-  hit t = (getUsages t) == i
+allInSubBlock ::
+  (Var v, Ord v) =>
+  Term3 v PrintAnnotation ->
+  Prefix ->
+  Suffix ->
+  Int ->
+  Bool
+allInSubBlock tm p s i =
+  let found = concat $ ABT.find finder tm
+      result = any (/= tm) found
+      tr =
+        const id $ trace
+          ( "\nallInSubBlock("
+              ++ show p
+              ++ ", "
+              ++ show s
+              ++ ", "
+              ++ show i
+              ++ "): returns "
+              ++ show result
+              ++ "\nInput:\n"
+              ++ show tm
+              ++ "\nFound: \n"
+              ++ show found
+              ++ "\n\n"
+          )
+   in tr result
+  where
+    getUsages t =
+      annotation t
+        |> usages
+        |> Map.lookup s
+        |> fmap (Map.lookup p)
+        |> join
+        |> fromMaybe 0
+    finder t =
+      let result =
+            let i' = getUsages t
+             in if i' < i
+                  then ABT.Prune
+                  else
+                    let found = filter hit $ immediateChildBlockTerms t
+                     in if (i' == i) && (not $ null found)
+                          then ABT.Found found
+                          else ABT.Continue
+          children =
+            concat
+              ( map (\t -> "child: " ++ show t ++ "\n") $
+                  immediateChildBlockTerms t
+              )
+          tr =
+            const id $ trace
+              ( "\nfinder: returns "
+                  ++ show result
+                  ++ "\n  children:"
+                  ++ children
+                  ++ "\n  input: \n"
+                  ++ show t
+                  ++ "\n\n"
+              )
+       in tr $ result
+    hit t = (getUsages t) == i
 
--- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
--- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
--- function, otherwise the `use` statement may come out at an enclosing scope instead.
-immediateChildBlockTerms :: (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
+-- Return any blockterms at or immediately under this term. Has to match the
+-- places in the syntax that get a call to `calcImports` in `pretty0`.
+-- AST nodes that do a calcImports in pretty0, in order to try and emit a `use`
+-- statement, need to be emitted also by this function, otherwise the `use`
+-- statement may come out at an enclosing scope instead.
+immediateChildBlockTerms ::
+  (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
-    Handle' handler body -> [handler, body]
-    If' _ t f -> [t, f]
-    LetBlock bs _ -> concat $ map doLet bs
-    Match' scrute branches ->
-      if isDestructuringBind scrute branches then [scrute]
-      else concat $ map doCase branches
-    _ -> []
+  Handle' handler body -> [handler, body]
+  If' _ t f -> [t, f]
+  LetBlock bs e -> concatMap doLet bs ++ handleDelay e
+  Delay' b@(Lets' _ _) -> [b]
+  Match' scrute branches ->
+    if isDestructuringBind scrute branches
+      then [scrute]
+      else concatMap doCase branches
+  _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
+    handleDelay (Delay' b@(Lets' _ _)) = [b]
+    handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = if isBlank $ Var.nameStr v
-                                      then []
-                                      else [body]
+    doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern

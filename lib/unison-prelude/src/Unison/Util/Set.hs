@@ -1,5 +1,6 @@
 module Unison.Util.Set
-  ( mapMaybe,
+  ( difference1,
+    mapMaybe,
     symmetricDifference,
     Unison.Util.Set.traverse,
   )
@@ -8,6 +9,13 @@ where
 import qualified Data.Maybe as Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+-- | Set difference, but return @Nothing@ if the difference is empty.
+difference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
+difference1 xs ys =
+  if null zs then Nothing else Just zs
+  where
+    zs = Set.difference xs ys
 
 symmetricDifference :: Ord a => Set a -> Set a -> Set a
 symmetricDifference a b = (a `Set.difference` b) `Set.union` (b `Set.difference` a)

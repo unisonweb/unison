@@ -14,7 +14,7 @@ module Unison.Codebase.Causal
     cons,
     consDistinct,
     uncons,
-    children,
+    predecessors,
     threeWayMerge,
     threeWayMerge',
     squashMerge',
@@ -30,6 +30,7 @@ where
 
 import Unison.Prelude
 
+import qualified Control.Lens as Lens
 import qualified Control.Monad.Extra as Monad (anyM)
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State as State
@@ -50,14 +51,23 @@ import Unison.Codebase.Causal.Type
     pattern Cons,
     pattern Merge,
     before,
-    children,
-    head_,
+    predecessors,
     lca,
   )
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Hashing.V2.Hashable (Hashable)
 import Prelude hiding (head, read, tail)
-import qualified Data.List.Extra as List
+
+-- | Focus the current head, keeping the hash up to date.
+head_ :: Hashable e => Lens.Lens' (Causal m h e) e
+head_ = Lens.lens getter setter
+  where
+    getter = head
+    setter causal e =
+      case causal of
+        UnsafeOne {} -> one e
+        UnsafeCons _ _ tail -> fromListM e [tail]
+        UnsafeMerge _ _ tails -> mergeNode e tails
 
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
@@ -123,7 +133,7 @@ beforeHash maxDepth h c =
     then pure False
     else do
       seen <- State.get
-      cs <- lift . lift $ toList <$> sequence (children c)
+      cs <- lift . lift $ toList <$> sequence (predecessors c)
       let unseens = filter (\c -> c `Set.notMember` seen) cs
       State.modify' (<> Set.fromList cs)
       Monad.anyM (Reader.local (1+) . go) unseens
@@ -139,13 +149,23 @@ stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 -- | Causal construction should go through here for uniformity;
 -- with an exception for `one`, which avoids an Applicative constraint.
 fromList :: (Applicative m, Hashable e) => e -> [Causal m h e] -> Causal m h e
-fromList e (List.nubOrdOn currentHash -> tails) = case tails of
-  [] -> UnsafeOne h e
-  t : [] -> UnsafeCons h e (tailPair t)
-  _ : _ : _ -> UnsafeMerge h e (Map.fromList $ map tailPair tails)
+fromList e cs =
+  fromListM e (map (\c -> (currentHash c, pure c)) cs)
+
+-- | Construct a causal from a list of predecessors. The predecessors may be given in any order.
+fromListM :: Hashable e => e -> [(RawHash h, m (Causal m h e))] -> Causal m h e
+fromListM e ts =
+  case ts of
+    [] -> UnsafeOne h e
+    [t] -> UnsafeCons h e t
+    _ -> UnsafeMerge h e (Map.fromList ts)
   where
-    tailPair c = (currentHash c, pure c)
-    h = RawHash $ Hashing.hashCausal e (Set.fromList $ map currentHash tails)
+    h = RawHash (Hashing.hashCausal e (Set.fromList (map fst ts)))
+
+-- | An optimized variant of 'fromListM' for when it is known we have 2+ predecessors (merge node).
+mergeNode :: Hashable e => e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
+mergeNode newHead predecessors =
+  UnsafeMerge (RawHash (Hashing.hashCausal newHead (Map.keysSet predecessors))) newHead predecessors
 
 -- duplicated logic here instead of delegating to `fromList` to avoid `Applicative m` constraint.
 one :: Hashable e => e -> Causal m h e

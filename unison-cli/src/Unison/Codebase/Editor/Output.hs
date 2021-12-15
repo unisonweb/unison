@@ -62,6 +62,8 @@ import qualified Unison.Util.Pretty as P
 import Unison.Util.Relation (Relation)
 import qualified Unison.WatchKind as WK
 import Data.Set.NonEmpty (NESet)
+import qualified Unison.CommandLine.InputPattern as Input
+import Data.List.NonEmpty (NonEmpty)
 
 type ListDetailed = Bool
 
@@ -77,7 +79,7 @@ pushPull push pull p = case p of
   Pull -> pull
 
 data NumberedOutput v
-  = ShowDiffNamespace Path.Absolute Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  = ShowDiffNamespace AbsBranchId AbsBranchId PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
@@ -209,6 +211,9 @@ data Output v
   | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
+  | PullSuccessful ReadRemoteNamespace Path'
+    -- | Indicates a trivial merge where the destination was empty and was just replaced.
+  | MergeOverEmpty Path'
   | MergeAlreadyUpToDate Path' Path'
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
@@ -230,13 +235,13 @@ data Output v
   | DefaultMetadataNotification
   | BadRootBranch GetRootBranchError
   | CouldntLoadBranch Branch.Hash
-  | NamespaceEmpty (Either Path.Absolute (Path.Absolute, Path.Absolute))
+  | HelpMessage Input.InputPattern
+  | NamespaceEmpty (NonEmpty AbsBranchId)
   | NoOp
   | -- Refused to push, either because a `push` targeted an empty namespace, or a `push.create` targeted a non-empty namespace.
     RefusedToPush PushBehavior
   | -- | @GistCreated repo hash@ means causal @hash@ was just published to @repo@.
     GistCreated Int WriteRepo Branch.Hash
-  deriving (Show)
 
 data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
@@ -342,6 +347,8 @@ isFailure o = case o of
   DumpBitBooster {} -> False
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
+  PullSuccessful {} -> False
+  MergeOverEmpty {} -> False
   MergeAlreadyUpToDate {} -> False
   PreviewMergeAlreadyUpToDate {} -> False
   NoConflictsOrEdits {} -> False
@@ -350,6 +357,7 @@ isFailure o = case o of
   ShowReflog {} -> False
   LoadPullRequest {} -> False
   DefaultMetadataNotification -> False
+  HelpMessage{} -> True
   NoOp -> False
   ListDependencies {} -> False
   ListDependents {} -> False

@@ -163,10 +163,10 @@ Let's now merge these namespaces into `c`:
   
   New name conflicts:
   
-    1. foo#jdqoenu794 : Nat
+    1. foo#iqa41ufqol : Nat
        ↓
-    2. ┌ foo#8e68dvpr0a : Nat
-    3. └ foo#jdqoenu794 : Nat
+    2. ┌ foo#39feiiunjf : Nat
+    3. └ foo#iqa41ufqol : Nat
   
   Updates:
   
@@ -194,26 +194,26 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term #44954ulpdf was replaced with foo#8e68dvpr0a and
-    foo#jdqoenu794
+    The term #5cj58badlt was replaced with foo#39feiiunjf and
+    foo#iqa41ufqol
 
 ```
-We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
+We see that `#5cj58badlt` (the original hash of `a.foo`) got replaced with _both_ the `#39feiiunjf` and `#iqa41ufqol`.
 
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace #44954ulpdf #8e68dvpr0a
+.example.resolve.c> replace #5cj58badlt #39feiiunjf
 
   Done.
 
 ```
-This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e68dvpr0a remains:
+This changes the merged `c.patch` so that only the edit from #5cj58badlt to  #39feiiunjf remains:
 
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: #44954ulpdf -> foo#8e68dvpr0a
+  Edited Terms: #5cj58badlt -> foo#39feiiunjf
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -238,20 +238,20 @@ We still have a remaining _name conflict_ since it just so happened that both of
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> delete.term foo#iqa41ufqol
 
   Resolved name conflicts:
   
-    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
-    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+    1. ┌ example.resolve.c.foo#39feiiunjf : Nat
+    2. └ example.resolve.c.foo#iqa41ufqol : Nat
        ↓
-    3. example.resolve.c.foo#8e68dvpr0a : Nat
+    3. example.resolve.c.foo#39feiiunjf : Nat
   
   Name changes:
   
     Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
+    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#iqa41ufqol (removed)
+    6. example.resolve.c.foo#iqa41ufqol ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

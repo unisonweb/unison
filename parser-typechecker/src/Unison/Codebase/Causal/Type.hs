@@ -9,13 +9,11 @@ module Unison.Codebase.Causal.Type
     pattern Cons,
     pattern Merge,
     before,
-    children,
+    predecessors,
     lca,
-    head_,
   )
 where
 
-import qualified Control.Lens as Lens
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -82,13 +80,10 @@ pattern Merge :: RawHash h -> e -> Map (RawHash h) (m (Causal m h e)) -> Causal 
 pattern Merge h e tails <- UnsafeMerge h e tails
 {-# COMPLETE One, Cons, Merge #-}
 
-
-Lens.makeLensesFor [("head", "head_")] ''Causal
-
-children :: Causal m h e -> Seq (m (Causal m h e))
-children (UnsafeOne _ _) = Seq.empty
-children (UnsafeCons _ _ (_, t)) = Seq.singleton t
-children (UnsafeMerge _ _ ts) = Seq.fromList $ Map.elems ts
+predecessors :: Causal m h e -> Seq (m (Causal m h e))
+predecessors (UnsafeOne _ _) = Seq.empty
+predecessors (UnsafeCons _ _ (_, t)) = Seq.singleton t
+predecessors (UnsafeMerge _ _ ts) = Seq.fromList $ Map.elems ts
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
@@ -123,14 +118,14 @@ lca' = go Set.empty Set.empty
                 seenRight
                 (Set.insert (currentHash left) seenLeft)
                 remainingRight
-                (as <> children left)
+                (as <> predecessors left)
     search seen remaining = case Seq.viewl remaining of
       Seq.EmptyL -> pure Nothing
       a Seq.:< as -> do
         current <- a
         if Set.member (currentHash current) seen
           then pure $ Just current
-          else search seen (as <> children current)
+          else search seen (as <> predecessors current)
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b

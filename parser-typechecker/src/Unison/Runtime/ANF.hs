@@ -762,7 +762,7 @@ data POp
   | CVLD                      -- validate
   | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
-  | PRNT | INFO
+  | PRNT | INFO | TRCE
   -- STM
   | ATOM
   deriving (Show,Eq,Ord)

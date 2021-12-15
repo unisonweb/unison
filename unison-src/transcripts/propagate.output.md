@@ -37,13 +37,13 @@ And then we add it.
 
 .subpath> find.verbose
 
-  1. -- #v4a90flt15t54qnjbvbdtj42ouqo8dktu5da8g6q30l4frc6l81ttjtov42r1nbj5jq3hh98snlb64tkbb1mc5dk8les96v71b4qr6g
+  1. -- #ohtefitum4jai7d42hi6vc0vs8kupm9h81t1cspr9600r5grscm7jga452lnns29p7rkm9bq2u4o4ais0praq6r1uarbpfg4mf70758
      unique type Foo
      
-  2. -- #v4a90flt15t54qnjbvbdtj42ouqo8dktu5da8g6q30l4frc6l81ttjtov42r1nbj5jq3hh98snlb64tkbb1mc5dk8les96v71b4qr6g#0
+  2. -- #ohtefitum4jai7d42hi6vc0vs8kupm9h81t1cspr9600r5grscm7jga452lnns29p7rkm9bq2u4o4ais0praq6r1uarbpfg4mf70758#0
      Foo.Foo : Foo
      
-  3. -- #5k9rns49vrtujrpbiegajeja9qjjs77fju3usg1i1dpeo44kefkbce776u1kvqhvtutk6a6f178kovr422ocsd4fdsbsg7fprf4o0dg
+  3. -- #d9h62ubdj054t16h1mv5gc838ji23q8g5kgf35upp8f9ed9rq95pu2jg0lkq4c8k58p2c652o7mc2b7dr21b9m9jng512cop27sdo8o
      fooToInt : Foo -> Int
      
   
@@ -187,9 +187,9 @@ Cleaning up a bit...
   Removed definitions:
   
     1. unique type Foo
-    2. Foo.Bar            : #i2nv821v0u
-    3. Foo.Foo            : #i2nv821v0u
-    4. fooToInt           : #i2nv821v0u -> Int
+    2. Foo.Bar            : #8ei3pu3p2p
+    3. Foo.Foo            : #8ei3pu3p2p
+    4. fooToInt           : #8ei3pu3p2p -> Int
     5. preserve.otherTerm : Optional baz -> Optional baz
     6. preserve.someTerm  : Optional x -> Optional x
     7. patch patch
