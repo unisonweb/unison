@@ -150,7 +150,9 @@ test> Nat.tests.conversions =
         unsnoc "abc" == Some ("ab", ?c),
         uncons "abc" == Some (?a, "bc"),
         unsnoc "" == None,
-        uncons "" == None
+        uncons "" == None,
+        Text.fromCharList (Text.toCharList "abc") == "abc",
+        Bytes.fromList (Bytes.toList 0xsACE0BA5E) == 0xsACE0BA5E
         ]
 ```
 

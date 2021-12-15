@@ -47,7 +47,7 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 .> dependents q
 
-  #l5pndeifuh doesn't have any dependents.
+  #l5pndeifuh doesn't have any named dependents.
 
 .> dependencies q
 

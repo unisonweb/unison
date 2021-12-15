@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# Language OverloadedStrings #-}
@@ -54,6 +55,7 @@ module Unison.Runtime.ANF
   , BLit(..)
   , packTags
   , unpackTags
+  , maskTags
   , ANFM
   , Branched(.., MatchDataCover)
   , Func(..)
@@ -69,7 +71,7 @@ module Unison.Runtime.ANF
 
 import GHC.Stack (CallStack,callStack)
 
-import Unison.Prelude
+import Unison.Prelude hiding (Text)
 
 import Control.Exception (throw)
 import Control.Monad.Reader (ReaderT(..), ask, local)
@@ -84,6 +86,7 @@ import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import qualified Prelude
 import Unison.Blank (nameb)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.Term hiding (resolve, fresh, float, Text, Ref, List)
 import Unison.Var (Var, typed)
 import Unison.Util.EnumContainers as EC
@@ -91,7 +94,8 @@ import Unison.Util.Bytes (Bytes)
 import qualified Unison.Util.Pretty as Pretty
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+import qualified Data.Text as Data.Text
+import qualified Unison.Util.Text as Util.Text
 import qualified Unison.ABT as ABT
 import qualified Unison.ABT.Normalized as ABTN
 import qualified Unison.Type as Ty
@@ -204,7 +208,7 @@ enclose keep rec t@(Handle' h body)
   a = ABT.annotation body
   lbody = rec keep body
   fv = Var.freshIn fvs $ typed Var.Eta
-  args | null evs = [constructor a Ty.unitRef 0]
+  args | null evs = [constructor a (ConstructorReference Ty.unitRef 0)]
        | otherwise = var a <$> evs
   lamb | null evs = lam' a [fv] lbody
        | otherwise = lam' a evs lbody
@@ -218,7 +222,7 @@ isStructured (Int' _) = False
 isStructured (Float' _) = False
 isStructured (Text' _) = False
 isStructured (Char' _) = False
-isStructured (Constructor' _ _) = False
+isStructured (Constructor' _) = False
 isStructured (Apps' Constructor'{} args) = any isStructured args
 isStructured (If' b t f)
   = isStructured b || isStructured t || isStructured f
@@ -241,7 +245,7 @@ freshFloat avoid (Var.freshIn avoid -> v0)
         -> freshFloat (Set.insert v0 avoid) v0
       _ -> v0
   where
-  w = Text.pack . show $ Var.freshId v0
+  w = Data.Text.pack . show $ Var.freshId v0
 
 letFloater
   :: (Var v, Monoid a)
@@ -326,18 +330,18 @@ lamLift = float . close Set.empty . deannotate
 
 saturate
   :: (Var v, Monoid a)
-  => Map (Reference,Int) Int -> Term v a -> Term v a
+  => Map ConstructorReference Int -> Term v a -> Term v a
 saturate dat = ABT.visitPure $ \case
-  Apps' f@(Constructor' r t) args -> sat r t f args
-  Apps' f@(Request' r t) args -> sat r t f args
-  f@(Constructor' r t) -> sat r t f []
-  f@(Request' r t) -> sat r t f []
+  Apps' f@(Constructor' r) args -> sat r f args
+  Apps' f@(Request' r) args -> sat r f args
+  f@(Constructor' r) -> sat r f []
+  f@(Request' r) -> sat r f []
   _ -> Nothing
   where
   frsh avoid _ =
     let v = Var.freshIn avoid $ typed Var.Eta
     in (Set.insert v avoid, v)
-  sat r t f args = case Map.lookup (r,t) dat of
+  sat r f args = case Map.lookup r dat of
       Just n
         | m < n
         , vs <- snd $ mapAccumL frsh fvs [1..n-m]
@@ -426,6 +430,10 @@ packTags (RTag rt) (CTag ct) = ri .|. ci
 unpackTags :: Word64 -> (RTag, CTag)
 unpackTags w = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
 
+-- Masks a packed tag to extract just the constructor tag portion
+maskTags :: Word64 -> Word64
+maskTags w = w .&. 0xFFFF
+
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
   | n > 0xFFFFFFFFFFFF
@@ -499,7 +507,7 @@ matchLit :: Term v a -> Maybe Lit
 matchLit (Int' i) = Just $ I i
 matchLit (Nat' n) = Just $ N n
 matchLit (Float' f) = Just $ F f
-matchLit (Text' t) = Just $ T t
+matchLit (Text' t) = Just $ T (Util.Text.fromText t)
 matchLit (Char' c) = Just $ C c
 matchLit _ = Nothing
 
@@ -571,7 +579,7 @@ data SeqEnd = SLeft | SRight
 
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
-  | MatchText (Map.Map Text e) (Maybe e)
+  | MatchText (Map.Map Util.Text.Text e) (Maybe e)
   | MatchRequest (Map Reference (EnumMap CTag ([Mem], e))) e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
@@ -589,7 +597,7 @@ data BranchAccum v
       (EnumMap Word64 (ANormal v))
   | AccumText
       (Maybe (ANormal v))
-      (Map.Map Text (ANormal v))
+      (Map.Map Util.Text.Text (ANormal v))
   | AccumDefault (ANormal v)
   | AccumPure (ANormal v)
   | AccumRequest
@@ -692,7 +700,7 @@ data Lit
   = I Int64
   | N Word64
   | F Double
-  | T Text
+  | T Util.Text.Text
   | C Char
   | LM Referent
   | LY Reference
@@ -754,7 +762,7 @@ data POp
   | CVLD                      -- validate
   | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
-  | PRNT | INFO
+  | PRNT | INFO | TRCE
   -- STM
   | ATOM
   deriving (Show,Eq,Ord)
@@ -818,7 +826,7 @@ data Cont
   deriving (Show)
 
 data BLit
-  = Text Text
+  = Text Util.Text.Text
   | List (Seq Value)
   | TmLink Referent
   | TyLink Reference
@@ -925,7 +933,7 @@ anfBlock (If' c t f) = do
   (dt, ct) <- anfTerm t
   (cx, v) <- contextualize cc
   let cases = MatchData
-                (Builtin $ Text.pack "Boolean")
+                (Builtin $ Data.Text.pack "Boolean")
                 (EC.mapSingleton 0 ([], cf))
                 (Just ct)
   pure (cctx <> cx, (Indirect () <> df <> dt, TMatch v cases))
@@ -1066,14 +1074,14 @@ anfBlock (Apps' (Blank' b) args) = do
        , pure $ TPrm EROR (nm : cas)
        )
   where
-  msg = Text.pack . fromMaybe "blank expression" $ nameb b
+  msg = Util.Text.pack . fromMaybe "blank expression" $ nameb b
 anfBlock (Apps' f args) = do
   (fctx, (d, cf)) <- anfFunc f
   (actx, cas) <- anfArgs args
   pure (fctx <> actx, (d, TApp cf cas))
-anfBlock (Constructor' r t)
+anfBlock (Constructor' (ConstructorReference r t))
   = pure (mempty, pure $ TCon r (toEnum t) [])
-anfBlock (Request' r t)
+anfBlock (Request' (ConstructorReference r t))
   = pure (mempty, (Indirect (), TReq r (toEnum t) []))
 anfBlock (Boolean' b)
   = pure (mempty, pure $ TCon Ty.booleanRef (if b then 1 else 0) [])
@@ -1088,7 +1096,7 @@ anfBlock (Blank' b) = do
   nm <- fresh
   ev <- fresh
   pure ( pure [ ST1 Direct nm BX (TLit (T name))
-              , ST1 Direct ev BX (TLit (T $ Text.pack msg))]
+              , ST1 Direct ev BX (TLit (T $ Util.Text.pack msg))]
        , pure $ TPrm EROR [nm, ev])
   where
   name = "blank expression"
@@ -1132,8 +1140,8 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   . EC.mapSingleton t . ([],) <$> anfBody bd
   | P.Text _ t <- p
   , [] <- vs
-  = AccumText Nothing . Map.singleton t <$> anfBody bd
-  | P.Constructor _ r t ps <- p = do
+  = AccumText Nothing . Map.singleton (Util.Text.fromText t) <$> anfBody bd
+  | P.Constructor _ (ConstructorReference r t) ps <- p = do
     (,) <$> expandBindings ps vs <*> anfBody bd <&> \(us,bd)
       -> AccumData r Nothing
        . EC.mapSingleton (toEnum t)
@@ -1143,7 +1151,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   | P.EffectPure _ q <- p =
     (,) <$> expandBindings [q] vs <*> anfBody bd <&> \(us,bd) ->
       AccumPure $ ABTN.TAbss us bd
-  | P.EffectBind _ r t ps pk <- p = do
+  | P.EffectBind _ (ConstructorReference r t) ps pk <- p = do
     (,,) <$> expandBindings (snoc ps pk) vs
          <*> Compose (pure <$> fresh)
          <*> anfBody bd
@@ -1297,8 +1305,8 @@ anfCases u = getCompose . fmap fold . traverse (anfInitCase u)
 anfFunc :: Var v => Term v a -> ANFM v (Ctx v, Directed () (Func v))
 anfFunc (Var' v) = pure (mempty, (Indirect (), FVar v))
 anfFunc (Ref' r) = pure (mempty, (Indirect (), FComb r))
-anfFunc (Constructor' r t) = pure (mempty, (Direct, FCon r $ toEnum t))
-anfFunc (Request' r t) = pure (mempty, (Indirect (), FReq r $ toEnum t))
+anfFunc (Constructor' (ConstructorReference r t)) = pure (mempty, (Direct, FCon r $ toEnum t))
+anfFunc (Request' (ConstructorReference r t)) = pure (mempty, (Indirect (), FReq r $ toEnum t))
 anfFunc tm = do
   (fctx, ctm) <- anfBlock tm
   (cx, v) <- contextualize ctm
@@ -1327,7 +1335,7 @@ prettyGroup s (Rec grp ent)
              . prettySuperNormal 2 sn . showString "\n" . r
 
 pvar :: Var v => v -> ShowS
-pvar v = showString . Text.unpack $ Var.name v
+pvar v = showString . Data.Text.unpack $ Var.name v
 
 prettyVars :: Var v => [v] -> ShowS
 prettyVars

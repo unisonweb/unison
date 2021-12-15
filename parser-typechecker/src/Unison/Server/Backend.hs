@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
@@ -8,7 +9,8 @@
 
 module Unison.Server.Backend where
 
-import Control.Lens (_2, over)
+import Control.Lens ((^.), _2, over)
+import Control.Lens.Cons
 import Control.Error.Util ((??),hush)
 import Control.Monad.Except
   ( ExceptT (..),
@@ -23,6 +25,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Tuple.Extra (dupe)
 import System.FilePath
+import System.Directory
 import qualified Text.FuzzyFind as FZF
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -39,11 +42,12 @@ import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Path.Parse as PathParse
 import Unison.Codebase.ShortBranchHash
   ( ShortBranchHash,
   )
 import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.ConstructorReference (GConstructorReference(..))
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
@@ -85,6 +89,7 @@ import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Typechecker as Typechecker
 import Unison.Util.List (uniqueBy)
 import Unison.Util.Pretty (Width)
+import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
@@ -179,19 +184,18 @@ loadReferentType ::
   m (Maybe (Type v Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
-  Referent.Con r cid _ -> getTypeOfConstructor r cid
+  Referent.Con r _ -> getTypeOfConstructor r
   where
-    getTypeOfConstructor (Reference.DerivedId r) cid = do
+    -- Mitchell wonders: why was this definition copied from Unison.Codebase?
+    getTypeOfConstructor (ConstructorReference (Reference.DerivedId r) cid) = do
       maybeDecl <- Codebase.getTypeDeclaration codebase r
       pure $ case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-    getTypeOfConstructor r cid =
+    getTypeOfConstructor r =
       error $
         "Don't know how to getTypeOfConstructor "
           ++ show r
-          ++ " "
-          ++ show cid
 
 getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
 getRootBranch =
@@ -283,10 +287,8 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
   let ppe hqLen = PPE.fromNamesDecl hqLen printNames
 
       renderReadme ppe r = do
-        res <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
-        pure $ case res of
-          (_, _, doc) : _ -> Just doc
-          _ -> Nothing
+        (_, _, doc) <- liftIO $ renderDoc ppe width runtime codebase (Referent.toReference r)
+        pure doc
 
       -- allow any of these capitalizations
       toCheck = NameSegment <$> ["README", "Readme", "ReadMe", "readme" ]
@@ -296,7 +298,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
               rel = Star3.d1 (Branch._terms (Branch.head namespaceBranch))
    in do
         hqLen <- liftIO $ Codebase.hashLength codebase
-        join <$> traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
+        traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
 isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
 isDoc codebase ref = do
@@ -429,7 +431,7 @@ findShallowInBranch codebase b = do
       [ ShallowBranchEntry ns
                            (SBH.fullFromHash $ Branch.headHash b)
                            (defnCount b)
-      | (ns, b) <- Map.toList $ Branch._children b0
+      | (ns, b) <- Map.toList $ Branch.nonEmptyChildren b0
       ]
     patchEntries =
       [ ShallowPatchEntry ns
@@ -450,22 +452,22 @@ typeReferencesByShortHash codebase sh = do
                                 B.intrinsicTypeReferences
   pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
 
-typeReferencesByShortHash
-  :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Reference)
 termReferencesByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferencesByPrefix codebase sh
   let fromBuiltins = Set.filter (\r -> sh == Reference.toShortHash r)
                                 B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+  pure (fromBuiltins <> Set.mapMonotonic Reference.DerivedId fromCodebase)
 
-termReferentsByShortHash
-  :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
+-- | Look up terms in the codebase by short hash, and include builtins.
+termReferentsByShortHash :: Monad m => Codebase m v a -> ShortHash -> m (Set Referent)
 termReferentsByShortHash codebase sh = do
   fromCodebase <- Codebase.termReferentsByPrefix codebase sh
   let fromBuiltins = Set.map Referent.Ref $ Set.filter
         (\r -> sh == Reference.toShortHash r)
         B.intrinsicTermReferences
-  pure (fromBuiltins <> Set.map (fmap Reference.DerivedId) fromCodebase)
+  pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
 
 -- currentPathNames :: Path -> Names
 -- currentPathNames = Branch.toNames . Branch.head . Branch.getAt
@@ -617,24 +619,10 @@ hqNameQuery namesScope root codebase hqs = do
 -- TODO: Move this to its own module
 data DefinitionResults v =
   DefinitionResults
-    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann))
-    , typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann))
-    , noResults :: [HQ.HashQualified Name]
+    { termResults :: Map Reference (DisplayObject (Type v Ann) (Term v Ann)),
+      typeResults :: Map Reference (DisplayObject () (DD.Decl v Ann)),
+      noResults :: [HQ.HashQualified Name]
     }
-
--- Separates type references from term references and returns types and terms,
--- respectively. For terms that are constructors, turns them into their data
--- types.
-collateReferences
-  :: Foldable f
-  => Foldable g
-  => f Reference -- types requested
-  -> g Referent -- terms requested, including ctors
-  -> (Set Reference, Set Reference)
-collateReferences (toList -> types) (toList -> terms) =
-  let terms' = [ r | Referent.Ref r <- terms ]
-      types' = [ r | Referent.Con r _ _ <- terms ]
-  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
 expandShortBranchHash
   :: Monad m => Codebase m v a -> ShortBranchHash -> Backend m Branch.Hash
@@ -679,11 +667,9 @@ prettyDefinitionsBySuffixes
   -> Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query
   = do
-    branch                               <- resolveBranchHash root codebase
-    DefinitionResults terms types misses <- definitionsBySuffixes namesScope
-                                                                  branch
-                                                                  codebase
-                                                                  query
+    branch <- resolveBranchHash root codebase
+    DefinitionResults terms types misses <-
+      lift (definitionsBySuffixes namesScope branch codebase DontIncludeCycles query)
     hqLength <- lift $ Codebase.hashLength codebase
     -- We might like to make sure that the user search terms get used as
     -- the names in the pretty-printer, but the current implementation
@@ -741,7 +727,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        join <$> liftIO (traverse (renderDoc ppe width rt codebase) docs)
+        liftIO (traverse (renderDoc ppe width rt codebase) docs)
 
       mkTermDefinition ::
         ( Reference ->
@@ -800,11 +786,11 @@ renderDoc ::
   Rt.Runtime v ->
   Codebase IO v Ann ->
   Reference ->
-  IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+  IO (HashQualifiedName, UnisonHash, Doc.Doc)
 renderDoc ppe width rt codebase r = do
   let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
-  map (name,hash,) . pure
+  (name,hash,)
     <$> let tm = Term.ref () r
          in Doc.renderDoc @v ppe terms typeOf eval decls tm
   where
@@ -836,45 +822,58 @@ docsInBranchToHtmlFiles
   => Rt.Runtime v
   -> Codebase IO v Ann
   -> Branch IO
+  -> Path
   -> FilePath
   -> IO ()
-docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
-  let deepTermRefs = (toList . R.range . Branch.deepTerms . Branch.head) currentBranch >>= toList
-  docRefs <- filterM (isDoc codebase) deepTermRefs
+docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
+  let currentBranch = Branch.getAt' currentPath root
+  let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
+  docTermsWithNames <- filterM (isDoc codebase . fst) allTerms
+  let docNamesByRef = Map.fromList docTermsWithNames
   hqLength <- Codebase.hashLength codebase
-  let printNames = getCurrentPrettyNames (AllNames Path.empty) currentBranch
-  let width = defaultWidth
+  let printNames = getCurrentPrettyNames (AllNames currentPath) root
   let ppe = PPE.fromNamesDecl hqLength printNames
-  docs <- concat <$> for docRefs (renderDoc ppe width runtime codebase . Referent.toReference)
-  liftIO $ traverse_ (renderDocToHtmlFile directory) docs
+  docs <- for docTermsWithNames (renderDoc' ppe runtime codebase)
+  liftIO $ traverse_ (renderDocToHtmlFile docNamesByRef directory) docs
 
   where
+    renderDoc' ppe runtime codebase (ref, name) = do
+      (_, hash, doc) <- renderDoc ppe defaultWidth runtime codebase (Referent.toReference ref)
+      pure (name, hash, doc)
+
     cleanPath :: FilePath -> FilePath
     cleanPath filePath =
       filePath <&> \case
         '#' -> '@'
         c   -> c
 
-    docFilePath :: FilePath -> HashQualifiedName -> FilePath
-    docFilePath directory rawHqn =
+    docFilePath :: FilePath -> Name -> FilePath
+    docFilePath destination docFQN =
       let
-        (path, docName) =
-          fromRight (error "Could not parse doc name") $ PathParse.parseHQSplit $ Text.unpack rawHqn
+        (dir, fileName) =
+          case unsnoc . map NameSegment.toString . toList . Name.segments $ docFQN of
+            Just (path, leafName) ->
+              (directoryPath path , docFileName leafName)
+            Nothing ->
+              error "Could not parse doc name"
 
-        directoryPath =
-          directory </> joinPath (map NameSegment.toString $ Path.toList path)
+        directoryPath p =
+          destination </> joinPath p
 
-        docFileName =
-          cleanPath $ HQ'.toString docName <> ".html"
+        docFileName n =
+          cleanPath $ n <> ".html"
 
-      in directoryPath </> docFileName
+      in dir </> fileName
 
-    renderDocToHtmlFile :: FilePath -> (HashQualifiedName, UnisonHash, Doc.Doc) -> IO ()
-    renderDocToHtmlFile directory (docName, _, doc) =
+    renderDocToHtmlFile :: Map Referent Name -> FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
+    renderDocToHtmlFile docNamesByRef destination (docName, _, doc) =
       let
-        docFilePath' = docFilePath directory docName
-      in
-      Lucid.renderToFile docFilePath' (DocHtml.toHtml doc)
+        fullPath = docFilePath destination docName
+        directoryPath = takeDirectory fullPath
+       in do
+        -- Ensure all directories exists
+        _ <- createDirectoryIfMissing True directoryPath
+        Lucid.renderToFile fullPath (DocHtml.toHtml docNamesByRef doc)
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text
@@ -912,61 +911,71 @@ resolveRootBranchHash mayRoot codebase = case mayRoot of
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase
 
+-- | Determines whether we include full cycles in the results, (e.g. if I search for `isEven`, will I find `isOdd` too?)
+data IncludeCycles
+  = IncludeCycles
+  | DontIncludeCycles
 
-definitionsBySuffixes
-  :: forall m v
-   . (MonadIO m)
-  => Var v
-  => NameScoping
-  -> Branch m
-  -> Codebase m v Ann
-  -> [HQ.HashQualified Name]
-  -> Backend m (DefinitionResults v)
-definitionsBySuffixes namesScope branch codebase query = do
-  -- First find the hashes by name and note any query misses.
-  QueryResult misses results <- lift
-    $ hqNameQuery namesScope branch codebase query
-  -- Now load the terms/types for those hashes.
-  results' <- lift $ loadSearchResults codebase results
-  let termTypes :: Map.Map Reference (Type v Ann)
-      termTypes = Map.fromList
-        [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
-      (collatedTypes, collatedTerms) = collateReferences
-        (mapMaybe SR'.tpReference results')
-        (mapMaybe SR'.tmReferent results')
-  -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
-  -- for later
-  loadedDerivedTerms <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
-      Reference.DerivedId i -> fmap (i, ) <$> Codebase.getTerm codebase i
-      Reference.Builtin{}   -> pure Nothing
-  loadedDerivedTypes <-
-    lift $ fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
-      Reference.DerivedId i ->
-        fmap (i, ) <$> Codebase.getTypeDeclaration codebase i
-      Reference.Builtin{} -> pure Nothing
-  -- Populate DisplayObjects for the search results, in anticipation of
-  -- rendering the definitions.
-  loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
-    r@(Reference.DerivedId i) -> do
-      let tm = Map.lookup i loadedDerivedTerms
-      -- We add a type annotation to the term using if it doesn't
-      -- already have one that the user provided
-      pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-        Nothing        -> MissingObject $ Reference.idToShortHash i
-        Just (tm, typ) -> case tm of
-          Term.Ann' _ _ -> UserObject tm
-          _             -> UserObject (Term.ann (ABT.annotation tm) tm typ)
-    r@(Reference.Builtin _) -> pure $ (r,) $ case Map.lookup r B.termRefTypes of
-      Nothing -> MissingObject $ Reference.toShortHash r
-      Just typ -> BuiltinObject (mempty <$ typ)
-  let loadedDisplayTypes = Map.fromList . (`fmap` toList collatedTypes) $ \case
-        r@(Reference.DerivedId i) ->
-          (r, )
-            . maybe (MissingObject $ Reference.idToShortHash i) UserObject
-            $ Map.lookup i loadedDerivedTypes
-        r@(Reference.Builtin _) -> (r, BuiltinObject ())
-  pure $ DefinitionResults loadedDisplayTerms loadedDisplayTypes misses
+definitionsBySuffixes ::
+  forall m v.
+  MonadIO m =>
+  Var v =>
+  NameScoping ->
+  Branch m ->
+  Codebase m v Ann ->
+  IncludeCycles ->
+  [HQ.HashQualified Name] ->
+  m (DefinitionResults v)
+definitionsBySuffixes namesScope branch codebase includeCycles query = do
+  QueryResult misses results <- hqNameQuery namesScope branch codebase query
+  terms <- do
+    let termRefsWithoutCycles = searchResultsToTermRefs results
+    let termRefs =
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) termRefsWithoutCycles
+            DontIncludeCycles -> termRefsWithoutCycles
+    Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
+  types <- do
+    let typeRefsWithoutCycles = searchResultsToTypeRefs results
+    let typeRefs =
+          case includeCycles of
+            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) typeRefsWithoutCycles
+            DontIncludeCycles -> typeRefsWithoutCycles
+    Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
+  pure (DefinitionResults terms types misses)
+  where
+    searchResultsToTermRefs :: [SR.SearchResult] -> Set Reference
+    searchResultsToTermRefs results =
+      Set.fromList [r | SR.Tm' _ (Referent.Ref r) _ <- results]
+    searchResultsToTypeRefs :: [SR.SearchResult] -> Set Reference
+    searchResultsToTypeRefs results =
+      Set.fromList (mapMaybe f results)
+      where
+        f :: SR.SearchResult -> Maybe Reference
+        f = \case
+          SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
+          SR.Tp' _ r _ -> Just r
+          _ -> Nothing
+    displayTerm :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))
+    displayTerm = \case
+      ref@(Reference.Builtin _) -> do
+        pure case Map.lookup ref B.termRefTypes of
+          -- This would be better as a `MissingBuiltin` constructor; `MissingObject` is kind of being
+          -- misused here. Is `MissingObject` even possible anymore?
+          Nothing -> MissingObject $ Reference.toShortHash ref
+          Just typ -> BuiltinObject (mempty <$ typ)
+      Reference.DerivedId rid -> do
+        (term, ty) <- Codebase.unsafeGetTermWithType codebase rid
+        pure case term of
+          Term.Ann' _ _ -> UserObject term
+          -- manually annotate if necessary
+          _ -> UserObject (Term.ann (ABT.annotation term) term ty)
+    displayType :: Reference -> m (DisplayObject () (DD.Decl v Ann))
+    displayType = \case
+      Reference.Builtin _ -> pure (BuiltinObject ())
+      Reference.DerivedId rid -> do
+        decl <- Codebase.unsafeGetTypeDeclaration codebase rid
+        pure (UserObject decl)
 
 termsToSyntax
   :: Var v

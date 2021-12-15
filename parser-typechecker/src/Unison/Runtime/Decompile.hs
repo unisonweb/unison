@@ -1,3 +1,5 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
+{-# language ViewPatterns #-}
 {-# language PatternGuards #-}
 {-# language TupleSections #-}
 {-# language PatternSynonyms #-}
@@ -9,6 +11,7 @@ module Unison.Runtime.Decompile
 import Unison.Prelude
 
 import Unison.ABT (substs)
+import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.Term
   ( Term
   , nat, int, char, float, boolean, constructor, app, apps', text, ref
@@ -21,6 +24,7 @@ import Unison.Type
 import Unison.Var (Var)
 import Unison.Reference (Reference)
 
+import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Foreign
   (Foreign, HashAlgorithm(..), maybeUnwrapBuiltin, maybeUnwrapForeign)
 import Unison.Runtime.MCode (CombIx(..))
@@ -31,12 +35,13 @@ import Unison.Codebase.Runtime (Error)
 import Unison.Util.Pretty (lit)
 
 import qualified Unison.Util.Bytes as By
+import qualified Unison.Util.Text as Text
 import qualified Unison.Term as Term
 
 import Unsafe.Coerce -- for Int -> Double
 
 con :: Var v => Reference -> Word64 -> Term v ()
-con rf ct = constructor () rf $ fromIntegral ct
+con rf ct = constructor () (ConstructorReference rf $ fromIntegral ct)
 
 err :: String -> Either Error a
 err = Left . lit . fromString
@@ -46,14 +51,14 @@ decompile
   => (Word64 -> Word64 -> Maybe (Term v ()))
   -> Closure
   -> Either Error (Term v ())
-decompile _ (DataC rf ct [] [])
+decompile _ (DataC rf (maskTags -> ct) [] [])
   | rf == booleanRef
   = boolean () <$> tag2bool ct
-decompile _ (DataC rf ct [i] [])
+decompile _ (DataC rf (maskTags -> ct) [i] [])
   = decompileUnboxed rf ct i
 decompile topTerms (DataC rf _ [] [b]) | rf == anyRef
   = app () (builtin() "Any.Any") <$> decompile topTerms b
-decompile topTerms (DataC rf ct [] bs)
+decompile topTerms (DataC rf (maskTags -> ct) [] bs)
   = apps' (con rf ct) <$> traverse (decompile topTerms) bs
 decompile topTerms (PApV (CIx rf rt k) [] bs)
   | Just t <- topTerms rt k
@@ -101,7 +106,7 @@ decompileForeign
   -> Foreign
   -> Either Error (Term v ())
 decompileForeign topTerms f
-  | Just t <- maybeUnwrapBuiltin f = Right $ text () t
+  | Just t <- maybeUnwrapBuiltin f = Right $ text () (Text.toText t)
   | Just b <- maybeUnwrapBuiltin f = Right $ decompileBytes b
   | Just h <- maybeUnwrapBuiltin f = Right $ decompileHashAlgorithm h
   | Just l <- maybeUnwrapForeign termLinkRef f

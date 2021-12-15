@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Util.Relation3 where
@@ -7,6 +8,8 @@ import Unison.Prelude hiding (empty, toList)
 import Unison.Util.Relation (Relation)
 import qualified Data.Map as Map
 import qualified Unison.Util.Relation as R
+import Data.Function (on)
+import Data.Ord (comparing)
 import Data.Semigroup (Sum(Sum, getSum))
 import Data.Tuple.Extra (uncurry3)
 
@@ -15,7 +18,13 @@ data Relation3 a b c
   { d1 :: Map a (Relation b c)
   , d2 :: Map b (Relation a c)
   , d3 :: Map c (Relation a b)
-  } deriving (Eq,Ord)
+  }
+
+instance (Eq a, Eq b, Eq c) => Eq (Relation3 a b c) where
+  (==) = (==) `on` d1
+
+instance (Ord a, Ord b, Ord c) => Ord (Relation3 a b c) where
+  compare = comparing d1
 
 instance (Show a, Show b, Show c) => Show (Relation3 a b c) where
   show = show . toList
@@ -38,6 +47,11 @@ d12 Relation3 {d1, d2} =
 d13 :: Relation3 a b c -> Relation a c
 d13 Relation3 {d1, d3} =
   R.unsafeFromMultimaps (Map.map R.ran d1) (Map.map R.dom d3)
+
+-- | Project out a relation that only includes the 2nd and 3rd dimensions.
+d23 :: Relation3 a b c -> Relation b c
+d23 Relation3 {d2, d3} =
+  R.unsafeFromMultimaps (Map.map R.ran d2) (Map.map R.ran d3)
 
 filter :: (Ord a, Ord b, Ord c)
        => ((a,b,c) -> Bool) -> Relation3 a b c -> Relation3 a b c
@@ -113,6 +127,9 @@ fromList xs = insertAll xs empty
 
 empty :: (Ord a, Ord b, Ord c) => Relation3 a b c
 empty = mempty
+
+null :: Relation3 a b c -> Bool
+null r = Map.null $ d1 r
 
 insert, delete
   :: (Ord a, Ord b, Ord c)

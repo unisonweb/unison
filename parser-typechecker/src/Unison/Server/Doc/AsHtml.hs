@@ -1,21 +1,29 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Render Unison.Server.Doc and embedded source to Html
 module Unison.Server.Doc.AsHtml where
 
 import Data.Foldable
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Lucid
 import qualified Lucid as L
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import Unison.Server.Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 
 data NamedLinkHref
   = Href Text
+  | DocLinkHref Name
   | ReferenceHref Text
   | InvalidHref
 
@@ -34,33 +42,46 @@ embeddedSource ref =
         Term s -> embeddedSource' s
         Type s -> embeddedSource' s
 
-inlineCode :: [Attribute] -> Html () -> Html ()
-inlineCode attrs =
-  pre_ (class_ "inline-code" : attrs) . code_ []
+inlineCode :: [Text] -> Html () -> Html ()
+inlineCode classNames =
+  code_ [classes_ ("inline-code" : classNames)]
 
 codeBlock :: [Attribute] -> Html () -> Html ()
 codeBlock attrs =
   pre_ attrs . code_ []
 
-normalizeHref :: NamedLinkHref -> Doc -> NamedLinkHref
-normalizeHref href doc =
-  case doc of
-    Word w ->
-      case href of
-        InvalidHref ->
-          Href w
-        Href h ->
-          Href (h <> w)
-        ReferenceHref _ ->
+normalizeHref :: Map Referent Name -> Doc -> NamedLinkHref
+normalizeHref docNamesByRef = go InvalidHref
+  where
+    go href doc =
+      case doc of
+        Word w ->
+          case href of
+            InvalidHref ->
+              Href w
+            Href h ->
+              Href (h <> w)
+            ReferenceHref _ ->
+              href
+            DocLinkHref _ ->
+              href
+        Group d_ ->
+          go href d_
+        Join ds ->
+          foldl' go href ds
+        Special (Link syntax) ->
+          case Syntax.firstReference syntax of
+            Just r ->
+              -- Convert references to docs to names, so we can construct links
+              -- matching the file structure being generated from all the docs
+              case Referent.fromText r >>= flip Map.lookup docNamesByRef of
+                Just n ->
+                  DocLinkHref n
+                Nothing ->
+                  ReferenceHref r
+            Nothing -> InvalidHref
+        _ ->
           href
-    Group d_ ->
-      normalizeHref href d_
-    Join ds ->
-      foldl' normalizeHref href ds
-    Special (Link syntax) ->
-      maybe InvalidHref ReferenceHref (Syntax.firstReference syntax)
-    _ ->
-      href
 
 data IsFolded
   = IsFolded Bool [Html ()] [Html ()]
@@ -74,16 +95,18 @@ foldedToHtml attrs isFolded =
     IsFolded isFolded summary details ->
       let attrsWithOpen =
             if isFolded
-              then open_ "open" : attrs
-              else attrs
-       in details_ attrsWithOpen $ summary_ [] $ sequence_ $ summary ++ details
+              then attrs
+              else open_ "open" : attrs
+       in details_ attrsWithOpen $ do
+            summary_ [class_ "folded-content folded-summary"] $ sequence_ summary
+            div_ [class_ "folded-content folded-details"] $ sequence_ details
 
 foldedToHtmlSource :: Bool -> EmbeddedSource -> Html ()
 foldedToHtmlSource isFolded source =
   case source of
     Builtin summary ->
       foldedToHtml
-        [class_ "rich source"]
+        [class_ "folded rich source"]
         ( Disabled
             ( div_
                 [class_ "builtin-summary"]
@@ -95,7 +118,7 @@ foldedToHtmlSource isFolded source =
             )
         )
     EmbeddedSource summary details ->
-      foldedToHtml [class_ "rich source"] $
+      foldedToHtml [class_ "folded rich source"] $
         IsFolded
           isFolded
           [codeBlock [] $ Syntax.toHtml summary]
@@ -119,32 +142,32 @@ mergeWords sep = foldr merge_ []
 -- Used for things like extract an src of an image. I.e something that has to
 -- be a Text and not a Doc
 toText :: Text -> Doc -> Text
-toText sep doc = 
+toText sep doc =
   case doc of
-  Paragraph ds ->
-    listToText ds
-  Group d ->
-    toText sep d
-  Join ds ->
-    listToText ds
-  Bold d ->
-    toText sep d
-  Italic d ->
-    toText sep d
-  Strikethrough d ->
-    toText sep d
-  Blockquote d ->
-    toText sep d
-  Section d ds ->
-    toText sep d <> sep <> listToText ds
-  UntitledSection ds ->
-    listToText ds
-  Column ds ->
-    listToText ds
-  Word w ->
-    w
-  _ ->
-    ""
+    Paragraph ds ->
+      listToText ds
+    Group d ->
+      toText sep d
+    Join ds ->
+      listToText ds
+    Bold d ->
+      toText sep d
+    Italic d ->
+      toText sep d
+    Strikethrough d ->
+      toText sep d
+    Blockquote d ->
+      toText sep d
+    Section d ds ->
+      toText sep d <> sep <> listToText ds
+    UntitledSection ds ->
+      listToText ds
+    Column ds ->
+      listToText ds
+    Word w ->
+      w
+    _ ->
+      ""
   where
     isEmpty s =
       s == Text.empty
@@ -154,8 +177,8 @@ toText sep doc =
         . filter (not . isEmpty)
         . map (toText sep)
 
-toHtml :: Doc -> Html ()
-toHtml document =
+toHtml :: Map Referent Name -> Doc -> Html ()
+toHtml docNamesByRef document =
   let toHtml_ sectionLevel doc =
         let -- Make it simple to retain the sectionLevel when recurring.
             -- the Section variant increments it locally
@@ -163,9 +186,30 @@ toHtml document =
               toHtml_ sectionLevel
 
             sectionContentToHtml renderer doc_ =
+              -- Block elements can't be children for <p> elements
               case doc_ of
-                Paragraph _ ->
-                  p_ [] $ renderer doc_
+                Paragraph [CodeBlock {}] -> renderer doc_
+                Paragraph [Blockquote _] -> renderer doc_
+                Paragraph [Blankline] -> renderer doc_
+                Paragraph [SectionBreak] -> renderer doc_
+                Paragraph [Callout {} ] -> renderer doc_
+                Paragraph [Table _] -> renderer doc_
+                Paragraph [Folded {} ] -> renderer doc_
+                Paragraph [BulletedList _] -> renderer doc_
+                Paragraph [NumberedList {}] -> renderer doc_
+                -- Paragraph [Section _ _] -> renderer doc_
+                Paragraph [Image {} ] -> renderer doc_
+                Paragraph [Special (Source _)] -> renderer doc_
+                Paragraph [Special (FoldedSource _)] -> renderer doc_
+                Paragraph [Special (ExampleBlock _)] -> renderer doc_
+                Paragraph [Special (Signature _)] -> renderer doc_
+                Paragraph [Special Eval {}] ->renderer doc_
+                Paragraph [Special (Embed _)] -> renderer doc_
+                Paragraph [UntitledSection ds] -> mapM_ (sectionContentToHtml renderer) ds
+                Paragraph [Column _] -> renderer doc_
+
+                Paragraph _ -> p_ [] $ renderer doc_
+
                 _ ->
                   renderer doc_
          in case doc of
@@ -174,7 +218,7 @@ toHtml document =
               Code code ->
                 span_ [class_ "rich source inline-code"] $ inlineCode [] (currentSectionLevelToHtml code)
               CodeBlock lang code ->
-                div_ [class_ "rich source code", class_ $ textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
+                div_ [class_ $ "rich source code " <> textToClass lang] $ codeBlock [] (currentSectionLevelToHtml code)
               Bold d ->
                 strong_ [] $ currentSectionLevelToHtml d
               Italic d ->
@@ -184,7 +228,7 @@ toHtml document =
               Style cssclass_ d ->
                 span_ [class_ $ textToClass cssclass_] $ currentSectionLevelToHtml d
               Anchor id' d ->
-                a_ [id_ id', target_ id'] $ currentSectionLevelToHtml d
+                a_ [id_ id', href_ $ "#" <> id'] $ currentSectionLevelToHtml d
               Blockquote d ->
                 blockquote_ [] $ currentSectionLevelToHtml d
               Blankline ->
@@ -208,9 +252,9 @@ toHtml document =
               Callout icon content ->
                 let (cls, ico) =
                       case icon of
-                        Just (Word emoji) ->
-                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml emoji)
-                        _ ->
+                        Just emoji ->
+                          (class_ "callout callout-with-icon", div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji)
+                        Nothing ->
                           (class_ "callout", "")
                  in div_ [cls] $ do
                       ico
@@ -223,14 +267,16 @@ toHtml document =
                       tr_ [] $ mapM_ cellToHtml $ mergeWords " " cells
                  in table_ [] $ tbody_ [] $ mapM_ rowToHtml rows
               Folded isFolded summary details ->
-                let content =
-                      if isFolded
-                        then [currentSectionLevelToHtml summary]
-                        else
-                          [ currentSectionLevelToHtml summary,
-                            currentSectionLevelToHtml details
-                          ]
-                 in foldedToHtml [] (IsFolded isFolded content [])
+                foldedToHtml [class_ "folded"] $
+                  IsFolded
+                    isFolded
+                    [currentSectionLevelToHtml summary]
+                    -- We include the summary in the details slot to make it
+                    -- symmetric with code folding, which currently always
+                    -- includes the type signature in the details portion
+                    [ div_ [] $ currentSectionLevelToHtml summary,
+                    currentSectionLevelToHtml details
+                    ]
               Paragraph docs ->
                 case docs of
                   [d] ->
@@ -250,11 +296,18 @@ toHtml document =
                       h sectionLevel $ currentSectionLevelToHtml title
                  in section_ [] $ sequence_ (titleEl : map (sectionContentToHtml (toHtml_ (sectionLevel + 1))) docs)
               NamedLink label href ->
-                case normalizeHref InvalidHref href of
+                case normalizeHref docNamesByRef href of
                   Href h ->
-                    a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
+                    -- Fragments (starting with a #) are links internal to the page
+                    if Text.isPrefixOf "#" h then
+                      a_ [class_ "named-link", href_ h ] $ currentSectionLevelToHtml label
+                    else
+                      a_ [class_ "named-link", href_ h, rel_ "noopener", target_ "_blank"] $ currentSectionLevelToHtml label
+                  DocLinkHref name ->
+                    let href = "/" <> Text.replace "." "/" (Name.toText name) <> ".html"
+                     in a_ [class_ "named-link doc-link", href_ href] $ currentSectionLevelToHtml label
                   ReferenceHref ref ->
-                    a_ [class_ "named-link", data_ "ref" ref] $ currentSectionLevelToHtml label
+                    span_ [class_ "named-link", data_ "ref" ref, data_ "ref-type" "term"] $ currentSectionLevelToHtml label
                   InvalidHref ->
                     span_ [class_ "named-link invalid-href"] $ currentSectionLevelToHtml label
               Image altText src caption ->
@@ -290,16 +343,16 @@ toHtml document =
                   ExampleBlock syntax ->
                     div_ [class_ "source rich example"] $ codeBlock [] (Syntax.toHtml syntax)
                   Link syntax ->
-                    inlineCode [class_ "rich source"] (Syntax.toHtml syntax)
+                    inlineCode ["rich", "source"] $ Syntax.toHtml syntax
                   Signature signatures ->
-                    div_
+                    codeBlock
                       [class_ "rich source signatures"]
                       ( mapM_
                           (div_ [class_ "signature"] . Syntax.toHtml)
                           signatures
                       )
                   SignatureInline sig ->
-                    span_ [class_ "rich source signature-inline"] $ Syntax.toHtml sig
+                    inlineCode ["rich", "source", "signature-inline"] $ Syntax.toHtml sig
                   Eval source result ->
                     div_ [class_ "source rich eval"] $
                       codeBlock [] $

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -80,8 +81,8 @@ data ShouldSaveCodebase
     | DontSaveCodebase
     deriving (Show, Eq)
 
-data CodebasePathOption 
-  = CreateCodebaseWhenMissing FilePath 
+data CodebasePathOption
+  = CreateCodebaseWhenMissing FilePath
   | DontCreateCodebaseWhenMissing FilePath
   deriving (Show, Eq)
 
@@ -97,7 +98,7 @@ data Command
   | PrintVersion
   -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
   | Init
-  | Run RunSource
+  | Run RunSource [String]
   | Transcript ShouldForkCodebase ShouldSaveCodebase (NonEmpty FilePath )
   deriving (Show, Eq)
 
@@ -150,24 +151,48 @@ versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Pr
 initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))
   where
-    initHelp = 
+    initHelp =
         "This command is has been removed. Use --codebase-create instead to create a codebase in the specified directory when starting the UCM."
+
+
+runDesc :: String -> String -> String
+runDesc cmd location =
+  "Execute a definition from " <> location <> ", passing on the provided arguments. "
+    <> " To pass flags to your program, use `"
+    <> cmd
+    <> " -- --my-flag`"
 
 runSymbolCommand :: Mod CommandFields Command
 runSymbolCommand =
-    command "run" (info runSymbolParser (fullDesc <> progDesc "Execute a definition from the codebase"))
+  command "run" (info runSymbolParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Execute a definition from the codebase, passing on the provided arguments. "
+        <> " To pass flags to your program, use `run <symbol> -- --my-flag`"
 
 runFileCommand :: Mod CommandFields Command
 runFileCommand =
-    command "run.file" (info runFileParser (fullDesc <> progDesc "Execute a definition from a file"))
+  command "run.file" (info runFileParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Execute a definition from a file, passing on the provided arguments. "
+        <> " To pass flags to your program, use `run.file <file> -- --my-flag`"
 
 runPipeCommand :: Mod CommandFields Command
 runPipeCommand =
-    command "run.pipe" (info runPipeParser (fullDesc <> progDesc "Execute code from stdin"))
+  command "run.pipe" (info runPipeParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Execute a definition from stdin, passing on the provided arguments. "
+        <> " To pass flags to your program, use `run -- --my-flag`"
 
 runCompiledCommand :: Mod CommandFields Command
 runCompiledCommand =
-    command "run.compiled" (info runCompiledParser (fullDesc <> progDesc "Execute previously compiled output"))
+  command "run.compiled" (info runCompiledParser (fullDesc <> progDesc help))
+  where
+    help =
+      "Execute a definition from a previously compiled file, passing on the provided arguments. "
+        <> " To pass flags to your program, use `run <file> -- --my-flag`"
 
 transcriptCommand :: Mod CommandFields Command
 transcriptCommand =
@@ -208,7 +233,7 @@ commandParser envOpts =
            , transcriptForkCommand
            , launchHeadlessCommand envOpts
            ]
-           
+
 globalOptionsParser :: Parser GlobalOptions
 globalOptionsParser = do -- ApplicativeDo
     codebasePathOption <- codebasePathParser <|> codebaseCreateParser
@@ -216,13 +241,13 @@ globalOptionsParser = do -- ApplicativeDo
     pure GlobalOptions{codebasePathOption = codebasePathOption}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
-codebasePathParser = do 
+codebasePathParser = do
     optString <- optional . strOption $
          long "codebase"
       <> metavar "codebase/path"
       <> help "The path to an existing codebase"
     pure (fmap DontCreateCodebaseWhenMissing optString)
-       
+
 codebaseCreateParser :: Parser (Maybe CodebasePathOption)
 codebaseCreateParser = do
     path <- optional . strOption $
@@ -278,28 +303,31 @@ launchParser envOpts isHeadless = do -- ApplicativeDo
   pure (Launch isHeadless codebaseServerOpts downloadBase)
 
 initParser :: Parser Command
-initParser = pure Init 
+initParser = pure Init
 
 versionParser :: Parser Command
 versionParser = pure PrintVersion
 
+runArgumentParser :: Parser [String]
+runArgumentParser = many (strArgument (metavar "RUN-ARGS"))
+
 runSymbolParser :: Parser Command
 runSymbolParser =
-  Run . RunFromSymbol <$> strArgument (metavar "SYMBOL")
+  Run . RunFromSymbol <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
 
 runFileParser :: Parser Command
-runFileParser = do -- ApplicativeDo
-  pathTofile <- fileArgument "path/to/file"
-  symbolName <- strArgument (metavar "SYMBOL")
-  pure $ Run (RunFromFile pathTofile symbolName)
+runFileParser =
+  Run <$> (RunFromFile <$> fileArgument "path/to/file"
+                       <*> strArgument (metavar "SYMBOL"))
+      <*> runArgumentParser
 
 runPipeParser :: Parser Command
 runPipeParser =
-  Run . RunFromPipe <$> strArgument (metavar "SYMBOL")
+  Run . RunFromPipe <$> strArgument (metavar "SYMBOL") <*> runArgumentParser
 
 runCompiledParser :: Parser Command
 runCompiledParser =
-  Run . RunCompiled <$> fileArgument "path/to/file"
+  Run . RunCompiled <$> fileArgument "path/to/file" <*> runArgumentParser
 
 saveCodebaseFlag :: Parser ShouldSaveCodebase
 saveCodebaseFlag = flag DontSaveCodebase SaveCodebase (long "save-codebase" <> help saveHelp)

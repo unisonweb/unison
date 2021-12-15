@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
@@ -12,6 +13,7 @@ module Unison.Server.Syntax where
 
 import Data.Aeson (ToJSON)
 import qualified Data.List as List
+import Data.List.Extra
 import qualified Data.List.NonEmpty as List.NonEmpty
 import Data.OpenApi (ToSchema (..))
 import Data.Proxy (Proxy (..))
@@ -34,7 +36,6 @@ import Unison.Util.AnnotatedText
     segment,
   )
 import qualified Unison.Util.SyntaxText as SyntaxText
-import Data.List.Extra
 
 type SyntaxText = AnnotatedText Element
 
@@ -156,6 +157,7 @@ reference (Segment _ el) =
         case el' of
           TermReference r -> Just r
           TypeReference r -> Just r
+          HashQualifier r -> Just r
           _ -> Nothing
    in el >>= reference'
 
@@ -196,13 +198,13 @@ segmentToHtml (Segment segmentText element) =
       ref =
         case el of
           TypeReference h ->
-            Just h
+            Just (h, "type")
           TermReference h ->
-            Just h
+            Just (h, "term")
           AbilityConstructorReference h ->
-            Just h
+            Just (h, "ability-constructor")
           DataConstructorReference h ->
-            Just h
+            Just (h, "data-constructor")
           _ ->
             Nothing
 
@@ -231,8 +233,8 @@ segmentToHtml (Segment segmentText element) =
         | isFQN = nameToHtml (Name.unsafeFromText sText)
         | otherwise = L.toHtml sText
    in case ref of
-        Just r ->
-          span_ [class_ className, data_ "ref" r] content
+        Just (r, refType) ->
+          span_ [class_ className, data_ "ref" r, data_ "ref-type" refType] content
         _ ->
           span_ [class_ className] content
 

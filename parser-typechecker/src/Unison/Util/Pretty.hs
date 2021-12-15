@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable   #-}
@@ -50,6 +51,7 @@ module Unison.Util.Pretty (
    hangUngrouped,
    softHang',
    softHang,
+   softHangNoSpace',
    indent,
    indentAfterNewline,
    indentN,
@@ -57,6 +59,7 @@ module Unison.Util.Pretty (
    indentNAfterNewline,
    invert,
    isMultiLine,
+   isEmpty,
    leftPad,
    lines,
    linesNonEmpty,
@@ -67,6 +70,7 @@ module Unison.Util.Pretty (
    nest,
    num,
    newline,
+   leftJustify,
    lineSkip,
    nonEmpty,
    numbered,
@@ -88,6 +92,7 @@ module Unison.Util.Pretty (
    shown,
    softbreak,
    spaceIfBreak,
+   spaceIfNeeded,
    spaced,
    spacedMap,
    spacesIfBreak,
@@ -155,6 +160,9 @@ data F s r
   | OrElse r r
   | Append (Seq r)
   deriving (Eq, Show, Foldable, Traversable, Functor)
+
+isEmpty :: Eq s => IsString s => Pretty s -> Bool
+isEmpty s = out s == Empty || out s == Lit ""
 
 mapLit :: (s -> t) -> F s r -> F t r
 mapLit f (Lit s) = Lit (f s)
@@ -344,6 +352,9 @@ newline = "\n"
 
 lineSkip :: IsString s => Pretty s
 lineSkip = newline <> newline
+
+spaceIfNeeded :: Eq s => IsString s => Pretty s -> Pretty s -> Pretty s
+spaceIfNeeded a b = if isEmpty a then b else a <> " " <> b
 
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
@@ -556,7 +567,7 @@ column2Header left right = column2sep "  " . ((fmap CT.hiBlack left, fmap CT.hiB
 
 column2sep
   :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s)] -> Pretty s
-column2sep sep rows = lines . (group <$>) . align $ [(a, sep <> b) | (a, b) <- rows]
+column2sep sep rows = lines . (group <$>) . align $ [(a, indent sep b) | (a, b) <- rows]
 
 column2M
   :: (Applicative m, LL.ListLike s Char, IsString s)
@@ -626,6 +637,19 @@ wrapColumn2 rows = lines (align rows) where
     in  [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
         | (l, r) <- rows
         ]
+
+-- Pad with enough space on the right to make all rows the same width
+leftJustify
+  :: (Eq s, Show s, LL.ListLike s Char, IsString s)
+  => [(Pretty s, a)]
+  -> [(Pretty s, a)]
+leftJustify rows = zip
+  (fmap fst . align' $ fmap
+    (\x -> (x, if isEmpty x then Nothing else Just ""))
+    ss
+  )
+  as
+  where (ss, as) = unzip rows
 
 align
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> [Pretty s]
@@ -706,6 +730,15 @@ softHang' :: (LL.ListLike s Char, IsString s)
   -> Pretty s
 softHang' from by p = group $
   (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
+
+softHangNoSpace'
+  :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+softHangNoSpace' from by p =
+  group $ (from <> group p) `orElse` (from <> "\n" <> group (indent by p))
 
 -- Same as `hang`, except instead of indenting by two spaces, it indents by
 -- the `by` argument.

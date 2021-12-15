@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language LambdaCase #-}
 {-# language BangPatterns #-}
 {-# language PatternSynonyms #-}
@@ -20,6 +21,7 @@ import Data.Word (Word64)
 
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
+import qualified Unison.Util.Text as Util.Text
 
 putComb :: MonadPut m => Comb -> m ()
 putComb (Lam ua ba uf bf body) =
@@ -299,7 +301,7 @@ instance Tag MLitT where
 putLit :: MonadPut m => MLit -> m ()
 putLit (MI i) = putTag MIT *> pInt i
 putLit (MD d) = putTag MDT *> putFloat d
-putLit (MT t) = putTag MTT *> putText t
+putLit (MT t) = putTag MTT *> putText (Util.Text.toText t)
 putLit (MM r) = putTag MMT *> putReferent r
 putLit (MY r) = putTag MYT *> putReference r
 
@@ -307,7 +309,7 @@ getLit :: MonadGet m => m MLit
 getLit = getTag >>= \case
   MIT -> MI <$> gInt
   MDT -> MD <$> getFloat
-  MTT -> MT <$> getText
+  MTT -> MT . Util.Text.fromText <$> getText
   MMT -> MM <$> getReferent
   MYT -> MY <$> getReference
 
@@ -336,7 +338,7 @@ putBranch (Test2 a sa b sb d)
 putBranch (TestW d m)
   = putTag TestWT *> putSection d *> putEnumMap pWord putSection m
 putBranch (TestT d m)
-  = putTag TestTT *> putSection d *> putMap putText putSection m
+  = putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
 
 getBranch :: MonadGet m => m Branch
 getBranch = getTag >>= \case
@@ -346,7 +348,7 @@ getBranch = getTag >>= \case
           <*> gWord <*> getSection
           <*> getSection
   TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
-  TestTT -> TestT <$> getSection <*> getMap getText getSection
+  TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
 
 
 gInt :: MonadGet m => m Int

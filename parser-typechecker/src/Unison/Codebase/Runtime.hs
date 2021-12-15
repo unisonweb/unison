@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -47,14 +48,14 @@ data Runtime v = Runtime
 
 type IsCacheHit = Bool
 
-noCache :: Reference -> IO (Maybe (Term v))
+noCache :: Reference.Id -> IO (Maybe (Term v))
 noCache _ = pure Nothing
 
 type WatchResults v a = (Either Error
          -- Bindings:
        ( [(v, Term v)]
          -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, WatchKind, Reference, Term v, Term v, IsCacheHit)
+       , Map v (a, WatchKind, Reference.Id, Term v, Term v, IsCacheHit)
        ))
 
 -- Evaluates the watch expressions in the file, returning a `Map` of their
@@ -70,14 +71,14 @@ evaluateWatches
    . Var v
   => CL.CodeLookup v IO a
   -> PPE.PrettyPrintEnv
-  -> (Reference -> IO (Maybe (Term v)))
+  -> (Reference.Id -> IO (Maybe (Term v)))
   -> Runtime v
   -> TypecheckedUnisonFile v a
   -> IO (WatchResults v a)
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
-  let m :: Map v (Reference, Term.Term v a)
-      m = fmap (\(id, _wk, tm, _tp) -> (Reference.DerivedId id, tm)) (UF.hashTermsId tuf)
+  let m :: Map v (Reference.Id, Term.Term v a)
+      m = fmap (\(id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
       watches :: Set v = Map.keysSet watchKinds
       watchKinds :: Map v WatchKind
       watchKinds =
@@ -91,7 +92,7 @@ evaluateWatches code ppe evaluationCache rt tuf = do
       Nothing -> pure (v, (r, ABT.annotation t, unann t, False))
       Just t' -> pure (v, (r, ABT.annotation t, t', True))
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
-  let rv :: Map Reference v
+  let rv :: Map Reference.Id v
       rv = Map.fromList [ (r, v) | (v, (r, _)) <- Map.toList m ]
       bindings :: [(v, Term v)]
       bindings     = [ (v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m' ]
@@ -117,10 +118,10 @@ evaluateWatches code ppe evaluationCache rt tuf = do
       pure $ Right (bindings, watchMap)
     Left e -> pure (Left e)
  where
-    -- unref :: Map Reference v -> Term.Term v a -> Term.Term v a
+    -- unref :: Map Reference.Id v -> Term.Term v a -> Term.Term v a
   unref rv t = ABT.visitPure go t
    where
-    go t@(Term.Ref' r@(Reference.DerivedId _)) = case Map.lookup r rv of
+    go t@(Term.Ref' (Reference.DerivedId r)) = case Map.lookup r rv of
       Nothing -> Nothing
       Just v  -> Just (Term.var (ABT.annotation t) v)
     go _ = Nothing
@@ -128,14 +129,13 @@ evaluateWatches code ppe evaluationCache rt tuf = do
 evaluateTerm'
   :: (Var v, Monoid a)
   => CL.CodeLookup v IO a
-  -> (Reference -> IO (Maybe (Term v)))
+  -> (Reference.Id -> IO (Maybe (Term v)))
   -> PPE.PrettyPrintEnv
   -> Runtime v
   -> Term.Term v a
   -> IO (Either Error (Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
-  let ref = Reference.DerivedId (Hashing.hashClosedTerm tm)
-  result <- cache ref
+  result <- cache (Hashing.hashClosedTerm tm)
   case result of
     Just r -> pure (Right r)
     Nothing -> do

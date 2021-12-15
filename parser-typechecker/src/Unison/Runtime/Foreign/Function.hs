@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language DataKinds #-}
 {-# language ViewPatterns #-}
@@ -20,13 +21,13 @@ import Control.Exception (evaluate)
 import qualified Data.Char as Char
 import Data.IORef (IORef)
 import Data.Foldable (toList)
-import Data.Text (Text, pack, unpack)
 import Data.Time.Clock.POSIX (POSIXTime)
 import qualified Data.Sequence as Sq
 import Data.Word (Word64)
 import Network.Socket (Socket)
 import System.IO (BufferMode(..), SeekMode, Handle, IOMode)
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.Text (Text,unpack,pack)
 
 import Unison.Reference (Reference)
 import Unison.Type (mvarRef, tvarRef, typeLinkRef, refRef)

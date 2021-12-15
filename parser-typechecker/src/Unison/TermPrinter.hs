@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -6,6 +7,7 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
+import Control.Lens ((^.))
 import Control.Monad.State (evalState)
 import qualified Control.Monad.State as State
 import Data.List
@@ -20,6 +22,8 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import Unison.Builtin.Decls (pattern TuplePattern, pattern TupleTerm')
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (GConstructorReference(..))
+import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import Unison.Lexer (showEscapeChar, symbolyId)
@@ -212,16 +216,16 @@ pretty0
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
-    Constructor' ref cid ->
+    Constructor' ref ->
       styleHashQualified'' (fmt $ S.TermReference conRef) name
       where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Data
-    Request' ref cid ->
+        conRef = Referent.Con ref CT.Data
+    Request' ref ->
       styleHashQualified'' (fmt $ S.TermReference conRef) name
       where
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Effect
+        conRef = Referent.Con ref CT.Effect
     Handle' h body -> paren (p >= 2) $
       if PP.isMultiLine pb || PP.isMultiLine ph then PP.lines [
         (fmt S.ControlKeyword "handle") `PP.hang` pb,
@@ -237,14 +241,20 @@ pretty0
         ph = pblock h
         pblock tm = let (im', uses) = calcImports im tm
                     in uses $ [pretty0 n (ac 0 Block im' doc) tm]
-    App' x (Constructor' DD.UnitRef 0) ->
+    App' x (Constructor' (ConstructorReference DD.UnitRef 0)) ->
       paren (p >= 11 || isBlock x && p >= 3)  $
         fmt S.DelayForceChar (l "!")
         <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
     Delay' x ->
       paren (p >= 11 || isBlock x && p >= 3) $
         fmt S.DelayForceChar (l "'")
-        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
+        <> (case x of
+              Lets' _ _ -> id
+              -- Add indentation below if we're opening parens with '(
+              -- This is in case the contents are a long function application
+              -- in which case the arguments should be indented.
+              _ -> PP.indentAfterNewline "  ")
+             (pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x)
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
@@ -301,13 +311,14 @@ pretty0
           -- corequisite step in immediateChildBlockTerms (because it doesn't
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
-          (fmt S.ControlKeyword "let") `PP.hang` x
+          fmt S.ControlKeyword "let" `PP.hang` x
       lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
-         <> printGuard guard
+              `PP.hang` printGuard guard
       printGuard Nothing = mempty
-      printGuard (Just g') = let (_,g) = ABT.unabs g' in
-        PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 n (ac 2 Normal im doc) g]
-      eq = fmt S.BindingEquals " ="
+      printGuard (Just g') =
+        let (_,g) = ABT.unabs g'
+         in (fmt S.DelimiterChar "| ") <> pretty0 n (ac 2 Normal im doc) g
+      eq = fmt S.BindingEquals "="
       rhs =
         let (im', uses) = calcImports im scrutinee in
         uses $ [pretty0 n (ac (-1) Block im' doc) scrutinee]
@@ -376,7 +387,7 @@ pretty0
       $  letIntro
       $  uses [PP.lines (map printBinding bs ++ body e)]
    where
-    body (Constructor' DD.UnitRef 0) | elideUnit = []
+    body (Constructor' (ConstructorReference DD.UnitRef 0)) | elideUnit = []
     body e = [PP.group $ pretty0 n (ac 0 Normal im doc) e]
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty0 n (ac (-1) Normal im doc) binding
@@ -397,9 +408,9 @@ pretty0
 
   nonForcePred :: Term3 v PrintAnnotation -> Bool
   nonForcePred = \case
-    Constructor' DD.UnitRef 0 -> False
-    Constructor' DD.DocRef _  -> False
-    _                         -> True
+    Constructor' (ConstructorReference DD.UnitRef 0) -> False
+    Constructor' (ConstructorReference DD.DocRef _) -> False
+    _ -> True
 
   nonUnitArgPred :: Var v => v -> Bool
   nonUnitArgPred v = (Var.name v) /= "()"
@@ -454,15 +465,15 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns (-1) vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  Pattern.Constructor _ ref cid [] ->
+  Pattern.Constructor _ ref [] ->
     (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
     where
       name = elideFQN im $ PrettyPrintEnv.termName n conRef
-      conRef = Referent.Con ref cid CT.Data
-  Pattern.Constructor _ ref cid pats ->
+      conRef = Referent.Con ref CT.Data
+  Pattern.Constructor _ ref pats ->
     let (pats_printed, tail_vs) = patternsSep 10 PP.softbreak vs pats
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Data
+        conRef = Referent.Con ref CT.Data
     in  ( paren (p >= 10)
           $ styleHashQualified'' (fmt $ S.TermReference conRef) name
             `PP.hang` pats_printed
@@ -474,11 +485,11 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   Pattern.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
-  Pattern.EffectBind _ ref cid pats k_pat ->
+  Pattern.EffectBind _ ref pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep 10 PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
-        conRef = Referent.Con ref cid CT.Effect
+        conRef = Referent.Con ref CT.Effect
     in  ( PP.group (
             fmt S.DelimiterChar "{"  <>
             (PP.sep " " . PP.nonEmpty $
@@ -546,51 +557,51 @@ printCase
   -> DocLiteralContext
   -> [MatchCase' () (Term3 v PrintAnnotation)]
   -> Pretty SyntaxText
-printCase env im doc ms0 = PP.lines $ map each gridArrowsAligned where
+printCase env im doc ms0 = PP.lines $ alignGrid grid where
   ms = groupCases ms0
-  each (lhs, arrow, body) = PP.group $ (lhs <> arrow) `PP.hang` body
-  grid = go =<< ms
-  gridArrowsAligned = tidy <$> zip (PP.align' (f <$> grid)) grid where
-    f (a, b, _) = (a, Just b)
-    tidy ((a', b'), (_, _, c)) = (a', b', c)
-
+  justify rows =
+    zip (fmap fst . PP.align' $ fmap alignPatterns rows) $ fmap gbs rows
+   where
+     alignPatterns (p, _, _) = (p, Just "")
+     gbs (_, gs, bs) = zip gs bs
+  alignGrid = fmap alignCase . justify
+  alignCase (p, gbs) =
+    if not (null (drop 1 gbs)) then PP.hang p guardBlock
+    else p <> guardBlock
+   where
+    guardBlock = PP.lines
+      $ fmap (\(g, (a, b)) -> PP.hang (PP.group (g <> a)) b) justified
+    justified = PP.leftJustify $ fmap (\(g, b) -> (g, (arrow, b))) gbs
+  grid = go <$> ms
   patLhs vs pats = case pats of
     [pat] -> PP.group (fst (prettyPattern env (ac 0 Block im doc) (-1) vs pat))
-    pats  -> PP.group . PP.sep ("," <> PP.softbreak) . (`evalState` vs) . for pats $ \pat -> do
+    pats  -> PP.group . PP.sep ("," <> PP.softbreak)
+                      . (`evalState` vs)
+                      . for pats $ \pat -> do
       vs <- State.get
       let (p, rem) = prettyPattern env (ac 0 Block im doc) (-1) vs pat
       State.put rem
       pure p
-
   arrow = fmt S.ControlKeyword "->"
   goBody im' uses body = uses [pretty0 env (ac 0 Block im' doc) body]
-  printGuard (Just (ABT.AbsN' _ g)) =
-    -- strip off any Abs-chain around the guard, guard variables are rendered
-    -- like any other variable, ex: case Foo x y | x < y -> ...
-    PP.group $ PP.spaced [(fmt S.DelimiterChar " |"), pretty0 env (ac 2 Normal im doc) g]
-  printGuard Nothing  = mempty
-
-  go (pats, vs, [(guard, body)]) =
-    [(lhs, arrow, goBody im' uses body)]
-    where
-    lhs = patLhs vs pats <> printGuard guard
-    (im', uses) = calcImports im body
   -- If there's multiple guarded cases for this pattern, prints as:
   -- MyPattern x y
   --   | guard 1        -> 1
   --   | otherguard x y -> 2
   --   | otherwise      -> 3
   go (pats, vs, unzip -> (guards, bodies)) =
-    (patLhs vs pats, mempty, mempty)
-      : zip3 (PP.indentN 2 . printGuard <$> guards)
-             (repeat arrow)
-             (printBody <$> bodies)
-    where
-    printGuard Nothing = (fmt S.DelimiterChar "|") <> fmt S.ControlKeyword " otherwise"
+    (patLhs vs pats, printGuard <$> guards, printBody <$> bodies)
+   where
+    noGuards = all (== Nothing) guards
+    printGuard Nothing | noGuards = mempty
+    printGuard Nothing =
+      fmt S.DelimiterChar "|" <> " " <> fmt S.ControlKeyword "otherwise"
     printGuard (Just (ABT.AbsN' _ g)) =
-      PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 env (ac 2 Normal im doc) g]
-    printBody b = let (im', uses) = calcImports im b
-                  in goBody im' uses b
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      PP.spaceIfNeeded (fmt S.DelimiterChar "|") $
+        pretty0 env (ac 2 Normal im doc) g
+    printBody b = let (im', uses) = calcImports im b in goBody im' uses b
 
 {- Render a binding, producing output of the form
 
@@ -919,9 +930,9 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> Term2 v at ap v a -> PrintAnnota
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
-    Constructor' r _ | noImportRefs r -> mempty
-    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
-    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
+    Constructor' r | noImportRefs (r ^. ConstructorReference.reference_) -> mempty
+    Constructor' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Data)
+    Request' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r CT.Effect)
     Ann' _ t -> countTypeUsages n t
     Match' _ bs -> let pat (MatchCase p _ _) = p
                    in foldMap ((countPatternUsages n) . pat) bs
@@ -945,22 +956,22 @@ countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
 countPatternUsages n p = Pattern.foldMap' f p where
   f = \case
-    Pattern.Unbound _            -> mempty
-    Pattern.Var _                -> mempty
-    Pattern.Boolean _ _          -> mempty
-    Pattern.Int _ _              -> mempty
-    Pattern.Nat _ _              -> mempty
-    Pattern.Float _ _            -> mempty
-    Pattern.Text _ _             -> mempty
-    Pattern.Char _ _             -> mempty
-    Pattern.As _ _               -> mempty
-    Pattern.SequenceLiteral _ _  -> mempty
-    Pattern.SequenceOp _ _ _ _   -> mempty
-    Pattern.EffectPure _ _       -> mempty
-    Pattern.EffectBind _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.Constructor _ r i _  ->
-      if noImportRefs r then mempty
-      else countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.Unbound _           -> mempty
+    Pattern.Var _               -> mempty
+    Pattern.Boolean _ _         -> mempty
+    Pattern.Int _ _             -> mempty
+    Pattern.Nat _ _             -> mempty
+    Pattern.Float _ _           -> mempty
+    Pattern.Text _ _            -> mempty
+    Pattern.Char _ _            -> mempty
+    Pattern.As _ _              -> mempty
+    Pattern.SequenceLiteral _ _ -> mempty
+    Pattern.SequenceOp _ _ _ _  -> mempty
+    Pattern.EffectPure _ _      -> mempty
+    Pattern.EffectBind _ r _ _  -> countHQ $ PrettyPrintEnv.patternName n r
+    Pattern.Constructor _ r _ ->
+      if noImportRefs (r ^. ConstructorReference.reference_) then mempty
+      else countHQ $ PrettyPrintEnv.patternName n r
 
 countHQ :: HQ.HashQualified Name -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
@@ -1093,65 +1104,104 @@ calcImports im tm = (im', render $ getUses result)
                    |> map snd
       in PP.lines (uses ++ rest)
 
--- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- blockterm within it, containing all usages of that name?  A blockterm is a place
--- where the syntax lets us put a use statement, like the branches of an if/then/else.
--- We traverse the block terms by traversing the whole subtree with ABT.find, and paying
--- attention to those subterms that look like a blockterm.  This is complicated
--- by the fact that you can't always tell if a term is a blockterm just
--- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  So actually we traverse the tree, at each term
--- looking for child terms that are block terms, and see if any of those contain
--- all the usages of the name.
+-- Given a block term and a name (Prefix, Suffix) of interest, is there a
+-- strictly smaller blockterm within it, containing all usages of that name?
+-- A blockterm is a place where the syntax lets us put a use statement, like the
+-- branches of an if/then/else.
+-- We traverse the block terms by traversing the whole subtree with ABT.find,
+-- and paying attention to those subterms that look like a blockterm.
+-- This is complicated by the fact that you can't always tell if a term is a
+-- blockterm just by looking at it: in some cases you can only tell when you can
+-- see it in the context of the wider term that contains it. So actually we
+-- traverse the tree, at each term looking for child terms that are block terms,
+-- and see if any of those contain all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
-allInSubBlock :: (Var v, Ord v) => Term3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
-allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
-                             result = any (/= tm) $ found
-                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
-                                                    show s ++ ", " ++ show i ++ "): returns " ++
-                                                    show result ++ "\nInput:\n" ++ show tm ++
-                                                    "\nFound: \n" ++ show found ++ "\n\n")
-                         in tr result where
-  getUsages t =    annotation t
-                |> usages
-                |> Map.lookup s
-                |> fmap (Map.lookup p)
-                |> join
-                |> fromMaybe 0
-  finder t = let result = let i' = getUsages t
-                          in if i' < i
-                             then ABT.Prune
-                             else
-                               let found = filter hit $ immediateChildBlockTerms t
-                               in if (i' == i) && (not $ null found)
-                                  then ABT.Found found
-                                  else ABT.Continue
-                 children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
-                 tr = const id $ trace ("\nfinder: returns " ++ show result ++
-                                        "\n  children:" ++ children ++
-                                        "\n  input: \n" ++ show t ++ "\n\n")
-             in tr $ result
-  hit t = (getUsages t) == i
+allInSubBlock ::
+  (Var v, Ord v) =>
+  Term3 v PrintAnnotation ->
+  Prefix ->
+  Suffix ->
+  Int ->
+  Bool
+allInSubBlock tm p s i =
+  let found = concat $ ABT.find finder tm
+      result = any (/= tm) found
+      tr =
+        const id $ trace
+          ( "\nallInSubBlock("
+              ++ show p
+              ++ ", "
+              ++ show s
+              ++ ", "
+              ++ show i
+              ++ "): returns "
+              ++ show result
+              ++ "\nInput:\n"
+              ++ show tm
+              ++ "\nFound: \n"
+              ++ show found
+              ++ "\n\n"
+          )
+   in tr result
+  where
+    getUsages t =
+      annotation t
+        |> usages
+        |> Map.lookup s
+        |> fmap (Map.lookup p)
+        |> join
+        |> fromMaybe 0
+    finder t =
+      let result =
+            let i' = getUsages t
+             in if i' < i
+                  then ABT.Prune
+                  else
+                    let found = filter hit $ immediateChildBlockTerms t
+                     in if (i' == i) && (not $ null found)
+                          then ABT.Found found
+                          else ABT.Continue
+          children =
+            concat
+              ( map (\t -> "child: " ++ show t ++ "\n") $
+                  immediateChildBlockTerms t
+              )
+          tr =
+            const id $ trace
+              ( "\nfinder: returns "
+                  ++ show result
+                  ++ "\n  children:"
+                  ++ children
+                  ++ "\n  input: \n"
+                  ++ show t
+                  ++ "\n\n"
+              )
+       in tr $ result
+    hit t = (getUsages t) == i
 
--- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
--- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
--- function, otherwise the `use` statement may come out at an enclosing scope instead.
-immediateChildBlockTerms :: (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
+-- Return any blockterms at or immediately under this term. Has to match the
+-- places in the syntax that get a call to `calcImports` in `pretty0`.
+-- AST nodes that do a calcImports in pretty0, in order to try and emit a `use`
+-- statement, need to be emitted also by this function, otherwise the `use`
+-- statement may come out at an enclosing scope instead.
+immediateChildBlockTerms ::
+  (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
-    Handle' handler body -> [handler, body]
-    If' _ t f -> [t, f]
-    LetBlock bs _ -> concat $ map doLet bs
-    Match' scrute branches ->
-      if isDestructuringBind scrute branches then [scrute]
-      else concat $ map doCase branches
-    _ -> []
+  Handle' handler body -> [handler, body]
+  If' _ t f -> [t, f]
+  LetBlock bs e -> concatMap doLet bs ++ handleDelay e
+  Delay' b@(Lets' _ _) -> [b]
+  Match' scrute branches ->
+    if isDestructuringBind scrute branches
+      then [scrute]
+      else concatMap doCase branches
+  _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
+    handleDelay (Delay' b@(Lets' _ _)) = [b]
+    handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = if isBlank $ Var.nameStr v
-                                      then []
-                                      else [body]
+    doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern
@@ -1176,10 +1226,10 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)]
       Pattern.Float _ _ -> True
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
-      Pattern.Constructor _ _ _ ps -> any hasLiteral ps
+      Pattern.Constructor _ _ ps -> any hasLiteral ps
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p
-      Pattern.EffectBind _ _ _ ps pk -> any hasLiteral (pk : ps)
+      Pattern.EffectBind _ _ ps pk -> any hasLiteral (pk : ps)
       Pattern.SequenceLiteral _ ps -> any hasLiteral ps
       Pattern.SequenceOp _ p _ p2 -> hasLiteral p || hasLiteral p2
       Pattern.Var _ -> False

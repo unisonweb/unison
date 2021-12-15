@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language DeriveTraversable #-}
 {-# language GeneralizedNewtypeDeriving #-}
 
@@ -127,7 +128,7 @@ mapToList :: EnumKey k => EnumMap k a -> [(k, a)]
 mapToList (EM m) = first intToKey <$> IM.toList m
 
 (!) :: EnumKey k => EnumMap k a -> k -> a
-EM m ! e = m IM.! keyToInt e
+(!) (EM m) e = m IM.! keyToInt e
 
 findMin :: EnumKey k => EnumSet k -> k
 findMin (ES s) = intToKey $ IS.findMin s

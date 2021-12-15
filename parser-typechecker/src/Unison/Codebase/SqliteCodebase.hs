@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -8,42 +9,26 @@
 
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
-    unsafeGetConnection,
-    shutdownConnection,
   )
 where
 
 import qualified Control.Concurrent
-import qualified Control.Exception
-import Control.Exception.Safe (MonadCatch)
-import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT (ExceptT), MonadError (throwError), runExceptT, withExceptT)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, ($>), (<&>))
 import qualified Data.List as List
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Traversable (for)
-import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
-import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
@@ -52,7 +37,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
+import U.Codebase.Sqlite.DbId (ObjectId, SchemaVersion (SchemaVersion))
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
@@ -63,9 +48,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
-import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified U.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
@@ -78,6 +61,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteG
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -86,13 +70,16 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.Type (PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (MaybeT (runMaybeT), fromMaybe, isJust, trace, traceM)
+import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
@@ -104,10 +91,12 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO)
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO (MonadUnliftIO, catchIO, finally, throwIO)
+import qualified UnliftIO
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
@@ -121,91 +110,68 @@ codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 v2dir :: FilePath -> FilePath
 v2dir root = root </> ".unison" </> "v2"
 
-init :: HasCallStack => (MonadIO m, MonadCatch m) => Codebase.Init m Symbol Ann
-init = Codebase.Init getCodebaseOrError createCodebaseOrError v2dir
+init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
+init = Codebase.Init
+  { withOpenCodebase=getCodebaseOrError
+  , withCreatedCodebase=createCodebaseOrError
+  , codebasePath=v2dir
+  }
 
 createCodebaseOrError ::
-  (MonadIO m, MonadCatch m) =>
+  (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
-  m (Either Codebase1.CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError debugName dir = do
-  prettyDir <- P.string <$> canonicalizePath dir
-  let convertError = \case
-        CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
-      prettyError :: SchemaVersion -> Codebase1.Pretty
-      prettyError v = P.wrap $
-        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseUnknownSchemaVersion SchemaVersion
-  deriving (Show)
-
-createCodebaseOrError' ::
-  (MonadIO m, MonadCatch m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  m (Either CreateCodebaseError (m (), Codebase m Symbol Ann))
-createCodebaseOrError' debugName path = do
+  (Codebase m Symbol Ann -> m r) ->
+  m (Either Codebase1.CreateCodebaseError r)
+createCodebaseOrError debugName path action = do
   ifM
     (doesFileExist $ path </> codebasePath)
-    (pure $ Left CreateCodebaseAlreadyExists)
+    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
       createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-      liftIO $
-        Control.Exception.bracket
-          (unsafeGetConnection (debugName ++ ".createSchema") path)
-          shutdownConnection
-          (runReaderT do
-            Q.createSchema
-            runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
-              Left e -> error $ show e
-              Right () -> pure ()
-            )
+      withConnection (debugName ++ ".createSchema") path $
+        runReaderT do
+          Q.createSchema
+          runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
+            Left e -> error $ show e
+            Right () -> pure ()
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path)
+      sqliteCodebase debugName path action >>= \case
+        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
+        Right result -> pure (Right result)
 
-openOrCreateCodebaseConnection :: MonadIO m => Codebase.DebugName -> FilePath -> m Connection
-openOrCreateCodebaseConnection debugName path = do
+withOpenOrCreateCodebaseConnection ::
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  FilePath ->
+  (Connection -> m r) ->
+  m r
+withOpenOrCreateCodebaseConnection debugName path action = do
   unlessM
     (doesFileExist $ path </> codebasePath)
     (initSchemaIfNotExist path)
-  unsafeGetConnection debugName path
+  withConnection debugName path action
 
 -- get the codebase in dir
-getCodebaseOrError :: forall m. (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either Codebase1.Pretty (m (), Codebase m Symbol Ann))
-getCodebaseOrError debugName dir = do
-  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
+getCodebaseOrError ::
+  forall m r.
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  (Codebase m Symbol Ann -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
+getCodebaseOrError debugName dir action = do
   doesFileExist (dir </> codebasePath) >>= \case
-    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
-    -- Unison.Codebase.Init.getCodebaseOrExit).
-    False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir)
+    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    True ->
+      sqliteCodebase debugName dir action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
   unlessM (doesDirectoryExist $ path </> FilePath.takeDirectory codebasePath) $
     createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
   unlessM (doesFileExist $ path </> codebasePath) $
-    Control.Exception.bracket
-      (unsafeGetConnection "initSchemaIfNotExist" path)
-      shutdownConnection
-      (runReaderT Q.createSchema)
-
--- checks if a db exists at `path` with the minimum schema
-codebaseExists :: MonadIO m => CodebasePath -> m Bool
-codebaseExists root = liftIO do
-  Monad.when debug $ traceM $ "codebaseExists " ++ root
-  Control.Exception.catch @Sqlite.SQLError
-    ( sqliteCodebase "codebaseExists" root >>= \case
-        Left _ -> pure False
-        Right (close, _codebase) -> close $> True
-    )
-    (const $ pure False)
+    withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
 
 -- 1) buffer up the component
 -- 2) in the event that the component is complete, then what?
@@ -256,23 +222,52 @@ type TermBufferEntry = BufferEntry (Term Symbol Ann, Type Symbol Ann)
 
 type DeclBufferEntry = BufferEntry (Decl Symbol Ann)
 
-unsafeGetConnection :: MonadIO m => Codebase.DebugName -> CodebasePath -> m Connection
+-- | Create a new sqlite connection to the database at the given path.
+--   the caller is responsible for calling the returned cleanup method once finished with the
+--   connection.
+--   The connection may not be used after it has been cleaned up.
+--   Prefer using 'withConnection' if you can, as it guarantees the connection will be properly
+--   closed for you.
+unsafeGetConnection ::
+  MonadIO m =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  m (IO (), Connection)
 unsafeGetConnection name root = do
   let path = root </> codebasePath
   Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
   (Connection name path -> conn) <- liftIO $ Sqlite.open path
   runReaderT Q.setFlags conn
-  pure conn
+  pure (shutdownConnection conn, conn)
+  where
+    shutdownConnection :: MonadIO m => Connection -> m ()
+    shutdownConnection conn = do
+      Monad.when debug $ traceM $ "shutdown connection " ++ show conn
+      liftIO $ Sqlite.close (Connection.underlying conn)
 
-shutdownConnection :: MonadIO m => Connection -> m ()
-shutdownConnection conn = do
-  Monad.when debug $ traceM $ "shutdown connection " ++ show conn
-  liftIO $ Sqlite.close (Connection.underlying conn)
+-- | Run an action with a connection to the codebase, closing the connection on completion or
+-- failure.
+withConnection ::
+  MonadUnliftIO m =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  (Connection -> m a) ->
+  m a
+withConnection name root act = do
+  bracket
+    (unsafeGetConnection name root)
+    (\(closeConn, _) -> liftIO closeConn)
+    (\(_, conn) -> act conn)
 
-sqliteCodebase :: (MonadIO m, MonadCatch m) => Codebase.DebugName -> CodebasePath -> m (Either SchemaVersion (m (), Codebase m Symbol Ann))
-sqliteCodebase debugName root = do
-  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
-  conn <- unsafeGetConnection debugName root
+sqliteCodebase ::
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  (Codebase m Symbol Ann -> m r) ->
+  m (Either SchemaVersion r)
+sqliteCodebase debugName root action = do
+ Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
+ withConnection debugName root $ \conn -> do
   termCache <- Cache.semispaceCache 8192 -- pure Cache.nullCache -- to disable
   typeOfTermCache <- Cache.semispaceCache 8192
   declCache <- Cache.semispaceCache 1024
@@ -290,7 +285,7 @@ sqliteCodebase debugName root = do
           getTerm (Reference.Id h1@(Cv.hash1to2 -> h2) i _n) =
             runDB' conn do
               term2 <- Ops.loadTermByReference (C.Reference.Id h2 i)
-              Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
+              lift $ Cv.term2to1 h1 (getCycleLen "getTerm") getDeclType term2
 
           getCycleLen :: EDB m => String -> Hash -> m Reference.Size
           getCycleLen source = Cache.apply cycleLengthCache \h ->
@@ -610,18 +605,18 @@ sqliteCodebase debugName root = do
               Set.traverse (Cv.referenceid2to1 (getCycleLen "dependentsImpl"))
                 =<< Ops.dependents (Cv.reference1to2 r)
 
-          syncFromDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-          syncFromDirectory srcRoot _syncMode b =
-            flip State.evalStateT emptySyncProgressState $ do
-              srcConn <- unsafeGetConnection (debugName ++ ".sync.src") srcRoot
-              syncInternal syncProgress srcConn conn $ Branch.transform lift b
+          syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+          syncFromDirectory srcRoot _syncMode b = do
+            withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
+              flip State.evalStateT emptySyncProgressState $ do
+                syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
-          syncToDirectory :: MonadIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
+          syncToDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
           syncToDirectory destRoot _syncMode b =
-            flip State.evalStateT emptySyncProgressState $ do
-              initSchemaIfNotExist destRoot
-              destConn <- unsafeGetConnection (debugName ++ ".sync.dest") destRoot
-              syncInternal syncProgress conn destConn $ Branch.transform lift b
+            withConnection (debugName ++ ".sync.dest") destRoot $ \destConn ->
+              flip State.evalStateT emptySyncProgressState $ do
+                initSchemaIfNotExist destRoot
+                syncInternal syncProgress conn destConn $ Branch.transform lift b
 
           watches :: MonadIO m => UF.WatchKind -> m [Reference.Id]
           watches w =
@@ -721,7 +716,7 @@ sqliteCodebase debugName root = do
                 >>= traverse (Cv.referentid2to1 (getCycleLen "referentsByPrefix") getDeclType)
             declReferents' <- Ops.declReferentsByPrefix prefix cycle (read . Text.unpack <$> cid)
             let declReferents =
-                  [ Referent.ConId (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid) (Cv.decltype2to1 ct)
+                  [ Referent.ConId (ConstructorReference (Reference.Id (Cv.hash2to1 h) pos len) (fromIntegral cid)) (Cv.decltype2to1 ct)
                     | (h, pos, len, ct, cids) <- declReferents',
                       cid <- cids
                   ]
@@ -736,18 +731,52 @@ sqliteCodebase debugName root = do
             pure $ Set.map (Causal.RawHash . Cv.hash2to1 . unCausalHash) cs
 
           sqlLca :: MonadIO m => Branch.Hash -> Branch.Hash -> m (Maybe Branch.Hash)
-          sqlLca h1 h2 = liftIO $ Control.Exception.bracket open close \(c1, c2) ->
-            runDB conn
-              . (fmap . fmap) Cv.causalHash2to1
-              $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
-            where
-              open = (,) <$> unsafeGetConnection (debugName ++ ".lca.left") root
-                         <*> unsafeGetConnection (debugName ++ ".lca.left") root
-              close (c1, c2) = shutdownConnection c1 *> shutdownConnection c2
+          sqlLca h1 h2 =
+            liftIO $ withConnection  (debugName ++ ".lca.left") root $ \c1 -> do
+                     withConnection  (debugName ++ ".lca.right") root $ \c2 -> do
+                       runDB conn
+                         . (fmap . fmap) Cv.causalHash2to1
+                         $ Ops.lca (Cv.causalHash1to2 h1) (Cv.causalHash1to2 h2) c1 c2
+      let
+       codebase = C.Codebase
+        (Cache.applyDefined termCache getTerm)
+        (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
+        (Cache.applyDefined declCache getTypeDeclaration)
+        putTerm
+        putTypeDeclaration
+        (getRootBranch rootBranchCache)
+        (putRootBranch rootBranchCache)
+        (rootBranchUpdates rootBranchCache)
+        getBranchForHash
+        putBranch
+        isCausalHash
+        getPatch
+        putPatch
+        patchExists
+        dependentsImpl
+        syncFromDirectory
+        syncToDirectory
+        viewRemoteBranch'
+        (\b r opts -> pushGitBranch conn b r opts)
+        watches
+        getWatch
+        putWatch
+        clearWatches
+        getReflog
+        appendReflog
+        termsOfTypeImpl
+        termsMentioningTypeImpl
+        hashLength
+        termReferencesByPrefix
+        declReferencesByPrefix
+        referentsByPrefix
+        branchHashLength
+        branchHashesByPrefix
+        (Just sqlLca)
+        (Just \l r -> runDB conn $ fromJust <$> before l r)
 
       let finalizer :: MonadIO m => m ()
           finalizer = do
-            shutdownConnection conn
             decls <- readTVarIO declBuffer
             terms <- readTVarIO termBuffer
             let printBuffer header b =
@@ -757,49 +786,8 @@ sqliteCodebase debugName root = do
                       else pure ()
             printBuffer "Decls:" decls
             printBuffer "Terms:" terms
-
-      pure . Right $
-        ( finalizer,
-          let
-           code = Codebase1.Codebase
-            (Cache.applyDefined termCache getTerm)
-            (Cache.applyDefined typeOfTermCache getTypeOfTermImpl)
-            (Cache.applyDefined declCache getTypeDeclaration)
-            putTerm
-            putTypeDeclaration
-            (getRootBranch rootBranchCache)
-            (putRootBranch rootBranchCache)
-            (rootBranchUpdates rootBranchCache)
-            getBranchForHash
-            putBranch
-            isCausalHash
-            getPatch
-            putPatch
-            patchExists
-            dependentsImpl
-            syncFromDirectory
-            syncToDirectory
-            viewRemoteBranch'
-            (\b r _s -> pushGitRootBranch conn b r)
-            watches
-            getWatch
-            putWatch
-            clearWatches
-            getReflog
-            appendReflog
-            termsOfTypeImpl
-            termsMentioningTypeImpl
-            hashLength
-            termReferencesByPrefix
-            declReferencesByPrefix
-            referentsByPrefix
-            branchHashLength
-            branchHashesByPrefix
-            (Just sqlLca)
-            (Just \l r -> runDB conn $ fromJust <$> before l r)
-          in code
-        )
-    v -> shutdownConnection conn $> Left v
+      (Right <$> action codebase) `finally` finalizer
+    v -> pure $ Left v
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1016,101 +1004,117 @@ syncProgress = Sync.Progress need done warn allDone
         v = const ()
 
 viewRemoteBranch' ::
-  forall m.
-  (MonadIO m, MonadCatch m) =>
+  forall m r.
+  (MonadUnliftIO m) =>
   ReadRemoteNamespace ->
-  m (Either C.GitError (m (), Branch m, CodebasePath))
-viewRemoteBranch' (repo, sbh, path) = runExceptT @C.GitError do
+  ((Branch m, CodebasePath) -> m r) ->
+  m (Either C.GitError r)
+viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
   -- set up the cache dir
-  remotePath <- time "Git fetch" . withExceptT C.GitProtocolError $ pullBranch repo
-  ifM @(ExceptT C.GitError m)
-    (codebaseExists remotePath)
-    do
-      lift (sqliteCodebase "viewRemoteBranch.gitCache" remotePath) >>= \case
-        Left sv -> ExceptT . pure . Left . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath sv
-        Right (closeCodebase, codebase) -> do
-          -- try to load the requested branch from it
-          branch <- time "Git fetch (sbh)" $ case sbh of
-            -- no sub-branch was specified, so use the root.
-            Nothing ->
-              lift (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
-                -- this NoRootBranch case should probably be an error too.
-                Left Codebase1.NoRootBranch -> pure Branch.empty
-                Left (Codebase1.CouldntLoadRootBranch h) ->
-                  throwError . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
-                Left (Codebase1.CouldntParseRootBranch s) ->
-                  throwError . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
-                Right b -> pure b
-            -- load from a specific `ShortBranchHash`
-            Just sbh -> do
-              branchCompletions <- lift $ Codebase1.branchHashesByPrefix codebase sbh
-              case toList branchCompletions of
-                [] -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                [h] ->
-                  lift (Codebase1.getBranchForHash codebase h) >>= \case
-                    Just b -> pure b
-                    Nothing -> throwError . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-                _ -> throwError . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
-          case Branch.getAt path branch of
-            Just b -> pure (closeCodebase, b, remotePath)
-            Nothing -> throwError . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
-    -- else there's no initialized codebase at this repo; we pretend there's an empty one.
-    -- I'm thinking we should probably return an error value instead.
-    (pure (pure (), Branch.empty, remotePath))
+  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullBranch repo
 
--- Given a branch that is "after" the existing root of a given git repo,
--- stage and push the branch (as the new root) + dependencies to the repo.
-pushGitRootBranch ::
-  (MonadIO m, MonadCatch m) =>
+  -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
+  -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
+  -- somehow corrupt, or not even a Unison database.
+  --
+  -- FIXME it would probably make more sense to define some proper preconditions on `sqliteCodebase`, and perhaps update
+  -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
+  (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
+    case Sqlite.sqlError sqlError of
+      Sqlite.ErrorCan'tOpen -> throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
+      -- Unexpected error from sqlite
+      _ -> throwIO sqlError
+
+  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath \codebase -> do
+    -- try to load the requested branch from it
+    branch <- time "Git fetch (sbh)" $ case sbh of
+      -- no sub-branch was specified, so use the root.
+      Nothing ->
+        (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
+          -- this NoRootBranch case should probably be an error too.
+          Left Codebase1.NoRootBranch -> pure Branch.empty
+          Left (Codebase1.CouldntLoadRootBranch h) ->
+            throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
+          Left (Codebase1.CouldntParseRootBranch s) ->
+            throwIO . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
+          Right b -> pure b
+      -- load from a specific `ShortBranchHash`
+      Just sbh -> do
+        branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
+        case toList branchCompletions of
+          [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+          [h] ->
+            (Codebase1.getBranchForHash codebase h) >>= \case
+              Just b -> pure b
+              Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+          _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+    case Branch.getAt path branch of
+      Just b -> action (b, remotePath)
+      Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
+  case result of
+    Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
+    Right inner -> pure inner
+
+-- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
+-- the existing root.
+pushGitBranch ::
+  (MonadUnliftIO m) =>
   Connection ->
   Branch m ->
   WriteRepo ->
+  PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = runExceptT @C.GitError do
   -- pull the remote repo to the staging directory
   -- open a connection to the staging codebase
   -- create a savepoint on the staging codebase
   -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
-  -- do a `before` check on the staging codebase
-  -- if it passes, then release the savepoint (commit it), clean up, and git-push the result
-  -- if it fails, rollback to the savepoint and clean up.
+  -- if setting the remote root,
+  --   do a `before` check on the staging codebase
+  --   if it passes, proceed (see below)
+  --   if it fails, rollback to the savepoint and clean up.
+  -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
 
   -- set up the cache dir
   remotePath <- time "Git fetch" $ withExceptT C.GitProtocolError $ pullBranch (writeToRead repo)
-  destConn <- openOrCreateCodebaseConnection "push.dest" remotePath
+  ExceptT . withOpenOrCreateCodebaseConnection "push.dest" remotePath $ \destConn -> do
+    flip runReaderT destConn $ Q.savepoint "push"
+    flip State.execStateT emptySyncProgressState $
+      syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
+    flip runReaderT destConn do
+      result <- if setRoot
+        then do
+          let newRootHash = Branch.headHash branch
+          -- the call to runDB "handles" the possible DB error by bombing
+          (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
+            Nothing -> do
+              setRepoRoot newRootHash
+              Q.release "push"
+              pure $ Right ()
+            Just oldRootHash -> do
+              before oldRootHash newRootHash >>= \case
+                Nothing ->
+                  error $
+                    "I couldn't find the hash " ++ show newRootHash
+                      ++ " that I just synced to the cached copy of "
+                      ++ repoString
+                      ++ " in "
+                      ++ show remotePath
+                      ++ "."
+                Just False -> do
+                  Q.rollbackRelease "push"
+                  pure . Left . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                Just True -> do
+                  setRepoRoot newRootHash
+                  Q.release "push"
+                  pure $ Right ()
+        else do
+          Q.release "push"
+          pure $ Right ()
 
-  flip runReaderT destConn $ Q.savepoint "push"
-  lift . flip State.execStateT emptySyncProgressState $
-    syncInternal syncProgress srcConn destConn (Branch.transform lift branch)
-  flip runReaderT destConn do
-    let newRootHash = Branch.headHash branch
-    -- the call to runDB "handles" the possible DB error by bombing
-    (fmap . fmap) Cv.branchHash2to1 (runDB destConn Ops.loadMaybeRootCausalHash) >>= \case
-      Nothing -> do
-        setRepoRoot newRootHash
-        Q.release "push"
-      Just oldRootHash -> do
-        before oldRootHash newRootHash >>= \case
-          Nothing ->
-            error $
-              "I couldn't find the hash " ++ show newRootHash
-                ++ " that I just synced to the cached copy of "
-                ++ repoString
-                ++ " in "
-                ++ show remotePath
-                ++ "."
-          Just False -> do
-            Q.rollbackRelease "push"
-            throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-
-          Just True -> do
-            setRepoRoot newRootHash
-            Q.release "push"
-
-    Q.setJournalMode JournalMode.DELETE
-
+      Q.setJournalMode JournalMode.DELETE
+      pure result
   liftIO do
-    shutdownConnection destConn
     void $ push remotePath repo
   where
     repoString = Text.unpack $ printWriteRepo repo
@@ -1144,8 +1148,9 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
     --
     parseStatus :: Text -> Maybe (Bool, Bool)
     parseStatus status =
-      if all okLine statusLines then Just (hasDeleteWal, hasDeleteShm)
-      else Nothing
+      if all okLine statusLines
+        then Just (hasDeleteWal, hasDeleteShm)
+        else Nothing
       where
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
@@ -1172,11 +1177,13 @@ pushGitRootBranch srcConn branch repo = runExceptT @C.GitError do
         then pure False
         else case parseStatus status of
           Nothing ->
-            error $ "An error occurred during push.\n"
-                 <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
-                 <> Text.unpack status <> "\n\n"
-                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
-                 <> "and add any more details about how you encountered this!\n"
+            error $
+              "An error occurred during push.\n"
+                <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+                <> Text.unpack status
+                <> "\n\n"
+                <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
+                <> "and add any more details about how you encountered this!\n"
           Just (hasDeleteWal, hasDeleteShm) -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage

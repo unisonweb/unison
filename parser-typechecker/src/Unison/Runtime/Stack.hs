@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language DataKinds #-}
 {-# language BangPatterns #-}
@@ -17,8 +18,6 @@ module Unison.Runtime.Stack
   , Off
   , SZ
   , FP
-  , universalEq
-  , universalCompare
   , marshalToForeign
   , unull
   , bnull
@@ -49,15 +48,11 @@ import GHC.Exts as L (IsList(..))
 import Control.Monad (when)
 import Control.Monad.Primitive
 
-import Data.Ord (comparing)
-import Data.Foldable (fold)
-
 import Data.Foldable as F (toList, for_)
 import Data.Primitive.ByteArray
 import Data.Primitive.PrimArray
 import Data.Primitive.Array
 import Data.Sequence (Seq)
-import qualified Data.Sequence as Sq
 import Data.Word
 
 import Unison.Reference (Reference)
@@ -157,73 +152,6 @@ pattern CapV k us bs <- Captured k (ints -> us) (L.toList -> bs)
 {-# complete DataC, PAp, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, Captured, Foreign, BlackHole #-}
 {-# complete DataC, PApV, CapV, Foreign, BlackHole #-}
-
-closureNum :: Closure -> Int
-closureNum PAp{} = 0
-closureNum DataC{} = 1
-closureNum Captured{} = 2
-closureNum Foreign{} = 3
-closureNum BlackHole{} = error "BlackHole"
-
-universalEq
-  :: (Foreign -> Foreign -> Bool)
-  -> Closure
-  -> Closure
-  -> Bool
-universalEq frn = eqc False
-  where
-  eql cm l r = length l == length r && and (zipWith cm l r)
-  eqc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
-    = (if tyEq then rf1 == rf2 else True)
-   && ct1 == ct2
-   && eql (==) us1 us2
-   && eql (eqc $ tyEq || rf1 == Ty.anyRef) bs1 bs2
-  eqc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
-    = i1 == i2
-   && eql (==) us1 us2
-   && eql (eqc tyEq) bs1 bs2
-  eqc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
-    = k1 == k2
-   && eql (==) us1 us2
-   && eql (eqc True) bs1 bs2
-  eqc tyEq (Foreign fl) (Foreign fr)
-    | Just sl <- maybeUnwrapForeign Ty.listRef fl
-    , Just sr <- maybeUnwrapForeign Ty.listRef fr
-    = length sl == length sr && and (Sq.zipWith (eqc tyEq) sl sr)
-    | otherwise = frn fl fr
-  eqc _ c d = closureNum c == closureNum d
-
-
-universalCompare
-  :: (Foreign -> Foreign -> Ordering)
-  -> Closure
-  -> Closure
-  -> Ordering
-universalCompare frn = cmpc False
-  where
-  cmpl cm l r
-    = compare (length l) (length r) <> fold (zipWith cm l r)
-  cmpc tyEq (DataC rf1 ct1 us1 bs1) (DataC rf2 ct2 us2 bs2)
-    = (if tyEq then compare rf1 rf2 else EQ)
-   <> compare ct1 ct2
-   <> cmpl compare us1 us2
-   -- when comparing corresponding `Any` values, which have
-   -- existentials inside check that type references match
-   <> cmpl (cmpc $ tyEq || rf1 == Ty.anyRef) bs1 bs2
-  cmpc tyEq (PApV i1 us1 bs1) (PApV i2 us2 bs2)
-    = compare i1 i2
-   <> cmpl compare us1 us2
-   <> cmpl (cmpc tyEq) bs1 bs2
-  cmpc _ (CapV k1 us1 bs1) (CapV k2 us2 bs2)
-    = compare k1 k2
-   <> cmpl compare us1 us2
-   <> cmpl (cmpc True) bs1 bs2
-  cmpc tyEq (Foreign fl) (Foreign fr)
-    | Just sl <- maybeUnwrapForeign Ty.listRef fl
-    , Just sr <- maybeUnwrapForeign Ty.listRef fr
-    = comparing Sq.length sl sr <> fold (Sq.zipWith (cmpc tyEq) sl sr)
-    | otherwise = frn fl fr
-  cmpc _ c d = comparing closureNum c d
 
 marshalToForeign :: HasCallStack => Closure -> Foreign
 marshalToForeign (Foreign x) = x
@@ -391,13 +319,14 @@ instance MEM 'UN where
   {-# inline grab #-}
 
   ensure stki@(US ap fp sp stk) sze
-    | sze <= 0
-    || bytes (sp+sze+1) < ssz = pure stki
+    | sze <= 0 || bytes (sp+sze+1) < ssz = pure stki
     | otherwise = do
-      stk' <- resizeMutableByteArray stk (ssz+10240)
+      stk' <- resizeMutableByteArray stk (ssz+ext)
       pure $ US ap fp sp stk'
    where
    ssz = sizeofMutableByteArray stk
+   ext | bytes sze > 10240 = bytes sze + 4096
+       | otherwise = 10240
   {-# inline ensure #-}
 
   bump (US ap fp sp stk) = pure $ US ap fp (sp+1) stk
@@ -596,10 +525,13 @@ instance MEM 'BX where
     | sz <= 0 = pure stki
     | sp+sz+1 < ssz = pure stki
     | otherwise = do
-      stk' <- newArray (ssz+1280) BlackHole
+      stk' <- newArray (ssz+ext) BlackHole
       copyMutableArray stk' 0 stk 0 (sp+1)
       pure $ BS ap fp sp stk'
-    where ssz = sizeofMutableArray stk
+    where
+    ssz = sizeofMutableArray stk
+    ext | sz > 1280 = sz + 512
+        | otherwise = 1280
   {-# inline ensure #-}
 
   bump (BS ap fp sp stk) = pure $ BS ap fp (sp+1) stk

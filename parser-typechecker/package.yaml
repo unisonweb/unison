@@ -4,6 +4,7 @@ copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
 
 default-extensions:
   - ApplicativeDo
+  - BangPatterns
   - BlockArguments
   - DeriveFunctor
   - DeriveGeneric
@@ -17,6 +18,7 @@ default-extensions:
   - NamedFieldPuns
   - OverloadedStrings
   - PatternSynonyms
+  - RankNTypes
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications
@@ -46,6 +48,7 @@ library:
     - binary
     - bytes
     - bytestring
+    - bytestring-to-vector
     - cereal
     - containers >= 0.6.3
     - configurator
@@ -95,6 +98,7 @@ library:
     - mwc-random
     - NanoID
     - lucid
+    - semialign
     - servant
     - servant-docs
     - servant-openapi3
@@ -107,6 +111,8 @@ library:
     - temporary
     - terminal-size
     - text
+    - text-short
+    - these
     - time
     - tls
     - transformers

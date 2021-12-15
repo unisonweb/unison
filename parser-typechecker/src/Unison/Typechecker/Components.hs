@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Typechecker.Components (minimize, minimize') where
 
 import Unison.Prelude

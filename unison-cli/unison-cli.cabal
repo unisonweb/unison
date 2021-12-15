@@ -21,6 +21,100 @@ flag optimized
   manual: True
   default: False
 
+library
+  exposed-modules:
+      Compat
+      Unison.Codebase.Editor.AuthorInfo
+      Unison.Codebase.Editor.Command
+      Unison.Codebase.Editor.HandleCommand
+      Unison.Codebase.Editor.HandleInput
+      Unison.Codebase.Editor.HandleInput.LoopState
+      Unison.Codebase.Editor.HandleInput.NamespaceDependencies
+      Unison.Codebase.Editor.Input
+      Unison.Codebase.Editor.Output
+      Unison.Codebase.Editor.Output.BranchDiff
+      Unison.Codebase.Editor.Output.DumpNamespace
+      Unison.Codebase.Editor.Propagate
+      Unison.Codebase.Editor.SlurpComponent
+      Unison.Codebase.Editor.SlurpResult
+      Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.UriParser
+      Unison.Codebase.Editor.VersionParser
+      Unison.Codebase.TranscriptParser
+      Unison.CommandLine
+      Unison.CommandLine.DisplayValues
+      Unison.CommandLine.FuzzySelect
+      Unison.CommandLine.Globbing
+      Unison.CommandLine.InputPattern
+      Unison.CommandLine.InputPatterns
+      Unison.CommandLine.Main
+      Unison.CommandLine.OutputMessages
+      Unison.CommandLine.Welcome
+  other-modules:
+      Paths_unison_cli
+  hs-source-dirs:
+      src
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      ListLike
+    , async
+    , base
+    , bytestring
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , directory
+    , errors
+    , extra
+    , filepath
+    , haskeline
+    , lens
+    , megaparsec >=5.0.0 && <7.0.0
+    , mtl
+    , nonempty-containers
+    , open-browser
+    , random >=1.2.0
+    , regex-tdfa
+    , stm
+    , text
+    , transformers
+    , unison-codebase-sqlite
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-util
+    , unison-util-relation
+    , unliftio
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
+  if !os(windows)
+    build-depends:
+        unix
+  default-language: Haskell2010
+
 executable integration-tests
   main-is: Suite.hs
   other-modules:
@@ -30,27 +124,62 @@ executable integration-tests
       integration-tests
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
-  ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+      ViewPatterns
+  ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
-      base
+      ListLike
+    , async
+    , base
+    , bytestring
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , directory
     , easytest
+    , errors
+    , extra
+    , filepath
+    , haskeline
+    , lens
+    , megaparsec >=5.0.0 && <7.0.0
+    , mtl
+    , nonempty-containers
+    , open-browser
     , process
+    , random >=1.2.0
+    , regex-tdfa
     , shellmet
+    , stm
     , text
+    , time
+    , transformers
+    , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-util
+    , unison-util-relation
+    , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -63,31 +192,63 @@ executable transcripts
       transcripts
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
+      ViewPatterns
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
   build-tools:
       unison
   build-depends:
-      base
+      ListLike
+    , async
+    , base
+    , bytestring
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
     , directory
     , easytest
+    , errors
+    , extra
     , filepath
+    , haskeline
+    , lens
+    , megaparsec >=5.0.0 && <7.0.0
+    , mtl
+    , nonempty-containers
+    , open-browser
     , process
+    , random >=1.2.0
+    , regex-tdfa
     , shellmet
+    , stm
     , text
+    , transformers
+    , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-util
+    , unison-util-relation
+    , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010
@@ -96,7 +257,6 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
-      Compat
       System.Path
       Version
       Paths_unison_cli
@@ -104,39 +264,139 @@ executable unison
       unison
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
       DerivingStrategies
       DoAndIfThenElse
       FlexibleContexts
       FlexibleInstances
+      GeneralizedNewtypeDeriving
       LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
-  ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
+      ViewPatterns
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
-      base
+      ListLike
+    , async
+    , base
     , bytestring
     , configurator
+    , containers >=0.6.3
+    , cryptonite
     , directory
     , errors
+    , extra
     , filepath
-    , megaparsec
+    , haskeline
+    , lens
+    , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
+    , open-browser
     , optparse-applicative >=0.16.1.0
+    , random >=1.2.0
+    , regex-tdfa
     , shellmet
+    , stm
     , template-haskell
     , temporary
     , text
+    , transformers
+    , unison-cli
+    , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker
     , unison-prelude
+    , unison-util
+    , unison-util-relation
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  if !os(windows)
-    build-depends:
-        unix
+  default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Unison.Test.ClearCache
+      Unison.Test.CommandLine
+      Unison.Test.GitSync
+      Unison.Test.Ucm
+      Unison.Test.UriParser
+      Unison.Test.VersionParser
+      Paths_unison_cli
+  hs-source-dirs:
+      tests
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveFunctor
+      DeriveFoldable
+      DeriveTraversable
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      ListLike
+    , async
+    , base
+    , bytestring
+    , configurator
+    , containers >=0.6.3
+    , cryptonite
+    , directory
+    , easytest
+    , errors
+    , extra
+    , filepath
+    , haskeline
+    , here
+    , lens
+    , megaparsec >=5.0.0 && <7.0.0
+    , mtl
+    , nonempty-containers
+    , open-browser
+    , random >=1.2.0
+    , regex-tdfa
+    , shellmet
+    , stm
+    , temporary
+    , text
+    , transformers
+    , unison-cli
+    , unison-codebase-sqlite
+    , unison-core1
+    , unison-parser-typechecker
+    , unison-prelude
+    , unison-util
+    , unison-util-relation
+    , unliftio
+  if flag(optimized)
+    ghc-options: -O2 -funbox-strict-fields
   default-language: Haskell2010

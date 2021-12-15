@@ -2,24 +2,60 @@ name: unison-cli
 github: unisonweb/unison
 copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
-default-extensions:
-  - ApplicativeDo
-  - BlockArguments
-  - DeriveFunctor
-  - DerivingStrategies
-  - DoAndIfThenElse
-  - FlexibleContexts
-  - FlexibleInstances
-  - LambdaCase
-  - MultiParamTypeClasses
-  - ScopedTypeVariables
-  - TupleSections
-  - TypeApplications
-
 flags:
   optimized:
     manual: true
     default: false
+
+ghc-options: -Wall
+
+dependencies:
+  - ListLike
+  - async
+  - base
+  - bytestring
+  - configurator
+  - containers >= 0.6.3
+  - nonempty-containers
+  - cryptonite
+  - directory
+  - errors
+  - extra
+  - filepath
+  - haskeline
+  - lens
+  - megaparsec >= 5.0.0 && < 7.0.0
+  - mtl
+  - transformers
+  - open-browser
+  - random >= 1.2.0
+  - regex-tdfa
+  - stm
+  - text
+  - unison-codebase-sqlite
+  - unison-core1
+  - unison-parser-typechecker
+  - unison-prelude
+  - unison-util
+  - unison-util-relation
+  - unliftio
+
+library:
+  source-dirs: src
+  when:
+    - condition: '!os(windows)'
+      dependencies: unix
+
+tests:
+  tests:
+    dependencies:
+      - easytest
+      - here
+      - shellmet
+      - temporary
+      - unison-cli
+    main: Main.hs
+    source-dirs: tests
 
 executables:
   unison:
@@ -27,43 +63,20 @@ executables:
     main: Main.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
     dependencies:
-      - base
-      - bytestring
-      - configurator
-      - directory
-      - directory
-      - errors
-      - filepath
-      - megaparsec
-      - mtl
       - optparse-applicative >= 0.16.1.0
       - shellmet
       - template-haskell
       - temporary
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
-      - unliftio
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
+      - unison-cli
 
   transcripts:
     source-dirs: transcripts
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
     dependencies:
-      - base
-      - directory
       - easytest
-      - filepath
-      - shellmet
       - process
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
+      - shellmet
     build-tools:
       - unison-cli:unison
 
@@ -72,15 +85,35 @@ executables:
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
-      - base
       - easytest
       - process
       - shellmet
-      - text
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-prelude
+      - time
 
 when:
   - condition: flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

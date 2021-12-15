@@ -37,34 +37,22 @@ library
       Unison.Codebase.Causal.FoldHistory
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
-      Unison.Codebase.Editor.AuthorInfo
-      Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.Git
-      Unison.Codebase.Editor.HandleCommand
-      Unison.Codebase.Editor.HandleInput
-      Unison.Codebase.Editor.Input
-      Unison.Codebase.Editor.Output
-      Unison.Codebase.Editor.Output.BranchDiff
-      Unison.Codebase.Editor.Output.DumpNamespace
-      Unison.Codebase.Editor.Propagate
       Unison.Codebase.Editor.RemoteRepo
-      Unison.Codebase.Editor.SlurpComponent
-      Unison.Codebase.Editor.SlurpResult
-      Unison.Codebase.Editor.TodoOutput
-      Unison.Codebase.Editor.UriParser
-      Unison.Codebase.Editor.VersionParser
       Unison.Codebase.Execute
       Unison.Codebase.FileCodebase
       Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
       Unison.Codebase.Patch
       Unison.Codebase.Path
       Unison.Codebase.Path.Parse
+      Unison.Codebase.PushBehavior
       Unison.Codebase.Reflog
       Unison.Codebase.Runtime
       Unison.Codebase.Serialization
@@ -77,21 +65,11 @@ library
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
       Unison.Codebase.TermEdit.Typing
-      Unison.Codebase.TranscriptParser
       Unison.Codebase.Type
       Unison.Codebase.TypeEdit
       Unison.Codebase.Verbosity
       Unison.Codebase.Watch
       Unison.CodebasePath
-      Unison.CommandLine
-      Unison.CommandLine.DisplayValues
-      Unison.CommandLine.FuzzySelect
-      Unison.CommandLine.Globbing
-      Unison.CommandLine.InputPattern
-      Unison.CommandLine.InputPatterns
-      Unison.CommandLine.Main
-      Unison.CommandLine.OutputMessages
-      Unison.CommandLine.Welcome
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
@@ -145,6 +123,7 @@ library
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
+      Unison.Server.Endpoints.Projects
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
@@ -180,12 +159,13 @@ library
       Unison.Util.Free
       Unison.Util.Less
       Unison.Util.Logger
-      Unison.Util.Map
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
+      Unison.Util.Rope
       Unison.Util.Star3
       Unison.Util.SyntaxText
+      Unison.Util.Text
       Unison.Util.TQueue
       Unison.Util.TransitiveClosure
   other-modules:
@@ -194,6 +174,7 @@ library
       src
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -207,6 +188,7 @@ library
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -225,6 +207,7 @@ library
     , binary
     , bytes
     , bytestring
+    , bytestring-to-vector
     , cereal
     , configurator
     , containers >=0.6.3
@@ -273,6 +256,7 @@ library
     , regex-tdfa
     , safe
     , safe-exceptions
+    , semialign
     , servant
     , servant-docs
     , servant-openapi3
@@ -285,6 +269,8 @@ library
     , temporary
     , terminal-size
     , text
+    , text-short
+    , these
     , time
     , tls
     , transformers
@@ -319,6 +305,7 @@ executable prettyprintdemo
       prettyprintdemo
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -332,6 +319,7 @@ executable prettyprintdemo
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -353,17 +341,14 @@ executable tests
       Unison.Test.ABT
       Unison.Test.ANF
       Unison.Test.Cache
-      Unison.Test.ClearCache
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.ColorText
-      Unison.Test.CommandLine
       Unison.Test.Common
       Unison.Test.DataDeclaration
       Unison.Test.FileParser
-      Unison.Test.GitSync
       Unison.Test.Lexer
       Unison.Test.MCode
       Unison.Test.Range
@@ -377,20 +362,19 @@ executable tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.TypeError
       Unison.Test.TypePrinter
-      Unison.Test.Ucm
       Unison.Test.UnisonSources
-      Unison.Test.UriParser
       Unison.Test.Util.Bytes
       Unison.Test.Util.PinBoard
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
+      Unison.Test.Util.Text
       Unison.Test.Var
-      Unison.Test.VersionParser
       Paths_unison_parser_typechecker
   hs-source-dirs:
       tests
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -404,6 +388,7 @@ executable tests
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
@@ -452,6 +437,7 @@ benchmark runtime
       benchmarks/runtime
   default-extensions:
       ApplicativeDo
+      BangPatterns
       BlockArguments
       DeriveFunctor
       DeriveGeneric
@@ -465,6 +451,7 @@ benchmark runtime
       NamedFieldPuns
       OverloadedStrings
       PatternSynonyms
+      RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications

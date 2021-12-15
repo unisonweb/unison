@@ -1,36 +1,98 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE ViewPatterns #-}
-
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase
-  ( Codebase (..),
-    CodebasePath,
-    GetRootBranchError (..),
-    getBranchForHash,
-    getCodebaseDir,
-    isBlank,
-    SyncToDir,
-    addDefsToCodebase,
-    installUcmDependencies,
+  ( Codebase,
+
+    -- * Terms
+    getTerm,
+    unsafeGetTerm,
+    unsafeGetTermWithType,
     getTypeOfTerm,
+    unsafeGetTypeOfTermById,
+    isTerm,
+    putTerm,
+
+    -- ** Referents (sorta-termlike)
     getTypeOfReferent,
-    lca,
-    lookupWatchCache,
-    toCodeLookup,
-    typeLookupForDependencies,
-    importRemoteBranch,
-    viewRemoteBranch,
+
+    -- ** Search
     termsOfType,
     termsMentioningType,
-    dependents,
-    isTerm,
+    termReferencesByPrefix,
+    termReferentsByPrefix,
+
+    -- * Type declarations
+    getTypeDeclaration,
+    unsafeGetTypeDeclaration,
+    putTypeDeclaration,
+    typeReferencesByPrefix,
     isType,
+
+    -- * Branches
+    branchExists,
+    getBranchForHash,
+    putBranch,
+    branchHashesByPrefix,
+    lca,
+    beforeImpl,
+
+    -- * Root branch
+    getRootBranch,
+    GetRootBranchError (..),
+    isBlank,
+    putRootBranch,
+    rootBranchUpdates,
+
+    -- * Patches
+    patchExists,
+    getPatch,
+    putPatch,
+
+    -- * Watches
+    getWatch,
+    lookupWatchCache,
+    watches,
+    putWatch,
+    clearWatches,
+
+    -- * Reflog
+    getReflog,
+    appendReflog,
+
+    -- * Unambiguous hash length
+    hashLength,
+    branchHashLength,
+
+    -- * Dependents
+    dependents,
+
+    -- * Sync
+
+    -- ** Local sync
+    syncFromDirectory,
+    syncToDirectory,
+
+    -- ** Remote sync
+    viewRemoteBranch,
+    importRemoteBranch,
+    Preprocessing(..),
+    pushGitBranch,
+    PushGitBranchOpts (..),
+
+    -- * Codebase path
+    getCodebaseDir,
+    CodebasePath,
+    SyncToDir,
+
+    -- * Misc
+    addDefsToCodebase,
+    installUcmDependencies,
+    toCodeLookup,
+    typeLookupForDependencies,
   )
 where
 
 import Control.Error (rightMay)
 import Control.Error.Util (hush)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -45,8 +107,15 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.Codebase.Type
+  ( Codebase (..),
+    GetRootBranchError (..),
+    GitError (GitCodebaseError),
+    PushGitBranchOpts (..),
+    SyncToDir,
+  )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -57,6 +126,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import qualified Unison.Term as Term
 import Unison.Type (Type)
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -64,37 +134,43 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import UnliftIO (MonadUnliftIO)
+import Control.Monad.Except (ExceptT(ExceptT))
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Except (throwE)
 
--- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
--- If not found, attempt to find it in the Codebase (sqlite)
+-- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
 getBranchForHash codebase h =
-  let
-    nestedChildrenForDepth depth b =
-      if depth == 0 then []
-      else
-        b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
+  -- Attempt to find the Branch in the current codebase cache and root up to 3 levels deep
+  -- If not found, attempt to find it in the Codebase (sqlite)
+  let nestedChildrenForDepth depth b =
+        if depth == 0
+          then []
+          else b : (Map.elems (Branch._children (Branch.head b)) >>= nestedChildrenForDepth (depth - 1))
 
-    headHashEq = (h ==) . Branch.headHash
+      headHashEq = (h ==) . Branch.headHash
 
-    find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
-  in do
-  rootBranch <- hush <$> getRootBranch codebase
-  case rootBranch of
-    Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-    Nothing -> getBranchForHashImpl codebase h
+      find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
+   in do
+        rootBranch <- hush <$> getRootBranch codebase
+        case rootBranch of
+          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
+          Nothing -> getBranchForHashImpl codebase h
 
+-- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
 lca code b1@(Branch.headHash -> h1) b2@(Branch.headHash -> h2) = case lcaImpl code of
   Nothing -> Branch.lca b1 b2
   Just lca -> do
     eb1 <- branchExists code h1
     eb2 <- branchExists code h2
-    if eb1 && eb2 then do
-      lca h1 h2 >>= \case
-        Just h -> getBranchForHash code h
-        Nothing -> pure Nothing -- no common ancestor
-    else Branch.lca b1 b2
+    if eb1 && eb2
+      then do
+        lca h1 h2 >>= \case
+          Just h -> getBranchForHash code h
+          Nothing -> pure Nothing -- no common ancestor
+      else Branch.lca b1 b2
 
 debug :: Bool
 debug = False
@@ -102,19 +178,26 @@ debug = False
 -- | Write all of UCM's dependencies (builtins types and an empty namespace) into the codebase
 installUcmDependencies :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 installUcmDependencies c = do
-  let uf = (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
-                                     (Map.fromList Builtin.builtinEffectDecls)
-                                     [Builtin.builtinTermsSrc Parser.Intrinsic]
-                                     mempty)
+  let uf =
+        ( UF.typecheckedUnisonFile
+            (Map.fromList Builtin.builtinDataDecls)
+            (Map.fromList Builtin.builtinEffectDecls)
+            [Builtin.builtinTermsSrc Parser.Intrinsic]
+            mempty
+        )
   addDefsToCodebase c uf
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.
-addDefsToCodebase :: forall m v a. (Monad m, Var v, Show a)
-  => Codebase m v a -> UF.TypecheckedUnisonFile v a -> m ()
+addDefsToCodebase ::
+  forall m v a.
+  (Monad m, Var v, Show a) =>
+  Codebase m v a ->
+  UF.TypecheckedUnisonFile v a ->
+  m ()
 addDefsToCodebase c uf = do
   traverse_ (goType Right) (UF.dataDeclarationsId' uf)
-  traverse_ (goType Left)  (UF.effectDeclarationsId' uf)
+  traverse_ (goType Left) (UF.effectDeclarationsId' uf)
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
@@ -127,89 +210,122 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
-lookupWatchCache :: (Monad m) => Codebase m v a -> Reference -> m (Maybe (Term v a))
-lookupWatchCache codebase (Reference.DerivedId h) = do
+-- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
+--
+-- @
+-- lookupWatchCache codebase ref =
+--   runMaybeT do
+--     MaybeT (getWatch codebase RegularWatch ref)
+--       <|> MaybeT (getWatch codebase TestWatch ref))
+-- @
+lookupWatchCache :: (Monad m) => Codebase m v a -> Reference.Id -> m (Maybe (Term v a))
+lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
-lookupWatchCache _ Reference.Builtin{} = pure Nothing
 
-typeLookupForDependencies
-  :: (Monad m, Var v, BuiltinAnnotation a)
-  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies ::
+  (Monad m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Set Reference ->
+  m (TL.TypeLookup v a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
- where
-  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $
-    getTypeOfTerm codebase ref >>= \case
-      Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
-      Nothing  -> getTypeDeclaration codebase id >>= \case
-        Just (Left ed) ->
-          pure $ TypeLookup mempty mempty (Map.singleton ref ed)
-        Just (Right dd) ->
-          pure $ TypeLookup mempty (Map.singleton ref dd) mempty
-        Nothing -> pure mempty
-  go tl Reference.Builtin{} = pure tl -- codebase isn't consulted for builtins
+  where
+    go tl ref@(Reference.DerivedId id) =
+      fmap (tl <>) $
+        getTypeOfTerm codebase ref >>= \case
+          Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
+          Nothing ->
+            getTypeDeclaration codebase id >>= \case
+              Just (Left ed) ->
+                pure $ TypeLookup mempty mempty (Map.singleton ref ed)
+              Just (Right dd) ->
+                pure $ TypeLookup mempty (Map.singleton ref dd) mempty
+              Nothing -> pure mempty
+    go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
 toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
-getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a -> Reference -> m (Maybe (Type v a))
+-- | Get the type of a term.
+--
+-- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
+-- 'putTerm'.
+getTypeOfTerm ::
+  (Applicative m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Reference ->
+  m (Maybe (Type v a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
-  r@Reference.Builtin{} ->
-    pure $   fmap (const builtinAnnotation)
+  r@Reference.Builtin {} ->
+    pure $
+      fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
-getTypeOfReferent :: (BuiltinAnnotation a, Var v, Monad m)
-                  => Codebase m v a -> Referent.Referent -> m (Maybe (Type v a))
-getTypeOfReferent c (Referent.Ref r) = getTypeOfTerm c r
-getTypeOfReferent c (Referent.Con r cid _) =
-  getTypeOfConstructor c r cid
+-- | Get the type of a referent.
+getTypeOfReferent ::
+  (BuiltinAnnotation a, Var v, Monad m) =>
+  Codebase m v a ->
+  Referent.Referent ->
+  m (Maybe (Type v a))
+getTypeOfReferent c = \case
+  Referent.Ref r -> getTypeOfTerm c r
+  Referent.Con r _ -> getTypeOfConstructor c r
 
--- | The dependents of a builtin type includes the set of builtin terms which
--- mention that type.
+-- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
+-- builtin type.
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r
-    = Set.union (Builtin.builtinTypeDependents r)
+dependents c r =
+  Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
-  <$> dependentsImpl c r
+    <$> dependentsImpl c r
 
+-- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
-termsOfType c ty =
+termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
+
+-- | Get all terms which match the exact type the provided reference points to.
+termsOfTypeByReference :: (Var v, Functor m) => Codebase m v a -> Reference -> m (Set Referent.Referent)
+termsOfTypeByReference c r =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
     . Set.map (fmap Reference.DerivedId)
     <$> termsOfTypeImpl c r
-  where r = Hashing.typeToReference ty
 
+-- | Get the set of terms-or-constructors mention the given type anywhere in their signature.
 termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
 termsMentioningType c ty =
   Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
     . Set.map (fmap Reference.DerivedId)
     <$> termsMentioningTypeImpl c r
-  where r = Hashing.typeToReference ty
+  where
+    r = Hashing.typeToReference ty
 
--- todo: could have a way to look this up just by checking for a file rather than loading it
-isTerm :: (Applicative m, Var v, BuiltinAnnotation a)
-       => Codebase m v a -> Reference -> m Bool
+-- | Check whether a reference is a term.
+isTerm ::
+  (Applicative m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a ->
+  Reference ->
+  m Bool
 isTerm code = fmap isJust . getTypeOfTerm code
 
 isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
-  Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
+  Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
+-- | Return whether the root branch is empty.
 isBlank :: Applicative m => Codebase m v a -> m Bool
 isBlank codebase = do
   root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
@@ -217,26 +333,39 @@ isBlank codebase = do
 
 -- * Git stuff
 
+-- | An optional preprocessing step to run on branches
+-- before they're imported into the local codebase.
+data Preprocessing m
+  = Unmodified
+  | Preprocessed (Branch m -> m (Branch m))
+
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
-  MonadIO m =>
+  MonadUnliftIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
+  Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT do
-  (cleanup, branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
-  withStatus "Importing downloaded files into local codebase..." $
-    time "SyncFromDirectory" $
-      lift $ syncFromDirectory codebase cacheDir mode branch
-  ExceptT
-    let h = Branch.headHash branch
-        err = Left . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-    in time "load fresh local branch after sync" $
-      (getBranchForHash codebase h <&> maybe err Right) <* cleanup
+importRemoteBranch codebase ns mode preprocess = runExceptT $ do
+  branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+         withStatus "Importing downloaded files into local codebase..." $ do
+           processedBranch <- preprocessOp branch
+           time "SyncFromDirectory" $ do
+             syncFromDirectory codebase cacheDir mode processedBranch
+             pure $ Branch.headHash processedBranch
+  time "load fresh local branch after sync" $ do
+    lift (getBranchForHash codebase branchHash) >>= \case
+      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Just result -> pure $ result
+  where
+    preprocessOp :: Branch m -> m (Branch m)
+    preprocessOp = case preprocess of
+      Preprocessed f -> f
+      Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
@@ -244,7 +373,40 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
-  m (Either GitError (m (), Branch m))
-viewRemoteBranch codebase ns = runExceptT do
-  (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
-  pure (cleanup, branch)
+  (Branch m -> m r) ->
+  m (Either GitError r)
+viewRemoteBranch codebase ns action =
+  viewRemoteBranch' codebase ns (\(b, _dir) -> action b)
+
+-- | Like 'getTerm', for when the term is known to exist in the codebase.
+unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)
+unsafeGetTerm codebase rid =
+  getTerm codebase rid >>= \case
+    Nothing -> error (reportBug "E520818" ("term " ++ show rid ++ " not found"))
+    Just term -> pure term
+
+-- | Like 'getTypeDeclaration', for when the type declaration is known to exist in the codebase.
+unsafeGetTypeDeclaration :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Decl v a)
+unsafeGetTypeDeclaration codebase rid =
+  getTypeDeclaration codebase rid >>= \case
+    Nothing -> error (reportBug "E129043" ("type decl " ++ show rid ++ " not found"))
+    Just decl -> pure decl
+
+-- | Like 'getTypeOfTerm', but for when the term is known to exist in the codebase.
+unsafeGetTypeOfTermById :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Type v a)
+unsafeGetTypeOfTermById codebase rid =
+  getTypeOfTermImpl codebase rid >>= \case
+    Nothing -> error (reportBug "E377910" ("type of term " ++ show rid ++ " not found"))
+    Just ty -> pure ty
+
+-- | Like 'unsafeGetTerm', but returns the type of the term, too.
+unsafeGetTermWithType :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a, Type v a)
+unsafeGetTermWithType codebase rid = do
+  term <- unsafeGetTerm codebase rid
+  ty <-
+    -- A term is sometimes stored with a type annotation (specifically, when the annotation is different from the
+    -- inferred type). In this case, we can avoid looking up the type separately.
+    case term of
+      Term.Ann' _ ty -> pure ty
+      _ -> unsafeGetTypeOfTermById codebase rid
+  pure (term, ty)

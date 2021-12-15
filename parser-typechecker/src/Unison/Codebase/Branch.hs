@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -22,6 +22,7 @@ module Unison.Codebase.Branch
   , uncons
   , empty
   , empty0
+  , discardHistory
   , discardHistory0
   , toCausalRaw
   , transform
@@ -38,13 +39,16 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , children
+  , nonEmptyChildren
   , deepEdits'
   , toList0
   -- * step
   , stepManyAt
   , stepManyAtM
-  , stepManyAt0
   , stepEverywhere
+  , batchUpdates
+  , batchUpdatesM
+  , UpdateStrategy(..)
   -- *
   , addTermName
   , addTypeName
@@ -75,6 +79,8 @@ module Unison.Codebase.Branch
   , cachedRead
   , Cache
   , sync
+
+  , consBranchSnapshot
   ) where
 
 import Unison.Prelude hiding (empty)
@@ -105,7 +111,7 @@ import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( TypeReference )
 import           Unison.Referent                ( Referent )
 
 import qualified U.Util.Cache             as Cache
@@ -114,11 +120,25 @@ import           Unison.Util.Relation            ( Relation )
 import qualified Unison.Util.Relation4         as R4
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
+import qualified Data.Semialign as Align
+import Data.These (These(..))
+import qualified Unison.Util.Relation as Relation
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
 newtype Branch m = Branch { _history :: UnwrappedBranch m }
   deriving (Eq, Ord)
+
+history :: Iso' (Branch m) (UnwrappedBranch m)
+history = iso _history Branch
+
+instance AsEmpty (Branch m) where
+  _Empty = prism' (const empty) matchEmpty
+    where
+      matchEmpty b0
+        | b0 == empty = Just ()
+        | otherwise = Nothing
+
 type UnwrappedBranch m = Causal m Raw (Branch0 m)
 
 type Hash = Causal.RawHash Raw
@@ -135,7 +155,7 @@ type Star r n = Metadata.Star r n
 -- The @deep*@ fields are derived from the four above.
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
-  , _types :: Star Reference NameSegment
+  , _types :: Star TypeReference NameSegment
   , _children :: Map NameSegment (Branch m)
     -- ^ Note the 'Branch' here, not 'Branch0'.
     -- Every level in the tree has a history.
@@ -143,12 +163,15 @@ data Branch0 m = Branch0
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
   , deepTerms :: Relation Referent Name
-  , deepTypes :: Relation Reference Name
+  , deepTypes :: Relation TypeReference Name
   , deepTermMetadata :: Metadata.R4 Referent Name
-  , deepTypeMetadata :: Metadata.R4 Reference Name
+  , deepTypeMetadata :: Metadata.R4 TypeReference Name
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
+
+edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
+edits = lens _edits (\b0 e -> b0{_edits=e})
 
 -- Represents a shallow diff of a Branch0.
 -- Each of these `Star`s contain metadata as well, so an entry in
@@ -156,8 +179,8 @@ data Branch0 m = Branch0
 data BranchDiff = BranchDiff
   { addedTerms :: Star Referent NameSegment
   , removedTerms :: Star Referent NameSegment
-  , addedTypes :: Star Reference NameSegment
-  , removedTypes :: Star Reference NameSegment
+  , addedTypes :: Star TypeReference NameSegment
+  , removedTypes :: Star TypeReference NameSegment
   , changedPatches :: Map NameSegment Patch.PatchDiff
   } deriving (Eq, Ord, Show)
 
@@ -178,34 +201,49 @@ instance Monoid BranchDiff where
 -- The raw Branch
 data Raw = Raw
   { _termsR :: Star Referent NameSegment
-  , _typesR :: Star Reference NameSegment
+  , _typesR :: Star TypeReference NameSegment
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
   }
 
-makeLenses ''Branch
-makeLensesFor [("_edits", "edits")] ''Branch0
-
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
 
-deepTypeReferences :: Branch0 m -> Set Reference
+deepTypeReferences :: Branch0 m -> Set TypeReference
 deepTypeReferences = R.dom . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
-terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
+terms =
+  lens
+    _terms
+    \branch terms ->
+      branch {_terms = terms}
+        & deriveDeepTerms
+        & deriveDeepTermMetadata
 
-types :: Lens' (Branch0 m) (Star Reference NameSegment)
-types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
+types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
+types =
+  lens
+    _types
+    \branch types ->
+      branch {_types = types}
+        & deriveDeepTypes
+        & deriveDeepTypeMetadata
 
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
+
+nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
+nonEmptyChildren b =
+  b
+  & _children
+  & Map.filter (not . isEmpty0 . head)
 
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 ::
   forall m.
   Metadata.Star Referent NameSegment ->
-  Metadata.Star Reference NameSegment ->
+  Metadata.Star TypeReference NameSegment ->
   Map NameSegment (Branch m) ->
   Map NameSegment (EditHash, m Patch) ->
   Branch0 m
@@ -215,58 +253,106 @@ branch0 terms types children edits =
       _types = types,
       _children = children,
       _edits = edits,
-      deepTerms = deepTerms',
-      deepTypes = deepTypes',
-      deepTermMetadata = deepTermMetadata',
-      deepTypeMetadata = deepTypeMetadata',
-      deepPaths = deepPaths',
-      deepEdits = deepEdits'
+      -- These are all overwritten immediately
+      deepTerms = R.empty,
+      deepTypes = R.empty,
+      deepTermMetadata = R4.empty,
+      deepTypeMetadata = R4.empty,
+      deepPaths = Set.empty,
+      deepEdits = Map.empty
     }
+    & deriveDeepTerms
+    & deriveDeepTypes
+    & deriveDeepTermMetadata
+    & deriveDeepTypeMetadata
+    & deriveDeepPaths
+    & deriveDeepEdits
+
+-- | Derive the 'deepTerms' field of a branch.
+deriveDeepTerms :: Branch0 m -> Branch0 m
+deriveDeepTerms branch =
+  branch {deepTerms = makeDeepTerms (_terms branch) (nonEmptyChildren branch)}
   where
-    children' :: [(NameSegment, Branch m)]
-    children' =
-      Map.toList children
-    deepTerms' :: Relation Referent Name
-    deepTerms' =
-      R.mapRanMonotonic Name.fromSegment (Star3.d1 terms) <> foldMap go children'
+    makeDeepTerms :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Relation Referent Name
+    makeDeepTerms terms children =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 terms) <> ifoldMap go children
       where
-        go :: (NameSegment, Branch m) -> Relation Referent Name
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Relation Referent Name
+        go n b =
           R.mapRan (Name.cons n) (deepTerms $ head b)
-    deepTypes' :: Relation Reference Name
-    deepTypes' =
-      R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> foldMap go children'
+
+-- | Derive the 'deepTypes' field of a branch.
+deriveDeepTypes :: Branch0 m -> Branch0 m
+deriveDeepTypes branch =
+  branch {deepTypes = makeDeepTypes (_types branch) (nonEmptyChildren branch)}
+  where
+    makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
+    makeDeepTypes types children =
+      R.mapRanMonotonic Name.fromSegment (Star3.d1 types) <> ifoldMap go children
       where
-        go :: (NameSegment, Branch m) -> Relation Reference Name
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Relation TypeReference Name
+        go n b =
           R.mapRan (Name.cons n) (deepTypes $ head b)
-    deepTermMetadata' :: Metadata.R4 Referent Name
-    deepTermMetadata' =
-      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> foldMap go children'
+
+-- | Derive the 'deepTermMetadata' field of a branch.
+deriveDeepTermMetadata :: Branch0 m -> Branch0 m
+deriveDeepTermMetadata branch =
+  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (nonEmptyChildren branch)}
+  where
+    makeDeepTermMetadata :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Referent Name
+    makeDeepTermMetadata terms children =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 terms) <> ifoldMap go children
       where
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Metadata.R4 Referent Name
+        go n b =
           R4.mapD2 (Name.cons n) (deepTermMetadata $ head b)
-    deepTypeMetadata' :: Metadata.R4 Reference Name
-    deepTypeMetadata' =
-      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> foldMap go children'
+
+-- | Derive the 'deepTypeMetadata' field of a branch.
+deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
+deriveDeepTypeMetadata branch =
+  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (nonEmptyChildren branch)}
+  where
+    makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
+    makeDeepTypeMetadata types children =
+      R4.mapD2Monotonic Name.fromSegment (Metadata.starToR4 types) <> ifoldMap go children
       where
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Metadata.R4 TypeReference Name
+        go n b =
           R4.mapD2 (Name.cons n) (deepTypeMetadata $ head b)
-    deepPaths' :: Set Path
-    deepPaths' =
-      Set.mapMonotonic Path.singleton (Map.keysSet children) <> foldMap go children'
+
+-- | Derive the 'deepPaths' field of a branch.
+deriveDeepPaths :: Branch0 m -> Branch0 m
+deriveDeepPaths branch =
+  branch {deepPaths = makeDeepPaths (nonEmptyChildren branch)}
+  where
+    makeDeepPaths :: Map NameSegment (Branch m) -> Set Path
+    makeDeepPaths children =
+      Set.mapMonotonic Path.singleton (Map.keysSet children) <> ifoldMap go children
       where
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Set Path
+        go n b =
           Set.map (Path.cons n) (deepPaths $ head b)
-    deepEdits' :: Map Name EditHash
-    deepEdits' =
-      Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> foldMap go children'
+
+-- | Derive the 'deepEdits' field of a branch.
+deriveDeepEdits :: Branch0 m -> Branch0 m
+deriveDeepEdits branch =
+  branch {deepEdits = makeDeepEdits (_edits branch) (nonEmptyChildren branch)}
+  where
+    makeDeepEdits :: Map NameSegment (EditHash, m Patch) -> Map NameSegment (Branch m) -> Map Name EditHash
+    makeDeepEdits edits children =
+      Map.mapKeysMonotonic Name.fromSegment (Map.map fst edits) <> ifoldMap go children
       where
-        go (n, b) =
+        go :: NameSegment -> Branch m -> Map Name EditHash
+        go n b =
           Map.mapKeys (Name.cons n) (deepEdits $ head b)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
+
+-- | Update the head of the current causal.
+-- This re-hashes the current causal head after modifications.
+head_ :: Lens' (Branch m) (Branch0 m)
+head_ = history . Causal.head_
 
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
@@ -283,10 +369,15 @@ deepEdits' = go id where
     f :: (NameSegment, Branch m) -> Map Name (EditHash, m Patch)
     f (c, b) =  go (addPrefix . Name.cons c) (head b)
 
--- Discards the history of a Branch0's children, recursively
+-- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: Applicative m => Branch0 m -> Branch0 m
 discardHistory0 = over children (fmap tweak) where
-  tweak b = cons (discardHistory0 (head b)) empty
+  tweak b = one (discardHistory0 (head b))
+
+-- | Discards the history of a Branch and its children, recursively
+discardHistory  :: Applicative m => Branch m -> Branch m
+discardHistory b =
+  one (discardHistory0 (head b))
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
@@ -420,18 +511,26 @@ empty0 :: Branch0 m
 empty0 =
   Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
+-- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
+-- types, and that the heads of all children are empty by the same definition.
+-- This is not as easy as checking whether the branch is equal to the `empty0` branch
+-- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
-isEmpty0 = (== empty0)
+isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
+  Relation.null deepTerms
+    && Relation.null deepTypes
+    && Map.null deepEdits
 
+-- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
 isEmpty = (== empty)
 
+-- | Perform an update over the current branch and create a new causal step.
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
-step f = \case
-  Branch (Causal.One _h e) | e == empty0 -> Branch (Causal.one (f empty0))
-  b -> over history (Causal.stepDistinct f) b
+step f = runIdentity . stepM (Identity . f)
 
-stepM :: (Monad m, Monad n) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+-- | Perform an update over the current branch and create a new causal step.
+stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
   Branch (Causal.One _h e) | e == empty0 -> Branch . Causal.one <$> f empty0
   b -> mapMOf history (Causal.stepDistinctM f) b
@@ -447,13 +546,56 @@ uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
-stepManyAt :: (Monad m, Foldable f)
-           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
-stepManyAt actions = step (stepManyAt0 actions)
+-- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
+-- History is managed according to 'UpdateStrategy'.
+stepManyAt ::
+  forall m f.
+  (Monad m, Foldable f) =>
+  UpdateStrategy ->
+  f (Path, Branch0 m -> Branch0 m) ->
+  Branch m ->
+  Branch m
+stepManyAt strat actions startBranch =
+  runIdentity $ stepManyAtM strat actionsIdentity startBranch
+  where
+    actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
+    actionsIdentity = coerce (toList actions)
 
+data UpdateStrategy
+  -- | Compress all changes into a single causal cons.
+  -- The resulting branch will have at most one new causal cons at each branch.
+  --
+  -- Note that this does NOT allow updates to add histories at children.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
+  -- A 'snapshot' of the most recent state of the updated branch is appended to the existing history,
+  -- if the new state is equal to the existing state, no new history nodes are appended.
+  = CompressHistory
+
+  -- | Preserves any history changes made within the update.
+  --
+  -- Note that this allows you to clobber the history child branches if you want.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- AllowRewritingHistory will result in a history for root.editme of: X -> Y -> Z.
+  -- The history of the updated branch is replaced entirely.
+  | AllowRewritingHistory
+
+-- | Run a series of updates at specific locations.
+-- History is managed according to the 'UpdateStrategy'
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepManyAtM actions = stepM (stepManyAt0M actions)
+            => UpdateStrategy -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepManyAtM strat actions startBranch =
+  case strat of
+    AllowRewritingHistory -> steppedUpdates
+    CompressHistory -> squashedUpdates
+  where
+    steppedUpdates = do
+      stepM (batchUpdatesM actions) startBranch
+    squashedUpdates = do
+      updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
+      pure $ updatedBranch `consBranchSnapshot` startBranch
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -498,7 +640,7 @@ replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)
 
-updateChildren ::NameSegment
+updateChildren :: NameSegment
                -> Branch m
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
@@ -531,40 +673,80 @@ modifyAtM path f b = case Path.uncons path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
--- stepManyAt0 consolidates several changes into a single step
-stepManyAt0 :: forall f m . (Monad m, Foldable f)
+-- | Perform updates over many locations within a branch by batching up operations on
+-- sub-branches as much as possible without affecting semantics.
+-- This operation does not create any causal conses, the operations are performed directly
+-- on the current head of the provided branch and child branches. It's the caller's
+-- responsibility to apply updates in history however they choose.
+batchUpdates :: forall f m . (Monad m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions =
-  runIdentity . stepManyAt0M [ (p, pure . f) | (p,f) <- toList actions ]
+batchUpdates actions =
+  runIdentity . batchUpdatesM actionsIdentity
+  where
+    actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
+    actionsIdentity = coerce $ toList actions
 
-stepManyAt0M :: forall m n f . (Monad m, Monad n, Foldable f)
-             => f (Path, Branch0 m -> n (Branch0 m))
-             -> Branch0 m -> n (Branch0 m)
-stepManyAt0M actions b = go (toList actions) b where
-  go :: [(Path, Branch0 m -> n (Branch0 m))] -> Branch0 m -> n (Branch0 m)
-  go actions b = let
-    -- combines the functions that apply to this level of the tree
-    currentAction b = foldM (\b f -> f b) b [ f | (Path.Empty, f) <- actions ]
+-- | Helper type for grouping up actions according to whether they should be applied at
+-- the current branch, or at a child location.
+data ActionLocation = HereActions | ChildActions
+  deriving Eq
 
-    -- groups the actions based on the child they apply to
-    childActions :: Map NameSegment [(Path, Branch0 m -> n (Branch0 m))]
-    childActions =
-      List.multimap [ (seg, (rest,f)) | (seg :< rest, f) <- actions ]
+-- | Batch many updates. This allows us to apply the updates while minimizing redundant traversals.
+-- Semantics of operations are preserved by ensuring that all updates will always see changes
+-- by updates before them in the list.
+--
+-- This method does not 'step' any branches on its own, all causal changes must be performed in the updates themselves,
+-- or this batch update must be provided to 'stepManyAt(M)'.
+batchUpdatesM ::
+  forall m n f.
+  (Monad m, Monad n, Foldable f) =>
+  f (Path, Branch0 m -> n (Branch0 m)) ->
+  Branch0 m ->
+  n (Branch0 m)
+batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
+  where
+    groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
+    groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
 
-    -- alters the children of `b` based on the `childActions` map
-    stepChildren :: Map NameSegment (Branch m) -> n (Map NameSegment (Branch m))
-    stepChildren children0 = foldM g children0 $ Map.toList childActions
+    execActions ::
+      ( Branch0 m ->
+        (ActionLocation, [(Path, Branch0 m -> n (Branch0 m))]) ->
+        n (Branch0 m)
+      )
+    execActions b = \case
+      (HereActions, acts) -> foldM (\b (_, act) -> act b) b acts
+      (ChildActions, acts) -> b & children %%~ adjustChildren (groupByNextSegment acts)
+
+    adjustChildren ::
+      Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] ->
+      Map NameSegment (Branch m) ->
+      n (Map NameSegment (Branch m))
+    adjustChildren childActions children0 =
+      foldM go children0 $ Map.toList childActions
       where
-      g children (seg, actions) = do
         -- Recursively applies the relevant actions to the child branch
-        -- The `findWithDefault` is important - it allows the stepManyAt
-        -- to create new children at paths that don't previously exist.
-        child <- stepM (go actions) (Map.findWithDefault empty seg children0)
-        pure $ updateChildren seg child children
-    in do
-      c2 <- stepChildren (view children b)
-      currentAction (set children c2 b)
+        go ::
+          ( Map NameSegment (Branch m) ->
+            (NameSegment, [(Path, Branch0 m -> n (Branch0 m))]) ->
+            n (Map NameSegment (Branch m))
+          )
+        go children (seg, acts) = do
+          -- 'non empty' creates an empty branch if one is missing,
+          -- and similarly deletes a branch if it is empty after modifications.
+          -- This is important so that branch actions can create/delete branches.
+          children & at seg . non empty . head_ %%~ batchUpdatesM acts
+    -- The order of actions across differing keys is irrelevant since those actions can't
+    -- affect each other.
+    -- The order within a given key is stable.
+    groupByNextSegment :: [(Path, x)] -> Map NameSegment [(Path, x)]
+    groupByNextSegment =
+      Map.unionsWith (<>) . fmap \case
+        (seg :< rest, action) -> Map.singleton seg [(rest, action)]
+        _ -> error "groupByNextSegment called on current path, which shouldn't happen."
+    pathLocation :: Path -> ActionLocation
+    pathLocation (Path Empty) = HereActions
+    pathLocation _ = ChildActions
 
 instance Hashable (Branch0 m) where
   tokens b =
@@ -581,7 +763,7 @@ addTermName r new md =
   over terms (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
 addTypeName
-  :: Reference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
+  :: TypeReference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
 addTypeName r new md =
   over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
@@ -590,7 +772,7 @@ deleteTermName r n b | Star3.memberD1 (r,n) (view terms b)
                      = over terms (Star3.deletePrimaryD1 (r,n)) b
 deleteTermName _ _ b = b
 
-deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
+deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | Star3.memberD1 (r,n) (view types b)
                      = over types (Star3.deletePrimaryD1 (r,n)) b
 deleteTypeName _ _ b = b
@@ -635,3 +817,42 @@ transform f b = case _history b of
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
+
+
+-- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
+-- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
+-- That is, it does not perform any common ancestor detection, or change reconciliation, it
+-- sets the current state of the base branch to the new state as a new causal step (or returns
+-- the existing base if there are no)
+consBranchSnapshot ::
+  forall m.
+  Monad m =>
+  Branch m ->
+  Branch m ->
+  Branch m
+-- If the target branch is empty we just replace it.
+consBranchSnapshot headBranch Empty = discardHistory headBranch
+consBranchSnapshot headBranch baseBranch =
+  if baseBranch == headBranch
+    then baseBranch
+    else
+      Branch $
+        Causal.consDistinct
+          (head headBranch & children .~ combinedChildren)
+          (_history baseBranch)
+  where
+    combineChildren :: These (Branch m) (Branch m) -> Branch m
+    combineChildren = \case
+      -- If we have a matching child in both base and head, squash the child head onto the
+      -- child base recursively.
+      (These base head) -> head `consBranchSnapshot` base
+      -- This child has been deleted, recursively replace children with an empty branch.
+      (This base) -> empty `consBranchSnapshot` base
+      -- This child didn't exist in the base, we add any changes as a single commit
+      (That head) -> discardHistory head
+    combinedChildren :: Map NameSegment (Branch m)
+    combinedChildren =
+        Align.alignWith
+          combineChildren
+          (head baseBranch ^. children)
+          (head headBranch ^. children)

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language BangPatterns #-}
 {-# language PatternGuards #-}
 
@@ -6,6 +7,7 @@ module Unison.Test.ANF where
 import EasyTest
 
 import Unison.ABT.Normalized (Term(TAbs))
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF
@@ -26,6 +28,7 @@ import Unison.Test.Common (tm)
 
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.State (evalState)
+import qualified Unison.Util.Text as Util.Text
 
 -- testSNF s = ok
 --   where
@@ -68,7 +71,7 @@ denormalize (TLit l) = case l of
   I i -> Term.int () i
   N n -> Term.nat () n
   F f -> Term.float () f
-  T t -> Term.text () t
+  T t -> Term.text () (Util.Text.toText t)
   C c -> Term.char () c
   LM r -> Term.termLink () r
   LY r -> Term.typeLink () r
@@ -98,9 +101,9 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
     FVar v -> Term.var () v
     FComb _ -> error "FComb"
     FCon r n ->
-      Term.constructor () r (fromIntegral $ rawTag n)
+      Term.constructor () (ConstructorReference r (fromIntegral $ rawTag n))
     FReq r n ->
-      Term.request () r (fromIntegral $ rawTag n)
+      Term.request () (ConstructorReference r (fromIntegral $ rawTag n))
     FPrim _ -> error "FPrim"
     FCont _ -> error "denormalize FCont"
 denormalize (TFrc _) = error "denormalize TFrc"
@@ -125,7 +128,7 @@ denormalizeMatch b
   | MatchIntegral m df <- b
   = (dcase (ipat Ty.intRef) <$> mapToList m) ++ dfcase df
   | MatchText m df <- b
-  = (dcase (const $ P.Text ()) <$> Map.toList m) ++ dfcase df
+  = (dcase (const $ P.Text () . Util.Text.toText) <$> Map.toList m) ++ dfcase df
   | MatchData r cs Nothing <- b
   , [(0, ([UN], zb))] <- mapToList cs
   , TAbs i (TMatch j (MatchIntegral m df))  <- zb
@@ -146,7 +149,7 @@ denormalizeMatch b
   ipat r _ i
     | r == Ty.natRef = P.Nat () $ fromIntegral i
     | otherwise = P.Int () $ fromIntegral i
-  dpat r n t = P.Constructor () r (fromEnum t) (replicate n $ P.Var ())
+  dpat r n t = P.Constructor () (ConstructorReference r (fromEnum t)) (replicate n $ P.Var ())
 
 denormalizeBranch :: (Num a, Var v) =>
                      Term ANormalF v -> (a, ABT.Term (Term.F v () ()) v ())
@@ -170,7 +173,7 @@ denormalizeHandler cs df = dcs
    where (_, db) = denormalizeBranch df
   rf r rcs = foldMapWithKey (cf r) rcs
   cf r t b = [ Term.MatchCase
-                 (P.EffectBind () r (fromEnum t)
+                 (P.EffectBind () (ConstructorReference r (fromEnum t))
                    (replicate n $ P.Var ()) (P.Var ()))
                  Nothing
                  db

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language BangPatterns #-}
 {-# language PatternGuards #-}
@@ -18,13 +19,13 @@ module Unison.Runtime.Foreign
 
 import Control.Concurrent (ThreadId, MVar)
 import Data.IORef (IORef)
-import Data.Text (Text, unpack)
 import Data.Tagged (Tagged(..))
 import Network.Socket (Socket)
 import qualified Network.TLS as TLS (ClientParams, Context, ServerParams)
 import qualified Data.X509 as X509
 import System.IO (Handle)
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.Text (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (SuperGroup, Value)
@@ -50,6 +51,7 @@ ref2eq r
   | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
   -- Ditto
   | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
+  | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -58,6 +60,7 @@ ref2cmp r
   | r == Ty.termLinkRef = Just $ promote (compare @Referent)
   | r == Ty.typeLinkRef = Just $ promote (compare @Reference)
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
+  | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
   | otherwise = Nothing
 
 instance Eq Foreign where
@@ -78,7 +81,7 @@ instance Show Foreign where
     $ showString "Wrap " . showsPrec 10 r . showString " " . contents
     where
     contents
-      | r == Ty.textRef = shows (unpack (unsafeCoerce v))
+      | r == Ty.textRef = shows @Text (unsafeCoerce v)
       | otherwise = showString "_"
 
 unwrapForeign :: Foreign -> a

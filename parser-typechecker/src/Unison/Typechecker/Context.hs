@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -64,6 +65,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 )
@@ -107,7 +109,7 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 -- | Elements of an ordered algorithmic context
 data Element v loc
   -- | A variable declaration
-  = Var (TypeVar v loc) 
+  = Var (TypeVar v loc)
   -- | `v` is solved to some monotype
   | Solved (B.Blank loc) v (Monotype v loc)
   -- | `v` has type `a`, maybe quantified
@@ -210,7 +212,7 @@ data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
-  | UnknownConstructor Unknown Reference Int (DataDeclaration v loc)
+  | UnknownConstructor Unknown ConstructorReference (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -326,7 +328,7 @@ data Cause v loc
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
-  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
+  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
   | PatternArityMismatch loc (Type v loc) Int
@@ -709,10 +711,10 @@ getEffectDeclaration r = do
           liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
-getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
-getEffectConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getEffectConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go where
   go r = DD.toDataDecl <$> getEffectDeclaration r
 
@@ -721,13 +723,12 @@ getEffectConstructorType = getConstructorType' Effect go where
 getConstructorType' :: Var v
                     => Unknown
                     -> (Reference -> M v loc (DataDeclaration v loc))
-                    -> Reference
-                    -> Int
+                    -> ConstructorReference
                     -> M v loc (Type v loc)
-getConstructorType' kind get r cid = do
+getConstructorType' kind get (ConstructorReference r cid) = do
   decl <- get r
   case drop cid (DD.constructors decl) of
-    [] -> compilerCrash $ UnknownConstructor kind r cid decl
+    [] -> compilerCrash $ UnknownConstructor kind (ConstructorReference r cid) decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 extendUniversal :: (Var v) => v -> M v loc v
@@ -988,12 +989,12 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
     p (TypeVar.Existential _ v) = Set.singleton v
     p _ = mempty
 
-synthesizeWanted (Term.Constructor' r cid)
+synthesizeWanted (Term.Constructor' r)
   -- Constructors do not have effects
-  = (,[]) . Type.purifyArrows <$> getDataConstructorType r cid
-synthesizeWanted tm@(Term.Request' r cid) =
+  = (,[]) . Type.purifyArrows <$> getDataConstructorType r
+synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
-    =<< getEffectConstructorType r cid
+    =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding e) = do
   isClosed <- isClosed binding
   -- note: no need to freshen binding, it can't refer to v
@@ -1164,9 +1165,9 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
       coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 getEffect
-  :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
-getEffect ref cid = do
-  ect <- getEffectConstructorType ref cid
+  :: Var v => Ord loc => ConstructorReference -> M v loc (Type v loc)
+getEffect ref = do
+  ect <- getEffectConstructorType ref
   uect <- ungeneralize ect
   let final (Type.Arrow' _ o) = final o
       final t = t
@@ -1182,8 +1183,8 @@ requestType ps = getCompose . fmap fold $ traverse single ps
   where
   single (Pattern.As _ p) = single p
   single Pattern.EffectPure{} = Compose . pure . Just $ []
-  single (Pattern.EffectBind _ ref cid _ _)
-    = Compose $ Just . pure <$> getEffect ref cid
+  single (Pattern.EffectBind _ ref _ _)
+    = Compose $ Just . pure <$> getEffect ref
   single _ = Compose $ pure Nothing
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -1299,8 +1300,8 @@ checkPattern scrutineeType p =
       lift $ subtype (Type.text loc) scrutineeType $> mempty
     Pattern.Char loc _  ->
       lift $ subtype (Type.char loc) scrutineeType $> mempty
-    Pattern.Constructor loc ref cid args -> do
-      dct  <- lift $ getDataConstructorType ref cid
+    Pattern.Constructor loc ref args -> do
+      dct  <- lift $ getDataConstructorType ref
       udct <- lift $ skolemize forcedData dct
       unless (Type.arity udct == length args)
         . lift
@@ -1332,7 +1333,7 @@ checkPattern scrutineeType p =
         applyM vt
       checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...
-    Pattern.EffectBind loc ref cid args k -> do
+    Pattern.EffectBind loc ref args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
       e <- lift $ extendExistential Var.inferPatternBindE
@@ -1340,7 +1341,7 @@ checkPattern scrutineeType p =
       let evt = Type.effectV loc (loc, existentialp loc e)
                                  (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
-      ect  <- lift $ getEffectConstructorType ref cid
+      ect  <- lift $ getEffectConstructorType ref
       uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
         . lift
@@ -2718,9 +2719,9 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     e -> show e
-  show (Solved _ v t) = "'"++Text.unpack (Var.name v)++" = "++TP.pretty' Nothing mempty (Type.getPolytype t)
+  show (Solved _ v t) = "'"++Text.unpack (Var.name v)++" = "++TP.prettyStr Nothing mempty (Type.getPolytype t)
   show (Ann v t) = Text.unpack (Var.name v) ++ " : " ++
-                   TP.pretty' Nothing mempty t
+                   TP.prettyStr Nothing mempty t
   show (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
@@ -2729,8 +2730,8 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem _ctx (Var v) = case v of
       TypeVar.Universal x -> "@" <> show x
       e -> show e
-    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.name v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
-    showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
+    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.name v)++" = "++ TP.prettyStr Nothing mempty (apply ctx t)
+    showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))

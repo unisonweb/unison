@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module IntegrationTests.ArgumentParsing where
@@ -5,10 +6,12 @@ module IntegrationTests.ArgumentParsing where
 import Data.List (intercalate)
 
 import Data.Text (pack)
+import Data.Time (getCurrentTime, diffUTCTime)
 import EasyTest
 import Shellmet (($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.Process (readProcessWithExitCode)
+import Text.Printf
 
 uFile :: String
 uFile = "unison-cli/integration-tests/IntegrationTests/print.u"
@@ -52,17 +55,19 @@ test =
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "--token", "MY_TOKEN"] "" -- ?
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison"] ""
       , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "--ui", tempCodebase] ""
-      -- run.compiled appears to be broken at the moment, these should be added back once it's
-      -- fixed to ensure it keeps working.
-      -- , scope "can compile, then run compiled artifact" $ tests
-      --   [ expectExitCode ExitSuccess "stack" defaultArgs [] ["exec", "--", "unison", "transcript", transcriptFile] ""
-      --   , expectExitCode ExitSuccess "stack" defaultArgs [] ["exec", "--", "unison", "run.compiled", "./unison-cli/integration-tests/IntegrationTests/main"] ""
-      --   ]
+      , scope "can compile, then run compiled artifact" $ tests
+        [ expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "transcript", transcriptFile] ""
+        , expectExitCode ExitSuccess "stack" defaultArgs ["exec", "--", "unison", "run.compiled", "./unison-cli/integration-tests/IntegrationTests/main.uc"] ""
+        ]
       ]
 
 expectExitCode :: ExitCode -> FilePath -> [String] -> [String] -> String -> Test ()
 expectExitCode expected cmd defArgs args stdin = scope (intercalate " " (cmd : args <> defArgs)) do
+  start <- io $ getCurrentTime
   (code, _, _) <- io $ readProcessWithExitCode cmd args stdin
+  end <- io $ getCurrentTime
+  let diff = diffUTCTime end start
+  note $ printf "\n[Time: %s sec]" $ show diff 
   expectEqual code expected
 
 defaultArgs :: [String]

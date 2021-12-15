@@ -26,6 +26,7 @@ library
       Unison.ABT
       Unison.ABT.Normalized
       Unison.Blank
+      Unison.ConstructorReference
       Unison.ConstructorType
       Unison.DataDeclaration
       Unison.DataDeclaration.ConstructorId
@@ -42,6 +43,7 @@ library
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern
+      Unison.Position
       Unison.Reference
       Unison.Reference.Util
       Unison.Referent
@@ -56,7 +58,6 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
-      Unison.Util.Set
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind
@@ -99,10 +100,10 @@ library
     , prelude-extras
     , rfc5051
     , safe
-    , sandi
     , text
     , transformers
     , unison-prelude
+    , unison-util
     , unison-util-relation
     , util
     , vector

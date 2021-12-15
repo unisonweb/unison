@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Util.Components where
 
 import qualified Data.Graph as Graph

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language PatternGuards #-}
 {-# language TypeApplications #-}
 {-# language OverloadedStrings #-}
@@ -51,7 +52,7 @@ testEval0 env sect = do
   cc <- io baseCCache
   modifyTVarTest (combs cc) (env <>)
   modifyTVarTest (combRefs cc) ((dummyRef <$ env) <>)
-  io $ eval0 cc sect
+  io $ eval0 cc Nothing sect
   ok
 
 builtins :: Reference -> Word64

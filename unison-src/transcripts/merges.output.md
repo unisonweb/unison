@@ -107,18 +107,31 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
+.> history .feature1
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+  
+  ⊙ #gj7j96t88n
+  
+    - Deletes:
+    
+      y
+  
+  □ #aqh5c7qsod (start of history)
+
 .> history
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ndukqgvtrb
+  ⊙ #5aa4qmhvur
   
     - Deletes:
     
       feature1.y
   
-  ⊙ #08c5fdtq6k
+  ⊙ #g1jho38v97
   
     + Adds / updates:
     
@@ -129,26 +142,26 @@ We can also delete the fork if we're done with it. (Don't worry, it's still in t
       Original name New name(s)
       feature1.y    master.y
   
-  ⊙ #o17okbu7ug
+  ⊙ #dkcip47417
   
     + Adds / updates:
     
       feature1.y
   
-  ⊙ #l37haj73av
+  ⊙ #at9qnsl83m
   
     > Moves:
     
       Original name New name
       x             master.x
   
-  ⊙ #1h0i8koq55
+  ⊙ #g271dghaje
   
     + Adds / updates:
     
       x
   
-  □ #2t9dm55015 (start of history)
+  □ #aooso6apun (start of history)
 
 ```
 To resurrect an old version of a namespace, you can learn its hash via the `history` command, then use `fork #namespacehash .newname`.

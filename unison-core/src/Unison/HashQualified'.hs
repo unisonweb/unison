@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -67,6 +68,9 @@ toHash = \case
 toString :: Show n => HashQualified n -> String
 toString = Text.unpack . toText
 
+toStringWith :: (n -> String) -> HashQualified n -> String
+toStringWith f = Text.unpack . toTextWith (Text.pack . f)
+
 -- Parses possibly-hash-qualified into structured type.
 fromText :: Text -> Maybe (HashQualified Name)
 fromText t = case Text.breakOn "#" t of
@@ -117,6 +121,13 @@ requalify :: HashQualified Name -> Referent -> HashQualified Name
 requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
+
+-- | Sort the list of names by length of segments: smaller number of segments is listed first. NameOnly < HashQualified
+sortByLength :: [HashQualified Name] -> [HashQualified Name]
+sortByLength =
+  sortOn \case
+    NameOnly name -> (length (Name.reverseSegments name), Nothing, Name.isAbsolute name)
+    HashQualified name hash -> (length (Name.reverseSegments name), Just hash, Name.isAbsolute name)
 
 -- `HashQualified` is usually used for display, so we sort it alphabetically
 instance Name.Alphabetical n => Ord (HashQualified n) where

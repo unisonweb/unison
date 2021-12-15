@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -60,7 +61,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  rt <- io (RTI.startRuntime "")
+  rt <- io (RTI.startRuntime RTI.Standalone "")
   scope "unison-src"
     . tests
     $ [ go rt shouldPassNow   good

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
@@ -9,7 +10,6 @@ import           System.IO
 import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
-import qualified Unison.Test.ClearCache as ClearCache
 import qualified Unison.Test.Codebase.Branch as Branch
 import qualified Unison.Test.Codebase.Causal as Causal
 import qualified Unison.Test.Codebase.Path as Path
@@ -28,18 +28,15 @@ import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.Context as Context
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.UnisonSources as UnisonSources
-import qualified Unison.Test.UriParser as UriParser
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Util.Text as Text
 import qualified Unison.Test.Util.PinBoard as PinBoard
 import qualified Unison.Test.Util.Pretty as Pretty
 import qualified Unison.Test.Util.Relation as Relation
 import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
-import qualified Unison.Test.VersionParser as VersionParser
-import qualified Unison.Test.GitSync as GitSync
 import qualified Unison.Test.CodebaseInit as CodebaseInit
-import qualified Unison.Test.CommandLine as CommandLine
 -- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
@@ -58,6 +55,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , Text.test
   , Relation.test
   , Path.test
   , Causal.test
@@ -66,17 +64,12 @@ test = tests
   , ANF.test
   , MCode.test
   , Var.test
-  , ClearCache.test
   , Typechecker.test
-  , UriParser.test
   , Context.test
-  , GitSync.test
   , Name.test
-  , VersionParser.test
   , Pretty.test
   , PinBoard.test
   , CodebaseInit.test
-  , CommandLine.test
   , Branch.test
  ]
 

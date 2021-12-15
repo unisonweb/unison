@@ -1,15 +1,24 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Hashable where
 
 import Unison.Prelude
 
+import qualified Crypto.Hash as CH
+import qualified Data.ByteArray as BA
+import qualified Data.ByteString as B
+import Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString, word64BE)
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified U.Util.Hash as H
 import Unison.Util.Relation (Relation)
-import Unison.Util.Relation3 (Relation3)
-import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation as Relation
+import Unison.Util.Relation3 (Relation3)
 import qualified Unison.Util.Relation3 as Relation3
+import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as Relation4
+import U.Util.Hash (Hash)
+import qualified U.Util.Hash as Hash
 
 data Token h
   = Tag !Word8
@@ -107,3 +116,24 @@ instance Hashable Int64 where
 
 instance Hashable Bool where
   tokens b = [Tag . fromIntegral $ fromEnum b]
+
+instance Hashable Hash where
+  tokens h = [Bytes (Hash.toByteString h)]
+
+instance Accumulate Hash where
+  accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit where
+    go :: CH.Context CH.SHA3_512 -> [Token Hash] -> CH.Context CH.SHA3_512
+    go acc tokens = CH.hashUpdates acc (tokens >>= toBS)
+    toBS (Tag b) = [B.singleton b]
+    toBS (Bytes bs) = [encodeLength $ B.length bs, bs]
+    toBS (Int i) = BL.toChunks . toLazyByteString . int64BE $ i
+    toBS (Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
+    toBS (Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
+    toBS (Text txt) =
+      let tbytes = encodeUtf8 txt
+      in [encodeLength (B.length tbytes), tbytes]
+    toBS (Hashed h) = [H.toByteString h]
+    encodeLength :: Integral n => n -> B.ByteString
+    encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
+  fromBytes = H.fromByteString
+  toBytes = H.toByteString

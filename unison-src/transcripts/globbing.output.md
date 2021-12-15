@@ -15,12 +15,13 @@ Add some definitions which we can match over:
 ```unison
 convertToThing = 1
 convertFromThing = 2
+otherTerm = 3
 
 -- Nested definitions
-nested.toList = 3
-nested.toMap = 4
-othernest.toList = 5
-othernest.toMap = 6
+nested.toList = 4
+nested.toMap = 5
+othernest.toList = 6
+othernest.toMap = 7
 ```
 
 Globbing as a prefix, infix, or suffix wildcard.
@@ -57,18 +58,18 @@ Globbing can occur in any name segment.
 .> view ?.toList
 
   nested.toList : ##Nat
-  nested.toList = 3
+  nested.toList = 4
   
   othernest.toList : ##Nat
-  othernest.toList = 5
+  othernest.toList = 6
 
 .> view nested.to?
 
   nested.toList : ##Nat
-  nested.toList = 3
+  nested.toList = 4
   
   nested.toMap : ##Nat
-  nested.toMap = 4
+  nested.toMap = 5
 
 ```
 You may have up to one glob per name segment.
@@ -77,25 +78,28 @@ You may have up to one glob per name segment.
 .> view ?.to?
 
   nested.toList : ##Nat
-  nested.toList = 3
+  nested.toList = 4
   
   nested.toMap : ##Nat
-  nested.toMap = 4
+  nested.toMap = 5
   
   othernest.toList : ##Nat
-  othernest.toList = 5
+  othernest.toList = 6
   
   othernest.toMap : ##Nat
-  othernest.toMap = 6
+  othernest.toMap = 7
 
 ```
 Globbing only expands to the appropriate argument type.
 
 E.g. `view` should not see glob expansions for namespaces.
-This should expand to the empty argument and silently succeed.
+This should expand to only the otherTerm.
 
 ```ucm
 .> view other?
+
+  otherTerm : ##Nat
+  otherTerm = 3
 
 ```
 Globbing should work from within a namespace with both absolute and relative patterns.
@@ -104,17 +108,17 @@ Globbing should work from within a namespace with both absolute and relative pat
 .nested> view .othernest.to?
 
   .othernest.toList : ##Nat
-  .othernest.toList = 5
+  .othernest.toList = 6
   
   .othernest.toMap : ##Nat
-  .othernest.toMap = 6
+  .othernest.toMap = 7
 
 .nested> view to?
 
   toList : ##Nat
-  toList = 3
+  toList = 4
   
   toMap : ##Nat
-  toMap = 4
+  toMap = 5
 
 ```
