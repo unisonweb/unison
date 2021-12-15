@@ -309,6 +309,11 @@ loop = do
             [r | SR.Tm (SR.TermResult _ (Referent.Ref r) _) <- rs]
           termResults rs = [r | SR.Tm r <- rs]
           typeResults rs = [r | SR.Tp r <- rs]
+          doRemoveReplacement ::
+               HQ.HashQualified Name
+            -> Maybe PatchPath
+            -> Bool
+            -> Action' m Symbol ()
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe defaultPatchPath patchPath
             patch <- getPatchAt patchPath'
@@ -329,7 +334,7 @@ loop = do
                         over Patch.typeEdits (R.deleteDom fr) patch
                       (patchPath'', patchName) = resolveSplit' patchPath'
                   -- Save the modified patch
-                  stepAtM
+                  stepAtM Branch.CompressHistory
                     inputDescription
                     ( patchPath'',
                       Branch.modifyPatches
@@ -341,8 +346,6 @@ loop = do
             unless (Set.null misses) $
               respond $ SearchTermsNotFound (Set.toList misses)
             traverse_ go (if isTerm then tmRefs else tpRefs)
-          branchExists dest _x = respond $ BranchAlreadyExists dest
-          branchExistsSplit = branchExists . Path.unsplit'
           typeExists dest = respond . TypeAlreadyExists dest
           termExists dest = respond . TermAlreadyExists dest
           inputDescription :: LoopState.InputDescription
@@ -378,6 +381,7 @@ loop = do
             UpdateI p _selection -> "update " <> opatch p
             PropagatePatchI p scope -> "patch " <> ps' p <> " " <> p' scope
             UndoI {} -> "undo"
+            ApiI -> "api"
             UiI -> "ui"
             DocsToHtmlI path dir -> "docs.to-html " <> Path.toText' path <> " " <> Text.pack dir
             ExecuteI s args -> "execute " <> (Text.unwords . fmap Text.pack $ (s : args))
@@ -470,13 +474,17 @@ loop = do
           stepManyAt = Unison.Codebase.Editor.HandleInput.stepManyAt inputDescription
           updateRoot = flip Unison.Codebase.Editor.HandleInput.updateRoot inputDescription
           syncRoot = use LoopState.root >>= updateRoot
+          updateAtM ::
+            Path.Absolute
+            -> (Branch m -> Action m i v1 (Branch m))
+            -> Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
           unlessGitError = unlessError' Output.GitError
           importRemoteBranch ns mode preprocess =
             ExceptT . eval $ ImportRemoteBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
           saveAndApplyPatch patchPath'' patchName patch' = do
-            stepAtM
+            stepAtM Branch.CompressHistory
               (inputDescription <> " (1/2)")
               ( patchPath'',
                 Branch.modifyPatches patchName (const patch')
@@ -517,7 +525,7 @@ loop = do
                   then do
                     let makeDeleteTermNames = fmap (BranchUtil.makeDeleteTermName resolvedPath) . toList $ tms
                     let makeDeleteTypeNames = fmap (BranchUtil.makeDeleteTypeName resolvedPath) . toList $ tys
-                    stepManyAt (makeDeleteTermNames ++ makeDeleteTypeNames)
+                    stepManyAt Branch.CompressHistory (makeDeleteTermNames ++ makeDeleteTypeNames)
                     root'' <- use LoopState.root
                     diffHelper (Branch.head root') (Branch.head root'')
                       >>= respondNumbered . uncurry ShowDiffAfterDeleteDefinitions
@@ -525,6 +533,7 @@ loop = do
                     ppeDecl <- currentPrettyPrintEnvDecl
                     respondNumbered $ CantDeleteDefinitions ppeDecl endangerments
        in case input of
+            ApiI -> eval API
             CreateMessage pretty ->
               respond $ PrintMessage pretty
             ShowReflogI -> do
@@ -647,7 +656,7 @@ loop = do
                   lift $ do
                     mergedb <- eval $ Merge Branch.RegularMerge baseb headb
                     squashedb <- eval $ Merge Branch.SquashMerge headb baseb
-                    stepManyAt
+                    stepManyAt Branch.AllowRewritingHistory
                       [ BranchUtil.makeSetBranch (dest, "base") baseb,
                         BranchUtil.makeSetBranch (dest, "head") headb,
                         BranchUtil.makeSetBranch (dest, "merged") mergedb,
@@ -667,21 +676,29 @@ loop = do
             -- move the LoopState.root to a sub-branch
             MoveBranchI Nothing dest -> do
               b <- use LoopState.root
-              stepManyAt
+              -- Overwrite history at destination.
+              stepManyAt Branch.AllowRewritingHistory
                 [ (Path.empty, const Branch.empty0),
                   BranchUtil.makeSetBranch (resolveSplit' dest) b
                 ]
               success
-            MoveBranchI (Just src) dest ->
-              maybe (branchNotFound' src) srcOk (getAtSplit' src)
-              where
-                srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
-                destOk b = do
-                  stepManyAt
-                    [ BranchUtil.makeDeleteBranch (resolveSplit' src),
-                      BranchUtil.makeSetBranch (resolveSplit' dest) b
-                    ]
-                  success -- could give rando stats about new defns
+            MoveBranchI (Just src) dest -> unlessError $ do
+              srcBranch <- case getAtSplit' src of
+                Just existingSrc | not (Branch.isEmpty0 (Branch.head existingSrc)) -> do
+                  pure existingSrc
+                _ -> throwError $ BranchNotFound (Path.unsplit' src)
+              case getAtSplit' dest of
+                Just existingDest
+                  | not (Branch.isEmpty0 (Branch.head existingDest)) -> do
+                    -- Branch exists and isn't empty, print an error
+                    throwError (BranchAlreadyExists (Path.unsplit' dest))
+                _ -> pure ()
+              -- allow rewriting history to ensure we move the branch's history too.
+              lift $ stepManyAt Branch.AllowRewritingHistory
+                [ BranchUtil.makeDeleteBranch (resolveSplit' src),
+                  BranchUtil.makeSetBranch (resolveSplit' dest) srcBranch
+                ]
+              lift $ success -- could give rando stats about new defns
             MovePatchI src dest -> do
               psrc <- getPatchAtSplit' src
               pdest <- getPatchAtSplit' dest
@@ -690,6 +707,7 @@ loop = do
                 (_, Just _) -> patchExists dest
                 (Just p, Nothing) -> do
                   stepManyAt
+                    Branch.CompressHistory
                     [ BranchUtil.makeDeletePatch (resolveSplit' src),
                       BranchUtil.makeReplacePatch (resolveSplit' dest) p
                     ]
@@ -701,19 +719,25 @@ loop = do
                 (Nothing, _) -> patchNotFound src
                 (_, Just _) -> patchExists dest
                 (Just p, Nothing) -> do
-                  stepAt (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
+                  stepAt
+                    Branch.CompressHistory
+                    (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
                   success
             DeletePatchI src -> do
               psrc <- getPatchAtSplit' src
               case psrc of
                 Nothing -> patchNotFound src
                 Just _ -> do
-                  stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
+                  stepAt
+                    Branch.CompressHistory
+                    (BranchUtil.makeDeletePatch (resolveSplit' src))
                   success
             DeleteBranchI insistence Nothing -> do
               hasConfirmed <- confirmedCommand input
               if (hasConfirmed || insistence == Force)
-                then do stepAt (Path.empty, const Branch.empty0)
+                then do stepAt
+                          Branch.CompressHistory  -- Wipe out all definitions, but keep root branch history.
+                          (Path.empty, const Branch.empty0)
                         respond DeletedEverything
                 else respond DeleteEverythingConfirmation
             DeleteBranchI insistence (Just p) -> do
@@ -733,7 +757,7 @@ loop = do
                          respondNumbered $ CantDeleteNamespace ppeDecl endangerments
               where
                 doDelete b0 = do
-                      stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
+                      stepAt Branch.CompressHistory $ BranchUtil.makeDeleteBranch (resolveSplit' p)
                       -- Looks similar to the 'toDelete' above... investigate me! ;)
                       diffHelper b0 Branch.empty0
                         >>= respondNumbered
@@ -816,7 +840,7 @@ loop = do
               referents <- resolveHHQS'Referents src
               case (toList referents, toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
+                  stepAt Branch.CompressHistory (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
                   success
                 ([_], rs@(_ : _)) -> termExists dest (Set.fromList rs)
                 ([], _) -> either termNotFound' termNotFound src
@@ -835,7 +859,7 @@ loop = do
               refs <- resolveHHQS'Types src
               case (toList refs, toList (getTypes dest)) of
                 ([r], []) -> do
-                  stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
+                  stepAt Branch.CompressHistory (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
                   success
                 ([_], rs@(_ : _)) -> typeExists dest (Set.fromList rs)
                 ([], _) -> either typeNotFound' typeNotFound src
@@ -861,7 +885,7 @@ loop = do
               let destAbs = resolveToAbsolute dest'
               old <- getAt destAbs
               let (unknown, actions) = foldl' go mempty srcs
-              stepManyAt actions
+              stepManyAt Branch.CompressHistory actions
               new <- getAt destAbs
               diffHelper (Branch.head old) (Branch.head new)
                 >>= respondNumbered . uncurry (ShowDiffAfterModifyBranch dest' destAbs)
@@ -964,7 +988,7 @@ loop = do
                 eval $ CreateAuthorInfo authorFullName
               -- add the new definitions to the codebase and to the namespace
               traverse_ (eval . uncurry3 PutTerm) [guid, author, copyrightHolder]
-              stepManyAt
+              stepManyAt Branch.CompressHistory
                 [ BranchUtil.makeAddTermName (resolveSplit' authorPath) (d authorRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' copyrightHolderPath) (d copyrightHolderRef) mempty,
                   BranchUtil.makeAddTermName (resolveSplit' guidPath) (d guidRef) mempty
@@ -989,7 +1013,7 @@ loop = do
             MoveTermI src dest ->
               case (toList (getHQ'Terms src), toList (getTerms dest)) of
                 ([r], []) -> do
-                  stepManyAt
+                  stepManyAt Branch.CompressHistory
                     [ BranchUtil.makeDeleteTermName p r,
                       BranchUtil.makeAddTermName (resolveSplit' dest) r (mdSrc r)
                     ]
@@ -1003,7 +1027,7 @@ loop = do
             MoveTypeI src dest ->
               case (toList (getHQ'Types src), toList (getTypes dest)) of
                 ([r], []) -> do
-                  stepManyAt
+                  stepManyAt Branch.CompressHistory
                     [ BranchUtil.makeDeleteTypeName p r,
                       BranchUtil.makeAddTypeName (resolveSplit' dest) r (mdSrc r)
                     ]
@@ -1109,7 +1133,7 @@ loop = do
                 conflicted = getHQ'Types (fmap HQ'.toNameOnly hq)
                 makeDelete =
                   BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
-                go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+                go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
             ResolveTermNameI hq -> do
               refs <- getHQ'TermsIncludingHistorical hq
               zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
@@ -1117,7 +1141,7 @@ loop = do
                 conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
                 makeDelete =
                   BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
-                go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+                go r = stepManyAt Branch.CompressHistory . fmap makeDelete . toList . Set.delete r $ conflicted
             ReplaceI from to patchPath -> do
               let patchPath' = fromMaybe defaultPatchPath patchPath
               patch <- getPatchAt patchPath'
@@ -1238,7 +1262,7 @@ loop = do
                       . toSlurpResult currentPath' uf
                       <$> slurpResultNames
                   let adds = Slurp.adds sr
-                  stepAtNoSync (Path.unabsolute currentPath', doSlurpAdds adds uf)
+                  stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
@@ -1465,13 +1489,18 @@ loop = do
                 let printDiffPath = if Verbosity.isSilent verbosity then Nothing else Just path
                 lift $ case pullMode of
                   Input.PullWithHistory -> do
-                    mergeBranchAndPropagateDefaultPatch
-                      Branch.RegularMerge
-                      inputDescription
-                      (Just unchangedMsg)
-                      remoteBranch
-                      printDiffPath
-                      destAbs
+                    destBranch <- getAt destAbs
+                    if Branch.isEmpty0 (Branch.head destBranch)
+                       then do
+                         void $ updateAtM destAbs (const $ pure remoteBranch)
+                         respond $ MergeOverEmpty path
+                       else mergeBranchAndPropagateDefaultPatch
+                              Branch.RegularMerge
+                              inputDescription
+                              (Just unchangedMsg)
+                              remoteBranch
+                              printDiffPath
+                              destAbs
                   Input.PullWithoutHistory -> do
                     didUpdate <- updateAtM
                                    destAbs
@@ -1895,7 +1924,7 @@ handleUpdate input maybePatchPath hqs = do
       when (Slurp.isNonempty sr) $ do
         -- take a look at the `updates` from the SlurpResult
         -- and make a patch diff to record a replacement from the old to new references
-        stepManyAtMNoSync
+        stepManyAtMNoSync Branch.CompressHistory
           [ ( Path.unabsolute currentPath',
               pure . doSlurpUpdates typeEdits termEdits termDeprecations
             ),
@@ -2024,7 +2053,7 @@ manageLinks silent srcs mdValues op = do
                     go types src = op (src, mdType, mdValue) types
               in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           steps = srcs <&> \(path, _hq) -> (Path.unabsolute (resolveToAbsolute path), step)
-      stepManyAtNoSync steps
+      stepManyAtNoSync Branch.CompressHistory steps
 
 -- Takes a maybe (namespace address triple); returns it as-is if `Just`;
 -- otherwise, tries to load a value from .unisonConfig, and complains
@@ -2187,7 +2216,7 @@ propagatePatchNoSync ::
 propagatePatchNoSync patch scopePath = do
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
-  stepAtMNoSync'
+  stepAtMNoSync' Branch.CompressHistory
     ( Path.unabsolute scopePath,
       lift . lift . Propagate.propagateAndApply nroot patch
     )
@@ -2202,7 +2231,7 @@ propagatePatch ::
 propagatePatch inputDescription patch scopePath = do
   r <- use LoopState.root
   let nroot = Branch.toNames (Branch.head r)
-  stepAtM'
+  stepAtM' Branch.CompressHistory
     (inputDescription <> " (applying patch)")
     ( Path.unabsolute scopePath,
       lift . lift . Propagate.propagateAndApply nroot patch
@@ -2552,97 +2581,108 @@ stepAt ::
   forall m i v.
   Monad m =>
   LoopState.InputDescription ->
+  Branch.UpdateStrategy ->
   (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
-stepAt cause = stepManyAt @m @[] cause . pure
+stepAt cause strat = stepManyAt @m @[] cause strat . pure
 
 stepAtNoSync ::
   forall m i v.
   Monad m =>
+  Branch.UpdateStrategy ->
   (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
-stepAtNoSync = stepManyAtNoSync @m @[] . pure
+stepAtNoSync strat = stepManyAtNoSync @m @[] strat . pure
 
 stepAtM ::
   forall m i v.
   Monad m =>
+  Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
-stepAtM cause = stepManyAtM @m @[] cause . pure
+stepAtM cause strat = stepManyAtM @m @[] cause strat . pure
 
 stepAtM' ::
   forall m i v.
   Monad m =>
+  Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
-stepAtM' cause = stepManyAtM' @m @[] cause . pure
+stepAtM' cause strat = stepManyAtM' @m @[] cause strat . pure
 
 stepAtMNoSync' ::
   forall m i v.
   Monad m =>
+  Branch.UpdateStrategy ->
   (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
-stepAtMNoSync' = stepManyAtMNoSync' @m @[] . pure
+stepAtMNoSync' strat = stepManyAtMNoSync' @m @[] strat . pure
 
 stepManyAt ::
   (Monad m, Foldable f) =>
   LoopState.InputDescription ->
+  Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
-stepManyAt reason actions = do
-  stepManyAtNoSync actions
+stepManyAt reason strat actions = do
+  stepManyAtNoSync strat actions
   b <- use LoopState.root
   updateRoot b reason
 
 -- Like stepManyAt, but doesn't update the LoopState.root
 stepManyAtNoSync ::
   (Monad m, Foldable f) =>
+  Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Action m i v ()
-stepManyAtNoSync actions = do
+stepManyAtNoSync strat actions = do
   b <- use LoopState.root
-  let new = Branch.stepManyAt actions b
+  let new = Branch.stepManyAt strat actions b
   LoopState.root .= new
 
 stepManyAtM ::
   (Monad m, Foldable f) =>
+  Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   f (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
-stepManyAtM reason actions = do
-  stepManyAtMNoSync actions
+stepManyAtM strat reason actions = do
+  stepManyAtMNoSync strat actions
   b <- use LoopState.root
   updateRoot b reason
 
 stepManyAtMNoSync ::
   (Monad m, Foldable f) =>
+  Branch.UpdateStrategy ->
   f (Path, Branch0 m -> m (Branch0 m)) ->
   Action m i v ()
-stepManyAtMNoSync actions = do
+stepManyAtMNoSync strat actions = do
   b <- use LoopState.root
-  b' <- eval . Eval $ Branch.stepManyAtM actions b
+  b' <- eval . Eval $ Branch.stepManyAtM strat actions b
   LoopState.root .= b'
 
 stepManyAtM' ::
   (Monad m, Foldable f) =>
+  Branch.UpdateStrategy ->
   LoopState.InputDescription ->
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
-stepManyAtM' reason actions = do
+stepManyAtM' strat reason actions = do
   b <- use LoopState.root
-  b' <- Branch.stepManyAtM actions b
+  b' <- Branch.stepManyAtM strat actions b
   updateRoot b' reason
   pure (b /= b')
 
 stepManyAtMNoSync' ::
   (Monad m, Foldable f) =>
+  Branch.UpdateStrategy ->
   f (Path, Branch0 m -> Action m i v (Branch0 m)) ->
   Action m i v Bool
-stepManyAtMNoSync' actions = do
+stepManyAtMNoSync' strat actions = do
   b <- use LoopState.root
-  b' <- Branch.stepManyAtM actions b
+  b' <- Branch.stepManyAtM strat actions b
   LoopState.root .= b'
   pure (b /= b')
 

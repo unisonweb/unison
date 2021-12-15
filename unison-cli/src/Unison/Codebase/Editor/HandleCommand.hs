@@ -25,7 +25,7 @@ import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Merge as Branch
 import qualified Unison.Codebase.Editor.AuthorInfo as AuthorInfo
 import Unison.Codebase.Editor.Command (Command (..), LexedSource, LoadSourceResult, SourceName, TypecheckingResult, UseCache)
-import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
+import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output (PrintMessage))
 import Unison.Codebase.Runtime (Runtime)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.FileParsers (parseAndSynthesizeFile, synthesizeFile')
@@ -45,6 +45,7 @@ import Unison.Type (Type)
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
+import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as WK
 import Web.Browser (openBrowser)
 import System.Environment (withArgs)
@@ -104,6 +105,14 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
   go x = case x of
     -- Wait until we get either user input or a unison file update
     Eval m        -> lift m
+    API           -> lift $ forM_ serverBaseUrl $ \baseUrl ->
+      notifyUser $ PrintMessage $ P.lines
+        ["The API information is as follows:" 
+        , P.newline
+        , P.indentN 2 (P.hiBlue ("UI: " <> fromString (Server.urlFor Server.UI baseUrl)))
+        , P.newline
+        , P.indentN 2 (P.hiBlue ("API: " <> fromString (Server.urlFor Server.Api baseUrl)))
+        ]
     UI            ->
       case serverBaseUrl of
         Just url -> lift . void $ openBrowser (Server.urlFor Server.UI url)
