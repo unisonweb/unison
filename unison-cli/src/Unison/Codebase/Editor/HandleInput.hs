@@ -149,6 +149,7 @@ import Unison.Util.Free (Free)
 import UnliftIO (MonadUnliftIO)
 import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
+import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
 
 defaultPatchNameSegment :: NameSegment
@@ -164,7 +165,7 @@ currentPrettyPrintEnvDecl = do
   currentPath' <- Path.unabsolute <$> use LoopState.currentPath
   prettyPrintEnvDecl (Backend.getCurrentPrettyNames (Backend.AllNames currentPath') root')
 
-loop :: forall m v. (MonadUnliftIO m, Var v) => Action m (Either Event Input) v ()
+loop :: forall m. MonadUnliftIO m => Action m (Either Event Input) Symbol ()
 loop = do
   uf <- use LoopState.latestTypecheckedFile
   root' <- use LoopState.root
@@ -312,7 +313,7 @@ loop = do
                HQ.HashQualified Name
             -> Maybe PatchPath
             -> Bool
-            -> Action' m v ()
+            -> Action' m Symbol ()
           doRemoveReplacement from patchPath isTerm = do
             let patchPath' = fromMaybe defaultPatchPath patchPath
             patch <- getPatchAt patchPath'
@@ -325,7 +326,7 @@ loop = do
                     if isTerm
                       then Set.fromList $ SR.termName <$> termResults hits
                       else Set.fromList $ SR.typeName <$> typeResults hits
-                go :: Reference -> Action m (Either Event Input) v ()
+                go :: Reference -> Action m (Either Event Input) Symbol ()
                 go fr = do
                   let termPatch =
                         over Patch.termEdits (R.deleteDom fr) patch
@@ -1179,7 +1180,7 @@ loop = do
                   replaceTerms ::
                     Reference ->
                     Reference ->
-                    Action m (Either Event Input) v ()
+                    Action m (Either Event Input) Symbol ()
                   replaceTerms fr tr = do
                     mft <- eval $ LoadTypeOfTerm fr
                     mtt <- eval $ LoadTypeOfTerm tr
@@ -1205,7 +1206,7 @@ loop = do
                   replaceTypes ::
                     Reference ->
                     Reference ->
-                    Action m (Either Event Input) v ()
+                    Action m (Either Event Input) Symbol ()
                   replaceTypes fr tr = do
                     let patch' =
                           -- The modified patch
@@ -1460,7 +1461,7 @@ loop = do
               -- due to builtin terms; so we don't just reuse `uf` above.
               let names0 =
                     Builtin.names0
-                      <> UF.typecheckedToNames @v IOSource.typecheckedFile'
+                      <> UF.typecheckedToNames IOSource.typecheckedFile'
               let srcb = BranchUtil.fromNames names0
               _ <- updateAtM (currentPath' `snoc` "builtin") $ \destb ->
                 eval $ Merge Branch.RegularMerge srcb destb
@@ -2113,7 +2114,7 @@ resolveHQToLabeledDependencies = \case
       types <- eval $ TypeReferencesByShortHash sh
       pure $ Set.map LD.referent terms <> Set.map LD.typeRef types
 
-doDisplay :: Var v => OutputLocation -> NamesWithHistory -> Term v () -> Action' m v ()
+doDisplay :: OutputLocation -> NamesWithHistory -> Term Symbol () -> Action' m Symbol ()
 doDisplay outputLoc names tm = do
   ppe <- prettyPrintEnvDecl names
   tf <- use LoopState.latestTypecheckedFile
@@ -2939,11 +2940,11 @@ toSlurpResult curPath uf existingNames =
             go (n, _) = (not . R.memberDom n) existingNames
 
 displayI ::
-  (Monad m, Var v) =>
+  Monad m =>
   Names ->
   OutputLocation ->
   HQ.HashQualified Name ->
-  Action m (Either Event Input) v ()
+  Action m (Either Event Input) Symbol ()
 displayI prettyPrintNames outputLoc hq = do
   uf <- use LoopState.latestTypecheckedFile >>= addWatch (HQ.toString hq)
   case uf of
@@ -2974,11 +2975,11 @@ displayI prettyPrintNames outputLoc hq = do
             doDisplay outputLoc ns tm
 
 docsI ::
-  (Ord v, Monad m, Var v) =>
+  Monad m =>
   SrcLoc ->
   Names ->
   Path.HQSplit' ->
-  Action m (Either Event Input) v ()
+  Action m (Either Event Input) Symbol ()
 docsI srcLoc prettyPrintNames src = do
   fileByName
   where

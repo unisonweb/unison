@@ -56,8 +56,8 @@ import Unison.Server.Types
     addHeaders,
     mayDefaultWidth,
   )
+import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
-import Unison.Var (Var)
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
@@ -127,10 +127,8 @@ instance ToSample FoundResult where
   toSamples _ = noSamples
 
 serveFuzzyFind
-  :: forall v
-   . Var v
-  => Handler ()
-  -> Codebase IO v Ann
+  :: Handler ()
+  -> Codebase IO Symbol Ann
   -> Maybe SBH.ShortBranchHash
   -> Maybe HashQualifiedName
   -> Maybe Int
@@ -163,7 +161,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
               ( a
               , FoundTermResult
                 . FoundTerm
-                    (Backend.bestNameForTerm @v ppe (mayDefaultWidth typeWidth) r)
+                    (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
                 $ Backend.termEntryToNamedTerm ppe typeWidth te
               )
             )
@@ -171,7 +169,7 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
         Backend.FoundTypeRef r -> do
           te <- Backend.typeListEntry codebase r n
           let namedType = Backend.typeEntryToNamedType te
-          let typeName = Backend.bestNameForType @v ppe (mayDefaultWidth typeWidth) r
+          let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
           typeHeader <- Backend.typeDeclHeader codebase ppe r
           let ft = FoundType typeName typeHeader namedType
           pure (a, FoundTypeResult ft)

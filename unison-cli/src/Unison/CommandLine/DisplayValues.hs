@@ -11,6 +11,7 @@ import Control.Lens ((^.))
 import Unison.ConstructorReference (GConstructorReference(..))
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
@@ -40,13 +41,13 @@ import qualified Unison.Builtin as Builtin
 
 type Pretty = P.Pretty P.ColorText
 
-displayTerm :: (Var v, Monad m)
+displayTerm :: Monad m
            => PPE.PrettyPrintEnvDecl
-           -> (Reference -> m (Maybe (Term v ())))
-           -> (Referent -> m (Maybe (Type v ())))
-           -> (Term v () -> m (Maybe (Term v ())))
-           -> (Reference -> m (Maybe (DD.Decl v ())))
-           -> Term v ()
+           -> (Reference -> m (Maybe (Term Symbol ())))
+           -> (Referent -> m (Maybe (Type Symbol ())))
+           -> (Term Symbol () -> m (Maybe (Term Symbol ())))
+           -> (Reference -> m (Maybe (DD.Decl Symbol ())))
+           -> Term Symbol ()
            -> m Pretty
 displayTerm = displayTerm' False
 
@@ -62,14 +63,14 @@ displayTerm = displayTerm' False
 --
 type ElideUnit = Bool
 
-displayTerm' :: (Var v, Monad m)
+displayTerm' :: Monad m
            => ElideUnit
            -> PPE.PrettyPrintEnvDecl
-           -> (Reference -> m (Maybe (Term v ())))
-           -> (Referent -> m (Maybe (Type v ())))
-           -> (Term v () -> m (Maybe (Term v ())))
-           -> (Reference -> m (Maybe (DD.Decl v ())))
-           -> Term v ()
+           -> (Reference -> m (Maybe (Term Symbol ())))
+           -> (Referent -> m (Maybe (Type Symbol ())))
+           -> (Term Symbol () -> m (Maybe (Term Symbol ())))
+           -> (Reference -> m (Maybe (DD.Decl Symbol ())))
+           -> Term Symbol ()
            -> m Pretty
 displayTerm' elideUnit pped terms typeOf eval types = \case
   tm@(Term.Apps' (Term.Constructor' (ConstructorReference typ _)) _)
@@ -99,13 +100,13 @@ displayTerm' elideUnit pped terms typeOf eval types = \case
 
 -- assume this is given a
 -- Pretty.Annotated ann (Either SpecialForm ConsoleText)
-displayPretty :: forall v m . (Var v, Monad m)
+displayPretty :: forall m . Monad m
               => PPE.PrettyPrintEnvDecl
-              -> (Reference -> m (Maybe (Term v ())))
-              -> (Referent  -> m (Maybe (Type v ())))
-              -> (Term v () -> m (Maybe (Term v ())))
-              -> (Reference -> m (Maybe (DD.Decl v ())))
-              -> Term v ()
+              -> (Reference -> m (Maybe (Term Symbol ())))
+              -> (Referent  -> m (Maybe (Type Symbol ())))
+              -> (Term Symbol () -> m (Maybe (Term Symbol ())))
+              -> (Reference -> m (Maybe (DD.Decl Symbol ())))
+              -> Term Symbol ()
               -> m Pretty
 displayPretty pped terms typeOf eval types tm = go tm
   where

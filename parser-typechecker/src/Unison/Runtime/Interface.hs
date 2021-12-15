@@ -542,7 +542,7 @@ traceNeeded
   -> EnumMap Word64 Combs
   -> IO (EnumMap Word64 Combs)
 traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init where
-  ks = keysSet (numberedTermLookup @Symbol)
+  ks = keysSet numberedTermLookup
   go acc w
     | hasKey w acc = pure acc
     | Just co <- EC.lookup w src
