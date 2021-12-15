@@ -47,7 +47,7 @@ List.map : (a ->{e} b) -> [a] ->{e} [b]
 List.map f as =
   go f acc as i = match List.at i as with
     None -> acc
-    Some a -> go f (acc `snoc` f a) as (i + 1)
+    Some a -> go f (snoc acc f a) as (i + 1)
   go f [] as 0
 
 structural type Monoid a = Monoid (a -> a -> a) a
@@ -67,8 +67,8 @@ merge lte a b =
     Some hd1 -> match at 0 b with
       None -> acc ++ a
       Some hd2 ->
-        if hd1 `lte` hd2 then go (acc `snoc` hd1) (drop 1 a) b
-        else go (acc `snoc` hd2) a (drop 1 b)
+        if lte hd1 hd2 then go (snoc acc hd1) (drop 1 a) b
+        else go (snoc acc hd2) a (drop 1 b)
   go [] a b
 
 dmap : (a ->{Remote} b) -> [a] ->{Remote} [b]

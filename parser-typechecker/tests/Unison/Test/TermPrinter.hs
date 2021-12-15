@@ -314,7 +314,6 @@ test = scope "termprinter" $ tests
                  \     x + 1"  -- TODO parser looks like lambda body should be a block, but we hit 'unexpected ='
   , tc "x + y"
   , tc "x ~ y"
-  , tcDiff "x `foo` y" "foo x y"
   , tc "x + (y + z)"
   , tc "x + y + z"
   , tc "x + y * z" -- i.e. (x + y) * z !

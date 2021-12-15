@@ -17,7 +17,7 @@ id2 = id . id
 (base.function..) f g x = f (g x)
 
 -- looks weird, but consistent syntax with any other infix binding
-object |> oop.syntax.. <| method = method object
+object oop.syntax.. method = method object
 
 ex =
   use base.function .
