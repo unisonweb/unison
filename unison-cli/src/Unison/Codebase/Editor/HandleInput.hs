@@ -227,8 +227,6 @@ loop = do
         eval . Eval $ Branch.getPatch seg (Branch.head b)
       withFile ambient sourceName lexed@(text, tokens) k = do
         let getHQ = \case
-              L.Backticks s (Just sh) ->
-                Just (HQ.HashQualified (Name.unsafeFromString s) sh)
               L.WordyId s (Just sh) ->
                 Just (HQ.HashQualified (Name.unsafeFromString s) sh)
               L.SymbolyId s (Just sh) ->
@@ -3205,7 +3203,6 @@ lexedSource :: Monad m => SourceName -> Source -> Action' m v (NamesWithHistory,
 lexedSource name src = do
   let tokens = L.lexer (Text.unpack name) (Text.unpack src)
       getHQ = \case
-        L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
         L.WordyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
         L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
         L.Hash sh -> Just (HQ.HashOnly sh)
