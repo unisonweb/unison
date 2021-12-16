@@ -48,7 +48,6 @@ import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Pretty as P
 
@@ -354,6 +353,15 @@ docs =
         ]
     )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+
+api :: InputPattern
+api =
+  InputPattern
+    "api"
+    []
+    []
+    "`api` provides details about the API."
+    (const $ pure Input.ApiI)
 
 ui :: InputPattern
 ui =
@@ -1940,6 +1948,7 @@ validInputs =
     view,
     display,
     displayTo,
+    api,
     ui,
     docs,
     docsToHtml,

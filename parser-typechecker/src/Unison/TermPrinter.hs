@@ -248,7 +248,13 @@ pretty0
     Delay' x ->
       paren (p >= 11 || isBlock x && p >= 3) $
         fmt S.DelayForceChar (l "'")
-        <> pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x
+        <> (case x of
+              Lets' _ _ -> id
+              -- Add indentation below if we're opening parens with '(
+              -- This is in case the contents are a long function application
+              -- in which case the arguments should be indented.
+              _ -> PP.indentAfterNewline "  ")
+             (pretty0 n (ac (if isBlock x then 0 else 10) Normal im doc) x)
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
@@ -305,9 +311,9 @@ pretty0
           -- corequisite step in immediateChildBlockTerms (because it doesn't
           -- know bc.)  So we'll fail to take advantage of any opportunity
           -- this let block provides to add a use statement.  Not so bad.
-          (fmt S.ControlKeyword "let") `PP.hang` x
+          fmt S.ControlKeyword "let" `PP.hang` x
       lhs = PP.group (fst (prettyPattern n (ac 0 Block im doc) 10 vs pat))
-         `PP.hang` printGuard guard
+              `PP.hang` printGuard guard
       printGuard Nothing = mempty
       printGuard (Just g') =
         let (_,g) = ABT.unabs g'
@@ -578,7 +584,6 @@ printCase env im doc ms0 = PP.lines $ alignGrid grid where
       pure p
   arrow = fmt S.ControlKeyword "->"
   goBody im' uses body = uses [pretty0 env (ac 0 Block im' doc) body]
-
   -- If there's multiple guarded cases for this pattern, prints as:
   -- MyPattern x y
   --   | guard 1        -> 1
@@ -1099,65 +1104,104 @@ calcImports im tm = (im', render $ getUses result)
                    |> map snd
       in PP.lines (uses ++ rest)
 
--- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- blockterm within it, containing all usages of that name?  A blockterm is a place
--- where the syntax lets us put a use statement, like the branches of an if/then/else.
--- We traverse the block terms by traversing the whole subtree with ABT.find, and paying
--- attention to those subterms that look like a blockterm.  This is complicated
--- by the fact that you can't always tell if a term is a blockterm just
--- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  So actually we traverse the tree, at each term
--- looking for child terms that are block terms, and see if any of those contain
--- all the usages of the name.
+-- Given a block term and a name (Prefix, Suffix) of interest, is there a
+-- strictly smaller blockterm within it, containing all usages of that name?
+-- A blockterm is a place where the syntax lets us put a use statement, like the
+-- branches of an if/then/else.
+-- We traverse the block terms by traversing the whole subtree with ABT.find,
+-- and paying attention to those subterms that look like a blockterm.
+-- This is complicated by the fact that you can't always tell if a term is a
+-- blockterm just by looking at it: in some cases you can only tell when you can
+-- see it in the context of the wider term that contains it. So actually we
+-- traverse the tree, at each term looking for child terms that are block terms,
+-- and see if any of those contain all the usages of the name.
 -- Cut out the occurrences of "const id $" to get tracing.
-allInSubBlock :: (Var v, Ord v) => Term3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
-allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
-                             result = any (/= tm) $ found
-                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
-                                                    show s ++ ", " ++ show i ++ "): returns " ++
-                                                    show result ++ "\nInput:\n" ++ show tm ++
-                                                    "\nFound: \n" ++ show found ++ "\n\n")
-                         in tr result where
-  getUsages t =    annotation t
-                |> usages
-                |> Map.lookup s
-                |> fmap (Map.lookup p)
-                |> join
-                |> fromMaybe 0
-  finder t = let result = let i' = getUsages t
-                          in if i' < i
-                             then ABT.Prune
-                             else
-                               let found = filter hit $ immediateChildBlockTerms t
-                               in if (i' == i) && (not $ null found)
-                                  then ABT.Found found
-                                  else ABT.Continue
-                 children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
-                 tr = const id $ trace ("\nfinder: returns " ++ show result ++
-                                        "\n  children:" ++ children ++
-                                        "\n  input: \n" ++ show t ++ "\n\n")
-             in tr $ result
-  hit t = (getUsages t) == i
+allInSubBlock ::
+  (Var v, Ord v) =>
+  Term3 v PrintAnnotation ->
+  Prefix ->
+  Suffix ->
+  Int ->
+  Bool
+allInSubBlock tm p s i =
+  let found = concat $ ABT.find finder tm
+      result = any (/= tm) found
+      tr =
+        const id $ trace
+          ( "\nallInSubBlock("
+              ++ show p
+              ++ ", "
+              ++ show s
+              ++ ", "
+              ++ show i
+              ++ "): returns "
+              ++ show result
+              ++ "\nInput:\n"
+              ++ show tm
+              ++ "\nFound: \n"
+              ++ show found
+              ++ "\n\n"
+          )
+   in tr result
+  where
+    getUsages t =
+      annotation t
+        |> usages
+        |> Map.lookup s
+        |> fmap (Map.lookup p)
+        |> join
+        |> fromMaybe 0
+    finder t =
+      let result =
+            let i' = getUsages t
+             in if i' < i
+                  then ABT.Prune
+                  else
+                    let found = filter hit $ immediateChildBlockTerms t
+                     in if (i' == i) && (not $ null found)
+                          then ABT.Found found
+                          else ABT.Continue
+          children =
+            concat
+              ( map (\t -> "child: " ++ show t ++ "\n") $
+                  immediateChildBlockTerms t
+              )
+          tr =
+            const id $ trace
+              ( "\nfinder: returns "
+                  ++ show result
+                  ++ "\n  children:"
+                  ++ children
+                  ++ "\n  input: \n"
+                  ++ show t
+                  ++ "\n\n"
+              )
+       in tr $ result
+    hit t = (getUsages t) == i
 
--- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty0`.  AST nodes that do a calcImports in
--- pretty0, in order to try and emit a `use` statement, need to be emitted also by this
--- function, otherwise the `use` statement may come out at an enclosing scope instead.
-immediateChildBlockTerms :: (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
+-- Return any blockterms at or immediately under this term. Has to match the
+-- places in the syntax that get a call to `calcImports` in `pretty0`.
+-- AST nodes that do a calcImports in pretty0, in order to try and emit a `use`
+-- statement, need to be emitted also by this function, otherwise the `use`
+-- statement may come out at an enclosing scope instead.
+immediateChildBlockTerms ::
+  (Var vt, Var v) => Term2 vt at ap v a -> [Term2 vt at ap v a]
 immediateChildBlockTerms = \case
-    Handle' handler body -> [handler, body]
-    If' _ t f -> [t, f]
-    LetBlock bs _ -> concat $ map doLet bs
-    Match' scrute branches ->
-      if isDestructuringBind scrute branches then [scrute]
-      else concat $ map doCase branches
-    _ -> []
+  Handle' handler body -> [handler, body]
+  If' _ t f -> [t, f]
+  LetBlock bs e -> concatMap doLet bs ++ handleDelay e
+  Delay' b@(Lets' _ _) -> [b]
+  Match' scrute branches ->
+    if isDestructuringBind scrute branches
+      then [scrute]
+      else concatMap doCase branches
+  _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
+    handleDelay (Delay' b@(Lets' _ _)) = [b]
+    handleDelay _ = []
     doLet (v, Ann' tm _) = doLet (v, tm)
-    doLet (v, LamsNamedOpt' _ body) = if isBlank $ Var.nameStr v
-                                      then []
-                                      else [body]
+    doLet (v, LamsNamedOpt' _ body) = [body | not (isBlank $ Var.nameStr v)]
     doLet t = error (show t) []
 
 -- Matches with a single case, no variable shadowing, and where the pattern

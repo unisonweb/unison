@@ -29,8 +29,8 @@ import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors (backendError, badNamespace, rootBranchError)
 import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
+import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
-import Unison.Var (Var)
 
 type ProjectsAPI =
   "projects" :> QueryParam "rootBranch" ShortBranchHash
@@ -65,9 +65,8 @@ instance ToJSON ProjectListing where
   toEncoding = genericToEncoding defaultOptions
 
 backendListEntryToProjectListing ::
-  Var v =>
   ProjectOwner ->
-  Backend.ShallowListEntry v a ->
+  Backend.ShallowListEntry Symbol a ->
   Maybe ProjectListing
 backendListEntryToProjectListing owner = \case
   Backend.ShallowBranchEntry name hash _ ->
@@ -80,8 +79,7 @@ backendListEntryToProjectListing owner = \case
   _ -> Nothing
 
 entryToOwner ::
-  Var v =>
-  Backend.ShallowListEntry v a ->
+  Backend.ShallowListEntry Symbol a ->
   Maybe ProjectOwner
 entryToOwner = \case
   Backend.ShallowBranchEntry name _ _ ->
@@ -89,10 +87,8 @@ entryToOwner = \case
   _ -> Nothing
 
 serve ::
-  forall v.
-  Var v =>
   Handler () ->
-  Codebase IO v Ann ->
+  Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
   Handler (APIHeaders [ProjectListing])
 serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
@@ -125,7 +121,7 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
 
     -- Minor helpers
 
-    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry v Ann]
+    findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry Symbol Ann]
     findShallow branch =
       doBackend $ Backend.findShallowInBranch codebase branch
 

@@ -519,7 +519,7 @@ viewrs = unop0 3 $ \[s,u,i,l]
        , (1, ([BX,BX], TAbss [i,l] $ seqViewElem i l))
        ]
 
-eqt, neqt, leqt, geqt, lesst, great :: Var v => SuperNormal v
+eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
 eqt = binop0 1 $ \[x,y,b]
    -> TLetD b UN (TPrm EQLT [x,y])
     $ boolift b
@@ -539,11 +539,11 @@ great = binop0 1 $ \[x,y,b]
      -> TLetD b UN (TPrm LEQT [x,y])
       $ notlift b
 
-packt, unpackt :: Var v => SuperNormal v
+packt, unpackt :: SuperNormal Symbol
 packt = unop0 0 $ \[s] -> TPrm PAKT [s]
 unpackt = unop0 0 $ \[t] -> TPrm UPKT [t]
 
-packb, unpackb, emptyb, appendb :: Var v => SuperNormal v
+packb, unpackb, emptyb, appendb :: SuperNormal Symbol
 packb = unop0 0 $ \[s] -> TPrm PAKB [s]
 unpackb = unop0 0 $ \[b] -> TPrm UPKB [b]
 emptyb
@@ -554,7 +554,7 @@ emptyb
   es = fresh1
 appendb = binop0 0 $ \[x,y] -> TPrm CATB [x,y]
 
-takeb, dropb, atb, sizeb, flattenb :: Var v => SuperNormal v
+takeb, dropb, atb, sizeb, flattenb :: SuperNormal Symbol
 takeb = binop0 1 $ \[n0,b,n]
      -> unbox n0 Ty.natRef n
       $ TPrm TAKB [n,b]
@@ -579,7 +579,7 @@ sizeb = unop0 1 $ \[b,n]
 
 flattenb = unop0 0 $ \[b] -> TPrm FLTB [b]
 
-i2t, n2t, f2t :: Var v => SuperNormal v
+i2t, n2t, f2t :: SuperNormal Symbol
 i2t = unop0 1 $ \[n0,n]
    -> unbox n0 Ty.intRef n
     $ TPrm ITOT [n]
@@ -590,7 +590,7 @@ f2t = unop0 1 $ \[f0,f]
    -> unbox f0 Ty.floatRef f
     $ TPrm FTOT [f]
 
-t2i, t2n, t2f :: Var v => SuperNormal v
+t2i, t2n, t2f :: SuperNormal Symbol
 t2i = unop0 3 $ \[x,t,n0,n]
    -> TLetD t UN (TPrm TTOI [x])
     . TMatch t . MatchSum $ mapFromList
@@ -616,18 +616,18 @@ t2f = unop0 3 $ \[x,t,f0,f]
                $ some f))
     ]
 
-equ :: Var v => SuperNormal v
+equ :: SuperNormal Symbol
 equ = binop0 1 $ \[x,y,b]
    -> TLetD b UN (TPrm EQLU [x,y])
     $ boolift b
 
-cmpu :: Var v => SuperNormal v
+cmpu :: SuperNormal Symbol
 cmpu = binop0 2 $ \[x,y,c,i]
     -> TLetD c UN (TPrm CMPU [x,y])
      . TLetD i UN (TPrm DECI [c])
      $ TCon Ty.intRef 0 [i]
 
-ltu :: Var v => SuperNormal v
+ltu :: SuperNormal Symbol
 ltu = binop0 1 $ \[x,y,c]
    -> TLetD c UN (TPrm CMPU [x,y])
     . TMatch c
@@ -635,7 +635,7 @@ ltu = binop0 1 $ \[x,y,c]
         (mapFromList [ (0, TCon Ty.booleanRef 1 []) ])
         (Just $ TCon Ty.booleanRef 0 [])
 
-gtu :: Var v => SuperNormal v
+gtu :: SuperNormal Symbol
 gtu = binop0 1 $ \[x,y,c]
    -> TLetD c UN (TPrm CMPU [x,y])
     . TMatch c
@@ -643,7 +643,7 @@ gtu = binop0 1 $ \[x,y,c]
         (mapFromList [ (2, TCon Ty.booleanRef 1 []) ])
         (Just $ TCon Ty.booleanRef 0 [])
 
-geu :: Var v => SuperNormal v
+geu :: SuperNormal Symbol
 geu = binop0 1 $ \[x,y,c]
    -> TLetD c UN (TPrm CMPU [x,y])
     . TMatch c
@@ -651,7 +651,7 @@ geu = binop0 1 $ \[x,y,c]
         (mapFromList [ (0, TCon Ty.booleanRef 0 []) ])
         (Just $ TCon Ty.booleanRef 1 [])
 
-leu :: Var v => SuperNormal v
+leu :: SuperNormal Symbol
 leu = binop0 1 $ \[x,y,c]
    -> TLetD c UN (TPrm CMPU [x,y])
     . TMatch c
@@ -659,17 +659,17 @@ leu = binop0 1 $ \[x,y,c]
         (mapFromList [ (2, TCon Ty.booleanRef 0 []) ])
         (Just $ TCon Ty.booleanRef 1 [])
 
-notb :: Var v => SuperNormal v
+notb :: SuperNormal Symbol
 notb = unop0 0 $ \[b]
     -> TMatch b . flip (MatchData Ty.booleanRef) Nothing
      $ mapFromList [ (0, ([], tru)), (1, ([], fls)) ]
 
-orb :: Var v => SuperNormal v
+orb :: SuperNormal Symbol
 orb = binop0 0 $ \[p,q]
    -> TMatch p . flip (MatchData Ty.booleanRef) Nothing
     $ mapFromList [ (1, ([], tru)), (0, ([], TVar q)) ]
 
-andb :: Var v => SuperNormal v
+andb :: SuperNormal Symbol
 andb = binop0 0 $ \[p,q]
     -> TMatch p . flip (MatchData Ty.booleanRef) Nothing
      $ mapFromList [ (0, ([], fls)), (1, ([], TVar q)) ]
@@ -677,7 +677,7 @@ andb = binop0 0 $ \[p,q]
 -- unsafeCoerce, used for numeric types where conversion is a
 -- no-op on the representation. Ideally this will be inlined and
 -- eliminated so that no instruction is necessary.
-cast :: Var v => Reference -> Reference -> SuperNormal v
+cast :: Reference -> Reference -> SuperNormal Symbol
 cast ri ro
   = unop0 1 $ \[x0,x]
  -> unbox x0 ri x
@@ -688,19 +688,19 @@ cast ri ro
 -- because it keeps the same representation. It is not capable of
 -- e.g. correctly translating between two types with compatible bit
 -- representations, because tagging information will be retained.
-poly'coerce :: Var v => SuperNormal v
+poly'coerce :: SuperNormal Symbol
 poly'coerce = unop0 0 $ \[x] -> TVar x
 
-jumpk :: Var v => SuperNormal v
+jumpk :: SuperNormal Symbol
 jumpk = binop0 0 $ \[k,a] -> TKon k [a]
 
-scope'run :: Var v => SuperNormal v
+scope'run :: SuperNormal Symbol
 scope'run
   = unop0 1 $ \[e, un]
  -> TLetD un BX (TCon Ty.unitRef 0 [])
   $ TApp (FVar e) [un]
 
-fork'comp :: Var v => SuperNormal v
+fork'comp :: SuperNormal Symbol
 fork'comp
   = Lambda [BX]
   . TAbs act
@@ -710,19 +710,19 @@ fork'comp
   where
   (act,unit,lz) = fresh3
 
-bug :: Var v => Util.Text.Text -> SuperNormal v
+bug :: Util.Text.Text -> SuperNormal Symbol
 bug name
   = unop0 1 $ \[x, n]
  -> TLetD n BX (TLit $ T name)
   $ TPrm EROR [n, x]
 
-watch :: Var v => SuperNormal v
+watch :: SuperNormal Symbol
 watch
   = binop0 0 $ \[t,v]
  -> TLets Direct [] [] (TPrm PRNT [t])
   $ TVar v
 
-raise :: Var v => SuperNormal v
+raise :: SuperNormal Symbol
 raise
   = unop0 4 $ \[r,f,n,j,k]
  -> TMatch r . flip (MatchData Ty.exceptionRef) Nothing $ mapFromList
@@ -736,22 +736,22 @@ raise
   where
   i = fromIntegral $ builtinTypeNumbering Map.! Ty.exceptionRef
 
-gen'trace :: Var v => SuperNormal v
+gen'trace :: SuperNormal Symbol
 gen'trace
   = binop0 0 $ \[t,v]
  -> TLets Direct [] [] (TPrm TRCE [t,v])
   $ TCon Ty.unitRef 0 []
 
-code'missing :: Var v => SuperNormal v
+code'missing :: SuperNormal Symbol
 code'missing
   = unop0 1 $ \[link,b]
  -> TLetD b UN (TPrm MISS [link])
   $ boolift b
 
-code'cache :: Var v => SuperNormal v
+code'cache :: SuperNormal Symbol
 code'cache = unop0 0 $ \[new] -> TPrm CACH [new]
 
-code'lookup :: Var v => SuperNormal v
+code'lookup :: SuperNormal Symbol
 code'lookup
   = unop0 2 $ \[link,t,r]
  -> TLetD t UN (TPrm LKUP [link])
@@ -760,7 +760,7 @@ code'lookup
   , (1, ([BX], TAbs r $ some r))
   ]
 
-code'validate :: Var v => SuperNormal v
+code'validate :: SuperNormal Symbol
 code'validate
   = unop0 5 $ \[item, t, ref, msg, extra, fail]
  -> TLetD t UN (TPrm CVLD [item])
@@ -774,11 +774,11 @@ code'validate
       $ none)
   ]
 
-term'link'to'text :: Var v => SuperNormal v
+term'link'to'text :: SuperNormal Symbol
 term'link'to'text
   = unop0 0 $ \[link] -> TPrm TLTT [link]
 
-value'load :: Var v => SuperNormal v
+value'load :: SuperNormal Symbol
 value'load
   = unop0 2 $ \[vlu,t,r]
  -> TLetD t UN (TPrm LOAD [vlu])
@@ -787,10 +787,10 @@ value'load
   , (1, ([BX], TAbs r $ right r))
   ]
 
-value'create :: Var v => SuperNormal v
+value'create :: SuperNormal Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
-stm'atomic :: Var v => SuperNormal v
+stm'atomic :: SuperNormal Symbol
 stm'atomic
   = Lambda [BX]
   . TAbs act
@@ -800,7 +800,7 @@ stm'atomic
   where
   (act,unit,lz) = fresh3
 
-type ForeignOp = forall v. Var v => FOp -> ([Mem], ANormal v)
+type ForeignOp = FOp -> ([Mem], ANormal Symbol)
 
 standard'handle :: ForeignOp
 standard'handle instr
@@ -811,12 +811,12 @@ standard'handle instr
   where
   (h0,h) = fresh2
 
-any'construct :: Var v => SuperNormal v
+any'construct :: SuperNormal Symbol
 any'construct
   = unop0 0 $ \[v]
  -> TCon Ty.anyRef 0 [v]
 
-any'extract :: Var v => SuperNormal v
+any'extract :: SuperNormal Symbol
 any'extract
   = unop0 1
   $ \[v,v1] -> TMatch v
@@ -1327,7 +1327,7 @@ boxToEBoxBox instr
   where
   (e,b,ev) = fresh3
 
-builtinLookup :: Var v => Map.Map Reference (SuperNormal v)
+builtinLookup :: Map.Map Reference (SuperNormal Symbol)
 builtinLookup
   = Map.fromList
   . map (\(t, f) -> (Builtin t, f)) $
@@ -1522,7 +1522,7 @@ type FDecl v
   = State (Word64, [(Data.Text.Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
 
 declareForeign
-  :: Var v => Data.Text.Text -> ForeignOp -> ForeignFunc -> FDecl v ()
+  :: Data.Text.Text -> ForeignOp -> ForeignFunc -> FDecl Symbol ()
 declareForeign name op func
   = modify $ \(w, cs, fs)
       -> (w+1, (name, uncurry Lambda (op w)) : cs, mapInsert w func fs)
@@ -1555,7 +1555,7 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (Util.Text.pack (show e)) (unitValue))
   flatten (Right (Right a)) = Right a
 
-declareForeigns :: Var v => FDecl v ()
+declareForeigns :: FDecl Symbol ()
 declareForeigns = do
   declareForeign "IO.openFile.impl.v3" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Util.Text.Text, n :: Int) ->
@@ -1585,7 +1585,7 @@ declareForeigns = do
   declareForeign "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $ 
+  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
     fmap Util.Text.fromText . Text.IO.hGetLine
 
   declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
@@ -1877,7 +1877,7 @@ declareForeigns = do
   declareForeign "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
   -- Hashing functions
-  let declareHashAlgorithm :: forall v alg . Var v => Hash.HashAlgorithm alg => Data.Text.Text -> alg -> FDecl v ()
+  let declareHashAlgorithm :: forall alg . Hash.HashAlgorithm alg => Data.Text.Text -> alg -> FDecl Symbol ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
         declareForeign ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
@@ -1943,13 +1943,13 @@ declareForeigns = do
   declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
   declareForeign "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $ 
+  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64
-  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $ 
+  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
   declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
@@ -1974,28 +1974,27 @@ typeReferences :: [(Reference, Word64)]
 typeReferences = zip rs [1..]
   where
   rs = [ r | (_,r) <- Ty.builtinTypes ]
-    ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls @Symbol ]
-    ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls @Symbol ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinDataDecls ]
+    ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls ]
 
 foreignDeclResults
-  :: Var v
-  => (Word64, [(Data.Text.Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
+  :: (Word64, [(Data.Text.Text, SuperNormal Symbol)], EnumMap Word64 ForeignFunc)
 foreignDeclResults = execState declareForeigns (0, [], mempty)
 
-foreignWrappers :: Var v => [(Data.Text.Text, SuperNormal v)]
+foreignWrappers :: [(Data.Text.Text, SuperNormal Symbol)]
 foreignWrappers | (_, l, _) <- foreignDeclResults = reverse l
 
-numberedTermLookup :: Var v => EnumMap Word64 (SuperNormal v)
+numberedTermLookup :: EnumMap Word64 (SuperNormal Symbol)
 numberedTermLookup
   = mapFromList . zip [1..] . Map.elems $ builtinLookup
 
 builtinTermNumbering :: Map Reference Word64
 builtinTermNumbering
-  = Map.fromList (zip (Map.keys $ builtinLookup @Symbol) [1..])
+  = Map.fromList (zip (Map.keys $ builtinLookup) [1..])
 
 builtinTermBackref :: EnumMap Word64 Reference
 builtinTermBackref
-  = mapFromList . zip [1..] . Map.keys $ builtinLookup @Symbol
+  = mapFromList . zip [1..] . Map.keys $ builtinLookup
 
 builtinTypeNumbering :: Map Reference Word64
 builtinTypeNumbering = Map.fromList typeReferences
@@ -2005,7 +2004,7 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
   where swap (x, y) = (y, x)
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
-builtinForeigns | (_, _, m) <- foreignDeclResults @Symbol = m
+builtinForeigns | (_, _, m) <- foreignDeclResults = m
 
 unsafeSTMToIO :: STM.STM a -> IO a
 unsafeSTMToIO (STM.STM m) = IO m

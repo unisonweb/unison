@@ -170,6 +170,7 @@ data Input
     | DebugDumpNamespaceSimpleI
     | DebugClearWatchI
     | QuitI
+    | ApiI
     | UiI
     | DocsToHtmlI Path' FilePath
     | GistI GistInput
