@@ -141,21 +141,11 @@ testOpenClose _ =
   
     testOpenClose : '{IO} [Result]
 
+```
+-- getBuffering.impl is currently broken on trunk (https://github.com/unisonweb/unison/issues/2767)
+-- Add this back to the ucm block once that's fixed.
 .> io.test testOpenClose
 
-    New test results:
-  
-  ◉ testOpenClose   file should be open
-  ◉ testOpenClose   file should be closed
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   bytes have been written
-  ◉ testOpenClose   file should be closed
-  
-  ✅ 5 test(s) passing
-  
-  Tip: Use view testOpenClose to view the source of a test.
-
-```
 ### Seeking in open files
 
 Tests: openFile
