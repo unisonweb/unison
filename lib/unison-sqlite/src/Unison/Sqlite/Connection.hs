@@ -64,13 +64,13 @@ import qualified Database.SQLite.Simple as Sqlite
 import qualified Database.SQLite.Simple.FromField as Sqlite
 import qualified Database.SQLite3.Direct as Sqlite (Database (..))
 import Debug.RecoverRTTI (anythingToString)
+import System.Environment (lookupEnv)
 import System.IO (stderr)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.Prelude
 import Unison.Sqlite.Exception
 import Unison.Sqlite.Sql
 import UnliftIO (MonadUnliftIO)
-import System.IO.Unsafe (unsafePerformIO)
-import System.Environment (lookupEnv)
 import UnliftIO.Exception
 
 debugTraceQueries :: Bool
@@ -130,8 +130,12 @@ closeConnection (Connection _ _ conn) =
 -- Without results, with parameters
 
 execute :: Sqlite.ToRow a => Connection -> Sql -> a -> IO ()
-execute conn@(Connection _ _ conn0) s params =
-  doExecute `catch` \(exception :: Sqlite.SQLError) ->
+execute conn@(Connection _ _ conn0) s params = do
+  when debugTraceQueries do
+    Text.hPutStrLn stderr ("query:  " <> coerce s)
+    Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
+    Text.hPutStrLn stderr "----------"
+  Sqlite.execute conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -139,20 +143,14 @@ execute conn@(Connection _ _ conn0) s params =
           params = Just params,
           sql = s
         }
-  where
-    doExecute =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-    run = Sqlite.execute conn0 (coerce s) params
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
-executeMany conn@(Connection _ _ conn0) s params =
-  doExecuteMany `catch` \(exception :: Sqlite.SQLError) ->
+executeMany conn@(Connection _ _ conn0) s params = do
+  when debugTraceQueries do
+    Text.hPutStrLn stderr ("query:  " <> coerce s)
+    Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
+    Text.hPutStrLn stderr "----------"
+  Sqlite.executeMany conn0 (coerce s) params `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -160,22 +158,15 @@ executeMany conn@(Connection _ _ conn0) s params =
           params = Just params,
           sql = s
         }
-  where
-    doExecuteMany =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr ("params: " <> Text.pack (anythingToString params))
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-    run = Sqlite.executeMany conn0 (coerce s) params
 
 -- Without results, without parameters
 
 execute_ :: Connection -> Sql -> IO ()
-execute_ conn@(Connection _ _ conn0) s =
-  doExecute_ `catch` \(exception :: Sqlite.SQLError) ->
+execute_ conn@(Connection _ _ conn0) s = do
+  when debugTraceQueries do
+    Text.hPutStrLn stderr ("query:  " <> coerce s)
+    Text.hPutStrLn stderr "----------"
+  Sqlite.execute_ conn0 (coerce s) `catch` \(exception :: Sqlite.SQLError) ->
     throwSqliteQueryException
       SqliteQueryExceptionInfo
         { connection = conn,
@@ -183,15 +174,6 @@ execute_ conn@(Connection _ _ conn0) s =
           params = Nothing,
           sql = s
         }
-  where
-    doExecute_ =
-      if debugTraceQueries
-        then do
-          Text.hPutStrLn stderr ("query:  " <> coerce s)
-          Text.hPutStrLn stderr "----------"
-          run
-        else run
-    run = Sqlite.execute_ conn0 (coerce s)
 
 -- With results, with parameters, without checks
 
