@@ -38,7 +38,7 @@ data SeqOp
   | Concat
   deriving (Eq, Show, Ord, Generic)
 
-instance H.Hashable SeqOp where
+instance H.Tokenizable SeqOp where
   tokens Cons = [H.Tag 0]
   tokens Snoc = [H.Tag 1]
   tokens Concat = [H.Tag 2]
@@ -78,7 +78,7 @@ setLoc p loc = case p of
   SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
 
-instance H.Hashable (Pattern p) where
+instance H.Tokenizable (Pattern p) where
   tokens (Unbound _) = [H.Tag 0]
   tokens (Var _) = [H.Tag 1]
   tokens (Boolean _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]

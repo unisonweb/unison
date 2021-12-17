@@ -138,6 +138,6 @@ instance Hashable1 F where
             Modified m t ->
               [tag 3, Hashable.accumulateToken m, hashed $ hash t]
 
-instance Hashable.Hashable Modifier where
+instance Hashable.Tokenizable Modifier where
   tokens Structural = [Hashable.Tag 0]
   tokens (Unique txt) = [Hashable.Tag 1, Hashable.Text txt]

@@ -18,7 +18,7 @@ import Unison.Prelude
 
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
-import Unison.Hashing.V2.BuildHashable (Hashable)
+import Unison.Hashing.V2.BuildHashable (Tokenizable)
 import qualified Unison.Hashing.V2.BuildHashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
@@ -65,6 +65,6 @@ components sccs = uncurry component =<< sccs
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
-instance Hashable Reference where
+instance Tokenizable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (DerivedId (Id h i)) = [Hashable.Tag 1, Hashable.Bytes (H.toByteString h), Hashable.Nat i]
