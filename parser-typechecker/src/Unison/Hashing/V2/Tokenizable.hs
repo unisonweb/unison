@@ -58,6 +58,21 @@ accumulateToken = Hashed . hashTokenizable
 hashTokenizable :: (Tokenizable t, Accumulate h) => t -> h
 hashTokenizable = accumulate . tokens
 
+-- | Tokenizable converts a value into a set of hashing tokens which will later be accumulated
+-- into a Hash. Be very careful when adding or altering instances of this typeclass, changing
+-- the hash of a value is a major breaking change and requires a complete codebase migration.
+--
+-- If you simply want to provide a convenience instance for a type which wraps some Hashable
+-- type, write an instance of 'Hashable' which calls through to the inner instance instead.
+--
+-- E.g. If I want to be able to hash a @TaggedBranch@ using its Branch0 hashable instance:
+--
+-- @@
+-- data TaggedBranch = TaggedBranch String Branch
+--
+-- instance Hashable TaggedBranch where
+--   hash (TaggedBranch _ b) = hash b
+-- @@
 class Tokenizable t where
   tokens :: Accumulate h => t -> [Token h]
 
@@ -109,6 +124,9 @@ instance Tokenizable Bool where
 instance Tokenizable Hash where
   tokens h = [Bytes (Hash.toByteString h)]
 
+-- | A class for all types which can accumulate tokens into a hash.
+-- If you want to provide an instance for hashing a Unison value, see 'Tokenizable'
+-- and 'Hashable' instead.
 instance Accumulate Hash where
   accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit
     where
