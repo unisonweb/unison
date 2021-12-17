@@ -39,6 +39,7 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , children
+  , allChildren
   , nonEmptyChildren
   , deepEdits'
   , toList0
@@ -171,6 +172,10 @@ data Branch0 m = Branch0
   , deepPaths :: Set Path
   , deepEdits :: Map Name EditHash
   }
+
+allChildren :: Applicative m => Branch0 m -> Map NameSegment (m (Branch m))
+allChildren b =
+  fmap pure (_children b) `Map.union` archivedChildren b
 
 edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
 edits = lens _edits (\b0 e -> b0{_edits=e})
