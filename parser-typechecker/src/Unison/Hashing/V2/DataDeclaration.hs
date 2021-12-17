@@ -22,8 +22,8 @@ import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.ABT as ABT
-import Unison.Hashing.V2.BuildHashable (Hashable1)
-import qualified Unison.Hashing.V2.BuildHashable as Hashable
+import Unison.Hashing.V2.Tokenizable (Hashable1)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
 import qualified Unison.Hashing.V2.Reference.Util as Reference.Util

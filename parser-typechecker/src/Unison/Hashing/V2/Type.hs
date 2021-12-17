@@ -28,8 +28,8 @@ module Unison.Hashing.V2.Type (
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import Unison.Hashing.V2.BuildHashable (Hashable1)
-import qualified Unison.Hashing.V2.BuildHashable as Hashable
+import Unison.Hashing.V2.Tokenizable (Hashable1)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference

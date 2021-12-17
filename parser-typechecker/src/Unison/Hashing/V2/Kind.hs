@@ -2,8 +2,8 @@
 
 module Unison.Hashing.V2.Kind where
 
-import Unison.Hashing.V2.BuildHashable (Tokenizable)
-import qualified Unison.Hashing.V2.BuildHashable as Hashable
+import Unison.Hashing.V2.Tokenizable (Tokenizable)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Prelude
 
 data Kind = Star | Arrow Kind Kind deriving (Eq, Ord, Read, Show, Generic)

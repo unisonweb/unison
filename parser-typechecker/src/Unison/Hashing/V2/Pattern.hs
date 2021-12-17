@@ -10,7 +10,7 @@ import Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Set as Set
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.Hashing.V2.BuildHashable as H
+import qualified Unison.Hashing.V2.Tokenizable as H
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Type as Type
 import Unison.Prelude

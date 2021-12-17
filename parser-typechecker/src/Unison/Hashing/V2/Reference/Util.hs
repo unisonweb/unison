@@ -4,7 +4,7 @@ module Unison.Hashing.V2.Reference.Util where
 import Unison.Prelude
 
 import qualified Unison.Hashing.V2.Reference as Reference
-import Unison.Hashing.V2.BuildHashable (Hashable1)
+import Unison.Hashing.V2.Tokenizable (Hashable1)
 import Unison.ABT (Var)
 import qualified Unison.Hashing.V2.ABT as ABT
 import qualified Data.Map as Map

@@ -14,8 +14,8 @@ import Unison.ABT
 import Data.List hiding (cycle, find)
 import Data.Vector ((!))
 import Prelude hiding (abs, cycle)
-import Unison.Hashing.V2.BuildHashable (Accumulate, Hashable1, hash1)
-import qualified Unison.Hashing.V2.BuildHashable as Hashable
+import Unison.Hashing.V2.Tokenizable (Accumulate, Hashable1, hash1)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector

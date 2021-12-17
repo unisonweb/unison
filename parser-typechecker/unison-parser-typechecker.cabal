@@ -81,7 +81,6 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
-      Unison.Hashing.V2.BuildHashable
       Unison.Hashing.V2.Causal
       Unison.Hashing.V2.Convert
       Unison.Hashing.V2.DataDeclaration
@@ -94,6 +93,7 @@ library
       Unison.Hashing.V2.Referent
       Unison.Hashing.V2.Term
       Unison.Hashing.V2.TermEdit
+      Unison.Hashing.V2.Tokenizable
       Unison.Hashing.V2.Type
       Unison.Hashing.V2.TypeEdit
       Unison.Lexer

@@ -18,8 +18,8 @@ import Unison.Prelude
 
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
-import Unison.Hashing.V2.BuildHashable (Tokenizable)
-import qualified Unison.Hashing.V2.BuildHashable as Hashable
+import Unison.Hashing.V2.Tokenizable (Tokenizable)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 

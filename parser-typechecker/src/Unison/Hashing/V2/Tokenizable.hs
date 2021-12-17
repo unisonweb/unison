@@ -1,4 +1,4 @@
-module Unison.Hashing.V2.BuildHashable
+module Unison.Hashing.V2.Tokenizable
   ( Tokenizable (..),
     Accumulate (..),
     Hashable1 (..),

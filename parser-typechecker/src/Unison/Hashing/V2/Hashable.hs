@@ -6,7 +6,7 @@ where
 import Data.Int (Int64)
 import Data.Set (Set)
 import Unison.Hash (Hash (..))
-import qualified Unison.Hashing.V2.BuildHashable as BuildHashable
+import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
 
 -- | This typeclass provides a mechanism for obtaining a content-based hash for Unison types &
 -- terms.
@@ -15,11 +15,11 @@ import qualified Unison.Hashing.V2.BuildHashable as BuildHashable
 class Hashable t where
   hash :: t -> Hash
 
-instance BuildHashable.Tokenizable a => Hashable [a] where
-  hash = BuildHashable.hashTokenizable
+instance Tokenizable.Tokenizable a => Hashable [a] where
+  hash = Tokenizable.hashTokenizable
 
-instance BuildHashable.Tokenizable a => Hashable (Set a) where
-  hash = BuildHashable.hashTokenizable
+instance Tokenizable.Tokenizable a => Hashable (Set a) where
+  hash = Tokenizable.hashTokenizable
 
 instance Hashable Int64 where
-  hash = BuildHashable.hashTokenizable
+  hash = Tokenizable.hashTokenizable

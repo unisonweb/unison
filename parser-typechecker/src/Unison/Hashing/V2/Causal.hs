@@ -11,11 +11,11 @@ where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.BuildHashable as BuildHashable
-import qualified Unison.Hashing.V2.BuildHashable as H
+import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
+import qualified Unison.Hashing.V2.Tokenizable as H
 
 hashCausal :: Causal -> Hash
-hashCausal = BuildHashable.hashTokenizable
+hashCausal = Tokenizable.hashTokenizable
 
 data Causal = Causal {branchHash :: Hash, parents :: Set Hash}
 
