@@ -43,12 +43,13 @@ import Unison.Prelude
 
 import           Control.Lens                   (over, _2)
 import qualified Control.Monad.Fail            as MonadFail
-import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
+                                                , gets
                                                 , put
                                                 , StateT
                                                 , runStateT
                                                 , evalState
+                                                , MonadState
                                                 )
 import           Data.Bifunctor                 ( first
                                                 , second
@@ -125,6 +126,7 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
   Marker v == Marker v2          = v == v2
   _ == _ = False
 
+-- The typechecking state
 data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
@@ -178,8 +180,14 @@ mapErrors f r = case r of
   s@(Success _ _) -> s
 
 newtype MT v loc f a = MT {
-  runM :: MEnv v loc -> f (a, Env v loc)
-}
+  runM ::
+    -- Data declarations in scope
+    DataDeclarations v loc ->
+    -- Effect declarations in scope
+    EffectDeclarations v loc ->
+    Env v loc ->
+    f (a, Env v loc)
+} deriving stock (Functor)
 
 -- | Typechecking monad
 type M v loc = MT v loc (Result v loc)
@@ -189,10 +197,10 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\m -> (, env m) <$> r)
+liftResult r = MT (\_ _ env -> (, env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \menv -> case m menv of
+liftTotalM (MT m) = MT $ \datas effects env -> case m datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a  -> Success mempty a
 
@@ -206,7 +214,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((), ) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\menv -> pure . f $ env menv)
+modEnv' f = MT (\_ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving Show
 
@@ -360,14 +368,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT (mapErrors (scope' p) . m)
-
--- | The typechecking environment
-data MEnv v loc = MEnv {
-  env :: Env v loc,                    -- The typechecking state
-  dataDecls :: DataDeclarations v loc, -- Data declarations in scope
-  effectDecls :: EffectDeclarations v loc -- Effect declarations in scope
-}
+scope p (MT m) = MT \datas effects env -> mapErrors (scope' p) (m datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -500,11 +501,8 @@ _logContext msg = when debugEnabled $ do
 usedVars :: Ord v => Context v loc -> Set v
 usedVars = allVars . info
 
-fromMEnv :: (MEnv v loc -> a) -> M v loc a
-fromMEnv f = f <$> ask
-
 getContext :: M v loc (Context v loc)
-getContext = fromMEnv $ ctx . env
+getContext = gets ctx
 
 setContext :: Context v loc -> M v loc ()
 setContext ctx = modEnv (\e -> e { ctx = ctx })
@@ -527,8 +525,9 @@ extendContext e = isReserved (varOf e) >>= \case
       " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
 
 replaceContext :: (Var v, Ord loc) => Element v loc -> [Element v loc] -> M v loc ()
-replaceContext elem replacement =
-  fromMEnv (\menv -> find (not . (`isReservedIn` env menv) . varOf) replacement) >>= \case
+replaceContext elem replacement = do
+  env <- get
+  case find (not . (`isReservedIn` env) . varOf) replacement of
     Nothing -> modifyContext (replace elem replacement)
     Just e -> getContext >>= \ctx -> compilerCrash $
       IllegalContextExtension ctx e $
@@ -542,7 +541,7 @@ varOf (Ann v _) = v
 varOf (Marker v) = v
 
 isReserved :: Var v => v -> M v loc Bool
-isReserved v = fromMEnv $ (v `isReservedIn`) . env
+isReserved v = (v `isReservedIn`) <$> get
 
 isReservedIn :: Var v => v -> Env v loc -> Bool
 isReservedIn v e = freshId e > Var.freshId v
@@ -659,7 +658,7 @@ extendN ctx es = foldM (flip extend) ctx es
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go where
-  go menv = runM m1 menv <|> runM m2 menv
+  go datas effects env = runM m1 datas effects env <|> runM m2 datas effects env
   s@(Success _ _)         <|> _ = s
   TypeError _ _           <|> r = r
   CompilerBug _ _ _       <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -673,10 +672,10 @@ orElse m1 m2 = MT go where
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = fromMEnv dataDecls
+getDataDeclarations = MT \datas _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = fromMEnv effectDecls
+getEffectDeclarations = MT \_ effects env -> pure (effects, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -2638,8 +2637,8 @@ run
   -> f a
 run datas effects m =
   fmap fst
-    . runM m
-    $ MEnv (Env 1 context0) datas effects
+    . runM m datas effects
+    $ Env 1 context0
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
@@ -2660,12 +2659,12 @@ synthesizeClosed' abilities term = do
 
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
-succeeds m = do
-  e <- ask
-  case runM m e of
-    Success _ _ -> pure True
-    TypeError _ _ -> pure False
-    CompilerBug bug _ _ -> MT (\_ -> Left bug)
+succeeds m =
+  MT \datas effects env ->
+    case runM m datas effects env of
+      Success _ _ -> Right (True, env)
+      TypeError _ _ -> Right (False, env)
+      CompilerBug bug _ _ -> Left bug
 
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
 isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> TotalM v loc Bool
@@ -2734,24 +2733,19 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
--- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad f => Monad (MT v loc f) where
-  return a = MT (\menv -> pure (a, env menv))
-  m >>= f = MT go where
-    go menv = do
-      (a, env1) <- runM m menv
-      runM (f a) (menv { env = env1 })
+  return = pure
+  m >>= f = MT \datas effects env0 -> do
+    (a, env1) <- runM m datas effects env0
+    runM (f a) datas effects $! env1
 
 instance Monad f => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance Monad f => Applicative (MT v loc f) where
-  pure a = MT (\menv -> pure (a, env menv))
+  pure a = MT (\_ _ env -> pure (a, env))
   (<*>) = ap
 
-instance Functor f => Functor (MT v loc f) where
-  fmap f (MT m) = MT (\menv -> fmap (first f) (m menv))
-
-instance Monad f => MonadReader (MEnv v loc) (MT v loc f) where
-  ask = MT (\e -> pure (e, env e))
-  local f m = MT $ runM m . f
+instance Monad f => MonadState (Env v loc) (MT v loc f) where
+  get = MT \_ _ env -> pure (env, env)
+  put env = MT \_ _ _ -> pure ((), env)
