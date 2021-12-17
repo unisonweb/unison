@@ -31,3 +31,26 @@ dependencies:
   - unison-util-term
   - unliftio
   - vector
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - ViewPatterns

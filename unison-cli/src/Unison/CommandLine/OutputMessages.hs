@@ -30,7 +30,6 @@ import System.Directory
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -355,21 +354,6 @@ notifyUser dir o = case o of
   Success -> pure $ P.bold "Done."
   PrintMessage pretty -> do
     pure pretty
-  BadRootBranch e -> case e of
-    Codebase.NoRootBranch ->
-      pure . P.fatalCallout $ "I couldn't find the codebase root!"
-    Codebase.CouldntParseRootBranch s ->
-      pure
-        . P.warnCallout
-        $ "I coulnd't parse a valid namespace from "
-          <> P.string (show s)
-          <> "."
-    Codebase.CouldntLoadRootBranch h ->
-      pure
-        . P.warnCallout
-        $ "I couldn't find a root namespace with the hash "
-          <> prettySBH (SBH.fullFromHash h)
-          <> "."
   CouldntLoadBranch h ->
     pure . P.fatalCallout . P.wrap $
       "I have reason to believe that"

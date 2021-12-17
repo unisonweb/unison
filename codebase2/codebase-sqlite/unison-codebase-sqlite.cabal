@@ -42,6 +42,28 @@ library
       Paths_unison_codebase_sqlite
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      ViewPatterns
   build-depends:
       Only
     , base

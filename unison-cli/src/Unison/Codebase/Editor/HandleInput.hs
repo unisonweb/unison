@@ -1039,27 +1039,24 @@ loop = do
                       sbhLength
                       root'
                       (Backend.AllNames $ Path.fromPath' pathArg)
-              res <- eval $ FindShallow pathArgAbs
-              case res of
-                Left e -> handleBackendError e
-                Right entries -> do
-                  -- caching the result as an absolute path, for easier jumping around
-                  LoopState.numberedArgs .= fmap entryToHQString entries
-                  respond $ ListShallow ppe entries
+              entries <- eval $ FindShallow pathArgAbs
+              -- caching the result as an absolute path, for easier jumping around
+              LoopState.numberedArgs .= fmap entryToHQString entries
+              respond $ ListShallow ppe entries
+              where
+                entryToHQString :: ShallowListEntry v Ann -> String
+                entryToHQString e =
+                  fixup $ case e of
+                    ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
+                    ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
+                    ShallowBranchEntry ns _ _ -> NameSegment.toString ns
+                    ShallowPatchEntry ns -> NameSegment.toString ns
                   where
-                    entryToHQString :: ShallowListEntry v Ann -> String
-                    entryToHQString e =
-                      fixup $ case e of
-                        ShallowTypeEntry (TypeEntry _ hq _) -> HQ'.toString hq
-                        ShallowTermEntry (TermEntry _ hq _ _) -> HQ'.toString hq
-                        ShallowBranchEntry ns _ _ -> NameSegment.toString ns
-                        ShallowPatchEntry ns -> NameSegment.toString ns
-                      where
-                        fixup s = case pathArgStr of
-                          "" -> s
-                          p | last p == '.' -> p ++ s
-                          p -> p ++ "." ++ s
-                        pathArgStr = show pathArg
+                    fixup s = case pathArgStr of
+                      "" -> s
+                      p | last p == '.' -> p ++ s
+                      p -> p ++ "." ++ s
+                    pathArgStr = show pathArg
             SearchByNameI isVerbose _showAll ws -> do
               let prettyPrintNames = basicPrettyPrintNames
               unlessError do
@@ -2398,22 +2395,6 @@ searchBranchScored names0 score queries =
             pair qn = case score qn name of
               Just score -> Set.singleton (Just score, result)
               Nothing -> mempty
-
-handleBackendError :: Backend.BackendError -> Action m i v ()
-handleBackendError = \case
-  Backend.NoSuchNamespace path ->
-    respond . BranchNotFound $ Path.absoluteToPath' path
-  Backend.BadRootBranch e -> respond $ BadRootBranch e
-  Backend.NoBranchForHash h -> do
-    sbhLength <- eval BranchHashLength
-    respond . NoBranchWithHash $ SBH.fromHash sbhLength h
-  Backend.CouldntLoadBranch h -> do
-    respond . CouldntLoadBranch $ h
-  Backend.CouldntExpandBranchHash sbh -> respond $ NoBranchWithHash sbh
-  Backend.AmbiguousBranchHash h hashes ->
-    respond $ BranchHashAmbiguous h hashes
-  Backend.MissingSignatureForTerm r ->
-    respond $ TermMissingType r
 
 respond :: MonadCommand n m i v => Output v -> n ()
 respond output = eval $ Notify output

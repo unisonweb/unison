@@ -8,7 +8,7 @@
 
 module Unison.Server.Endpoints.Projects where
 
-import Control.Error (ExceptT, runExceptT)
+import Control.Error (runExceptT)
 import Control.Error.Util ((??))
 import Data.Aeson
 import Data.OpenApi (ToSchema)
@@ -27,7 +27,7 @@ import qualified Unison.NameSegment as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Server.Backend as Backend
-import Unison.Server.Errors (backendError, badNamespace, rootBranchError)
+import Unison.Server.Errors (backendError, badNamespace)
 import Unison.Server.Types (APIGet, APIHeaders, UnisonHash, addHeaders)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Var (Var)
@@ -100,9 +100,8 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
     projects :: Handler [ProjectListing]
     projects = do
       root <- case mayRoot of
-        Nothing -> do
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          errFromEither rootBranchError gotRoot
+        Nothing ->
+          liftIO $ Codebase.getRootBranch codebase
         Just sbh -> do
           ea <- liftIO . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh
@@ -127,7 +126,7 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
 
     findShallow :: Branch.Branch IO -> Handler [Backend.ShallowListEntry v Ann]
     findShallow branch =
-      doBackend $ Backend.findShallowInBranch codebase branch
+      liftIO $ Backend.findShallowInBranch codebase branch
 
     parsePath :: String -> Handler Path.Path'
     parsePath p =
@@ -136,8 +135,3 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
     errFromEither :: (a -> ServerError) -> Either a a1 -> Handler a1
     errFromEither f =
       either (throwError . f) pure
-
-    doBackend :: ExceptT Backend.BackendError IO b -> Handler b
-    doBackend a = do
-      ea <- liftIO $ runExceptT a
-      errFromEither backendError ea

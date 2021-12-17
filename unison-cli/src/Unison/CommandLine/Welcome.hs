@@ -95,7 +95,7 @@ toInput pretty =
 
 determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
 determineFirstStep downloadBase codebase = do
-  isBlankCodebase <- Codebase.isBlank codebase
+  isBlankCodebase <- pure True -- FIXME
   case downloadBase of
     DownloadBase ns | isBlankCodebase ->
       pure $ DownloadingBase ns

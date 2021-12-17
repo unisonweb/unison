@@ -123,7 +123,6 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
-  | BadRootBranch Codebase.GetRootBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash
@@ -197,10 +196,6 @@ loadReferentType codebase = \case
         "Don't know how to getTypeOfConstructor "
           ++ show r
 
-getRootBranch :: Functor m => Codebase m v Ann -> Backend m (Branch m)
-getRootBranch =
-  ExceptT . (first BadRootBranch <$>) . Codebase.getRootBranch
-
 data TermEntry v a = TermEntry
   { termEntryReferent :: Referent,
     termEntryName :: HQ'.HQSegment,
@@ -266,10 +261,10 @@ findShallow
   :: (Monad m, Var v)
   => Codebase m v Ann
   -> Path.Absolute
-  -> Backend m [ShallowListEntry v Ann]
+  -> m [ShallowListEntry v Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
-  root <- getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   let mayb = Branch.getAt path root
   case mayb of
     Nothing -> pure []
@@ -320,9 +315,9 @@ termListEntry
   -> Branch0 m
   -> Referent
   -> HQ'.HQSegment
-  -> Backend m (TermEntry v Ann)
+  -> m (TermEntry v Ann)
 termListEntry codebase b0 r n = do
-  ot <- lift $ loadReferentType codebase r
+  ot <- loadReferentType codebase r
 
   -- A term is a test if it has a link of type `IsTest`.
   let isTest = Metadata.hasMetadataWithType' r Decls.isTestRef $ Branch.deepTermMetadata b0
@@ -342,12 +337,12 @@ typeListEntry
   => Codebase m v Ann
   -> Reference
   -> HQ'.HQSegment
-  -> Backend m TypeEntry
+  -> m TypeEntry
 typeListEntry codebase r n = do
   -- The tag indicates whether the type is a data declaration or an ability.
   tag <- case Reference.toId r of
     Just r -> do
-      decl <- lift $ Codebase.getTypeDeclaration codebase r
+      decl <- Codebase.getTypeDeclaration codebase r
       pure $ case decl of
         Just (Left _) -> Ability
         _             -> Data
@@ -361,10 +356,10 @@ typeDeclHeader
   => Codebase m v Ann
   -> PPE.PrettyPrintEnv
   -> Reference
-  -> Backend m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  -> m (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
 typeDeclHeader code ppe r = case Reference.toId r of
   Just rid ->
-    (lift $ Codebase.getTypeDeclaration code rid) <&> \case
+    Codebase.getTypeDeclaration code rid <&> \case
       Nothing -> DisplayObject.MissingObject (Reference.toShortHash r)
       Just decl ->
         DisplayObject.UserObject $
@@ -405,9 +400,9 @@ findShallowInBranch
   :: (Monad m, Var v)
   => Codebase m v Ann
   -> Branch m
-  -> Backend m [ShallowListEntry v Ann]
+  -> m [ShallowListEntry v Ann]
 findShallowInBranch codebase b = do
-  hashLength <- lift $ Codebase.hashLength codebase
+  hashLength <- Codebase.hashLength codebase
   let hqTerm b0 ns r =
         let refs = Star3.lookupD1 ns . Branch._terms $ b0
         in  case length refs of
@@ -710,24 +705,24 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
       docNames hqs = fmap docify . nubOrd . join . map toList . Set.toList $ hqs
         where docify n = Name.joinDot n "doc"
 
-      selectDocs :: [Referent] -> Backend IO [Reference]
+      selectDocs :: [Referent] -> IO [Reference]
       selectDocs rs = do
         rts <- fmap join . for rs $ \case
           Referent.Ref r ->
-            maybe [] (pure . (r,)) <$> lift (Codebase.getTypeOfTerm codebase r)
+            maybe [] (pure . (r,)) <$> Codebase.getTypeOfTerm codebase r
           _ -> pure []
         pure [ r | (r, t) <- rts, Typechecker.isSubtype t (Type.ref mempty DD.doc2Ref) ]
 
       -- rs0 can be empty or the term fetched, so when viewing a doc term
       -- you get both its source and its rendered form
-      docResults :: [Reference] -> [Name] -> Backend IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
+      docResults :: [Reference] -> [Name] -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
       docResults rs0 docs = do
         let refsFor n = NamesWithHistory.lookupHQTerm (HQ.NameOnly n) parseNames
         let rs = Set.unions (refsFor <$> docs) <> Set.fromList (Referent.Ref <$> rs0)
         -- lookup the type of each, make sure it's a doc
         docs <- selectDocs (toList rs)
         -- render all the docs
-        liftIO (traverse (renderDoc ppe width rt codebase) docs)
+        traverse (renderDoc ppe width rt codebase) docs
 
       mkTermDefinition ::
         ( Reference ->
@@ -739,11 +734,11 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
         let bn = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
-        tag <- termEntryTag <$> termListEntry codebase
+        tag <- lift $ fmap termEntryTag $ termListEntry codebase
                                               (Branch.head branch)
                                               (Referent.Ref r)
                                               (HQ'.NameOnly (NameSegment bn))
-        docs <- docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
+        docs <- lift . docResults [r] $ docNames (NamesWithHistory.termName hqLength (Referent.Ref r) printNames)
         mk docs ts bn tag
        where
         mk _ Nothing _ _ = throwError $ MissingSignatureForTerm r
@@ -767,7 +762,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
                               tag
                               (bimap mungeSyntaxText mungeSyntaxText tp)
                               docs
-    typeDefinitions <- Map.traverseWithKey mkTypeDefinition
+    typeDefinitions <- lift . Map.traverseWithKey mkTypeDefinition
       $ typesToSyntax suffixifyBindings width ppe types
     termDefinitions <- Map.traverseWithKey mkTermDefinition
       $ termsToSyntax suffixifyBindings width ppe terms
@@ -896,7 +891,7 @@ bestNameForType ppe width =
 resolveBranchHash ::
   Monad m => Maybe Branch.Hash -> Codebase m v Ann -> Backend m (Branch m)
 resolveBranchHash h codebase = case h of
-  Nothing -> getRootBranch codebase
+  Nothing -> lift (Codebase.getRootBranch codebase)
   Just bhash -> do
     mayBranch <- lift $ Codebase.getBranchForHash codebase bhash
     mayBranch ?? NoBranchForHash bhash
@@ -906,7 +901,7 @@ resolveRootBranchHash ::
   Monad m => Maybe ShortBranchHash -> Codebase m v Ann -> Backend m (Branch m)
 resolveRootBranchHash mayRoot codebase = case mayRoot of
   Nothing ->
-    getRootBranch codebase
+    lift (Codebase.getRootBranch codebase)
   Just sbh -> do
     h <- expandShortBranchHash codebase sbh
     resolveBranchHash (Just h) codebase

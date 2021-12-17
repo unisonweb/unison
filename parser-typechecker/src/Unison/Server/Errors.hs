@@ -11,7 +11,6 @@ import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
 import Servant (ServerError (..), err400, err404, err500, err409)
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Reference as Reference
@@ -35,7 +34,6 @@ backendError :: Backend.BackendError -> ServerError
 backendError = \case
   Backend.NoSuchNamespace n ->
     noSuchNamespace . Path.toText $ Path.unabsolute n
-  Backend.BadRootBranch e -> rootBranchError e
   Backend.NoBranchForHash h ->
     noSuchNamespace . Text.toStrict . Text.pack $ show h
   Backend.CouldntLoadBranch h ->
@@ -45,16 +43,6 @@ backendError = \case
   Backend.AmbiguousBranchHash sbh hashes ->
     ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
-
-rootBranchError :: Codebase.GetRootBranchError -> ServerError
-rootBranchError rbe = err500
-  { errBody = case rbe of
-                Codebase.NoRootBranch -> "Couldn't identify a root namespace."
-                Codebase.CouldntLoadRootBranch h ->
-                  "Couldn't load root branch " <> mungeShow h
-                Codebase.CouldntParseRootBranch h ->
-                  "Couldn't parse root branch head " <> mungeShow h
-  }
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace = err400

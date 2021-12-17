@@ -17,15 +17,12 @@
 
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries (
-  -- * Constraint kinds
-  DB, Err,
-  -- * Error types
-  Integrity(..),
-
   -- * text table
   saveText,
   loadText,
+  expectText,
   loadTextById,
+  loadTextByIdCheck,
 
   -- * hash table
   saveHash,
@@ -52,6 +49,10 @@ module U.Codebase.Sqlite.Queries (
   loadObjectById,
   loadPrimaryHashByObjectId,
   loadObjectWithTypeById,
+  expectDeclObjectById,
+  expectNamespaceObjectById,
+  expectPatchObjectById,
+  expectTermObjectById,
   loadObjectWithHashIdAndTypeById,
   updateObjectBlob, -- unused
 
@@ -68,6 +69,7 @@ module U.Codebase.Sqlite.Queries (
   loadCausalValueHashId,
   loadCausalByCausalHash,
   loadBranchObjectIdByCausalHashId,
+  expectBranchObjectIdByCausalHashId,
 
   -- ** causal_parent table
   saveCausalParents,
@@ -112,9 +114,6 @@ module U.Codebase.Sqlite.Queries (
   rollbackRelease,
 ) where
 
-import Control.Monad (when)
-import Control.Monad.Except (MonadError)
-import qualified Control.Monad.Except as Except
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
@@ -128,8 +127,6 @@ import Data.String (fromString)
 import Data.String.Here.Uninterpolated (here, hereFile)
 import Data.Text (Text)
 import Data.Tuple.Only (Only (..))
-import Debug.Trace (trace, traceM)
-import GHC.Stack (HasCallStack)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
 import U.Codebase.Reference (Reference' (..))
 import qualified U.Codebase.Reference as C.Reference
@@ -142,7 +139,7 @@ import U.Codebase.Sqlite.DbId
     SchemaVersion,
     TextId,
   )
-import U.Codebase.Sqlite.ObjectType (ObjectType)
+import U.Codebase.Sqlite.ObjectType (ObjectType(DeclComponent, Namespace, Patch, TermComponent))
 import qualified U.Codebase.Sqlite.Reference as Reference
 import qualified U.Codebase.Sqlite.Referent as Referent
 import U.Codebase.WatchKind (WatchKind)
@@ -155,25 +152,6 @@ import Unison.Sqlite
 import qualified Unison.Sqlite.DB as DB
 import qualified Unison.Sqlite.Transaction as Transaction
 import UnliftIO (MonadUnliftIO)
-
--- * types
-
-type EDB m = (DB m, Err m)
-
-type Err m = (MonadError Integrity m, HasCallStack)
-
-debugQuery :: Bool
-debugQuery = False
-
-crashOnError :: Bool
-crashOnError = False
-
-throwError :: Err m => Integrity -> m c
-throwError = if crashOnError then error . show else Except.throwError
-
-data Integrity
-  = NoNamespaceRoot
-  deriving (Show)
 
 -- * main squeeze
 createSchema :: (DB m, MonadUnliftIO m) => m ()
@@ -254,8 +232,14 @@ loadTextSql =
 
 -- FIXME rename to expectTextById
 loadTextById :: DB m => TextId -> m Text
-loadTextById h = queryOneCol sql (Only h)
-  where sql = [here| SELECT text FROM text WHERE id = ? |]
+loadTextById h = queryOneCol loadTextByIdSql (Only h)
+
+loadTextByIdCheck :: (DB m, SqliteExceptionReason e) => (Text -> Either e a) -> TextId -> m a
+loadTextByIdCheck check h = queryOneColCheck loadTextByIdSql (Only h) check
+
+loadTextByIdSql :: Sql
+loadTextByIdSql =
+  [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
 saveHashObject hId oId version = execute sql (hId, oId, version) where
@@ -278,11 +262,9 @@ saveObject h t blob = do
   |]
 
 -- FIXME rename to expectObjectById
-loadObjectById :: DB m => ObjectId -> m ByteString
-loadObjectById id | debugQuery && trace ("loadObjectById " ++ show id) False = undefined
-loadObjectById oId = do
- result <- queryOneCol sql (Only oId)
- when debugQuery $ traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
+loadObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+loadObjectById oId check = do
+ result <- queryOneColCheck sql (Only oId) check
  pure result
   where sql = [here|
   SELECT bytes FROM object WHERE id = ?
@@ -294,6 +276,37 @@ loadObjectWithTypeById oId = queryOneRow sql (Only oId)
   where sql = [here|
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
+
+expectObjectOfTypeById :: (DB m, SqliteExceptionReason e) => ObjectId -> ObjectType -> (ByteString -> Either e a) -> m a
+expectObjectOfTypeById oid ty =
+  queryOneColCheck
+    [here|
+      SELECT bytes
+      FROM object
+      WHERE id = ?
+        AND type_id = ?
+    |]
+    (oid, ty)
+
+-- | Expect a decl component object.
+expectDeclObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectDeclObjectById oid =
+  expectObjectOfTypeById oid DeclComponent
+
+-- | Expect a namespace object.
+expectNamespaceObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectNamespaceObjectById oid =
+  expectObjectOfTypeById oid Namespace
+
+-- | Expect a patch object.
+expectPatchObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectPatchObjectById oid =
+  expectObjectOfTypeById oid Patch
+
+-- | Expect a term component object.
+expectTermObjectById :: (DB m, SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> m a
+expectTermObjectById oid =
+  expectObjectOfTypeById oid TermComponent
 
 -- | FIXME rename to expectObjectWithHashIdAndTypeById
 loadObjectWithHashIdAndTypeById :: DB m => ObjectId -> m (HashId, ObjectType, ByteString)
@@ -401,11 +414,18 @@ isCausalHash = queryOneCol sql . Only where sql = [here|
   |]
 
 loadBranchObjectIdByCausalHashId :: DB m => CausalHashId -> m (Maybe BranchObjectId)
-loadBranchObjectIdByCausalHashId id = queryMaybeCol sql (Only id) where sql = [here|
-  SELECT object_id FROM hash_object
-  INNER JOIN causal ON hash_id = causal.value_hash_id
-  WHERE causal.self_hash_id = ?
-|]
+loadBranchObjectIdByCausalHashId id = queryMaybeCol loadBranchObjectIdByCausalHashIdSql (Only id)
+
+expectBranchObjectIdByCausalHashId :: DB m => CausalHashId -> m BranchObjectId
+expectBranchObjectIdByCausalHashId id = queryOneCol loadBranchObjectIdByCausalHashIdSql (Only id)
+
+loadBranchObjectIdByCausalHashIdSql :: Sql
+loadBranchObjectIdByCausalHashIdSql =
+  [here|
+    SELECT object_id FROM hash_object
+    INNER JOIN causal ON hash_id = causal.value_hash_id
+    WHERE causal.self_hash_id = ?
+  |]
 
 saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
 saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
@@ -419,15 +439,17 @@ loadCausalParents h = queryListCol sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
--- FIXME rename to expectNamespaceRoot
-loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
-  Nothing -> throwError NoNamespaceRoot
-  Just id -> pure id
+loadNamespaceRoot :: DB m => m CausalHashId
+loadNamespaceRoot =
+  queryOneCol_ loadMaybeNamespaceRootSql
 
 loadMaybeNamespaceRoot :: DB m => m (Maybe CausalHashId)
 loadMaybeNamespaceRoot =
-  queryMaybeCol_ "SELECT causal_id FROM namespace_root"
+  queryMaybeCol_ loadMaybeNamespaceRootSql
+
+loadMaybeNamespaceRootSql :: Sql
+loadMaybeNamespaceRootSql =
+  "SELECT causal_id FROM namespace_root"
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
 setNamespaceRoot id =
@@ -452,8 +474,8 @@ saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
       ON CONFLICT DO NOTHING
     |]
 
-loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
-loadWatch k r = queryMaybeCol sql (Only k :. r) where sql = [here|
+loadWatch :: (DB m, SqliteExceptionReason e) => WatchKind -> Reference.IdH -> (ByteString -> Either e a) -> m (Maybe a)
+loadWatch k r check = queryMaybeColCheck sql (Only k :. r) check where sql = [here|
     SELECT result FROM watch_result
     INNER JOIN watch
       ON watch_result.hash_id = watch.hash_id
@@ -681,7 +703,6 @@ before chId1 chId2 = queryOneCol sql (chId2, chId1)
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
-lca x y _ _ | debugQuery && trace ("Q.lca " ++ show x ++ " " ++ show y) False = undefined
 lca x y cx cy =
   withStatement cx sql (Only x) \nextX ->
     withStatement cy sql (Only y) \nextY -> do

@@ -42,7 +42,6 @@ import qualified Unison.Server.Backend as Backend
 import Unison.Server.Errors
   ( backendError,
     badNamespace,
-    rootBranchError,
   )
 import Unison.Server.Types
   ( APIGet,
@@ -170,11 +169,7 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
 
     parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
 
-    doBackend a = do
-      ea <- liftIO $ runExceptT a
-      errFromEither backendError ea
-
-    findShallow branch = doBackend $ Backend.findShallowInBranch codebase branch
+    findShallow branch = liftIO $ Backend.findShallowInBranch codebase branch
 
     makeNamespaceListing ppe fqn hash entries =
       pure . NamespaceListing fqn hash $ fmap
@@ -184,9 +179,7 @@ serve tryAuth codebase mayRoot mayRelativeTo mayNamespaceName =
     -- Lookup paths, root and listing and construct response
     namespaceListing = do
       root <- case mayRoot of
-        Nothing -> do
-          gotRoot <- liftIO $ Codebase.getRootBranch codebase
-          errFromEither rootBranchError gotRoot
+        Nothing -> liftIO $ Codebase.getRootBranch codebase
         Just sbh -> do
           ea <- liftIO . runExceptT $ do
             h <- Backend.expandShortBranchHash codebase sbh

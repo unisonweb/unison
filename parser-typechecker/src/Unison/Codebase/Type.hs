@@ -7,7 +7,6 @@ module Unison.Codebase.Type
     CodebasePath,
     PushGitBranchOpts (..),
     GitError (..),
-    GetRootBranchError (..),
     SyncToDir,
   )
 where
@@ -63,7 +62,7 @@ data Codebase m v a = Codebase
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
     -- | Get the root branch.
-    getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    getRootBranch :: m (Branch m),
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
@@ -154,12 +153,6 @@ data PushGitBranchOpts = PushGitBranchOpts
     setRoot :: Bool,
     syncMode :: SyncMode
   }
-
-data GetRootBranchError
-  = NoRootBranch
-  | CouldntParseRootBranch String
-  | CouldntLoadRootBranch Branch.Hash
-  deriving (Show)
 
 data GitError
   = GitProtocolError GitProtocolError

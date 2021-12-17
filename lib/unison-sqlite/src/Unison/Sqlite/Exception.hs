@@ -21,6 +21,7 @@ where
 
 import Control.Concurrent (ThreadId, myThreadId)
 import Data.Typeable (cast)
+import Data.Void (Void)
 import qualified Database.SQLite.Simple as Sqlite
 import Debug.RecoverRTTI (anythingToString)
 import Unison.Prelude
@@ -56,7 +57,7 @@ instance Show SomeSqliteException where
 isCantOpenException :: SomeSqliteException -> Bool
 isCantOpenException (SomeSqliteException exception) =
   case cast exception of
-    Just SqliteConnectException{exception = Sqlite.SQLError Sqlite.ErrorCan'tOpen _ _} -> True
+    Just SqliteConnectException {exception = Sqlite.SQLError Sqlite.ErrorCan'tOpen _ _} -> True
     _ -> False
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -149,3 +150,6 @@ instance Show SomeSqliteExceptionReason where
 class (Show e, Typeable e) => SqliteExceptionReason e
 
 instance SqliteExceptionReason Sqlite.SQLError
+
+
+instance SqliteExceptionReason Void

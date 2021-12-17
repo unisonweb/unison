@@ -22,7 +22,6 @@ import Control.Lens (_5,view)
 -- TODO: Don't import backend, but move dependencies to own modules
 import           Unison.Server.Backend          ( DefinitionResults
                                                 , ShallowListEntry
-                                                , BackendError
                                                 , IncludeCycles
                                                 )
 import           Data.Configurator.Types        ( Configured )
@@ -120,7 +119,7 @@ data Command
 
   FindShallow
     :: Path.Absolute
-    -> Command m i v (Either BackendError [ShallowListEntry v Ann])
+    -> Command m i v [ShallowListEntry v Ann]
 
   ConfigLookup :: Configured a => Text -> Command m i v (Maybe a)
 

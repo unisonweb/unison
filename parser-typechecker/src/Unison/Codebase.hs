@@ -37,8 +37,6 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
-    GetRootBranchError (..),
-    isBlank,
     putRootBranch,
     rootBranchUpdates,
 
@@ -91,8 +89,6 @@ module Unison.Codebase
   )
 where
 
-import Control.Error (rightMay)
-import Control.Error.Util (hush)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -109,7 +105,6 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
     SyncToDir,
@@ -153,10 +148,8 @@ getBranchForHash codebase h =
 
       find rb = List.find headHashEq (nestedChildrenForDepth 3 rb)
    in do
-        rootBranch <- hush <$> getRootBranch codebase
-        case rootBranch of
-          Just rb -> maybe (getBranchForHashImpl codebase h) (pure . Just) (find rb)
-          Nothing -> getBranchForHashImpl codebase h
+        rootBranch <- getRootBranch codebase
+        maybe (getBranchForHashImpl codebase h) (pure . Just) (find rootBranch)
 
 -- | Get the lowest common ancestor of two branches, i.e. the most recent branch that is an ancestor of both branches.
 lca :: Monad m => Codebase m v a -> Branch m -> Branch m -> m (Maybe (Branch m))
@@ -324,12 +317,6 @@ isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
-
--- | Return whether the root branch is empty.
-isBlank :: Applicative m => Codebase m v a -> m Bool
-isBlank codebase = do
-  root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
-  pure (root == Branch.empty)
 
 -- * Git stuff
 

@@ -44,7 +44,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.CommandLine.Welcome as Welcome
 import Control.Lens (view)
-import Control.Error (rightMay)
 import UnliftIO (catchSyncOrAsync, throwIO, withException)
 import System.IO (hPutStrLn, stderr)
 import Unison.Codebase.Editor.Output (Output)
@@ -112,7 +111,7 @@ main
   -> Maybe Server.BaseUrl
   -> IO ()
 main dir welcome initialPath (config, cancelConfig) initialInputs runtime codebase serverBaseUrl = do
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   welcomeEvents <-Welcome.run codebase welcome
   do

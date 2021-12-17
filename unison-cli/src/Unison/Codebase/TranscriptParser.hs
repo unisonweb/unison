@@ -58,7 +58,6 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
-import Control.Error (rightMay)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 
 -- | Render transcript errors at a width of 65 chars.
@@ -130,7 +129,7 @@ run version dir configFile stanzas codebase = do
     "Running the provided transcript file...",
     ""
     ]
-  root <- fromMaybe Branch.empty . rightMay <$> Codebase.getRootBranch codebase
+  root <- Codebase.getRootBranch codebase
   do
     pathRef                  <- newIORef initialPath
     rootBranchRef            <- newIORef root

@@ -10,8 +10,7 @@
 
 module U.Codebase.Sqlite.Sync22 where
 
-import Control.Monad.Except (ExceptT, MonadError (throwError))
-import qualified Control.Monad.Except as Except
+import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.RWS (MonadReader)
 import Control.Monad.Reader (ReaderT)
 import qualified Control.Monad.Reader as Reader
@@ -23,6 +22,7 @@ import Data.Bytes.Get (getWord8, runGetS)
 import Data.Bytes.Put (putWord8, runPutS)
 import Data.List.Extra (nubOrd)
 import qualified Data.Set as Set
+import Data.Void (Void)
 import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.Branch.Format as BL
 import U.Codebase.Sqlite.DbId
@@ -62,8 +62,7 @@ data DecodeError
 type ErrString = String
 
 data Error
-  = DbIntegrity Q.Integrity
-  | DecodeError DecodeError ByteString ErrString
+  = DecodeError DecodeError ByteString ErrString
   | -- | hashes corresponding to a single object in source codebase
     --  correspond to multiple objects in destination codebase
     HashObjectCorrespondence ObjectId [HashId] [HashId] [ObjectId]
@@ -367,7 +366,7 @@ trySync tCache hCache oCache cCache = \case
       r' <- traverse syncHashLiteral r
       doneKinds <- runDest (Q.loadWatchKindsByReference r')
       if (notElem wk doneKinds) then do
-        runSrc (Q.loadWatch wk r) >>= traverse \blob -> do
+        runSrc (Q.loadWatch wk r (Right :: ByteString -> Either Void ByteString)) >>= traverse \blob -> do
           TL.SyncWatchResult li body <-
             either (throwError . DecodeError ErrWatchResult blob) pure $ runGetS S.decomposeWatchFormat blob
           li' <- bitraverse syncTextLiteral syncHashLiteral li
@@ -410,15 +409,12 @@ trySync tCache hCache oCache cCache = \case
 
 runSrc,
   runDest ::
-    (MonadError Error m, MonadReader Env m) =>
-    ReaderT Connection (ExceptT Q.Integrity m) a ->
+    MonadReader Env m =>
+    ReaderT Connection m a ->
     m a
 runSrc ma = Reader.reader srcDB >>= flip runDB ma
 runDest ma = Reader.reader destDB >>= flip runDB ma
 
-runDB ::
-  MonadError Error m => Connection -> ReaderT Connection (ExceptT Q.Integrity m) a -> m a
+runDB :: Connection -> ReaderT Connection m a -> m a
 runDB conn action =
-  Except.runExceptT (Reader.runReaderT action conn) >>= \case
-    Left e -> throwError (DbIntegrity e)
-    Right a -> pure a
+  Reader.runReaderT action conn
