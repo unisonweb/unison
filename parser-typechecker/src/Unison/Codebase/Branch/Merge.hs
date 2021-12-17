@@ -53,7 +53,7 @@ merge'' lca mode (Branch x) (Branch y) =
                   (Map.traverseMaybeMissing $ combineMissing ca)
                   (Map.zipWithAMatched $ const (merge'' lca mode))
                   (_children l) (_children r)
-    pure $ branch0 (_terms head0) (_types head0) children (_edits head0)
+    pure $ branch0 (_terms head0) (_types head0) children undefined (_edits head0)
 
   combineMissing ca k cur =
     case Map.lookup k (_children ca) of
@@ -75,6 +75,7 @@ merge'' lca mode (Branch x) (Branch y) =
     pure $ branch0 (Star3.difference (_terms b0) removedTerms <> addedTerms)
                    (Star3.difference (_types b0) removedTypes <> addedTypes)
                    (_children b0)
+                   (undefined)
                    (patches <> newPatches)
   patchMerge mhp Patch.PatchDiff {..} = Just $ do
     (_, mp) <- mhp
@@ -95,6 +96,7 @@ merge0 lca mode b1 b2 = do
   pure $ branch0 (_terms b1 <> _terms b2)
                  (_types b1 <> _types b2)
                  c3
+                 undefined
                  e3
   where
   g :: (EditHash, m Patch) -> (EditHash, m Patch) -> m (EditHash, m Patch)

@@ -1,4 +1,5 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
+{-# LANGUAGE OverloadedStrings #-}
 module U.Codebase.Branch where
 
 import Data.Map (Map)
@@ -11,8 +12,13 @@ import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
+
+-- | Determines whether the given name segment indicates an archived namespace.
+isArchived :: NameSegment -> Bool
+isArchived (NameSegment txt) = Text.isPrefixOf "_" txt
 
 type MetadataType = Reference
 type MetadataValue = Reference
@@ -25,7 +31,8 @@ data Branch m = Branch
   { terms :: Map NameSegment (Map Referent (m MdValues)),
     types :: Map NameSegment (Map Reference (m MdValues)),
     patches :: Map NameSegment (PatchHash, m Patch),
-    children :: Map NameSegment (Causal m)
+    children :: Map NameSegment (Causal m),
+    archivedChildren :: Map NameSegment (m (Causal m))
   }
 
 data Patch = Patch
@@ -37,4 +44,5 @@ instance Show (Branch m) where
   show b = "Branch { terms = " ++ show (fmap Map.keys (terms b)) ++
           ", types = " ++ show (fmap Map.keys (types b)) ++
           ", patches = " ++ show (fmap fst (patches b)) ++
-          ", children = " ++ show (Map.keys (children b))
+          ", children = " ++ show (Map.keys (children b)) ++
+          ", archivedChildren = " ++ show (Map.keys (children b))

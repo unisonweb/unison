@@ -5,6 +5,7 @@ module Unison.Util.Map
     deleteLookup,
     foldMapM,
     unionWithM,
+    traverseKeys,
   )
 where
 
@@ -51,3 +52,6 @@ unionWithM f m1 m2 =
     go m1 (k, a2) = case Map.lookup k m1 of
       Just a1 -> do a <- f a1 a2; pure $ Map.insert k a m1
       Nothing -> pure $ Map.insert k a2 m1
+
+traverseKeys :: (Applicative f, Ord k') => (k -> f k') -> Map k v -> f (Map k' v)
+traverseKeys f = bitraverse f pure

@@ -884,12 +884,14 @@ loadDeclByReference r@(C.Reference.Id h i) = do
 -- * Branch transformation
 
 s2cBranch :: EDB m => S.DbBranch -> m (C.Branch.Branch m)
-s2cBranch (S.Branch.Full.Branch tms tps patches children) =
+s2cBranch (S.Branch.Full.Branch tms tps patches children) = do
+  (children, archivedChildren) <- doChildren children
   C.Branch.Branch
     <$> doTerms tms
     <*> doTypes tps
     <*> doPatches patches
-    <*> doChildren children
+    <*> pure children
+    <*> pure archivedChildren
   where
     loadMetadataType :: EDB m => S.Reference -> m C.Reference
     loadMetadataType = \case
@@ -920,12 +922,20 @@ s2cBranch (S.Branch.Full.Branch tms tps patches children) =
       h <- PatchHash <$> (loadHashByObjectId . Db.unPatchObjectId) patchId
       pure (h, loadPatchById patchId)
 
-    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId) -> m (Map C.Branch.NameSegment (C.Causal m CausalHash BranchHash (C.Branch.Branch m)))
-    doChildren = Map.bitraverse (fmap C.Branch.NameSegment . loadTextById) \(boId, chId) ->
-      C.Causal <$> loadCausalHashById chId
-        <*> loadValueHashByCausalHashId chId
-        <*> headParents chId
-        <*> pure (loadBranchByObjectId boId)
+    doChildren :: EDB m => Map Db.TextId (Db.BranchObjectId, Db.CausalHashId)
+                        -> m ( Map C.Branch.NameSegment (C.Causal m CausalHash BranchHash (C.Branch.Branch m))
+                             , Map C.Branch.NameSegment (m (C.Causal m CausalHash BranchHash (C.Branch.Branch m))))
+    doChildren m = do
+      namedMap <- Map.traverseKeys (fmap C.Branch.NameSegment . loadTextById) m
+      let (archivedChildren, children) = Map.partitionWithKey (\k _ -> C.Branch.isArchived k) namedMap
+      let hydrate (boId, chId) = do
+            C.Causal <$> loadCausalHashById chId
+              <*> loadValueHashByCausalHashId chId
+              <*> headParents chId
+              <*> pure (loadBranchByObjectId boId)
+      hydratedChildren <- traverse hydrate children
+      let hydratedArchivedChildren = fmap hydrate archivedChildren
+      pure (hydratedChildren, hydratedArchivedChildren)
       where
         headParents :: EDB m => Db.CausalHashId -> m (Map CausalHash (m (C.Causal m CausalHash BranchHash (C.Branch.Branch m))))
         headParents chId = do
@@ -990,13 +1000,15 @@ saveBranch (C.Causal hc he parents me) = do
   pure (boId, chId)
   where
     c2lBranch :: EDB m => C.Branch.Branch m -> m (BranchLocalIds, S.Branch.Full.LocalBranch)
-    c2lBranch (C.Branch.Branch terms types patches children) =
+    c2lBranch (C.Branch.Branch terms types patches children archivedChildren) = do
+      hydratedArchivedChildren <- sequenceA archivedChildren
+      let allChildren = Map.union hydratedArchivedChildren children
       done =<< (runWriterT . flip evalStateT startState) do
         S.Branch
           <$> Map.bitraverse saveNameSegment (Map.bitraverse saveReferent saveMetadata) terms
           <*> Map.bitraverse saveNameSegment (Map.bitraverse saveReference saveMetadata) types
           <*> Map.bitraverse saveNameSegment savePatch' patches
-          <*> Map.bitraverse saveNameSegment saveChild children
+          <*> Map.bitraverse saveNameSegment saveChild allChildren
     saveNameSegment (C.Branch.NameSegment t) = lookupText t
     saveReference :: BranchSavingConstraint m => C.Reference.Reference -> m S.Reference.LocalReference
     saveReference = bitraverse lookupText lookupDefn

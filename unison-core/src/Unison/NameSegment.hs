@@ -17,6 +17,10 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
 instance Alphabetical NameSegment where
   compareAlphabetical n1 n2 = compareAlphabetical (toText n1) (toText n2)
 
+-- | Determines whether the given name segment indicates an archived namespace.
+isArchived :: NameSegment -> Bool
+isArchived = Text.isPrefixOf "_" . toText
+
 -- Split text into segments. A smarter version of `Text.splitOn` that handles
 -- the name `.` properly.
 segments' :: Text -> [Text]

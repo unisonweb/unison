@@ -581,7 +581,7 @@ applyPropagate patch Edits {..} = do
     -> Branch0 m
     -> Branch0 m
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
-    Branch.branch0 terms types _children _edits
+    Branch.branch0 terms types _children archivedChildren _edits
    where
     isPropagatedReferent (Referent.Con _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r

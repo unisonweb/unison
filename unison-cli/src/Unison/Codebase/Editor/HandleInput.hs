@@ -1572,13 +1572,14 @@ loop = do
                         Causal.Merge h b (Map.toList -> tails) -> goBranch h b (map fst tails) (tails ++ queue)
                   goBranch :: forall m. Monad m => Branch.Hash -> Branch0 m -> [Branch.Hash] -> [(Branch.Hash, m (Branch.UnwrappedBranch m))] -> StateT (Set Branch.Hash) m ()
                   goBranch h b (Set.fromList -> causalParents) queue = case b of
-                    Branch0 terms0 types0 children0 patches0 _ _ _ _ _ _ ->
+                    Branch0 terms0 types0 children0 _archivedChildren0 patches0 _ _ _ _ _ _ ->
                       let wrangleMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, (Set n, Set Metadata.Value))
                           wrangleMetadata s r =
                             (r, (R.lookupDom r $ Star3.d1 s, Set.map snd . R.lookupDom r $ Star3.d3 s))
                           terms = Map.fromList . map (wrangleMetadata terms0) . Foldable.toList $ Star3.fact terms0
                           types = Map.fromList . map (wrangleMetadata types0) . Foldable.toList $ Star3.fact types0
                           patches = fmap fst patches0
+                          -- We only dump children, not archived children for now.
                           children = fmap Branch.headHash children0
                        in do
                             let d = Output.DN.DumpNamespace terms types patches children causalParents

@@ -123,6 +123,7 @@ import qualified Unison.Util.List as List
 import qualified Data.Semialign as Align
 import Data.These (These(..))
 import qualified Unison.Util.Relation as Relation
+import qualified Unison.NameSegment as NameSegment
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -159,6 +160,7 @@ data Branch0 m = Branch0
   , _children :: Map NameSegment (Branch m)
     -- ^ Note the 'Branch' here, not 'Branch0'.
     -- Every level in the tree has a history.
+  , archivedChildren :: Map NameSegment (m (Branch m))
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   -- (ref, (name, value)) iff ref has metadata `value` at name `name`
@@ -230,8 +232,10 @@ types =
         & deriveDeepTypes
         & deriveDeepTypeMetadata
 
+-- | Lens over the map of children.
+-- Does not contain archived children.
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
-children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
+children = lens _children (\Branch0{..} newChildren -> branch0 _terms _types newChildren archivedChildren _edits)
 
 nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
 nonEmptyChildren b =
@@ -245,13 +249,15 @@ branch0 ::
   Metadata.Star Referent NameSegment ->
   Metadata.Star TypeReference NameSegment ->
   Map NameSegment (Branch m) ->
+  Map NameSegment (m (Branch m)) ->
   Map NameSegment (EditHash, m Patch) ->
   Branch0 m
-branch0 terms types children edits =
+branch0 terms types children archivedChildren edits =
   Branch0
     { _terms = terms,
       _types = types,
       _children = children,
+      archivedChildren = archivedChildren,
       _edits = edits,
       -- These are all overwritten immediately
       deepTerms = R.empty,
@@ -413,10 +419,16 @@ cachedRead cache deserializeRaw deserializeEdits h =
  where
   fromRaw :: Raw -> m (Branch0 m)
   fromRaw Raw {..} = do
-    children <- traverse go _childrenR
+    let (rawArchivedChildren, rawChildren) = splitChildren _childrenR
+    children <- traverse go rawChildren
+    let archivedChildren = fmap go rawArchivedChildren
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ branch0 _termsR _typesR children edits
+    pure $ branch0 _termsR _typesR children archivedChildren edits
+  go :: Hash -> m (Branch m)
   go = cachedRead cache deserializeRaw deserializeEdits
+  -- Returns (archivedChildren, children)
+  splitChildren :: forall x. Map NameSegment x -> (Map NameSegment x, Map NameSegment x)
+  splitChildren = Map.partitionWithKey (\k _ -> NameSegment.isArchived k)
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
@@ -509,14 +521,14 @@ one = Branch . Causal.one
 
 empty0 :: Branch0 m
 empty0 =
-  Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
+  Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 -- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
 -- types, and that the heads of all children are empty by the same definition.
 -- This is not as easy as checking whether the branch is equal to the `empty0` branch
 -- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
-isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
+isEmpty0 (Branch0 _terms _types _children _archived _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
   Relation.null deepTerms
     && Relation.null deepTypes
     && Map.null deepEdits
@@ -597,10 +609,11 @@ stepManyAtM strat actions startBranch =
       updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
       pure $ updatedBranch `consBranchSnapshot` startBranch
 
--- starting at the leaves, apply `f` to every level of the branch.
+-- Starting at the leaves, apply `f` to every level of the branch.
+-- Does not apply to archived branches.
 stepEverywhere
   :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepEverywhere f Branch0 {..} = f (branch0 _terms _types children _edits)
+stepEverywhere f Branch0 {..} = f (branch0 _terms _types children archivedChildren _edits)
   where children = fmap (step $ stepEverywhere f) _children
 
 -- Creates a function to fix up the children field._1
@@ -804,6 +817,9 @@ transform f b = case _history b of
   transformB0 :: Functor m => (forall a . m a -> n a) -> Branch0 m -> Branch0 n
   transformB0 f b =
     b { _children = transform f <$> _children b
+      , archivedChildren =
+          archivedChildren b
+          & fmap (f . (fmap (transform f)))
       , _edits    = second f    <$> _edits b
       }
 

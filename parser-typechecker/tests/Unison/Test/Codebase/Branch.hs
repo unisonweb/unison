@@ -34,6 +34,7 @@ branch0Tests =
               (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
               Map.empty
               Map.empty
+              Map.empty
       let -- a.b
           -- b
           b1 :: Branch0 Identity =
@@ -41,6 +42,7 @@ branch0Tests =
               mempty
               (Star3.fromList [(dummy, "b", dummy, (dummy, dummy))])
               (Map.singleton "a" (Branch (Causal.one b0)))
+              Map.empty
               Map.empty
 
       let -- b.a.b
@@ -50,6 +52,7 @@ branch0Tests =
               mempty
               mempty
               (Map.singleton "b" (Branch (Causal.one b1)))
+              Map.empty
               Map.empty
 
       expect (Set.valid (Relation.ran (Branch.deepTypes b2)))

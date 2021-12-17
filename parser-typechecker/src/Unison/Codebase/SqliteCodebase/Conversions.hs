@@ -459,7 +459,8 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
       types <- pure $ doTypes (V1.Branch._types b)
       patches <- pure $ doPatches (V1.Branch._edits b)
       children <- pure $ doChildren (V1.Branch._children b)
-      pure $ V2.Branch.Branch terms types patches children
+      archivedChildren <- pure $ doArchivedChildren (V1.Branch.archivedChildren b)
+      pure $ V2.Branch.Branch terms types patches children archivedChildren
       where
         -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent V1.NameSegment -> Map V2.Branch.NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
@@ -497,6 +498,9 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
 
         doChildren :: Map V1.NameSegment (V1.Branch.Branch m) -> Map V2.Branch.NameSegment (V2.Branch.Causal m)
         doChildren = Map.bimap namesegment1to2 causalbranch1to2
+
+        doArchivedChildren :: Map V1.NameSegment (m (V1.Branch.Branch m)) -> Map V2.Branch.NameSegment (m (V2.Branch.Causal m))
+        doArchivedChildren = Map.bimap namesegment1to2 (fmap causalbranch1to2)
 
 patch2to1 ::
   forall m.
@@ -564,12 +568,13 @@ branch2to1 ::
   (V2.Reference -> m CT.ConstructorType) ->
   V2.Branch.Branch m ->
   m (V1.Branch.Branch0 m)
-branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
+branch2to1 lookupSize lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children v2archivedChildren) = do
   v1terms <- toStar (reference2to1 $ lookupSize "term metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (referent2to1 (lookupSize "term") lookupCT) id) v2terms
   v1types <- toStar (reference2to1 $ lookupSize "type metadata") =<< Map.bitraverse (pure . namesegment2to1) (Map.bitraverse (reference2to1 (lookupSize "type")) id) v2types
   v1patches <- Map.bitraverse (pure . namesegment2to1) (bitraverse (pure . edithash2to1) (fmap (patch2to1 lookupSize))) v2patches
   v1children <- Map.bitraverse (pure . namesegment2to1) (causalbranch2to1 lookupSize lookupCT) v2children
-  pure $ V1.Branch.branch0 v1terms v1types v1children v1patches
+  v1archivedChildren <- Map.bitraverse (pure . namesegment2to1) (fmap $ causalbranch2to1 lookupSize lookupCT) v2archivedChildren
+  pure $ V1.Branch.branch0 v1terms v1types v1children v1archivedChildren v1patches
   where
     toStar :: forall m name ref. (Monad m, Ord name, Ord ref) => (V2.Reference -> m V1.Reference) -> Map name (Map ref V2.Branch.MdValues) -> m (V1.Metadata.Star ref name)
     toStar mdref2to1 m = foldM insert mempty (Map.toList m)
