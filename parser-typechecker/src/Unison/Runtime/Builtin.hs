@@ -866,8 +866,8 @@ set'buffering instr
           $ outIoFailUnit s1 s2 s3 u f r
   (handle,bmode,tag,n,w,s1,s2,s3,u,f,r) = fresh11
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
-get'buffering'output stack1 stack2 fail result n n2 =
+get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> v -> ANormal v
+get'buffering'output stack1 stack2 fail result n n2 eitherVar =
   TMatch result . MatchSum  $ mapFromList
   [ (0, ([BX, BX],)
         . TAbss [stack1, stack2]
@@ -875,27 +875,31 @@ get'buffering'output stack1 stack2 fail result n n2 =
         $ left fail)
   , (1, ([BX],)
         . TAbs stack1
-        $ get'buffering'output'helper stack1 n n2)
+        $ get'buffering'output'helper stack1 n n2 eitherVar)
   ]
 
-get'buffering'output'helper :: forall v. Var v => v -> v -> v -> ANormal v
-get'buffering'output'helper bu n w =
+get'buffering'output'helper :: forall v. Var v => v -> v -> v -> v -> ANormal v
+get'buffering'output'helper bu n w eitherVar =
   TMatch bu . MatchSum  $ mapFromList
-  [ no'buf --> [] --> TCon Ty.bufferModeRef no'buf []
-  , line'buf --> [] --> TCon Ty.bufferModeRef line'buf []
-  , block'buf --> [] --> TCon Ty.bufferModeRef block'buf []
+  [ no'buf --> [] --> go $ TCon Ty.bufferModeRef no'buf []
+  , line'buf --> [] --> go $ TCon Ty.bufferModeRef line'buf []
+  , block'buf --> [] --> go $ TCon Ty.bufferModeRef block'buf []
   , sblock'buf --> [UN] -->
-        TAbs w
+      go
+      . TAbs w
       . TLetD n BX (TCon Ty.natRef 0 [w])
       $ TCon Ty.bufferModeRef sblock'buf [n]
   ]
+    where
+      go :: Term ANormalF v -> Term ANormalF v
+      go x = TLetD eitherVar BX x (right eitherVar)
 
 get'buffering :: ForeignOp
 get'buffering
   = inBx arg1 result
-  $ get'buffering'output stack1 stack2 fail result n n2
+  $ get'buffering'output stack1 stack2 fail result n n2 eitherVar
   where
-  (arg1, result, stack1, stack2, fail, n, n2) = fresh7
+  (arg1, result, stack1, stack2, fail, n, n2, eitherVar) = fresh8
 
 crypto'hash :: ForeignOp
 crypto'hash instr
