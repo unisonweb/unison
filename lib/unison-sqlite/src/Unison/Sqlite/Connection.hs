@@ -148,8 +148,7 @@ execute conn@(Connection _ _ conn0) s params =
           Text.hPutStrLn stderr "----------"
           run
         else run
-      where
-        run = Sqlite.execute conn0 (coerce s) params
+    run = Sqlite.execute conn0 (coerce s) params
 
 executeMany :: Sqlite.ToRow a => Connection -> Sql -> [a] -> IO ()
 executeMany conn@(Connection _ _ conn0) s params =
@@ -170,8 +169,7 @@ executeMany conn@(Connection _ _ conn0) s params =
           Text.hPutStrLn stderr "----------"
           run
         else run
-      where
-        run = Sqlite.executeMany conn0 (coerce s) params
+    run = Sqlite.executeMany conn0 (coerce s) params
 
 -- Without results, without parameters
 
@@ -193,8 +191,7 @@ execute_ conn@(Connection _ _ conn0) s =
           Text.hPutStrLn stderr "----------"
           run
         else run
-      where
-        run = Sqlite.execute_ conn0 (coerce s)
+    run = Sqlite.execute_ conn0 (coerce s)
 
 -- With results, with parameters, without checks
 
@@ -219,8 +216,7 @@ queryListRow conn@(Connection _ _ conn0) s params =
           Text.hPutStrLn stderr "----------"
           pure result
         else run
-      where
-        run = Sqlite.query conn0 (coerce s) params
+    run = Sqlite.query conn0 (coerce s) params
 
 queryListCol :: forall a b. (Sqlite.FromField b, Sqlite.ToRow a) => Connection -> Sql -> a -> IO [b]
 queryListCol conn s params =
@@ -359,8 +355,7 @@ queryListRow_ conn@(Connection _ _ conn0) s =
           Text.hPutStrLn stderr "----------"
           pure result
         else run
-      where
-        run = Sqlite.query_ conn0 (coerce s)
+    run = Sqlite.query_ conn0 (coerce s)
 
 queryListCol_ :: forall a. Sqlite.FromField a => Connection -> Sql -> IO [a]
 queryListCol_ conn s =
