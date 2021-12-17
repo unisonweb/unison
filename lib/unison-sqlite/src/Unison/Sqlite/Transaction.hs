@@ -166,8 +166,8 @@ queryMaybeRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  Transaction r
+  (b -> Either e r) ->
+  Transaction (Maybe r)
 queryMaybeRowCheck s params check =
   Transaction \conn -> Connection.queryMaybeRowCheck conn s params check
 
@@ -175,8 +175,8 @@ queryMaybeColCheck ::
   (Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  Transaction r
+  (b -> Either e r) ->
+  Transaction (Maybe r)
 queryMaybeColCheck s params check =
   Transaction \conn -> Connection.queryMaybeColCheck conn s params check
 
@@ -234,11 +234,11 @@ queryListColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> ([
 queryListColCheck_ s check =
   Transaction \conn -> Connection.queryListColCheck_ conn s check
 
-queryMaybeRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction (Maybe r)
 queryMaybeRowCheck_ s check =
   Transaction \conn -> Connection.queryMaybeRowCheck_ conn s check
 
-queryMaybeColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> Transaction r
+queryMaybeColCheck_ :: (Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> Transaction (Maybe r)
 queryMaybeColCheck_ s check =
   Transaction \conn -> Connection.queryMaybeColCheck_ conn s check
 

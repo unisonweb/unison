@@ -156,8 +156,8 @@ queryMaybeRowCheck ::
   (DB m, Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  m r
+  (b -> Either e r) ->
+  m (Maybe r)
 queryMaybeRowCheck s params check = do
   conn <- ask
   liftIO (Connection.queryMaybeRowCheck conn s params check)
@@ -166,8 +166,8 @@ queryMaybeColCheck ::
   (DB m, Sqlite.FromField b, Sqlite.ToRow a, SqliteExceptionReason e) =>
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  m r
+  (b -> Either e r) ->
+  m (Maybe r)
 queryMaybeColCheck s params check = do
   conn <- ask
   liftIO (Connection.queryMaybeColCheck conn s params check)
@@ -236,12 +236,12 @@ queryListColCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryListColCheck_ conn s check)
 
-queryMaybeRowCheck_ :: (DB m, Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeRowCheck_ :: (DB m, Sqlite.FromRow a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> m (Maybe r)
 queryMaybeRowCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeRowCheck_ conn s check)
 
-queryMaybeColCheck_ :: (DB m, Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (Maybe a -> Either e r) -> m r
+queryMaybeColCheck_ :: (DB m, Sqlite.FromField a, SqliteExceptionReason e) => Sql -> (a -> Either e r) -> m (Maybe r)
 queryMaybeColCheck_ s check = do
   conn <- ask
   liftIO (Connection.queryMaybeColCheck_ conn s check)

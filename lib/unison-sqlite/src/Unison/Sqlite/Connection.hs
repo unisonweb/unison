@@ -240,12 +240,12 @@ queryMaybeRowCheck ::
   Connection ->
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  IO r
+  (b -> Either e r) ->
+  IO (Maybe r)
 queryMaybeRowCheck conn s params check =
   gqueryListCheck conn s params \case
-    [] -> mapLeft SomeSqliteExceptionReason (check Nothing)
-    [x] -> mapLeft SomeSqliteExceptionReason (check (Just x))
+    [] -> pure Nothing
+    [x] -> bimap SomeSqliteExceptionReason Just (check x)
     xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
 queryMaybeColCheck ::
@@ -254,10 +254,10 @@ queryMaybeColCheck ::
   Connection ->
   Sql ->
   a ->
-  (Maybe b -> Either e r) ->
-  IO r
+  (b -> Either e r) ->
+  IO (Maybe r)
 queryMaybeColCheck conn s params check =
-  queryMaybeRowCheck conn s params (coerce @(Maybe b -> Either e r) @(Maybe (Sqlite.Only b) -> Either e r) check)
+  queryMaybeRowCheck conn s params (coerce @(b -> Either e r) @(Sqlite.Only b -> Either e r) check)
 
 queryOneRowCheck ::
   (Sqlite.FromRow b, Sqlite.ToRow a, SqliteExceptionReason e) =>
@@ -354,12 +354,12 @@ queryMaybeRowCheck_ ::
   (Sqlite.FromRow a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
-  (Maybe a -> Either e r) ->
-  IO r
+  (a -> Either e r) ->
+  IO (Maybe r)
 queryMaybeRowCheck_ conn s check =
   gqueryListCheck_ conn s \case
-    [] -> mapLeft SomeSqliteExceptionReason (check Nothing)
-    [x] -> mapLeft SomeSqliteExceptionReason (check (Just x))
+    [] -> pure Nothing
+    [x] -> bimap SomeSqliteExceptionReason Just (check x)
     xs -> Left (SomeSqliteExceptionReason (ExpectedAtMostOneRowException (anythingToString xs)))
 
 queryMaybeColCheck_ ::
@@ -367,10 +367,10 @@ queryMaybeColCheck_ ::
   (Sqlite.FromField a, SqliteExceptionReason e) =>
   Connection ->
   Sql ->
-  (Maybe a -> Either e r) ->
-  IO r
+  (a -> Either e r) ->
+  IO (Maybe r)
 queryMaybeColCheck_ conn s check =
-  queryMaybeRowCheck_ conn s (coerce @(Maybe a -> Either e r) @(Maybe (Sqlite.Only a) -> Either e r) check)
+  queryMaybeRowCheck_ conn s (coerce @(a -> Either e r) @(Sqlite.Only a -> Either e r) check)
 
 queryOneRowCheck_ :: (Sqlite.FromRow a, SqliteExceptionReason e) => Connection -> Sql -> (a -> Either e r) -> IO r
 queryOneRowCheck_ conn s check =
