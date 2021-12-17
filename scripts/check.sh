@@ -2,7 +2,7 @@
 
 # eventually: ormolu -c `find . -name '*.hs'`
 true \
-  && stack build --fast \
+  && stack build --fast --no-run-tests --test \
   && stack test unison-cli \
   && stack exec tests \
   && stack test unison-util-relation \
