@@ -8,9 +8,11 @@ import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -46,8 +48,8 @@ import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Pretty as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -351,6 +353,15 @@ docs =
         ]
     )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+
+api :: InputPattern
+api =
+  InputPattern
+    "api"
+    []
+    []
+    "`api` provides details about the API."
+    (const $ pure Input.ApiI)
 
 ui :: InputPattern
 ui =
@@ -891,16 +902,23 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
 
-pullImpl :: String -> Verbosity -> InputPattern
-pullImpl name verbosity = do
+pullWithoutHistory :: InputPattern
+pullWithoutHistory =
+  pullImpl
+    "pull.without-history"
+    Verbosity.Default
+    Input.PullWithoutHistory
+    "without including the remote's history. This usually results in smaller codebase sizes."
+
+pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name verbosity pullMode addendum = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self =
       InputPattern
         name
@@ -939,14 +957,14 @@ pullImpl name verbosity = do
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseUri "url" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseUri "url" url
               p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -967,14 +985,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
     )
 
@@ -1156,10 +1174,40 @@ loadPullRequest =
     )
 
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseUri label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.repoPath label (Text.pack input))
+parseUri label input =
+  let printError err = P.lines [ P.string  "I couldn't parse the repository address given above.", prettyPrintParseError input err]
+  in first printError (P.parse UriParser.repoPath label (Text.pack input))
+
+prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
+prettyPrintParseError input = \case
+  P.TrivialError sp ue ee ->
+      P.lines [ printLocation sp,
+                P.newline,
+                printTrivial ue ee
+              ]
+  P.FancyError sp ee ->
+      let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
+      in P.lines
+         [ printLocation sp,
+           errors
+         ]
+  where
+    printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
+    printLocation sp =
+      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
+          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+          errorLine = lines input !! row
+      in P.lines [ P.newline,
+                   P.string errorLine,
+                   P.string $ replicate col ' ' <> "^-- This is where I gave up."
+                 ]
+
+    printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
+    printTrivial ue ee = 
+      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+          message = [expected] <> catMaybes [found]
+      in P.oxfordCommasWith "." message
 
 parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
 parseWriteRepo label input = do
@@ -1879,6 +1927,7 @@ validInputs =
     push,
     pushCreate,
     pull,
+    pullWithoutHistory,
     pullSilent,
     pushExhaustive,
     pullExhaustive,
@@ -1899,6 +1948,7 @@ validInputs =
     view,
     display,
     displayTo,
+    api,
     ui,
     docs,
     docsToHtml,
@@ -2057,7 +2107,7 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- |
+-- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -2092,7 +2142,7 @@ namespaceArg =
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
 allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
+  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
     \(NameSegment k) (Branch.head -> b') ->
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 

@@ -74,6 +74,7 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
+    Preprocessing(..),
     pushGitBranch,
     PushGitBranchOpts (..),
 
@@ -232,10 +233,10 @@ lookupWatchCache codebase h = do
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
 typeLookupForDependencies ::
-  (Monad m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Monad m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Set Reference ->
-  m (TL.TypeLookup v a)
+  m (TL.TypeLookup Symbol a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -261,10 +262,10 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 -- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
 -- 'putTerm'.
 getTypeOfTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
@@ -275,10 +276,10 @@ getTypeOfTerm c r = case r of
 
 -- | Get the type of a referent.
 getTypeOfReferent ::
-  (BuiltinAnnotation a, Var v, Monad m) =>
-  Codebase m v a ->
+  (BuiltinAnnotation a, Monad m) =>
+  Codebase m Symbol a ->
   Referent.Referent ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
@@ -313,8 +314,8 @@ termsMentioningType c ty =
 
 -- | Check whether a reference is a term.
 isTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
   m Bool
 isTerm code = fmap isJust . getTypeOfTerm code
@@ -332,6 +333,12 @@ isBlank codebase = do
 
 -- * Git stuff
 
+-- | An optional preprocessing step to run on branches
+-- before they're imported into the local codebase.
+data Preprocessing m
+  = Unmodified
+  | Preprocessed (Branch m -> m (Branch m))
+
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
@@ -341,17 +348,24 @@ importRemoteBranch ::
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
+  Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT $ do
+importRemoteBranch codebase ns mode preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
-         withStatus "Importing downloaded files into local codebase..." $
-           time "SyncFromDirectory" $
-             syncFromDirectory codebase cacheDir mode branch
-         pure $ Branch.headHash branch
+         withStatus "Importing downloaded files into local codebase..." $ do
+           processedBranch <- preprocessOp branch
+           time "SyncFromDirectory" $ do
+             syncFromDirectory codebase cacheDir mode processedBranch
+             pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
       Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
       Just result -> pure $ result
+  where
+    preprocessOp :: Branch m -> m (Branch m)
+    preprocessOp = case preprocess of
+      Preprocessed f -> f
+      Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.

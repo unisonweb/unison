@@ -39,6 +39,7 @@ module Unison.Codebase.Branch
   , head
   , headHash
   , children
+  , nonEmptyChildren
   , deepEdits'
   , toList0
   -- * step
@@ -47,6 +48,7 @@ module Unison.Codebase.Branch
   , stepEverywhere
   , batchUpdates
   , batchUpdatesM
+  , UpdateStrategy(..)
   -- *
   , addTermName
   , addTypeName
@@ -77,6 +79,8 @@ module Unison.Codebase.Branch
   , cachedRead
   , Cache
   , sync
+
+  , consBranchSnapshot
   ) where
 
 import Unison.Prelude hiding (empty)
@@ -118,6 +122,7 @@ import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List as List
 import qualified Data.Semialign as Align
 import Data.These (These(..))
+import qualified Unison.Util.Relation as Relation
 
 -- | A node in the Unison namespace hierarchy
 -- along with its history.
@@ -228,6 +233,12 @@ types =
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
+nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
+nonEmptyChildren b =
+  b
+  & _children
+  & Map.filter (not . isEmpty0 . head)
+
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 ::
   forall m.
@@ -260,7 +271,7 @@ branch0 terms types children edits =
 -- | Derive the 'deepTerms' field of a branch.
 deriveDeepTerms :: Branch0 m -> Branch0 m
 deriveDeepTerms branch =
-  branch {deepTerms = makeDeepTerms (_terms branch) (_children branch)}
+  branch {deepTerms = makeDeepTerms (_terms branch) (nonEmptyChildren branch)}
   where
     makeDeepTerms :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Relation Referent Name
     makeDeepTerms terms children =
@@ -273,7 +284,7 @@ deriveDeepTerms branch =
 -- | Derive the 'deepTypes' field of a branch.
 deriveDeepTypes :: Branch0 m -> Branch0 m
 deriveDeepTypes branch =
-  branch {deepTypes = makeDeepTypes (_types branch) (_children branch)}
+  branch {deepTypes = makeDeepTypes (_types branch) (nonEmptyChildren branch)}
   where
     makeDeepTypes :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Relation TypeReference Name
     makeDeepTypes types children =
@@ -286,7 +297,7 @@ deriveDeepTypes branch =
 -- | Derive the 'deepTermMetadata' field of a branch.
 deriveDeepTermMetadata :: Branch0 m -> Branch0 m
 deriveDeepTermMetadata branch =
-  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (_children branch)}
+  branch {deepTermMetadata = makeDeepTermMetadata (_terms branch) (nonEmptyChildren branch)}
   where
     makeDeepTermMetadata :: Metadata.Star Referent NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 Referent Name
     makeDeepTermMetadata terms children =
@@ -299,7 +310,7 @@ deriveDeepTermMetadata branch =
 -- | Derive the 'deepTypeMetadata' field of a branch.
 deriveDeepTypeMetadata :: Branch0 m -> Branch0 m
 deriveDeepTypeMetadata branch =
-  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (_children branch)}
+  branch {deepTypeMetadata = makeDeepTypeMetadata (_types branch) (nonEmptyChildren branch)}
   where
     makeDeepTypeMetadata :: Metadata.Star TypeReference NameSegment -> Map NameSegment (Branch m) -> Metadata.R4 TypeReference Name
     makeDeepTypeMetadata types children =
@@ -312,7 +323,7 @@ deriveDeepTypeMetadata branch =
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: Branch0 m -> Branch0 m
 deriveDeepPaths branch =
-  branch {deepPaths = makeDeepPaths (_children branch)}
+  branch {deepPaths = makeDeepPaths (nonEmptyChildren branch)}
   where
     makeDeepPaths :: Map NameSegment (Branch m) -> Set Path
     makeDeepPaths children =
@@ -325,7 +336,7 @@ deriveDeepPaths branch =
 -- | Derive the 'deepEdits' field of a branch.
 deriveDeepEdits :: Branch0 m -> Branch0 m
 deriveDeepEdits branch =
-  branch {deepEdits = makeDeepEdits (_edits branch) (_children branch)}
+  branch {deepEdits = makeDeepEdits (_edits branch) (nonEmptyChildren branch)}
   where
     makeDeepEdits :: Map NameSegment (EditHash, m Patch) -> Map NameSegment (Branch m) -> Map Name EditHash
     makeDeepEdits edits children =
@@ -500,9 +511,15 @@ empty0 :: Branch0 m
 empty0 =
   Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
--- | Checks whether a Branch0 is empty.
+-- | Checks whether a Branch0 is empty, which means that the branch contains no terms or
+-- types, and that the heads of all children are empty by the same definition.
+-- This is not as easy as checking whether the branch is equal to the `empty0` branch
+-- because child branches may be empty, but still have history.
 isEmpty0 :: Branch0 m -> Bool
-isEmpty0 = (== empty0)
+isEmpty0 (Branch0 _terms _types _children _edits deepTerms deepTypes _deepTermMetadata _deepTypeMetadata _deepPaths deepEdits) =
+  Relation.null deepTerms
+    && Relation.null deepTypes
+    && Map.null deepEdits
 
 -- | Checks whether a branch is empty AND has no history.
 isEmpty :: Branch m -> Bool
@@ -530,23 +547,55 @@ uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch
 
 -- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
+-- History is managed according to 'UpdateStrategy'.
 stepManyAt ::
   forall m f.
   (Monad m, Foldable f) =>
+  UpdateStrategy ->
   f (Path, Branch0 m -> Branch0 m) ->
   Branch m ->
   Branch m
-stepManyAt actions startBranch =
-  runIdentity $ stepManyAtM actionsIdentity startBranch
+stepManyAt strat actions startBranch =
+  runIdentity $ stepManyAtM strat actionsIdentity startBranch
   where
     actionsIdentity :: [(Path, Branch0 m -> Identity (Branch0 m))]
     actionsIdentity = coerce (toList actions)
 
--- | Run a series of updates at specific locations, aggregating all changes into a single causal step.
+data UpdateStrategy
+  -- | Compress all changes into a single causal cons.
+  -- The resulting branch will have at most one new causal cons at each branch.
+  --
+  -- Note that this does NOT allow updates to add histories at children.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- CompressHistory will result in a history for root.editme of: A -> B -> C -> Z.
+  -- A 'snapshot' of the most recent state of the updated branch is appended to the existing history,
+  -- if the new state is equal to the existing state, no new history nodes are appended.
+  = CompressHistory
+
+  -- | Preserves any history changes made within the update.
+  --
+  -- Note that this allows you to clobber the history child branches if you want.
+  -- E.g. if the root.editme branch has history: A -> B -> C
+  -- and you use 'makeSetBranch' to update it to a new branch with history X -> Y -> Z,
+  -- AllowRewritingHistory will result in a history for root.editme of: X -> Y -> Z.
+  -- The history of the updated branch is replaced entirely.
+  | AllowRewritingHistory
+
+-- | Run a series of updates at specific locations.
+-- History is managed according to the 'UpdateStrategy'
 stepManyAtM :: (Monad m, Monad n, Foldable f)
-            => f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepManyAtM actions startBranch =
-  (\changes -> startBranch `consBranch` changes) <$> (startBranch & head_ %%~ batchUpdatesM actions)
+            => UpdateStrategy -> f (Path, Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepManyAtM strat actions startBranch =
+  case strat of
+    AllowRewritingHistory -> steppedUpdates
+    CompressHistory -> squashedUpdates
+  where
+    steppedUpdates = do
+      stepM (batchUpdatesM actions) startBranch
+    squashedUpdates = do
+      updatedBranch <- startBranch & head_ %%~ batchUpdatesM actions
+      pure $ updatedBranch `consBranchSnapshot` startBranch
 
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere
@@ -591,7 +640,7 @@ replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)
 
-updateChildren ::NameSegment
+updateChildren :: NameSegment
                -> Branch m
                -> Map NameSegment (Branch m)
                -> Map NameSegment (Branch m)
@@ -770,20 +819,20 @@ children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
 
 
--- | @base `consBranch` head@ Cons's the current state of @head@ onto @base@ as-is.
+-- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
 -- That is, it does not perform any common ancestor detection, or change reconciliation, it
 -- sets the current state of the base branch to the new state as a new causal step (or returns
 -- the existing base if there are no)
-consBranch ::
+consBranchSnapshot ::
   forall m.
   Monad m =>
   Branch m ->
   Branch m ->
   Branch m
 -- If the target branch is empty we just replace it.
-consBranch Empty headBranch = discardHistory headBranch
-consBranch baseBranch headBranch =
+consBranchSnapshot headBranch Empty = discardHistory headBranch
+consBranchSnapshot headBranch baseBranch =
   if baseBranch == headBranch
     then baseBranch
     else
@@ -796,9 +845,9 @@ consBranch baseBranch headBranch =
     combineChildren = \case
       -- If we have a matching child in both base and head, squash the child head onto the
       -- child base recursively.
-      (These base head) -> base `consBranch` head
+      (These base head) -> head `consBranchSnapshot` base
       -- This child has been deleted, recursively replace children with an empty branch.
-      (This base) -> base `consBranch` empty
+      (This base) -> empty `consBranchSnapshot` base
       -- This child didn't exist in the base, we add any changes as a single commit
       (That head) -> discardHistory head
     combinedChildren :: Map NameSegment (Branch m)

@@ -128,6 +128,9 @@ fromList xs = insertAll xs empty
 empty :: (Ord a, Ord b, Ord c) => Relation3 a b c
 empty = mempty
 
+null :: Relation3 a b c -> Bool
+null r = Map.null $ d1 r
+
 insert, delete
   :: (Ord a, Ord b, Ord c)
   => a -> b -> c -> Relation3 a b c -> Relation3 a b c

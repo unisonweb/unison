@@ -12,6 +12,7 @@ import Unison.Codebase.Init
     , Init(..)
     , SpecifiedCodebase(..)
     )
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 import qualified System.IO.Temp as Temp
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
@@ -58,7 +59,7 @@ test = scope "Codebase.Init" $ tests
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
           _ -> pure False
         case res of
-          Left (_, CI.NoCodebaseFoundAtSpecifiedDir) -> expect True
+          Left (_, CI.InitErrorOpen OpenCodebaseDoesntExist) -> expect True
           _ -> expect False
     ]
   , scope "*with* a --codebase-create flag" $ tests
@@ -102,8 +103,7 @@ initMockWithoutCodebase ::  IO (Init IO v a)
 initMockWithoutCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
-    -- withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r),
-    withOpenCodebase = \_ _ _ -> pure (Left "no codebase found"),
+    withOpenCodebase = \_ _ _ -> pure (Left OpenCodebaseDoesntExist),
     -- withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     withCreatedCodebase = \_ _ action -> Right <$> action codebase,
     -- CodebasePath -> CodebasePath

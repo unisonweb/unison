@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      Compat
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
@@ -109,6 +110,9 @@ library
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+  if !os(windows)
+    build-depends:
+        unix
   default-language: Haskell2010
 
 executable integration-tests
@@ -253,7 +257,6 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
-      Compat
       System.Path
       Version
       Paths_unison_cli
@@ -320,9 +323,6 @@ executable unison
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 test-suite tests

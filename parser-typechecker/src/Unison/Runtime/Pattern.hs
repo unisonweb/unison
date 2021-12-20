@@ -32,7 +32,6 @@ import Unison.Pattern
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Runtime.ANF (internalBug)
-import Unison.Symbol (Symbol)
 import Unison.Term hiding (Term)
 import qualified Unison.Term as Tm
 import Unison.Var (Var, typed, freshIn, freshenId, Type(Pattern))
@@ -87,9 +86,9 @@ builtinDataSpec :: DataSpec
 builtinDataSpec = Map.fromList decls
  where
  decls = [ (DerivedId x, declFields $ Right y)
-         | (_,x,y) <- builtinDataDecls @Symbol ]
+         | (_,x,y) <- builtinDataDecls ]
       ++ [ (DerivedId x, declFields $ Left y)
-         | (_,x,y) <- builtinEffectDecls @Symbol ]
+         | (_,x,y) <- builtinEffectDecls ]
 
 -- A pattern compilation matrix is just a list of rows. There is
 -- no need for the rows to have uniform length; the variable

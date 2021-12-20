@@ -90,6 +90,8 @@ module Unison.Util.Pretty (
    sepNonEmpty,
    sepSpaced,
    shown,
+   singleQuoted,
+   singleQuoted',
    softbreak,
    spaceIfBreak,
    spaceIfNeeded,
@@ -1002,6 +1004,12 @@ backticked p = group ("`" <> p <> "`")
 -- |Attach some punctuation after the closing backtick.
 backticked' :: IsString s => Pretty s -> Pretty s -> Pretty s
 backticked' p end = group ("`" <> p <> "`" <> end)
+
+singleQuoted :: IsString s => Pretty s -> Pretty s
+singleQuoted p = "'" <> p <> "'"
+
+singleQuoted' :: IsString s => Pretty s -> Pretty s -> Pretty s
+singleQuoted' p end = "'" <> p <> "'" <> end
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)

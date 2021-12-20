@@ -53,7 +53,7 @@ import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import           Unison.ShortHash               ( ShortHash )
 import           Unison.Type                    ( Type )
-import           Unison.Codebase (PushGitBranchOpts)
+import           Unison.Codebase (PushGitBranchOpts, Preprocessing)
 import           Unison.Codebase.ShortBranchHash
                                                 ( ShortBranchHash )
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo)
@@ -95,6 +95,8 @@ data Command
   Eval :: m a -> Command m i v a
 
   UI :: Command m i v ()
+
+  API :: Command m i v ()
 
   DocsToHtml
     :: Branch m -- Root branch
@@ -208,7 +210,13 @@ data Command
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully
   -- imported and not retain any resources from the remote codebase
   ImportRemoteBranch ::
-    ReadRemoteNamespace -> SyncMode -> Command m i v (Either GitError (Branch m))
+    ReadRemoteNamespace ->
+    SyncMode ->
+    -- | A preprocessing step to perform on the branch before it's imported.
+    -- This is sometimes useful for minimizing the number of definitions to sync.
+    -- Simply pass 'pure' if you don't need to do any pre-processing.
+    Preprocessing m ->
+    Command m i v (Either GitError (Branch m))
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
@@ -292,6 +300,7 @@ lookupEvalResult v (_, m) = view _5 <$> Map.lookup v m
 commandName :: Command m i v a -> String
 commandName = \case
   Eval {} -> "Eval"
+  API -> "API"
   UI -> "UI"
   DocsToHtml {} -> "DocsToHtml"
   ConfigLookup {} -> "ConfigLookup"

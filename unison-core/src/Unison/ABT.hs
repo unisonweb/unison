@@ -9,7 +9,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.ABT 
+module Unison.ABT
   ( -- * Types
     ABT(..)
   , Term(..)

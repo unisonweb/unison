@@ -1,36 +1,39 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.Editor.Input
-  ( Input(..)
-  , GistInput(..)
-  , Event(..)
-  , OutputLocation(..)
-  , PatchPath
-  , BranchId, AbsBranchId, parseBranchId
-  , HashOrHQSplit'
-  , Insistence(..)
-  ) where
-
-import Unison.Prelude
-
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path' )
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import           Unison.Codebase.PushBehavior (PushBehavior)
-import           Unison.Codebase.Editor.RemoteRepo
-import           Unison.ShortHash (ShortHash)
-import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Name                    ( Name )
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.Util.Pretty as P
-import           Unison.Codebase.Verbosity
+  ( Input (..),
+    GistInput (..),
+    Event (..),
+    OutputLocation (..),
+    PatchPath,
+    BranchId,
+    AbsBranchId,
+    parseBranchId,
+    HashOrHQSplit',
+    Insistence (..),
+    PullMode (..),
+  )
+where
 
 import qualified Data.Text as Text
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Path (Path')
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.Verbosity
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
+import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import qualified Unison.Util.Pretty as P
+
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -53,6 +56,11 @@ parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
 
+data PullMode
+  = PullWithHistory
+  | PullWithoutHistory
+  deriving (Eq, Show)
+
 data Input
   -- names stuff:
     -- directory ops
@@ -63,7 +71,7 @@ data Input
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
     | DiffNamespaceI BranchId BranchId -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
@@ -162,6 +170,7 @@ data Input
     | DebugDumpNamespaceSimpleI
     | DebugClearWatchI
     | QuitI
+    | ApiI
     | UiI
     | DocsToHtmlI Path' FilePath
     | GistI GistInput

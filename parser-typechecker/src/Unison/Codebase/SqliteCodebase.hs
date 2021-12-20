@@ -46,9 +46,7 @@ import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
-import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified U.Util.Monoid as Monoid
-import qualified Unison.Util.Set as Set
 import U.Util.Timing (time)
 import qualified Unison.Builtin as Builtins
 import Unison.Codebase (Codebase, CodebasePath)
@@ -61,6 +59,7 @@ import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteG
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
+import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -69,13 +68,14 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts(..))
+import Unison.Codebase.Type (PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
-import Unison.ConstructorReference (GConstructorReference(..))
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as Decl
 import Unison.Hash (Hash)
+import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -89,13 +89,13 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
 import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO)
 import qualified UnliftIO
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removePathForcibly)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removePathForcibly)
+import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
-import UnliftIO.Exception (catch, bracket)
 import Data.Either.Extra ()
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
@@ -126,43 +126,22 @@ createCodebaseOrError ::
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
-createCodebaseOrError debugName dir action = do
-  prettyDir <- P.string <$> canonicalizePath dir
-  let convertError = \case
-        CreateCodebaseAlreadyExists -> Codebase1.CreateCodebaseAlreadyExists
-        CreateCodebaseUnknownSchemaVersion v -> Codebase1.CreateCodebaseOther $ prettyError v
-      prettyError :: SchemaVersion -> Codebase1.Pretty
-      prettyError v = P.wrap $
-        "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  Either.mapLeft convertError <$> createCodebaseOrError' debugName dir action
-
-data CreateCodebaseError
-  = CreateCodebaseAlreadyExists
-  | CreateCodebaseUnknownSchemaVersion SchemaVersion
-  deriving (Show)
-
-createCodebaseOrError' ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either CreateCodebaseError r)
-createCodebaseOrError' debugName path action = do
+createCodebaseOrError debugName path action = do
   ifM
     (doesFileExist $ makeCodebasePath path)
-    (pure $ Left CreateCodebaseAlreadyExists)
+    (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
-      createDirectoryIfMissing True (makeCodebaseDir path)
-      liftIO $
-        withConnection (debugName ++ ".createSchema") path $
-          ( runReaderT do
-              Q.createSchema
-              runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
-                Left e -> error $ show e
-                Right () -> pure ()
-          )
+      createDirectoryIfMissing True (makeCodebasePath path)
+      withConnection (debugName ++ ".createSchema") path $
+        runReaderT do
+          Q.createSchema
+          runExceptT (void . Ops.saveRootBranch $ Cv.causalbranch1to2 Branch.empty) >>= \case
+            Left e -> error $ show e
+            Right () -> pure ()
 
-      fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
+      sqliteCodebase debugName path action >>= \case
+        Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
+        Right result -> pure (Right result)
 
 withOpenOrCreateCodebaseConnection ::
   (MonadUnliftIO m) =>
@@ -184,15 +163,12 @@ withCodebaseOrError ::
   Codebase.DebugName ->
   CodebasePath ->
   (Codebase m Symbol Ann -> m r) ->
-  m (Either Codebase1.Pretty r)
+  m (Either Codebase1.OpenCodebaseError r)
 withCodebaseOrError debugName dir action = do
-  prettyDir <- liftIO $ P.string <$> canonicalizePath dir
-  let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
   doesFileExist (makeCodebasePath dir) >>= \case
-    -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
-    -- Unison.Codebase.Init.getCodebaseOrExit).
-    False -> pure (Left "codebase doesn't exist")
-    True -> fmap (Either.mapLeft prettyError) (sqliteCodebase debugName dir action)
+    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    True ->
+      sqliteCodebase debugName dir action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do

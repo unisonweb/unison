@@ -87,7 +87,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
     when debugTranscriptOutput $ traceM output
     pure output
   case result of
-    Left e -> fail $ P.toANSI 80 e
+    Left e -> fail $ P.toANSI 80 (P.shown e)
     Right x -> pure x
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
@@ -95,5 +95,5 @@ lowLevel (Codebase root fmt) action = do
   let cbInit = case fmt of CodebaseFormat2 -> SC.init
   result <- Codebase.Init.withOpenCodebase cbInit "lowLevel" root action
   case result of
-    Left p -> PT.putPrettyLn p *> pure (error "This really should have loaded")
+    Left e -> PT.putPrettyLn (P.shown e) *> pure (error "This really should have loaded")
     Right a -> pure a

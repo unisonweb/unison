@@ -45,6 +45,7 @@ default-extensions:
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedStrings
+  - PatternSynonyms
   - ScopedTypeVariables
   - TupleSections
   - TypeApplications

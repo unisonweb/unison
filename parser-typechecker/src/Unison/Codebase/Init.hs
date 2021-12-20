@@ -28,6 +28,7 @@ import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath)
 import Unison.Codebase.Init.CreateCodebaseError
+import Unison.Codebase.Init.OpenCodebaseError
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
@@ -48,7 +49,7 @@ type DebugName = String
 
 data Init m v a = Init
   { -- | open an existing codebase
-    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r),
+    withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either OpenCodebaseError r),
     -- | create a new codebase
     withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     -- | given a codebase root, and given that the codebase root may have other junk in it,
@@ -56,9 +57,10 @@ data Init m v a = Init
     codebasePath :: CodebasePath -> CodebasePath
   }
 
+-- | An error that occurred while initializing a codebase.
 data InitError
-  = NoCodebaseFoundAtSpecifiedDir
-  | FoundV1Codebase
+  = FoundV1Codebase
+  | InitErrorOpen OpenCodebaseError
   | CouldntCreateCodebase Pretty
 
 data InitResult
@@ -66,36 +68,51 @@ data InitResult
   | CreatedCodebase
   deriving (Show, Eq)
 
-createCodebaseWithResult :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either (CodebasePath, InitError) r)
+createCodebaseWithResult ::
+  MonadIO m =>
+  Init m v a ->
+  DebugName ->
+  CodebasePath ->
+  (Codebase m v a -> m r) ->
+  m (Either (CodebasePath, InitError) r)
 createCodebaseWithResult cbInit debugName dir action =
   createCodebase cbInit debugName dir action <&> mapLeft \case
     errorMessage -> (dir, (CouldntCreateCodebase errorMessage))
 
-withOpenOrCreateCodebase :: MonadIO m => Init m v a -> DebugName -> CodebaseInitOptions -> ((InitResult, CodebasePath, Codebase m v a) -> m r) -> m (Either (CodebasePath, InitError) r)
+withOpenOrCreateCodebase ::
+  MonadIO m =>
+  Init m v a ->
+  DebugName ->
+  CodebaseInitOptions ->
+  ((InitResult, CodebasePath, Codebase m v a) -> m r) ->
+  m (Either (CodebasePath, InitError) r)
 withOpenOrCreateCodebase cbInit debugName initOptions action = do
   let resolvedPath = initOptionsToDir initOptions
-  result <- withOpenCodebase cbInit debugName resolvedPath $ \codebase -> do
+  result <- withOpenCodebase cbInit debugName resolvedPath \codebase -> do
     action (OpenedCodebase, resolvedPath, codebase)
   case result of
     Right r -> pure $ Right r
-    Left _ ->
+    Left OpenCodebaseDoesntExist ->
       case initOptions of
         Home homeDir -> do
-          ifM (FCC.codebaseExists homeDir)
+          ifM
+            (FCC.codebaseExists homeDir)
             (do pure (Left (homeDir, FoundV1Codebase)))
-            (do
-              -- Create V2 codebase if neither a V1 or V2 exists
-              createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase, homeDir, codebase))
+            ( do
+                -- Create V2 codebase if neither a V1 or V2 exists
+                createCodebaseWithResult cbInit debugName homeDir (\codebase -> action (CreatedCodebase, homeDir, codebase))
             )
-
         Specified specified ->
-          ifM (FCC.codebaseExists resolvedPath)
+          ifM
+            (FCC.codebaseExists resolvedPath)
             (pure $ Left (resolvedPath, FoundV1Codebase))
             case specified of
-               DontCreateWhenMissing dir ->
-                 pure (Left (dir, NoCodebaseFoundAtSpecifiedDir))
-               CreateWhenMissing dir ->
-                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
+              DontCreateWhenMissing dir ->
+                pure (Left (dir, (InitErrorOpen OpenCodebaseDoesntExist)))
+              CreateWhenMissing dir ->
+                createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
+    Left err@OpenCodebaseUnknownSchemaVersion{} -> pure (Left (resolvedPath, InitErrorOpen err))
+    Left err@OpenCodebaseOther{} -> pure (Left (resolvedPath, InitErrorOpen err))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path action = do
