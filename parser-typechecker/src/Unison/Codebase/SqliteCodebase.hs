@@ -1100,16 +1100,19 @@ pushGitBranch ::
   PushGitBranchOpts ->
   m (Either C.GitError ())
 pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try $ do
-  -- pull the remote repo to the staging directory
-  -- open a connection to the staging codebase
-  -- create a savepoint on the staging codebase
+  -- Pull the latest remote into our git cache
+  -- Use a local git clone to copy this git repo into a temp-dir
+  -- Delete the codebase in our temp-dir
+  -- Use sqlite's VACUUM INTO command to make a copy of the remote codebase into our temp-dir
+  -- Connect to the copied codebase and sync whatever it is we want to push.
   -- sync the branch to the staging codebase using `syncInternal`, which probably needs to be passed in instead of `syncToDirectory`
   -- if setting the remote root,
   --   do a `before` check on the staging codebase
   --   if it passes, proceed (see below)
-  --   if it fails, rollback to the savepoint and clean up.
-  -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
-
+  --   if it fails, throw an exception (which will rollback) and clean up.
+  -- push from the temp-dir to the remote.
+  -- Delete the temp-dir.
+  --
   -- set up the cache dir
   pathToCachedRemote <- time "Git fetch" $ throwExceptTWith C.GitProtocolError $ pullRepo (writeToRead repo)
   throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
