@@ -31,7 +31,6 @@ import qualified Data.Text.IO as TextIO
 import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
-import qualified System.FilePath as FilePath
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -94,7 +93,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as UF
 import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO)
 import qualified UnliftIO
-import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
+import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removePathForcibly)
 import UnliftIO.STM
 import UnliftIO.Exception (catch, bracket)
 import Data.Either.Extra ()
@@ -104,17 +103,21 @@ debug = False
 debugProcessBranches = False
 debugCommitFailedTransaction = False
 
+-- | Prefer makeCodebasePath or makeCodebaseDir when possible.
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 
-v2dir :: FilePath -> FilePath
-v2dir root = root </> ".unison" </> "v2"
+makeCodebasePath :: FilePath -> FilePath
+makeCodebasePath root = makeCodebaseDir root </> "unison.sqlite3"
+
+makeCodebaseDir :: FilePath -> FilePath
+makeCodebaseDir root = root </> ".unison" </> "v2"
 
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
   { withOpenCodebase=withCodebaseOrError
   , withCreatedCodebase=createCodebaseOrError
-  , codebasePath=v2dir
+  , codebasePath=makeCodebaseDir
   }
 
 createCodebaseOrError ::
@@ -146,10 +149,10 @@ createCodebaseOrError' ::
   m (Either CreateCodebaseError r)
 createCodebaseOrError' debugName path action = do
   ifM
-    (doesFileExist $ path </> codebasePath)
+    (doesFileExist $ makeCodebasePath path)
     (pure $ Left CreateCodebaseAlreadyExists)
     do
-      createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
+      createDirectoryIfMissing True (makeCodebaseDir path)
       liftIO $
         withConnection (debugName ++ ".createSchema") path $
           ( runReaderT do
@@ -160,6 +163,18 @@ createCodebaseOrError' debugName path action = do
           )
 
       fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
+
+withOpenOrCreateCodebaseConnection ::
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  FilePath ->
+  (Connection -> m r) ->
+  m r
+withOpenOrCreateCodebaseConnection debugName path action = do
+  unlessM
+    (doesFileExist $ makeCodebasePath path)
+    (initSchemaIfNotExist path)
+  withConnection debugName path action
 
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.
@@ -173,7 +188,7 @@ withCodebaseOrError ::
 withCodebaseOrError debugName dir action = do
   prettyDir <- liftIO $ P.string <$> canonicalizePath dir
   let prettyError v = P.wrap $ "I don't know how to handle " <> P.shown v <> "in" <> P.backticked' prettyDir "."
-  doesFileExist (dir </> codebasePath) >>= \case
+  doesFileExist (makeCodebasePath dir) >>= \case
     -- If the codebase file doesn't exist, just return any string. The string is currently ignored (see
     -- Unison.Codebase.Init.getCodebaseOrExit).
     False -> pure (Left "codebase doesn't exist")
@@ -181,9 +196,9 @@ withCodebaseOrError debugName dir action = do
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
-  unlessM (doesDirectoryExist $ path </> FilePath.takeDirectory codebasePath) $
-    createDirectoryIfMissing True (path </> FilePath.takeDirectory codebasePath)
-  unlessM (doesFileExist $ path </> codebasePath) $
+  unlessM (doesDirectoryExist $ makeCodebaseDir path) $
+    createDirectoryIfMissing True (makeCodebaseDir path)
+  unlessM (doesFileExist $ makeCodebasePath path) $
     withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
 
 -- 1) buffer up the component
@@ -247,7 +262,7 @@ unsafeGetConnection ::
   CodebasePath ->
   m (IO (), Connection)
 unsafeGetConnection name root = do
-  let path = root </> codebasePath
+  let path = makeCodebasePath root
   Monad.when debug $ traceM $ "unsafeGetconnection " ++ name ++ " " ++ root ++ " -> " ++ path
   (Connection name path -> conn) <- liftIO $ Sqlite.open path
   runReaderT Q.setFlags conn
@@ -1099,15 +1114,14 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   pathToCachedRemote <- time "Git fetch" $ throwExceptTWith C.GitProtocolError $ pullRepo (writeToRead repo)
   throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
     -- Connect to codebase in the cached git repo so we can copy it over.
-    withConnection @m "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
+    withOpenOrCreateCodebaseConnection @m "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
       copyCodebase cachedRemoteConn tempRemotePath
       -- Connect to the newly copied database which we know has been properly closed and
       -- nobody else could be using.
       withConnection @m "push.dest" tempRemotePath $ \destConn -> do
-        result <- runDBUnlifted @m destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+        runDBUnlifted @m destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
           throwExceptT $ doSync tempRemotePath srcConn destConn
-        void $ push tempRemotePath repo
-        pure result
+    void $ push tempRemotePath repo
   where
     doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
     doSync remotePath srcConn destConn = do
@@ -1220,13 +1234,10 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
             gitIn remotePath ["push", "--quiet", url]
             pure True
 
-
--- -- | Execute the given block over an isolated instance of the given codebase.
--- -- The codebase is ephemeral and will be deleted after the block is completed.
--- withIsolatedRemote :: MonadUnliftIO m => Codebase.DebugName -> FilePath -> (Connection -> m r) -> m (Either C.GitError r)
--- withIsolatedRemote debugName repoPath action = mapLeft C.GitProtocolError <$> do
---   withIsolatedRepo repoPath $ \repoPath -> do
---     withConnection debugName repoPath $ action
+-- | Make a clean copy of the connected codebase into the provided path.
 copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
 copyCodebase srcConn destPath = runDB srcConn $ do
-  Q.vacuumInto (destPath </> codebasePath)
+  -- remove any existing codebase at the destination location.
+  removePathForcibly (makeCodebaseDir destPath)
+  createDirectoryIfMissing True (makeCodebaseDir destPath)
+  Q.vacuumInto (makeCodebasePath destPath)

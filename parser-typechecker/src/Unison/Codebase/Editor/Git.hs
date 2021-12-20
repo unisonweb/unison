@@ -80,7 +80,7 @@ withIsolatedRepo srcPath action = do
   where
     copyCommand :: FilePath -> m ()
     copyCommand dest = liftIO $
-      "git" $^ (["clone", "--quiet"] ++ ["--depth", "1"] ++ [Text.pack srcPath, Text.pack dest])
+      "git" $^ (["clone", "--quiet"] ++ ["file://" <> Text.pack srcPath, Text.pack dest])
 
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
