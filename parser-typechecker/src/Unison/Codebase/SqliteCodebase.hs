@@ -13,34 +13,22 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad (filterM, unless, when, (>=>))
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT, withExceptT, throwError)
+import Control.Monad.Except (runExceptT, withExceptT, throwError, ExceptT)
 import qualified Control.Monad.Except as Except
-import Control.Monad.Extra (ifM, unlessM)
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.State (MonadState)
 import qualified Control.Monad.State as State
-import Control.Monad.Trans (MonadTrans (lift))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT))
 import Data.Bifunctor (Bifunctor (bimap), second)
 import qualified Data.Char as Char
 import qualified Data.Either.Combinators as Either
-import Data.Foldable (Foldable (toList), for_, traverse_)
-import Data.Functor (void, (<&>))
 import qualified Data.List as List
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Traversable (for)
-import Data.Word (Word64)
 import qualified Database.SQLite.Simple as Sqlite
-import GHC.Stack (HasCallStack)
 import qualified System.Console.ANSI as ANSI
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
@@ -50,7 +38,6 @@ import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
-import qualified U.Codebase.Sqlite.JournalMode as JournalMode
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -105,7 +92,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import qualified Unison.WatchKind as UF
-import UnliftIO (MonadIO, catchIO, finally, liftIO, MonadUnliftIO, throwIO)
+import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO)
 import qualified UnliftIO
 import UnliftIO.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.STM
@@ -174,19 +161,8 @@ createCodebaseOrError' debugName path action = do
 
       fmap (Either.mapLeft CreateCodebaseUnknownSchemaVersion) (sqliteCodebase debugName path action)
 
-withOpenOrCreateCodebaseConnection ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  CodebasePath ->
-  (Connection -> m r) ->
-  m r
-withOpenOrCreateCodebaseConnection debugName path action = do
-  unlessM
-    (doesFileExist $ path </> codebasePath)
-    (initSchemaIfNotExist path)
-  withConnection debugName path action
-
--- get the codebase in dir
+-- | Use the codebase in the provided path.
+-- The codebase is automatically closed when the action completes or throws an exception.
 withCodebaseOrError ::
   forall m r.
   (MonadUnliftIO m) =>
@@ -1120,23 +1096,23 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   -- otherwise, proceed: release the savepoint (commit it), clean up, and git-push the result
 
   -- set up the cache dir
-  pathToCachedRemote <- time "Git fetch" $ throwExceptT . withExceptT C.GitProtocolError $ pullRepo (writeToRead repo)
-  throwEither . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
+  pathToCachedRemote <- time "Git fetch" $ throwExceptTWith C.GitProtocolError $ pullRepo (writeToRead repo)
+  throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
     -- Connect to codebase in the cached git repo so we can copy it over.
-    withConnection "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
+    withConnection @m "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
       copyCodebase cachedRemoteConn tempRemotePath
       -- Connect to the newly copied database which we know has been properly closed and
       -- nobody else could be using.
-      withConnection "push.dest" tempRemotePath $ \destConn -> do
-        result <- runDBUnlifted destConn $ Q.withSavepoint "push" \rollback -> do
+      withConnection @m "push.dest" tempRemotePath $ \destConn -> do
+        result <- runDBUnlifted @m destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
           throwExceptT $ doSync tempRemotePath srcConn destConn
         void $ push tempRemotePath repo
         pure result
   where
-    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError m ()
+    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
     doSync remotePath srcConn destConn = do
       _ <- flip State.execStateT emptySyncProgressState $
-        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift) branch)
+        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) branch)
       when setRoot $ overwriteRoot remotePath destConn
     overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT C.GitError m ()
     overwriteRoot remotePath destConn = do
@@ -1254,12 +1230,3 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
 copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
 copyCodebase srcConn destPath = runDB srcConn $ do
   Q.vacuumInto (destPath </> codebasePath)
-
-throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
-throwExceptT action = runExceptT action >>= \case
-  Left e -> UnliftIO.throwIO e
-  Right a -> pure a
-
-
-throwEither :: (MonadIO m, Exception e) => m (Either e a) -> m a
-throwEither action = throwExceptT (ExceptT action)

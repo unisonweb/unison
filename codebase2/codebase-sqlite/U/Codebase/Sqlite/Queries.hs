@@ -115,6 +115,7 @@ module U.Codebase.Sqlite.Queries (
   release,
   rollbackRelease,
   withSavepoint,
+  withSavepoint_,
 
   vacuumInto,
   setJournalMode,
@@ -901,6 +902,8 @@ withSavepoint name action =
     (release name)
     (action (rollbackTo name) `UnliftIO.onException` rollbackTo name)
 
+withSavepoint_ :: (MonadUnliftIO m, DB m) => String -> m r -> m r
+withSavepoint_ name action = withSavepoint name (\_rollback -> action)
 
 -- * orphan instances
 

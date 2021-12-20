@@ -14,6 +14,10 @@ module Unison.Prelude
 
     -- * @Either@ control flow
     whenLeft,
+    throwEitherM,
+    throwEitherMWith,
+    throwExceptT,
+    throwExceptTWith,
   )
 where
 
@@ -51,6 +55,8 @@ import GHC.Generics as X (Generic, Generic1)
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
+import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
+import qualified UnliftIO
 
 onNothing :: Applicative m => m a -> Maybe a -> m a
 onNothing x =
@@ -60,6 +66,21 @@ whenLeft :: Applicative m => Either a b -> (a -> m b) -> m b
 whenLeft = \case
   Left a -> \f -> f a
   Right b -> \_ -> pure b
+
+
+throwExceptT :: (MonadIO m, Exception e) => ExceptT e m a -> m a
+throwExceptT = throwExceptTWith id
+
+throwExceptTWith :: (MonadIO m, Exception e') => (e -> e') -> ExceptT e m a -> m a
+throwExceptTWith f action = runExceptT (withExceptT f action) >>= \case
+  Left e -> liftIO . UnliftIO.throwIO $ e
+  Right a -> pure a
+
+throwEitherM :: (MonadIO m, Exception e) => m (Either e a) -> m a
+throwEitherM = throwEitherMWith id
+
+throwEitherMWith :: (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
+throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
 tShow :: Show a => a -> Text
 tShow = Text.pack . show
