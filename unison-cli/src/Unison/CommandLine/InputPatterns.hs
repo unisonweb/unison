@@ -102,17 +102,6 @@ mergeIOBuiltins =
     "Adds all the builtins to `builtins.` in the current namespace, including `io` and misc."
     (const . pure $ Input.MergeIOBuiltinsI)
 
-updateBuiltins :: InputPattern
-updateBuiltins =
-  InputPattern
-    "builtins.update"
-    []
-    []
-    ( "Adds all the builtins that are missing from this namespace, "
-        <> "and deprecate the ones that don't exist in this version of Unison."
-    )
-    (const . pure $ Input.UpdateBuiltinsI)
-
 todo :: InputPattern
 todo =
   InputPattern
@@ -380,17 +369,6 @@ undo =
     []
     "`undo` reverts the most recent change to the codebase."
     (const $ pure Input.UndoI)
-
-viewByPrefix :: InputPattern
-viewByPrefix =
-  InputPattern
-    "view.recursive"
-    []
-    [(OnePlus, definitionQueryArg)]
-    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
-    ( fmap (Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
-        . traverse parseHashQualifiedName
-    )
 
 find :: InputPattern
 find =
@@ -1203,9 +1181,9 @@ prettyPrintParseError input = \case
                  ]
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee = 
+    printTrivial ue ee =
       let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue
           message = [expected] <> catMaybes [found]
       in P.oxfordCommasWith "." message
 
@@ -1979,7 +1957,6 @@ validInputs =
     viewReflog,
     resetRoot,
     quit,
-    updateBuiltins,
     makeStandalone,
     mergeBuiltins,
     mergeIOBuiltins,

@@ -120,8 +120,6 @@ data Input
     | PropagatePatchI PatchPath Path'
     | ListEditsI (Maybe PatchPath)
     -- -- create and remove update directives
-    | DeprecateTermI PatchPath Path.HQSplit'
-    | DeprecateTypeI PatchPath Path.HQSplit'
     | ReplaceI (HQ.HashQualified Name) (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTermReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
     | RemoveTypeReplacementI (HQ.HashQualified Name) (Maybe PatchPath)
@@ -154,9 +152,7 @@ data Input
     | FindPatchI
       -- Show provided definitions. If list is empty, prompt a fuzzy search.
     | ShowDefinitionI OutputLocation [HQ.HashQualified Name]
-    | ShowDefinitionByPrefixI OutputLocation [HQ.HashQualified Name]
     | ShowReflogI
-    | UpdateBuiltinsI
     | MergeBuiltinsI
     | MergeIOBuiltinsI
     | ListDependenciesI (HQ.HashQualified Name)

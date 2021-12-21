@@ -390,7 +390,6 @@ loop = do
               "link " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
             UnlinkI md defs ->
               "unlink " <> HQ.toText md <> " " <> intercalateMap " " hqs' defs
-            UpdateBuiltinsI -> "builtins.update"
             MergeBuiltinsI -> "builtins.merge"
             MergeIOBuiltinsI -> "builtins.mergeio"
             MakeStandaloneI out nm ->
@@ -443,7 +442,6 @@ loop = do
             ShowDefinitionI {} -> wat
             DisplayI {} -> wat
             DocsI {} -> wat
-            ShowDefinitionByPrefixI {} -> wat
             ShowReflogI {} -> wat
             DebugNumberedArgsI {} -> wat
             DebugTypecheckedUnisonFileI {} -> wat
@@ -451,8 +449,6 @@ loop = do
             DebugDumpNamespaceSimpleI {} -> wat
             DebugClearWatchI {} -> wat
             QuitI {} -> wat
-            DeprecateTermI {} -> undefined
-            DeprecateTypeI {} -> undefined
             GistI {} -> wat
             RemoveTermReplacementI src p ->
               "delete.term-replacement" <> HQ.toText src <> " " <> opatch p
@@ -1609,18 +1605,13 @@ loop = do
               for_ (Relation.toList . Branch.deepTerms . Branch.head $ root') \(r, name) ->
                 traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
             DebugClearWatchI {} -> eval ClearWatchCache
-            DeprecateTermI {} -> notImplemented
-            DeprecateTypeI {} -> notImplemented
             RemoveTermReplacementI from patchPath ->
               doRemoveReplacement from patchPath True
             RemoveTypeReplacementI from patchPath ->
               doRemoveReplacement from patchPath False
-            ShowDefinitionByPrefixI {} -> notImplemented
-            UpdateBuiltinsI -> notImplemented
             QuitI -> MaybeT $ pure Nothing
             GistI input -> handleGist input
       where
-        notImplemented = eval $ Notify NotImplemented
         success = respond Success
 
   case e of

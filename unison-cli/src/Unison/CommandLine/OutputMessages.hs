@@ -578,7 +578,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       P.lines
         [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again." 
+          "Please switch to an empty namespace and try again."
         ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
@@ -1034,34 +1034,6 @@ notifyUser dir o = case o of
                   <> IP.deleteTypeReplacementCommand
                   <> ", as appropriate."
         ]
-  BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
-    -- todo: this could be prettier!  Have a nice list like `find` gives, but
-    -- that requires querying the codebase to determine term types.  Probably
-    -- the only built-in types will be primitive types like `Int`, so no need
-    -- to look up decl types.
-    -- When we add builtin terms, they may depend on new derived types, so
-    -- these derived types should be added to the branch too; but not
-    -- necessarily ever be automatically deprecated.  (A library curator might
-    -- deprecate them; more work needs to go into the idea of sharing deprecations and stuff.
-    pure . P.warnCallout . P.lines $
-      case (new, old) of
-        ([], []) -> error "BustedBuiltins busted, as there were no busted builtins."
-        ([], old) ->
-          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:") :
-          "" :
-          fmap (P.text . Reference.toText) old
-        (new, []) ->
-          P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:") :
-          "" : fmap (P.text . Reference.toText) new
-        (new@(_ : _), old@(_ : _)) ->
-          [ P.wrap
-              ( "Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
-                  <> makeExample' IP.updateBuiltins
-                  <> " to add the ones you're missing and deprecate the ones I'm missing. 😉"
-              ),
-            "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new),
-            "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
-          ]
   ListOfPatches patches ->
     pure $
       if null patches
@@ -1119,7 +1091,6 @@ notifyUser dir o = case o of
   NoBranchWithHash _h ->
     pure . P.callout "😶" $
       P.wrap $ "I don't know of a namespace with that hash."
-  NotImplemented -> pure $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists p ->
     pure . P.wrap $
       "The namespace" <> prettyPath' p <> "already exists."

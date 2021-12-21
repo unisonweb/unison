@@ -191,10 +191,6 @@ data Output v
       [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
   | ListEdits Patch PPE.PrettyPrintEnv
-  | -- new/unrepresented references followed by old/removed
-    -- todo: eventually replace these sets with [SearchResult' v Ann]
-    -- and a nicer render.
-    BustedBuiltins (Set Reference) (Set Reference)
   | GitError GitError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
@@ -218,7 +214,6 @@ data Output v
   | PreviewMergeAlreadyUpToDate Path' Path'
   | -- | No conflicts or edits remain for the current patch.
     NoConflictsOrEdits
-  | NotImplemented
   | NoBranchWithHash ShortBranchHash
   | ListDependencies Int LabeledDependency [(Name, Reference)] (Set Reference)
   | -- | List dependents of a type or term.
@@ -330,7 +325,6 @@ isFailure o = case o of
   CantUndo {} -> True
   ListEdits {} -> False
   GitError {} -> True
-  BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
   NoConfiguredGitUrl {} -> True
   ConfiguredGitUrlParseError {} -> True
@@ -342,7 +336,6 @@ isFailure o = case o of
   WarnIncomingRootBranch {} -> False
   History {} -> False
   StartOfCurrentPathHistory -> True
-  NotImplemented -> True
   DumpNumberedArgs {} -> False
   DumpBitBooster {} -> False
   NoBranchWithHash {} -> True
