@@ -101,8 +101,10 @@ fromText t = either (const Nothing) Just $
   else if Text.all Char.isDigit cidPart then do
     r <- R.fromText (Text.dropEnd 1 refPart)
     ctorType <- ctorType
-    let cid = read (Text.unpack cidPart)
-    pure $ Con r cid ctorType
+    let maybeCid = readMaybe (Text.unpack cidPart)
+    case maybeCid of
+      Nothing -> Left ("invalid constructor id: " <> Text.unpack cidPart)
+      Just cid -> Right $ Con r cid ctorType
   else
     Left ("invalid constructor id: " <> Text.unpack cidPart)
   where

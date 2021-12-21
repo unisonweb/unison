@@ -6,7 +6,6 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import Data.Either (fromRight)
 import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -249,7 +248,8 @@ symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
   fst
-    . fromRight (error "todo: move suffix parsing to frontend")
+    -- todo: move suffix parsing to frontend
+    . either error id
     . V1.Reference.readSuffix
 
 abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
