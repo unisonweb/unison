@@ -1085,16 +1085,17 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   --
   -- set up the cache dir
   pathToCachedRemote <- time "Git fetch" $ throwExceptTWith C.GitProtocolError $ pullRepo (writeToRead repo)
-  throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \tempRemotePath -> do
+  throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \isolatedRemotePath -> do
     -- Connect to codebase in the cached git repo so we can copy it over.
     withOpenOrCreateCodebaseConnection @m "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
-      copyCodebase cachedRemoteConn tempRemotePath
+      -- Copy our cached remote database cleanly into our isolated directory.
+      copyCodebase cachedRemoteConn isolatedRemotePath
       -- Connect to the newly copied database which we know has been properly closed and
       -- nobody else could be using.
-      withConnection @m "push.dest" tempRemotePath $ \destConn -> do
+      withConnection @m "push.dest" isolatedRemotePath $ \destConn -> do
         flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-          throwExceptT $ doSync tempRemotePath srcConn destConn
-    void $ push tempRemotePath repo
+          throwExceptT $ doSync isolatedRemotePath srcConn destConn
+    void $ push isolatedRemotePath repo
   where
     doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
     doSync remotePath srcConn destConn = do
