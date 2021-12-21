@@ -131,7 +131,7 @@ createCodebaseOrError debugName path action = do
     (doesFileExist $ makeCodebasePath path)
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
-      createDirectoryIfMissing True (makeCodebasePath path)
+      createDirectoryIfMissing True (makeCodebaseDir path)
       withConnection (debugName ++ ".createSchema") path $
         runReaderT do
           Q.createSchema
