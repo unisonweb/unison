@@ -37,8 +37,8 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
+    getRootBranchExists,
     GetRootBranchError (..),
-    isBlank,
     putRootBranch,
     rootBranchUpdates,
 
@@ -91,7 +91,6 @@ module Unison.Codebase
   )
 where
 
-import Control.Error (rightMay)
 import Control.Error.Util (hush)
 import Data.List as List
 import qualified Data.Map as Map
@@ -324,12 +323,6 @@ isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
-
--- | Return whether the root branch is empty.
-isBlank :: Applicative m => Codebase m v a -> m Bool
-isBlank codebase = do
-  root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
-  pure (root == Branch.empty)
 
 -- * Git stuff
 

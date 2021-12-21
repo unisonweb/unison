@@ -64,6 +64,8 @@ data Codebase m v a = Codebase
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
     -- | Get the root branch.
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    -- | Get whether the root branch exists.
+    getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
     putRootBranch :: Branch m -> m (),
     rootBranchUpdates :: m (IO (), IO (Set Branch.Hash)),
