@@ -9,6 +9,9 @@ module Unison.Codebase.Editor.Git
     withIOError,
     withStatus,
     withIsolatedRepo,
+
+    -- * Exported for testing
+    gitCacheDir,
   )
 where
 
@@ -145,7 +148,10 @@ pullRepo repo@(ReadGitRepo uri) = do
       remoteRef :: Text
       remoteRef = fromMaybe "HEAD" maybeRemoteRef
       goFromScratch :: (MonadIO m, MonadError GitProtocolError m) => m  ()
-      goFromScratch = do wipeDir localPath; checkOutNew localPath Nothing
+      goFromScratch = do
+        liftIO . putStrLn $ "FROM SCRATCH"
+        wipeDir localPath
+        checkOutNew localPath Nothing
 
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
   isEmptyGitRepo localPath = liftIO $
