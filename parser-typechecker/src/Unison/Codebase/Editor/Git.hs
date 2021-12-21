@@ -149,7 +149,6 @@ pullRepo repo@(ReadGitRepo uri) = do
       remoteRef = fromMaybe "HEAD" maybeRemoteRef
       goFromScratch :: (MonadIO m, MonadError GitProtocolError m) => m  ()
       goFromScratch = do
-        liftIO . putStrLn $ "FROM SCRATCH"
         wipeDir localPath
         checkOutNew localPath Nothing
 
