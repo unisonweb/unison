@@ -103,21 +103,21 @@ debug = False
 debugProcessBranches = False
 debugCommitFailedTransaction = False
 
--- | Prefer makeCodebasePath or makeCodebaseDir when possible.
+-- | Prefer makeCodebasePath or makeCodebaseDirPath when possible.
 codebasePath :: FilePath
 codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
 
 makeCodebasePath :: FilePath -> FilePath
-makeCodebasePath root = makeCodebaseDir root </> "unison.sqlite3"
+makeCodebasePath root = makeCodebaseDirPath root </> "unison.sqlite3"
 
-makeCodebaseDir :: FilePath -> FilePath
-makeCodebaseDir root = root </> ".unison" </> "v2"
+makeCodebaseDirPath :: FilePath -> FilePath
+makeCodebaseDirPath root = root </> ".unison" </> "v2"
 
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
   { withOpenCodebase=withCodebaseOrError
   , withCreatedCodebase=createCodebaseOrError
-  , codebasePath=makeCodebaseDir
+  , codebasePath=makeCodebaseDirPath
   }
 
 createCodebaseOrError ::
@@ -131,7 +131,7 @@ createCodebaseOrError debugName path action = do
     (doesFileExist $ makeCodebasePath path)
     (pure $ Left Codebase1.CreateCodebaseAlreadyExists)
     do
-      createDirectoryIfMissing True (makeCodebaseDir path)
+      createDirectoryIfMissing True (makeCodebaseDirPath path)
       withConnection (debugName ++ ".createSchema") path $
         runReaderT do
           Q.createSchema
@@ -172,8 +172,8 @@ withCodebaseOrError debugName dir action = do
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
-  unlessM (doesDirectoryExist $ makeCodebaseDir path) $
-    createDirectoryIfMissing True (makeCodebaseDir path)
+  unlessM (doesDirectoryExist $ makeCodebaseDirPath path) $
+    createDirectoryIfMissing True (makeCodebaseDirPath path)
   unlessM (doesFileExist $ makeCodebasePath path) $
     withConnection "initSchemaIfNotExist" path $ runReaderT Q.createSchema
 
@@ -919,12 +919,6 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
 
-runDBUnlifted :: (HasCallStack, MonadUnliftIO m) => Connection -> ReaderT Connection m a -> m a
-runDBUnlifted conn m =
-  UnliftIO.try (runReaderT m conn) >>= \case
-    Left (err :: Ops.Error) -> error $ show err
-    Right a -> pure a
-
 data Entity m
   = B Branch.Hash (m (Branch m))
   | O Hash
@@ -1098,7 +1092,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
       -- Connect to the newly copied database which we know has been properly closed and
       -- nobody else could be using.
       withConnection @m "push.dest" tempRemotePath $ \destConn -> do
-        runDBUnlifted @m destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+        flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
           throwExceptT $ doSync tempRemotePath srcConn destConn
     void $ push tempRemotePath repo
   where
@@ -1217,6 +1211,6 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
 copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
 copyCodebase srcConn destPath = runDB srcConn $ do
   -- remove any existing codebase at the destination location.
-  removePathForcibly (makeCodebaseDir destPath)
-  createDirectoryIfMissing True (makeCodebaseDir destPath)
+  removePathForcibly (makeCodebaseDirPath destPath)
+  createDirectoryIfMissing True (makeCodebaseDirPath destPath)
   Q.vacuumInto (makeCodebasePath destPath)

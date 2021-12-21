@@ -74,12 +74,12 @@ withIsolatedRepo ::
   m (Either GitProtocolError r)
 withIsolatedRepo srcPath action = do
   UnliftIO.withSystemTempDirectory "ucm-isolated-repo" $ \tempDir -> do
-    (UnliftIO.tryIO $ copyCommand tempDir) >>= \case
+    copyCommand tempDir >>= \case
       Left gitErr -> pure $ Left (GitError.CopyException srcPath tempDir (show gitErr))
       Right () -> Right <$> action tempDir
   where
-    copyCommand :: FilePath -> m ()
-    copyCommand dest = liftIO $
+    copyCommand :: FilePath -> m (Either IOException ())
+    copyCommand dest = UnliftIO.tryIO . liftIO $
       "git" $^ (["clone", "--quiet"] ++ ["file://" <> Text.pack srcPath, Text.pack dest])
 
 -- | Given a remote git repo url, and branch/commit hash (currently
