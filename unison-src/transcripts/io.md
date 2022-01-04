@@ -76,6 +76,7 @@ testOpenClose _ =
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
     setBuffering handle1 (SizedBlockBuffering 1024)
+    check "file handle buffering should match what we just set." (getBuffering handle1 == SizedBlockBuffering 1024)
     setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs01
     setBuffering handle1 NoBuffering
