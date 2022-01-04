@@ -1110,7 +1110,6 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
       case maybeOldRootHash of
         Nothing -> runDB destConn $ do
           setRepoRoot newRootHash
-          -- Q.release "push"
         (Just oldRootHash) -> runDB destConn $ do
           before oldRootHash newRootHash >>= \case
             Nothing ->
@@ -1122,11 +1121,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
                   ++ show remotePath
                   ++ "."
             Just False -> do
-              -- Q.rollbackRelease "push"
               lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
             Just True -> do
               setRepoRoot newRootHash
-              -- Q.release "push"
 
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
