@@ -126,6 +126,8 @@ module U.Codebase.Sqlite.Queries (
   rollbackRelease,
   rollbackTo,
   withSavepoint,
+  withImmediateTransaction,
+  withExclusiveTransaction,
 
   setJournalMode,
   traceConnectionFile,
@@ -982,6 +984,15 @@ withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
 withImmediateTransaction action = do
   c <- Reader.reader Connection.underlying
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
+
+-- | Start a transaction that blocks other connections from writing while it is open.
+-- In WAL mode this is equivalent to an IMMEDIATE transaction, and other connections can
+-- read concurrently with an exclusive transaction, but will see the database in its state
+-- from before the exclusive transaction starts.
+withExclusiveTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
+withExclusiveTransaction action = do
+  c <- Reader.reader Connection.underlying
+  withRunInIO \run -> SQLite.withExclusiveTransaction c (run action)
 
 
 -- | low-level transaction stuff

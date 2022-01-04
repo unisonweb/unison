@@ -77,7 +77,6 @@ import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
 import UnliftIO (MonadUnliftIO)
-import UnliftIO.Exception (bracket_, onException)
 
 -- todo:
 --  * write a harness to call & seed algorithm
@@ -106,7 +105,7 @@ import UnliftIO.Exception (bracket_, onException)
 
 migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
-  withinSavepoint "MIGRATESCHEMA12" $ do
+  withExclusiveTransaction $ do
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
     watches <-
       foldMapM
@@ -132,12 +131,10 @@ migrateSchema12 conn codebase = do
   liftIO $ putStrLn $ "Cleaning up..."
   runDB conn (liftQ Q.vacuum)
   where
-    withinSavepoint :: (String -> m c -> m c)
-    withinSavepoint name act =
-      bracket_
-        (runDB conn $ Q.savepoint name)
-        (runDB conn $ Q.release name)
-        (act `onException` runDB conn (Q.rollbackTo name))
+    -- Small helper to get the lifting of `m` right.
+    withExclusiveTransaction :: m c -> m c
+    withExclusiveTransaction act =
+      runReaderT (Q.withExclusiveTransaction (lift act)) conn
     progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
     progress =
       let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
