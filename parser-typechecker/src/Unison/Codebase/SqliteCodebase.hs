@@ -1205,7 +1205,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
             gitIn remotePath ["push", "--quiet", url]
             pure True
 
--- | Make a clean copy of the connected codebase into the provided path.
+-- | Make a clean copy of the connected codebase into the provided path. Destroys any existing `v2/` directory
 copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
 copyCodebase srcConn destPath = runDB srcConn $ do
   -- remove any existing codebase at the destination location.
