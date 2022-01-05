@@ -17,6 +17,7 @@ dependencies:
   - transformers
   - lens
   - vector
+  - unliftio
 
 ghc-options:
   -Wall

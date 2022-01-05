@@ -126,7 +126,9 @@ module U.Codebase.Sqlite.Queries (
   rollbackRelease,
   rollbackTo,
   withSavepoint,
+  withSavepoint_,
 
+  vacuumInto,
   setJournalMode,
   traceConnectionFile,
 ) where
@@ -192,8 +194,8 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
+import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
-import UnliftIO.Exception (bracket_, onException)
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -255,6 +257,11 @@ setFlags :: DB m => m ()
 setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
   setJournalMode JournalMode.WAL
+
+-- | Copy the database into the specified location, performing a VACUUM in the process.
+vacuumInto :: DB m => FilePath -> m ()
+vacuumInto dest = do
+  execute "VACUUM INTO ?" [dest]
 
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
@@ -1012,12 +1019,15 @@ rollbackRelease name = rollbackTo name *> release name
 -- Releases the savepoint on completion.
 -- If an exception occurs, the savepoint will be rolled-back and released,
 -- abandoning all changes.
-withSavepoint :: (DB m, MonadUnliftIO m) => String -> m a -> m a
-withSavepoint name act =
-  bracket_
+withSavepoint :: (MonadUnliftIO m, DB m) => String -> (m () -> m r) -> m r
+withSavepoint name action =
+  UnliftIO.bracket_
     (savepoint name)
     (release name)
-    (act `onException` rollbackTo name)
+    (action (rollbackTo name) `UnliftIO.onException` rollbackTo name)
+
+withSavepoint_ :: (MonadUnliftIO m, DB m) => String -> m r -> m r
+withSavepoint_ name action = withSavepoint name (\_rollback -> action)
 
 -- * orphan instances
 
