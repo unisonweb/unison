@@ -547,6 +547,10 @@ sqliteCodebase debugName root localOrRemote action = do
               Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
             e -> error $ show e
 
+      getRootBranchExists :: MonadIO m => m Bool
+      getRootBranchExists =
+        isJust <$> runDB conn (Ops.loadMaybeRootCausalHash)
+
       putRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> Branch m -> m ()
       putRootBranch rootBranchCache branch1 = do
         -- todo: check to see if root namespace hash has been externally modified
@@ -783,6 +787,7 @@ sqliteCodebase debugName root localOrRemote action = do
             getDeclComponent
             getCycleLength
             (getRootBranch rootBranchCache)
+            getRootBranchExists
             (putRootBranch rootBranchCache)
             (rootBranchUpdates rootBranchCache)
             getBranchForHash

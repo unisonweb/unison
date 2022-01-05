@@ -103,6 +103,7 @@ import qualified Unison.PrettyPrintEnv.Util as PPE
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Util.AnnotatedText (AnnotatedText)
 import qualified Unison.Util.Monoid as Monoid
+import Unison.Symbol (Symbol)
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -178,10 +179,10 @@ basicParseNames :: Branch m -> NameScoping -> Names
 basicParseNames root = fst . basicNames' root
 
 loadReferentType ::
-  (Applicative m, Var v) =>
-  Codebase m v Ann ->
+  Applicative m =>
+  Codebase m Symbol Ann ->
   Referent ->
-  m (Maybe (Type v Ann))
+  m (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
   Referent.Con r _ -> getTypeOfConstructor r
@@ -263,10 +264,10 @@ fuzzyFind path branch query =
 
 -- List the immediate children of a namespace
 findShallow
-  :: (Monad m, Var v)
-  => Codebase m v Ann
+  :: Monad m
+  => Codebase m Symbol Ann
   -> Path.Absolute
-  -> Backend m [ShallowListEntry v Ann]
+  -> Backend m [ShallowListEntry Symbol Ann]
 findShallow codebase path' = do
   let path = Path.unabsolute path'
   root <- getRootBranch codebase
@@ -276,10 +277,9 @@ findShallow codebase path' = do
     Just b  -> findShallowInBranch codebase b
 
 findShallowReadmeInBranchAndRender ::
-  Var v =>
   Width ->
-  Rt.Runtime v ->
-  Codebase IO v Ann ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
   NamesWithHistory ->
   Branch IO ->
   Backend IO (Maybe Doc.Doc)
@@ -300,7 +300,7 @@ findShallowReadmeInBranchAndRender width runtime codebase printNames namespaceBr
         hqLen <- liftIO $ Codebase.hashLength codebase
         traverse (renderReadme (ppe hqLen)) (Set.lookupMin readmes)
 
-isDoc :: Monad m => Var v => Codebase m v Ann -> Referent -> m Bool
+isDoc :: Monad m => Codebase m Symbol Ann -> Referent -> m Bool
 isDoc codebase ref = do
   ot <- loadReferentType codebase ref
   pure $ isDoc' ot
@@ -315,12 +315,11 @@ isDoc' typeOfTerm = do
 
 termListEntry
   :: Monad m
-  => Var v
-  => Codebase m v Ann
+  => Codebase m Symbol Ann
   -> Branch0 m
   -> Referent
   -> HQ'.HQSegment
-  -> Backend m (TermEntry v Ann)
+  -> Backend m (TermEntry Symbol Ann)
 termListEntry codebase b0 r n = do
   ot <- lift $ loadReferentType codebase r
 
@@ -402,10 +401,10 @@ typeEntryToNamedType (TypeEntry r name tag) = NamedType
   }
 
 findShallowInBranch
-  :: (Monad m, Var v)
-  => Codebase m v Ann
+  :: Monad m
+  => Codebase m Symbol Ann
   -> Branch m
-  -> Backend m [ShallowListEntry v Ann]
+  -> Backend m [ShallowListEntry Symbol Ann]
 findShallowInBranch codebase b = do
   hashLength <- lift $ Codebase.hashLength codebase
   let hqTerm b0 ns r =
@@ -655,14 +654,12 @@ mungeSyntaxText
 mungeSyntaxText = fmap Syntax.convertElement
 
 prettyDefinitionsBySuffixes
-  :: forall v
-   . Var v
-  => NameScoping
+  :: NameScoping
   -> Maybe Branch.Hash
   -> Maybe Width
   -> Suffixify
-  -> Rt.Runtime v
-  -> Codebase IO v Ann
+  -> Rt.Runtime Symbol
+  -> Codebase IO Symbol Ann
   -> [HQ.HashQualified Name]
   -> Backend IO DefinitionDisplayResults
 prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt codebase query
@@ -738,7 +735,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
         )
       mkTermDefinition r tm = do
         ts <- lift (Codebase.getTypeOfTerm codebase r)
-        let bn = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+        let bn = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
         tag <- termEntryTag <$> termListEntry codebase
                                               (Branch.head branch)
                                               (Referent.Ref r)
@@ -756,7 +753,7 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
                              (formatSuffixedType ppe width typeSig)
                              docs
       mkTypeDefinition r tp = do
-        let bn = bestNameForType @v (PPE.suffixifiedPPE ppe) width r
+        let bn = bestNameForType @Symbol (PPE.suffixifiedPPE ppe) width r
         tag <- Just . typeEntryTag <$> typeListEntry
           codebase
           r
@@ -779,20 +776,18 @@ prettyDefinitionsBySuffixes namesScope root renderWidth suffixifyBindings rt cod
                                     renderedMisses
 
 renderDoc ::
-  forall v.
-  Var v =>
   PPE.PrettyPrintEnvDecl ->
   Width ->
-  Rt.Runtime v ->
-  Codebase IO v Ann ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
   Reference ->
   IO (HashQualifiedName, UnisonHash, Doc.Doc)
 renderDoc ppe width rt codebase r = do
-  let name = bestNameForTerm @v (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
+  let name = bestNameForTerm @Symbol (PPE.suffixifiedPPE ppe) width (Referent.Ref r)
   let hash = Reference.toText r
   (name,hash,)
     <$> let tm = Term.ref () r
-         in Doc.renderDoc @v ppe terms typeOf eval decls tm
+         in Doc.renderDoc ppe terms typeOf eval decls tm
   where
     terms r@(Reference.Builtin _) = pure (Just (Term.ref () r))
     terms (Reference.DerivedId r) =
@@ -818,9 +813,8 @@ renderDoc ppe width rt codebase r = do
     decls _ = pure Nothing
 
 docsInBranchToHtmlFiles
-  :: Var v
-  => Rt.Runtime v
-  -> Codebase IO v Ann
+  :: Rt.Runtime Symbol
+  -> Codebase IO Symbol Ann
   -> Branch IO
   -> Path
   -> FilePath
@@ -917,15 +911,14 @@ data IncludeCycles
   | DontIncludeCycles
 
 definitionsBySuffixes ::
-  forall m v.
+  forall m.
   MonadIO m =>
-  Var v =>
   NameScoping ->
   Branch m ->
-  Codebase m v Ann ->
+  Codebase m Symbol Ann ->
   IncludeCycles ->
   [HQ.HashQualified Name] ->
-  m (DefinitionResults v)
+  m (DefinitionResults Symbol)
 definitionsBySuffixes namesScope branch codebase includeCycles query = do
   QueryResult misses results <- hqNameQuery namesScope branch codebase query
   -- todo: remember to replace this with getting components directly,
@@ -962,7 +955,7 @@ definitionsBySuffixes namesScope branch codebase includeCycles query = do
           SR.Tm' _ (Referent.Con r _) _ -> Just (r ^. ConstructorReference.reference_)
           SR.Tp' _ r _ -> Just r
           _ -> Nothing
-    displayTerm :: Reference -> m (DisplayObject (Type v Ann) (Term v Ann))
+    displayTerm :: Reference -> m (DisplayObject (Type Symbol Ann) (Term Symbol Ann))
     displayTerm = \case
       ref@(Reference.Builtin _) -> do
         pure case Map.lookup ref B.termRefTypes of
@@ -976,7 +969,7 @@ definitionsBySuffixes namesScope branch codebase includeCycles query = do
           Term.Ann' _ _ -> UserObject term
           -- manually annotate if necessary
           _ -> UserObject (Term.ann (ABT.annotation term) term ty)
-    displayType :: Reference -> m (DisplayObject () (DD.Decl v Ann))
+    displayType :: Reference -> m (DisplayObject () (DD.Decl Symbol Ann))
     displayType = \case
       Reference.Builtin _ -> pure (BuiltinObject ())
       Reference.DerivedId rid -> do
@@ -1031,10 +1024,10 @@ typesToSyntax suff width ppe0 types =
       DeclPrinter.prettyDecl (PPE.declarationPPEDecl ppe0 r) r n d
 
 loadSearchResults
-  :: (Var v, Applicative m)
-  => Codebase m v Ann
+  :: Applicative m
+  => Codebase m Symbol Ann
   -> [SR.SearchResult]
-  -> m [SR'.SearchResult' v Ann]
+  -> m [SR'.SearchResult' Symbol Ann]
 loadSearchResults c = traverse loadSearchResult
  where
   loadSearchResult = \case
