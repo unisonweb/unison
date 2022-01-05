@@ -48,4 +48,5 @@ library
     , safe
     , text
     , transformers
+    , unliftio
   default-language: Haskell2010

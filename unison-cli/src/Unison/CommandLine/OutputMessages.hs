@@ -915,6 +915,11 @@ notifyUser dir o = case o of
           "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      CopyException srcRepoPath destPath msg ->
+        P.wrap $
+          "I couldn't copy the repository at" <> P.string srcRepoPath <> "into" <> P.string destPath <> ";"
+            <> "the error was:"
+            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       PushNoOp repo ->
         P.wrap $
           "The repository at" <> prettyWriteRepo repo <> "is already up-to-date."

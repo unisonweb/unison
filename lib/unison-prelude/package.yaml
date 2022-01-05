@@ -15,6 +15,7 @@ dependencies:
   - safe
   - text
   - transformers
+  - unliftio
 
 ghc-options:
   -Wall
