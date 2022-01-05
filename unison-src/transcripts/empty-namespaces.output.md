@@ -140,7 +140,7 @@ The history should be that of the moved namespace.
   
   
   
-  □ #ldl7o5e9i5 (start of history)
+  □ #j5moq3uqa9 (start of history)
 
 .> move.namespace moveme moveoverme
 
@@ -153,6 +153,6 @@ The history should be that of the moved namespace.
   
   
   
-  □ #ldl7o5e9i5 (start of history)
+  □ #j5moq3uqa9 (start of history)
 
 ```
