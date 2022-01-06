@@ -11,13 +11,12 @@ where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as H
+import qualified Unison.Hashing.V2.BuildHashable as H
 
-hashCausal :: H.Accumulate h => Causal -> h
+hashCausal :: Causal -> Hash
 hashCausal = H.accumulate'
 
 data Causal = Causal {branchHash :: Hash, parents :: Set Hash}
 
-instance Hashable Causal where
+instance H.Hashable Causal where
   tokens c = H.tokens $ branchHash c : Set.toList (parents c)

@@ -38,6 +38,7 @@ library
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
       Unison.Codebase.Causal.FoldHistory
+      Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.DisplayObject
@@ -80,9 +81,11 @@ library
       Unison.FileParsers
       Unison.Hashing.V2.ABT
       Unison.Hashing.V2.Branch
+      Unison.Hashing.V2.BuildHashable
       Unison.Hashing.V2.Causal
       Unison.Hashing.V2.Convert
       Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.Hashable
       Unison.Hashing.V2.Kind
       Unison.Hashing.V2.Patch
       Unison.Hashing.V2.Pattern

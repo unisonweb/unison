@@ -814,9 +814,9 @@ loop = do
                     else case Branch._history b of
                       Causal.One {} ->
                         respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
-                      Causal.Merge {Causal.tails} ->
+                      Causal.Merge _ _ tails ->
                         respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
-                      Causal.Cons {Causal.tail} -> do
+                      Causal.Cons _ _ tail -> do
                         b' <- fmap Branch.Branch . eval . Eval $ snd tail
                         let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)

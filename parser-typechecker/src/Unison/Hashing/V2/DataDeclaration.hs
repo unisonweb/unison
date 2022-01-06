@@ -21,9 +21,9 @@ import Data.Bifunctor (first, second)
 import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable1)
-import qualified Unison.Hashable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hashing.V2.BuildHashable (Hashable1)
+import qualified Unison.Hashing.V2.BuildHashable as Hashable
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
 import qualified Unison.Hashing.V2.Reference.Util as Reference.Util
@@ -34,6 +34,7 @@ import qualified Unison.Names.ResolutionResult as Names
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (cycle)
+
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Modifier = Structural | Unique Text --  | Opaque (Set Reference)

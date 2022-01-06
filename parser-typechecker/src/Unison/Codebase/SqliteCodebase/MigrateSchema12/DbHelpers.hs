@@ -24,9 +24,10 @@ import qualified U.Codebase.Sqlite.Referent as S
 import qualified U.Util.Hash
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Hash (Hash)
-import qualified Unison.Hashable as H
+import Unison.Hashing.V2.Branch (NameSegment (..))
 import qualified Unison.Hashing.V2.Branch as Hashing.Branch
 import qualified Unison.Hashing.V2.Patch as Hashing (Patch (..))
+import qualified Unison.Hashing.V2.Patch as Hashing.Patch
 import qualified Unison.Hashing.V2.Reference as Hashing (Reference)
 import qualified Unison.Hashing.V2.Reference as Hashing.Reference
 import qualified Unison.Hashing.V2.Referent as Hashing (Referent)
@@ -35,14 +36,13 @@ import qualified Unison.Hashing.V2.TermEdit as Hashing (TermEdit)
 import qualified Unison.Hashing.V2.TermEdit as Hashing.TermEdit
 import qualified Unison.Hashing.V2.TypeEdit as Hashing (TypeEdit)
 import qualified Unison.Hashing.V2.TypeEdit as Hashing.TypeEdit
-import Unison.NameSegment (NameSegment (..))
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Set as Set
 
 dbBranchHash :: EDB m => S.DbBranch -> m Hash
 dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
-  fmap H.accumulate' $
+  fmap Hashing.Branch.hashBranch $
     Hashing.Branch.Raw
       <$> doTerms tms
       <*> doTypes tps
@@ -74,7 +74,7 @@ dbBranchHash (S.Branch.Full.Branch tms tps patches children) =
 
 dbPatchHash :: forall m. EDB m => S.Patch -> m Hash
 dbPatchHash S.Patch {S.termEdits, S.typeEdits} =
-  fmap H.accumulate' $
+  fmap Hashing.Patch.hashPatch $
     Hashing.Patch
       <$> doTermEdits termEdits
       <*> doTypeEdits typeEdits

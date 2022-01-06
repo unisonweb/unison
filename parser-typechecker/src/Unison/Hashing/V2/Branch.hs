@@ -5,14 +5,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Hashing.V2.Branch (Raw (..), MdValues (..)) where
+module Unison.Hashing.V2.Branch (NameSegment(..), Raw (..), MdValues (..), hashBranch) where
 
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as H
+import Unison.Hashing.V2.BuildHashable (Hashable)
+import qualified Unison.Hashing.V2.BuildHashable as H
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Referent (Referent)
-import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 
 type MetadataValue = Reference
@@ -20,6 +19,11 @@ type MetadataValue = Reference
 newtype MdValues = MdValues (Set MetadataValue)
   deriving (Eq, Ord, Show)
   deriving (Hashable) via Set MetadataValue
+
+newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
+
+hashBranch :: Raw -> Hash
+hashBranch = H.accumulate'
 
 data Raw = Raw
   { terms :: Map NameSegment (Map Referent MdValues),
@@ -35,3 +39,6 @@ instance Hashable Raw where
       H.accumulateToken (children b),
       H.accumulateToken (patches b)
     ]
+
+instance H.Hashable NameSegment where
+  tokens (NameSegment t) = [H.Text t]

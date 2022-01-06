@@ -7,7 +7,6 @@ import Unison.Prelude
 
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
-import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 import qualified Data.Map as Map
 
@@ -225,11 +224,3 @@ instance (Ord fact, Ord d1, Ord d2, Ord d3) => Monoid (Star3 fact d1 d2 d3) wher
     d1'   = d1 s1 <> d1 s2
     d2'   = d2 s1 <> d2 s2
     d3'   = d3 s1 <> d3 s2
-
-instance (H.Hashable fact, H.Hashable d1, H.Hashable d2, H.Hashable d3)
-       => H.Hashable (Star3 fact d1 d2 d3) where
-  tokens s =
-    [ H.accumulateToken (fact s)
-    , H.accumulateToken (d1 s)
-    , H.accumulateToken (d2 s)
-    , H.accumulateToken (d3 s) ]

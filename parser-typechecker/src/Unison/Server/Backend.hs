@@ -37,7 +37,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Causal (RawHash(RawHash))
+import qualified Unison.Codebase.Causal.Type (RawHash(RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)

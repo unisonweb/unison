@@ -6,8 +6,8 @@ import Control.Lens
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Codebase.Branch.Raw (Raw)
-import Unison.Codebase.Causal (Causal)
-import qualified Unison.Codebase.Causal as Causal
+import Unison.Codebase.Causal.Type (Causal)
+import qualified Unison.Codebase.Causal.Type as Causal
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)

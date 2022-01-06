@@ -79,10 +79,12 @@ import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform, uncons )
-import           Data.Bifunctor                 ( second )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
+import Control.Lens hiding (children, cons, transform, uncons)
+import Data.Bifunctor (second)
+import qualified Data.Map as Map
+import qualified Data.Semialign as Align
+import qualified Data.Set as Set
+import Data.These (These (..))
 import Unison.Codebase.Branch.Raw (Raw (Raw))
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -96,29 +98,36 @@ import Unison.Codebase.Branch.Type
     headHash,
     history,
   )
-import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch          ( Patch )
-import qualified Unison.Codebase.Causal        as Causal
 import Unison.Codebase.Causal (Causal)
-import           Unison.Codebase.Path           ( Path(..) )
-import qualified Unison.Codebase.Path          as Path
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.Codebase.Metadata      as Metadata
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Hashable               as H
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Patch (Patch)
+import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Path (Path (..))
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Hashing.V2.Convert as H
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import           Unison.Reference               ( TypeReference )
-import           Unison.Referent                ( Referent )
-import Unison.Util.Relation (Relation)
-import qualified Unison.Util.Relation          as R
-import qualified Unison.Util.Relation4         as R4
-import qualified Unison.Util.Star3             as Star3
+import qualified Unison.Hashing.V2.Hashable as H
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
+import Unison.Reference (TypeReference)
+import Unison.Referent (Referent)
 import qualified Unison.Util.List as List
-import qualified Data.Semialign as Align
-import Data.These (These(..))
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Star3 as Star3
+
+instance AsEmpty (Branch m) where
+  _Empty = prism' (const empty) matchEmpty
+    where
+      matchEmpty b0
+        | b0 == empty = Just ()
+        | otherwise = Nothing
+
+instance H.Hashable (Branch0 m) where
+  hash = H.hashBranch0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -566,16 +575,6 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
     pathLocation (Path Empty) = HereActions
     pathLocation _ = ChildActions
 
-instance Hashable (Branch0 m) where
-  tokens = H.tokensBranch0
-
-instance AsEmpty (Branch m) where
-  _Empty = prism' (const empty) matchEmpty
-    where
-      matchEmpty b0
-        | b0 == empty = Just ()
-        | otherwise = Nothing
-
 -- todo: consider inlining these into Actions2
 addTermName
   :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
@@ -615,12 +614,10 @@ transform f b = case _history b of
                -> Causal m Raw (Branch0 n)
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
-
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
-
 
 -- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
