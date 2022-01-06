@@ -866,24 +866,39 @@ set'buffering instr
           $ outIoFailUnit s1 s2 s3 u f r
   (handle,bmode,tag,n,w,s1,s2,s3,u,f,r) = fresh11
 
-get'buffering'output :: forall v. Var v => v -> v -> v -> ANormal v
-get'buffering'output bu n w =
-  TMatch bu . MatchSum  $ mapFromList
-  [ no'buf --> [] --> TCon Ty.bufferModeRef no'buf []
-  , line'buf --> [] --> TCon Ty.bufferModeRef line'buf []
-  , block'buf --> [] --> TCon Ty.bufferModeRef block'buf []
-  , sblock'buf --> [UN] -->
-        TAbs w
-      . TLetD n BX (TCon Ty.natRef 0 [w])
-      $ TCon Ty.bufferModeRef sblock'buf [n]
-  ]
+get'buffering'output :: forall v. Var v => v -> v -> v -> v -> v -> v -> ANormal v
+get'buffering'output eitherResult stack1 stack2 resultTag failVar successVar =
+  TMatch eitherResult . MatchSum $ mapFromList
+    [ (0, ([BX, BX],)
+        . TAbss [stack1, stack2]
+        . TLetD failVar BX (TCon Ty.failureRef 0 [stack1, stack2])
+        $ left failVar)
+    , (1, ([UN],)
+      . TAbs resultTag
+      . TMatch resultTag . MatchSum $ mapFromList
+      [ no'buf --> [] -->
+        TLetD successVar BX (TCon Ty.bufferModeRef no'buf [])
+        $ right successVar
+      , line'buf --> [] -->
+        TLetD successVar BX (TCon Ty.bufferModeRef line'buf [])
+        $ right successVar
+      , block'buf --> [] -->
+        TLetD successVar BX (TCon Ty.bufferModeRef block'buf [])
+        $ right successVar
+      , sblock'buf --> [UN] -->
+            TAbs stack1
+          . TLetD stack2 BX (TCon Ty.natRef 0 [stack1])
+          . TLetD successVar BX (TCon Ty.bufferModeRef sblock'buf [stack2])
+          $ right successVar
+      ])
+    ]
 
 get'buffering :: ForeignOp
 get'buffering
-  = inBx arg1 result
-  $ get'buffering'output result n n2
+  = inBx arg1 eitherResult
+  $ get'buffering'output eitherResult n n2 resultTag failVar successVar
   where
-  (arg1, result, n, n2) = fresh4
+  (arg1, eitherResult, n, n2, resultTag, failVar, successVar) = fresh7
 
 crypto'hash :: ForeignOp
 crypto'hash instr
