@@ -362,9 +362,16 @@ executeMainComb
   -> CCache
   -> IO ()
 executeMainComb init cc
-  = eval0 cc Nothing
+  = flip catch (putStrLn . toANSI 50 <=< handler)
+  . eval0 cc Nothing
   . Ins (Pack RF.unitRef 0 ZArgs)
   $ Call True init (BArg1 0)
+  where
+  handler (PE _ msg) = pure msg
+  handler (BU nm c) = do
+    crs <- readTVarIO (combRefs cc)
+    let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
+    pure . either id (bugMsg mempty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 

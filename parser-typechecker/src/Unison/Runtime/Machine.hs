@@ -146,7 +146,9 @@ eval0 :: CCache -> ActiveThreads -> Section -> IO ()
 eval0 !env !activeThreads !co = do
   ustk <- alloc
   bstk <- alloc
-  eval env mempty activeThreads ustk bstk KE co
+  (denv, k) <-
+    topDEnv <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+  eval env denv activeThreads ustk bstk (k KE) co
 
 topDEnv
   :: M.Map Reference Word64

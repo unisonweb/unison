@@ -72,7 +72,7 @@ env m = mapInsert (bit 24) m
 asrt :: Section
 asrt = Ins (Unpack Nothing 0)
      $ Match 0
-     $ Test1 1 (Yield ZArgs)
+     $ Test1 1 (Yield (BArg1 0))
                (Die "assertion failed")
 
 multRec :: String
