@@ -8,9 +8,11 @@ import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -46,8 +48,8 @@ import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Pretty as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -1172,10 +1174,40 @@ loadPullRequest =
     )
 
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseUri label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.repoPath label (Text.pack input))
+parseUri label input =
+  let printError err = P.lines [ P.string  "I couldn't parse the repository address given above.", prettyPrintParseError input err]
+  in first printError (P.parse UriParser.repoPath label (Text.pack input))
+
+prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
+prettyPrintParseError input = \case
+  P.TrivialError sp ue ee ->
+      P.lines [ printLocation sp,
+                P.newline,
+                printTrivial ue ee
+              ]
+  P.FancyError sp ee ->
+      let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
+      in P.lines
+         [ printLocation sp,
+           errors
+         ]
+  where
+    printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
+    printLocation sp =
+      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
+          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+          errorLine = lines input !! row
+      in P.lines [ P.newline,
+                   P.string errorLine,
+                   P.string $ replicate col ' ' <> "^-- This is where I gave up."
+                 ]
+
+    printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
+    printTrivial ue ee = 
+      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+          message = [expected] <> catMaybes [found]
+      in P.oxfordCommasWith "." message
 
 parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
 parseWriteRepo label input = do

@@ -29,13 +29,13 @@ data Welcome = Welcome
 data DownloadBase
   = DownloadBase ReadRemoteNamespace | DontDownloadBase
 
--- Previously Created is different from Previously Onboarded because a user can 
--- 1.) create a new codebase 
+-- Previously Created is different from Previously Onboarded because a user can
+-- 1.) create a new codebase
 -- 2.) decide not to go through the onboarding flow until later and exit
--- 3.) then reopen their blank codebase 
+-- 3.) then reopen their blank codebase
 data CodebaseInitStatus
   = NewlyCreatedCodebase -- Can transition to [Base, Author, Finished]
-  | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded]. 
+  | PreviouslyCreatedCodebase -- Can transition to [Base, Author, Finished, PreviouslyOnboarded].
 
 data Onboarding
   = Init CodebaseInitStatus -- Can transition to [DownloadingBase, Author, Finished, PreviouslyOnboarded]
@@ -46,7 +46,7 @@ data Onboarding
   | PreviouslyOnboarded
 
 welcome :: CodebaseInitStatus -> DownloadBase -> FilePath -> String -> Welcome
-welcome initStatus downloadBase filePath unisonVersion = 
+welcome initStatus downloadBase filePath unisonVersion =
   Welcome (Init initStatus) downloadBase filePath unisonVersion
 
 pullBase :: ReadRemoteNamespace -> Either Event Input
@@ -95,9 +95,9 @@ toInput pretty =
 
 determineFirstStep :: DownloadBase -> Codebase IO v a -> IO Onboarding
 determineFirstStep downloadBase codebase = do
-  isBlankCodebase <- Codebase.isBlank codebase
+  isEmptyCodebase <- Codebase.getRootBranchExists codebase
   case downloadBase of
-    DownloadBase ns | isBlankCodebase ->
+    DownloadBase ns | isEmptyCodebase ->
       pure $ DownloadingBase ns
     _ ->
       pure PreviouslyOnboarded
@@ -131,7 +131,7 @@ asciiartUnison =
 downloading :: Path -> P.Pretty P.ColorText
 downloading path =
   P.lines
-    [ P.group (P.wrap "🐣 Since this is a fresh codebase, let me download the base library for you." <> P.newline ), 
+    [ P.group (P.wrap "🐣 Since this is a fresh codebase, let me download the base library for you." <> P.newline ),
       P.wrap
         ("🕐 Downloading"
             <> P.blue (P.string (show path))

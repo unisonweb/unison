@@ -19,18 +19,17 @@ import qualified Unison.Codebase               as Codebase
 import Unison.Parser.Ann (Ann)
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       ( Runtime )
-import           Unison.Var                    ( Var )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
 import           System.Exit (die)
 import           Control.Exception (finally)
 import qualified Unison.Names as Names
+import Unison.Symbol (Symbol)
 
 execute
-  :: Var v
-  => Codebase.Codebase IO v Ann
-  -> Runtime v
+  :: Codebase.Codebase IO Symbol Ann
+  -> Runtime Symbol
   -> String
   -> IO ()
 execute codebase runtime mainName =

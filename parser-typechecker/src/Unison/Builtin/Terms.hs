@@ -20,8 +20,9 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Symbol (Symbol)
 
-builtinTermsSrc :: Var v => a -> [(v, Term v a, Type v a)]
+builtinTermsSrc :: a -> [(Symbol, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =
   [ ( v "metadata.isPropagated",
       Term.constructor ann (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
@@ -36,7 +37,7 @@ builtinTermsSrc ann =
 v :: Var v => Text -> v
 v = Var.named
 
-builtinTermsRef :: Var v => Map v Reference.Id
+builtinTermsRef :: Map Symbol Reference.Id
 builtinTermsRef =
   fmap (\(refId, _, _) -> refId)
     . H.hashTermComponents
