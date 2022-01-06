@@ -303,29 +303,6 @@ test = scope "gitsync22" . tests $
       ```
       ```ucm
       .> debug.file
-      .> add
-      .> push.create ${repo}
-      ```
-    |])
--- simplest-user
-    (\repo -> [i|
-      ```ucm
-      .> pull ${repo}
-      .> alias.term ##Nat.+ +
-      ```
-      ```unison
-      > #fs7la111vn + 1
-      ```
-    |])
-  ,
-  pushPullTest "one-term2" fmt
--- simplest-author
-    (\repo -> [i|
-      ```unison
-      c = 3
-      ```
-      ```ucm
-      .> debug.file
       .myLib> add
       .myLib> push.create ${repo}
       ```
