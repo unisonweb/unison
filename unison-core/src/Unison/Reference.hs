@@ -122,9 +122,11 @@ showSuffix i n = Text.pack $ show i <> "c" <> show n
 -- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
 readSuffix t = case Text.breakOn "c" t of
-  (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
-    Right (read (Text.unpack pos), read (Text.unpack size))
-  _ -> Left "suffix decoding error"
+  (pos, Text.drop 1 -> size)
+    | Text.all isDigit pos && Text.all isDigit size,
+      Just pos' <- readMaybe (Text.unpack pos),
+      Just size' <- readMaybe (Text.unpack size) -> Right (pos', size')
+  _ -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
