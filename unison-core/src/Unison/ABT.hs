@@ -78,6 +78,7 @@ module Unison.ABT
   , cycle'
   , cycler
   , pattern Abs'
+  , pattern Abs''
   , pattern AbsN'
   , pattern Var'
   , pattern Cycle'
@@ -214,14 +215,15 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
     Tm x -> Tm (fmap (extraMap p) (p x))
 
 pattern Var' v <- Term _ _ (Var v)
-pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
--- pattern Abs' v body <- Term _ _ (Abs v body)
+pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
+pattern Abs'' v body <- Term _ _ (Abs v body)
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 {-# COMPLETE AbsN' #-}
 pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
+{-# COMPLETE Var', Cycle', Abs'', Tm' #-}
 
 unabsA :: Term f v a -> ([(a,v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =

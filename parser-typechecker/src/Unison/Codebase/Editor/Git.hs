@@ -2,7 +2,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullBranch, withIOError, withStatus) where
+module Unison.Codebase.Editor.Git
+  ( gitIn,
+    gitTextIn,
+    pullRepo,
+    withIOError,
+    withStatus,
+    withIsolatedRepo,
+  )
+where
 
 import Unison.Prelude
 
@@ -20,7 +28,8 @@ import UnliftIO.IO (hFlush, stdout)
 import qualified Data.ByteString.Base16 as ByteString
 import qualified Data.Char as Char
 import Unison.Codebase.GitError (GitProtocolError)
-import UnliftIO (handleIO)
+import UnliftIO (handleIO, MonadUnliftIO)
+import qualified UnliftIO
 
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
@@ -37,8 +46,8 @@ encodeFileName = let
               encodeUtf8 . Text.pack
   in go
 
-tempGitDir :: MonadIO m => Text -> m FilePath
-tempGitDir url =
+gitCacheDir :: MonadIO m => Text -> m FilePath
+gitCacheDir url =
   getXdgDirectory XdgCache
     $   "unisonlanguage"
     </> "gitfiles"
@@ -55,12 +64,30 @@ withStatus str ma = do
     liftIO . putStr $ "  " ++ str ++ "\r"
     hFlush stdout
 
+-- | Run an action on an isolated copy of the provided repo. The repo is deleted when the
+-- action exits or fails.
+withIsolatedRepo ::
+  forall m r.
+  (MonadUnliftIO m) =>
+  FilePath ->
+  (FilePath -> m r) ->
+  m (Either GitProtocolError r)
+withIsolatedRepo srcPath action = do
+  UnliftIO.withSystemTempDirectory "ucm-isolated-repo" $ \tempDir -> do
+    copyCommand tempDir >>= \case
+      Left gitErr -> pure $ Left (GitError.CopyException srcPath tempDir (show gitErr))
+      Right () -> Right <$> action tempDir
+  where
+    copyCommand :: FilePath -> m (Either IOException ())
+    copyCommand dest = UnliftIO.tryIO . liftIO $
+      "git" $^ (["clone", "--quiet"] ++ ["file://" <> Text.pack srcPath, Text.pack dest])
+
 -- | Given a remote git repo url, and branch/commit hash (currently
 -- not allowed): checks for git, clones or updates a cached copy of the repo
-pullBranch :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
-pullBranch repo@(ReadGitRepo uri) = do
+pullRepo :: (MonadIO m, MonadError GitProtocolError m) => ReadRepo -> m CodebasePath
+pullRepo repo@(ReadGitRepo uri) = do
   checkForGit
-  localPath <- tempGitDir uri
+  localPath <- gitCacheDir uri
   ifM (doesDirectoryExist localPath)
     -- try to update existing directory
     (ifM (isGitRepo localPath)
@@ -69,7 +96,6 @@ pullBranch repo@(ReadGitRepo uri) = do
     -- directory doesn't exist, so clone anew
     (checkOutNew localPath Nothing)
   pure localPath
-
   where
   -- | Do a `git clone` (for a not-previously-cached repo).
   checkOutNew :: (MonadIO m, MonadError GitProtocolError m) => CodebasePath -> Maybe Text -> m ()

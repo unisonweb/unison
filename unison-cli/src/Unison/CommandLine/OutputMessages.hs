@@ -577,8 +577,10 @@ notifyUser dir o = case o of
       P.group (either P.shown prettyPath' b) <> "is an empty namespace."
   BranchNotEmpty path ->
     pure . P.warnCallout $
-      "I was expecting the namespace " <> prettyPath' path
-        <> " to be empty for this operation, but it isn't."
+      P.lines
+        [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
+          "Please switch to an empty namespace and try again." 
+        ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
     CantUndoPastMerge -> pure . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
@@ -912,6 +914,11 @@ notifyUser dir o = case o of
       CloneException repo msg ->
         P.wrap $
           "I couldn't clone the repository at" <> prettyReadRepo repo <> ";"
+            <> "the error was:"
+            <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      CopyException srcRepoPath destPath msg ->
+        P.wrap $
+          "I couldn't copy the repository at" <> P.string srcRepoPath <> "into" <> P.string destPath <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
       PushNoOp repo ->

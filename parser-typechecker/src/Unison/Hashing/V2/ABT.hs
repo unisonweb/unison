@@ -12,6 +12,7 @@ import Unison.Prelude
 import Unison.ABT
 
 import Data.List hiding (cycle, find)
+import qualified Data.List as List (sort)
 import Data.Vector ((!))
 import Prelude hiding (abs, cycle)
 import Unison.Hashing.V2.Tokenizable (Accumulate, Hashable1, hash1)
@@ -78,8 +79,8 @@ hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulat
      => Term f v a -> h
 hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
-  hash' env (Term _ _ t) = case t of
-    Var v -> maybe die hashInt ind
+  hash' env = \case
+    Var' v -> maybe die hashInt ind
       where lookup (Left cycle) = v `elem` cycle
             lookup (Right v') = v == v'
             ind = findIndex lookup env
@@ -87,18 +88,16 @@ hash = hash' [] where
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show v
                         ++ " environment = " ++ show env
-    Cycle (AbsN' vs t) -> hash' (Left vs : env) t
-    -- Cycle t -> hash' env t
-    Abs v t -> hash' (Right v : env) t
-    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
+    Cycle' vs t -> Hashable.hash1 (hashCycle vs env) undefined t
+    Abs'' v t -> hash' (Right v : env) t
+    Tm' t -> Hashable.hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
 
-  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
-  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
+  hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+  hashCycle cycle env ts =
     let
       permute p xs = case Vector.fromList xs of xs -> map (xs !) p
-      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
+      hashed = map (\(i,t) -> ((i,t), hash' (Left cycle : env) t)) (zip [0..] ts)
       pt = fst <$> sortOn snd hashed
       (p,ts') = unzip pt
-    in case map Right (permute p cycle) ++ envTl of
+    in case map Right (permute p cycle) ++ env of
       env -> (map (hash' env) ts', hash' env)
-  hashCycle env ts = (map (hash' env) ts, hash' env)

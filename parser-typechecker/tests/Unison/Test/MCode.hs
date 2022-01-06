@@ -17,7 +17,6 @@ import Data.Word (Word64)
 import Unison.Util.EnumContainers as EC
 
 import Unison.Term (unannotate)
-import Unison.Symbol (Symbol)
 import Unison.Reference (Reference(Builtin))
 import Unison.Runtime.Pattern
 import Unison.Runtime.ANF
@@ -63,7 +62,7 @@ builtins r
 
 cenv :: EnumMap Word64 Combs
 cenv = fmap (emitComb numbering 0 mempty . (0,))
-     $ numberedTermLookup @Symbol
+       numberedTermLookup
 
 env :: Combs -> EnumMap Word64 Combs
 env m = mapInsert (bit 24) m

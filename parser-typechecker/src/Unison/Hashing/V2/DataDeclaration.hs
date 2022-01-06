@@ -62,10 +62,7 @@ constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 toABT :: ABT.Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
-  dd' = ABT.absChain (bound dd) $ ABT.cycle
-          (ABT.absChain
-            (fst <$> constructors dd)
-            (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
+  dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]
