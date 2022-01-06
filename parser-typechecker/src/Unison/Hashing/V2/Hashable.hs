@@ -1,22 +1,25 @@
 module Unison.Hashing.V2.Hashable
-  ( Hashable,
-    hash,
+  ( Hashable (..),
   )
 where
 
 import Data.Int (Int64)
-import Unison.Hash (Hash)
-import qualified Unison.Hashing.V2.BuildHashable as BuildHashable
 import Data.Set (Set)
+import Unison.Hash (Hash (..))
+import qualified Unison.Hashing.V2.Tokenizable as Tokenizable
 
+-- | This typeclass provides a mechanism for obtaining a content-based hash for Unison types &
+-- terms.
+-- Be wary that Unison requires that these hashes be deterministic, any change to a Hashable
+-- instance requires a full codebase migration and should not be taken lightly.
 class Hashable t where
   hash :: t -> Hash
 
-instance BuildHashable.Hashable a => Hashable [a] where
-  hash = BuildHashable.hash
+instance Tokenizable.Tokenizable a => Hashable [a] where
+  hash = Tokenizable.hashTokenizable
 
-instance BuildHashable.Hashable a => Hashable (Set a) where
-  hash = BuildHashable.hash
+instance Tokenizable.Tokenizable a => Hashable (Set a) where
+  hash = Tokenizable.hashTokenizable
 
 instance Hashable Int64 where
-  hash = BuildHashable.hash
+  hash = Tokenizable.hashTokenizable

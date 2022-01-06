@@ -41,6 +41,12 @@ hash, accumulate' :: (Accumulate h, Hashable t) => t -> h
 accumulate' = accumulate . tokens
 hash = accumulate'
 
+-- | NOTE: This typeclass is distinct from 'Unison.Hashing.V2.Hashable', which is the
+-- content-based hashish class used for Unison types & terms.
+--
+-- This class however, is meant only to be used as a utility when hash-based identities are
+-- useful in algorithms, the runtime, etc.
+-- Consider carefully which class you want in each use-case.
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]
 
