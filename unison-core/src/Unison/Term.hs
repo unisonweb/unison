@@ -771,7 +771,7 @@ unLetRecNamed
        , [(v, Term2 vt at ap v a)]
        , Term2 vt at ap v a
        )
-unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
+unLetRecNamed (ABT.Cycle' vs (LetRec isTop bs e))
   | length vs == length bs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
