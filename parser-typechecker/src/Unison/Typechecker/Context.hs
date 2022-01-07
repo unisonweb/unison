@@ -132,11 +132,11 @@ data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
-data Result v loc a = Success (Seq (InfoNote v loc)) a
-                    | TypeError (NESeq (ErrorNote v loc)) (Seq (InfoNote v loc))
-                    | CompilerBug (CompilerBug v loc)
-                                  (Seq (ErrorNote v loc)) -- type errors before hitting the bug
-                                  (Seq (InfoNote v loc))  -- info notes before hitting the bug
+data Result v loc a = Success !(Seq (InfoNote v loc)) !a
+                    | TypeError !(NESeq (ErrorNote v loc)) !(Seq (InfoNote v loc))
+                    | CompilerBug !(CompilerBug v loc)
+                                  !(Seq (ErrorNote v loc)) -- type errors before hitting the bug
+                                  !(Seq (InfoNote v loc))  -- info notes before hitting the bug
                     deriving (Functor)
 
 instance Applicative (Result v loc) where
@@ -146,11 +146,13 @@ instance Applicative (Result v loc) where
   TypeError es is       <*> r'                      = TypeError (es NESeq.|>< (typeErrors r')) (is <> infoNotes r')
   Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
   Success is f          <*> Success is' a           = Success (is <> is') (f a)
+  {-# INLINE (<*>) #-}
 
 instance Monad (Result v loc) where
   s@(Success _ a)       >>= f = s *> f a
   TypeError es is       >>= _ = TypeError es is
   CompilerBug bug es is >>= _ = CompilerBug bug es is
+  {-# INLINE (>>=) #-}
 
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
