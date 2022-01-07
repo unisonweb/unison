@@ -176,9 +176,8 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         -- use tlcsFromTypechecker to inform annotation-stripping decisions
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
-        doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    _          <- doTdnr tdnrTerm
-    tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
+        doTdnrInComponent (v, t, tp) = (v, doTdnr t, tp)
+    let tdnredTlcs = (fmap . fmap) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v,_,_) -> Set.member v watchedVars)
         watchedVars = Set.fromList [ v | (v, _) <- UF.allWatches uf ]
@@ -198,8 +197,8 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]
     -> Term v
-    -> Result' v (Term v)
-  applyTdnrDecisions infos tdnrTerm = ABT.visit resolve tdnrTerm
+    -> Term v
+  applyTdnrDecisions infos tdnrTerm = ABT.visitPure resolve tdnrTerm
    where
     decisions = Map.fromList [ ((Var.nameStr v, loc), replacement) | Context.Decision v loc replacement <- infos ]
     -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
@@ -208,5 +207,5 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         | Just replacement <- Map.lookup (name, loc') decisions ->
           -- loc of replacement already chosen correctly by whatever made the
           -- Decision
-          pure . pure $ replacement
+          Just $ replacement
       _ -> Nothing
