@@ -910,8 +910,7 @@ destructuringBind = do
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
-  -- a ++ b = ... OR
-  -- foo `mappend` bar = ...
+  -- a ++ b = ...
   let infixLhs = do
         (arg1, op) <- P.try $
           (,) <$> prefixDefinitionName <*> infixDefinitionName

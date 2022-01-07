@@ -22,8 +22,8 @@ merge lte a b =
     Some hd1 -> match at 0 b with
       None -> acc ++ a
       Some hd2 ->
-        if hd1 `lte` hd2 then
-          go (acc `snoc` hd1) (drop 1 a) b
+        if lte hd1 hd2 then
+          go (snoc acc hd1) (drop 1 a) b
         else
-          go (acc `snoc` hd2) a (drop 1 b)
+          go (snoc acc hd2) a (drop 1 b)
   go [] a b

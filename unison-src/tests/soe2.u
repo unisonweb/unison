@@ -12,8 +12,8 @@ merge lte a b =
     (None, _) -> acc ++ b
     (_, None) -> acc ++ a
     (Some (h1,t1), Some (h2,t2)) ->
-      if h1 `lte` h2 then go (acc `snoc` h1) (drop 1 a) b
-      else go (acc `snoc` h2) a (drop 1 b)
+      if lte h1 h2 then go (snoc acc h1) (drop 1 a) b
+      else go (snoc acc h2) a (drop 1 b)
   go [] a b
 
 -- let's make sure it works

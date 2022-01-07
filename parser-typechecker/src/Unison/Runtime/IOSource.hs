@@ -310,8 +310,8 @@ d1 Doc.++ d2 =
   use Doc2
   match (d1,d2) with
     (Join ds, Join ds2) -> Join (ds List.++ ds2)
-    (Join ds, _) -> Join (ds `List.snoc` d2)
-    (_, Join ds) -> Join (d1 `List.cons` ds)
+    (Join ds, _) -> Join (List.snoc ds d2)
+    (_, Join ds) -> Join (List.cons d1 ds)
     _ -> Join [d1,d2]
 
 unique[q1905679b27a97a4098bc965574da880c1074183a2c55ff1d481619c7fb8a1e1] type
