@@ -10,8 +10,8 @@ First we add an ability to the codebase.
 Note that this will create the name `Channels.send` as an ability constructor.
 
 ```unison
-  unique ability Channels where
-    send : a -> {Channels} ()
+unique ability Channels where
+  send : a -> {Channels} ()
 ```
 
 ```ucm
