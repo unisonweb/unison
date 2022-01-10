@@ -10,7 +10,7 @@ import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -44,7 +44,7 @@ import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
 import qualified Unison.ConstructorReference as V1 (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
-import Unison.Hash (Hash)
+import Unison.Hash (base32Hex, Hash)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import qualified Unison.NameSegment as V1
@@ -119,7 +119,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
-      V1.Term.Blank _ -> error "can't serialize term with blanks"
+      V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ unpack (base32Hex h) ++ ")")
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
     goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference
