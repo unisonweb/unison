@@ -1818,7 +1818,7 @@ handleUpdate input maybePatchPath hqs = do
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
-      currentPathNames <- currentPathNames
+      let currentPathNames = slurpCheckNames
       let sr :: SlurpResult v
           sr =
             applySelection hqs uf
