@@ -372,9 +372,11 @@ defaultCaseVisitor func m@(Match' scrut cases)
   a = ABT.annotation m
   v = Var.freshIn mempty $ typed Var.Blank
   txt = "pattern match failure in function `" <> func <> "`"
+  msg = text a $ Data.Text.pack txt
+  bu = ref a (Builtin "bug")
   dflt = MatchCase (P.Var a) Nothing
        . ABT.abs' a v
-       $ apps' (placeholder a txt) [var a v]
+       $ apps bu [(a, Ty.tupleTerm [msg,  var a v])]
 defaultCaseVisitor _ _ = Nothing
 
 inlineAlias :: Var v => Monoid a => Term v a -> Term v a

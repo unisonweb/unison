@@ -393,6 +393,19 @@ bugMsg ppe name tm
   , ""
   , P.indentN 2 $ pretty ppe tm
   ]
+  | name == "builtin.bug"
+  , RF.TupleTerm' [Tm.Text' msg, x] <- tm
+  , "pattern match failure" `isPrefixOf` msg
+  = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a" <> P.red (P.text msg)
+      <> "while scrutinizing:")
+  , ""
+  , P.indentN 2 $ pretty ppe x
+  , ""
+  , "This happens when calling a function that doesn't handle all \
+    \possible inputs"
+  , sorryMsg
+  ]
 bugMsg ppe name tm = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
       <> "with the following value:")
