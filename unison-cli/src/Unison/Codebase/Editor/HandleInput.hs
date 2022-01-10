@@ -1819,12 +1819,13 @@ handleUpdate input maybePatchPath hqs = do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
-      currentPathNames <- currentPathNames
+      slurpCheckNames <- slurpResultNames
+      let currentPathNames = slurpCheckNames
       let sr :: SlurpResult v
           sr =
             applySelection hqs uf
               . toSlurpResult currentPath' uf
-              $ currentPathNames
+              $ slurpCheckNames
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
@@ -1833,7 +1834,7 @@ handleUpdate input maybePatchPath hqs = do
           typeEdits :: Map Name (Reference, Reference)
           typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
             where
-              f v = case ( toList (Names.typesNamed currentPathNames n),
+              f v = case ( toList (Names.typesNamed slurpCheckNames n),
                            toList (Names.typesNamed fileNames n)
                          ) of
                 ([old], [new]) -> (n, (old, new))
@@ -1852,7 +1853,7 @@ handleUpdate input maybePatchPath hqs = do
           termEdits :: Map Name (Reference, Reference)
           termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
             where
-              g v = case ( toList (Names.refTermsNamed currentPathNames n),
+              g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
                            toList (Names.refTermsNamed fileNames n)
                          ) of
                 ([old], [new]) -> (n, (old, new))
