@@ -1869,7 +1869,6 @@ handleUpdate input maybePatchPath hqs = do
               | (oldTypeRef, _) <- Map.elems typeEdits,
                 (n, r) <- Names.constructorsForType oldTypeRef currentPathNames
             ]
-
       ye'ol'Patch <- getPatchAt patchPath
       -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
       -- with (a0 -> a') in patch'.
@@ -2929,13 +2928,24 @@ toSlurpResult curPath uf existingNames =
       where
         terms = addTerms (Names.terms existingNames) (Names.terms fileNames)
         types = addTypes (Names.types existingNames) (Names.types fileNames)
-        addTerms existingNames = R.filter go
+        addTerms :: R.Relation Name Referent -> R.Relation Name Referent -> R.Relation Name Referent
+        addTerms existingTermNames fileNames = R.filter go fileNames
           where
-            go (n, Referent.Ref {}) = (not . R.memberDom n) existingNames
+            go :: (Name, Referent) -> Bool
+            go (n, Referent.Ref {}) =
+              case Set.toList (R.lookupDom n existingTermNames) of
+                [] -> True
+                [Referent.Con (ConstructorReference typeRef _conId) _typ] ->
+                -- If a term exists, but it's for a type being updated, we're okay to 'add'
+                -- this term, since either the constructor will be removed, or we'll trigger a
+                -- "duplicate names in file" error
+                  Set.member typeRef typesToUpdate
+                _ -> False
+              -- (not . R.memberDom n) existingTermNames
             go _ = False
-        addTypes existingNames = R.filter go
+        addTypes existingTypeNames = R.filter go
           where
-            go (n, _) = (not . R.memberDom n) existingNames
+            go (n, _) = (not . R.memberDom n) existingTypeNames
 
 displayI ::
   Monad m =>
