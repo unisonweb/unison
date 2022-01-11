@@ -2941,7 +2941,6 @@ toSlurpResult curPath uf existingNames =
                 -- "duplicate names in file" error
                   Set.member typeRef typesToUpdate
                 _ -> False
-              -- (not . R.memberDom n) existingTermNames
             go _ = False
         addTypes existingTypeNames = R.filter go
           where
