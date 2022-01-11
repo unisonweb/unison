@@ -38,6 +38,7 @@ when:
 library:
   source-dirs: src
   dependencies:
+    - pretty-simple
     - aeson
     - ansi-terminal
     - async

@@ -248,6 +248,7 @@ library
     , optparse-applicative >=0.16.1.0
     , pem
     , prelude-extras
+    , pretty-simple
     , primitive
     , process
     , random >=1.2.0

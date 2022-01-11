@@ -37,6 +37,9 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
+import Debug.Pretty.Simple (pTraceShowM)
+import qualified Data.Foldable as Foldable
+import qualified Unison.UnisonFile as UF
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
@@ -123,7 +126,31 @@ file = do
           ]
         uf = UnisonFileId (UF.datasId env) (UF.effectsId env) (terms <> join accessors)
                         (List.multimap watches)
+    let dupes = findDuplicateTermsAndConstructors uf
+    when (not . null $ dupes) $ do
+      let dupeList :: [(v, [Ann])]
+          dupeList = Map.toList $ fmap Set.toList dupes
+      P.customFailure (DuplicateTermNames dupeList)
+    pTraceShowM uf
     pure uf
+
+findDuplicateTermsAndConstructors :: forall v a. (Ord v, Ord a) => UnisonFile v a -> Map v (Set a)
+findDuplicateTermsAndConstructors uf = duplicates
+  where
+    allConstructors :: [(v, a)]
+    allConstructors = Map.elems (dataDeclarationsId uf) <> (Map.elems . fmap (fmap DD.toDataDecl) $ (effectDeclarationsId uf))
+                   & Foldable.toList
+                   & fmap snd
+                   & foldMap DD.constructors'
+                   & fmap (\(ann, v, _typ) -> (v, ann))
+    allTerms :: [(v, a)]
+    allTerms = UF.terms uf
+                  <&> (\(v, t) -> (v, ABT.annotation t))
+    merged :: Map v (Set a)
+    merged = Map.fromListWith (<>) . (fmap . fmap) Set.singleton $ allConstructors <> allTerms
+    duplicates :: Map v (Set a)
+    duplicates = Map.filter ((> 1) . Set.size) merged
+
 
 -- A stanza is either a watch expression like:
 --   > 1 + x
