@@ -2935,12 +2935,11 @@ toSlurpResult curPath uf existingNames =
             go (n, Referent.Ref {}) =
               case Set.toList (R.lookupDom n existingTermNames) of
                 [] -> True
-                [Referent.Con (ConstructorReference typeRef _conId) _typ] ->
-                -- If a term exists, but it's for a type being updated, we're okay to 'add'
-                -- this term, since either the constructor will be removed, or we'll trigger a
-                -- "duplicate names in file" error
+                matches -> flip all matches $ \(Referent.Con (ConstructorReference typeRef _conId) _typ) ->
+                -- If constructors by this name exist, but they're for a type which is being updated,
+                -- then we're okay to 'add' this term since either the constructor will be removed
+                -- meaning there's no conflict, or we'll trigger a "duplicate names in file" error
                   Set.member typeRef typesToUpdate
-                _ -> False
             go _ = False
         addTypes existingTypeNames = R.filter go
           where
