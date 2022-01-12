@@ -10,6 +10,7 @@ flags:
 ghc-options: -Wall
 
 dependencies:
+  - pretty-simple
   - ListLike
   - async
   - base

@@ -151,6 +151,7 @@ import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
+import Debug.Pretty.Simple
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -2782,7 +2783,7 @@ toSlurpResult ::
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   SlurpResult v
-toSlurpResult curPath uf existingNames =
+toSlurpResult curPath uf existingNames = pTraceShowId $
   Slurp.subtractComponent (conflicts <> ctorCollisions) $
     SlurpResult
       uf
