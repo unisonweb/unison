@@ -7,6 +7,8 @@ cases exist for built-in types. Just making sure they don't crash.
 ```
 
 ```unison
+unique type A = A
+
 threadEyeDeez _ =
   t1 = forkComp '()
   t2 = forkComp '()
@@ -16,5 +18,13 @@ threadEyeDeez _ =
 ```
 
 ```ucm
+.> add
 .> run threadEyeDeez
+```
+
+```unison
+> typeLink A == typeLink A
+> typeLink Text == typeLink Text
+> typeLink Text == typeLink A
+> termLink threadEyeDeez == termLink threadEyeDeez
 ```
