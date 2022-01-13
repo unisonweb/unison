@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.Slurp where
 
+import Control.Lens
+import Control.Monad.State
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -16,12 +18,13 @@ import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import qualified Unison.Reference as Ref
-import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.UnisonFile.Type as UF
 import Unison.Var (Var)
+
+data LabeledVar v = LabeledVar v LD.LabeledDependency
 
 data SlurpStatus = New | Updated | Duplicate
 
@@ -35,21 +38,20 @@ untypedVar = \case
   TermVar v -> v
 
 data SlurpPrintout v = SlurpPrintout
-  { notOk :: Map v (SlurpErr v),
+  { notOk :: Map v SlurpErr,
     ok :: Map v SlurpStatus
   }
 
-data SlurpErr v
+data SlurpErr
   = TermCtorCollision
   | CtorTermCollision
-  | RequiresUpdateOf v
 
 data SlurpComponent v = SlurpComponent {types :: Set v, terms :: Set v}
   deriving (Eq, Ord, Show)
 
 data DefinitionNotes v
   = DefStatus SlurpStatus
-  | DefErr (Set (SlurpErr v))
+  | DefErr SlurpErr
 
 data ComponentNotes v = ComponentNotes
   { deps :: Set ComponentHash,
@@ -57,8 +59,7 @@ data ComponentNotes v = ComponentNotes
   }
 
 data SlurpResult v = SlurpResult
-  { componentNotes :: Map ComponentHash (Map v (DefinitionNotes v)),
-    varToComponent :: Map v ComponentHash
+  { componentNotes :: Map (LabeledVar v) (DefinitionNotes v, Set (LabeledVar v))
   }
 
 type ComponentHash = Hash
@@ -87,23 +88,49 @@ analyzeTypecheckedUnisonFile ::
   Names ->
   Maybe (Set v) ->
   SlurpResult v
-analyzeTypecheckedUnisonFile uf unalteredCodebaseNames _defsToConsider =
-  SlurpResult _varToComponents _componentNotes'
+analyzeTypecheckedUnisonFile uf unalteredCodebaseNames maybeDefsToConsider =
+  let allInvolvedVars :: Set (LabeledVar v)
+      allInvolvedVars =
+        Foldable.foldl' transitiveVarDeps mempty defsToConsider
+          & Set.map (\v -> labeledVars Map.! v)
+      allDefStatuses :: Map (LabeledVar v) (DefinitionNotes v, Set (LabeledVar v))
+      allDefStatuses =
+        allInvolvedVars
+          & Set.toList
+          & fmap
+            ( \v ->
+                -- TODO, save time by memoizing transitiveVarDeps?
+                (v, (definitionStatus v, transitiveVarDeps mempty v))
+            )
+          & Map.fromList
+   in SlurpResult allDefStatuses
   where
     fileNames :: Names
     fileNames = UF.typecheckedToNames uf
-    componentMapping :: Map ComponentHash (Set v)
-    componentMapping = UF.componentMap uf
+
+    defsToConsider :: Set v
+    defsToConsider = case maybeDefsToConsider of
+      Nothing -> Set.map untypedVar allDefinitions
+      Just vs -> vs
+
+    labeledVars :: Map v (LabeledVar v)
+    labeledVars = undefined
+
+    componentMapping :: Map ComponentHash (Set (TypeOrTermVar v))
+    componentMapping = undefined UF.componentMap uf
     -- codebaseNames with deprecated constructors removed.
 
-    allDefinitions :: Set v
+    allDefinitions :: Set (TypeOrTermVar v)
     allDefinitions = fold componentMapping
 
     componentNotes' :: Map ComponentHash (Map v (DefinitionNotes v))
     componentNotes' = undefined
 
-    definitionStatus :: TypeOrTermVar v -> DefinitionNotes v
-    definitionStatus tv =
+    varToLabeledDependency :: v -> LD.LabeledDependency
+    varToLabeledDependency = undefined
+
+    definitionStatus :: LabeledVar v -> DefinitionNotes v
+    definitionStatus (undefined -> tv) =
       let v = untypedVar tv
           existingTypesAtName = Names.typesNamed codebaseNames (Name.unsafeFromVar v)
           existingTermsAtName = Names.termsNamed codebaseNames (Name.unsafeFromVar v)
@@ -120,19 +147,20 @@ analyzeTypecheckedUnisonFile uf unalteredCodebaseNames _defsToConsider =
                 _ -> DefStatus Updated
             -- [r] -> DefStatus Updated
             -- _ -> DefStatus Conflicted
-            TypeVar {} -> _
+            TypeVar {} -> undefined
     varReferences :: Map v LD.LabeledDependency
     varReferences = UF.referencesMap uf
 
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     varDeps :: v -> Set v
     varDeps v = do
-      let varComponentHash = varToComponentHash Map.! v
-          componentPeers = componentMapping Map.! varComponentHash
-          directDeps = case UF.hashTermsId uf Map.!? v of
-            Nothing -> mempty
-            Just (_, _, term, _) -> ABT.freeVars term
-       in Set.delete v (componentPeers <> directDeps)
+      undefined
+    -- let varComponentHash = varToComponentHash Map.! v
+    --     componentPeers = componentMapping Map.! varComponentHash
+    --     directDeps = case UF.hashTermsId uf Map.!? v of
+    --       Nothing -> mempty
+    --       Just (_, _, term, _) -> ABT.freeVars term
+    --  in Set.delete v (componentPeers <> directDeps)
 
     transitiveVarDeps :: Set v -> v -> Set v
     transitiveVarDeps resolved v =
@@ -144,12 +172,12 @@ analyzeTypecheckedUnisonFile uf unalteredCodebaseNames _defsToConsider =
             then resolved
             else resolved <> transitiveVarDeps resolved nextV
 
-    varToComponentHash :: Map v ComponentHash
-    varToComponentHash = Map.fromList $ do
-      -- List monad
-      (hash, vars) <- Map.toList componentMapping
-      v <- Set.toList vars
-      pure (v, hash)
+    -- varToComponentHash :: Map v ComponentHash
+    -- varToComponentHash = Map.fromList $ do
+    --   -- List monad
+    --   (hash, vars) <- Map.toList componentMapping
+    --   v <- Set.toList vars
+    --   pure (v, hash)
 
     codebaseNames :: Names
     codebaseNames =
@@ -181,16 +209,31 @@ analyzeTypecheckedUnisonFile uf unalteredCodebaseNames _defsToConsider =
        in -- Compute any constructors which were deleted
           existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
 
--- [ (n, r)
---   | (oldTypeRef, _) <- Map.elems typeEdits,
---     (n, r) <- Names.constructorsForType oldTypeRef codebaseNames
--- ]
+slurpErrs :: SlurpResult v -> Map (LabeledVar v) SlurpErr
+slurpErrs (SlurpResult defs) =
+  defs
+    & Map.mapMaybe
+      ( \case
+          (DefErr err, _) -> Just err
+          _ -> Nothing
+      )
 
 slurpOp ::
-  SlurpOp ->
+  forall v.
   SlurpResult v ->
-  Either
-    (Set (SlurpErr v))
-    -- adds,           updates
-    (SlurpComponent v, SlurpComponent v)
-slurpOp = undefined
+  (SlurpComponent v, SlurpComponent v, Map (LabeledVar v) SlurpErr)
+slurpOp (SlurpResult sr) = do
+  let (adds, updates, errs) =
+        flip execState mempty $
+          for (Map.toList sr) $ \(v, (dn, _)) -> do
+            case dn of
+              DefStatus New -> _1 %= Set.insert v
+              DefStatus Updated -> _2 %= Set.insert v
+              DefStatus Duplicate -> pure ()
+              DefErr err -> _3 . at v ?= err
+      adds' = partitionTypesAndTerms adds
+      updates' = partitionTypesAndTerms updates
+   in (adds', updates', errs)
+
+partitionTypesAndTerms :: Set (LabeledVar v) -> SlurpComponent v
+partitionTypesAndTerms = undefined
