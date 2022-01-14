@@ -48,6 +48,13 @@ data SlurpOp = AddOp | UpdateOp
 data LabeledVar v = LabeledVar v LD.LabeledDependency
   deriving (Eq, Ord)
 
+isTypeVar :: LabeledVar v -> Bool
+isTypeVar (LabeledVar _ LD.TypeReference {}) = True
+isTypeVar _ = False
+
+isTermVar :: LabeledVar v -> Bool
+isTermVar = not . isTypeVar
+
 data SlurpStatus
   = New
   | Updated
@@ -206,7 +213,18 @@ analyzeTypecheckedUnisonFile ::
 analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
   pTraceShowId $
     let allInvolvedVars :: Set (LabeledVar v)
-        allInvolvedVars = foldMap transitiveVarDeps defsToConsider
+        allInvolvedVars =
+          case maybeDefsToConsider of
+            Nothing ->
+              allFileVars
+            Just vs ->
+              let lvs :: Set (LabeledVar v) = Set.unions $ do
+                    v <- Set.toList vs
+                    pure . Rel.dom $ Rel3.lookupD1 v varRelation
+               in foldMap transitiveLabeledVarDeps lvs
+
+        allFileVars :: Set (LabeledVar v)
+        allFileVars = Rel3.d2s varRelation
 
         termStatuses, typeStatuses :: Map v (DefinitionNotes, Set (TypeOrTermVar v))
         (termStatuses, typeStatuses) =
@@ -243,45 +261,40 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
     --   structural type X = x
     --   structural type Y = y
     -- will say that X and Y depend on each other since they have the same component hash.
-    transitiveCHDeps :: Map ComponentHash (Set ComponentHash)
-    transitiveCHDeps =
+    _transitiveCHDeps :: Map ComponentHash (Set ComponentHash)
+    _transitiveCHDeps =
       componentTransitiveDeps uf
 
-    -- Find all other file-local vars that a var depends on.
-    -- This version is for when you don't know whether a var is a type or term
-    -- E.g., if the user types 'add x', we don't know whether x is a term, type, or
-    -- constructor, so we add all of them.
-    -- Includes self
-    transitiveVarDeps :: v -> Set (LabeledVar v)
-    transitiveVarDeps v =
-      Rel3.lookupD1 v varRelation
-        & Rel.ran
-        -- Find all transitive components we rely on
-        & ( \chs ->
-              chs <> foldMap (\ch -> fold $ Map.lookup ch transitiveCHDeps) chs
-          )
-        -- Find all variables within all considered components
-        & foldMap (\ch -> Rel.ran $ Rel3.lookupD3 ch varRelation)
-
-    -- Doesn't include self
+    -- TODO: make this faster!
     transitiveLabeledVarDeps :: LabeledVar v -> Set (LabeledVar v)
     transitiveLabeledVarDeps lv =
-      Rel3.lookupD2 lv varRelation
-        & Rel.ran
-        -- Find all transitive components we rely on
-        & ( \chs ->
-              chs <> foldMap (\ch -> fold $ Map.lookup ch transitiveCHDeps) chs
-          )
-        -- Find all variables within all considered components
-        & foldMap (\ch -> Rel.ran $ Rel3.lookupD3 ch varRelation)
-        & Set.delete lv
+      let SlurpComponent {terms, types} = SC.closeWithDependencies uf $
+            case lv of
+              LabeledVar v (LD.TypeReference {}) -> mempty {types = Set.singleton v}
+              LabeledVar v _ -> mempty {terms = Set.singleton v}
+          labeledTerms = Set.fromList $ do
+            v <- Set.toList terms
+            lv <- Set.toList . Rel.dom $ Rel3.lookupD1 v varRelation
+            guard (isTermVar lv)
+            pure lv
+          labeledTypes = Set.fromList $ do
+            v <- Set.toList types
+            lv <- Set.toList . Rel.dom $ Rel3.lookupD1 v varRelation
+            guard (isTypeVar lv)
+            pure lv
+       in labeledTerms <> labeledTypes
 
-    defsToConsider :: Set v
-    defsToConsider = case maybeDefsToConsider of
-      Nothing ->
-        varRelation
-          & Rel3.d1s
-      Just vs -> vs
+    -- Rel3.lookupD2
+    -- lv
+    -- varRelation
+    --   & Rel.ran
+    --   -- Find all transitive components we rely on
+    --   & ( \chs ->
+    --         chs <> foldMap (\ch -> fold $ Map.lookup ch transitiveCHDeps) chs
+    --     )
+    --   -- Find all variables within all considered components
+    --   & foldMap (\ch -> Rel.ran $ Rel3.lookupD3 ch varRelation)
+    --   & Set.delete lv
 
     definitionStatus :: LabeledVar v -> DefinitionNotes
     definitionStatus (LabeledVar v ld) =
