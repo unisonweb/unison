@@ -48,7 +48,10 @@ data SlurpOp = AddOp | UpdateOp
 data LabeledVar v = LabeledVar v LD.LabeledDependency
   deriving (Eq, Ord)
 
-data SlurpStatus = New | Updated | Duplicate
+data SlurpStatus
+  = New
+  | Updated
+  | Duplicate
   deriving (Eq, Ord, Show)
 
 data BlockStatus v
@@ -58,7 +61,7 @@ data BlockStatus v
   | Update
   | ErrFrom (TypeOrTermVar v) SlurpErr
   | SelfErr SlurpErr
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Semigroup (BlockStatus v) where
   SelfErr err <> _ = SelfErr err
@@ -71,7 +74,7 @@ instance Semigroup (BlockStatus v) where
   _ <> NeedsUpdate v = NeedsUpdate v
   Add <> _ = Add
   _ <> Add = Add
-  Duplicated <> Duplicated = Duplicated
+  Duplicated <> _ = Duplicated
 
 data TypeOrTermVar v = TypeVar v | TermVar v
   deriving (Eq, Ord, Show)
@@ -136,7 +139,8 @@ type Result v = Map (BlockStatus v) (SlurpComponent v)
 -- Compute all definitions which can be added, or the reasons why a def can't be added.
 results :: forall v. (Ord v, Show v) => SlurpResult v -> Result v
 results sr@(SlurpResult {termNotes, typeNotes}) =
-  Map.unionWith (<>) analyzedTerms analyzedTypes
+  pTraceShowId $
+    Map.unionWith (<>) analyzedTerms analyzedTypes
   where
     analyzedTerms :: Map (BlockStatus v) (SlurpComponent v)
     analyzedTerms =
@@ -233,6 +237,12 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
               )
      in SlurpResult {termNotes = termStatuses, typeNotes = typeStatuses}
   where
+    -- TODO: types and terms which have the same hash are currently treated as dependencies of
+    -- one another even if they don't actually reference each other.
+    -- E.g.
+    --   structural type X = x
+    --   structural type Y = y
+    -- will say that X and Y depend on each other since they have the same component hash.
     transitiveCHDeps :: Map ComponentHash (Set ComponentHash)
     transitiveCHDeps =
       componentTransitiveDeps uf
@@ -241,6 +251,7 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
     -- This version is for when you don't know whether a var is a type or term
     -- E.g., if the user types 'add x', we don't know whether x is a term, type, or
     -- constructor, so we add all of them.
+    -- Includes self
     transitiveVarDeps :: v -> Set (LabeledVar v)
     transitiveVarDeps v =
       Rel3.lookupD1 v varRelation
@@ -252,6 +263,7 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
         -- Find all variables within all considered components
         & foldMap (\ch -> Rel.ran $ Rel3.lookupD3 ch varRelation)
 
+    -- Doesn't include self
     transitiveLabeledVarDeps :: LabeledVar v -> Set (LabeledVar v)
     transitiveLabeledVarDeps lv =
       Rel3.lookupD2 lv varRelation
@@ -262,6 +274,7 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
           )
         -- Find all variables within all considered components
         & foldMap (\ch -> Rel.ran $ Rel3.lookupD3 ch varRelation)
+        & Set.delete lv
 
     defsToConsider :: Set v
     defsToConsider = case maybeDefsToConsider of
@@ -474,35 +487,36 @@ selectDefinitions
 
 toSlurpResult ::
   forall v.
-  Ord v =>
+  (Ord v, Show v) =>
   UF.TypecheckedUnisonFile v Ann ->
   SlurpOp ->
   Maybe (Set v) ->
   Result v ->
   OldSlurp.SlurpResult v
 toSlurpResult uf op mvs r =
-  -- TODO: Do a proper partition to speed this up.
-  OldSlurp.SlurpResult
-    { OldSlurp.originalFile = uf,
-      OldSlurp.extraDefinitions =
-        case mvs of
-          Nothing -> mempty
-          Just vs -> SC.difference (fold r) (SlurpComponent vs vs),
-      OldSlurp.adds = adds,
-      OldSlurp.duplicates = duplicates,
-      OldSlurp.collisions = if op == AddOp then updates else mempty,
-      OldSlurp.conflicts = mempty,
-      OldSlurp.updates = if op == UpdateOp then updates else mempty,
-      OldSlurp.termExistingConstructorCollisions =
-        let SlurpComponent types terms = termCtorColl
-         in types <> terms,
-      OldSlurp.constructorExistingTermCollisions =
-        let SlurpComponent types terms = ctorTermColl
-         in types <> terms,
-      OldSlurp.termAlias = mempty,
-      OldSlurp.typeAlias = mempty,
-      OldSlurp.defsWithBlockedDependencies = blocked
-    }
+  pTraceShowId $
+    -- TODO: Do a proper partition to speed this up.
+    OldSlurp.SlurpResult
+      { OldSlurp.originalFile = uf,
+        OldSlurp.extraDefinitions =
+          case mvs of
+            Nothing -> mempty
+            Just vs -> SC.difference (fold r) (SlurpComponent vs vs),
+        OldSlurp.adds = adds,
+        OldSlurp.duplicates = duplicates,
+        OldSlurp.collisions = if op == AddOp then updates else mempty,
+        OldSlurp.conflicts = mempty,
+        OldSlurp.updates = if op == UpdateOp then updates else mempty,
+        OldSlurp.termExistingConstructorCollisions =
+          let SlurpComponent types terms = termCtorColl
+           in types <> terms,
+        OldSlurp.constructorExistingTermCollisions =
+          let SlurpComponent types terms = ctorTermColl
+           in types <> terms,
+        OldSlurp.termAlias = mempty,
+        OldSlurp.typeAlias = mempty,
+        OldSlurp.defsWithBlockedDependencies = blocked
+      }
   where
     adds, duplicates, updates, termCtorColl, ctorTermColl, blocked :: SlurpComponent v
     (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked)) =
