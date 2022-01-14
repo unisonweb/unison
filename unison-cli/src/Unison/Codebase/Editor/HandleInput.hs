@@ -55,9 +55,8 @@ import qualified Unison.Codebase.Editor.Propagate as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRemotePath, WriteRepo, printNamespace, writePathToRead, writeToRead)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.Codebase.Editor.Slurp as Slurp
 import Unison.Codebase.Editor.SlurpResult (SlurpResult (..))
--- import qualified Unison.Codebase.Editor.SlurpResult as Slurp
+import qualified Unison.Codebase.Editor.SlurpResult as Slurp
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.MainTerm as MainTerm
@@ -152,8 +151,6 @@ import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
-import Debug.Pretty.Simple
-import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -262,12 +259,11 @@ loop = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          sr <- Slurp.analyzeTypecheckedUnisonFile unisonFile <$> currentPathNames
-          -- sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames
+          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
-          eval . Notify $ Typechecked sourceName ppe (undefined $ Slurp.toSlurpPrintout sr) unisonFile
+          eval . Notify $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
             lift do
@@ -1259,11 +1255,11 @@ loop = do
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   sr <-
-                    OldSlurp.disallowUpdates
+                    Slurp.disallowUpdates
                       . applySelection hqs uf
                       . toSlurpResult currentPath' uf
                       <$> slurpResultNames
-                  let adds = OldSlurp.adds sr
+                  let adds = Slurp.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
@@ -1273,7 +1269,7 @@ loop = do
             PreviewAddI hqs -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
                 sr <-
-                  OldSlurp.disallowUpdates
+                  Slurp.disallowUpdates
                     . applySelection hqs uf
                     . toSlurpResult currentPath' uf
                     <$> slurpResultNames
@@ -1823,49 +1819,50 @@ handleUpdate input maybePatchPath hqs = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let sr = Slurp.analyzeTypecheckedUnisonFile uf currentPathNames
-      -- let sr :: SlurpResult v
-      --     sr =
-      --       applySelection hqs uf
-      --         . toSlurpResult currentPath' uf
-      --         $ slurpCheckNames
+      let sr :: SlurpResult v
+          sr =
+            applySelection hqs uf
+              . toSlurpResult currentPath' uf
+              $ slurpCheckNames
+          addsAndUpdates :: SlurpComponent v
+          addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
           fileNames = UF.typecheckedToNames uf
           -- todo: display some error if typeEdits or termEdits itself contains a loop
-          -- typeEdits :: Map Name (Reference, Reference)
-          -- typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
-          --   where
-          --     f v = case ( toList (Names.typesNamed slurpCheckNames n),
-          --                  toList (Names.typesNamed fileNames n)
-          --                ) of
-          --       ([old], [new]) -> (n, (old, new))
-          --       _ ->
-          --         error $
-          --           "Expected unique matches for "
-          --             ++ Var.nameStr v
-          --             ++ " but got: "
-          --             ++ show otherwise
-          --       where
-          --         n = Name.unsafeFromVar v
+          typeEdits :: Map Name (Reference, Reference)
+          typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr))
+            where
+              f v = case ( toList (Names.typesNamed slurpCheckNames n),
+                           toList (Names.typesNamed fileNames n)
+                         ) of
+                ([old], [new]) -> (n, (old, new))
+                _ ->
+                  error $
+                    "Expected unique matches for "
+                      ++ Var.nameStr v
+                      ++ " but got: "
+                      ++ show otherwise
+                where
+                  n = Name.unsafeFromVar v
           hashTerms :: Map Reference (Type v Ann)
           hashTerms = Map.fromList (toList hashTerms0)
             where
               hashTerms0 = (\(r, _wk, _tm, typ) -> (r, typ)) <$> UF.hashTerms uf
-          -- termEdits :: Map Name (Reference, Reference)
-          -- termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
-          --   where
-          --     g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
-          --                  toList (Names.refTermsNamed fileNames n)
-          --                ) of
-          --       ([old], [new]) -> (n, (old, new))
-          --       _ ->
-          --         error $
-          --           "Expected unique matches for "
-          --             ++ Var.nameStr v
-          --             ++ " but got: "
-          --             ++ show otherwise
-          --       where
-          --         n = Name.unsafeFromVar v
+          termEdits :: Map Name (Reference, Reference)
+          termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr))
+            where
+              g v = case ( toList (Names.refTermsNamed slurpCheckNames n),
+                           toList (Names.refTermsNamed fileNames n)
+                         ) of
+                ([old], [new]) -> (n, (old, new))
+                _ ->
+                  error $
+                    "Expected unique matches for "
+                      ++ Var.nameStr v
+                      ++ " but got: "
+                      ++ show otherwise
+                where
+                  n = Name.unsafeFromVar v
           termDeprecations :: [(Name, Referent)]
           termDeprecations =
             [ (n, r)
@@ -1922,28 +1919,19 @@ handleUpdate input maybePatchPath hqs = do
           updatePatches :: Branch0 m -> m (Branch0 m)
           updatePatches = Branch.modifyPatches seg updatePatch
 
-      case Slurp.slurpOp Update (undefined hqs) sr of
-        Left errs -> undefined
-        Right (adds, updates) ->
-          -- when nonEmpty
-          -- doSlurpUpdates updates
-          -- doSlurpAdds adds
-          undefined adds updates
-
-          -- take a look at the `updates` from the SlurpResult
-          -- and make a patch diff to record a replacement from the old to new references
-          -- stepManyAtMNoSync Branch.CompressHistory
-          --   [ ( Path.unabsolute currentPath',
-          --       pure . doSlurpUpdates typeEdits termEdits termDeprecations
-          --     ),
-          --     ( Path.unabsolute currentPath',
-          --       pure . doSlurpAdds addsAndUpdates uf
-          --     ),
-          --     (Path.unabsolute p, updatePatches)
-          --   ]
-          -- eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
-
-      -- when (Slurp.isNonempty sr) $ do
+      when (Slurp.isNonempty sr) $ do
+        -- take a look at the `updates` from the SlurpResult
+        -- and make a patch diff to record a replacement from the old to new references
+        stepManyAtMNoSync Branch.CompressHistory
+          [ ( Path.unabsolute currentPath',
+              pure . doSlurpUpdates typeEdits termEdits termDeprecations
+            ),
+            ( Path.unabsolute currentPath',
+              pure . doSlurpAdds addsAndUpdates uf
+            ),
+            (Path.unabsolute p, updatePatches)
+          ]
+        eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
       ppe <- prettyPrintEnvDecl =<< displayNames uf
       respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
       -- propagatePatch prints TodoOutput
@@ -2794,8 +2782,8 @@ toSlurpResult ::
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   SlurpResult v
-toSlurpResult curPath uf existingNames = pTraceShowId $
-  OldSlurp.subtractComponent (conflicts <> ctorCollisions) $
+toSlurpResult curPath uf existingNames =
+  Slurp.subtractComponent (conflicts <> ctorCollisions) $
     SlurpResult
       uf
       mempty
@@ -2901,13 +2889,13 @@ toSlurpResult curPath uf existingNames = pTraceShowId $
       R.Relation Name Referent ->
       R.Relation Name Referent ->
       Set v ->
-      Map v OldSlurp.Aliases
+      Map v Slurp.Aliases
     buildAliases existingNames namesFromFile duplicates =
       Map.fromList
         [ ( var n,
             if null aliasesOfOld
-              then OldSlurp.AddAliases aliasesOfNew
-              else OldSlurp.UpdateAliases aliasesOfOld aliasesOfNew
+              then Slurp.AddAliases aliasesOfNew
+              else Slurp.UpdateAliases aliasesOfOld aliasesOfNew
           )
           | (n, r@Referent.Ref {}) <- R.toList namesFromFile,
             -- All the refs whose names include `n`, and are not `r`
@@ -2922,14 +2910,14 @@ toSlurpResult curPath uf existingNames = pTraceShowId $
             Set.notMember (var n) duplicates
         ]
 
-    termAliases :: Map v OldSlurp.Aliases
+    termAliases :: Map v Slurp.Aliases
     termAliases =
       buildAliases
         (Names.terms existingNames)
         (Names.terms fileNames)
         (SC.terms dups)
 
-    typeAliases :: Map v OldSlurp.Aliases
+    typeAliases :: Map v Slurp.Aliases
     typeAliases =
       buildAliases
         (R.mapRan Referent.Ref $ Names.types existingNames)
@@ -3081,7 +3069,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     typeActions = map doType . toList $ SC.types slurp
     termActions =
       map doTerm . toList $
-        SC.terms slurp <> OldSlurp.constructorsFor (SC.types slurp) uf
+        SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = isTest
