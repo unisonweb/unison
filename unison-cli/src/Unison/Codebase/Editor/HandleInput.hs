@@ -260,18 +260,22 @@ loop = do
       loadUnisonFile sourceName text = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
-          sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames
+          sr <- NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile unisonFile
+                          Nothing
+                          <$> currentPathNames
+          let oldSlurpResult = NewSlurp.toSlurpResult unisonFile NewSlurp.UpdateOp Nothing sr
+          -- sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
-          eval . Notify $ Typechecked sourceName ppe sr unisonFile
+          respond $ Typechecked sourceName ppe oldSlurpResult unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
             lift do
               let e' = Map.map go e
                   go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               unless (null e') $
-                eval . Notify $ Evaluated text ppe bindings e'
+                respond $ Evaluated text ppe bindings e'
               LoopState.latestTypecheckedFile .= Just unisonFile
 
   case e of
@@ -1268,7 +1272,7 @@ loop = do
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . NewSlurp.selectDefinitions adds $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
-                  let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.AddOp vars sr
+                  let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.AddOp (Just vars) sr
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) oldSlurpResult
                   -- respond $ NewSlurpOutput input (PPE.suffixifiedPPE ppe) NewSlurp.AddOp sr
                   addDefaultMetadata adds

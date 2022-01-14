@@ -316,7 +316,7 @@ isFailure o = case o of
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
-  NewSlurpOutput _ _ slurpOp sr -> NewSlurp.anyErrors slurpOp sr
+  NewSlurpOutput _ _ _ sr -> NewSlurp.anyErrors sr
   ParseErrors {} -> True
   TypeErrors {} -> True
   CompilerBugs {} -> True

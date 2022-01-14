@@ -55,6 +55,7 @@ data BlockStatus v
   = Add
   | Duplicated
   | NeedsUpdate (TypeOrTermVar v)
+  | Update
   | ErrFrom (TypeOrTermVar v) SlurpErr
   | SelfErr SlurpErr
   deriving (Eq, Ord)
@@ -64,6 +65,8 @@ instance Semigroup (BlockStatus v) where
   _ <> SelfErr err = SelfErr err
   ErrFrom v err <> _ = ErrFrom v err
   _ <> ErrFrom v err = ErrFrom v err
+  Update <> _ = Update
+  _ <> Update = Update
   NeedsUpdate v <> _ = NeedsUpdate v
   _ <> NeedsUpdate v = NeedsUpdate v
   Add <> _ = Add
@@ -141,7 +144,7 @@ results sr@(SlurpResult {termNotes, typeNotes}) =
         & Map.toList
         & fmap
           ( \(v, (_, deps)) ->
-              ( Semigroup.foldMap1 (getBlockStatus sr) (TermVar v NEList.:| Set.toList deps),
+              ( Semigroup.fold1 (getBlockStatus False sr (TermVar v) NEList.:| fmap (getBlockStatus True sr) (Set.toList deps)),
                 mempty {SC.terms = Set.singleton v}
               )
           )
@@ -152,19 +155,19 @@ results sr@(SlurpResult {termNotes, typeNotes}) =
         & Map.toList
         & fmap
           ( \(v, (_, deps)) ->
-              ( Semigroup.foldMap1 (getBlockStatus sr) (TypeVar v NEList.:| Set.toList deps),
+              ( Semigroup.fold1 (getBlockStatus False sr (TypeVar v) NEList.:| fmap (getBlockStatus True sr) (Set.toList deps)),
                 mempty {SC.types = Set.singleton v}
               )
           )
         & Map.fromListWith (<>)
 
-getBlockStatus :: (Ord v, Show v) => SlurpResult v -> TypeOrTermVar v -> BlockStatus v
-getBlockStatus (SlurpResult {termNotes, typeNotes}) tv =
+getBlockStatus :: (Ord v, Show v) => Bool -> SlurpResult v -> TypeOrTermVar v -> BlockStatus v
+getBlockStatus isDep (SlurpResult {termNotes, typeNotes}) tv =
   let defNotes = case tv of
         TypeVar v -> fromMaybe (error $ "Expected " <> show v <> " in typeNotes") $ Map.lookup v typeNotes
         TermVar v -> fromMaybe (error $ "Expected " <> show v <> " in termNotes") $ Map.lookup v termNotes
    in case fst defNotes of
-        DefOk Updated -> NeedsUpdate tv
+        DefOk Updated -> if isDep then NeedsUpdate tv else Update
         DefErr err -> ErrFrom tv err
         DefOk New -> Add
         DefOk Duplicate -> Duplicated
@@ -474,14 +477,17 @@ toSlurpResult ::
   Ord v =>
   UF.TypecheckedUnisonFile v Ann ->
   SlurpOp ->
-  Set v ->
+  Maybe (Set v) ->
   Result v ->
   OldSlurp.SlurpResult v
-toSlurpResult uf op vs r =
+toSlurpResult uf op mvs r =
   -- TODO: Do a proper partition to speed this up.
   OldSlurp.SlurpResult
     { OldSlurp.originalFile = uf,
-      OldSlurp.extraDefinitions = SC.difference (fold r) (SlurpComponent vs vs),
+      OldSlurp.extraDefinitions =
+        case mvs of
+          Nothing -> mempty
+          Just vs -> SC.difference (fold r) (SlurpComponent vs vs),
       OldSlurp.adds = adds,
       OldSlurp.duplicates = duplicates,
       OldSlurp.collisions = if op == AddOp then updates else mempty,
@@ -506,8 +512,13 @@ toSlurpResult uf op vs r =
               case k of
                 Add -> (sc, mempty, mempty, mempty, (mempty, mempty))
                 Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty))
+                Update -> (mempty, mempty, sc, mempty, (mempty, mempty))
                 NeedsUpdate v ->
-                  (mempty, mempty, singletonSC v, mempty, (mempty, sc `SC.difference` singletonSC v))
+                  case op of
+                    AddOp ->
+                      (mempty, mempty, singletonSC v, mempty, (mempty, sc `SC.difference` singletonSC v))
+                    UpdateOp ->
+                      (sc, mempty, mempty, mempty, (mempty, mempty))
                 ErrFrom v TermCtorCollision -> (mempty, mempty, mempty, singletonSC v, (mempty, sc `SC.difference` singletonSC v))
                 ErrFrom v CtorTermCollision -> (mempty, mempty, mempty, mempty, (singletonSC v, sc `SC.difference` singletonSC v))
                 SelfErr TermCtorCollision -> (mempty, mempty, mempty, sc, (mempty, mempty))
@@ -517,15 +528,16 @@ toSlurpResult uf op vs r =
       TypeVar v -> SlurpComponent {terms = mempty, types = Set.singleton v}
       TermVar v -> SlurpComponent {terms = Set.singleton v, types = mempty}
 
-anyErrors :: SlurpOp -> Result v -> Bool
-anyErrors op r =
+anyErrors :: Result v -> Bool
+anyErrors r =
   any isError . Map.keys $ Map.filter (not . SC.isEmpty) r
   where
     isError :: BlockStatus v -> Bool
     isError = \case
       Add -> False
       Duplicated -> False
+      Update {} -> False
       -- NeedsUpdate is an error only if we're trying to Add
-      NeedsUpdate {} -> op == AddOp
+      NeedsUpdate {} -> True
       ErrFrom {} -> True
       SelfErr {} -> True
