@@ -64,6 +64,7 @@ import qualified Unison.WatchKind as WK
 import Data.Set.NonEmpty (NESet)
 import qualified Unison.CommandLine.InputPattern as Input
 import Data.List.NonEmpty (NonEmpty)
+import qualified Unison.Codebase.Editor.Slurp as NewSlurp
 
 type ListDetailed = Bool
 
@@ -159,6 +160,7 @@ data Output v
   | ListOfPatches (Set Name)
   | -- show the result of add/update
     SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
+  | NewSlurpOutput Input PPE.PrettyPrintEnv NewSlurp.SlurpOp (NewSlurp.Result v)
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -314,6 +316,7 @@ isFailure o = case o of
   ListOfDefinitions _ _ ds -> null ds
   ListOfPatches s -> Set.null s
   SlurpOutput _ _ sr -> not $ SR.isOk sr
+  NewSlurpOutput _ _ slurpOp sr -> NewSlurp.anyErrors slurpOp sr
   ParseErrors {} -> True
   TypeErrors {} -> True
   CompilerBugs {} -> True

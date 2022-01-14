@@ -1,10 +1,16 @@
 module Unison.Codebase.Editor.Slurp where
 
 import Control.Lens
+import Data.Bifunctor (second)
+import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
 import qualified Data.Semigroup.Foldable as Semigroup
 import qualified Data.Set as Set
+import Debug.Pretty.Simple (pTraceShowId)
+import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
+import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
 import qualified Unison.LabeledDependency as LD
@@ -36,6 +42,9 @@ import Unison.Var (Var)
 --
 --  Does depending on a type also mean depending on all its constructors
 
+data SlurpOp = AddOp | UpdateOp
+  deriving (Eq, Show)
+
 data LabeledVar v = LabeledVar v LD.LabeledDependency
   deriving (Eq, Ord)
 
@@ -45,8 +54,8 @@ data SlurpStatus = New | Updated | Duplicate
 data BlockStatus v
   = Add
   | Duplicated
-  | NeedsUpdate v
-  | ErrFrom v SlurpErr
+  | NeedsUpdate (TypeOrTermVar v)
+  | ErrFrom (TypeOrTermVar v) SlurpErr
   | SelfErr SlurpErr
   deriving (Eq, Ord)
 
@@ -94,24 +103,16 @@ data SlurpErr
   | CtorTermCollision
   deriving (Eq, Ord, Show)
 
-data SlurpComponent v = SlurpComponent {scTypes :: Set v, scTerms :: Set v}
-  deriving (Eq, Ord, Show)
-
-instance Ord v => Semigroup (SlurpComponent v) where
-  SlurpComponent typeL termL <> SlurpComponent typeR termR =
-    SlurpComponent (typeL <> typeR) (termL <> termR)
-
-instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent mempty mempty
-
 data DefinitionNotes
   = DefOk SlurpStatus
   | DefErr SlurpErr
+  deriving (Show)
 
 data SlurpResult v = SlurpResult
   { termNotes :: Map v (DefinitionNotes, Set (TypeOrTermVar v)),
     typeNotes :: Map v (DefinitionNotes, Set (TypeOrTermVar v))
   }
+  deriving (Show)
 
 type Result v = Map (BlockStatus v) (SlurpComponent v)
 
@@ -130,42 +131,41 @@ type Result v = Map (BlockStatus v) (SlurpComponent v)
 --   mempty = Result mempty mempty mempty mempty mempty
 
 -- Compute all definitions which can be added, or the reasons why a def can't be added.
-results :: forall v. Ord v => SlurpResult v -> Result v
-results sr@(SlurpResult terms types) =
+results :: forall v. (Ord v, Show v) => SlurpResult v -> Result v
+results sr@(SlurpResult {termNotes, typeNotes}) =
   Map.unionWith (<>) analyzedTerms analyzedTypes
   where
     analyzedTerms :: Map (BlockStatus v) (SlurpComponent v)
     analyzedTerms =
-      terms
+      termNotes
         & Map.toList
         & fmap
           ( \(v, (_, deps)) ->
               ( Semigroup.foldMap1 (getBlockStatus sr) (TermVar v NEList.:| Set.toList deps),
-                mempty {scTerms = Set.singleton v}
+                mempty {SC.terms = Set.singleton v}
               )
           )
         & Map.fromListWith (<>)
     analyzedTypes :: Map (BlockStatus v) (SlurpComponent v)
     analyzedTypes =
-      types
+      typeNotes
         & Map.toList
         & fmap
           ( \(v, (_, deps)) ->
               ( Semigroup.foldMap1 (getBlockStatus sr) (TypeVar v NEList.:| Set.toList deps),
-                mempty {scTypes = Set.singleton v}
+                mempty {SC.types = Set.singleton v}
               )
           )
         & Map.fromListWith (<>)
 
-getBlockStatus :: Ord v => SlurpResult v -> TypeOrTermVar v -> BlockStatus v
+getBlockStatus :: (Ord v, Show v) => SlurpResult v -> TypeOrTermVar v -> BlockStatus v
 getBlockStatus (SlurpResult {termNotes, typeNotes}) tv =
-  let v = unlabeled tv
-      defNotes = case tv of
-        TypeVar v -> typeNotes Map.! v
-        TermVar v -> termNotes Map.! v
+  let defNotes = case tv of
+        TypeVar v -> fromMaybe (error $ "Expected " <> show v <> " in typeNotes") $ Map.lookup v typeNotes
+        TermVar v -> fromMaybe (error $ "Expected " <> show v <> " in termNotes") $ Map.lookup v termNotes
    in case fst defNotes of
-        DefOk Updated -> NeedsUpdate v
-        DefErr err -> ErrFrom v err
+        DefOk Updated -> NeedsUpdate tv
+        DefErr err -> ErrFrom tv err
         DefOk New -> Add
         DefOk Duplicate -> Duplicated
 
@@ -197,38 +197,38 @@ analyzeTypecheckedUnisonFile ::
   Names ->
   SlurpResult v
 analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
-  let allInvolvedVars :: Set (LabeledVar v)
-      allInvolvedVars = foldMap transitiveVarDeps defsToConsider
+  pTraceShowId $
+    let allInvolvedVars :: Set (LabeledVar v)
+        allInvolvedVars = foldMap transitiveVarDeps defsToConsider
 
-      termStatuses, typeStatuses :: Map v (DefinitionNotes, Set (TypeOrTermVar v))
-      (termStatuses, typeStatuses) =
-        allInvolvedVars
-          & Set.toList
-          & fmap
-            ( \lv ->
-                (lv, (definitionStatus lv, transitiveLabeledVarDeps lv))
-            )
-          & Map.fromList
-          & Map.mapEitherWithKey
-            ( \lv x -> case lv of
-                LabeledVar _ (LD.TypeReference {}) -> Left x
-                LabeledVar _ (LD.TermReferent {}) -> Right x
-            )
-          & over both (Map.mapKeys (\(LabeledVar v _) -> v))
-          & over
-            both
-            ( Map.map
-                ( fmap
-                    ( Set.map
-                        ( \case
-                            LabeledVar v (LD.TermReferent {}) -> TermVar v
-                            LabeledVar v (LD.TypeReference {}) -> TypeVar v
-                        )
-                    )
-                )
-            )
-   in -- & Map.mapEitherWithKey _
-      SlurpResult termStatuses typeStatuses
+        termStatuses, typeStatuses :: Map v (DefinitionNotes, Set (TypeOrTermVar v))
+        (termStatuses, typeStatuses) =
+          allInvolvedVars
+            & Set.toList
+            & fmap
+              ( \lv ->
+                  (lv, (definitionStatus lv, transitiveLabeledVarDeps lv))
+              )
+            & Map.fromList
+            & Map.mapEitherWithKey
+              ( \lv x -> case lv of
+                  LabeledVar _ (LD.TypeReference {}) -> Right x
+                  LabeledVar _ (LD.TermReferent {}) -> Left x
+              )
+            & over both (Map.mapKeys (\(LabeledVar v _) -> v))
+            & over
+              both
+              ( Map.map
+                  ( fmap
+                      ( Set.map
+                          ( \case
+                              LabeledVar v (LD.TermReferent {}) -> TermVar v
+                              LabeledVar v (LD.TypeReference {}) -> TypeVar v
+                          )
+                      )
+                  )
+              )
+     in SlurpResult {termNotes = termStatuses, typeNotes = typeStatuses}
   where
     transitiveCHDeps :: Map ComponentHash (Set ComponentHash)
     transitiveCHDeps =
@@ -336,14 +336,14 @@ analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
        in -- Compute any constructors which were deleted
           existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
 
-slurpErrs :: SlurpResult v -> Map v SlurpErr
-slurpErrs (SlurpResult defs _) =
-  defs
-    & Map.mapMaybe
-      ( \case
-          (DefErr err, _) -> Just err
-          _ -> Nothing
-      )
+-- slurpErrs :: SlurpResult v -> Map v SlurpErr
+-- slurpErrs (SlurpResult defs _) =
+--   defs
+--     & Map.mapMaybe
+--       ( \case
+--           (DefErr err, _) -> Just err
+--           _ -> Nothing
+--       )
 
 -- slurpOp ::
 --   forall v.
@@ -422,6 +422,7 @@ dataDeclRefs decl =
     -- Ignore builtins
     & Set.mapMaybe componentHashForReference
 
+-- TODO: Does this need to contain constructors? Probably.
 -- Does not include constructors
 labelling :: forall v a. Ord v => UF.TypecheckedUnisonFile v a -> Rel3.Relation3 v (LabeledVar v) ComponentHash
 labelling uf = decls <> effects <> terms
@@ -449,24 +450,82 @@ labelling uf = decls <> effects <> terms
 idToComponentHash :: Ref.Id -> ComponentHash
 idToComponentHash (Ref.Id componentHash _ _) = componentHash
 
--- selectVars :: SlurpComponent (LabeledVar v) -> UF.TypecheckedUnisonFile v a -> UF.TypecheckedUnisonFile v a
--- selectVars
---   vs
---   ( UF.TypecheckedUnisonFileId
---       dataDeclarations'
---       effectDeclarations'
---       topLevelComponents'
---       watchComponents
---       hashTerms
---     ) =
---     UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
---     where
---       keepTypes = SC.types keep
---       hashTerms' = Map.restrictKeys hashTerms keepTerms
---       datas = Map.restrictKeys dataDeclarations' keepTypes
---       effects = Map.restrictKeys effectDeclarations' keepTypes
---       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
---       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
---       filterTLC (v, _, _) = Set.member v keepTerms
+selectDefinitions :: Ord v => SlurpComponent v -> UF.TypecheckedUnisonFile v a -> UF.TypecheckedUnisonFile v a
+selectDefinitions
+  (SlurpComponent {terms, types})
+  ( UF.TypecheckedUnisonFileId
+      dataDeclarations'
+      effectDeclarations'
+      topLevelComponents'
+      watchComponents
+      hashTerms
+    ) =
+    UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
+    where
+      hashTerms' = Map.restrictKeys hashTerms terms
+      datas = Map.restrictKeys dataDeclarations' types
+      effects = Map.restrictKeys effectDeclarations' types
+      tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
+      watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
+      filterTLC (v, _, _) = Set.member v terms
 
--- dependencyMap :: UF.TypecheckedUnisonFile -> Map
+toSlurpResult ::
+  forall v.
+  Ord v =>
+  UF.TypecheckedUnisonFile v Ann ->
+  SlurpOp ->
+  Set v ->
+  Result v ->
+  OldSlurp.SlurpResult v
+toSlurpResult uf op vs r =
+  -- TODO: Do a proper partition to speed this up.
+  OldSlurp.SlurpResult
+    { OldSlurp.originalFile = uf,
+      OldSlurp.extraDefinitions = SC.difference (fold r) (SlurpComponent vs vs),
+      OldSlurp.adds = adds,
+      OldSlurp.duplicates = duplicates,
+      OldSlurp.collisions = if op == AddOp then updates else mempty,
+      OldSlurp.conflicts = mempty,
+      OldSlurp.updates = if op == UpdateOp then updates else mempty,
+      OldSlurp.termExistingConstructorCollisions =
+        let SlurpComponent types terms = termCtorColl
+         in types <> terms,
+      OldSlurp.constructorExistingTermCollisions =
+        let SlurpComponent types terms = ctorTermColl
+         in types <> terms,
+      OldSlurp.termAlias = mempty,
+      OldSlurp.typeAlias = mempty,
+      OldSlurp.defsWithBlockedDependencies = blocked
+    }
+  where
+    adds, duplicates, updates, termCtorColl, ctorTermColl, blocked :: SlurpComponent v
+    (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked)) =
+      r
+        & ifoldMap
+          ( \k sc ->
+              case k of
+                Add -> (sc, mempty, mempty, mempty, (mempty, mempty))
+                Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty))
+                NeedsUpdate v ->
+                  (mempty, mempty, singletonSC v, mempty, (mempty, sc `SC.difference` singletonSC v))
+                ErrFrom v TermCtorCollision -> (mempty, mempty, mempty, singletonSC v, (mempty, sc `SC.difference` singletonSC v))
+                ErrFrom v CtorTermCollision -> (mempty, mempty, mempty, mempty, (singletonSC v, sc `SC.difference` singletonSC v))
+                SelfErr TermCtorCollision -> (mempty, mempty, mempty, sc, (mempty, mempty))
+                SelfErr CtorTermCollision -> (mempty, mempty, mempty, mempty, (sc, mempty))
+          )
+    singletonSC = \case
+      TypeVar v -> SlurpComponent {terms = mempty, types = Set.singleton v}
+      TermVar v -> SlurpComponent {terms = Set.singleton v, types = mempty}
+
+anyErrors :: SlurpOp -> Result v -> Bool
+anyErrors op r =
+  any isError . Map.keys $ Map.filter (not . SC.isEmpty) r
+  where
+    isError :: BlockStatus v -> Bool
+    isError = \case
+      Add -> False
+      Duplicated -> False
+      -- NeedsUpdate is an error only if we're trying to Add
+      NeedsUpdate {} -> op == AddOp
+      ErrFrom {} -> True
+      SelfErr {} -> True

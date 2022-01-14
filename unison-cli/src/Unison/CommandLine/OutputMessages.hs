@@ -578,7 +578,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       P.lines
         [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again." 
+          "Please switch to an empty namespace and try again."
         ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
@@ -750,6 +750,12 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
+  NewSlurpOutput input ppe slurpOp result ->
+    let isPast = case input of
+          Input.AddI {} -> True
+          Input.UpdateI {} -> True
+          _ -> False
+     in pure $ undefined isPast ppe slurpOp result
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->

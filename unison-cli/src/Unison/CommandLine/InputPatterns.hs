@@ -174,15 +174,15 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.AddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
+      -- Just ws -> pure $ Input.AddI ws
+      -- Nothing ->
+      --   Left
+      --     . warn
+      --     . P.lines
+      --     . fmap fromString
+      --     . ("I don't know what these refer to:\n" :)
+      --     $ collectNothings HQ'.fromString ws
 
 previewAdd :: InputPattern
 previewAdd =
@@ -1203,9 +1203,9 @@ prettyPrintParseError input = \case
                  ]
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee = 
+    printTrivial ue ee =
       let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue
           message = [expected] <> catMaybes [found]
       in P.oxfordCommasWith "." message
 

@@ -151,6 +151,7 @@ import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
+import qualified Unison.Codebase.Editor.Slurp as NewSlurp
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1250,20 +1251,26 @@ loop = do
                     InvalidSourceNameError -> respond $ InvalidSourceName path
                     LoadError -> respond $ SourceLoadFailed path
                     LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
-            AddI hqs ->
+            AddI names -> do
+              let vars = Set.map Name.toVar names
               case uf of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
-                  sr <-
-                    Slurp.disallowUpdates
-                      . applySelection hqs uf
-                      . toSlurpResult currentPath' uf
-                      <$> slurpResultNames
-                  let adds = Slurp.adds sr
+                  sr <- NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
+                          (if null vars then Nothing else Just vars)
+                          <$> currentPathNames
+                  -- sr <-
+                  --   Slurp.disallowUpdates
+                  --     . applySelection hqs uf
+                  --     . toSlurpResult currentPath' uf
+                  --     <$> slurpResultNames
+                  let adds = fromMaybe mempty . Map.lookup NewSlurp.Add $ sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
-                  eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+                  eval . AddDefsToCodebase . NewSlurp.selectDefinitions adds $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
-                  respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
+                  let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.AddOp vars sr
+                  respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) oldSlurpResult
+                  -- respond $ NewSlurpOutput input (PPE.suffixifiedPPE ppe) NewSlurp.AddOp sr
                   addDefaultMetadata adds
                   syncRoot
             PreviewAddI hqs -> case (latestFile', uf) of

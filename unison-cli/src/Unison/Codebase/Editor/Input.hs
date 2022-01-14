@@ -112,7 +112,7 @@ data Input
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
     | LoadI (Maybe FilePath)
-    | AddI [HQ'.HashQualified Name]
+    | AddI (Set Name)
     | PreviewAddI [HQ'.HashQualified Name]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
     | PreviewUpdateI [HQ'.HashQualified Name]
