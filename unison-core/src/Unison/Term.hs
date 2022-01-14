@@ -432,6 +432,8 @@ pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
+pattern OverappliedBinaryAppPred' f arg1 arg2 rest <-
+  (unOverappliedBinaryAppPred -> Just (f, arg1, arg2, rest))
 -- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
@@ -782,6 +784,19 @@ unBinaryApp :: Term2 vt at ap v a
 unBinaryApp t = case unApps t of
   Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
   _                      -> Nothing
+
+-- Special case for overapplied binary operators
+unOverappliedBinaryAppPred
+  :: (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
+  -> Maybe
+       ( Term2 vt at ap v a
+       , Term2 vt at ap v a
+       , Term2 vt at ap v a
+       , [Term2 vt at ap v a]
+       )
+unOverappliedBinaryAppPred (t, pred) = case unApps t of
+  Just (f, arg1 : arg2 : rest) | pred f -> Just (f, arg1, arg2, rest)
+  _                            -> Nothing
 
 -- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
 unBinaryApps
