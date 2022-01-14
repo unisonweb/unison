@@ -1277,23 +1277,24 @@ loop = do
                   -- respond $ NewSlurpOutput input (PPE.suffixifiedPPE ppe) NewSlurp.AddOp sr
                   addDefaultMetadata adds
                   syncRoot
-            PreviewAddI hqs -> case (latestFile', uf) of
+            PreviewAddI names -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
-                sr <-
-                  Slurp.disallowUpdates
-                    . applySelection hqs uf
-                    . toSlurpResult currentPath' uf
-                    <$> slurpResultNames
-                previewResponse sourceName sr uf
+                let vars = Set.map Name.toVar names
+                sr <- NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
+                                (Just vars)
+                                <$> currentPathNames
+                let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
+                previewResponse sourceName oldSlurpResult uf
               _ -> respond NoUnisonFile
-            UpdateI maybePatchPath hqs -> handleUpdate input maybePatchPath hqs
-            PreviewUpdateI hqs -> case (latestFile', uf) of
+            UpdateI maybePatchPath names -> handleUpdate input maybePatchPath names
+            PreviewUpdateI names -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
-                sr <-
-                  applySelection hqs uf
-                    . toSlurpResult currentPath' uf
-                    <$> slurpResultNames
-                previewResponse sourceName sr uf
+                let vars = Set.map Name.toVar names
+                sr <- NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
+                                (Just vars)
+                                <$> currentPathNames
+                let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
+                previewResponse sourceName oldSlurpResult uf
               _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1814,8 +1815,9 @@ handleShowDefinition outputLoc inputQuery = do
             Just (path, _) -> Just path
 
 -- | Handle an @update@ command.
-handleUpdate :: forall m v. (Monad m, Var v) => Input -> Maybe PatchPath -> [HQ'.HashQualified Name] -> Action' m v ()
-handleUpdate input maybePatchPath hqs = do
+handleUpdate :: forall m v. (Monad m, Var v) => Input -> Maybe PatchPath -> Set Name -> Action' m v ()
+handleUpdate input maybePatchPath names = do
+  let vars = Set.map Name.toVar names
   use LoopState.latestTypecheckedFile >>= \case
     Nothing -> respond NoUnisonFile
     Just uf -> do
@@ -1830,11 +1832,15 @@ handleUpdate input maybePatchPath hqs = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let sr :: SlurpResult v
-          sr =
-            applySelection hqs uf
-              . toSlurpResult currentPath' uf
-              $ slurpCheckNames
+      let newSR = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
+                                (Just vars)
+                                $ slurpCheckNames
+      let sr = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) newSR
+      -- let sr :: SlurpResult v
+      --     sr =
+      --       applySelection hqs uf
+      --         . toSlurpResult currentPath' uf
+      --         $ slurpCheckNames
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
@@ -2759,15 +2765,15 @@ getEndangeredDependents getDependents namesToDelete rootNames = do
 -- meaning that adds/updates should only contain the selection or its transitive
 -- dependencies, any unselected transitive dependencies of the selection will
 -- be added to `extraDefinitions`.
-applySelection ::
+_applySelection ::
   forall v a.
   Var v =>
   [HQ'.HashQualified Name] ->
   UF.TypecheckedUnisonFile v a ->
   SlurpResult v ->
   SlurpResult v
-applySelection [] _ = id
-applySelection hqs file = \sr@SlurpResult {adds, updates} ->
+_applySelection [] _ = id
+_applySelection hqs file = \sr@SlurpResult {adds, updates} ->
   sr
     { adds = adds `SC.intersection` closed,
       updates = updates `SC.intersection` closed,
@@ -2786,14 +2792,14 @@ applySelection hqs file = \sr@SlurpResult {adds, updates} ->
 var :: Var v => Name -> v
 var name = Var.named (Name.toText name)
 
-toSlurpResult ::
+_toSlurpResult ::
   forall v.
   Var v =>
   Path.Absolute ->
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   SlurpResult v
-toSlurpResult curPath uf existingNames =
+_toSlurpResult curPath uf existingNames =
   Slurp.subtractComponent (conflicts <> ctorCollisions) $
     SlurpResult
       uf

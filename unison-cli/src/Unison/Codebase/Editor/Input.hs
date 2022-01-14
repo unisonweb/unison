@@ -26,7 +26,6 @@ import qualified Unison.Codebase.ShortBranchHash as SBH
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Verbosity
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
@@ -113,9 +112,9 @@ data Input
   -- edits stuff:
     | LoadI (Maybe FilePath)
     | AddI (Set Name)
-    | PreviewAddI [HQ'.HashQualified Name]
-    | UpdateI (Maybe PatchPath) [HQ'.HashQualified Name]
-    | PreviewUpdateI [HQ'.HashQualified Name]
+    | PreviewAddI (Set Name)
+    | UpdateI (Maybe PatchPath) (Set Name)
+    | PreviewUpdateI (Set Name)
     | TodoI (Maybe PatchPath) Path'
     | PropagatePatchI PatchPath Path'
     | ListEditsI (Maybe PatchPath)
