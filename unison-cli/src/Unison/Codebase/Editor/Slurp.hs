@@ -152,20 +152,20 @@ analyzeTypecheckedUnisonFile ::
   forall v.
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
-  Maybe (Set v) ->
+  Set v ->
   Names ->
   (Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) (DefinitionNotes)))
-analyzeTypecheckedUnisonFile uf maybeDefsToConsider unalteredCodebaseNames =
+analyzeTypecheckedUnisonFile uf defsToConsider unalteredCodebaseNames =
   let codebaseNames :: Names
       codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames
       varDeps :: Map (TermedOrTyped v) (Set (TermedOrTyped v))
-      varDeps = computeVarDeps uf maybeDefsToConsider varRelation
+      varDeps = computeVarDeps uf defsToConsider varRelation
       statusMap :: Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
       statusMap = computeVarStatuses varDeps varRelation codebaseNames
    in pTraceShowId statusMap
   where
     varRelation :: Rel.Relation (TermedOrTyped v) LD.LabeledDependency
-    varRelation = undefined $ labelling uf
+    varRelation = labelling uf
 
 computeNamesWithDeprecations ::
   Var v =>
@@ -284,21 +284,21 @@ computeVarDeps ::
   forall v.
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
-  Maybe (Set v) ->
+  Set v ->
   Rel.Relation (TermedOrTyped v) LD.LabeledDependency ->
   Map (TermedOrTyped v) (Set (TermedOrTyped v))
-computeVarDeps uf maybeDefsToConsider varRelation =
+computeVarDeps uf defsToConsider varRelation =
   pTraceShowId $
     let allFileVars :: Set (TermedOrTyped v)
         allFileVars = Rel.dom varRelation
 
         allInvolvedVars :: Set (TermedOrTyped v)
         allInvolvedVars =
-          case maybeDefsToConsider of
-            Nothing -> allFileVars
-            Just vs ->
+          if Set.null defsToConsider
+            then allFileVars
+            else
               let existingVars :: Set (TermedOrTyped v) = Set.fromList $ do
-                    v <- Set.toList vs
+                    v <- Set.toList defsToConsider
                     -- We don't know whether each var is a type or term, so we try both.
                     tv <- [Typed v, Termed v]
                     guard (Rel.memberDom tv varRelation)
@@ -398,7 +398,7 @@ toSlurpResult uf op mvs r =
         OldSlurp.duplicates = duplicates,
         OldSlurp.collisions = if op == AddOp then updates else mempty,
         OldSlurp.conflicts = mempty,
-        OldSlurp.updates = if op == UpdateOp then adds <> updates else mempty,
+        OldSlurp.updates = if op == UpdateOp then updates else mempty,
         OldSlurp.termExistingConstructorCollisions =
           let SlurpComponent types terms = termCtorColl
            in types <> terms,

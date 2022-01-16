@@ -262,7 +262,7 @@ loop = do
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           currentNames <- currentPathNames
           let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile unisonFile
-                          Nothing
+                          mempty
                           $ currentNames
           let oldSlurpResult = NewSlurp.toSlurpResult unisonFile NewSlurp.UpdateOp Nothing sr
                              & addAliases currentNames unisonFile currentPath'
@@ -1264,7 +1264,7 @@ loop = do
                 Just uf -> do
                   currentNames <- currentPathNames
                   let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                          (if null vars then Nothing else Just vars)
+                          vars
                           $ currentNames
                   -- sr <-
                   --   Slurp.disallowUpdates
@@ -1286,7 +1286,7 @@ loop = do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
                 let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                (Just vars)
+                                vars
                                 $ currentNames
                 let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
                                    & addAliases currentNames uf currentPath'
@@ -1298,7 +1298,7 @@ loop = do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
                 let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                (Just vars)
+                                vars
                                 $ currentNames
                 let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
                                    & addAliases currentNames uf currentPath'
@@ -1841,7 +1841,7 @@ handleUpdate input maybePatchPath names = do
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
       let newSR = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                (Just vars)
+                                vars
                                 $ slurpCheckNames
       let sr = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) newSR
       -- let sr :: SlurpResult v
