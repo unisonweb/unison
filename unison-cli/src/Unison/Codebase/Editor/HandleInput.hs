@@ -1844,6 +1844,7 @@ handleUpdate input maybePatchPath names = do
                                 vars
                                 $ slurpCheckNames
       let sr = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) newSR
+                & addAliases slurpCheckNames uf currentPath'
       -- let sr :: SlurpResult v
       --     sr =
       --       applySelection hqs uf
