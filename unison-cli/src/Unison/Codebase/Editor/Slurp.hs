@@ -1,4 +1,15 @@
-module Unison.Codebase.Editor.Slurp where
+module Unison.Codebase.Editor.Slurp
+  ( SlurpOp (..),
+    Result,
+    BlockStatus (..),
+    anyErrors,
+    results,
+    analyzeTypecheckedUnisonFile,
+    selectDefinitions,
+    toSlurpResult,
+    sortVars,
+  )
+where
 
 import Control.Lens
 import Data.Bifunctor (second)
@@ -43,16 +54,6 @@ import Unison.WatchKind (pattern TestWatch)
 
 data SlurpOp = AddOp | UpdateOp
   deriving (Eq, Show)
-
-data LabeledVar v = LabeledVar v LD.LabeledDependency
-  deriving (Eq, Ord)
-
-isTypeVar :: LabeledVar v -> Bool
-isTypeVar (LabeledVar _ LD.TypeReference {}) = True
-isTypeVar _ = False
-
-isTermVar :: LabeledVar v -> Bool
-isTermVar = not . isTypeVar
 
 data SlurpStatus
   = New
@@ -319,7 +320,7 @@ computeVarDeps uf maybeDefsToConsider varRelation =
     varClosure (sortVars -> sc) =
       mingleVars $ SC.closeWithDependencies uf sc
 
--- TODO: Does this need to contain constructors? Probably.
+-- TODO: Does this need to contain constructors? Maybe.
 -- Does not include constructors
 labelling :: forall v a. Ord v => UF.TypecheckedUnisonFile v a -> Rel.Relation (TermedOrTyped v) LD.LabeledDependency
 labelling uf = decls <> effects <> terms
@@ -397,7 +398,7 @@ toSlurpResult uf op mvs r =
         OldSlurp.duplicates = duplicates,
         OldSlurp.collisions = if op == AddOp then updates else mempty,
         OldSlurp.conflicts = mempty,
-        OldSlurp.updates = if op == UpdateOp then updates else mempty,
+        OldSlurp.updates = if op == UpdateOp then adds <> updates else mempty,
         OldSlurp.termExistingConstructorCollisions =
           let SlurpComponent types terms = termCtorColl
            in types <> terms,
