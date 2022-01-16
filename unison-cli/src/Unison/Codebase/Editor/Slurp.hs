@@ -11,7 +11,7 @@ import Debug.Pretty.Simple (pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
-import Unison.Codebase.Editor.TermsAndTypes (TermedOrTyped (Termed, Typed), TermsAndTypes (TermsAndTypes))
+import Unison.Codebase.Editor.TermsAndTypes (TermedOrTyped (Termed, Typed))
 import qualified Unison.Codebase.Editor.TermsAndTypes as TT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
@@ -316,8 +316,8 @@ computeVarDeps uf maybeDefsToConsider varRelation =
   where
     -- Compute the closure of all vars which the provided vars depend on.
     varClosure :: Set (TermedOrTyped v) -> Set (TermedOrTyped v)
-    varClosure (sortVars -> toSlurpComponent -> sc) =
-      mingleVars . fromSlurpComponent $ SC.closeWithDependencies uf sc
+    varClosure (sortVars -> sc) =
+      mingleVars $ SC.closeWithDependencies uf sc
 
 -- TODO: Does this need to contain constructors? Probably.
 -- Does not include constructors
@@ -392,7 +392,7 @@ toSlurpResult uf op mvs r =
                   desired =
                     vs
                       & Set.flatMap (\v -> Set.fromList [Typed v, Termed v])
-               in toSlurpComponent . sortVars $ Set.difference allVars desired,
+               in sortVars $ Set.difference allVars desired,
         OldSlurp.adds = adds,
         OldSlurp.duplicates = duplicates,
         OldSlurp.collisions = if op == AddOp then updates else mempty,
@@ -414,7 +414,7 @@ toSlurpResult uf op mvs r =
       r
         & ifoldMap
           ( \k tvs ->
-              let sc = toSlurpComponent . sortVars $ tvs
+              let sc = sortVars $ tvs
                in case k of
                     Add -> (sc, mempty, mempty, mempty, (mempty, mempty))
                     Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty))
@@ -448,21 +448,15 @@ anyErrors r =
       ErrFrom {} -> True
       SelfErr {} -> True
 
-toSlurpComponent :: TermsAndTypes (Set v) -> SlurpComponent v
-toSlurpComponent TermsAndTypes {TT.terms = terms, TT.types = types} =
-  SlurpComponent {terms = terms, types = types}
-
-fromSlurpComponent :: SlurpComponent v -> TermsAndTypes (Set v)
-fromSlurpComponent SlurpComponent {terms = terms, types = types} =
-  TermsAndTypes {TT.terms = terms, TT.types = types}
-
-sortVars :: (Foldable f, Ord v) => f (TermedOrTyped v) -> TermsAndTypes (Set v)
+sortVars :: (Foldable f, Ord v) => f (TermedOrTyped v) -> SlurpComponent v
 sortVars =
   foldMap
     ( \case
-        Typed v -> TT.fromTypes (Set.singleton v)
-        Termed v -> TT.fromTerms (Set.singleton v)
+        Typed v -> SC.fromTypes (Set.singleton v)
+        Termed v -> SC.fromTerms (Set.singleton v)
     )
 
-mingleVars :: Ord v => TermsAndTypes (Set v) -> Set (TermedOrTyped v)
-mingleVars = Set.fromList . fold . TT.labeledF . fmap Set.toList
+mingleVars :: Ord v => SlurpComponent v -> Set (TermedOrTyped v)
+mingleVars SlurpComponent {terms, types} =
+  Set.map Termed types
+    <> Set.map Typed terms

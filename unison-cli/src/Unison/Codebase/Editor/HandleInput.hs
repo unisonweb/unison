@@ -1271,7 +1271,7 @@ loop = do
                   --     . applySelection hqs uf
                   --     . toSlurpResult currentPath' uf
                   --     <$> slurpResultNames
-                  let adds = NewSlurp.toSlurpComponent . NewSlurp.sortVars . fromMaybe mempty . Map.lookup NewSlurp.Add $ sr
+                  let adds = NewSlurp.sortVars . fromMaybe mempty . Map.lookup NewSlurp.Add $ sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . NewSlurp.selectDefinitions adds $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
