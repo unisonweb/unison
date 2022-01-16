@@ -16,7 +16,6 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import Unison.WatchKind (WatchKind)
-import qualified Unison.Util.Relation3 as Rel3
 
 data UnisonFile v a = UnisonFileId {
   dataDeclarationsId   :: Map v (Reference.Id, DataDeclaration v a),

@@ -3,6 +3,7 @@ module Unison.Util.Set
     mapMaybe,
     symmetricDifference,
     Unison.Util.Set.traverse,
+    flatMap,
   )
 where
 
@@ -25,3 +26,6 @@ mapMaybe f = Set.fromList . Maybe.mapMaybe f . Set.toList
 
 traverse :: (Applicative f, Ord b) => (a -> f b) -> Set a -> f (Set b)
 traverse f = fmap Set.fromList . Prelude.traverse f . Set.toList
+
+flatMap :: Ord b => (a -> Set b) -> Set a -> Set b
+flatMap f = Set.unions . fmap f . Set.toList
