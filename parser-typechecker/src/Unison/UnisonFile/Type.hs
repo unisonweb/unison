@@ -16,8 +16,7 @@ import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
 import Unison.WatchKind (WatchKind)
-import Unison.Hash (Hash)
-import qualified Unison.LabeledDependency as LD
+import qualified Unison.Util.Relation3 as Rel3
 
 data UnisonFile v a = UnisonFileId {
   dataDeclarationsId   :: Map v (Reference.Id, DataDeclaration v a),
@@ -43,21 +42,6 @@ data TypecheckedUnisonFile v a =
     watchComponents     :: [(WatchKind, [(v, Term v a, Type v a)])],
     hashTermsId           :: Map v (Reference.Id, Maybe WatchKind, Term v a, Type v a)
   } deriving Show
-
--- Produce a mapping which includes all component hashes and the variables contained
--- within them.
--- This includes all kinds of definitions: types, terms, abilities, constructors
-componentMap :: 
-  TypecheckedUnisonFile v ann 
-  -- Left is a variable for a type
-  -- Right is a variable for a term or constructor
-  -> Map Hash (Set (Either v v))
-componentMap _uf = undefined
-  -- TODO: watch components?
-
--- Produce a mapping which includes all variables their reference.
-referencesMap :: TypecheckedUnisonFile v ann -> Map v LD.LabeledDependency
-referencesMap _uf = undefined
 
 {-# COMPLETE TypecheckedUnisonFile #-}
 pattern TypecheckedUnisonFile ds es tlcs wcs hts <-
