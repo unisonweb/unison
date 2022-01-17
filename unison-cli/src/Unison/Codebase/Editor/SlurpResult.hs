@@ -54,6 +54,7 @@ data SlurpResult v = SlurpResult {
   , duplicates :: SlurpComponent v
   -- Not added to codebase due to the name already existing
   -- in the branch with a different definition.
+  -- I.e. an update is required but we're performing an add.
   , collisions :: SlurpComponent v
   -- Not added to codebase due to the name existing
   -- in the branch with a conflict (two or more definitions).

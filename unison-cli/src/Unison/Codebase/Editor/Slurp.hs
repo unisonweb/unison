@@ -92,6 +92,7 @@ data SlurpPrintout v = SlurpPrintout
 data SlurpErr
   = TermCtorCollision
   | CtorTermCollision
+  | Conflict
   deriving (Eq, Ord, Show)
 
 data DefinitionNotes
@@ -258,9 +259,9 @@ computeVarStatuses depMap varRelation codebaseNames = statuses
                 [r]
                   | LD.typeRef r == ld -> DefOk Duplicate
                   | otherwise -> DefOk Updated
-                -- If there are many existing terms, they must be in conflict, we can update
-                -- to resolve the conflict.
-                _ -> DefOk Updated
+                -- If there are many existing terms, they must be in conflict.
+                -- Currently we treat conflicts as errors rather than resolving them.
+                _ -> DefErr Conflict
             LD.TermReference {} ->
               case Set.toList existingTermsAtName of
                 [] -> DefOk New
@@ -268,9 +269,9 @@ computeVarStatuses depMap varRelation codebaseNames = statuses
                 [r]
                   | LD.referent r == ld -> DefOk Duplicate
                   | otherwise -> DefOk Updated
-                -- If there are many existing terms, they must be in conflict, we can update
-                -- to resolve the conflict.
-                _ -> DefOk Updated
+                -- If there are many existing terms, they must be in conflict.
+                -- Currently we treat conflicts as errors rather than resolving them.
+                _ -> DefErr Conflict
             LD.ConReference {} ->
               case Set.toList existingTermsAtName of
                 [] -> DefOk New
@@ -278,9 +279,9 @@ computeVarStatuses depMap varRelation codebaseNames = statuses
                 [r]
                   | LD.referent r == ld -> DefOk Duplicate
                   | otherwise -> DefOk Updated
-                -- If there are many existing terms, they must be in conflict, we can update
-                -- to resolve the conflict.
-                _ -> DefOk Updated
+                -- If there are many existing terms, they must be in conflict.
+                -- Currently we treat conflicts as errors rather than resolving them.
+                _ -> DefErr Conflict
 
 computeVarDeps ::
   forall v.
@@ -401,7 +402,7 @@ toSlurpResult uf op mvs r =
         OldSlurp.adds = adds,
         OldSlurp.duplicates = duplicates,
         OldSlurp.collisions = if op == AddOp then updates else mempty,
-        OldSlurp.conflicts = mempty,
+        OldSlurp.conflicts = conflicts,
         OldSlurp.updates = if op == UpdateOp then updates else mempty,
         OldSlurp.termExistingConstructorCollisions =
           let SlurpComponent types terms = termCtorColl
@@ -414,26 +415,28 @@ toSlurpResult uf op mvs r =
         OldSlurp.defsWithBlockedDependencies = blocked
       }
   where
-    adds, duplicates, updates, termCtorColl, ctorTermColl, blocked :: SlurpComponent v
-    (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked)) =
+    adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts :: SlurpComponent v
+    (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked, conflicts)) =
       r
         & ifoldMap
           ( \k tvs ->
               let sc = sortVars $ tvs
                in case k of
-                    Add -> (sc, mempty, mempty, mempty, (mempty, mempty))
-                    Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty))
-                    Update -> (mempty, mempty, sc, mempty, (mempty, mempty))
+                    Add -> (sc, mempty, mempty, mempty, (mempty, mempty, mempty))
+                    Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty, mempty))
+                    Update -> (mempty, mempty, sc, mempty, (mempty, mempty, mempty))
                     NeedsUpdate v ->
                       case op of
                         AddOp ->
-                          (mempty, mempty, singletonSC v, mempty, (mempty, sc `SC.difference` singletonSC v))
+                          (mempty, mempty, singletonSC v, mempty, (mempty, sc `SC.difference` singletonSC v, mempty))
                         UpdateOp ->
-                          (sc, mempty, mempty, mempty, (mempty, mempty))
-                    ErrFrom v TermCtorCollision -> (mempty, mempty, mempty, singletonSC v, (mempty, sc `SC.difference` singletonSC v))
-                    ErrFrom v CtorTermCollision -> (mempty, mempty, mempty, mempty, (singletonSC v, sc `SC.difference` singletonSC v))
-                    SelfErr TermCtorCollision -> (mempty, mempty, mempty, sc, (mempty, mempty))
-                    SelfErr CtorTermCollision -> (mempty, mempty, mempty, mempty, (sc, mempty))
+                          (sc, mempty, mempty, mempty, (mempty, mempty, mempty))
+                    ErrFrom v TermCtorCollision -> (mempty, mempty, mempty, singletonSC v, (mempty, sc `SC.difference` singletonSC v, mempty))
+                    ErrFrom v CtorTermCollision -> (mempty, mempty, mempty, mempty, (singletonSC v, sc `SC.difference` singletonSC v, mempty))
+                    ErrFrom v Conflict -> (mempty, mempty, mempty, mempty, (mempty, sc `SC.difference` singletonSC v, singletonSC v))
+                    SelfErr TermCtorCollision -> (mempty, mempty, mempty, sc, (mempty, mempty, mempty))
+                    SelfErr CtorTermCollision -> (mempty, mempty, mempty, mempty, (sc, mempty, mempty))
+                    SelfErr Conflict -> (mempty, mempty, mempty, mempty, (mempty, mempty, sc))
           )
     singletonSC = \case
       Typed v -> SlurpComponent {terms = mempty, types = Set.singleton v}
