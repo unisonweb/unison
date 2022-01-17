@@ -157,7 +157,7 @@ analyzeTypecheckedUnisonFile ::
   (Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) (DefinitionNotes)))
 analyzeTypecheckedUnisonFile uf defsToConsider unalteredCodebaseNames =
   let codebaseNames :: Names
-      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames
+      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider
       varDeps :: Map (TermedOrTyped v) (Set (TermedOrTyped v))
       varDeps = computeVarDeps uf defsToConsider varRelation
       statusMap :: Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
@@ -171,8 +171,9 @@ computeNamesWithDeprecations ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
+  Set v ->
   Names
-computeNamesWithDeprecations uf unalteredCodebaseNames =
+computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider =
   pTraceShow ("Deprecated constructors", deprecatedConstructors)
     . pTraceShow ("constructorNamesInFile", constructorNamesInFile)
     $ codebaseNames
@@ -180,7 +181,6 @@ computeNamesWithDeprecations uf unalteredCodebaseNames =
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
     codebaseNames =
-      -- TODO: make faster
       -- TODO: how does defsToConsider affect deprecations?
       Names.filter (`Set.notMember` deprecatedConstructors) unalteredCodebaseNames
     constructorNamesInFile :: Set Name
@@ -201,6 +201,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames =
             let declNames = Map.keys (UF.dataDeclarationsId' uf)
             let effectNames = Map.keys (UF.effectDeclarationsId' uf)
             typeName <- declNames <> effectNames
+            when (not . null $ defsToConsider) (guard (typeName `Set.member` defsToConsider))
             pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeFromVar typeName)
           existingConstructorsFromEditedTypes = Set.fromList $ do
             -- List Monad
@@ -208,10 +209,11 @@ computeNamesWithDeprecations uf unalteredCodebaseNames =
             (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
             pure name
        in -- Compute any constructors which were deleted
-          pTraceShow ("codebaseNames", unalteredCodebaseNames) $
-            pTraceShow ("allRefIds", oldRefsForEditedTypes) $
-              pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes) $
-                existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
+          pTraceShow ("defsToConsider", defsToConsider) $
+            pTraceShow ("codebaseNames", unalteredCodebaseNames) $
+              pTraceShow ("allRefIds", oldRefsForEditedTypes) $
+                pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes) $
+                  existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
 
 computeVarStatuses ::
   forall v.
@@ -255,7 +257,7 @@ computeVarStatuses depMap varRelation codebaseNames =
     definitionStatus tv =
       let ld = case Set.toList (Rel.lookupDom tv varRelation) of
             [r] -> r
-            _ -> error $ "Expected exactly one LabeledDependency in relation for var: " <> show tv
+            actual -> error $ "Expected exactly one LabeledDependency in relation for var: " <> show tv <> " but got: " <> show actual
           v = TT.unTermedOrTyped tv
           existingTypesAtName = Names.typesNamed codebaseNames (Name.unsafeFromVar v)
           existingTermsAtName = Names.termsNamed codebaseNames (Name.unsafeFromVar v)
@@ -333,8 +335,10 @@ computeVarDeps uf defsToConsider varRelation =
 
 -- TODO: Does this need to contain constructors? Maybe.
 -- Does not include constructors
-labelling :: forall v a. Ord v => UF.TypecheckedUnisonFile v a -> Rel.Relation (TermedOrTyped v) LD.LabeledDependency
-labelling uf = decls <> effects <> terms
+labelling :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Rel.Relation (TermedOrTyped v) LD.LabeledDependency
+labelling uf =
+  let result = decls <> effects <> terms
+   in pTraceShow ("varRelation", result) $ result
   where
     terms :: Rel.Relation (TermedOrTyped v) LD.LabeledDependency
     terms =
@@ -472,5 +476,5 @@ sortVars =
 
 mingleVars :: Ord v => SlurpComponent v -> Set (TermedOrTyped v)
 mingleVars SlurpComponent {terms, types} =
-  Set.map Termed types
-    <> Set.map Typed terms
+  Set.map Typed types
+    <> Set.map Termed terms
