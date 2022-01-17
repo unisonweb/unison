@@ -1862,12 +1862,12 @@ handleUpdate input maybePatchPath names = do
                            toList (Names.typesNamed fileNames n)
                          ) of
                 ([old], [new]) -> (n, (old, new))
-                _ ->
+                actual ->
                   error $
-                    "Expected unique matches for "
+                    "Expected unique matches for var \""
                       ++ Var.nameStr v
-                      ++ " but got: "
-                      ++ show otherwise
+                      ++ "\" but got: "
+                      ++ show actual
                 where
                   n = Name.unsafeFromVar v
           hashTerms :: Map Reference (Type v Ann)
@@ -1881,12 +1881,12 @@ handleUpdate input maybePatchPath names = do
                            toList (Names.refTermsNamed fileNames n)
                          ) of
                 ([old], [new]) -> (n, (old, new))
-                _ ->
+                actual ->
                   error $
                     "Expected unique matches for "
                       ++ Var.nameStr v
                       ++ " but got: "
-                      ++ show otherwise
+                      ++ show actual
                 where
                   n = Name.unsafeFromVar v
           termDeprecations :: [(Name, Referent)]
