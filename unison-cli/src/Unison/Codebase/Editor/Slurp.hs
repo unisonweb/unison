@@ -1,6 +1,6 @@
 module Unison.Codebase.Editor.Slurp
   ( SlurpOp (..),
-    Result,
+    VarsByStatus,
     BlockStatus (..),
     anyErrors,
     results,
@@ -22,8 +22,10 @@ import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
+import qualified Unison.Codebase.Editor.SlurpResult as SR
 import Unison.Codebase.Editor.TermsAndTypes (TermedOrTyped (Termed, Typed))
 import qualified Unison.Codebase.Editor.TermsAndTypes as TT
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -32,24 +34,16 @@ import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
 import qualified Unison.UnisonFile as UF
+import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
+import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
-
--- Determine which components we're considering, i.e. find the components of all provided
--- vars, then include any components they depend on.
---
--- Then, compute any deprecations and build the env
--- Then, consider all vars in each component and get status (collision, add, or update)
--- Collect and collapse the statuses of each component.
---   I.e., if any definition has an error, the whole component is an error
---         if any piece needs an update
---
---
---  Does depending on a type also mean depending on all its constructors
 
 data SlurpOp = AddOp | UpdateOp
   deriving (Eq, Show)
@@ -99,26 +93,12 @@ data DefinitionNotes
   | DefErr SlurpErr
   deriving (Show)
 
-type SlurpResult v = Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
+type SlurpAnalysis v = Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
 
-type Result v = Map (BlockStatus v) (Set (TermedOrTyped v))
-
--- data Result v = Result
---   { addable :: SlurpComponent v,
---     needUpdate :: SlurpComponent v,
---     duplicate :: SlurpComponent v,
---     blockedTerms :: Map (SlurpErr v) (Set v)
---   }
-
--- instance Semigroup (Result v) where
---   Result adds1 updates1 duplicates1 tcColl1 ctColl1 <> Result adds2 updates2 duplicates2 tcColl2 ctColl2 =
---     Result (adds1 <> adds2) (updates1 <> updates2) (duplicates1 <> duplicates2) (tcColl1 <> tcColl2) (ctColl1 <> ctColl2)
-
--- instance Monoid (Result v) where
---   mempty = Result mempty mempty mempty mempty mempty
+type VarsByStatus v = Map (BlockStatus v) (Set (TermedOrTyped v))
 
 -- Compute all definitions which can be added, or the reasons why a def can't be added.
-results :: forall v. (Ord v, Show v) => SlurpResult v -> Result v
+results :: forall v. (Ord v, Show v) => SlurpAnalysis v -> VarsByStatus v
 results sr =
   pTraceShowId $ analyzed
   where
@@ -153,9 +133,11 @@ analyzeTypecheckedUnisonFile ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Set v ->
+  Maybe SlurpOp ->
   Names ->
-  (Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) (DefinitionNotes)))
-analyzeTypecheckedUnisonFile uf defsToConsider unalteredCodebaseNames =
+  Path.Absolute ->
+  SR.SlurpResult v
+analyzeTypecheckedUnisonFile uf defsToConsider slurpOp unalteredCodebaseNames currentPath =
   let varRelation :: Rel.Relation (TermedOrTyped v) LD.LabeledDependency
       varRelation = labelling uf
       involvedVars :: Set (TermedOrTyped v)
@@ -164,9 +146,15 @@ analyzeTypecheckedUnisonFile uf defsToConsider unalteredCodebaseNames =
       codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars
       varDeps :: Map (TermedOrTyped v) (Set (TermedOrTyped v))
       varDeps = computeVarDeps uf involvedVars
-      statusMap :: Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
-      statusMap = computeVarStatuses varDeps varRelation codebaseNames
-   in pTraceShowId statusMap
+      analysis :: SlurpAnalysis v
+      analysis = computeVarStatuses varDeps varRelation codebaseNames
+      varsByStatus :: VarsByStatus v
+      varsByStatus = results analysis
+      slurpResult :: SR.SlurpResult v
+      slurpResult =
+        toSlurpResult uf (fromMaybe UpdateOp slurpOp) defsToConsider varsByStatus
+          & addAliases codebaseNames currentPath
+   in pTraceShowId slurpResult
 
 computeNamesWithDeprecations ::
   Var v =>
@@ -395,21 +383,20 @@ toSlurpResult ::
   (Ord v, Show v) =>
   UF.TypecheckedUnisonFile v Ann ->
   SlurpOp ->
-  Maybe (Set v) ->
-  Result v ->
+  Set v ->
+  VarsByStatus v ->
   OldSlurp.SlurpResult v
-toSlurpResult uf op mvs r =
+toSlurpResult uf op requestedVars varsByStatus =
   pTraceShowId $
-    -- TODO: Do a proper partition to speed this up.
     OldSlurp.SlurpResult
       { OldSlurp.originalFile = uf,
         OldSlurp.extraDefinitions =
-          case mvs of
-            Nothing -> mempty
-            Just vs ->
-              let allVars = fold r
+          if Set.null requestedVars
+            then mempty
+            else
+              let allVars = fold varsByStatus
                   desired =
-                    vs
+                    requestedVars
                       & Set.flatMap (\v -> Set.fromList [Typed v, Termed v])
                in sortVars $ Set.difference allVars desired,
         OldSlurp.adds = adds,
@@ -430,7 +417,7 @@ toSlurpResult uf op mvs r =
   where
     adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts :: SlurpComponent v
     (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked, conflicts)) =
-      r
+      varsByStatus
         & ifoldMap
           ( \k tvs ->
               let sc = sortVars $ tvs
@@ -455,7 +442,7 @@ toSlurpResult uf op mvs r =
       Typed v -> SlurpComponent {terms = mempty, types = Set.singleton v}
       Termed v -> SlurpComponent {terms = Set.singleton v, types = mempty}
 
-anyErrors :: Result v -> Bool
+anyErrors :: VarsByStatus v -> Bool
 anyErrors r =
   any isError . Map.keys $ Map.filter (not . null) r
   where
@@ -481,3 +468,49 @@ mingleVars :: Ord v => SlurpComponent v -> Set (TermedOrTyped v)
 mingleVars SlurpComponent {terms, types} =
   Set.map Typed types
     <> Set.map Termed terms
+
+addAliases :: forall v. (Ord v, Var v) => Names -> Path.Absolute -> SR.SlurpResult v -> SR.SlurpResult v
+addAliases existingNames curPath sr = sr {SR.termAlias = termAliases, SR.typeAlias = typeAliases}
+  where
+    fileNames = UF.typecheckedToNames $ SR.originalFile sr
+    buildAliases ::
+      Rel.Relation Name Referent ->
+      Rel.Relation Name Referent ->
+      Set v ->
+      Map v SR.Aliases
+    buildAliases existingNames namesFromFile dups =
+      Map.fromList
+        [ ( var n,
+            if null aliasesOfOld
+              then SR.AddAliases aliasesOfNew
+              else SR.UpdateAliases aliasesOfOld aliasesOfNew
+          )
+          | (n, r@Referent.Ref {}) <- Rel.toList namesFromFile,
+            -- All the refs whose names include `n`, and are not `r`
+            let refs = Set.delete r $ Rel.lookupDom n existingNames
+                aliasesOfNew =
+                  Set.map (Path.unprefixName curPath) . Set.delete n $
+                    Rel.lookupRan r existingNames
+                aliasesOfOld =
+                  Set.map (Path.unprefixName curPath) . Set.delete n . Rel.dom $
+                    Rel.restrictRan existingNames refs,
+            not (null aliasesOfNew && null aliasesOfOld),
+            Set.notMember (var n) dups
+        ]
+
+    termAliases :: Map v SR.Aliases
+    termAliases =
+      buildAliases
+        (Names.terms existingNames)
+        (Names.terms fileNames)
+        (SC.terms (SR.duplicates sr))
+
+    typeAliases :: Map v SR.Aliases
+    typeAliases =
+      buildAliases
+        (Rel.mapRan Referent.Ref $ Names.types existingNames)
+        (Rel.mapRan Referent.Ref $ Names.types fileNames)
+        (SC.types (SR.duplicates sr))
+
+var :: Var v => Name -> v
+var name = Var.named (Name.toText name)

@@ -152,6 +152,7 @@ import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Slurp as NewSlurp
+import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -261,16 +262,11 @@ loop = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           currentNames <- currentPathNames
-          let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile unisonFile
-                          mempty
-                          $ currentNames
-          let oldSlurpResult = NewSlurp.toSlurpResult unisonFile NewSlurp.UpdateOp Nothing sr
-                             & addAliases currentNames unisonFile currentPath'
-          -- sr <- toSlurpResult currentPath' unisonFile <$> slurpResultNames
+          let sr = NewSlurp.analyzeTypecheckedUnisonFile unisonFile mempty Nothing currentNames currentPath'
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
-          respond $ Typechecked sourceName ppe oldSlurpResult unisonFile
+          respond $ Typechecked sourceName ppe sr unisonFile
           unlessError' EvaluationFailure do
             (bindings, e) <- ExceptT . eval . Evaluate ppe $ unisonFile
             lift do
@@ -1263,46 +1259,28 @@ loop = do
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   currentNames <- currentPathNames
-                  let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                          vars
-                          $ currentNames
-                  -- sr <-
-                  --   Slurp.disallowUpdates
-                  --     . applySelection hqs uf
-                  --     . toSlurpResult currentPath' uf
-                  --     <$> slurpResultNames
-                  let adds = NewSlurp.sortVars . fromMaybe mempty . Map.lookup NewSlurp.Add $ sr
+                  let sr = NewSlurp.analyzeTypecheckedUnisonFile uf vars (Just NewSlurp.AddOp) currentNames currentPath'
+                  let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . NewSlurp.selectDefinitions adds $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
-                  let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.AddOp (Just vars) sr
-                                      & addAliases currentNames uf currentPath'
-                  respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) oldSlurpResult
-                  -- respond $ NewSlurpOutput input (PPE.suffixifiedPPE ppe) NewSlurp.AddOp sr
+                  respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot
             PreviewAddI names -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                vars
-                                $ currentNames
-                let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
-                                   & addAliases currentNames uf currentPath'
-                previewResponse sourceName oldSlurpResult uf
+                let sr = NewSlurp.analyzeTypecheckedUnisonFile uf vars (Just NewSlurp.AddOp) currentNames currentPath'
+                previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             UpdateI maybePatchPath names -> handleUpdate input maybePatchPath names
             PreviewUpdateI names -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                vars
-                                $ currentNames
-                let oldSlurpResult = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) sr
-                                   & addAliases currentNames uf currentPath'
-                previewResponse sourceName oldSlurpResult uf
+                let sr = NewSlurp.analyzeTypecheckedUnisonFile uf vars (Just NewSlurp.UpdateOp) currentNames currentPath'
+                previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
               patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -1840,16 +1818,7 @@ handleUpdate input maybePatchPath names = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let newSR = NewSlurp.results . NewSlurp.analyzeTypecheckedUnisonFile uf
-                                vars
-                                $ slurpCheckNames
-      let sr = NewSlurp.toSlurpResult uf NewSlurp.UpdateOp (Just vars) newSR
-                & addAliases slurpCheckNames uf currentPath'
-      -- let sr :: SlurpResult v
-      --     sr =
-      --       applySelection hqs uf
-      --         . toSlurpResult currentPath' uf
-      --         $ slurpCheckNames
+      let sr = NewSlurp.analyzeTypecheckedUnisonFile uf vars (Just NewSlurp.UpdateOp) slurpCheckNames currentPath'
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
@@ -2769,205 +2738,6 @@ getEndangeredDependents getDependents namesToDelete rootNames = do
         let remainingEndangered = endangeredDeps `Set.intersection` remainingRefs
          in NESet.nonEmptySet remainingEndangered
   pure extinctToEndangered
-
--- Applies the selection filter to the adds/updates of a slurp result,
--- meaning that adds/updates should only contain the selection or its transitive
--- dependencies, any unselected transitive dependencies of the selection will
--- be added to `extraDefinitions`.
-_applySelection ::
-  forall v a.
-  Var v =>
-  [HQ'.HashQualified Name] ->
-  UF.TypecheckedUnisonFile v a ->
-  SlurpResult v ->
-  SlurpResult v
-_applySelection [] _ = id
-_applySelection hqs file = \sr@SlurpResult {adds, updates} ->
-  sr
-    { adds = adds `SC.intersection` closed,
-      updates = updates `SC.intersection` closed,
-      extraDefinitions = closed `SC.difference` selection
-    }
-  where
-    selectedNames =
-      Names.filterByHQs (Set.fromList hqs) (UF.typecheckedToNames file)
-    selection, closed :: SlurpComponent v
-    selection = SlurpComponent selectedTypes selectedTerms
-    closed = SC.closeWithDependencies file selection
-    selectedTypes, selectedTerms :: Set v
-    selectedTypes = Set.map var $ R.dom (Names.types selectedNames)
-    selectedTerms = Set.map var $ R.dom (Names.terms selectedNames)
-
-var :: Var v => Name -> v
-var name = Var.named (Name.toText name)
-
--- _toSlurpResult ::
---   forall v.
---   Var v =>
---   Path.Absolute ->
---   UF.TypecheckedUnisonFile v Ann ->
---   Names ->
---   SlurpResult v
--- _toSlurpResult curPath uf existingNames =
---   Slurp.subtractComponent (conflicts <> ctorCollisions) $
---     SlurpResult
---       uf
---       mempty
---       adds
---       dups
---       mempty
---       conflicts
---       updates
---       termCtorCollisions
---       ctorTermCollisions
---       termAliases
---       typeAliases
---       mempty
---   where
---     fileNames = UF.typecheckedToNames uf
-
---     sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
---     sc terms types =
---       SlurpComponent
---         { terms = Set.map var (R.dom terms),
---           types = Set.map var (R.dom types)
---         }
-
---     -- conflict (n,r) if n is conflicted in names0
---     conflicts :: SlurpComponent v
---     conflicts = sc terms types
---       where
---         terms =
---           R.filterDom
---             (conflicted . Names.termsNamed existingNames)
---             (Names.terms fileNames)
---         types =
---           R.filterDom
---             (conflicted . Names.typesNamed existingNames)
---             (Names.types fileNames)
---         conflicted s = Set.size s > 1
-
---     ctorCollisions :: SlurpComponent v
---     ctorCollisions =
---       mempty {SC.terms = termCtorCollisions <> ctorTermCollisions}
-
---     -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and
---     -- r is Ref and r' is Con
---     termCtorCollisions :: Set v
---     termCtorCollisions =
---       Set.fromList
---         [ var n
---           | (n, Referent.Ref {}) <- R.toList (Names.terms fileNames),
---             [r@Referent.Con {}] <- [toList $ Names.termsNamed existingNames n],
---             -- ignore collisions w/ ctors of types being updated
---             Set.notMember (Referent.toReference r) typesToUpdate
---         ]
-
---     -- the set of typerefs that are being updated by this file
---     typesToUpdate :: Set Reference
---     typesToUpdate =
---       Set.fromList
---         [ r
---           | (n, r') <- R.toList (Names.types fileNames),
---             r <- toList (Names.typesNamed existingNames n),
---             r /= r'
---         ]
-
---     -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con
---     -- and r' is Ref except we relaxed it to where r' can be Con or Ref
---     -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
---     ctorTermCollisions :: Set v
---     ctorTermCollisions =
---       Set.fromList
---         [ var n
---           | (n, Referent.Con {}) <- R.toList (Names.terms fileNames),
---             r <- toList $ Names.termsNamed existingNames n,
---             -- ignore collisions w/ ctors of types being updated
---             Set.notMember (Referent.toReference r) typesToUpdate,
---             Set.notMember (var n) (terms dups)
---         ]
-
---     -- duplicate (n,r) if (n,r) exists in names0
---     dups :: SlurpComponent v
---     dups = sc terms types
---       where
---         terms = R.intersection (Names.terms existingNames) (Names.terms fileNames)
---         types = R.intersection (Names.types existingNames) (Names.types fileNames)
-
---     -- update (n,r) if (n,r' /= r) exists in existingNames and r, r' are Ref
---     updates :: SlurpComponent v
---     updates = SlurpComponent (Set.fromList types) (Set.fromList terms)
---       where
---         terms =
---           [ var n
---             | (n, r'@Referent.Ref {}) <- R.toList (Names.terms fileNames),
---               [r@Referent.Ref {}] <- [toList $ Names.termsNamed existingNames n],
---               r' /= r
---           ]
---         types =
---           [ var n
---             | (n, r') <- R.toList (Names.types fileNames),
---               [r] <- [toList $ Names.typesNamed existingNames n],
---               r' /= r
---           ]
-
-
---     -- (n,r) is in `adds` if n isn't in existingNames
---     adds = sc terms types
---       where
---         terms = addTerms (Names.terms existingNames) (Names.terms fileNames)
---         types = addTypes (Names.types existingNames) (Names.types fileNames)
---         addTerms existingNames = R.filter go
---           where
---             go (n, Referent.Ref {}) = (not . R.memberDom n) existingNames
---             go _ = False
---         addTypes existingNames = R.filter go
---           where
---             go (n, _) = (not . R.memberDom n) existingNames
-
-
-addAliases :: forall v a. (Ord v, Var v) => Names -> UF.TypecheckedUnisonFile v a -> Path.Absolute -> SlurpResult v -> SlurpResult v
-addAliases existingNames uf curPath sr = sr{ termAlias=termAliases, typeAlias=typeAliases }
-  where
-    fileNames = UF.typecheckedToNames uf
-    buildAliases ::
-      R.Relation Name Referent ->
-      R.Relation Name Referent ->
-      Set v ->
-      Map v Slurp.Aliases
-    buildAliases existingNames namesFromFile dups =
-          Map.fromList
-            [ ( var n,
-                if null aliasesOfOld
-                  then Slurp.AddAliases aliasesOfNew
-                  else Slurp.UpdateAliases aliasesOfOld aliasesOfNew
-              )
-              | (n, r@Referent.Ref {}) <- R.toList namesFromFile,
-                -- All the refs whose names include `n`, and are not `r`
-                let refs = Set.delete r $ R.lookupDom n existingNames
-                    aliasesOfNew =
-                      Set.map (Path.unprefixName curPath) . Set.delete n $
-                        R.lookupRan r existingNames
-                    aliasesOfOld =
-                      Set.map (Path.unprefixName curPath) . Set.delete n . R.dom $
-                        R.restrictRan existingNames refs,
-                not (null aliasesOfNew && null aliasesOfOld),
-                Set.notMember (var n) dups
-            ]
-
-    termAliases :: Map v Slurp.Aliases
-    termAliases =
-      buildAliases
-        (Names.terms existingNames)
-        (Names.terms fileNames)
-        (SC.terms (duplicates sr))
-
-    typeAliases :: Map v Slurp.Aliases
-    typeAliases =
-      buildAliases
-        (R.mapRan Referent.Ref $ Names.types existingNames)
-        (R.mapRan Referent.Ref $ Names.types fileNames)
-        (SC.types (duplicates sr))
 
 displayI ::
   Monad m =>

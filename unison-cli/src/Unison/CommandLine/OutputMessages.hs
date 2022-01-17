@@ -750,12 +750,6 @@ notifyUser dir o = case o of
           Input.UpdateI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
-  NewSlurpOutput input ppe slurpOp result ->
-    let isPast = case input of
-          Input.AddI {} -> True
-          Input.UpdateI {} -> True
-          _ -> False
-     in pure $ undefined isPast ppe slurpOp result
   NoExactTypeMatches ->
     pure . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError src e ->
