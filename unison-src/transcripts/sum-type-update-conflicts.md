@@ -28,9 +28,9 @@ X.x = "some text that's not in the codebase"
 dependsOnX = Text.size X.x
 ```
 
-The 'update' will succeed up until it tries to resolve the reference to `X.x`
-within `depondsOnX`, but `X.x` is actually not in the codebase!
+This update should succeed since the conflicted constructor
+is removed in the same update that the new term is being added.
 
-```ucm:error
+```ucm
 .ns> update
 ```
