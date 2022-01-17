@@ -18,7 +18,7 @@ import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
 import qualified Data.Semigroup.Foldable as Semigroup
 import qualified Data.Set as Set
-import Debug.Pretty.Simple (pTrace, pTraceShowId)
+import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
@@ -32,7 +32,6 @@ import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Reference as Ref
 import qualified Unison.Referent' as Referent
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
@@ -173,7 +172,10 @@ computeNamesWithDeprecations ::
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   Names
-computeNamesWithDeprecations uf unalteredCodebaseNames = codebaseNames
+computeNamesWithDeprecations uf unalteredCodebaseNames =
+  pTraceShow ("Deprecated constructors", deprecatedConstructors)
+    . pTraceShow ("constructorNamesInFile", constructorNamesInFile)
+    $ codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -195,17 +197,21 @@ computeNamesWithDeprecations uf unalteredCodebaseNames = codebaseNames
 
     deprecatedConstructors :: Set Name
     deprecatedConstructors =
-      pTraceShowId . pTrace "Deprecated Constructors" $
-        let allRefIds =
-              fmap fst (Map.elems (UF.dataDeclarationsId' uf))
-                <> fmap fst (Map.elems (UF.effectDeclarationsId' uf))
-            existingConstructorsFromEditedTypes = Set.fromList $ do
-              -- List Monad
-              refId <- allRefIds
-              (name, _ref) <- Names.constructorsForType (Ref.DerivedId refId) unalteredCodebaseNames
-              pure name
-         in -- Compute any constructors which were deleted
-            existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
+      let oldRefsForEditedTypes = Set.unions $ do
+            let declNames = Map.keys (UF.dataDeclarationsId' uf)
+            let effectNames = Map.keys (UF.effectDeclarationsId' uf)
+            typeName <- declNames <> effectNames
+            pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeFromVar typeName)
+          existingConstructorsFromEditedTypes = Set.fromList $ do
+            -- List Monad
+            ref <- Set.toList oldRefsForEditedTypes
+            (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
+            pure name
+       in -- Compute any constructors which were deleted
+          pTraceShow ("codebaseNames", unalteredCodebaseNames) $
+            pTraceShow ("allRefIds", oldRefsForEditedTypes) $
+              pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes) $
+                existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
 
 computeVarStatuses ::
   forall v.
@@ -217,33 +223,34 @@ computeVarStatuses ::
       (TermedOrTyped v)
       (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
   )
-computeVarStatuses depMap varRelation codebaseNames = statuses
+computeVarStatuses depMap varRelation codebaseNames =
+  pTraceShow ("Statuses", statuses) $
+    statuses
   where
     statuses :: Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) (DefinitionNotes))
     statuses =
-      pTraceShowId . pTrace "Statuses" $
-        let withNotes =
-              depMap
-                & Map.mapWithKey
-                  ( \tv deps ->
-                      (definitionStatus tv, deps)
-                  )
-            withTransitiveNotes ::
-              ( Map
-                  (TermedOrTyped v)
-                  ( DefinitionNotes,
-                    (Map (TermedOrTyped v) DefinitionNotes)
-                  )
-              )
-            withTransitiveNotes =
-              withNotes
-                & (fmap . fmap)
-                  ( \deps -> Map.fromList $ do
-                      tv <- Set.toList deps
-                      (notes, _) <- maybeToList (Map.lookup tv withNotes)
-                      pure (tv, notes)
-                  )
-         in withTransitiveNotes
+      let withNotes =
+            depMap
+              & Map.mapWithKey
+                ( \tv deps ->
+                    (definitionStatus tv, deps)
+                )
+          withTransitiveNotes ::
+            ( Map
+                (TermedOrTyped v)
+                ( DefinitionNotes,
+                  (Map (TermedOrTyped v) DefinitionNotes)
+                )
+            )
+          withTransitiveNotes =
+            withNotes
+              & (fmap . fmap)
+                ( \deps -> Map.fromList $ do
+                    tv <- Set.toList deps
+                    (notes, _) <- maybeToList (Map.lookup tv withNotes)
+                    pure (tv, notes)
+                )
+       in withTransitiveNotes
     definitionStatus :: TermedOrTyped v -> DefinitionNotes
     definitionStatus tv =
       let ld = case Set.toList (Rel.lookupDom tv varRelation) of
@@ -291,34 +298,33 @@ computeVarDeps ::
   Rel.Relation (TermedOrTyped v) LD.LabeledDependency ->
   Map (TermedOrTyped v) (Set (TermedOrTyped v))
 computeVarDeps uf defsToConsider varRelation =
-  pTraceShowId $
-    let allFileVars :: Set (TermedOrTyped v)
-        allFileVars = Rel.dom varRelation
+  let allFileVars :: Set (TermedOrTyped v)
+      allFileVars = Rel.dom varRelation
 
-        allInvolvedVars :: Set (TermedOrTyped v)
-        allInvolvedVars =
-          pTraceShowId . pTrace "All involved vars" $
-            if Set.null defsToConsider
-              then allFileVars
-              else
-                let existingVars :: Set (TermedOrTyped v) = Set.fromList $ do
-                      v <- Set.toList defsToConsider
-                      -- We don't know whether each var is a type or term, so we try both.
-                      tv <- [Typed v, Termed v]
-                      guard (Rel.memberDom tv varRelation)
-                      pure tv
-                 in varClosure existingVars
+      allInvolvedVars :: Set (TermedOrTyped v)
+      allInvolvedVars =
+        if Set.null defsToConsider
+          then allFileVars
+          else
+            let existingVars :: Set (TermedOrTyped v) = Set.fromList $ do
+                  v <- Set.toList defsToConsider
+                  -- We don't know whether each var is a type or term, so we try both.
+                  tv <- [Typed v, Termed v]
+                  guard (Rel.memberDom tv varRelation)
+                  pure tv
+             in varClosure existingVars
 
-        depMap :: (Map (TermedOrTyped v) (Set (TermedOrTyped v)))
-        depMap =
-          pTraceShowId . pTrace "Dep Map" $
-            allInvolvedVars
-              & Set.toList
-              & fmap
-                ( \tv -> (tv, Set.delete tv $ varClosure (Set.singleton tv))
-                )
-              & Map.fromListWith (<>)
-     in depMap
+      depMap :: (Map (TermedOrTyped v) (Set (TermedOrTyped v)))
+      depMap =
+        allInvolvedVars
+          & Set.toList
+          & fmap
+            ( \tv -> (tv, Set.delete tv $ varClosure (Set.singleton tv))
+            )
+          & Map.fromListWith (<>)
+   in pTraceShow ("all involved variables", allInvolvedVars)
+        . pTraceShow ("depmap", depMap)
+        $ depMap
   where
     -- Compute the closure of all vars which the provided vars depend on.
     varClosure :: Set (TermedOrTyped v) -> Set (TermedOrTyped v)
