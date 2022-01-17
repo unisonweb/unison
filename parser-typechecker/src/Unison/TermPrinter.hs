@@ -277,18 +277,6 @@ pretty0
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
                    in uses $ [pretty0 n (ac 0 Block im' doc) tm]
-    And' x y ->
-      paren (p >= 10) $ PP.spaced [
-        pretty0 n (ac 10 Normal im doc) x,
-        fmt S.ControlKeyword "&&",
-        pretty0 n (ac 10 Normal im doc) y
-      ]
-    Or' x y ->
-      paren (p >= 10) $ PP.spaced [
-        pretty0 n (ac 10 Normal im doc) x,
-        fmt S.ControlKeyword "||",
-        pretty0 n (ac 10 Normal im doc) y
-      ]
     LetBlock bs e ->
       let (im', uses) = calcImports im term
       in printLet elideUnit bc bs e im' uses
@@ -356,6 +344,13 @@ pretty0
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im doc) lastArg)
+    -- Note that && and || are at the same precedence, which can cause
+    -- confusion, so for clarity we do not want to elide the parentheses in a
+    -- case like `(x || y) && z`.
+    (Ands' xs lastArg, _) -> paren (p >= 10) $
+      booleanOps (fmt S.ControlKeyword "&&") xs (pretty0 n (ac 10 Normal im doc) lastArg)
+    (Ors' xs lastArg, _) -> paren (p >= 10) $
+      booleanOps (fmt S.ControlKeyword "||") xs (pretty0 n (ac 10 Normal im doc) lastArg)
     _ -> case (term, nonForcePred) of
       AppsPred' f args ->
         paren (p >= 10) $ pretty0 n (ac 10 Normal im doc) f `PP.hang`
@@ -438,6 +433,30 @@ pretty0
     r a f =
       [ pretty0 n (ac (if isBlock a then 12 else 3) Normal im doc) a
       , pretty0 n (AmbientContext 10 Normal Infix im doc False) f
+      ]
+
+  -- Render sequence of infix &&s or ||s, like [x2, x1],
+  -- meaning (x1 && x2) && (x3 rendered by the caller), producing
+  -- "x1 && x2 &&". The result is built from the right.
+  booleanOps
+    :: Var v
+    => Pretty SyntaxText
+    -> [Term3 v PrintAnnotation]
+    -> Pretty SyntaxText
+    -> Pretty SyntaxText
+  booleanOps op xs last = unbroken `PP.orElse` broken
+   where
+    unbroken = PP.spaced (ps ++ [last])
+    broken   = PP.hang (head ps) . PP.column2 . psCols $ (tail ps ++ [last])
+    psCols ps = case take 2 ps of
+      [x, y] -> (x, y) : psCols (drop 2 ps)
+      [x]    -> [(x, "")]
+      []     -> []
+      _      -> undefined
+    ps = r =<< reverse xs
+    r a =
+      [ pretty0 n (ac (if isBlock a then 12 else 10) Normal im doc) a
+      , op
       ]
 
 prettyPattern

@@ -428,6 +428,8 @@ pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
 -- begin pretty-printer helper patterns
+pattern Ands' ands lastArg <- (unAnds -> Just (ands, lastArg))
+pattern Ors' ors lastArg <- (unOrs -> Just (ors, lastArg))
 pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
@@ -760,6 +762,30 @@ unLetRec (unLetRecNamed -> Just (isTop, bs, e)) = Just
     pure (vs `zip` [ sub b | (_, b) <- bs ], sub e)
   )
 unLetRec _ = Nothing
+
+unAnds
+  :: Term2 vt at ap v a
+  -> Maybe
+       ( [Term2 vt at ap v a]
+       , Term2 vt at ap v a
+       )
+unAnds t = case t of
+  And' i o -> case unAnds i of
+    Just (as, xLast) -> Just (xLast:as, o)
+    Nothing -> Just ([i], o)
+  _ -> Nothing
+
+unOrs
+  :: Term2 vt at ap v a
+  -> Maybe
+       ( [Term2 vt at ap v a]
+       , Term2 vt at ap v a
+       )
+unOrs t = case t of
+  Or' i o -> case unOrs i of
+    Just (as, xLast) -> Just (xLast:as, o)
+    Nothing -> Just ([i], o)
+  _ -> Nothing
 
 unApps
   :: Term2 vt at ap v a
