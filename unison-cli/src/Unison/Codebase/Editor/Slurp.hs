@@ -427,9 +427,10 @@ toSlurpResult uf op requestedVars varsByStatus =
                     SelfErr CtorTermCollision -> (mempty, mempty, mempty, mempty, (sc, mempty, mempty))
                     SelfErr Conflict -> (mempty, mempty, mempty, mempty, (mempty, mempty, sc))
           )
+    singletonSC :: TermOrTypeVar v -> SlurpComponent v
     singletonSC = \case
-      TypeVar v -> SlurpComponent {terms = mempty, types = Set.singleton v}
-      TermVar v -> SlurpComponent {terms = Set.singleton v, types = mempty}
+      TypeVar v -> SC.fromTypes (Set.singleton v)
+      TermVar v -> SC.fromTerms (Set.singleton v)
 
 -- | Sort out a set of variables by whether it is a term or type.
 partitionVars :: (Foldable f, Ord v) => f (TermOrTypeVar v) -> SlurpComponent v
@@ -459,7 +460,7 @@ addAliases existingNames sr = sr {SR.termAlias = termAliases, SR.typeAlias = typ
       Map v SR.Aliases
     buildAliases existingNames namesFromFile dups =
       Map.fromList
-        [ ( var n,
+        [ ( varFromName n,
             if null aliasesOfOld
               then SR.AddAliases aliasesOfNew
               else SR.UpdateAliases aliasesOfOld aliasesOfNew
@@ -474,7 +475,7 @@ addAliases existingNames sr = sr {SR.termAlias = termAliases, SR.typeAlias = typ
                   Set.delete n . Rel.dom $
                     Rel.restrictRan existingNames refs,
             not (null aliasesOfNew && null aliasesOfOld),
-            Set.notMember (var n) dups
+            Set.notMember (varFromName n) dups
         ]
 
     termAliases :: Map v SR.Aliases
@@ -491,5 +492,5 @@ addAliases existingNames sr = sr {SR.termAlias = termAliases, SR.typeAlias = typ
         (Rel.mapRan Referent.Ref $ Names.types fileNames)
         (SC.types (SR.duplicates sr))
 
-var :: Var v => Name -> v
-var name = Var.named (Name.toText name)
+    varFromName :: Var v => Name -> v
+    varFromName name = Var.named (Name.toText name)
