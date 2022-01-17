@@ -156,42 +156,41 @@ analyzeTypecheckedUnisonFile ::
   Names ->
   (Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) (DefinitionNotes)))
 analyzeTypecheckedUnisonFile uf defsToConsider unalteredCodebaseNames =
-  let codebaseNames :: Names
-      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider
+  let varRelation :: Rel.Relation (TermedOrTyped v) LD.LabeledDependency
+      varRelation = labelling uf
+      involvedVars :: Set (TermedOrTyped v)
+      involvedVars = computeInvolvedVars uf defsToConsider varRelation
+      codebaseNames :: Names
+      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars
       varDeps :: Map (TermedOrTyped v) (Set (TermedOrTyped v))
-      varDeps = computeVarDeps uf defsToConsider varRelation
+      varDeps = computeVarDeps uf involvedVars
       statusMap :: Map (TermedOrTyped v) (DefinitionNotes, Map (TermedOrTyped v) DefinitionNotes)
       statusMap = computeVarStatuses varDeps varRelation codebaseNames
    in pTraceShowId statusMap
-  where
-    varRelation :: Rel.Relation (TermedOrTyped v) LD.LabeledDependency
-    varRelation = labelling uf
 
 computeNamesWithDeprecations ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
-  Set v ->
+  Set (TermedOrTyped v) ->
   Names
-computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider =
+computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars =
   pTraceShow ("Deprecated constructors", deprecatedConstructors)
-    . pTraceShow ("constructorNamesInFile", constructorNamesInFile)
+    . pTraceShow ("constructorNamesInFile", constructorsUnderConsideration)
     $ codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
     codebaseNames =
-      -- TODO: how does defsToConsider affect deprecations?
       Names.filter (`Set.notMember` deprecatedConstructors) unalteredCodebaseNames
-    constructorNamesInFile :: Set Name
-    constructorNamesInFile =
-      Map.elems (UF.dataDeclarationsId' uf)
-        <> (fmap . fmap) DD.toDataDecl (Map.elems (UF.effectDeclarationsId' uf))
-          & fmap snd
-          & concatMap
-            ( \decl ->
-                DD.constructors' decl <&> \(_ann, v, _typ) ->
-                  Name.unsafeFromVar v
+    constructorsUnderConsideration :: Set Name
+    constructorsUnderConsideration =
+      Map.toList (UF.dataDeclarationsId' uf)
+        <> (fmap . fmap . fmap) DD.toDataDecl (Map.toList (UF.effectDeclarationsId' uf))
+          & filter (\(typeV, _) -> Set.member (Typed typeV) involvedVars)
+          & concatMap (\(_typeV, (_refId, decl)) -> DD.constructors' decl)
+          & fmap
+            ( \(_ann, v, _typ) -> Name.unsafeFromVar v
             )
           & Set.fromList
 
@@ -201,7 +200,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider =
             let declNames = Map.keys (UF.dataDeclarationsId' uf)
             let effectNames = Map.keys (UF.effectDeclarationsId' uf)
             typeName <- declNames <> effectNames
-            when (not . null $ defsToConsider) (guard (typeName `Set.member` defsToConsider))
+            when (not . null $ involvedVars) (guard (Typed typeName `Set.member` involvedVars))
             pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeFromVar typeName)
           existingConstructorsFromEditedTypes = Set.fromList $ do
             -- List Monad
@@ -209,11 +208,11 @@ computeNamesWithDeprecations uf unalteredCodebaseNames defsToConsider =
             (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
             pure name
        in -- Compute any constructors which were deleted
-          pTraceShow ("defsToConsider", defsToConsider) $
-            pTraceShow ("codebaseNames", unalteredCodebaseNames) $
-              pTraceShow ("allRefIds", oldRefsForEditedTypes) $
-                pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes) $
-                  existingConstructorsFromEditedTypes `Set.difference` constructorNamesInFile
+          pTraceShow ("defsToConsider", involvedVars)
+            . pTraceShow ("codebaseNames", unalteredCodebaseNames)
+            . pTraceShow ("allRefIds", oldRefsForEditedTypes)
+            . pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes)
+            $ existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
 computeVarStatuses ::
   forall v.
@@ -292,46 +291,50 @@ computeVarStatuses depMap varRelation codebaseNames =
                 -- Currently we treat conflicts as errors rather than resolving them.
                 _ -> DefErr Conflict
 
-computeVarDeps ::
+computeInvolvedVars ::
   forall v.
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Set v ->
   Rel.Relation (TermedOrTyped v) LD.LabeledDependency ->
+  Set (TermedOrTyped v)
+computeInvolvedVars uf defsToConsider varRelation
+  | Set.null defsToConsider = Rel.dom varRelation
+  | otherwise = allInvolvedVars
+  where
+    allInvolvedVars :: Set (TermedOrTyped v)
+    allInvolvedVars =
+      let existingVars :: Set (TermedOrTyped v) = Set.fromList $ do
+            v <- Set.toList defsToConsider
+            -- We don't know whether each var is a type or term, so we try both.
+            tv <- [Typed v, Termed v]
+            guard (Rel.memberDom tv varRelation)
+            pure tv
+       in varClosure uf existingVars
+
+computeVarDeps ::
+  forall v.
+  Var v =>
+  UF.TypecheckedUnisonFile v Ann ->
+  Set (TermedOrTyped v) ->
   Map (TermedOrTyped v) (Set (TermedOrTyped v))
-computeVarDeps uf defsToConsider varRelation =
-  let allFileVars :: Set (TermedOrTyped v)
-      allFileVars = Rel.dom varRelation
-
-      allInvolvedVars :: Set (TermedOrTyped v)
-      allInvolvedVars =
-        if Set.null defsToConsider
-          then allFileVars
-          else
-            let existingVars :: Set (TermedOrTyped v) = Set.fromList $ do
-                  v <- Set.toList defsToConsider
-                  -- We don't know whether each var is a type or term, so we try both.
-                  tv <- [Typed v, Termed v]
-                  guard (Rel.memberDom tv varRelation)
-                  pure tv
-             in varClosure existingVars
-
-      depMap :: (Map (TermedOrTyped v) (Set (TermedOrTyped v)))
+computeVarDeps uf allInvolvedVars =
+  let depMap :: (Map (TermedOrTyped v) (Set (TermedOrTyped v)))
       depMap =
         allInvolvedVars
           & Set.toList
           & fmap
-            ( \tv -> (tv, Set.delete tv $ varClosure (Set.singleton tv))
+            ( \tv -> (tv, Set.delete tv $ varClosure uf (Set.singleton tv))
             )
           & Map.fromListWith (<>)
    in pTraceShow ("all involved variables", allInvolvedVars)
         . pTraceShow ("depmap", depMap)
         $ depMap
-  where
-    -- Compute the closure of all vars which the provided vars depend on.
-    varClosure :: Set (TermedOrTyped v) -> Set (TermedOrTyped v)
-    varClosure (sortVars -> sc) =
-      mingleVars $ SC.closeWithDependencies uf sc
+
+-- Compute the closure of all vars which the provided vars depend on.
+varClosure :: Ord v => UF.TypecheckedUnisonFile v a -> Set (TermedOrTyped v) -> Set (TermedOrTyped v)
+varClosure uf (sortVars -> sc) =
+  mingleVars $ SC.closeWithDependencies uf sc
 
 -- TODO: Does this need to contain constructors? Maybe.
 -- Does not include constructors
