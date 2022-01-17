@@ -262,7 +262,7 @@ loop = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           currentNames <- currentPathNames
-          let sr = Slurp.slurpFile unisonFile mempty Nothing currentNames currentPath'
+          let sr = Slurp.slurpFile unisonFile mempty Nothing currentNames
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
@@ -1259,7 +1259,7 @@ loop = do
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   currentNames <- currentPathNames
-                  let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames currentPath'
+                  let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames 
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
@@ -1271,7 +1271,7 @@ loop = do
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames currentPath'
+                let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames 
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             UpdateI maybePatchPath names -> handleUpdate input maybePatchPath names
@@ -1279,7 +1279,7 @@ loop = do
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) currentNames currentPath'
+                let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) currentNames 
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
@@ -1818,7 +1818,7 @@ handleUpdate input maybePatchPath names = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) slurpCheckNames currentPath'
+      let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) slurpCheckNames 
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names

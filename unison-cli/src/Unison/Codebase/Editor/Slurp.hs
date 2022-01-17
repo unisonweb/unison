@@ -15,7 +15,6 @@ import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as SR
-import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -134,9 +133,8 @@ slurpFile ::
   Set v ->
   Maybe SlurpOp ->
   Names ->
-  Path.Absolute ->
   SR.SlurpResult v
-slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames currentPath =
+slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames =
   let varRelation :: Rel.Relation (TermOrTypeVar v) LD.LabeledDependency
       varRelation = fileDefinitions uf
       involvedVars :: Set (TermOrTypeVar v)
@@ -146,13 +144,13 @@ slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames currentPath =
       varDeps :: Map (TermOrTypeVar v) (Set (TermOrTypeVar v))
       varDeps = computeVarDeps uf involvedVars
       analysis :: SlurpAnalysis v
-      analysis = computeVarStatuses varDeps varRelation codebaseNames
+      analysis = computeSlurpAnalysis varDeps varRelation codebaseNames
       varsByStatus :: VarsByStatus v
       varsByStatus = groupByStatus analysis
       slurpResult :: SR.SlurpResult v
       slurpResult =
         toSlurpResult uf slurpOp defsToConsider varsByStatus
-          & addAliases codebaseNames currentPath
+          & addAliases codebaseNames
    in pTraceShowId slurpResult
   where
     slurpOp = fromMaybe UpdateOp maybeSlurpOp
@@ -209,17 +207,15 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
             . pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes)
             $ existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
-computeVarStatuses ::
+-- | Compute a mapping of each definition to its status, and its dependencies' statuses.
+computeSlurpAnalysis ::
   forall v.
   (Ord v, Var v) =>
   Map (TermOrTypeVar v) (Set (TermOrTypeVar v)) ->
   Rel.Relation (TermOrTypeVar v) LD.LabeledDependency ->
   Names ->
-  ( Map
-      (TermOrTypeVar v)
-      (DefinitionNotes, Map (TermOrTypeVar v) DefinitionNotes)
-  )
-computeVarStatuses depMap varRelation codebaseNames =
+  SlurpAnalysis v
+computeSlurpAnalysis depMap varRelation codebaseNames =
   pTraceShow ("Statuses", statuses) $
     statuses
   where
@@ -286,6 +282,9 @@ computeVarStatuses depMap varRelation codebaseNames =
                 -- Currently we treat conflicts as errors rather than resolving them.
                 _ -> DefErr Conflict
 
+-- | Determine all variables which should be considered in analysis.
+-- I.e. any variable requested by the user and all of their dependencies,
+-- component peers, and component peers of dependencies.
 computeInvolvedVars ::
   forall v.
   Var v =>
@@ -307,6 +306,7 @@ computeInvolvedVars uf defsToConsider varRelation
             pure tv
        in varClosure uf existingVars
 
+-- | Compute transitive dependencies for all relevant variables.
 computeVarDeps ::
   forall v.
   Var v =>
@@ -326,7 +326,7 @@ computeVarDeps uf allInvolvedVars =
         . pTraceShow ("depmap", depMap)
         $ depMap
 
--- Compute the closure of all vars which the provided vars depend on.
+-- | Compute the closure of all vars which the provided vars depend on.
 varClosure :: Ord v => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -> Set (TermOrTypeVar v)
 varClosure uf (partitionVars -> sc) =
   mingleVars $ SC.closeWithDependencies uf sc
@@ -431,6 +431,7 @@ toSlurpResult uf op requestedVars varsByStatus =
       TypeVar v -> SlurpComponent {terms = mempty, types = Set.singleton v}
       TermVar v -> SlurpComponent {terms = Set.singleton v, types = mempty}
 
+-- | Sort out a set of variables by whether it is a term or type.
 partitionVars :: (Foldable f, Ord v) => f (TermOrTypeVar v) -> SlurpComponent v
 partitionVars =
   foldMap
@@ -439,13 +440,16 @@ partitionVars =
         TermVar v -> SC.fromTerms (Set.singleton v)
     )
 
+-- | Collapse a SlurpComponent into a tagged set.
 mingleVars :: Ord v => SlurpComponent v -> Set (TermOrTypeVar v)
 mingleVars SlurpComponent {terms, types} =
   Set.map TypeVar types
     <> Set.map TermVar terms
 
-addAliases :: forall v. (Ord v, Var v) => Names -> Path.Absolute -> SR.SlurpResult v -> SR.SlurpResult v
-addAliases existingNames curPath sr = sr {SR.termAlias = termAliases, SR.typeAlias = typeAliases}
+-- | Compute which definitions in a slurp result are aliases of definitions in the current
+-- tree.
+addAliases :: forall v. (Ord v, Var v) => Names -> SR.SlurpResult v -> SR.SlurpResult v
+addAliases existingNames sr = sr {SR.termAlias = termAliases, SR.typeAlias = typeAliases}
   where
     fileNames = UF.typecheckedToNames $ SR.originalFile sr
     buildAliases ::
@@ -464,10 +468,10 @@ addAliases existingNames curPath sr = sr {SR.termAlias = termAliases, SR.typeAli
             -- All the refs whose names include `n`, and are not `r`
             let refs = Set.delete r $ Rel.lookupDom n existingNames
                 aliasesOfNew =
-                  Set.map (Path.unprefixName curPath) . Set.delete n $
+                  Set.delete n $
                     Rel.lookupRan r existingNames
                 aliasesOfOld =
-                  Set.map (Path.unprefixName curPath) . Set.delete n . Rel.dom $
+                  Set.delete n . Rel.dom $
                     Rel.restrictRan existingNames refs,
             not (null aliasesOfNew && null aliasesOfOld),
             Set.notMember (var n) dups
