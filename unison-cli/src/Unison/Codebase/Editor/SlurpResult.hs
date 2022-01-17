@@ -17,7 +17,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.ConstructorReference as ConstructorReference
-import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Name as Name
@@ -82,49 +81,6 @@ constructorsFor types uf = let
   isOkCtor (Referent.Con r _) | Set.member (r ^. ConstructorReference.reference_) typesRefs = True
   isOkCtor _ = False
   in Set.map Name.toVar $ R.dom ctorNames
-
--- Remove `removed` from the slurp result, and move any defns with transitive
--- dependencies on the removed component into `defsWithBlockedDependencies`.
--- Also removes `removed` from `extraDefinitions`.
-subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
-subtractComponent removed sr =
-  sr { adds = SC.difference (adds sr) (removed <> blocked)
-     , updates = SC.difference (updates sr) (removed <> blocked)
-     , defsWithBlockedDependencies = blocked
-     , extraDefinitions = SC.difference (extraDefinitions sr) blocked
-     }
-  where
-  -- for each v in adds, move to blocked if transitive dependency in removed
-  blocked = defsWithBlockedDependencies sr <>
-    SC.difference (blockedTerms <> blockedTypes) removed
-
-  uf = originalFile sr
-  constructorsFor v = case UF.lookupDecl v uf of
-    Nothing -> mempty
-    Just (_, e) -> Set.fromList . DD.constructorVars $ either DD.toDataDecl id e
-
-  blockedTypes = foldMap doType . SC.types $ adds sr <> updates sr where
-    -- include this type if it or any of its dependencies are removed
-    doType :: v -> SlurpComponent v
-    doType v =
-      if null (Set.intersection (SC.types removed) (SC.types (SC.closeWithDependencies uf vc)))
-         && null (Set.intersection (SC.terms removed) (constructorsFor v))
-      then mempty else vc
-      where vc = mempty { types = Set.singleton v }
-
-  blockedTerms = foldMap doTerm . SC.terms $ adds sr <> updates sr where
-    doTerm :: v -> SlurpComponent v
-    doTerm v =
-      if mempty == SC.intersection removed (SC.closeWithDependencies uf vc)
-      then mempty else vc
-      where vc = mempty { terms = Set.singleton v }
-
--- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
--- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
-disallowUpdates sr =
-  let sr2 = subtractComponent (updates sr) sr
-  in sr2 { collisions = collisions sr2 <> updates sr }
 
 isNonempty :: Ord v => SlurpResult v -> Bool
 isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
