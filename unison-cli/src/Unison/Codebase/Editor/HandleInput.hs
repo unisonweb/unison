@@ -1262,7 +1262,7 @@ loop = do
                   let sr = NewSlurp.analyzeTypecheckedUnisonFile uf vars (Just NewSlurp.AddOp) currentNames currentPath'
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
-                  eval . AddDefsToCodebase . NewSlurp.selectDefinitions adds $ uf
+                  eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
                   ppe <- prettyPrintEnvDecl =<< displayNames uf
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds

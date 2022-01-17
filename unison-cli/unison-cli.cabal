@@ -38,7 +38,6 @@ library
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
-      Unison.Codebase.Editor.TermsAndTypes
       Unison.Codebase.Editor.TodoOutput
       Unison.Codebase.Editor.UriParser
       Unison.Codebase.Editor.VersionParser
@@ -82,7 +81,6 @@ library
   ghc-options: -Wall
   build-depends:
       ListLike
-    , adjunctions
     , async
     , base
     , bytestring
@@ -90,7 +88,6 @@ library
     , containers >=0.6.3
     , cryptonite
     , directory
-    , distributive
     , errors
     , extra
     , filepath
@@ -154,7 +151,6 @@ executable integration-tests
   ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       ListLike
-    , adjunctions
     , async
     , base
     , bytestring
@@ -162,7 +158,6 @@ executable integration-tests
     , containers >=0.6.3
     , cryptonite
     , directory
-    , distributive
     , easytest
     , errors
     , extra
@@ -228,7 +223,6 @@ executable transcripts
       unison
   build-depends:
       ListLike
-    , adjunctions
     , async
     , base
     , bytestring
@@ -236,7 +230,6 @@ executable transcripts
     , containers >=0.6.3
     , cryptonite
     , directory
-    , distributive
     , easytest
     , errors
     , extra
@@ -302,7 +295,6 @@ executable unison
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
   build-depends:
       ListLike
-    , adjunctions
     , async
     , base
     , bytestring
@@ -310,7 +302,6 @@ executable unison
     , containers >=0.6.3
     , cryptonite
     , directory
-    , distributive
     , errors
     , extra
     , filepath
@@ -382,7 +373,6 @@ test-suite tests
   ghc-options: -Wall
   build-depends:
       ListLike
-    , adjunctions
     , async
     , base
     , bytestring
@@ -390,7 +380,6 @@ test-suite tests
     , containers >=0.6.3
     , cryptonite
     , directory
-    , distributive
     , easytest
     , errors
     , extra

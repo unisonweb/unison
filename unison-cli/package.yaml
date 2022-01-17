@@ -11,8 +11,6 @@ ghc-options: -Wall
 
 dependencies:
   - semigroupoids
-  - distributive
-  - adjunctions
   - pretty-simple
   - ListLike
   - async
