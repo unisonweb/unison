@@ -174,14 +174,6 @@ add =
         <> "typechecked file."
     )
     $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
-      -- Just ws -> pure $ Input.AddI ws
-      -- Nothing ->
-      --   Left
-      --     . warn
-      --     . P.lines
-      --     . fmap fromString
-      --     . ("I don't know what these refer to:\n" :)
-      --     $ collectNothings HQ'.fromString ws
 
 previewAdd :: InputPattern
 previewAdd =

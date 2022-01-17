@@ -1,12 +1,10 @@
 module Unison.Codebase.Editor.Slurp
   ( SlurpOp (..),
     VarsByStatus,
-    BlockStatus (..),
+    DefStatus (..),
     anyErrors,
-    results,
     analyzeTypecheckedUnisonFile,
     toSlurpResult,
-    sortVars,
   )
 where
 
@@ -53,36 +51,33 @@ unlabeled (TypeVar v) = v
 data SlurpStatus
   = New
   | Updated
-  | Duplicate
+  | Duplicated
   deriving (Eq, Ord, Show)
 
-data BlockStatus v
-  = Add
-  | Duplicated
+data DefStatus v
+  = Ok SlurpStatus
   | NeedsUpdate (TermOrTypeVar v)
-  | Update
   | ErrFrom (TermOrTypeVar v) SlurpErr
   | SelfErr SlurpErr
   deriving (Eq, Ord, Show)
 
-instance Semigroup (BlockStatus v) where
+-- | This semigroup is how a definition's status is determined.
+instance Semigroup (DefStatus v) where
+  -- If the definition has its own error, that takes highest priority.
   SelfErr err <> _ = SelfErr err
   _ <> SelfErr err = SelfErr err
+  -- Next we care if a dependency has an error
   ErrFrom v err <> _ = ErrFrom v err
   _ <> ErrFrom v err = ErrFrom v err
-  Update <> _ = Update
-  _ <> Update = Update
+  -- If our definition needs its own update then we don't care if dependencies need updates.
+  Ok Updated <> _ = Ok Updated
+  _ <> Ok Updated = Ok Updated
   NeedsUpdate v <> _ = NeedsUpdate v
   _ <> NeedsUpdate v = NeedsUpdate v
-  Add <> _ = Add
-  _ <> Add = Add
-  Duplicated <> _ = Duplicated
-
-data SlurpPrintout v = SlurpPrintout
-  { notOk :: Map v SlurpErr,
-    ok :: Map v SlurpStatus
-  }
-  deriving (Eq, Ord, Show)
+  -- 'New' definitions take precedence over duplicated dependencies
+  Ok New <> _ = Ok New
+  _ <> Ok New = Ok New
+  Ok Duplicated <> _ = Ok Duplicated
 
 data SlurpErr
   = TermCtorCollision
@@ -97,38 +92,32 @@ data DefinitionNotes
 
 type SlurpAnalysis v = Map (TermOrTypeVar v) (DefinitionNotes, Map (TermOrTypeVar v) DefinitionNotes)
 
-type VarsByStatus v = Map (BlockStatus v) (Set (TermOrTypeVar v))
+type VarsByStatus v = Map (DefStatus v) (Set (TermOrTypeVar v))
 
 -- Compute all definitions which can be added, or the reasons why a def can't be added.
-results :: forall v. (Ord v, Show v) => SlurpAnalysis v -> VarsByStatus v
-results sr =
+groupByStatus :: forall v. (Ord v, Show v) => SlurpAnalysis v -> VarsByStatus v
+groupByStatus sr =
   pTraceShowId $ analyzed
   where
-    analyzed :: Map (BlockStatus v) (Set (TermOrTypeVar v))
+    analyzed :: Map (DefStatus v) (Set (TermOrTypeVar v))
     analyzed =
       sr
         & Map.toList
         & fmap
           ( \(tv, (defNotes, deps)) ->
-              ( Semigroup.fold1 (getBlockStatus False defNotes tv NEList.:| (Map.toList deps <&> \(depTV, depDefNotes) -> getBlockStatus True depDefNotes depTV)),
+              ( Semigroup.fold1 (computeDefStatus False defNotes tv NEList.:| (Map.toList deps <&> \(depTV, depDefNotes) -> computeDefStatus True depDefNotes depTV)),
                 Set.singleton tv
               )
           )
         & Map.fromListWith (<>)
 
-getBlockStatus :: (Ord v, Show v) => Bool -> DefinitionNotes -> TermOrTypeVar v -> BlockStatus v
-getBlockStatus isDep defNotes tv =
-  case defNotes of
-    DefOk Updated -> if isDep then NeedsUpdate tv else Update
-    DefErr err -> ErrFrom tv err
-    DefOk New -> Add
-    DefOk Duplicate -> Duplicated
-
--- Need to know:
--- What can be added without errors?
--- What can be updated without errors?
--- What has errors?
--- What is blocked?
+    computeDefStatus :: (Ord v, Show v) => Bool -> DefinitionNotes -> TermOrTypeVar v -> DefStatus v
+    computeDefStatus isDep defNotes tv =
+      case defNotes of
+        DefOk Updated -> if isDep then NeedsUpdate tv else Ok Updated
+        DefErr err -> ErrFrom tv err
+        DefOk New -> Ok New
+        DefOk Duplicated -> Ok Duplicated
 
 analyzeTypecheckedUnisonFile ::
   forall v.
@@ -151,7 +140,7 @@ analyzeTypecheckedUnisonFile uf defsToConsider slurpOp unalteredCodebaseNames cu
       analysis :: SlurpAnalysis v
       analysis = computeVarStatuses varDeps varRelation codebaseNames
       varsByStatus :: VarsByStatus v
-      varsByStatus = results analysis
+      varsByStatus = groupByStatus analysis
       slurpResult :: SR.SlurpResult v
       slurpResult =
         toSlurpResult uf (fromMaybe UpdateOp slurpOp) defsToConsider varsByStatus
@@ -255,7 +244,7 @@ computeVarStatuses depMap varRelation codebaseNames =
               case Set.toList existingTypesAtName of
                 [] -> DefOk New
                 [r]
-                  | LD.typeRef r == ld -> DefOk Duplicate
+                  | LD.typeRef r == ld -> DefOk Duplicated
                   | otherwise -> DefOk Updated
                 -- If there are many existing terms, they must be in conflict.
                 -- Currently we treat conflicts as errors rather than resolving them.
@@ -265,7 +254,7 @@ computeVarStatuses depMap varRelation codebaseNames =
                 [] -> DefOk New
                 rs | any Referent.isConstructor rs -> DefErr TermCtorCollision
                 [r]
-                  | LD.referent r == ld -> DefOk Duplicate
+                  | LD.referent r == ld -> DefOk Duplicated
                   | otherwise -> DefOk Updated
                 -- If there are many existing terms, they must be in conflict.
                 -- Currently we treat conflicts as errors rather than resolving them.
@@ -275,7 +264,7 @@ computeVarStatuses depMap varRelation codebaseNames =
                 [] -> DefOk New
                 rs | any (not . Referent.isConstructor) rs -> DefErr CtorTermCollision
                 [r]
-                  | LD.referent r == ld -> DefOk Duplicate
+                  | LD.referent r == ld -> DefOk Duplicated
                   | otherwise -> DefOk Updated
                 -- If there are many existing terms, they must be in conflict.
                 -- Currently we treat conflicts as errors rather than resolving them.
@@ -405,9 +394,9 @@ toSlurpResult uf op requestedVars varsByStatus =
           ( \k tvs ->
               let sc = sortVars $ tvs
                in case k of
-                    Add -> (sc, mempty, mempty, mempty, (mempty, mempty, mempty))
-                    Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty, mempty))
-                    Update -> (mempty, mempty, sc, mempty, (mempty, mempty, mempty))
+                    Ok New -> (sc, mempty, mempty, mempty, (mempty, mempty, mempty))
+                    Ok Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty, mempty))
+                    Ok Updated -> (mempty, mempty, sc, mempty, (mempty, mempty, mempty))
                     NeedsUpdate v ->
                       case op of
                         AddOp ->
@@ -429,11 +418,11 @@ anyErrors :: VarsByStatus v -> Bool
 anyErrors r =
   any isError . Map.keys $ Map.filter (not . null) r
   where
-    isError :: BlockStatus v -> Bool
+    isError :: DefStatus v -> Bool
     isError = \case
-      Add -> False
-      Duplicated -> False
-      Update {} -> False
+      Ok New -> False
+      Ok Duplicated -> False
+      Ok Updated -> False
       -- NeedsUpdate is an error only if we're trying to Add
       NeedsUpdate {} -> True
       ErrFrom {} -> True
