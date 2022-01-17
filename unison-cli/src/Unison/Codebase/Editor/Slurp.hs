@@ -1,10 +1,6 @@
 module Unison.Codebase.Editor.Slurp
   ( SlurpOp (..),
-    VarsByStatus,
-    DefStatus (..),
-    anyErrors,
-    analyzeTypecheckedUnisonFile,
-    toSlurpResult,
+    slurpFile,
   )
 where
 
@@ -13,10 +9,11 @@ import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
 import qualified Data.Semigroup.Foldable as Semigroup
 import qualified Data.Set as Set
+import Data.Set.NonEmpty (NESet)
+import qualified Data.Set.NonEmpty as NESet
 import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.Codebase.Editor.SlurpResult as OldSlurp
 import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.DataDeclaration as DD
@@ -38,22 +35,27 @@ import Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 
+-- | The operation which is being performed or checked.
 data SlurpOp = AddOp | UpdateOp
   deriving (Eq, Show)
 
+-- | Tag a variable as either a term/constructor or type
 data TermOrTypeVar v = TermVar v | TypeVar v
   deriving (Eq, Ord, Show)
 
+-- | Extract the var from a TermOrTypeVar
 unlabeled :: TermOrTypeVar v -> v
 unlabeled (TermVar v) = v
 unlabeled (TypeVar v) = v
 
+-- | A definition's status with relation to the codebase.
 data SlurpStatus
   = New
   | Updated
   | Duplicated
   deriving (Eq, Ord, Show)
 
+-- | A definition's final status, incorporating the statuses of all of its dependencies.
 data DefStatus v
   = Ok SlurpStatus
   | NeedsUpdate (TermOrTypeVar v)
@@ -79,34 +81,38 @@ instance Semigroup (DefStatus v) where
   _ <> Ok New = Ok New
   Ok Duplicated <> _ = Ok Duplicated
 
+-- | Possible error conditions for a definition.
 data SlurpErr
   = TermCtorCollision
   | CtorTermCollision
   | Conflict
   deriving (Eq, Ord, Show)
 
+-- | Possible error conditions for a definition.
 data DefinitionNotes
   = DefOk SlurpStatus
   | DefErr SlurpErr
   deriving (Show)
 
+-- | A map of variables to their status, and all of their dependencies' statuses.
 type SlurpAnalysis v = Map (TermOrTypeVar v) (DefinitionNotes, Map (TermOrTypeVar v) DefinitionNotes)
 
-type VarsByStatus v = Map (DefStatus v) (Set (TermOrTypeVar v))
+-- | A mapping of each status to the vars which have that status.
+type VarsByStatus v = Map (DefStatus v) (NESet (TermOrTypeVar v))
 
 -- Compute all definitions which can be added, or the reasons why a def can't be added.
 groupByStatus :: forall v. (Ord v, Show v) => SlurpAnalysis v -> VarsByStatus v
 groupByStatus sr =
   pTraceShowId $ analyzed
   where
-    analyzed :: Map (DefStatus v) (Set (TermOrTypeVar v))
+    analyzed :: Map (DefStatus v) (NESet (TermOrTypeVar v))
     analyzed =
       sr
         & Map.toList
         & fmap
           ( \(tv, (defNotes, deps)) ->
               ( Semigroup.fold1 (computeDefStatus False defNotes tv NEList.:| (Map.toList deps <&> \(depTV, depDefNotes) -> computeDefStatus True depDefNotes depTV)),
-                Set.singleton tv
+                NESet.singleton tv
               )
           )
         & Map.fromListWith (<>)
@@ -119,7 +125,9 @@ groupByStatus sr =
         DefOk New -> Ok New
         DefOk Duplicated -> Ok Duplicated
 
-analyzeTypecheckedUnisonFile ::
+-- | Analyze a file and determine the status of all of its definitions with respect to a set
+-- of vars to analyze and an operation you wish to perform.
+slurpFile ::
   forall v.
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
@@ -128,13 +136,13 @@ analyzeTypecheckedUnisonFile ::
   Names ->
   Path.Absolute ->
   SR.SlurpResult v
-analyzeTypecheckedUnisonFile uf defsToConsider slurpOp unalteredCodebaseNames currentPath =
+slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames currentPath =
   let varRelation :: Rel.Relation (TermOrTypeVar v) LD.LabeledDependency
-      varRelation = labelling uf
+      varRelation = fileDefinitions uf
       involvedVars :: Set (TermOrTypeVar v)
       involvedVars = computeInvolvedVars uf defsToConsider varRelation
       codebaseNames :: Names
-      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars
+      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars slurpOp
       varDeps :: Map (TermOrTypeVar v) (Set (TermOrTypeVar v))
       varDeps = computeVarDeps uf involvedVars
       analysis :: SlurpAnalysis v
@@ -143,17 +151,25 @@ analyzeTypecheckedUnisonFile uf defsToConsider slurpOp unalteredCodebaseNames cu
       varsByStatus = groupByStatus analysis
       slurpResult :: SR.SlurpResult v
       slurpResult =
-        toSlurpResult uf (fromMaybe UpdateOp slurpOp) defsToConsider varsByStatus
+        toSlurpResult uf slurpOp defsToConsider varsByStatus
           & addAliases codebaseNames currentPath
    in pTraceShowId slurpResult
+  where
+    slurpOp = fromMaybe UpdateOp maybeSlurpOp
 
+-- | Return a modified set of names with constructors which would be deprecated by possible
+-- updates are removed.
 computeNamesWithDeprecations ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
   Set (TermOrTypeVar v) ->
+  SlurpOp ->
   Names
-computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars =
+computeNamesWithDeprecations _uf unalteredCodebaseNames _involvedVars AddOp =
+  -- If we're 'adding', there won't be any deprecations.
+  unalteredCodebaseNames
+computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
   pTraceShow ("Deprecated constructors", deprecatedConstructors)
     . pTraceShow ("constructorNamesInFile", constructorsUnderConsideration)
     $ codebaseNames
@@ -312,13 +328,13 @@ computeVarDeps uf allInvolvedVars =
 
 -- Compute the closure of all vars which the provided vars depend on.
 varClosure :: Ord v => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -> Set (TermOrTypeVar v)
-varClosure uf (sortVars -> sc) =
+varClosure uf (partitionVars -> sc) =
   mingleVars $ SC.closeWithDependencies uf sc
 
--- TODO: Does this need to contain constructors? Maybe.
--- Does not include constructors
-labelling :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Rel.Relation (TermOrTypeVar v) LD.LabeledDependency
-labelling uf =
+-- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
+-- Contains types but not their constructors.
+fileDefinitions :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Rel.Relation (TermOrTypeVar v) LD.LabeledDependency
+fileDefinitions uf =
   let result = decls <> effects <> terms
    in pTraceShow ("varRelation", result) $ result
   where
@@ -350,6 +366,7 @@ labelling uf =
         & fmap (\(v, (refId, _)) -> (TypeVar v, (LD.derivedType refId)))
         & Rel.fromList
 
+-- | Convert a 'VarsByStatus' mapping into a 'SR.SlurpResult'
 toSlurpResult ::
   forall v.
   (Ord v, Show v) =>
@@ -357,34 +374,34 @@ toSlurpResult ::
   SlurpOp ->
   Set v ->
   VarsByStatus v ->
-  OldSlurp.SlurpResult v
+  SR.SlurpResult v
 toSlurpResult uf op requestedVars varsByStatus =
   pTraceShowId $
-    OldSlurp.SlurpResult
-      { OldSlurp.originalFile = uf,
-        OldSlurp.extraDefinitions =
+    SR.SlurpResult
+      { SR.originalFile = uf,
+        SR.extraDefinitions =
           if Set.null requestedVars
             then mempty
             else
-              let allVars = fold varsByStatus
+              let allVars = foldMap NESet.toSet varsByStatus
                   desired =
                     requestedVars
                       & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
-               in sortVars $ Set.difference allVars desired,
-        OldSlurp.adds = adds,
-        OldSlurp.duplicates = duplicates,
-        OldSlurp.collisions = if op == AddOp then updates else mempty,
-        OldSlurp.conflicts = conflicts,
-        OldSlurp.updates = if op == UpdateOp then updates else mempty,
-        OldSlurp.termExistingConstructorCollisions =
+               in partitionVars $ Set.difference allVars desired,
+        SR.adds = adds,
+        SR.duplicates = duplicates,
+        SR.collisions = if op == AddOp then updates else mempty,
+        SR.conflicts = conflicts,
+        SR.updates = if op == UpdateOp then updates else mempty,
+        SR.termExistingConstructorCollisions =
           let SlurpComponent types terms = termCtorColl
            in types <> terms,
-        OldSlurp.constructorExistingTermCollisions =
+        SR.constructorExistingTermCollisions =
           let SlurpComponent types terms = ctorTermColl
            in types <> terms,
-        OldSlurp.termAlias = mempty,
-        OldSlurp.typeAlias = mempty,
-        OldSlurp.defsWithBlockedDependencies = blocked
+        SR.termAlias = mempty,
+        SR.typeAlias = mempty,
+        SR.defsWithBlockedDependencies = blocked
       }
   where
     adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts :: SlurpComponent v
@@ -392,7 +409,7 @@ toSlurpResult uf op requestedVars varsByStatus =
       varsByStatus
         & ifoldMap
           ( \k tvs ->
-              let sc = sortVars $ tvs
+              let sc = partitionVars $ tvs
                in case k of
                     Ok New -> (sc, mempty, mempty, mempty, (mempty, mempty, mempty))
                     Ok Duplicated -> (mempty, sc, mempty, mempty, (mempty, mempty, mempty))
@@ -414,22 +431,8 @@ toSlurpResult uf op requestedVars varsByStatus =
       TypeVar v -> SlurpComponent {terms = mempty, types = Set.singleton v}
       TermVar v -> SlurpComponent {terms = Set.singleton v, types = mempty}
 
-anyErrors :: VarsByStatus v -> Bool
-anyErrors r =
-  any isError . Map.keys $ Map.filter (not . null) r
-  where
-    isError :: DefStatus v -> Bool
-    isError = \case
-      Ok New -> False
-      Ok Duplicated -> False
-      Ok Updated -> False
-      -- NeedsUpdate is an error only if we're trying to Add
-      NeedsUpdate {} -> True
-      ErrFrom {} -> True
-      SelfErr {} -> True
-
-sortVars :: (Foldable f, Ord v) => f (TermOrTypeVar v) -> SlurpComponent v
-sortVars =
+partitionVars :: (Foldable f, Ord v) => f (TermOrTypeVar v) -> SlurpComponent v
+partitionVars =
   foldMap
     ( \case
         TypeVar v -> SC.fromTypes (Set.singleton v)
