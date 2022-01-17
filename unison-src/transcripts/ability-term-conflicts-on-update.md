@@ -26,15 +26,41 @@ removed from Channels.
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
-Channels.send : a -> {Channels} ()
-Channels.send a = sends [a]
+Channels.send : a -> ()
+Channels.send a = ()
 
-thing : '{Channels} ()
+thing : '()
 thing _ = send 1
 ```
 
-The 'update' will succeed up until it tries to resolve the reference to `send`
-within `thing`; because the old send is deleted and the new `send` isn't ever added.
+These should fail with a term/ctor conflict since we exclude the ability from the update.
+
+```ucm:error
+.ns> update patch Channels.send
+.ns> update patch thing
+```
+
+If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+
+```unison
+unique ability Channels where
+  sends : [a] -> {Channels} ()
+
+Channels.send : a -> ()
+Channels.send a = sends [a]
+
+thing : '()
+thing _ = send 1
+```
+
+These updates should succeed since `Channels` is a dependency.
+
+```ucm
+.ns> update.preview patch Channels.send
+.ns> update.preview patch thing
+```
+
+We should also be able to successfully update the whole thing.
 
 ```ucm
 .ns> update

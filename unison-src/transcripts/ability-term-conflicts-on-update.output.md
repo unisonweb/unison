@@ -39,10 +39,63 @@ removed from Channels.
 unique ability Channels where
   sends : [a] -> {Channels} ()
 
-Channels.send : a -> {Channels} ()
+Channels.send : a -> ()
+Channels.send a = ()
+
+thing : '()
+thing _ = send 1
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Channels.send : a -> ()
+      thing         : '()
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique ability Channels
+
+```
+These should fail with a term/ctor conflict since we exclude the ability from the update.
+
+```ucm
+.ns> update patch Channels.send
+
+  x These definitions failed:
+  
+    Reason
+    term/ctor collision   Channels.send   : a -> ()
+  
+    Tip: Use `help filestatus` to learn more.
+
+.ns> update patch thing
+
+  x These definitions failed:
+  
+    Reason
+    term/ctor collision   Channels.send   : a -> ()
+    blocked               thing           : '()
+  
+    Tip: Use `help filestatus` to learn more.
+
+```
+If however, `Channels.send` and `thing` _depend_ on `Channels`, updating them should succeed since it pulls in the ability as a dependency.
+
+```unison
+unique ability Channels where
+  sends : [a] -> {Channels} ()
+
+Channels.send : a -> ()
 Channels.send a = sends [a]
 
-thing : '{Channels} ()
+thing : '()
 thing _ = send 1
 ```
 
@@ -63,8 +116,42 @@ thing _ = send 1
       unique ability Channels
 
 ```
-The 'update' will succeed up until it tries to resolve the reference to `send`
-within `thing`; because the old send is deleted and the new `send` isn't ever added.
+These updates should succeed since `Channels` is a dependency.
+
+```ucm
+.ns> update.preview patch Channels.send
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Channels.send : a ->{Channels} ()
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique ability Channels
+
+.ns> update.preview patch thing
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Channels.send : a ->{Channels} ()
+      thing         : '{Channels} ()
+    
+    ⍟ These names already exist. You can `update` them to your
+      new definition:
+    
+      unique ability Channels
+
+```
+We should also be able to successfully update the whole thing.
 
 ```ucm
 .ns> update
