@@ -405,6 +405,7 @@ toSlurpResult uf op requestedVars varsByStatus =
       }
   where
     adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts :: SlurpComponent v
+    -- Monoid instances only go up to 5-tuples :/
     (adds, duplicates, updates, termCtorColl, (ctorTermColl, blocked, conflicts)) =
       varsByStatus
         & ifoldMap
