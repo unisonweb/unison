@@ -28,6 +28,7 @@ data HashQualified n
   deriving (Eq, Foldable, Traversable, Functor, Show, Generic)
 
 stripNamespace :: Text -> HashQualified Name -> HashQualified Name
+stripNamespace "" hq = hq
 stripNamespace namespace hq = case hq of
   NameOnly name         -> NameOnly $ strip name
   HashQualified name sh -> HashQualified (strip name) sh
