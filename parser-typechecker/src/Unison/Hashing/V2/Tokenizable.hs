@@ -134,9 +134,9 @@ instance Accumulate Hash where
       go acc tokens = CH.hashUpdates acc (hashingVersion : tokens >>= toBS)
       toBS (Tag b) = [B.singleton b]
       toBS (Bytes bs) = [encodeLength $ B.length bs, bs]
-      toBS (Int i) = BL.toChunks . toLazyByteString . int64BE $ i
-      toBS (Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
-      toBS (Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
+      toBS (Int i) = [BL.toStrict . toLazyByteString . int64BE $ i]
+      toBS (Nat i) = [BL.toStrict . toLazyByteString . word64BE $ i]
+      toBS (Double d) = [BL.toStrict . toLazyByteString . doubleBE $ d]
       toBS (Text txt) =
         let tbytes = encodeUtf8 txt
          in [encodeLength (B.length tbytes), tbytes]
