@@ -136,9 +136,13 @@ indexByReference uf = (tms, tys)
     tms = Map.fromList [
       (r, (tm,ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf) ]
 
+-- | A mapping of all terms in the file by their var name.
+-- The returned terms refer to other definitions in the file by their
+-- var, not by reference.
+-- Includes test watches.
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
-  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
+  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents uf ]
 
 -- |the top level components (no watches) plus test watches.
 topLevelComponents :: TypecheckedUnisonFile v a
