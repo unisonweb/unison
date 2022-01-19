@@ -11,7 +11,7 @@ import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
 import Shellmet ()
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (removeDirectoryRecursive, doesFileExist)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import qualified Unison.Codebase as Codebase
@@ -22,6 +22,8 @@ import Unison.Symbol (Symbol)
 import Unison.Test.Ucm (CodebaseFormat, Transcript)
 import qualified Unison.Test.Ucm as Ucm
 import Unison.WatchKind (pattern TestWatch)
+import qualified Data.Text.IO as Text
+import Unison.Codebase.Editor.Git (gitCacheDir)
 
 transcriptOutputFile :: String -> FilePath
 transcriptOutputFile name =
@@ -37,6 +39,8 @@ test :: Test ()
 test = scope "gitsync22" . tests $
   fastForwardPush :
   nonFastForwardPush :
+  localStatePersistence :
+  localStateUpdate :
   destroyedRemote :
   flip map [(Ucm.CodebaseFormat2, "sc")]
   \(fmt, name) -> scope name $ tests [
@@ -634,6 +638,75 @@ fastForwardPush = scope "fastforward-push" do
       ```
     |]
   ok
+
+localStatePersistence :: Test ()
+localStatePersistence = scope "local-state-persistence" do
+  repo <- io initGitRepo
+  cachedRepoDir <- io $ gitCacheDir (Text.pack repo)
+  -- Create some local state in the cached git repo.
+  let someFilePath = cachedRepoDir </> "myfile.txt"
+  let someText = "SOME TEXT"
+  io $ do
+    codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
+    -- Push some state the remote codebase
+    -- Then pull to ensure we have a non-empty local git repo.
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat
+      .lib> push.create ${repo}
+      .lib> pull ${repo}
+      ```
+    |]
+    -- Write a file to our local git cache to represent some changes we may have made to our
+    -- codebase, e.g. a migration.
+    Text.writeFile someFilePath someText
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> pull ${repo}
+      .lib> push ${repo}
+      ```
+    |]
+  -- We expect the state in the cached git repo to remain untouched iff the remote
+  -- hasn't changed. This is helpful for when we need to migrate a remote codebase,
+  -- we don't want to re-migrate if nothing has changed.
+  txt <- io $ Text.readFile someFilePath
+  expectEqual someText txt
+
+-- | Any untracked files in the cache directory should be wiped out if there's a change
+-- on the remote.
+localStateUpdate :: Test ()
+localStateUpdate = scope "local-state-update" do
+  repo <- io initGitRepo
+  cachedRepoDir <- io $ gitCacheDir (Text.pack repo)
+  -- Create some local state in the cached git repo.
+  let someFilePath = cachedRepoDir </> "myfile.txt"
+  let someText = "SOME TEXT"
+  io $ do
+    codebase <- Ucm.initCodebase Ucm.CodebaseFormat2
+    -- Push some state the remote codebase
+    -- Then pull to ensure we have a non-empty local git repo.
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat
+      .lib> push.create ${repo}
+      .lib> pull ${repo}
+      ```
+    |]
+    -- Write a file to our local git cache to represent some changes we may have made to our
+    -- codebase, e.g. a migration.
+    Text.writeFile someFilePath someText
+    -- Push the new change, then pull the new remote.
+    void $ Ucm.runTranscript codebase [i|
+      ```ucm
+      .lib> alias.type ##Nat Nat2
+      .lib> push ${repo}
+      .lib> pull ${repo}
+      ```
+    |]
+  -- We expect the state in the cached git repo to be wiped out, since there's a new commit on
+  -- the remote.
+  fileExists <- io $ doesFileExist someFilePath
+  expect (not fileExists)
 
 nonFastForwardPush :: Test ()
 nonFastForwardPush = scope "non-fastforward-push" do

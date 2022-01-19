@@ -9,6 +9,9 @@ module Unison.Codebase.Editor.Git
     withIOError,
     withStatus,
     withIsolatedRepo,
+
+    -- * Exported for testing
+    gitCacheDir,
   )
 where
 
@@ -126,10 +129,18 @@ pullRepo repo@(ReadGitRepo uri) = do
                          withStatus ("Updating cached copy of " ++ Text.unpack uri ++ " ...") $ do
                           -- Fetch only the latest commit, we don't need history.
                           gitIn localPath (["fetch", "origin", remoteRef, "--quiet"] ++ ["--depth", "1"])
-                          -- Reset our branch to point at the latest code from the remote.
-                          gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
-                          -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
-                          gitIn localPath ["clean", "-d", "--force", "--quiet"]
+                          fetchHeadHash <- gitTextIn localPath ["rev-parse", "FETCH_HEAD"]
+                          headHash <- gitTextIn localPath ["rev-parse", "HEAD"]
+                          -- Only do a hard reset if the remote has actually changed.
+                          -- This allows us to persist any codebase migrations in the dirty work tree,
+                          -- and avoid re-migrating a codebase we've migrated before.
+                          when (fetchHeadHash /= headHash) do
+                            -- Reset our branch to point at the latest code from the remote.
+                            gitIn localPath ["reset", "--hard", "--quiet", "FETCH_HEAD"]
+                            -- Wipe out any unwanted files which might be sitting around, but aren't in the commit.
+                            -- Note that this wipes out any in-progress work which other ucm processes may
+                            -- have in progress, which we may want to handle more nicely in the future.
+                            gitIn localPath ["clean", "-d", "--force", "--quiet"]
                           pure True
         when (not succeeded) $ goFromScratch
 
@@ -137,7 +148,9 @@ pullRepo repo@(ReadGitRepo uri) = do
       remoteRef :: Text
       remoteRef = fromMaybe "HEAD" maybeRemoteRef
       goFromScratch :: (MonadIO m, MonadError GitProtocolError m) => m  ()
-      goFromScratch = do wipeDir localPath; checkOutNew localPath Nothing
+      goFromScratch = do
+        wipeDir localPath
+        checkOutNew localPath Nothing
 
   isEmptyGitRepo :: MonadIO m => FilePath -> m Bool
   isEmptyGitRepo localPath = liftIO $
