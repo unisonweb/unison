@@ -65,3 +65,24 @@ We should also be able to successfully update the whole thing.
 ```ucm
 .ns> update
 ```
+
+# Constructor-term conflict
+
+```unison
+X.x = 1
+```
+
+```ucm
+.ns2> add
+```
+
+```unison:error
+structural ability X where
+  x : ()
+```
+
+This should fail with a ctor/term conflict.
+
+```ucm:error
+.ns2> add
+```
