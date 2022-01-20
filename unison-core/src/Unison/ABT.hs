@@ -734,9 +734,8 @@ hash = hash' [] where
 
 instance (Show1 f, Show v) => Show (Term f v a) where
   -- annotations not shown
-  showsPrec p (Term freevars _ out) = case out of
-  -- showsPrec p (Term _ _ out) = case out of
-    Var v -> showParen (p>=9) $ \x -> show freevars <> "Var " ++ show v ++ x
-    Cycle body -> (show freevars <>) . ("Cycle " ++) . showsPrec p body
-    Abs v body -> showParen True $ (show freevars <>) . (show v ++) . showString ". " . showsPrec p body
-    Tm f -> (show freevars <>) . showsPrec1 p f
+  showsPrec p (Term _ _ out) = case out of
+    Var v -> showParen (p>=9) $ \x -> "Var " ++ show v ++ x
+    Cycle body -> ("Cycle " ++) . showsPrec p body
+    Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
+    Tm f -> showsPrec1 p f

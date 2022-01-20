@@ -187,7 +187,7 @@ pretty isPast ppe sr =
           : ((, Nothing) <$> aliases)
        where
         aliases = fmap (P.indentN 2) . aliasesMessage . Map.lookup v $ termAlias sr
-    ok _ _ sc | SC.isEmpty sc = mempty
+    ok _ _ sc | null (SC.terms sc) && null (SC.types sc) = mempty
     ok past present sc =
       let header = goodIcon <> P.indentNAfterNewline
             2
@@ -265,7 +265,7 @@ pretty isPast ppe sr =
   in
     P.sepNonEmpty
       "\n\n"
-      [ if SC.isEmpty (duplicates sr)
+      [ if null (terms (duplicates sr)) && null (types (duplicates sr))
         then mempty
         else
           (if isPast
