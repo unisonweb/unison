@@ -1,5 +1,9 @@
 Regression test for https://github.com/unisonweb/unison/pull/2819
 
+```ucm:hide
+.> builtins.merge
+```
+
 ```unison
 hangExample : Boolean
 hangExample =

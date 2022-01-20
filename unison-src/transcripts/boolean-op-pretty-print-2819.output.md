@@ -29,7 +29,6 @@ hangExample =
 
   hangExample : Boolean
   hangExample =
-    use Text ==
     ("a long piece of text to hang the line" == "")
       && ("a long piece of text to hang the line" == "")
 
