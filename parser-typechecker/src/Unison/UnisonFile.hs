@@ -138,7 +138,7 @@ indexByReference uf = (tms, tys)
 
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
-  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
+  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents uf ]
 
 -- |the top level components (no watches) plus test watches.
 topLevelComponents :: TypecheckedUnisonFile v a

@@ -21,6 +21,7 @@ module Unison.DataDeclaration
     constructorType,
     constructorTypes,
     constructorVars,
+    constructorIds,
     declConstructorReferents,
     declDependencies,
     declFields,
