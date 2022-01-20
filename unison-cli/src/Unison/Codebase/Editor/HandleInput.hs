@@ -1259,7 +1259,7 @@ loop = do
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   currentNames <- currentPathNames
-                  let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames 
+                  let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
@@ -1271,7 +1271,7 @@ loop = do
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames 
+                let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             UpdateI maybePatchPath names -> handleUpdate input maybePatchPath names
@@ -1279,7 +1279,7 @@ loop = do
               (Just (sourceName, _), Just uf) -> do
                 let vars = Set.map Name.toVar names
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) currentNames 
+                let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) currentNames
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
@@ -1818,7 +1818,7 @@ handleUpdate input maybePatchPath names = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) slurpCheckNames 
+      let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) slurpCheckNames
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names
@@ -2871,7 +2871,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     typeActions = map doType . toList $ SC.types slurp
     termActions =
       map doTerm . toList $
-        SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
+        SC.terms slurp <> UF.constructorsForTypeVars (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = isTest

@@ -345,7 +345,6 @@ varClosure :: (Var v) => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -
 varClosure uf (partitionVars OmitConstructors -> sc) =
   let deps = SC.closeWithDependencies uf sc
    in mingleVars deps
-        <> Set.map ConstructorVar (SR.constructorsFor (SC.types sc) uf)
 
 -- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
 -- Contains types but not their constructors.
@@ -454,11 +453,11 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
         SR.conflicts = conflicts,
         SR.updates = if op == UpdateOp then updates else mempty,
         SR.termExistingConstructorCollisions =
-          let SlurpComponent types terms = termCtorColl
-           in types <> terms,
+          let SlurpComponent {types, terms, ctors} = termCtorColl
+           in types <> terms <> ctors,
         SR.constructorExistingTermCollisions =
-          let SlurpComponent types terms = ctorTermColl
-           in types <> terms,
+          let SlurpComponent {types, terms, ctors} = ctorTermColl
+           in types <> terms <> ctors,
         SR.termAlias = termAliases,
         SR.typeAlias = typeAliases,
         SR.defsWithBlockedDependencies = blocked
@@ -548,6 +547,7 @@ partitionVars ctorHandling =
 
 -- | Collapse a SlurpComponent into a tagged set.
 mingleVars :: Ord v => SlurpComponent v -> Set (TermOrTypeVar v)
-mingleVars SlurpComponent {terms, types} =
+mingleVars SlurpComponent {terms, types, ctors} =
   Set.map TypeVar types
     <> Set.map TermVar terms
+    <> Set.map ConstructorVar ctors

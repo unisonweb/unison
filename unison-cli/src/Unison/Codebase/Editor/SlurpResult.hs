@@ -8,7 +8,6 @@ module Unison.Codebase.Editor.SlurpResult where
 
 import Unison.Prelude
 
-import Control.Lens ((^.))
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
 import Unison.Parser.Ann ( Ann )
@@ -16,19 +15,13 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Referent as Referent
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
 import qualified Unison.Var as Var
 
 -- `oldRefNames` are the previously existing names for the old reference
@@ -71,16 +64,6 @@ data SlurpResult v = SlurpResult {
   , typeAlias :: Map v Aliases
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
-
--- Returns the set of constructor names for type names in the given `Set`.
-constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v a -> Set v
-constructorsFor types uf = let
-  names = UF.typecheckedToNames uf
-  typesRefs = Set.unions $ Names.typesNamed names . Name.unsafeFromVar <$> toList types
-  ctorNames = R.filterRan isOkCtor (Names.terms names)
-  isOkCtor (Referent.Con r _) | Set.member (r ^. ConstructorReference.reference_) typesRefs = True
-  isOkCtor _ = False
-  in Set.map Name.toVar $ R.dom ctorNames
 
 isNonempty :: Ord v => SlurpResult v -> Bool
 isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)

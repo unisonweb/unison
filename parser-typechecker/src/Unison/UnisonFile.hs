@@ -23,6 +23,7 @@ module Unison.UnisonFile
     discardTypes,
     effectDeclarations',
     hashConstructors,
+    constructorsForTypeVars,
     hashTerms,
     indexByReference,
     lookupDecl,
@@ -59,6 +60,7 @@ import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), patt
 import qualified Unison.Util.List as List
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
+
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
@@ -199,3 +201,20 @@ hashConstructors file =
       ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
         [ (v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
+
+-- | Returns the set of constructor names for type names in the given `Set`.
+constructorsForTypeVars :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
+constructorsForTypeVars types uf =
+  let dataConstructors =
+        dataDeclarationsId' uf
+          & Map.filterWithKey (\k _ -> Set.member k types)
+          & Map.elems
+          & fmap snd
+          & concatMap DD.constructorVars
+      effectConstructors =
+        effectDeclarationsId' uf
+          & Map.filterWithKey (\k _ -> Set.member k types)
+          & Map.elems
+          & fmap (DD.toDataDecl . snd)
+          & concatMap DD.constructorVars
+   in Set.fromList (dataConstructors <> effectConstructors)
