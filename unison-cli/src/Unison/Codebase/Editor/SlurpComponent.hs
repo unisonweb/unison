@@ -95,7 +95,10 @@ closeWithDependencies uf inputs = seenDefns{ctors=constructorDeps} where
   invert m = Map.fromList (swap <$> Map.toList m)
 
 fromTypes :: Ord v => Set v -> SlurpComponent v
-fromTypes vs = SlurpComponent {terms = mempty, types = vs, ctors=mempty}
+fromTypes vs = mempty{types=vs}
 
 fromTerms :: Ord v => Set v -> SlurpComponent v
-fromTerms vs = SlurpComponent {terms = vs, types = mempty, ctors=mempty}
+fromTerms vs = mempty {terms = vs}
+
+fromCtors :: Ord v => Set v -> SlurpComponent v
+fromCtors vs = mempty {ctors=vs}

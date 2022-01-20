@@ -5,9 +5,7 @@ module Unison.Codebase.Editor.Slurp
 where
 
 import Control.Lens
-import qualified Data.List.NonEmpty as NEList
 import qualified Data.Map as Map
-import qualified Data.Semigroup.Foldable as Semigroup
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Set.NonEmpty as NESet
@@ -40,87 +38,96 @@ import Unison.WatchKind (pattern TestWatch)
 data SlurpOp = AddOp | UpdateOp
   deriving (Eq, Show)
 
--- | Tag a variable as either a term/constructor or type
-data TermOrTypeVar v = TermVar v | TypeVar v | ConstructorVar v
+-- | Tag a variable as representing a term, type, or constructor
+data TaggedVar v = TermVar v | TypeVar v | ConstructorVar v
   deriving (Eq, Ord, Show)
 
--- | Extract the var from a TermOrTypeVar
-unlabeled :: TermOrTypeVar v -> v
-unlabeled (TermVar v) = v
-unlabeled (TypeVar v) = v
-unlabeled (ConstructorVar v) = v
+-- | Extract the var from a TaggedVar
+untagged :: TaggedVar v -> v
+untagged (TermVar v) = v
+untagged (TypeVar v) = v
+untagged (ConstructorVar v) = v
 
 -- | A definition's status with relation to the codebase.
-data SlurpStatus
+data SlurpOk
   = New
   | Updated
   | Duplicated
   deriving (Eq, Ord, Show)
 
 -- | A definition's final status, incorporating the statuses of all of its dependencies.
-data DefStatus v
-  = Ok SlurpStatus
-  | NeedsUpdate (TermOrTypeVar v)
-  | ErrFrom (TermOrTypeVar v) SlurpErr
+data SummarizedStatus v
+  = Ok SlurpOk
+  | NeedsUpdate (TaggedVar v)
+  | ErrFrom (TaggedVar v) SlurpErr
   | SelfErr SlurpErr
   deriving (Eq, Ord, Show)
 
--- | This semigroup is how a definition's status is determined.
-instance Semigroup (DefStatus v) where
-  -- If the definition has its own error, that takes highest priority.
-  SelfErr err <> _ = SelfErr err
-  _ <> SelfErr err = SelfErr err
-  -- Next we care if a dependency has an error
-  ErrFrom v err <> _ = ErrFrom v err
-  _ <> ErrFrom v err = ErrFrom v err
-  -- If our definition needs its own update then we don't care if dependencies need updates.
-  Ok Updated <> _ = Ok Updated
-  _ <> Ok Updated = Ok Updated
-  NeedsUpdate v <> _ = NeedsUpdate v
-  _ <> NeedsUpdate v = NeedsUpdate v
-  -- 'New' definitions take precedence over duplicated dependencies
-  Ok New <> _ = Ok New
-  _ <> Ok New = Ok New
-  Ok Duplicated <> _ = Ok Duplicated
+-- | Ideally we would display all available information about each var to the end-user,
+-- but for now we simply pick the "most important" issue to maintain backwards compatibility
+-- with current behaviour.
+pickPriorityStatus :: SummarizedStatus v -> SummarizedStatus v -> SummarizedStatus v
+pickPriorityStatus a b =
+  case (a, b) of
+    -- If the definition has its own error, that takes highest priority.
+    (SelfErr err, _) -> SelfErr err
+    (_, SelfErr err) -> SelfErr err
+    -- Next we care if a dependency has an error
+    (ErrFrom v err, _) -> ErrFrom v err
+    (_, ErrFrom v err) -> ErrFrom v err
+    -- If our definition needs its own update then we don't care if dependencies need updates.
+    (Ok Updated, _) -> Ok Updated
+    (_, Ok Updated) -> Ok Updated
+    (NeedsUpdate v, _) -> NeedsUpdate v
+    (_, NeedsUpdate v) -> NeedsUpdate v
+    -- 'New' definitions take precedence over duplicated dependencies
+    (Ok New, _) -> Ok New
+    (_, Ok New) -> Ok New
+    (Ok Duplicated, _) -> Ok Duplicated
 
 -- | Possible error conditions for a definition.
 data SlurpErr
-  = TermCtorCollision
-  | CtorTermCollision
-  | Conflict
+  = -- | A term in the scratch file conflicts with a Ctor in the codebase
+    TermCtorCollision
+  | -- | A constructor in the scratch file conflicts with a term in the codebase
+    CtorTermCollision
+  | -- | The name of this term is conflicted in the codebase.
+    Conflict
   deriving (Eq, Ord, Show)
 
--- | Possible error conditions for a definition.
-data DefinitionNotes
-  = DefOk SlurpStatus
+-- | Possible statuses for a given definition
+data DefnStatus
+  = DefOk SlurpOk
   | DefErr SlurpErr
   deriving (Show)
 
 -- | A map of variables to their status, and all of their dependencies' statuses.
-type SlurpAnalysis v = Map (TermOrTypeVar v) (DefinitionNotes, Map (TermOrTypeVar v) DefinitionNotes)
+type SlurpAnalysis v = Map (TaggedVar v) (DefnStatus, Map (TaggedVar v) DefnStatus)
 
 -- | A mapping of each status to the vars which have that status.
-type VarsByStatus v = Map (DefStatus v) (NESet (TermOrTypeVar v))
+type VarsByStatus v = Map (SummarizedStatus v) (NESet (TaggedVar v))
 
--- Compute all definitions which can be added, or the reasons why a def can't be added.
+-- | Compute all definitions which can be added, or the reasons why a def can't be added.
 groupByStatus :: forall v. (Ord v, Show v) => SlurpAnalysis v -> VarsByStatus v
 groupByStatus sr =
   pTraceShowId $ analyzed
   where
-    analyzed :: Map (DefStatus v) (NESet (TermOrTypeVar v))
+    analyzed :: Map (SummarizedStatus v) (NESet (TaggedVar v))
     analyzed =
       sr
         & Map.toList
         & fmap
           ( \(tv, (defNotes, deps)) ->
-              ( Semigroup.fold1 (computeDefStatus False defNotes tv NEList.:| (Map.toList deps <&> \(depTV, depDefNotes) -> computeDefStatus True depDefNotes depTV)),
+              ( let selfStatus = toSummary False defNotes tv
+                    summaryOfDeps = (Map.toList deps <&> \(depTV, depDefNotes) -> toSummary True depDefNotes depTV)
+                 in foldl' pickPriorityStatus selfStatus summaryOfDeps,
                 NESet.singleton tv
               )
           )
         & Map.fromListWith (<>)
 
-    computeDefStatus :: (Ord v, Show v) => Bool -> DefinitionNotes -> TermOrTypeVar v -> DefStatus v
-    computeDefStatus isDep defNotes tv =
+    toSummary :: (Ord v, Show v) => Bool -> DefnStatus -> TaggedVar v -> SummarizedStatus v
+    toSummary isDep defNotes tv =
       case defNotes of
         DefOk Updated -> if isDep then NeedsUpdate tv else Ok Updated
         DefErr err ->
@@ -141,13 +148,13 @@ slurpFile ::
   Names ->
   SR.SlurpResult v
 slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames =
-  let varRelation :: Map (TermOrTypeVar v) LD.LabeledDependency
+  let varRelation :: Map (TaggedVar v) LD.LabeledDependency
       varRelation = fileDefinitions uf
-      involvedVars :: Set (TermOrTypeVar v)
+      involvedVars :: Set (TaggedVar v)
       involvedVars = computeInvolvedVars uf defsToConsider varRelation
       codebaseNames :: Names
       codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars slurpOp
-      varDeps :: Map (TermOrTypeVar v) (Set (TermOrTypeVar v))
+      varDeps :: Map (TaggedVar v) (Set (TaggedVar v))
       varDeps = computeVarDeps uf involvedVars
       analysis :: SlurpAnalysis v
       analysis = computeSlurpAnalysis varDeps varRelation fileNames codebaseNames
@@ -170,7 +177,7 @@ computeNamesWithDeprecations ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Names ->
-  Set (TermOrTypeVar v) ->
+  Set (TaggedVar v) ->
   SlurpOp ->
   Names
 computeNamesWithDeprecations _uf unalteredCodebaseNames _involvedVars AddOp =
@@ -215,8 +222,8 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
 computeSlurpAnalysis ::
   forall v.
   (Ord v, Var v) =>
-  Map (TermOrTypeVar v) (Set (TermOrTypeVar v)) ->
-  Map (TermOrTypeVar v) LD.LabeledDependency ->
+  Map (TaggedVar v) (Set (TaggedVar v)) ->
+  Map (TaggedVar v) LD.LabeledDependency ->
   Names ->
   Names ->
   SlurpAnalysis v
@@ -224,7 +231,7 @@ computeSlurpAnalysis depMap varRelation _fileNames codebaseNames =
   pTraceShow ("Statuses", statuses) $
     statuses
   where
-    statuses :: Map (TermOrTypeVar v) (DefinitionNotes, Map (TermOrTypeVar v) (DefinitionNotes))
+    statuses :: Map (TaggedVar v) (DefnStatus, Map (TaggedVar v) (DefnStatus))
     statuses =
       let withNotes =
             depMap
@@ -234,9 +241,9 @@ computeSlurpAnalysis depMap varRelation _fileNames codebaseNames =
                 )
           withTransitiveNotes ::
             ( Map
-                (TermOrTypeVar v)
-                ( DefinitionNotes,
-                  (Map (TermOrTypeVar v) DefinitionNotes)
+                (TaggedVar v)
+                ( DefnStatus,
+                  (Map (TaggedVar v) DefnStatus)
                 )
             )
           withTransitiveNotes =
@@ -248,33 +255,26 @@ computeSlurpAnalysis depMap varRelation _fileNames codebaseNames =
                     pure (tv, notes)
                 )
        in withTransitiveNotes
-    definitionStatus :: TermOrTypeVar v -> DefinitionNotes
+    definitionStatus :: TaggedVar v -> DefnStatus
     definitionStatus tv =
       let ld = case Map.lookup tv varRelation of
             Just r -> r
             Nothing -> error $ "Expected LabeledDependency in map for var: " <> show tv
-          v = unlabeled tv
+          v = untagged tv
           existingTypesAtName = Names.typesNamed codebaseNames (Name.unsafeFromVar v)
-          existingTermsAtName = Names.termsNamed codebaseNames (Name.unsafeFromVar v)
+          existingTermsOrCtorsAtName = Names.termsNamed codebaseNames (Name.unsafeFromVar v)
        in case ld of
             LD.TypeReference _typeRef ->
-              let typeStatus = case Set.toList existingTypesAtName of
-                    [] -> DefOk New
-                    [r]
-                      | LD.typeRef r == ld -> DefOk Duplicated
-                      | otherwise -> DefOk Updated
-                    -- If there are many existing types, they must be in conflict.
-                    -- Currently we treat conflicts as errors rather than resolving them.
-                    _ -> DefErr Conflict
-               in -- ctorConflicts = do
-                  --   (ctorName, ctorRef) <- Names.constructorsForType typeRef fileNames
-                  --   existing <- Set.toList $ Names.termsNamed codebaseNames ctorName
-                  --   case existing of
-                  --     Referent.Ref _ -> pure _
-                  --     Referent.Con {} -> empty
-                  typeStatus
+              case Set.toList existingTypesAtName of
+                [] -> DefOk New
+                [r]
+                  | LD.typeRef r == ld -> DefOk Duplicated
+                  | otherwise -> DefOk Updated
+                -- If there are many existing types, they must be in conflict.
+                -- Currently we treat conflicts as errors rather than resolving them.
+                _ -> DefErr Conflict
             LD.TermReference {} ->
-              case Set.toList existingTermsAtName of
+              case Set.toList existingTermsOrCtorsAtName of
                 [] -> DefOk New
                 rs | any Referent.isConstructor rs -> DefErr TermCtorCollision
                 [r]
@@ -284,7 +284,7 @@ computeSlurpAnalysis depMap varRelation _fileNames codebaseNames =
                 -- Currently we treat conflicts as errors rather than resolving them.
                 _ -> DefErr Conflict
             LD.ConReference {} ->
-              case Set.toList existingTermsAtName of
+              case Set.toList existingTermsOrCtorsAtName of
                 [] -> DefOk New
                 rs | any (not . Referent.isConstructor) rs -> DefErr CtorTermCollision
                 [r]
@@ -302,15 +302,15 @@ computeInvolvedVars ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Set v ->
-  Map (TermOrTypeVar v) LD.LabeledDependency ->
-  Set (TermOrTypeVar v)
+  Map (TaggedVar v) LD.LabeledDependency ->
+  Set (TaggedVar v)
 computeInvolvedVars uf defsToConsider varRelation
   | Set.null defsToConsider = Set.fromList $ Map.keys varRelation
   | otherwise = allInvolvedVars
   where
-    allInvolvedVars :: Set (TermOrTypeVar v)
+    allInvolvedVars :: Set (TaggedVar v)
     allInvolvedVars =
-      let requestedVarsWhichActuallyExist :: Set (TermOrTypeVar v)
+      let requestedVarsWhichActuallyExist :: Set (TaggedVar v)
           requestedVarsWhichActuallyExist = Set.fromList $ do
             v <- Set.toList defsToConsider
             -- We don't know whether each var is a type or term, so we try both.
@@ -324,10 +324,10 @@ computeVarDeps ::
   forall v.
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
-  Set (TermOrTypeVar v) ->
-  Map (TermOrTypeVar v) (Set (TermOrTypeVar v))
+  Set (TaggedVar v) ->
+  Map (TaggedVar v) (Set (TaggedVar v))
 computeVarDeps uf allInvolvedVars =
-  let depMap :: (Map (TermOrTypeVar v) (Set (TermOrTypeVar v)))
+  let depMap :: (Map (TaggedVar v) (Set (TaggedVar v)))
       depMap =
         allInvolvedVars
           & Set.toList
@@ -341,19 +341,18 @@ computeVarDeps uf allInvolvedVars =
 
 -- | Compute the closure of all vars which the provided vars depend on.
 -- A type depends on its constructors.
-varClosure :: (Var v) => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -> Set (TermOrTypeVar v)
-varClosure uf (partitionVars OmitConstructors -> sc) =
+varClosure :: (Var v) => UF.TypecheckedUnisonFile v a -> Set (TaggedVar v) -> Set (TaggedVar v)
+varClosure uf (partitionVars -> sc) =
   let deps = SC.closeWithDependencies uf sc
    in mingleVars deps
 
 -- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
--- Contains types but not their constructors.
-fileDefinitions :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Map (TermOrTypeVar v) LD.LabeledDependency
+fileDefinitions :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Map (TaggedVar v) LD.LabeledDependency
 fileDefinitions uf =
   let result = decls <> effects <> terms <> constructors
    in pTraceShow ("varRelation", result) $ result
   where
-    terms :: Map (TermOrTypeVar v) LD.LabeledDependency
+    terms :: Map (TaggedVar v) LD.LabeledDependency
     terms =
       UF.hashTermsId uf
         & Map.toList
@@ -367,30 +366,30 @@ fileDefinitions uf =
               _ -> Nothing
           )
         & Map.fromList
-    decls :: Map (TermOrTypeVar v) LD.LabeledDependency
+    decls :: Map (TaggedVar v) LD.LabeledDependency
     decls =
       UF.dataDeclarationsId' uf
         & Map.toList
         & fmap (\(v, (refId, _)) -> (TypeVar v, LD.derivedType refId))
         & Map.fromList
 
-    effects :: Map (TermOrTypeVar v) LD.LabeledDependency
+    effects :: Map (TaggedVar v) LD.LabeledDependency
     effects =
       UF.effectDeclarationsId' uf
         & Map.toList
         & fmap (\(v, (refId, _)) -> (TypeVar v, (LD.derivedType refId)))
         & Map.fromList
 
-    constructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+    constructors :: Map (TaggedVar v) LD.LabeledDependency
     constructors =
-      let effectConstructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+      let effectConstructors :: Map (TaggedVar v) LD.LabeledDependency
           effectConstructors = Map.fromList $ do
             (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarationsId' uf)
             let decl = DD.toDataDecl effect
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
             pure $ (ConstructorVar constructorV, LD.effectConstructor (CR.ConstructorReference (Ref.fromId typeRefId) conId))
 
-          dataConstructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+          dataConstructors :: Map (TaggedVar v) LD.LabeledDependency
           dataConstructors = Map.fromList $ do
             (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarationsId' uf)
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
@@ -430,7 +429,7 @@ toSlurpResult ::
   UF.TypecheckedUnisonFile v Ann ->
   SlurpOp ->
   Set v ->
-  Set (TermOrTypeVar v) ->
+  Set (TaggedVar v) ->
   Names ->
   Names ->
   VarsByStatus v ->
@@ -446,7 +445,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
               let desired =
                     requestedVars
                       & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
-               in partitionVars OmitConstructors $ Set.difference involvedVars desired,
+               in partitionVars $ Set.difference involvedVars desired,
         SR.adds = adds,
         SR.duplicates = duplicates,
         SR.collisions = if op == AddOp then updates else mempty,
@@ -468,8 +467,8 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
       varsByStatus
         & ifoldMap
           ( \k tvs ->
-              let scWithConstructors = partitionVars IncludedConstructors $ tvs
-                  scWithoutConstructors = partitionVars OmitConstructors $ tvs
+              let scWithConstructors = partitionVars tvs
+                  scWithoutConstructors = partitionVars tvs
                in case k of
                     Ok New -> mempty {adds = scWithoutConstructors}
                     Ok Duplicated -> mempty {duplicates = scWithoutConstructors}
@@ -530,23 +529,18 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
     varFromName :: Var v => Name -> v
     varFromName name = Var.named (Name.toText name)
 
-data HandleConstructors = OmitConstructors | IncludedConstructors
-
 -- | Sort out a set of variables by whether it is a term or type.
-partitionVars :: (Foldable f, Ord v) => HandleConstructors -> f (TermOrTypeVar v) -> SlurpComponent v
-partitionVars ctorHandling =
+partitionVars :: (Foldable f, Ord v) => f (TaggedVar v) -> SlurpComponent v
+partitionVars =
   foldMap
     ( \case
         TypeVar v -> SC.fromTypes (Set.singleton v)
         TermVar v -> SC.fromTerms (Set.singleton v)
-        ConstructorVar v ->
-          case ctorHandling of
-            OmitConstructors -> mempty
-            IncludedConstructors -> SC.fromTerms (Set.singleton v)
+        ConstructorVar v -> SC.fromCtors (Set.singleton v)
     )
 
 -- | Collapse a SlurpComponent into a tagged set.
-mingleVars :: Ord v => SlurpComponent v -> Set (TermOrTypeVar v)
+mingleVars :: Ord v => SlurpComponent v -> Set (TaggedVar v)
 mingleVars SlurpComponent {terms, types, ctors} =
   Set.map TypeVar types
     <> Set.map TermVar terms

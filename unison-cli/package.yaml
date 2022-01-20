@@ -10,7 +10,6 @@ flags:
 ghc-options: -Wall
 
 dependencies:
-  - semigroupoids
   - pretty-simple
   - ListLike
   - async
