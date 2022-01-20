@@ -526,6 +526,15 @@ renderTypeError e env src = case e of
            [Type.var () (Var.named "e"), Type.var () (Var.named "a") ])
         (Type.var () (Var.named "o"))
 
+  Other (C.cause -> C.PatternArityMismatch loc typ num) ->
+    Pr.lines [
+      Pr.wrap "This pattern has the wrong number of arguments", "",
+      annotatedAsErrorSite src loc,
+      "The constructor has type ", "",
+      Pr.indentN 2 (stylePretty Type1 (Pr.group (renderType' env typ))), "",
+      "but you supplied " <> (Pr.shown num) <> " arguments."
+     ]
+
   Other note -> mconcat
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
@@ -589,52 +598,53 @@ renderTypeError e env src = case e of
     , "    "
     , simpleCause (C.cause note)
     , "\n"
-    , case toList (C.path note) of
-      [] -> "  path: (empty)\n"
-      l  -> "  path:\n" <> mconcat (simplePath <$> l)
+-- This can be very slow to print in large file. This was taking several minutes to print out the path in a file when the error occurred deep in the file after many other let bindings - stew
+--    , case toList (C.path note) of
+--      [] -> "  path: (empty)\n"
+--      l  -> "  path:\n" <> mconcat (simplePath <$> l)
     ]
-  simplePath :: C.PathElement v loc -> Pretty ColorText
-  simplePath e = "    " <> simplePath' e <> "\n"
-  simplePath' :: C.PathElement v loc -> Pretty ColorText
-  simplePath' = \case
-    C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
-    C.InEquate t1 t2 ->
-      "InEquate t1=" <> renderType' env t1 <>
-      ", t2=" <> renderType' env t2
-    C.InSubtype t1 t2 ->
-      "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
-    C.InCheck e t ->
-      "InCheck e=" <> renderTerm env e <> "," <> " t=" <> renderType' env t
-    C.InInstantiateL v t ->
-      "InInstantiateL v=" <> renderVar v <> ", t=" <> renderType' env t
-    C.InInstantiateR t v ->
-      "InInstantiateR t=" <> renderType' env t <> " v=" <> renderVar v
-    C.InSynthesizeApp t e n ->
-      "InSynthesizeApp t="
-        <> renderType' env t
-        <> ", e="
-        <> renderTerm env e
-        <> ", n="
-        <> fromString (show n)
-    C.InFunctionCall vs f ft es ->
-      "InFunctionCall vs=["
-        <> commas renderVar vs
-        <> "]"
-        <> ", f="
-        <> renderTerm env f
-        <> ", ft="
-        <> renderType' env ft
-        <> ", es=["
-        <> commas (renderTerm env) es
-        <> "]"
-    C.InIfCond        -> "InIfCond"
-    C.InIfBody loc    -> "InIfBody thenBody=" <> annotatedToEnglish loc
-    C.InAndApp        -> "InAndApp"
-    C.InOrApp         -> "InOrApp"
-    C.InVectorApp loc -> "InVectorApp firstTerm=" <> annotatedToEnglish loc
-    C.InMatch     loc -> "InMatch firstBody=" <> annotatedToEnglish loc
-    C.InMatchGuard    -> "InMatchGuard"
-    C.InMatchBody     -> "InMatchBody"
+--   simplePath :: C.PathElement v loc -> Pretty ColorText
+--   simplePath e = "    " <> simplePath' e <> "\n"
+--   simplePath' :: C.PathElement v loc -> Pretty ColorText
+--   simplePath' = \case
+--     C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
+--     C.InEquate t1 t2 ->
+--       "InEquate t1=" <> renderType' env t1 <>
+--       ", t2=" <> renderType' env t2
+--     C.InSubtype t1 t2 ->
+--       "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
+--     C.InCheck e t ->
+--       "InCheck e=" <> renderTerm env e <> "," <> " t=" <> renderType' env t
+--     C.InInstantiateL v t ->
+--       "InInstantiateL v=" <> renderVar v <> ", t=" <> renderType' env t
+--     C.InInstantiateR t v ->
+--       "InInstantiateR t=" <> renderType' env t <> " v=" <> renderVar v
+--     C.InSynthesizeApp t e n ->
+--       "InSynthesizeApp t="
+--         <> renderType' env t
+--         <> ", e="
+--         <> renderTerm env e
+--         <> ", n="
+--         <> fromString (show n)
+--     C.InFunctionCall vs f ft es ->
+--       "InFunctionCall vs=["
+--         <> commas renderVar vs
+--         <> "]"
+--         <> ", f="
+--         <> renderTerm env f
+--         <> ", ft="
+--         <> renderType' env ft
+--         <> ", es=["
+--         <> commas (renderTerm env) es
+--         <> "]"
+--     C.InIfCond        -> "InIfCond"
+--     C.InIfBody loc    -> "InIfBody thenBody=" <> annotatedToEnglish loc
+--     C.InAndApp        -> "InAndApp"
+--     C.InOrApp         -> "InOrApp"
+--     C.InVectorApp loc -> "InVectorApp firstTerm=" <> annotatedToEnglish loc
+--     C.InMatch     loc -> "InMatch firstBody=" <> annotatedToEnglish loc
+--     C.InMatchGuard    -> "InMatchGuard"
+--     C.InMatchBody     -> "InMatchBody"
   simpleCause :: C.Cause v loc -> Pretty ColorText
   simpleCause = \case
     C.TypeMismatch c ->
