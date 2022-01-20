@@ -263,14 +263,20 @@ pretty0
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
-      if PP.isMultiLine pt || PP.isMultiLine pf then PP.lines [
-        (fmt S.ControlKeyword "if ") <> pcond <> (fmt S.ControlKeyword " then") `PP.hang` pt,
+      if PP.isMultiLine pcond then PP.lines [
+        (fmt S.ControlKeyword "if") `PP.hang` pcond,
+        (fmt S.ControlKeyword "then") `PP.hang` pt,
         (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
-      else PP.spaced [
-        ((fmt S.ControlKeyword "if") `PP.hang` pcond) <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
-        (fmt S.ControlKeyword "else") `PP.hang` pf
-       ]
+      else
+        if PP.isMultiLine pt || PP.isMultiLine pf then PP.lines [
+          (fmt S.ControlKeyword "if ") <> pcond <> (fmt S.ControlKeyword " then") `PP.hang` pt,
+          (fmt S.ControlKeyword "else") `PP.hang` pf
+         ]
+        else PP.spaced [
+          ((fmt S.ControlKeyword "if") `PP.hang` pcond) <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
+          (fmt S.ControlKeyword "else") `PP.hang` pf
+         ]
      where
        pcond  = pretty0 n (ac 2 Block im doc) cond
        pt     = branch t
