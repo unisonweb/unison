@@ -15,6 +15,7 @@ import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as SR
+import qualified Unison.ConstructorReference as CR
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.LabeledDependency as LD
 import Unison.Name (Name)
@@ -23,6 +24,7 @@ import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import qualified Unison.Reference as Ref
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
@@ -39,13 +41,14 @@ data SlurpOp = AddOp | UpdateOp
   deriving (Eq, Show)
 
 -- | Tag a variable as either a term/constructor or type
-data TermOrTypeVar v = TermVar v | TypeVar v
+data TermOrTypeVar v = TermVar v | TypeVar v | ConstructorVar v
   deriving (Eq, Ord, Show)
 
 -- | Extract the var from a TermOrTypeVar
 unlabeled :: TermOrTypeVar v -> v
 unlabeled (TermVar v) = v
 unlabeled (TypeVar v) = v
+unlabeled (ConstructorVar v) = v
 
 -- | A definition's status with relation to the codebase.
 data SlurpStatus
@@ -120,7 +123,10 @@ groupByStatus sr =
     computeDefStatus isDep defNotes tv =
       case defNotes of
         DefOk Updated -> if isDep then NeedsUpdate tv else Ok Updated
-        DefErr err -> ErrFrom tv err
+        DefErr err ->
+          if isDep
+            then ErrFrom tv err
+            else SelfErr err
         DefOk New -> Ok New
         DefOk Duplicated -> Ok Duplicated
 
@@ -171,9 +177,7 @@ computeNamesWithDeprecations _uf unalteredCodebaseNames _involvedVars AddOp =
   -- If we're 'adding', there won't be any deprecations.
   unalteredCodebaseNames
 computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
-  pTraceShow ("Deprecated constructors", deprecatedConstructors)
-    . pTraceShow ("constructorNamesInFile", constructorsUnderConsideration)
-    $ codebaseNames
+  codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -204,11 +208,8 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
             (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
             pure name
        in -- Compute any constructors which were deleted
-          pTraceShow ("defsToConsider", involvedVars)
-            . pTraceShow ("codebaseNames", unalteredCodebaseNames)
-            . pTraceShow ("allRefIds", oldRefsForEditedTypes)
-            . pTraceShow ("existingConstructorsFromEditedTypes", existingConstructorsFromEditedTypes)
-            $ existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
+          pTraceShow ("defsToConsider", involvedVars) $
+            existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
 -- | Compute a mapping of each definition to its status, and its dependencies' statuses.
 computeSlurpAnalysis ::
@@ -262,7 +263,7 @@ computeSlurpAnalysis depMap varRelation _fileNames codebaseNames =
                     [r]
                       | LD.typeRef r == ld -> DefOk Duplicated
                       | otherwise -> DefOk Updated
-                    -- If there are many existing terms, they must be in conflict.
+                    -- If there are many existing types, they must be in conflict.
                     -- Currently we treat conflicts as errors rather than resolving them.
                     _ -> DefErr Conflict
                in -- ctorConflicts = do
@@ -309,13 +310,14 @@ computeInvolvedVars uf defsToConsider varRelation
   where
     allInvolvedVars :: Set (TermOrTypeVar v)
     allInvolvedVars =
-      let existingVars :: Set (TermOrTypeVar v) = Set.fromList $ do
+      let requestedVarsWhichActuallyExist :: Set (TermOrTypeVar v)
+          requestedVarsWhichActuallyExist = Set.fromList $ do
             v <- Set.toList defsToConsider
             -- We don't know whether each var is a type or term, so we try both.
             tv <- [TypeVar v, TermVar v]
             guard (Map.member tv varRelation)
             pure tv
-       in varClosure uf existingVars
+       in varClosure uf requestedVarsWhichActuallyExist
 
 -- | Compute transitive dependencies for all relevant variables.
 computeVarDeps ::
@@ -338,15 +340,18 @@ computeVarDeps uf allInvolvedVars =
         $ depMap
 
 -- | Compute the closure of all vars which the provided vars depend on.
-varClosure :: Ord v => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -> Set (TermOrTypeVar v)
-varClosure uf (partitionVars -> sc) =
-  mingleVars $ SC.closeWithDependencies uf sc
+-- A type depends on its constructors.
+varClosure :: (Var v) => UF.TypecheckedUnisonFile v a -> Set (TermOrTypeVar v) -> Set (TermOrTypeVar v)
+varClosure uf (partitionVars OmitConstructors -> sc) =
+  let deps = SC.closeWithDependencies uf sc
+   in mingleVars deps
+        <> Set.map ConstructorVar (SR.constructorsFor (SC.types sc) uf)
 
 -- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
 -- Contains types but not their constructors.
 fileDefinitions :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Map (TermOrTypeVar v) LD.LabeledDependency
 fileDefinitions uf =
-  let result = decls <> effects <> terms
+  let result = decls <> effects <> terms <> constructors
    in pTraceShow ("varRelation", result) $ result
   where
     terms :: Map (TermOrTypeVar v) LD.LabeledDependency
@@ -376,6 +381,22 @@ fileDefinitions uf =
         & Map.toList
         & fmap (\(v, (refId, _)) -> (TypeVar v, (LD.derivedType refId)))
         & Map.fromList
+
+    constructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+    constructors =
+      let effectConstructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+          effectConstructors = Map.fromList $ do
+            (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarationsId' uf)
+            let decl = DD.toDataDecl effect
+            (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
+            pure $ (ConstructorVar constructorV, LD.effectConstructor (CR.ConstructorReference (Ref.fromId typeRefId) conId))
+
+          dataConstructors :: Map (TermOrTypeVar v) LD.LabeledDependency
+          dataConstructors = Map.fromList $ do
+            (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarationsId' uf)
+            (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
+            pure $ (ConstructorVar constructorV, LD.dataConstructor (CR.ConstructorReference (Ref.fromId typeRefId) conId))
+       in effectConstructors <> dataConstructors
 
 -- A helper type just used by 'toSlurpResult' for partitioning results.
 data SlurpingSummary v = SlurpingSummary
@@ -426,7 +447,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
               let desired =
                     requestedVars
                       & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
-               in partitionVars $ Set.difference involvedVars desired,
+               in partitionVars OmitConstructors $ Set.difference involvedVars desired,
         SR.adds = adds,
         SR.duplicates = duplicates,
         SR.collisions = if op == AddOp then updates else mempty,
@@ -448,23 +469,24 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
       varsByStatus
         & ifoldMap
           ( \k tvs ->
-              let sc = partitionVars $ tvs
+              let scWithConstructors = partitionVars IncludedConstructors $ tvs
+                  scWithoutConstructors = partitionVars OmitConstructors $ tvs
                in case k of
-                    Ok New -> mempty {adds = sc}
-                    Ok Duplicated -> mempty {duplicates = sc}
-                    Ok Updated -> mempty {updates = sc}
+                    Ok New -> mempty {adds = scWithoutConstructors}
+                    Ok Duplicated -> mempty {duplicates = scWithoutConstructors}
+                    Ok Updated -> mempty {updates = scWithoutConstructors}
                     NeedsUpdate _ ->
                       case op of
                         AddOp ->
-                          mempty {blocked = sc}
+                          mempty {blocked = scWithoutConstructors}
                         UpdateOp ->
-                          mempty {adds = sc}
-                    ErrFrom _ TermCtorCollision -> mempty {blocked = sc}
-                    ErrFrom _ CtorTermCollision -> mempty {blocked = sc}
-                    ErrFrom _ Conflict -> mempty {blocked = sc}
-                    SelfErr TermCtorCollision -> mempty {termCtorColl = sc}
-                    SelfErr CtorTermCollision -> mempty {ctorTermColl = sc}
-                    SelfErr Conflict -> mempty {conflicts = sc}
+                          mempty {adds = scWithoutConstructors}
+                    ErrFrom _ TermCtorCollision -> mempty {blocked = scWithoutConstructors}
+                    ErrFrom _ CtorTermCollision -> mempty {blocked = scWithoutConstructors}
+                    ErrFrom _ Conflict -> mempty {blocked = scWithoutConstructors}
+                    SelfErr TermCtorCollision -> mempty {termCtorColl = scWithConstructors}
+                    SelfErr CtorTermCollision -> mempty {ctorTermColl = scWithConstructors}
+                    SelfErr Conflict -> mempty {conflicts = scWithConstructors}
           )
 
     buildAliases ::
@@ -509,13 +531,19 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames varsBySta
     varFromName :: Var v => Name -> v
     varFromName name = Var.named (Name.toText name)
 
+data HandleConstructors = OmitConstructors | IncludedConstructors
+
 -- | Sort out a set of variables by whether it is a term or type.
-partitionVars :: (Foldable f, Ord v) => f (TermOrTypeVar v) -> SlurpComponent v
-partitionVars =
+partitionVars :: (Foldable f, Ord v) => HandleConstructors -> f (TermOrTypeVar v) -> SlurpComponent v
+partitionVars ctorHandling =
   foldMap
     ( \case
         TypeVar v -> SC.fromTypes (Set.singleton v)
         TermVar v -> SC.fromTerms (Set.singleton v)
+        ConstructorVar v ->
+          case ctorHandling of
+            OmitConstructors -> mempty
+            IncludedConstructors -> SC.fromTerms (Set.singleton v)
     )
 
 -- | Collapse a SlurpComponent into a tagged set.

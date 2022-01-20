@@ -22,23 +22,24 @@ isEmpty :: SlurpComponent v -> Bool
 isEmpty sc = Set.null (types sc) && Set.null (terms sc)
 
 empty :: Ord v => SlurpComponent v
-empty = SlurpComponent mempty mempty
+empty = SlurpComponent {types=mempty, terms=mempty}
 
 difference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-difference c1 c2 = SlurpComponent types' terms' where
+difference c1 c2 = SlurpComponent {types=types', terms=terms'} where
   types' = types c1 `Set.difference` types c2
   terms' = terms c1 `Set.difference` terms c2
 
 intersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-intersection c1 c2 = SlurpComponent types' terms' where
+intersection c1 c2 = SlurpComponent {types=types', terms=terms'} where
   types' = types c1 `Set.intersection` types c2
   terms' = terms c1 `Set.intersection` terms c2
 
 instance Ord v => Semigroup (SlurpComponent v) where (<>) = mappend
 instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent mempty mempty
-  c1 `mappend` c2 = SlurpComponent (types c1 <> types c2)
-                                   (terms c1 <> terms c2)
+  mempty = SlurpComponent {types=mempty, terms=mempty}
+  c1 `mappend` c2 = SlurpComponent { types = types c1 <> types c2
+                                   , terms = terms c1 <> terms c2
+                                   }
 
 
 -- I'm calling this `closeWithDependencies` because it doesn't just compute
@@ -47,7 +48,7 @@ instance Ord v => Monoid (SlurpComponent v) where
 closeWithDependencies :: forall v a. Ord v
   => TypecheckedUnisonFile v a -> SlurpComponent v -> SlurpComponent v
 closeWithDependencies uf inputs = seenDefns where
-  seenDefns = foldl' termDeps (SlurpComponent mempty seenTypes) (terms inputs)
+  seenDefns = foldl' termDeps (SlurpComponent {terms=mempty, types=seenTypes}) (terms inputs)
   seenTypes = foldl' typeDeps mempty (types inputs)
 
   termDeps :: SlurpComponent v -> v -> SlurpComponent v
