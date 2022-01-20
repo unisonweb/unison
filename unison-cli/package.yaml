@@ -11,6 +11,8 @@ ghc-options: -Wall
 
 dependencies:
   - pretty-simple
+  - semialign
+  - these
   - ListLike
   - async
   - base

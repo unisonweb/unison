@@ -100,9 +100,10 @@ library
     , pretty-simple
     , random >=1.2.0
     , regex-tdfa
-    , semigroupoids
+    , semialign
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -172,10 +173,11 @@ executable integration-tests
     , process
     , random >=1.2.0
     , regex-tdfa
-    , semigroupoids
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , time
     , transformers
     , unison-codebase-sqlite
@@ -244,10 +246,11 @@ executable transcripts
     , process
     , random >=1.2.0
     , regex-tdfa
-    , semigroupoids
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -315,12 +318,13 @@ executable unison
     , pretty-simple
     , random >=1.2.0
     , regex-tdfa
-    , semigroupoids
+    , semialign
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -394,11 +398,12 @@ test-suite tests
     , pretty-simple
     , random >=1.2.0
     , regex-tdfa
-    , semigroupoids
+    , semialign
     , shellmet
     , stm
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
