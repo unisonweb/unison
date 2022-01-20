@@ -61,7 +61,6 @@ data SummarizedStatus v
   | NeedsUpdate (TaggedVar v)
   | ErrFrom (TaggedVar v) SlurpErr
   | SelfErr SlurpErr
-  | InertConstructorSummary
   deriving (Eq, Ord, Show)
 
 -- | Ideally we would display all available information about each var to the end-user,
@@ -85,8 +84,6 @@ pickPriorityStatus a b =
     (Ok New, _) -> Ok New
     (_, Ok New) -> Ok New
     (Ok Duplicated, _) -> Ok Duplicated
-    (_, Ok Duplicated) -> Ok Duplicated
-    (InertConstructorSummary, InertConstructorSummary) -> InertConstructorSummary
 
 -- | Possible error conditions for a definition.
 data SlurpErr
@@ -102,7 +99,6 @@ data SlurpErr
 data DefnStatus
   = DefOk SlurpOk
   | DefErr SlurpErr
-  | InertConstructor
   deriving (Show)
 
 -- | Analyze a file and determine the status of all of its definitions with respect to a set
@@ -144,7 +140,7 @@ slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames =
       slurpResult :: SR.SlurpResult v
       slurpResult =
         toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames summaries
-   in pTraceShow ("selfStatuses", selfStatuses) $ pTraceShowId slurpResult
+   in pTraceShowId slurpResult
   where
     slurpOp :: SlurpOp
     slurpOp = fromMaybe UpdateOp maybeSlurpOp
@@ -243,9 +239,11 @@ computeVarStatuses depMap varReferences codebaseNames =
                 _ -> DefErr Conflict
             LD.ConReference {} ->
               case Set.toList existingTermsOrCtorsAtName of
+                [] -> DefOk New
                 rs | any (not . Referent.isConstructor) rs -> DefErr CtorTermCollision
-                [] -> InertConstructor
-                [_r] -> InertConstructor
+                [r]
+                  | LD.referent r == ld -> DefOk Duplicated
+                  | otherwise -> DefOk Updated
                 -- If there are many existing terms, they must be in conflict.
                 -- Currently we treat conflicts as errors rather than resolving them.
                 _ -> DefErr Conflict
@@ -280,7 +278,6 @@ summarizeTransitiveStatus statuses deps =
             else SelfErr err
         DefOk New -> Ok New
         DefOk Duplicated -> Ok Duplicated
-        InertConstructor -> InertConstructorSummary
 
 -- | Determine all variables which should be considered in analysis.
 -- I.e. any variable requested by the user and all of their dependencies,
@@ -471,7 +468,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
                     SelfErr TermCtorCollision -> mempty {termCtorColl = sc}
                     SelfErr CtorTermCollision -> mempty {ctorTermColl = sc}
                     SelfErr Conflict -> mempty {conflicts = sc}
-                    InertConstructorSummary -> mempty
           )
 
     scFromTaggedVar :: TaggedVar v -> SlurpComponent v

@@ -1914,7 +1914,7 @@ handleUpdate input maybePatchPath names = do
           updatePatches :: Branch0 m -> m (Branch0 m)
           updatePatches = Branch.modifyPatches seg updatePatch
 
-      when (Slurp.isNonempty sr) $ do
+      when (Slurp.hasAddsOrUpdates sr) $ do
         -- take a look at the `updates` from the SlurpResult
         -- and make a patch diff to record a replacement from the old to new references
         stepManyAtMNoSync Branch.CompressHistory

@@ -20,7 +20,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 
@@ -65,8 +64,13 @@ data SlurpResult v = SlurpResult {
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
-isNonempty :: Ord v => SlurpResult v -> Bool
-isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
+hasAddsOrUpdates :: Ord v => SlurpResult v -> Bool
+hasAddsOrUpdates s =
+  -- We intentionally ignore constructors here since they are added as part of adding their
+  -- types.
+  let SC.SlurpComponent{terms=termAdds, types=typeAdds} = adds s
+      SC.SlurpComponent{terms=termUpdates, types=typeUpdates} = updates s
+   in not . null $ termAdds <> typeAdds <> termUpdates <> typeUpdates
 
 data Status =
   Add | Update | Duplicate | Collision | Conflicted |
@@ -293,16 +297,20 @@ isOk SlurpResult {..} =
 
 isAllDuplicates :: Ord v => SlurpResult v -> Bool
 isAllDuplicates SlurpResult {..} =
-  SC.isEmpty adds &&
-  SC.isEmpty updates &&
-  SC.isEmpty extraDefinitions &&
+  emptyIgnoringConstructors adds &&
+  emptyIgnoringConstructors updates &&
+  emptyIgnoringConstructors extraDefinitions &&
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
   Map.null typeAlias &&
   Map.null termAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
-  SC.isEmpty defsWithBlockedDependencies
+  emptyIgnoringConstructors defsWithBlockedDependencies
+    where
+      emptyIgnoringConstructors :: SlurpComponent v -> Bool
+      emptyIgnoringConstructors SlurpComponent{types, terms} =
+        null types && null terms
 
 -- stack repl
 --
