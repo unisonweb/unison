@@ -166,3 +166,64 @@ We should also be able to successfully update the whole thing.
     unique ability Channels
 
 ```
+# Constructor-term conflict
+
+```unison
+X.x = 1
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      X.x : Nat
+
+```
+```ucm
+  ☝️  The namespace .ns2 is empty.
+
+.ns2> add
+
+  ⍟ I've added these definitions:
+  
+    X.x : Nat
+
+```
+```unison
+structural ability X where
+  x : ()
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    x These definitions would fail on `add` or `update`:
+    
+      Reason
+      blocked structural ability X
+      ctor/term collision   X.x   
+    
+      Tip: Use `help filestatus` to learn more.
+
+```
+This should fail with a ctor/term conflict.
+
+```ucm
+.ns2> add
+
+  x These definitions failed:
+  
+    Reason
+    blocked structural ability X
+    ctor/term collision   X.x   
+  
+    Tip: Use `help filestatus` to learn more.
+
+```

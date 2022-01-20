@@ -76,7 +76,7 @@ X.x = 1
 .ns2> add
 ```
 
-```unison:error
+```unison
 structural ability X where
   x : ()
 ```
