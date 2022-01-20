@@ -47,7 +47,7 @@ instance Ord v => Monoid (SlurpComponent v) where
 closeWithDependencies :: forall v a. Ord v
   => TypecheckedUnisonFile v a -> SlurpComponent v -> SlurpComponent v
 closeWithDependencies uf inputs = seenDefns where
-  seenDefns = foldl' termDeps (SlurpComponent mempty seenTypes) (terms inputs)
+  seenDefns = foldl' termDeps (SlurpComponent {types=seenTypes, terms=mempty}) (terms inputs)
   seenTypes = foldl' typeDeps mempty (types inputs)
 
   termDeps :: SlurpComponent v -> v -> SlurpComponent v
