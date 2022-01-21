@@ -114,7 +114,7 @@ verboseOutput =
 migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
-    liftIO $ putStrLn $ "Starting codebase migration, this may take a while."
+    liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
     numEntitiesToMigrate <- runDB conn . liftQ $ do
       sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
@@ -168,7 +168,7 @@ migrateSchema12 conn codebase = do
               e -> liftIO $ putStrLn $ "Error: " ++ show e
             incrementProgress
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = liftIO $ putStrLn $ "\nFinished migrating, initiating cleanup.\n This will take a moment..."
+          allDone = liftIO $ putStrLn $ "\nFinished migrating, initiating cleanup."
        in Sync.Progress {need, done, error = errorHandler, allDone}
 
 type Old a = a
