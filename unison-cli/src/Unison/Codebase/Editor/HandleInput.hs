@@ -262,7 +262,7 @@ loop = do
         let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
         withFile [] sourceName (text, lexed) $ \unisonFile -> do
           currentNames <- currentPathNames
-          let sr = Slurp.slurpFile unisonFile mempty Nothing currentNames
+          let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
           names <- displayNames unisonFile
           pped <- prettyPrintEnvDecl names
           let ppe = PPE.suffixifiedPPE pped
@@ -1253,13 +1253,13 @@ loop = do
                     InvalidSourceNameError -> respond $ InvalidSourceName path
                     LoadError -> respond $ SourceLoadFailed path
                     LoadSuccess contents -> loadUnisonFile (Text.pack path) contents
-            AddI names -> do
-              let vars = Set.map Name.toVar names
+            AddI requestedNames -> do
+              let vars = Set.map Name.toVar requestedNames
               case uf of
                 Nothing -> respond NoUnisonFile
                 Just uf -> do
                   currentNames <- currentPathNames
-                  let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames
+                  let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                   let adds = SlurpResult.adds sr
                   stepAtNoSync Branch.CompressHistory (Path.unabsolute currentPath', doSlurpAdds adds uf)
                   eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
@@ -1267,19 +1267,19 @@ loop = do
                   respond $ SlurpOutput input (PPE.suffixifiedPPE ppe) sr
                   addDefaultMetadata adds
                   syncRoot
-            PreviewAddI names -> case (latestFile', uf) of
+            PreviewAddI requestedNames -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
-                let vars = Set.map Name.toVar names
+                let vars = Set.map Name.toVar requestedNames
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.AddOp) currentNames
+                let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
-            UpdateI maybePatchPath names -> handleUpdate input maybePatchPath names
-            PreviewUpdateI names -> case (latestFile', uf) of
+            UpdateI maybePatchPath requestedNames -> handleUpdate input maybePatchPath requestedNames
+            PreviewUpdateI requestedNames -> case (latestFile', uf) of
               (Just (sourceName, _), Just uf) -> do
-                let vars = Set.map Name.toVar names
+                let vars = Set.map Name.toVar requestedNames
                 currentNames <- currentPathNames
-                let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) currentNames
+                let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
                 previewResponse sourceName sr uf
               _ -> respond NoUnisonFile
             TodoI patchPath branchPath' -> do
@@ -1802,8 +1802,8 @@ handleShowDefinition outputLoc inputQuery = do
 
 -- | Handle an @update@ command.
 handleUpdate :: forall m v. (Monad m, Var v) => Input -> Maybe PatchPath -> Set Name -> Action' m v ()
-handleUpdate input maybePatchPath names = do
-  let vars = Set.map Name.toVar names
+handleUpdate input maybePatchPath requestedNames = do
+  let requestedVars = Set.map Name.toVar requestedNames
   use LoopState.latestTypecheckedFile >>= \case
     Nothing -> respond NoUnisonFile
     Just uf -> do
@@ -1818,7 +1818,7 @@ handleUpdate input maybePatchPath names = do
       let patchPath = fromMaybe defaultPatchPath maybePatchPath
       slurpCheckNames <- slurpResultNames
       let currentPathNames = slurpCheckNames
-      let sr = Slurp.slurpFile uf vars (Just Slurp.UpdateOp) slurpCheckNames
+      let sr = Slurp.slurpFile uf requestedVars Slurp.UpdateOp slurpCheckNames
           addsAndUpdates :: SlurpComponent v
           addsAndUpdates = Slurp.updates sr <> Slurp.adds sr
           fileNames :: Names

@@ -35,7 +35,11 @@ import qualified Unison.Var as Var
 import Unison.WatchKind (pattern TestWatch)
 
 -- | The operation which is being performed or checked.
-data SlurpOp = AddOp | UpdateOp
+data SlurpOp
+  = AddOp
+  | UpdateOp
+  | -- Run when the user saves the scratch file.
+    CheckOp
   deriving (Eq, Show)
 
 -- | Tag a variable as representing a term, type, or constructor
@@ -108,10 +112,10 @@ slurpFile ::
   Var v =>
   UF.TypecheckedUnisonFile v Ann ->
   Set v ->
-  Maybe SlurpOp ->
+  SlurpOp ->
   Names ->
   SR.SlurpResult v
-slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames =
+slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
   let -- A mapping of all vars in the file to their references.
       varReferences :: Map (TaggedVar v) LD.LabeledDependency
       varReferences = buildVarReferences uf
@@ -142,9 +146,6 @@ slurpFile uf defsToConsider maybeSlurpOp unalteredCodebaseNames =
         toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames summaries
    in pTraceShowId slurpResult
   where
-    slurpOp :: SlurpOp
-    slurpOp = fromMaybe UpdateOp maybeSlurpOp
-
     fileNames :: Names
     fileNames = UF.typecheckedToNames uf
 
@@ -157,11 +158,12 @@ computeNamesWithDeprecations ::
   Set (TaggedVar v) ->
   SlurpOp ->
   Names
-computeNamesWithDeprecations _uf unalteredCodebaseNames _involvedVars AddOp =
-  -- If we're 'adding', there won't be any deprecations.
-  unalteredCodebaseNames
-computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars UpdateOp =
-  codebaseNames
+computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars op =
+  case op of
+    AddOp ->
+      -- If we're 'adding', there won't be any deprecations to worry about.
+      unalteredCodebaseNames
+    _ -> codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -435,7 +437,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
         SR.duplicates = duplicates,
         SR.collisions = if op == AddOp then updates else mempty,
         SR.conflicts = conflicts,
-        SR.updates = if op == UpdateOp then updates else mempty,
+        SR.updates = if op /= AddOp then updates else mempty,
         SR.termExistingConstructorCollisions =
           let SlurpComponent {types, terms, ctors} = termCtorColl
            in types <> terms <> ctors,
@@ -461,6 +463,8 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
                         AddOp ->
                           mempty {blocked = sc}
                         UpdateOp ->
+                          mempty {adds = sc}
+                        CheckOp ->
                           mempty {adds = sc}
                     ErrFrom _ TermCtorCollision -> mempty {blocked = sc}
                     ErrFrom _ CtorTermCollision -> mempty {blocked = sc}
