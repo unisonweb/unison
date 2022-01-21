@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 import qualified Data.Semialign as Align
 import qualified Data.Set as Set
 import Data.These
-import Debug.Pretty.Simple (pTraceShow, pTraceShowId)
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import qualified Unison.Codebase.Editor.SlurpResult as SR
@@ -144,7 +143,7 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       slurpResult :: SR.SlurpResult v
       slurpResult =
         toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames summaries
-   in pTraceShowId slurpResult
+   in slurpResult
   where
     fileNames :: Names
     fileNames = UF.typecheckedToNames uf
@@ -194,8 +193,7 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars op =
             (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
             pure name
        in -- Compute any constructors which were deleted
-          pTraceShow ("defsToConsider", involvedVars) $
-            existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
+          existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
 -- | Compute a mapping of each definition to its status, and its dependencies' statuses.
 computeVarStatuses ::
@@ -322,9 +320,7 @@ computeVarDeps uf allInvolvedVars =
             ( \tv -> (tv, Set.delete tv $ varClosure uf (Set.singleton tv))
             )
           & Map.fromListWith (<>)
-   in pTraceShow ("all involved variables", allInvolvedVars)
-        . pTraceShow ("depmap", depMap)
-        $ depMap
+   in depMap
 
 -- | Compute the closure of all vars which the provided vars depend on.
 -- A type depends on its constructors.
@@ -336,8 +332,7 @@ varClosure uf (partitionVars -> sc) =
 -- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
 buildVarReferences :: forall v a. (Ord v, Show v) => UF.TypecheckedUnisonFile v a -> Map (TaggedVar v) LD.LabeledDependency
 buildVarReferences uf =
-  let result = decls <> effects <> terms <> constructors
-   in pTraceShow ("varReferences", result) $ result
+  decls <> effects <> terms <> constructors
   where
     terms :: Map (TaggedVar v) LD.LabeledDependency
     terms =
@@ -422,32 +417,31 @@ toSlurpResult ::
   Map (TaggedVar v) (SummarizedStatus v) ->
   SR.SlurpResult v
 toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarizedStatuses =
-  pTraceShowId $
-    SR.SlurpResult
-      { SR.originalFile = uf,
-        SR.extraDefinitions =
-          if Set.null requestedVars
-            then mempty
-            else
-              let desired =
-                    requestedVars
-                      & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
-               in partitionVars $ Set.difference involvedVars desired,
-        SR.adds = adds,
-        SR.duplicates = duplicates,
-        SR.collisions = if op == AddOp then updates else mempty,
-        SR.conflicts = conflicts,
-        SR.updates = if op /= AddOp then updates else mempty,
-        SR.termExistingConstructorCollisions =
-          let SlurpComponent {types, terms, ctors} = termCtorColl
-           in types <> terms <> ctors,
-        SR.constructorExistingTermCollisions =
-          let SlurpComponent {types, terms, ctors} = ctorTermColl
-           in types <> terms <> ctors,
-        SR.termAlias = termAliases,
-        SR.typeAlias = typeAliases,
-        SR.defsWithBlockedDependencies = blocked
-      }
+  SR.SlurpResult
+    { SR.originalFile = uf,
+      SR.extraDefinitions =
+        if Set.null requestedVars
+          then mempty
+          else
+            let desired =
+                  requestedVars
+                    & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
+             in partitionVars $ Set.difference involvedVars desired,
+      SR.adds = adds,
+      SR.duplicates = duplicates,
+      SR.collisions = if op == AddOp then updates else mempty,
+      SR.conflicts = conflicts,
+      SR.updates = if op /= AddOp then updates else mempty,
+      SR.termExistingConstructorCollisions =
+        let SlurpComponent {types, terms, ctors} = termCtorColl
+         in types <> terms <> ctors,
+      SR.constructorExistingTermCollisions =
+        let SlurpComponent {types, terms, ctors} = ctorTermColl
+         in types <> terms <> ctors,
+      SR.termAlias = termAliases,
+      SR.typeAlias = typeAliases,
+      SR.defsWithBlockedDependencies = blocked
+    }
   where
     SlurpingSummary {adds, duplicates, updates, termCtorColl, ctorTermColl, blocked, conflicts} =
       summarizedStatuses

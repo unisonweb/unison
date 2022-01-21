@@ -97,7 +97,6 @@ library
     , mtl
     , nonempty-containers
     , open-browser
-    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -169,7 +168,6 @@ executable integration-tests
     , mtl
     , nonempty-containers
     , open-browser
-    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
@@ -242,7 +240,6 @@ executable transcripts
     , mtl
     , nonempty-containers
     , open-browser
-    , pretty-simple
     , process
     , random >=1.2.0
     , regex-tdfa
@@ -315,7 +312,6 @@ executable unison
     , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
-    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
@@ -395,7 +391,6 @@ test-suite tests
     , mtl
     , nonempty-containers
     , open-browser
-    , pretty-simple
     , random >=1.2.0
     , regex-tdfa
     , semialign
