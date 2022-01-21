@@ -357,6 +357,10 @@ pretty0
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im doc) lastArg)
     _ -> case (term, nonForcePred) of
+      OverappliedBinaryAppPred' f a b r | binaryOpsPred f ->
+        -- Special case for overapplied binary op
+        paren True (binaryApps [(f, a)] (pretty0 n (ac 3 Normal im doc) b) `PP.hang`
+          PP.spacedMap (pretty0 n (ac 10 Normal im doc)) r)
       AppsPred' f args ->
         paren (p >= 10) $ pretty0 n (ac 10 Normal im doc) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im doc)) args
@@ -397,13 +401,12 @@ pretty0
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
 
   -- This predicate controls which binary functions we render as infix
-  -- operators.  At the moment the policy is just to render symbolic
-  -- operators as infix - not 'wordy' function names.  So we produce
-  -- "x + y" and "foo x y" but not "x `foo` y".
+  -- operators. At the moment the policy is just to render symbolic
+  -- operators as infix.
   binaryOpsPred :: Var v => Term3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
-    Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
-    Var' v | isSymbolic (HQ.unsafeFromVar v) -> True
+    Ref' r -> isSymbolic $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Var' v -> isSymbolic $ HQ.unsafeFromVar v
     _ -> False
 
   nonForcePred :: Term3 v PrintAnnotation -> Bool
