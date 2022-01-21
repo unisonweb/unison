@@ -283,7 +283,7 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #0u7no051k7
+        .> reset-root #l43v9nr16v
         .> history
         ```
     |]) -- Not sure why this hash is here.
@@ -595,7 +595,7 @@ gistTest fmt =
     userScript repo =
       [i|
         ```ucm
-        .> pull ${repo}:#frj8ob9ugr
+        .> pull ${repo}:#td09c6jlks
         .> find
         ```
         ```unison
