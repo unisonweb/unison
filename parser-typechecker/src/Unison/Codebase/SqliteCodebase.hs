@@ -839,13 +839,17 @@ sqliteCodebase debugName root localOrRemote action = do
   (`finally` finalizer) $ runReaderT Q.schemaVersion conn >>= \case
     SchemaVersion 2 -> Right <$> action codebase
     SchemaVersion 1 -> do
+      liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
       case localOrRemote of
         Local ->
           liftIO do
             backupPath <- backupCodebasePath <$> getPOSIXTime
             copyFile (root </> codebasePath) (root </> backupPath)
             -- FIXME prettify
-            putStrLn ("I backed up your codebase to " ++ (root </> backupPath))
+            putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
+            putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
+            putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
+            void $ liftIO getLine
         Remote -> pure ()
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything

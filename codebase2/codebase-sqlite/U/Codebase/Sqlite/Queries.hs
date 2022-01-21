@@ -112,6 +112,11 @@ module U.Codebase.Sqlite.Queries (
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
 
+  -- migrations
+  countObjects,
+  countCausals,
+  countWatches,
+
   -- * db misc
   createSchema,
   schemaVersion,
@@ -279,6 +284,18 @@ setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
      SET version = ?
      |]
 
+countObjects :: DB m => m Int
+countObjects = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM object |]
+
+countCausals :: DB m => m Int
+countCausals = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM causal |]
+
+countWatches :: DB m => m Int
+countWatches = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM watch |]
+
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
   where sql = [here|
@@ -346,7 +363,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob = do
   oId <- execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
-  saveHashObject h oId 1 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   pure oId
   where
   sql = [here|

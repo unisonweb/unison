@@ -24,6 +24,8 @@ import qualified Data.Set as Set
 import Data.Tuple (swap)
 import Data.Tuple.Extra ((***))
 import qualified Data.Zip as Zip
+import System.Environment (lookupEnv)
+import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
 import qualified U.Codebase.Reference as UReference
 import qualified U.Codebase.Referent as UReferent
@@ -104,18 +106,26 @@ import UnliftIO.Exception (bracket_, onException)
 --    * [x] Update the schema version in the database after migrating so we only migrate
 --    once.
 
+verboseOutput :: Bool
+verboseOutput =
+  isJust (unsafePerformIO (lookupEnv "UNISON_MIGRATION_DEBUG"))
+{-# NOINLINE verboseOutput #-}
+
 migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
 migrateSchema12 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
+    liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
+    numEntitiesToMigrate <- runDB conn . liftQ $ do
+      sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
     watches <-
       foldMapM
         (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
         [WK.RegularWatch, WK.TestWatch]
     migrationState <-
-      (Sync.sync @_ @Entity migrationSync progress (CausalE rootCausalHashId : watches))
+      (Sync.sync @_ @Entity migrationSync (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches))
         `runReaderT` Env {db = conn, codebase}
-        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty
+        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0
     let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
     liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
@@ -138,17 +148,28 @@ migrateSchema12 conn codebase = do
         (runDB conn $ Q.savepoint name)
         (runDB conn $ Q.release name)
         (act `onException` runDB conn (Q.rollbackTo name))
-    progress :: Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
-    progress =
-      let need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          need e = liftIO $ putStrLn $ "Need: " ++ show e
+    progress :: Int -> Sync.Progress (ReaderT (Env m v a) (StateT MigrationState m)) Entity
+    progress numToMigrate =
+      let incrementProgress :: ReaderT (Env m v a) (StateT MigrationState m) ()
+          incrementProgress = do
+            numDone <- field @"numMigrated" <+= 1
+            liftIO $ putStr $ "\r 🏗  " <> show numDone <> " / ~" <> show numToMigrate <> " entities migrated. 🚧"
+          need :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          need e = when verboseOutput $ liftIO $ putStrLn $ "Need: " ++ show e
           done :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          done e = liftIO $ putStrLn $ "Done: " ++ show e
-          error :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
-          error e = liftIO $ putStrLn $ "Error: " ++ show e
+          done e = do
+            when verboseOutput $ liftIO $ putStrLn $ "Done: " ++ show e
+            incrementProgress
+          errorHandler :: Entity -> ReaderT (Env m v a) (StateT MigrationState m) ()
+          errorHandler e = do
+            case e of
+              -- We expect non-fatal errors when migrating watches.
+              W {} -> pure ()
+              e -> liftIO $ putStrLn $ "Error: " ++ show e
+            incrementProgress
           allDone :: ReaderT (Env m v a) (StateT MigrationState m) ()
-          allDone = liftIO $ putStrLn $ "Finished migrating, initiating cleanup."
-       in Sync.Progress {need, done, error, allDone}
+          allDone = liftIO $ putStrLn $ "\nFinished migrating, initiating cleanup."
+       in Sync.Progress {need, done, error = errorHandler, allDone}
 
 type Old a = a
 
@@ -166,7 +187,8 @@ data MigrationState = MigrationState
     -- convert Object Reference IDs into Hash Reference IDs so we can use the referenceMapping.
     objLookup :: Map (Old ObjectId) (New ObjectId, New HashId, New Hash, Old Hash),
     -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
-    migratedDefnHashes :: Set (Old Hash)
+    migratedDefnHashes :: Set (Old Hash),
+    numMigrated :: Int
   }
   deriving (Generic)
 
