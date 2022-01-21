@@ -112,6 +112,11 @@ module U.Codebase.Sqlite.Queries (
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
 
+  -- migrations
+  countObjects,
+  countCausals,
+  countWatches,
+
   -- * db misc
   createSchema,
   schemaVersion,
@@ -278,6 +283,18 @@ setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
      UPDATE schema_version
      SET version = ?
      |]
+
+countObjects :: DB m => m Int
+countObjects = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM object |]
+
+countCausals :: DB m => m Int
+countCausals = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM causal |]
+
+countWatches :: DB m => m Int
+countWatches = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM watch |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
