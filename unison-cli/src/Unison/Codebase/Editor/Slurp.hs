@@ -59,6 +59,22 @@ data SlurpOk
   | Duplicated
   deriving (Eq, Ord, Show)
 
+-- | Possible error conditions for a definition.
+data SlurpErr
+  = -- | A term in the scratch file conflicts with a Ctor in the codebase
+    TermCtorCollision
+  | -- | A constructor in the scratch file conflicts with a term in the codebase
+    CtorTermCollision
+  | -- | The name of this term is conflicted in the codebase.
+    Conflict
+  deriving (Eq, Ord, Show)
+
+-- | Possible statuses for a given definition
+data DefnStatus
+  = DefOk SlurpOk
+  | DefErr SlurpErr
+  deriving (Show)
+
 -- | A definition's final status, incorporating the statuses of all of its dependencies.
 data SummarizedStatus v
   = Ok SlurpOk
@@ -88,22 +104,6 @@ pickPriorityStatus a b =
     (Ok New, _) -> Ok New
     (_, Ok New) -> Ok New
     (Ok Duplicated, _) -> Ok Duplicated
-
--- | Possible error conditions for a definition.
-data SlurpErr
-  = -- | A term in the scratch file conflicts with a Ctor in the codebase
-    TermCtorCollision
-  | -- | A constructor in the scratch file conflicts with a term in the codebase
-    CtorTermCollision
-  | -- | The name of this term is conflicted in the codebase.
-    Conflict
-  deriving (Eq, Ord, Show)
-
--- | Possible statuses for a given definition
-data DefnStatus
-  = DefOk SlurpOk
-  | DefErr SlurpErr
-  deriving (Show)
 
 -- | Analyze a file and determine the status of all of its definitions with respect to a set
 -- of vars to analyze and an operation you wish to perform.
