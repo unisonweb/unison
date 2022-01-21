@@ -257,6 +257,14 @@ and the rendered output using `display`:
       id (sqr 10)
       ```
       
+      also:
+      
+      ```
+      match 1 with
+        1 -> "hi"
+        _ -> "goodbye"
+      ```
+      
       To include a typechecked snippet of code without
       evaluating it, you can do:
       
@@ -280,6 +288,14 @@ and the rendered output using `display`:
         id (sqr 10)
         ⧨
         100
+  
+    also:
+  
+        match 1 with
+          1 -> "hi"
+          _ -> "goodbye"
+        ⧨
+        "hi"
   
     To include a typechecked snippet of code without evaluating
     it, you can do:
@@ -625,6 +641,14 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           id (sqr 10)
           ⧨
           100
+    
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
     
       To include a typechecked snippet of code without
       evaluating it, you can do:
