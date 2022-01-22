@@ -211,7 +211,7 @@ test = scope "termprinter" $ tests
   , tcBreaks 16 "match (if a then\n\
                  \  b\n\
                  \else c) with\n\
-                 \  112 -> x"        -- dodgy layout.  note #517 and #518
+                 \  112 -> x"        -- dodgy layout.  note #517
   , tc "handle bar with Pair 1 1"
   , tc "handle bar with x -> foo"
   , tcDiffRtt True "let\n\
@@ -411,7 +411,9 @@ test = scope "termprinter" $ tests
                      \    b" 80
   , tcBreaks 80 "if\n\
                  \  a = b\n\
-                 \  a then foo else bar"   -- missing break before 'then', issue #518
+                 \  a\n\
+                 \then foo\n\
+                 \else bar"
   , tcBreaks 80 "Stream.foldLeft 0 (+) t"
   , tcBreaks 80 "let\n\
                  \  delay = 'isEven\n\
