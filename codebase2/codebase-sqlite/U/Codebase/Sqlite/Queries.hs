@@ -777,6 +777,12 @@ garbageCollectWatchesWithoutObjects = do
       WHERE watch.hash_id NOT IN
       (SELECT hash_object.hash_id FROM hash_object)
     |]
+  execute_
+    [here|
+      DELETE FROM watch_result
+      WHERE watch_result.hash_id NOT IN
+      (SELECT hash_object.hash_id FROM hash_object)
+    |]
 
 -- | Clean the database and recover disk space.
 -- This is an expensive operation. Also note that it cannot be executed within a transaction.
