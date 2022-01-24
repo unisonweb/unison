@@ -4,8 +4,6 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Bitraversable (Bitraversable (bitraverse))
-import Data.Either (fromRight)
 import Data.Foldable (Foldable (foldl', toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
