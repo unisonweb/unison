@@ -129,14 +129,14 @@ migrateSchema12 conn codebase = do
     let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
     liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
-    liftIO $ putStrLn $ "Rewriting old object IDs..."
-    ifor_ (objLookup migrationState) \oldObjId (newObjId, _, _, _) -> do
-      (runDB conn . liftQ) do
-        Q.recordObjectRehash oldObjId newObjId
+    liftIO $ putStrLn $ "Removing v1 Hashes and Hash Objects"
+    runDB conn (liftQ Q.deleteHashObjectsByVersion 1)
     liftIO $ putStrLn $ "Garbage collecting orphaned objects..."
     runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
     liftIO $ putStrLn $ "Garbage collecting orphaned watches..."
     runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
+    liftIO $ putStrLn $ "Garbage collecting unused hashes..."
+    runDB conn (liftQ Q.garbageCollectUnreferencedHashes)
     liftIO $ putStrLn $ "Updating Schema Version..."
     runDB conn . liftQ $ Q.setSchemaVersion 2
   liftIO $ putStrLn $ "Cleaning up..."

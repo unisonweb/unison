@@ -111,6 +111,7 @@ module U.Codebase.Sqlite.Queries (
   vacuum,
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
+  deleteHashObjectsByVersion,
 
   -- migrations
   countObjects,
@@ -436,17 +437,30 @@ hashIdWithVersionForObject = query sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
 
--- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
---
--- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
-recordObjectRehash :: DB m => ObjectId -> ObjectId -> m ()
-recordObjectRehash old new =
-  execute sql (new, old)
+deleteHashObjectsByVersion :: DB m => Int -> m ()
+deleteHashObjectsByVersion oldHashVersion = do
+  execute sql (Only oldHashVersion)
   where
     sql = [here|
-      UPDATE hash_object
-      SET object_id = ?
-      WHERE object_id = ?
+      DELETE from hash_object
+      WHERE hash_version = ?
+    |]
+
+garbageCollectUnreferencedHashes :: DB m => m ()
+garbageCollectUnreferencedHashes = do
+  execute_ sql
+  where
+    sql = [here|
+      DELETE from hash
+      WHERE id NOT IN
+        (      SELECT hash_id                FROM hash_object
+         UNION SELECT self_hash_id           FROM causal
+         UNION SELECT value_hash_id          FROM causal
+         UNION SELECT hash_id                FROM watch_result
+         UNION SELECT hash_id                FROM watch
+         UNION SELECT type_reference_hash_id FROM find_type_index
+         UNION SELECT type_reference_hash_id FROM find_type_mentions_index
+         )
     |]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
