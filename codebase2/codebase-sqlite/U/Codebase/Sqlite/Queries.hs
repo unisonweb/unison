@@ -48,7 +48,6 @@ module U.Codebase.Sqlite.Queries (
   expectObjectIdForAnyHashId,
   maybeObjectIdForPrimaryHashId,
   maybeObjectIdForAnyHashId,
-  recordObjectRehash,
 
   -- * object table
   saveObject,
@@ -111,6 +110,7 @@ module U.Codebase.Sqlite.Queries (
   vacuum,
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
+  garbageCollectUnreferencedHashes,
   deleteHashObjectsByVersion,
 
   -- migrations
