@@ -222,7 +222,7 @@ testCNReject _ =
 
 ```ucm
 .> add
---.> io.test testConnectSelfSigned
+.> io.test testConnectSelfSigned
 .> io.test testCAReject
---.> io.test testCNReject
+.> io.test testCNReject
 ```

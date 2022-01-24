@@ -1841,7 +1841,7 @@ declareForeigns = do
     \(config :: TLS.ServerParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.handshake.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.handshake tls
 
   declareForeign "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
