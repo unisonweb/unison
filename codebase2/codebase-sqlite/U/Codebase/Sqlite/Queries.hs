@@ -713,42 +713,59 @@ garbageCollectObjectsWithoutHashes = do
   execute_
     [here|
       CREATE TEMPORARY TABLE object_without_hash AS
-        SELECT id
+        SELECT id, primary_hash_id
         FROM object
         WHERE id NOT IN (
           SELECT object_id
           FROM hash_object
+          WHERE hash_version = 2
         )
     |]
   execute_
     [here|
       DELETE FROM dependents_index
-      WHERE dependency_object_id IN object_without_hash
-        OR dependent_object_id IN object_without_hash
+      WHERE dependency_object_id IN (SELECT id FROM object_without_hash)
+        OR dependent_object_id IN (SELECT id FROM object_without_hash)
     |]
   execute_
     [here|
       DELETE FROM find_type_index
-      WHERE term_referent_object_id IN object_without_hash
+      WHERE term_referent_object_id IN (SELECT id FROM object_without_hash)
     |]
   execute_
     [here|
       DELETE FROM find_type_mentions_index
-      WHERE term_referent_object_id IN object_without_hash
+      WHERE term_referent_object_id IN (SELECT id FROM object_without_hash)
     |]
   execute_
     [here|
       DELETE FROM object
-      WHERE id IN object_without_hash
+      WHERE id IN (SELECT id FROM object_without_hash)
+    |]
+
+  execute_
+    [here|
+      CREATE TEMPORARY TABLE orphaned_causals AS
+        SELECT self_hash_id
+        FROM causal
+        WHERE value_hash_id IN
+          (SELECT primary_hash_id FROM object_without_hash)
+    |]
+  execute_
+    [here|
+      DELETE FROM causal_parent
+      WHERE causal_id IN orphaned_causals
+      OR    parent_id IN orphaned_causals
     |]
   execute_
     [here|
       DELETE FROM causal
-      WHERE value_hash_id IN object_without_hash
+      WHERE self_hash_id IN orphaned_causals
     |]
   execute_
     [here|
-      DROP TABLE object_without_hash
+      DROP TABLE object_without_hash;
+      DROP TABLE orphaned_causals
     |]
 
 -- | Delete all
