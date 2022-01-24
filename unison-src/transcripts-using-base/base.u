@@ -23,6 +23,14 @@ Exception.toEither.handler = cases
 Exception.toEither : '{ε, Exception} a -> {ε} Either Failure a
 Exception.toEither a = handle !a with Exception.toEither.handler
 
+Exception.unsafeRun! : '{g, Exception} a ->{g} a
+Exception.unsafeRun! e =
+  h : Request {Exception} a -> a
+  h = cases
+    {raise fail -> _} -> bug fail
+    { a }             -> a
+  handle !e with h
+
 structural ability Throw e where
   throw : e -> a
 
@@ -30,6 +38,17 @@ List.all : (a ->{ε} Boolean) -> [a] ->{ε} Boolean
 List.all f = cases
   [] -> true
   h +: t -> f h && all f t
+
+List.foldLeft : (b ->{g} a ->{g} b) -> b -> [a] ->{g} b
+List.foldLeft f b as =
+  go b i =
+    match List.at i as with
+      None   -> b
+      Some a ->
+        use Nat +
+        go (f b a) (i + 1)
+  go b 0
+
 
 List.filter: (a -> Boolean) -> [a] -> [a]
 List.filter f all =

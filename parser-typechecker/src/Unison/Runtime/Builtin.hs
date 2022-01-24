@@ -1850,11 +1850,14 @@ declareForeigns = do
 
   let wrapFailure t = Failure Ty.tlsFailureRef (Util.Text.pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
-      decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
+      decoded bytes = case pemParseLBS $ Bytes.toLazyByteString bytes of
+        Right (pem : _) -> Right pem
+        Right _ -> Left "no PEM found"
+        Left l -> Left l
       asCert :: PEM -> Either String X.SignedCertificate
       asCert pem = X.decodeSignedCertificate  $ pemContent pem
     in
-      declareForeign "Tls.decodeCert.impl.v3" boxToEFBox . mkForeign $
+      declareForeign "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTls $
         \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
 
   declareForeign "Tls.encodeCert" boxDirect . mkForeign $
