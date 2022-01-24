@@ -11,10 +11,20 @@ module Unison.Server.Endpoints.Projects where
 import Control.Error (ExceptT, runExceptT)
 import Control.Error.Util ((??))
 import Data.Aeson
-import Data.OpenApi (ToSchema)
+import Data.Char
+import Data.OpenApi
+  ( ToParamSchema (..),
+    ToSchema (..),
+  )
 import qualified Data.Text as Text
 import Servant (QueryParam, ServerError, throwError, (:>))
-import Servant.Docs (ToSample (..))
+import Servant.API (FromHttpApiData (..))
+import Servant.Docs
+  ( DocQueryParam (..),
+    ParamKind (Normal),
+    ToParam (..),
+    ToSample (..),
+  )
 import Servant.Server (Handler)
 import Unison.Codebase (Codebase)
 import qualified Unison.Codebase as Codebase
@@ -34,6 +44,7 @@ import Unison.Util.Monoid (foldMapM)
 
 type ProjectsAPI =
   "projects" :> QueryParam "rootBranch" ShortBranchHash
+    :> QueryParam "owner" ProjectOwner
     :> APIGet [ProjectListing]
 
 instance ToSample ProjectListing where
@@ -50,8 +61,32 @@ newtype ProjectOwner = ProjectOwner Text
   deriving stock (Generic, Show)
   deriving anyclass (ToSchema)
 
+instance ToParam (QueryParam "owner" ProjectOwner) where
+  toParam _ =
+    DocQueryParam
+      "owner"
+      ["unison", "alice", "bob"]
+      "The name of a project owner"
+      Normal
+
 instance ToJSON ProjectOwner where
   toEncoding = genericToEncoding defaultOptions
+
+deriving anyclass instance ToParamSchema ProjectOwner
+
+instance FromHttpApiData ProjectOwner where
+  parseUrlPiece = Right . ProjectOwner
+
+-- ProjectOwner is slightly more restrictive than a regular FQN in that we only
+-- want alphanumeric characters
+projectOwnerFromText :: Text -> Either Text ProjectOwner
+projectOwnerFromText raw =
+  if isAllAlphaNum raw
+    then Right (ProjectOwner raw)
+    else Left "Invalid owner name"
+  where
+    isAllAlphaNum t =
+      t & Text.unpack & all isAlphaNum
 
 data ProjectListing = ProjectListing
   { owner :: ProjectOwner,
@@ -90,8 +125,9 @@ serve ::
   Handler () ->
   Codebase IO Symbol Ann ->
   Maybe ShortBranchHash ->
+  Maybe ProjectOwner ->
   Handler (APIHeaders [ProjectListing])
-serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
+serve tryAuth codebase mayRoot mayOwner = addHeaders <$> (tryAuth *> projects)
   where
     projects :: Handler [ProjectListing]
     projects = do
@@ -107,7 +143,11 @@ serve tryAuth codebase mayRoot = addHeaders <$> (tryAuth *> projects)
           errFromEither backendError ea
 
       ownerEntries <- findShallow root
-      let owners = mapMaybe entryToOwner ownerEntries
+      -- If an owner is provided, we only want projects belonging to them
+      let owners =
+            case mayOwner of
+              Just o -> [o]
+              Nothing -> mapMaybe entryToOwner ownerEntries
       foldMapM (ownerToProjectListings root) owners
 
     ownerToProjectListings :: Branch.Branch IO -> ProjectOwner -> Handler [ProjectListing]
