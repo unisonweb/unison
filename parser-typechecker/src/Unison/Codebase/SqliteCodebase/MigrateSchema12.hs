@@ -130,7 +130,7 @@ migrateSchema12 conn codebase = do
     liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
     liftIO $ putStrLn $ "Removing v1 Hashes and Hash Objects"
-    runDB conn (liftQ Q.deleteHashObjectsByVersion 1)
+    runDB conn (liftQ $ Q.deleteHashObjectsByVersion 1)
     liftIO $ putStrLn $ "Garbage collecting orphaned objects..."
     runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
     liftIO $ putStrLn $ "Garbage collecting orphaned watches..."
