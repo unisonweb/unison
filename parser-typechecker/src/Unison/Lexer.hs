@@ -295,7 +295,7 @@ lexemes' eof = P.optional space >> do
   where
   toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved
      <|> token symbolyId <|> token blank <|> token wordyId
-     <|> (asum . map token) [ semi, textual, backticks, hash ]
+     <|> (asum . map token) [ semi, textual, hash ]
 
   wordySep c = isSpace c || not (wordyIdChar c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
@@ -682,10 +682,6 @@ lexemes' eof = P.optional space >> do
            where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's' $> ' ')
-  backticks = tick <$> (t *> wordyId <* t)
-    where tick (WordyId n sh) = Backticks n sh
-          tick t = t
-          t = char '`' <* P.notFollowedBy (char '`')
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")

@@ -94,6 +94,7 @@ testOpenClose _ =
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
     setBuffering handle1 (SizedBlockBuffering 1024)
+    check "file handle buffering should match what we just set." (getBuffering handle1 == SizedBlockBuffering 1024)
     setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs01
     setBuffering handle1 NoBuffering
@@ -141,11 +142,22 @@ testOpenClose _ =
   
     testOpenClose : '{IO} [Result]
 
-```
--- getBuffering.impl is currently broken on trunk (https://github.com/unisonweb/unison/issues/2767)
--- Add this back to the ucm block once that's fixed.
 .> io.test testOpenClose
 
+    New test results:
+  
+  ◉ testOpenClose   file should be open
+  ◉ testOpenClose   file handle buffering should match what we just set.
+  ◉ testOpenClose   file should be closed
+  ◉ testOpenClose   bytes have been written
+  ◉ testOpenClose   bytes have been written
+  ◉ testOpenClose   file should be closed
+  
+  ✅ 6 test(s) passing
+  
+  Tip: Use view testOpenClose to view the source of a test.
+
+```
 ### Seeking in open files
 
 Tests: openFile

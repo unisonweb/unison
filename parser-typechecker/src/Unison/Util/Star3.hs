@@ -165,15 +165,26 @@ deleteD3 :: (Ord fact, Ord d1, Ord d2, Ord d3)
           => (fact, d3)
           -> Star3 fact d1 d2 d3
           -> Star3 fact d1 d2 d3
-deleteD3 (f, x) s = Star3 (fact s) (d1 s) (d2 s) d3' where
+deleteD3 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) (d2 s) d3') where
   d3' = R.delete f x (d3 s)
 
 deleteD2 :: (Ord fact, Ord d1, Ord d2, Ord d3)
           => (fact, d2)
           -> Star3 fact d1 d2 d3
           -> Star3 fact d1 d2 d3
-deleteD2 (f, x) s = Star3 (fact s) (d1 s) d2' (d3 s) where
+deleteD2 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) d2' (d3 s)) where
   d2' = R.delete f x (d2 s)
+
+-- | Given a possibly-invalid Star3, which may contain the given fact in its fact set that are not related to any d1,
+-- d2, or d3, return a valid Star3, with this fact possibly removed.
+garbageCollect :: Ord fact => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+garbageCollect f star =
+  star
+    { fact =
+        if R.memberDom f (d1 star) || R.memberDom f (d2 star) || R.memberDom f (d3 star)
+          then fact star
+          else Set.delete f (fact star)
+    }
 
 deleteFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
            => Set fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3

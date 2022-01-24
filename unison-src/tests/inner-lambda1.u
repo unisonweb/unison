@@ -10,6 +10,6 @@ search hit bot top =
       mid = (bot + top) / 2
       match hit mid with
         +0 -> Some mid
-        -1 -> go bot (mid `drop` 1)
+        -1 -> go bot (drop mid 1)
         +1 -> go (mid + 1) top
   go bot top

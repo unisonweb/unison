@@ -4,12 +4,13 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.Either (fromRight)
 import Data.Foldable (Foldable (foldl', toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -30,7 +31,6 @@ import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
-import qualified Unison.Util.Map as Map
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal.Type as V1.Causal
@@ -39,10 +39,10 @@ import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1
 import qualified Unison.Codebase.TermEdit as V1.TermEdit
 import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
-import qualified Unison.ConstructorReference as V1 (GConstructorReference(..))
+import qualified Unison.ConstructorReference as V1 (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
-import Unison.Hash (Hash)
+import Unison.Hash (Hash, base32Hex)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import qualified Unison.NameSegment as V1
@@ -56,6 +56,7 @@ import qualified Unison.Referent as V1.Referent
 import qualified Unison.Symbol as V1
 import qualified Unison.Term as V1.Term
 import qualified Unison.Type as V1.Type
+import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Relation as Relation
 import qualified Unison.Util.Star3 as V1.Star3
 import qualified Unison.Var as Var
@@ -119,7 +120,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
-      V1.Term.Blank _ -> error "can't serialize term with blanks"
+      V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ unpack (base32Hex h) ++ ")")
 
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
@@ -248,8 +249,8 @@ symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
 
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
-  fromRight (error "todo: move suffix parsing to frontend")
-    . V1.Reference.readSuffix
+  -- todo: move suffix parsing to frontend
+  either error id . V1.Reference.readSuffix
 
 abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
 abt2to1 (V2.ABT.Term fv a out) = V1.ABT.Term fv a (go out)

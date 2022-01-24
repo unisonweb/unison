@@ -115,11 +115,13 @@ fromText t = either (const Nothing) Just $
   -- if the string has just one hash at the start, it's just a reference
   if Text.length refPart == 1 then
     Ref <$> R.fromText t
-  else if Text.all Char.isDigit cidPart then do
+  else if Text.all Char.isDigit cidPart && (not . Text.null) cidPart then do
     r <- R.fromText (Text.dropEnd 1 refPart)
     ctorType <- ctorType
-    let cid = read (Text.unpack cidPart)
-    pure $ Con (ConstructorReference r cid) ctorType
+    let maybeCid = readMaybe (Text.unpack cidPart)
+    case maybeCid of
+      Nothing -> Left ("invalid constructor id: " <> Text.unpack cidPart)
+      Just cid -> Right $ Con (ConstructorReference r cid) ctorType
   else
     Left ("invalid constructor id: " <> Text.unpack cidPart)
   where

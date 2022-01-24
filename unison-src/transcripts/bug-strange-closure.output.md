@@ -77,6 +77,14 @@ We can display the guide before and after adding it to the codebase:
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
@@ -279,6 +287,14 @@ We can display the guide before and after adding it to the codebase:
           id (sqr 10)
           ⧨
           100
+    
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
     
       To include a typechecked snippet of code without
       evaluating it, you can do:
@@ -489,6 +505,14 @@ rendered = Pretty.get (docFormatConsole doc.guide)
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
@@ -684,6 +708,14 @@ rendered = Pretty.get (docFormatConsole doc.guide)
           id (sqr 10)
           ⧨
           100
+    
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
     
       To include a typechecked snippet of code without
       evaluating it, you can do:
@@ -1798,6 +1830,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                       (_ ->
                                         id x = x
                                         id (sqr 10)))))))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Wrap
+                              (!Lit (Right (Plain "also:"))))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Lit
+                              (Left
+                                (Eval
+                                  (Term.Term
+                                    (Any
+                                      (_ ->
+                                        (match 1 with
+                                          1 -> "hi"
+                                          _ -> "goodbye")))))))),
                           !Lit (Right (Plain "\n")),
                           !Lit (Right (Plain "\n")),
                           !Indent

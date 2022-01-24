@@ -280,15 +280,17 @@ intermediateTerm
   -> Term Symbol
   -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
 intermediateTerm ppe ref ctx tm
-  = final
+  = first ( superNormalize
+          . splitPatterns (dspec ctx)
+          . addDefaultCases tmName
+          )
+  . memorize
   . lamLift
-  . splitPatterns (dspec ctx)
-  . addDefaultCases tmName
   . saturate (uncurryDspec $ dspec ctx)
   . inlineAlias
   $ tm
   where
-  final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
+  memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
   tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation
@@ -362,9 +364,16 @@ executeMainComb
   -> CCache
   -> IO ()
 executeMainComb init cc
-  = eval0 cc Nothing
+  = flip catch (putStrLn . toANSI 50 <=< handler)
+  . eval0 cc Nothing
   . Ins (Pack RF.unitRef 0 ZArgs)
   $ Call True init (BArg1 0)
+  where
+  handler (PE _ msg) = pure msg
+  handler (BU nm c) = do
+    crs <- readTVarIO (combRefs cc)
+    let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
+    pure . either id (bugMsg mempty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 
@@ -392,6 +401,19 @@ bugMsg ppe name tm
   [ P.wrap ("The program halted with an unhandled exception:")
   , ""
   , P.indentN 2 $ pretty ppe tm
+  ]
+  | name == "builtin.bug"
+  , RF.TupleTerm' [Tm.Text' msg, x] <- tm
+  , "pattern match failure" `isPrefixOf` msg
+  = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a" <> P.red (P.text msg)
+      <> "while scrutinizing:")
+  , ""
+  , P.indentN 2 $ pretty ppe x
+  , ""
+  , "This happens when calling a function that doesn't handle all \
+    \possible inputs"
+  , sorryMsg
   ]
 bugMsg ppe name tm = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a call to" <> P.red (P.text name)

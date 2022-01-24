@@ -126,8 +126,9 @@ showSuffix = Text.pack . show
 
 readSuffix :: Text -> Either String Pos
 readSuffix = \case
-  pos | Text.all isDigit pos -> Right (read (Text.unpack pos))
-  t -> Left ("suffix decoding error: " ++ show t)
+  pos | Text.all isDigit pos,
+        Just pos' <- readMaybe (Text.unpack pos) -> Right pos'
+  t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
