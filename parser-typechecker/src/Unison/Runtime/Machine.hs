@@ -320,6 +320,14 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 VALU i) = do
 exec !_   !denv !_activeThreads !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
   pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k (BPrim2 SDBX i j) = do
+  s <- peekOffS bstk i
+  c <- peekOff bstk j
+  l <- decodeSandboxArgument s
+  b <- checkSandboxing env l c
+  ustk <- bump ustk
+  poke ustk $ if b then 1 else 0
+  pure (denv, ustk, bstk, k)
 exec !_   !denv !_activeThreads !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
   y <- peekOff bstk j
@@ -1431,6 +1439,7 @@ bprim2 !_    !bstk THRO i j = do
   throwIO (BU (Util.Text.toText name) x)
 bprim2 !ustk !bstk TRCE _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
+bprim2 !ustk !bstk SDBX _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
 yield
@@ -1549,6 +1558,13 @@ decodeCacheArgument s = for (toList s) $ \case
       _ -> die "decodeCacheArgument: Con reference"
   _ -> die "decodeCacheArgument: unrecognized value"
 
+decodeSandboxArgument :: Sq.Seq Closure -> IO [Reference]
+decodeSandboxArgument s = fmap join . for (toList s) $ \case
+  Foreign x -> case unwrapForeign x of
+    Ref r -> pure [r]
+    _ -> pure [] -- constructor
+  _ -> die "decodeSandboxArgument: unrecognized value"
+
 addRefs
   :: TVar Word64
   -> TVar (M.Map Reference Word64)
@@ -1590,6 +1606,20 @@ codeValidate tml cc = do
       msg = Util.Text.pack $ toPlainUnbroken perr
       extra = Foreign . Wrap Rf.textRef . Util.Text.pack $ show cs in
       pure . Just $ Failure ioFailureRef msg extra
+
+checkSandboxing
+  :: CCache
+  -> [Reference]
+  -> Closure
+  -> IO Bool
+checkSandboxing cc (traceShowId -> allowed0) c = do
+  sands <- traceShow c $ readTVarIO $ sandbox cc
+  let f r | Just rs <- M.lookup r sands
+          = rs `S.difference` allowed
+          | otherwise = mempty
+  pure $ S.null (closureTermRefs f c)
+  where
+  allowed = S.fromList allowed0
 
 cacheAdd0
   :: S.Set Reference

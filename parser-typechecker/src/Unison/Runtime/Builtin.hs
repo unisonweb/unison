@@ -793,6 +793,15 @@ value'load
 value'create :: SuperNormal Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
+check'sandbox :: SuperNormal Symbol
+check'sandbox
+  = Lambda [BX,BX]
+  . TAbss [refs, val]
+  . TLetD b UN (TPrm SDBX [refs, val])
+  $ boolift b
+  where
+  (refs,val,b) = fresh3
+
 stm'atomic :: SuperNormal Symbol
 stm'atomic
   = Lambda [BX]
@@ -1534,6 +1543,8 @@ builtinLookup
   , ("Any.unsafeExtract", (Tracked, any'extract))
   , ("Link.Term.toText", (Untracked, term'link'to'text))
   , ("STM.atomically", (Untracked, stm'atomic))
+
+  , ("validateSandboxed", (Untracked, check'sandbox))
   ] ++ foreignWrappers
 
 type FDecl v

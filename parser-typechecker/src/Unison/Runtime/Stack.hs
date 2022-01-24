@@ -39,6 +39,7 @@ module Unison.Runtime.Stack
   , frameView
   , uscount
   , bscount
+  , closureTermRefs
   ) where
 
 import Prelude hiding (words)
@@ -628,3 +629,24 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
+closureTermRefs :: Monoid m => (Reference -> m) -> (Closure -> m)
+closureTermRefs f (PAp (CIx r _ _) _ cs)
+  = f r <> foldMap (closureTermRefs f) cs
+closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
+closureTermRefs f (DataB2 _ _ c1 c2)
+  = closureTermRefs f c1 <> closureTermRefs f c2
+closureTermRefs f (DataUB _ _ _ c)
+  = closureTermRefs f c
+closureTermRefs f (Captured k _ cs)
+  = contTermRefs f k <> foldMap (closureTermRefs f) cs
+closureTermRefs f (Foreign fo)
+  | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo
+  = foldMap (closureTermRefs f) cs
+closureTermRefs _ _ = mempty
+
+contTermRefs :: Monoid m => (Reference -> m) -> K -> m
+contTermRefs f (Mark _ m k)
+  = foldMap (closureTermRefs f) m <> contTermRefs f k
+contTermRefs f (Push _ _ _ _ (CIx r _ _) k)
+  = f r <> contTermRefs f k
+contTermRefs _ _ = mempty
