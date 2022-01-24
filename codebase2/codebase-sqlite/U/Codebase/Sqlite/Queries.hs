@@ -743,6 +743,11 @@ garbageCollectObjectsWithoutHashes = do
     |]
   execute_
     [here|
+      DELETE FROM causal
+      WHERE value_hash_id IN object_without_hash
+    |]
+  execute_
+    [here|
       DROP TABLE object_without_hash
     |]
 
