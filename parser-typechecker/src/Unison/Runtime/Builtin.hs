@@ -1818,10 +1818,6 @@ declareForeigns = do
   declareForeign "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
-  let
-    defaultSupported :: TLS.Supported
-    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
-
   declareForeign "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config

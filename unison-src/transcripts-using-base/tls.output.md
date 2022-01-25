@@ -6,35 +6,7 @@
 
 join strs = List.foldLeft (a -> b -> b ++ a ++ "\n") "" strs
 
-self_signed_key_pem = join [
-    "-----BEGIN PRIVATE KEY-----",
-    "MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDtV0Lqk9i5DKJG",
-    "e5zwDFuxHxSxhOygCuq6Jl4xonsjl4hdvXxUUiuqxGGbv4x9HSvavpHwyriGiIRQ",
-    "oIjanWiNK9Jp6VDYWOvErnTG/+Rfm1vCoUKQvn8lDrD9knSPUoTz3Cz7JS8FE/rr",
-    "FR3IRyXa0gpXmvIwX16SeCS/Lb/Le9o1HJh9DrkxVyoFq3zlX1OE0AVV0a014IDB",
-    "NprqLITwiVzyDPQkP8rbJF9WPI5afzW8+3+v5UanIFknOOPaJl8pf3gmqI5g8fxk",
-    "/SSMlPgnLd1Fi7h90gBygdpJw3do3/ZA1IOvmFQ+LXE1xtqU1Ay3f3At3DiJgTxP",
-    "8mwBYdtdAgMBAAECggEBAMo85QRF3xIvtcchZeUWYrtWpKdvgMIPC1x7fSAGN69o",
-    "XAakg+DF8/ebRyET435o8QmAAZOQ6hOZGEYrxPGj14cTpEQjT4RKoPwDO/al7c+Z",
-    "7mK2TqZP7L+C+UXZGgFWa3vwTVPjp2FIWTMf1zTli1geSjnECkM1wLxGK+nL7fZQ",
-    "esHXPkJJG5AqzA84bJ/fY5OQ/dfcCxnHEv5XpHPq6VFgXg7jtcNbr1R9EBiQfreN",
-    "U7Hd38R77jYjL1fT71HwEUQ0cwavfxTu0jZFXJxEC7CC1J65QXUguZXLf9vwgSB0",
-    "m0gZgeJlQ905bDJrxUcqCFxdROy/SndP6qFnJSCsfwECgYEA+2cld/WCieUGstJd",
-    "jsIrJ6f/e+uuOSTnGTtnsBX6KoiHdcg3sVVVK18xI9El9V+YX9SjN37XeGFe/Wzu",
-    "gE3M4A3Jqz7cgdNj/PaKjqQwJWNbcJnL5ku6eQvcAIpc5gAZxXVCPIbY1ZpeYcsh",
-    "Mwr3cOEpQu8UVFBbn/OeJ1r07dECgYEA8a5J3Ls5PSxXq8NDrkAxt3vUJIWLGQQJ",
-    "bV2aGDI2XP2N+vh2WML9rlFeyyBOeRxK9TsErVOaEeOcQZV97//fzIGxCU+SXyiC",
-    "nVMXT2U1mzOu5qPfzLO5Ga4sunxqKDman6NM2IPw2NPA7zMWNQMEIHAerwYZzjm5",
-    "B5tFcMA8e80CgYBgF8rwkTz2LD5lN5dfK8SHAeXbnfgYC4zxzg0R9zSJ8WmlkYQI",
-    "Gk/VpisIP7c8lO+PIZ3JZohBkSZXw71d+V7n/R0qgXqTfRNo62uGnidxAws+fOq8",
-    "+hEql2feJQThPQScvvc0X26eJsUQqC3mbripwsacuPmSSKzc9Kds741TIQKBgQCd",
-    "XnG2CytATAliTKlbY218HmOKzHJAfcJttk9KhhekAW5cB0F4lq98vHtPJOA0OFoO",
-    "yLlI63EdSOpMQj1Y83IUxjYy699Rmx1BuAMrral0P/kZMYfe0QAsWp/BZpXxT2EB",
-    "peG58l/3sBqnJsrFBgu/24H/UaeoAyoaa96Rhntb2QKBgQCSEkcUnzTvoUyMFN14",
-    "8NttxOUZiSsCmgoXk6Rk2QKyCPsJocGS4BffGt3kOMcotz/0YsvM1TBBLB7vIaAy",
-    "E1eWLBxK4yYeS8dKXwiCZn170yaJyjoBwZC1RgqQiKa5Y22Di7KjJoMa4Da8Tk4z",
-    "FbE5dBApbLhvNTyQ7BHZxlfmdg==",
-    "-----END PRIVATE KEY-----"]
+self_signed_key_pem="-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDtV0Lqk9i5DKJG\ne5zwDFuxHxSxhOygCuq6Jl4xonsjl4hdvXxUUiuqxGGbv4x9HSvavpHwyriGiIRQ\noIjanWiNK9Jp6VDYWOvErnTG/+Rfm1vCoUKQvn8lDrD9knSPUoTz3Cz7JS8FE/rr\nFR3IRyXa0gpXmvIwX16SeCS/Lb/Le9o1HJh9DrkxVyoFq3zlX1OE0AVV0a014IDB\nNprqLITwiVzyDPQkP8rbJF9WPI5afzW8+3+v5UanIFknOOPaJl8pf3gmqI5g8fxk\n/SSMlPgnLd1Fi7h90gBygdpJw3do3/ZA1IOvmFQ+LXE1xtqU1Ay3f3At3DiJgTxP\n8mwBYdtdAgMBAAECggEBAMo85QRF3xIvtcchZeUWYrtWpKdvgMIPC1x7fSAGN69o\nXAakg+DF8/ebRyET435o8QmAAZOQ6hOZGEYrxPGj14cTpEQjT4RKoPwDO/al7c+Z\n7mK2TqZP7L+C+UXZGgFWa3vwTVPjp2FIWTMf1zTli1geSjnECkM1wLxGK+nL7fZQ\nesHXPkJJG5AqzA84bJ/fY5OQ/dfcCxnHEv5XpHPq6VFgXg7jtcNbr1R9EBiQfreN\nU7Hd38R77jYjL1fT71HwEUQ0cwavfxTu0jZFXJxEC7CC1J65QXUguZXLf9vwgSB0\nm0gZgeJlQ905bDJrxUcqCFxdROy/SndP6qFnJSCsfwECgYEA+2cld/WCieUGstJd\njsIrJ6f/e+uuOSTnGTtnsBX6KoiHdcg3sVVVK18xI9El9V+YX9SjN37XeGFe/Wzu\ngE3M4A3Jqz7cgdNj/PaKjqQwJWNbcJnL5ku6eQvcAIpc5gAZxXVCPIbY1ZpeYcsh\nMwr3cOEpQu8UVFBbn/OeJ1r07dECgYEA8a5J3Ls5PSxXq8NDrkAxt3vUJIWLGQQJ\nbV2aGDI2XP2N+vh2WML9rlFeyyBOeRxK9TsErVOaEeOcQZV97//fzIGxCU+SXyiC\nnVMXT2U1mzOu5qPfzLO5Ga4sunxqKDman6NM2IPw2NPA7zMWNQMEIHAerwYZzjm5\nB5tFcMA8e80CgYBgF8rwkTz2LD5lN5dfK8SHAeXbnfgYC4zxzg0R9zSJ8WmlkYQI\nGk/VpisIP7c8lO+PIZ3JZohBkSZXw71d+V7n/R0qgXqTfRNo62uGnidxAws+fOq8\n+hEql2feJQThPQScvvc0X26eJsUQqC3mbripwsacuPmSSKzc9Kds741TIQKBgQCd\nXnG2CytATAliTKlbY218HmOKzHJAfcJttk9KhhekAW5cB0F4lq98vHtPJOA0OFoO\nyLlI63EdSOpMQj1Y83IUxjYy699Rmx1BuAMrral0P/kZMYfe0QAsWp/BZpXxT2EB\npeG58l/3sBqnJsrFBgu/24H/UaeoAyoaa96Rhntb2QKBgQCSEkcUnzTvoUyMFN14\n8NttxOUZiSsCmgoXk6Rk2QKyCPsJocGS4BffGt3kOMcotz/0YsvM1TBBLB7vIaAy\nE1eWLBxK4yYeS8dKXwiCZn170yaJyjoBwZC1RgqQiKa5Y22Di7KjJoMa4Da8Tk4z\nFbE5dBApbLhvNTyQ7BHZxlfmdg==\n-----END PRIVATE KEY-----"
 
 self_signed_cert_pem2 = join [
     "-----BEGIN CERTIFICATE-----",
@@ -131,9 +103,13 @@ serverThread portVar toSend = 'let
        -- attach TLS to our TCP connection
     tls = newServer tlsconfig sock'
 
+    printLine "oooooooooooooooo"
        -- try to handshake the TLS connection with the client
-    handshake tls
+    match handshake.impl tls with 
+      Right _ -> printLine "no error on server side"
+      Left (Failure _ t _) -> printLine ("error " ++ t) 
 
+    printLine "iiiiiiiiiiiiiii"
        -- send our message over our tls channel
     send tls (toUtf8 toSend)
     terminate tls
@@ -157,17 +133,22 @@ testClient cert hostname portVar _ =
   port = take portVar
 
   -- create a tcp connection with the server
+
+  watch ("client connecting to port: " ++ (toText port)) () 
   sock = clientSocket "127.0.0.1" (Nat.toText port)
 
   -- attach the TLS client to the TCP socket
   tls = newClient tlsconfig sock
-  watch ("client connecting to port: " ++ (toText port)) ()
 
+  printLine "5555555555555555555"
   -- verify that the server presents us with a certificate chain for
   -- test.unison.cloud originating with a certificate we trust, and
   -- that the server can use a compatible TLS version and cipher
-  handshake tls
+  match handshake.impl tls with 
+    Right _ -> printLine "no eeror on client side"
+    Left (Failure _ t _) -> printLine ("error " ++ t)
 
+  printLine "666666666666666666"
   -- receive a message from the server
   fromUtf8 (receive tls)
 
@@ -232,11 +213,15 @@ testCNReject _ =
     portVar = !MVar.newEmpty
     toSend = "12345"
     tid = forkComp (serverThread portVar toSend)
+    unsafeRun! '(printLine "started tid")
+
 
     -- Client
     testClient None "wrong.host.name" portVar |> toEither |> checkError |> emit
+    unsafeRun! '(printLine "started client")
 
     kill.impl tid
+    unsafeRun! '(printLine "killed")
 
   runTest test
 ```
@@ -260,20 +245,8 @@ testCNReject _ =
 
 ```
 ```ucm
-.> add
-
-  ⍟ I've added these definitions:
-  
-    serverThread          : MVar Nat -> Text -> '{IO} ()
-    testCAReject          : '{IO} [Result]
-    testCNReject          : '{IO} [Result]
-    testClient            : Optional SignedCert
-                            -> Text
-                            -> MVar Nat
-                            -> '{IO, Exception} Text
-    testConnectSelfSigned : '{IO} [Result]
-
---.> io.test testConnectSelfSigned
---.> io.test testCAReject
---.> io.test testCNReject
+--- .> add
+--- .> io.test testConnectSelfSigned
+--- .> io.test testCAReject
+--- .> io.test testCNReject
 ```
