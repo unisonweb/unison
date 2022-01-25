@@ -1794,7 +1794,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
     $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
         pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
-                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [((X.CertificateChain certs), key)] }
+                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [(X.CertificateChain certs, key)] }
                                          }
 
   let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
@@ -1843,21 +1843,6 @@ declareForeigns = do
   declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
-  let
-    defaultSupported :: TLS.Supported
-    defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
-
-  declareForeign Tracked "Tls.Config.defaultClient" boxBoxDirect
-    .  mkForeign $ \(hostName :: Util.Text.Text, serverId:: Bytes.Bytes) -> do
-       store <- X.getSystemCertificateStore
-       let shared :: TLS.Shared
-           shared = def { TLS.sharedCAStore = store }
-           defaultParams = (defaultParamsClient (Util.Text.unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
-       pure defaultParams
-
-  declareForeign Tracked "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
-    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
-
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
@@ -1866,8 +1851,10 @@ declareForeigns = do
     \(config :: TLS.ServerParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign Tracked "Tls.handshake.impl.v3" boxToEFBox . mkForeignTls $
-    \(tls :: TLS.Context) -> TLS.handshake tls
+  declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
+    \(tls :: TLS.Context) -> do
+        i <- contextGetInformation tls
+        traceShow i $ TLS.handshake tls
 
   declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,
@@ -1875,11 +1862,14 @@ declareForeigns = do
 
   let wrapFailure t = Failure Ty.tlsFailureRef (Util.Text.pack t) unitValue
       decoded :: Bytes.Bytes -> Either String PEM
-      decoded bytes = fmap head $ pemParseLBS  $ Bytes.toLazyByteString bytes
+      decoded bytes = case pemParseLBS $ Bytes.toLazyByteString bytes of
+        Right (pem : _) -> Right pem
+        Right _ -> Left "no PEM found"
+        Left l -> Left l
       asCert :: PEM -> Either String X.SignedCertificate
       asCert pem = X.decodeSignedCertificate  $ pemContent pem
     in
-      declareForeign Tracked "Tls.decodeCert.impl.v3" boxToEFBox . mkForeign $
+      declareForeign Tracked "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTls $
         \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
 
   declareForeign Tracked "Tls.encodeCert" boxDirect . mkForeign $

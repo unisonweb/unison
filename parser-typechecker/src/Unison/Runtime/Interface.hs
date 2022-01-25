@@ -284,15 +284,17 @@ intermediateTerm
   -> Term Symbol
   -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
 intermediateTerm ppe ref ctx tm
-  = final
+  = first ( superNormalize
+          . splitPatterns (dspec ctx)
+          . addDefaultCases tmName
+          )
+  . memorize
   . lamLift
-  . splitPatterns (dspec ctx)
-  . addDefaultCases tmName
   . saturate (uncurryDspec $ dspec ctx)
   . inlineAlias
   $ tm
   where
-  final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
+  memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
   tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation
