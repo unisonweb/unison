@@ -739,6 +739,12 @@ garbageCollectObjectsWithoutHashes = do
     |]
   execute_
     [here|
+      DELETE FROM object_type_description
+      WHERE id IN (SELECT id FROM object_without_hash)
+    |]
+
+  execute_
+    [here|
       DELETE FROM object
       WHERE id IN (SELECT id FROM object_without_hash)
     |]
@@ -756,6 +762,12 @@ garbageCollectObjectsWithoutHashes = do
       DELETE FROM causal_parent
       WHERE causal_id IN orphaned_causals
       OR    parent_id IN orphaned_causals
+    |]
+  execute_
+    [here|
+      DELETE FROM causal_metadata
+      WHERE causal_id IN orphaned_causals
+      OR metadata_object_id in objects_without_hash
     |]
   execute_
     [here|
