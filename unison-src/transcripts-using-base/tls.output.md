@@ -245,6 +245,7 @@ testCNReject _ =
 
 ```
 ```ucm
+--- STU: I'm commenting out this because there is a problem with Tls.handshake, see #2834
 --- .> add
 --- .> io.test testConnectSelfSigned
 --- .> io.test testCAReject
