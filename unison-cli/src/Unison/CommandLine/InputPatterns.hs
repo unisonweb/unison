@@ -947,12 +947,7 @@ pullImpl name verbosity pullMode addendum = do
                   )
                 ],
               "",
-              P.wrap "where `remote` is a git repository, optionally followed by `:`"
-                <> "and an absolute remote path, such as:",
-              P.indentN 2 . P.lines $
-                [ P.backticked "https://github.com/org/repo",
-                  P.backticked "https://github.com/org/repo:.some.remote.path"
-                ]
+              explainRemote
             ]
         )
         ( \case
@@ -1021,12 +1016,7 @@ push =
               )
             ],
           "",
-          P.wrap "where `remote` is a git repository, optionally followed by `:`"
-            <> "and an absolute remote path, such as:",
-          P.indentN 2 . P.lines $
-            [ P.backticked "https://github.com/org/repo",
-              P.backticked "https://github.com/org/repo:.some.remote.path"
-            ]
+          explainRemote
         ]
     )
     ( \case
@@ -1066,12 +1056,7 @@ pushCreate =
               )
             ],
           "",
-          P.wrap "where `remote` is a git repository, optionally followed by `:`"
-            <> "and an absolute remote path, such as:",
-          P.indentN 2 . P.lines $
-            [ P.backticked "https://github.com/org/repo",
-              P.backticked "https://github.com/org/repo:.some.remote.path"
-            ]
+          explainRemote
         ]
     )
     ( \case
@@ -1203,9 +1188,9 @@ prettyPrintParseError input = \case
                  ]
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
-    printTrivial ue ee = 
+    printTrivial ue ee =
       let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue 
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue
           message = [expected] <> catMaybes [found]
       in P.oxfordCommasWith "." message
 
@@ -2185,3 +2170,16 @@ gitUrlArg =
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
 collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
+
+explainRemote :: P.Pretty CT.ColorText
+explainRemote =
+  P.lines
+    [ P.wrap "where `remote` is a git repository, optionally followed by `:`"
+          <> "and an absolute remote path, a branch, or both, such as:",
+      P.indentN 2 . P.lines $
+        [ P.backticked "https://github.com/org/repo",
+          P.backticked "https://github.com/org/repo:.some.remote.path",
+          P.backticked "https://github.com/org/repo:some-branch:.some.remote.path",
+          P.backticked "https://github.com/org/repo:some-branch"
+        ]
+    ]

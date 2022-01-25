@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Unison.Codebase.GitError where
 
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
@@ -19,7 +21,11 @@ data GitProtocolError
   | -- url commit Diff of what would change on merge with remote
     PushDestinationHasNewStuff WriteRepo
   | CleanupError SomeException
-  deriving (Show)
+  | -- Thrown when a commit, tag, or branch isn't found in a repo.
+    --                repo ref
+    RemoteRefNotFound Text Text
+  deriving stock (Show)
+  deriving anyclass (Exception)
 
 data GitCodebaseError h
   = NoRemoteNamespaceWithHash ReadRepo ShortBranchHash

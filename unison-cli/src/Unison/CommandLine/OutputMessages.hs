@@ -578,7 +578,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       P.lines
         [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again." 
+          "Please switch to an empty namespace and try again."
         ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
@@ -928,6 +928,9 @@ notifyUser dir o = case o of
           "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      RemoteRefNotFound repo ref ->
+        P.wrap $
+          "I couldn't find the ref " <> P.green (P.text ref) <> " in the repository at " <> P.blue (P.text repo) <> ";"
       UnrecognizableCacheDir uri localPath ->
         P.wrap $
           "A cache directory for"
@@ -2603,10 +2606,10 @@ prettyTypeName ppe r =
     prettyHashQualified (PPE.typeName ppe r)
 
 prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
+prettyReadRepo (RemoteRepo.ReadGitRepo{url}) = P.blue (P.text url)
 
 prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo (RemoteRepo.WriteGitRepo url) = P.blue (P.text url)
+prettyWriteRepo (RemoteRepo.WriteGitRepo{url'}) = P.blue (P.text url')
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of
