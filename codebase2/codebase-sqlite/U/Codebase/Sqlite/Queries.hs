@@ -744,7 +744,7 @@ garbageCollectObjectsWithoutHashes = do
     [here|
       DELETE FROM causal_metadata
       WHERE causal_id IN orphaned_causals
-      OR metadata_object_id in objects_without_hash
+      OR metadata_object_id in (SELECT id FROM object_without_hash)
     |]
   execute_
     [here|
