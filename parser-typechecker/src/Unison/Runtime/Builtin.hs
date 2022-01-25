@@ -1769,7 +1769,7 @@ declareForeigns = do
   declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
     $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
         pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
-                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [((X.CertificateChain certs), key)] }
+                                         , TLS.serverShared = def { TLS.sharedCredentials = Credentials [(X.CertificateChain certs, key)] }
                                          }
 
   let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
@@ -1822,17 +1822,6 @@ declareForeigns = do
     defaultSupported :: TLS.Supported
     defaultSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
 
-  declareForeign "Tls.Config.defaultClient" boxBoxDirect
-    .  mkForeign $ \(hostName :: Util.Text.Text, serverId:: Bytes.Bytes) -> do
-       store <- X.getSystemCertificateStore
-       let shared :: TLS.Shared
-           shared = def { TLS.sharedCAStore = store }
-           defaultParams = (defaultParamsClient (Util.Text.unpack hostName) (Bytes.toArray serverId)) { TLS.clientSupported = defaultSupported, TLS.clientShared = shared }
-       pure defaultParams
-
-  declareForeign "Tls.Config.defaultServer" unitDirect . mkForeign $ \() -> do
-    pure $ (def :: ServerParams) { TLS.serverSupported = defaultSupported }
-
   declareForeign "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
@@ -1842,7 +1831,9 @@ declareForeigns = do
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
   declareForeign "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
-    \(tls :: TLS.Context) -> TLS.handshake tls
+    \(tls :: TLS.Context) -> do
+        i <- contextGetInformation tls
+        traceShow i $ TLS.handshake tls
 
   declareForeign "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,

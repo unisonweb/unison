@@ -100,7 +100,7 @@ serverThread portVar toSend = 'let
     printLine "oooooooooooooooo"
        -- try to handshake the TLS connection with the client
     match handshake.impl tls with 
-      Right _ -> ()
+      Right _ -> printLine "no error on server side"
       Left (Failure _ t _) -> printLine ("error " ++ t) 
 
     printLine "iiiiiiiiiiiiiii"
@@ -127,6 +127,7 @@ testClient cert hostname portVar _ =
   port = take portVar
 
   -- create a tcp connection with the server
+
   watch ("client connecting to port: " ++ (toText port)) ()
   sock = clientSocket "127.0.0.1" (Nat.toText port)
 
@@ -138,7 +139,7 @@ testClient cert hostname portVar _ =
   -- test.unison.cloud originating with a certificate we trust, and
   -- that the server can use a compatible TLS version and cipher
   match handshake.impl tls with 
-    Right _ -> ()
+    Right _ -> printLine "no eeror on client side"
     Left (Failure _ t _) -> printLine ("error " ++ t)
 
   printLine "666666666666666666"
@@ -195,7 +196,6 @@ testCAReject _ =
 -- server presents an cert with unexpected hostname
 testCNReject : '{io2.IO}[Result]
 testCNReject _ =
-  unsafeRun! '(printLine "aaaaaaaaaaaaaaaaaaaa")
   checkError : Either Failure a -> Result
   checkError = cases
     Right _ -> Fail "expected a handshake exception"
