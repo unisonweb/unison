@@ -1746,16 +1746,16 @@ declareForeigns = do
   declareForeign Untracked "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
-  declareForeign Untracked "MVar.take.impl.v3" boxToEFBox
+  declareForeign Tracked "MVar.take.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
 
-  declareForeign Untracked "MVar.tryTake" boxToMaybeBox
+  declareForeign Tracked "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
 
-  declareForeign Untracked "MVar.put.impl.v3" boxBoxToEF0
+  declareForeign Tracked "MVar.put.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
-  declareForeign Untracked "MVar.tryPut.impl.v3" boxBoxToEFBool
+  declareForeign Tracked "MVar.tryPut.impl.v3" boxBoxToEFBool
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
   declareForeign Untracked "MVar.swap.impl.v3" boxBoxToEFBox
@@ -1764,10 +1764,10 @@ declareForeigns = do
   declareForeign Untracked "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign Untracked "MVar.read.impl.v3" boxToEFBox
+  declareForeign Tracked "MVar.read.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign Untracked "MVar.tryRead.impl.v3" boxToEFMBox
+  declareForeign Tracked "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
 
@@ -1811,17 +1811,17 @@ declareForeigns = do
   declareForeign Untracked "TVar.new" boxDirect . mkForeign
     $ \(c :: Closure) -> unsafeSTMToIO $ STM.newTVar c
 
-  declareForeign Untracked "TVar.read" boxDirect . mkForeign
+  declareForeign Tracked "TVar.read" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> unsafeSTMToIO $ STM.readTVar v
 
-  declareForeign Untracked "TVar.write" boxBoxTo0 . mkForeign
+  declareForeign Tracked "TVar.write" boxBoxTo0 . mkForeign
     $ \(v :: STM.TVar Closure, c :: Closure)
         -> unsafeSTMToIO $ STM.writeTVar v c
 
   declareForeign Untracked "TVar.newIO" boxDirect . mkForeign
     $ \(c :: Closure) -> STM.newTVarIO c
 
-  declareForeign Untracked "TVar.readIO" boxDirect . mkForeign
+  declareForeign Tracked "TVar.readIO" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> STM.readTVarIO v
 
   declareForeign Untracked "TVar.swap" boxBoxDirect . mkForeign
@@ -1837,10 +1837,10 @@ declareForeigns = do
   declareForeign Untracked "IO.ref" boxDirect
     . mkForeign $ \(c :: Closure) -> newIORef c
 
-  declareForeign Untracked "Ref.read" boxDirect . mkForeign $
+  declareForeign Tracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
-  declareForeign Untracked "Ref.write" boxBoxTo0 . mkForeign $
+  declareForeign Tracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
   declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
