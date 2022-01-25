@@ -1612,8 +1612,8 @@ checkSandboxing
   -> [Reference]
   -> Closure
   -> IO Bool
-checkSandboxing cc (traceShowId -> allowed0) c = do
-  sands <- traceShow c $ readTVarIO $ sandbox cc
+checkSandboxing cc allowed0 c = do
+  sands <- readTVarIO $ sandbox cc
   let f r | Just rs <- M.lookup r sands
           = rs `S.difference` allowed
           | otherwise = mempty
