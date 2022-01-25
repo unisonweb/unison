@@ -110,7 +110,6 @@ module U.Codebase.Sqlite.Queries (
   vacuum,
   garbageCollectObjectsWithoutHashes,
   garbageCollectWatchesWithoutObjects,
-  garbageCollectUnreferencedHashes,
   deleteHashObjectsByVersion,
 
   -- migrations
@@ -446,23 +445,6 @@ deleteHashObjectsByVersion oldHashVersion = do
       WHERE hash_version = ?
     |]
 
-garbageCollectUnreferencedHashes :: DB m => m ()
-garbageCollectUnreferencedHashes = do
-  execute_ sql
-  where
-    sql = [here|
-      DELETE from hash
-      WHERE id NOT IN
-        (      SELECT hash_id                FROM hash_object
-         UNION SELECT self_hash_id           FROM causal
-         UNION SELECT value_hash_id          FROM causal
-         UNION SELECT hash_id                FROM watch_result
-         UNION SELECT hash_id                FROM watch
-         UNION SELECT type_reference_hash_id FROM find_type_index
-         UNION SELECT type_reference_hash_id FROM find_type_mentions_index
-         )
-    |]
-
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
   UPDATE object SET bytes = ? WHERE id = ?
@@ -736,11 +718,6 @@ garbageCollectObjectsWithoutHashes = do
     [here|
       DELETE FROM find_type_mentions_index
       WHERE term_referent_object_id IN (SELECT id FROM object_without_hash)
-    |]
-  execute_
-    [here|
-      DELETE FROM object_type_description
-      WHERE id IN (SELECT id FROM object_without_hash)
     |]
 
   execute_

@@ -135,8 +135,6 @@ migrateSchema12 conn codebase = do
     runDB conn (liftQ Q.garbageCollectObjectsWithoutHashes)
     liftIO $ putStrLn $ "Garbage collecting orphaned watches..."
     runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
-    liftIO $ putStrLn $ "Garbage collecting unused hashes..."
-    runDB conn (liftQ Q.garbageCollectUnreferencedHashes)
     liftIO $ putStrLn $ "Updating Schema Version..."
     runDB conn . liftQ $ Q.setSchemaVersion 2
   liftIO $ putStrLn $ "Cleaning up..."
