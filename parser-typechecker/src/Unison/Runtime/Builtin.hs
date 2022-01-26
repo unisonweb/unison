@@ -1487,11 +1487,11 @@ builtinLookup
   , ("Boolean.or", (Untracked, orb))
   , ("Boolean.and", (Untracked, andb))
 
-  , ("bug", (Untracked, bug "builtin.bug"))
-  , ("todo", (Untracked, bug "builtin.todo"))
-  , ("Debug.watch", (Untracked, watch))
-  , ("Debug.trace", (Untracked, gen'trace))
-  , ("unsafe.coerceAbilities", (Untracked, poly'coerce))
+  , ("bug", (Tracked, bug "builtin.bug"))
+  , ("todo", (Tracked, bug "builtin.todo"))
+  , ("Debug.watch", (Tracked, watch))
+  , ("Debug.trace", (Tracked, gen'trace))
+  , ("unsafe.coerceAbilities", (Tracked, poly'coerce))
 
   , ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef))
   , ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef))
@@ -1529,7 +1529,7 @@ builtinLookup
   , ("jumpCont", (Untracked, jumpk))
   , ("raise", (Untracked, raise))
 
-  , ("IO.forkComp.v2", (Untracked, fork'comp))
+  , ("IO.forkComp.v2", (Tracked, fork'comp))
 
   , ("Scope.run", (Untracked, scope'run))
 
@@ -1607,36 +1607,36 @@ declareForeigns = do
             _ -> ReadWriteMode
       in openFile fname mode
 
-  declareForeign Untracked "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
-  declareForeign Untracked "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
-  declareForeign Untracked "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
-  declareForeign Untracked "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
+  declareForeign Tracked "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
+  declareForeign Tracked "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign Tracked "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign Tracked "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
 
-  declareForeign Untracked "IO.seekHandle.impl.v3" seek'handle
+  declareForeign Tracked "IO.seekHandle.impl.v3" seek'handle
     . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
 
-  declareForeign Untracked "IO.handlePosition.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.handlePosition.impl.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
 
-  declareForeign Untracked "IO.getBuffering.impl.v3" get'buffering
+  declareForeign Tracked "IO.getBuffering.impl.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign Untracked "IO.setBuffering.impl.v3" set'buffering
+  declareForeign Tracked "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign Untracked "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
+  declareForeign Tracked "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
     fmap Util.Text.fromText . Text.IO.hGetLine
 
-  declareForeign Untracked "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+  declareForeign Tracked "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign Untracked "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign Tracked "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
 
-  declareForeign Untracked "IO.systemTime.impl.v3" unitToEFNat
+  declareForeign Tracked "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
-  declareForeign Untracked "IO.systemTimeMicroseconds.v1" unitToInt
+  declareForeign Tracked "IO.systemTimeMicroseconds.v1" unitToInt
     $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
   declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox
@@ -1659,7 +1659,7 @@ declareForeigns = do
   declareForeign Tracked "IO.getEnv.impl.v1" boxToEFBox
     $ mkForeignIOF getEnv
 
-  declareForeign Untracked "IO.getArgs.impl.v1" unitToEFBox
+  declareForeign Tracked "IO.getArgs.impl.v1" unitToEFBox
     $ mkForeignIOF $ \() -> fmap Util.Text.pack <$> SYS.getArgs
 
   declareForeign Tracked "IO.isDirectory.impl.v3" boxToEFBool
@@ -1704,7 +1704,7 @@ declareForeigns = do
   declareForeign Untracked "ThreadId.toText" boxDirect
     . mkForeign $ \(threadId :: ThreadId) -> pure $ show threadId
 
-  declareForeign Untracked "IO.socketPort.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.socketPort.impl.v3" boxToEFNat
     . mkForeignIOF $ \(handle :: Socket) -> do
         n <- SYS.socketPort handle
         return (fromIntegral n :: Word64)
@@ -1715,35 +1715,35 @@ declareForeigns = do
   declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
-  declareForeign Untracked "IO.closeSocket.impl.v3" boxToEF0
+  declareForeign Tracked "IO.closeSocket.impl.v3" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
   declareForeign Tracked "IO.socketAccept.impl.v3" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
-  declareForeign Untracked "IO.socketSend.impl.v3" boxBoxToEF0
+  declareForeign Tracked "IO.socketSend.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
 
-  declareForeign Untracked "IO.socketReceive.impl.v3" boxNatToEFBox
+  declareForeign Tracked "IO.socketReceive.impl.v3" boxNatToEFBox
     . mkForeignIOF $ \(hs,n) ->
     maybe mempty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign Untracked "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
+  declareForeign Tracked "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign Untracked "IO.delay.impl.v3" natToEFUnit
+  declareForeign Tracked "IO.delay.impl.v3" natToEFUnit
     $ mkForeignIOF threadDelay
 
-  declareForeign Untracked "IO.stdHandle" standard'handle
+  declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
         0 -> pure (Just SYS.stdin)
         1 -> pure (Just SYS.stdout)
         2 -> pure (Just SYS.stderr)
         _ -> pure Nothing
 
-  declareForeign Untracked "MVar.new" boxDirect
+  declareForeign Tracked "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
 
-  declareForeign Untracked "MVar.newEmpty.v2" unitDirect
+  declareForeign Tracked "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
   declareForeign Tracked "MVar.take.impl.v3" boxToEFBox
@@ -1758,10 +1758,10 @@ declareForeigns = do
   declareForeign Tracked "MVar.tryPut.impl.v3" boxBoxToEFBool
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
-  declareForeign Untracked "MVar.swap.impl.v3" boxBoxToEFBox
+  declareForeign Tracked "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
 
-  declareForeign Untracked "MVar.isEmpty" boxToBool
+  declareForeign Tracked "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
   declareForeign Tracked "MVar.read.impl.v3" boxToEFBox
@@ -1808,7 +1808,7 @@ declareForeigns = do
         declareForeign Tracked "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
           \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
 
-  declareForeign Untracked "TVar.new" boxDirect . mkForeign
+  declareForeign Tracked "TVar.new" boxDirect . mkForeign
     $ \(c :: Closure) -> unsafeSTMToIO $ STM.newTVar c
 
   declareForeign Tracked "TVar.read" boxDirect . mkForeign
@@ -1818,23 +1818,23 @@ declareForeigns = do
     $ \(v :: STM.TVar Closure, c :: Closure)
         -> unsafeSTMToIO $ STM.writeTVar v c
 
-  declareForeign Untracked "TVar.newIO" boxDirect . mkForeign
+  declareForeign Tracked "TVar.newIO" boxDirect . mkForeign
     $ \(c :: Closure) -> STM.newTVarIO c
 
   declareForeign Tracked "TVar.readIO" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> STM.readTVarIO v
 
-  declareForeign Untracked "TVar.swap" boxBoxDirect . mkForeign
+  declareForeign Tracked "TVar.swap" boxBoxDirect . mkForeign
     $ \(v, c :: Closure) -> unsafeSTMToIO $ STM.swapTVar v c
 
-  declareForeign Untracked "STM.retry" unitDirect . mkForeign
+  declareForeign Tracked "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
 
   -- Scope and Ref stuff
-  declareForeign Untracked "Scope.ref" boxDirect
+  declareForeign Tracked "Scope.ref" boxDirect
     . mkForeign $ \(c :: Closure) -> newIORef c
 
-  declareForeign Untracked "IO.ref" boxDirect
+  declareForeign Tracked "IO.ref" boxDirect
     . mkForeign $ \(c :: Closure) -> newIORef c
 
   declareForeign Tracked "Ref.read" boxDirect . mkForeign $
@@ -1889,7 +1889,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
-  declareForeign Untracked "Code.dependencies" boxDirect
+  declareForeign Tracked "Code.dependencies" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
   declareForeign Untracked "Code.serialize" boxDirect
@@ -1899,7 +1899,7 @@ declareForeigns = do
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
   declareForeign Untracked "Code.display" boxBoxDirect . mkForeign
     $ \(nm,sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
-  declareForeign Untracked "Value.dependencies" boxDirect
+  declareForeign Tracked "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
   declareForeign Untracked "Value.serialize" boxDirect
