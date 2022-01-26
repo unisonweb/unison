@@ -197,9 +197,3 @@ vtests _ =
 .> add
 .> io.test vtests
 ```
-
-```unison
-> validateSandboxed [] "hello"
-> validateSandboxed [] openFile
-> validateSandboxed [termLink openFile.impl] openFile
-```

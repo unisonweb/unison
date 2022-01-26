@@ -345,31 +345,3 @@ vtests _ =
   Tip: Use view vtests to view the source of a test.
 
 ```
-```unison
-> validateSandboxed [] "hello"
-> validateSandboxed [] openFile
-> validateSandboxed [termLink openFile.impl] openFile
-```
-
-```ucm
-
-  ✅
-  
-  scratch.u changed.
-  
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
-
-    1 | > validateSandboxed [] "hello"
-          ⧩
-          true
-  
-    2 | > validateSandboxed [] openFile
-          ⧩
-          false
-  
-    3 | > validateSandboxed [termLink openFile.impl] openFile
-          ⧩
-          true
-
-```
