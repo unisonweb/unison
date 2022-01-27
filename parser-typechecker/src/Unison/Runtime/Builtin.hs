@@ -1487,11 +1487,11 @@ builtinLookup
   , ("Boolean.or", (Untracked, orb))
   , ("Boolean.and", (Untracked, andb))
 
-  , ("bug", (Tracked, bug "builtin.bug"))
-  , ("todo", (Tracked, bug "builtin.todo"))
+  , ("bug", (Untracked, bug "builtin.bug"))
+  , ("todo", (Untracked, bug "builtin.todo"))
   , ("Debug.watch", (Tracked, watch))
   , ("Debug.trace", (Tracked, gen'trace))
-  , ("unsafe.coerceAbilities", (Tracked, poly'coerce))
+  , ("unsafe.coerceAbilities", (Untracked, poly'coerce))
 
   , ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef))
   , ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef))
@@ -1540,9 +1540,9 @@ builtinLookup
   , ("Value.load", (Tracked, value'load))
   , ("Value.value", (Tracked, value'create))
   , ("Any.Any", (Untracked, any'construct))
-  , ("Any.unsafeExtract", (Tracked, any'extract))
+  , ("Any.unsafeExtract", (Untracked, any'extract))
   , ("Link.Term.toText", (Untracked, term'link'to'text))
-  , ("STM.atomically", (Untracked, stm'atomic))
+  , ("STM.atomically", (Tracked, stm'atomic))
 
   , ("validateSandboxed", (Untracked, check'sandbox))
   ] ++ foreignWrappers
@@ -1695,13 +1695,13 @@ declareForeigns = do
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
 
-  declareForeign Untracked "Socket.toText" boxDirect
+  declareForeign Tracked "Socket.toText" boxDirect
     . mkForeign $ \(sock :: Socket) -> pure $ show sock
 
-  declareForeign Untracked "Handle.toText" boxDirect
+  declareForeign Tracked "Handle.toText" boxDirect
     . mkForeign $ \(hand :: Handle) -> pure $ show hand
 
-  declareForeign Untracked "ThreadId.toText" boxDirect
+  declareForeign Tracked "ThreadId.toText" boxDirect
     . mkForeign $ \(threadId :: ThreadId) -> pure $ show threadId
 
   declareForeign Tracked "IO.socketPort.impl.v3" boxToEFNat
@@ -1889,7 +1889,7 @@ declareForeigns = do
   declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
-  declareForeign Tracked "Code.dependencies" boxDirect
+  declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
   declareForeign Untracked "Code.serialize" boxDirect
@@ -1899,7 +1899,7 @@ declareForeigns = do
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
   declareForeign Untracked "Code.display" boxBoxDirect . mkForeign
     $ \(nm,sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
-  declareForeign Tracked "Value.dependencies" boxDirect
+  declareForeign Untracked "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
   declareForeign Untracked "Value.serialize" boxDirect
