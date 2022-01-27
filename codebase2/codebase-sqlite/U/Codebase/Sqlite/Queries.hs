@@ -116,6 +116,7 @@ module U.Codebase.Sqlite.Queries (
   rollbackRelease,
   withSavepoint,
   withSavepoint_,
+  withTransaction,
 
   vacuumInto,
   setJournalMode,
@@ -887,6 +888,10 @@ withImmediateTransaction action = do
   c <- Reader.reader Connection.underlying
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
 
+withTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
+withTransaction action = do
+  c <- Reader.reader Connection.underlying
+  withRunInIO \run -> SQLite.withTransaction c (run action)
 
 -- | low-level transaction stuff
 savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
