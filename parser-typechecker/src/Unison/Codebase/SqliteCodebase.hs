@@ -924,6 +924,9 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
 
+-- | Like 'runDB', but executes the action within a transaction on the provided
+-- connection.
+-- Don't nest 'runDBInTx' calls, use 'withSavepoint' if you need nested transactions.
 runDBInTx ::
   MonadUnliftIO m =>
   Connection ->
