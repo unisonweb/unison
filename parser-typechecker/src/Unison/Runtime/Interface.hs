@@ -79,6 +79,7 @@ import Unison.Runtime.Machine
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy, refLookup
   , ActiveThreads
+  , expandSandbox
   )
 import Unison.Runtime.MCode
   ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
@@ -229,7 +230,9 @@ loadDeps
   -> [Reference]
   -> IO EvalCtx
 loadDeps cl ppe ctx tyrs tmrs = do
-  p <- refNumsTy (ccache ctx) <&> \m (r,_) -> case r of
+  let cc = ccache ctx
+  sand <- readTVarIO (sandbox cc)
+  p <- refNumsTy cc <&> \m (r,_) -> case r of
     RF.DerivedId{} -> r `Map.notMember` dspec ctx
                    || r `Map.notMember` m
     _ -> False
@@ -241,7 +244,8 @@ loadDeps cl ppe ctx tyrs tmrs = do
             $ Prelude.filter q tmrs
   let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
       tyAdd = Set.fromList $ fst <$> tyrs
-  backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
+  backrefAdd rbkr ctx
+    <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted
   :: Term Symbol
@@ -514,10 +518,11 @@ data StoredCache
       (Map Reference (SuperGroup Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+      (Map Reference (Set Reference))
   deriving (Show)
 
 putStoredCache :: MonadPut m => StoredCache -> m ()
-putStoredCache (SCache cs crs trs ftm fty int rtm rty) = do
+putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat (putEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
@@ -526,6 +531,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty) = do
   putMap putReference putGroup int
   putMap putReference putNat rtm
   putMap putReference putNat rty
+  putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: MonadGet m => m StoredCache
 getStoredCache = SCache
@@ -537,9 +543,10 @@ getStoredCache = SCache
   <*> getMap getReference getGroup
   <*> getMap getReference getNat
   <*> getMap getReference getNat
+  <*> getMap getReference (fromList <$> getList getReference)
 
 restoreCache :: StoredCache -> IO CCache
-restoreCache (SCache cs crs trs ftm fty int rtm rty)
+restoreCache (SCache cs crs trs ftm fty int rtm rty sbs)
   = CCache builtinForeigns uglyTrace
       <$> newTVarIO (cs <> combs)
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -549,6 +556,7 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty)
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO (sbs <> baseSandboxInfo)
   where
   uglyTrace tx c = do
     putStrLn $ "trace: " ++ UT.unpack tx
@@ -580,13 +588,15 @@ buildSCache
   -> Map Reference (SuperGroup Symbol)
   -> Map Reference Word64
   -> Map Reference Word64
+  -> Map Reference (Set Reference)
   -> StoredCache
-buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc
+buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx
   = SCache cs crs trs
       ftm fty
       (restrictTmR intsrc)
       (restrictTmR rtmsrc)
       (restrictTyR rtysrc)
+      (restrictTmR sndbx)
   where
   combKeys = keysSet cs
   crs = restrictTmW crsrc
@@ -613,3 +623,4 @@ standalone cc init =
     <*> readTVarIO (intermed cc)
     <*> readTVarIO (refTm cc)
     <*> readTVarIO (refTy cc)
+    <*> readTVarIO (sandbox cc)

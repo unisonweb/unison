@@ -761,7 +761,7 @@ data POp
   | EQLU | CMPU | EROR
   -- Code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
-  | CVLD                      -- validate
+  | CVLD | SDBX               -- validate, sandbox
   | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
   | PRNT | INFO | TRCE

@@ -16,6 +16,8 @@ module Unison.Runtime.Builtin
   , builtinTypeBackref
   , builtinForeigns
   , numberedTermLookup
+  , Sandbox(..)
+  , baseSandboxInfo
   ) where
 
 import Control.Monad.State.Strict (State, modify, execState)
@@ -57,6 +59,7 @@ import qualified Data.X509.Memory as X
 import qualified Data.X509.CertificateStore as X
 import Data.PEM (pemContent, pemParseLBS, PEM)
 import Data.Set (insert)
+import qualified Data.Set as Set
 
 import qualified Data.Map as Map
 import Unison.Prelude hiding (some,Text)
@@ -790,6 +793,15 @@ value'load
 value'create :: SuperNormal Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
+check'sandbox :: SuperNormal Symbol
+check'sandbox
+  = Lambda [BX,BX]
+  . TAbss [refs, val]
+  . TLetD b UN (TPrm SDBX [refs, val])
+  $ boolift b
+  where
+  (refs,val,b) = fresh3
+
 stm'atomic :: SuperNormal Symbol
 stm'atomic
   = Lambda [BX]
@@ -1342,205 +1354,218 @@ boxToEBoxBox instr
   where
   (e,b,ev) = fresh3
 
-builtinLookup :: Map.Map Reference (SuperNormal Symbol)
+builtinLookup :: Map.Map Reference (Sandbox, SuperNormal Symbol)
 builtinLookup
   = Map.fromList
   . map (\(t, f) -> (Builtin t, f)) $
-  [ ("Int.+", addi)
-  , ("Int.-", subi)
-  , ("Int.*", muli)
-  , ("Int./", divi)
-  , ("Int.mod", modi)
-  , ("Int.==", eqi)
-  , ("Int.<", lti)
-  , ("Int.<=", lei)
-  , ("Int.>", gti)
-  , ("Int.>=", gei)
-  , ("Int.fromRepresentation", coerceType Ty.natRef Ty.intRef)
-  , ("Int.toRepresentation", coerceType Ty.intRef Ty.natRef)
-  , ("Int.increment", inci)
-  , ("Int.signum", sgni)
-  , ("Int.negate", negi)
-  , ("Int.truncate0", trni)
-  , ("Int.isEven", evni)
-  , ("Int.isOdd", oddi)
-  , ("Int.shiftLeft", shli)
-  , ("Int.shiftRight", shri)
-  , ("Int.trailingZeros", tzeroi)
-  , ("Int.leadingZeros", lzeroi)
-  , ("Int.and", andi)
-  , ("Int.or", ori)
-  , ("Int.xor", xori)
-  , ("Int.complement", compli)
-  , ("Int.pow", powi)
-  , ("Int.toText", i2t)
-  , ("Int.fromText", t2i)
-  , ("Int.toFloat", i2f)
-  , ("Int.popCount", popi)
+  [ ("Int.+", (Untracked, addi))
+  , ("Int.-", (Untracked, subi))
+  , ("Int.*", (Untracked, muli))
+  , ("Int./", (Untracked, divi))
+  , ("Int.mod", (Untracked, modi))
+  , ("Int.==", (Untracked, eqi))
+  , ("Int.<", (Untracked, lti))
+  , ("Int.<=", (Untracked, lei))
+  , ("Int.>", (Untracked, gti))
+  , ("Int.>=", (Untracked, gei))
+  , ("Int.fromRepresentation", (Untracked, coerceType Ty.natRef Ty.intRef))
+  , ("Int.toRepresentation", (Untracked, coerceType Ty.intRef Ty.natRef))
+  , ("Int.increment", (Untracked, inci))
+  , ("Int.signum", (Untracked, sgni))
+  , ("Int.negate", (Untracked, negi))
+  , ("Int.truncate0", (Untracked, trni))
+  , ("Int.isEven", (Untracked, evni))
+  , ("Int.isOdd", (Untracked, oddi))
+  , ("Int.shiftLeft", (Untracked, shli))
+  , ("Int.shiftRight", (Untracked, shri))
+  , ("Int.trailingZeros", (Untracked, tzeroi))
+  , ("Int.leadingZeros", (Untracked, lzeroi))
+  , ("Int.and", (Untracked, andi))
+  , ("Int.or", (Untracked, ori))
+  , ("Int.xor", (Untracked, xori))
+  , ("Int.complement", (Untracked, compli))
+  , ("Int.pow", (Untracked, powi))
+  , ("Int.toText", (Untracked, i2t))
+  , ("Int.fromText", (Untracked, t2i))
+  , ("Int.toFloat", (Untracked, i2f))
+  , ("Int.popCount", (Untracked, popi))
 
-  , ("Nat.+", addn)
-  , ("Nat.-", subn)
-  , ("Nat.sub", subn)
-  , ("Nat.*", muln)
-  , ("Nat./", divn)
-  , ("Nat.mod", modn)
-  , ("Nat.==", eqn)
-  , ("Nat.<", ltn)
-  , ("Nat.<=", len)
-  , ("Nat.>", gtn)
-  , ("Nat.>=", gen)
-  , ("Nat.increment", incn)
-  , ("Nat.isEven", evnn)
-  , ("Nat.isOdd", oddn)
-  , ("Nat.shiftLeft", shln)
-  , ("Nat.shiftRight", shrn)
-  , ("Nat.trailingZeros", tzeron)
-  , ("Nat.leadingZeros", lzeron)
-  , ("Nat.and", andn)
-  , ("Nat.or", orn)
-  , ("Nat.xor", xorn)
-  , ("Nat.complement", compln)
-  , ("Nat.pow", pown)
-  , ("Nat.drop", dropn)
-  , ("Nat.toInt", cast Ty.natRef Ty.intRef)
-  , ("Nat.toFloat", n2f)
-  , ("Nat.toText", n2t)
-  , ("Nat.fromText", t2n)
-  , ("Nat.popCount", popn)
-  , ("Float.+", addf)
-  , ("Float.-", subf)
-  , ("Float.*", mulf)
-  , ("Float./", divf)
-  , ("Float.pow", powf)
-  , ("Float.log", logf)
-  , ("Float.logBase", logbf)
-  , ("Float.sqrt", sqrtf)
-  , ("Float.fromRepresentation", coerceType Ty.natRef Ty.floatRef)
-  , ("Float.toRepresentation", coerceType Ty.floatRef Ty.natRef)
+  , ("Nat.+", (Untracked, addn))
+  , ("Nat.-", (Untracked, subn))
+  , ("Nat.sub", (Untracked, subn))
+  , ("Nat.*", (Untracked, muln))
+  , ("Nat./", (Untracked, divn))
+  , ("Nat.mod", (Untracked, modn))
+  , ("Nat.==", (Untracked, eqn))
+  , ("Nat.<", (Untracked, ltn))
+  , ("Nat.<=", (Untracked, len))
+  , ("Nat.>", (Untracked, gtn))
+  , ("Nat.>=", (Untracked, gen))
+  , ("Nat.increment", (Untracked, incn))
+  , ("Nat.isEven", (Untracked, evnn))
+  , ("Nat.isOdd", (Untracked, oddn))
+  , ("Nat.shiftLeft", (Untracked, shln))
+  , ("Nat.shiftRight", (Untracked, shrn))
+  , ("Nat.trailingZeros", (Untracked, tzeron))
+  , ("Nat.leadingZeros", (Untracked, lzeron))
+  , ("Nat.and", (Untracked, andn))
+  , ("Nat.or", (Untracked, orn))
+  , ("Nat.xor", (Untracked, xorn))
+  , ("Nat.complement", (Untracked, compln))
+  , ("Nat.pow", (Untracked, pown))
+  , ("Nat.drop", (Untracked, dropn))
+  , ("Nat.toInt", (Untracked, cast Ty.natRef Ty.intRef))
+  , ("Nat.toFloat", (Untracked, n2f))
+  , ("Nat.toText", (Untracked, n2t))
+  , ("Nat.fromText", (Untracked, t2n))
+  , ("Nat.popCount", (Untracked, popn))
+  , ("Float.+", (Untracked, addf))
+  , ("Float.-", (Untracked, subf))
+  , ("Float.*", (Untracked, mulf))
+  , ("Float./", (Untracked, divf))
+  , ("Float.pow", (Untracked, powf))
+  , ("Float.log", (Untracked, logf))
+  , ("Float.logBase", (Untracked, logbf))
+  , ("Float.sqrt", (Untracked, sqrtf))
+  , ("Float.fromRepresentation", (Untracked, coerceType Ty.natRef Ty.floatRef))
+  , ("Float.toRepresentation", (Untracked, coerceType Ty.floatRef Ty.natRef))
 
-  , ("Float.min", minf)
-  , ("Float.max", maxf)
+  , ("Float.min", (Untracked, minf))
+  , ("Float.max", (Untracked, maxf))
 
-  , ("Float.<", ltf)
-  , ("Float.>", gtf)
-  , ("Float.<=", lef)
-  , ("Float.>=", gef)
-  , ("Float.==", eqf)
-  , ("Float.!=", neqf)
+  , ("Float.<", (Untracked, ltf))
+  , ("Float.>", (Untracked, gtf))
+  , ("Float.<=", (Untracked, lef))
+  , ("Float.>=", (Untracked, gef))
+  , ("Float.==", (Untracked, eqf))
+  , ("Float.!=", (Untracked, neqf))
 
-  , ("Float.acos", acosf)
-  , ("Float.asin", asinf)
-  , ("Float.atan", atanf)
-  , ("Float.cos", cosf)
-  , ("Float.sin", sinf)
-  , ("Float.tan", tanf)
+  , ("Float.acos", (Untracked, acosf))
+  , ("Float.asin", (Untracked, asinf))
+  , ("Float.atan", (Untracked, atanf))
+  , ("Float.cos", (Untracked, cosf))
+  , ("Float.sin", (Untracked, sinf))
+  , ("Float.tan", (Untracked, tanf))
 
-  , ("Float.acosh", acoshf)
-  , ("Float.asinh", asinhf)
-  , ("Float.atanh", atanhf)
-  , ("Float.cosh", coshf)
-  , ("Float.sinh", sinhf)
-  , ("Float.tanh", tanhf)
+  , ("Float.acosh", (Untracked, acoshf))
+  , ("Float.asinh", (Untracked, asinhf))
+  , ("Float.atanh", (Untracked, atanhf))
+  , ("Float.cosh", (Untracked, coshf))
+  , ("Float.sinh", (Untracked, sinhf))
+  , ("Float.tanh", (Untracked, tanhf))
 
-  , ("Float.exp", expf)
-  , ("Float.abs", absf)
+  , ("Float.exp", (Untracked, expf))
+  , ("Float.abs", (Untracked, absf))
 
-  , ("Float.ceiling", ceilf)
-  , ("Float.floor", floorf)
-  , ("Float.round", roundf)
-  , ("Float.truncate", truncf)
-  , ("Float.atan2", atan2f)
+  , ("Float.ceiling", (Untracked, ceilf))
+  , ("Float.floor", (Untracked, floorf))
+  , ("Float.round", (Untracked, roundf))
+  , ("Float.truncate", (Untracked, truncf))
+  , ("Float.atan2", (Untracked, atan2f))
 
-  , ("Float.toText", f2t)
-  , ("Float.fromText", t2f)
+  , ("Float.toText", (Untracked, f2t))
+  , ("Float.fromText", (Untracked, t2f))
 
   -- text
-  , ("Text.empty", Lambda [] $ TLit (T ""))
-  , ("Text.++", appendt)
-  , ("Text.take", taket)
-  , ("Text.drop", dropt)
-  , ("Text.size", sizet)
-  , ("Text.==", eqt)
-  , ("Text.!=", neqt)
-  , ("Text.<=", leqt)
-  , ("Text.>=", geqt)
-  , ("Text.<", lesst)
-  , ("Text.>", great)
-  , ("Text.uncons", unconst)
-  , ("Text.unsnoc", unsnoct)
-  , ("Text.toCharList", unpackt)
-  , ("Text.fromCharList", packt)
+  , ("Text.empty", (Untracked, Lambda [] $ TLit (T "")))
+  , ("Text.++", (Untracked, appendt))
+  , ("Text.take", (Untracked, taket))
+  , ("Text.drop", (Untracked, dropt))
+  , ("Text.size", (Untracked, sizet))
+  , ("Text.==", (Untracked, eqt))
+  , ("Text.!=", (Untracked, neqt))
+  , ("Text.<=", (Untracked, leqt))
+  , ("Text.>=", (Untracked, geqt))
+  , ("Text.<", (Untracked, lesst))
+  , ("Text.>", (Untracked, great))
+  , ("Text.uncons", (Untracked, unconst))
+  , ("Text.unsnoc", (Untracked, unsnoct))
+  , ("Text.toCharList", (Untracked, unpackt))
+  , ("Text.fromCharList", (Untracked, packt))
 
-  , ("Boolean.not", notb)
-  , ("Boolean.or", orb)
-  , ("Boolean.and", andb)
+  , ("Boolean.not", (Untracked, notb))
+  , ("Boolean.or", (Untracked, orb))
+  , ("Boolean.and", (Untracked, andb))
 
-  , ("bug", bug "builtin.bug")
-  , ("todo", bug "builtin.todo")
-  , ("Debug.watch", watch)
-  , ("Debug.trace", gen'trace)
-  , ("unsafe.coerceAbilities", poly'coerce)
+  , ("bug", (Untracked, bug "builtin.bug"))
+  , ("todo", (Untracked, bug "builtin.todo"))
+  , ("Debug.watch", (Tracked, watch))
+  , ("Debug.trace", (Tracked, gen'trace))
+  , ("unsafe.coerceAbilities", (Untracked, poly'coerce))
 
-  , ("Char.toNat", cast Ty.charRef Ty.natRef)
-  , ("Char.fromNat", cast Ty.natRef Ty.charRef)
+  , ("Char.toNat", (Untracked, cast Ty.charRef Ty.natRef))
+  , ("Char.fromNat", (Untracked, cast Ty.natRef Ty.charRef))
 
-  , ("Bytes.empty", emptyb)
-  , ("Bytes.fromList", packb)
-  , ("Bytes.toList", unpackb)
-  , ("Bytes.++", appendb)
-  , ("Bytes.take", takeb)
-  , ("Bytes.drop", dropb)
-  , ("Bytes.at", atb)
-  , ("Bytes.size", sizeb)
-  , ("Bytes.flatten", flattenb)
+  , ("Bytes.empty", (Untracked, emptyb))
+  , ("Bytes.fromList", (Untracked, packb))
+  , ("Bytes.toList", (Untracked, unpackb))
+  , ("Bytes.++", (Untracked, appendb))
+  , ("Bytes.take", (Untracked, takeb))
+  , ("Bytes.drop", (Untracked, dropb))
+  , ("Bytes.at", (Untracked, atb))
+  , ("Bytes.size", (Untracked, sizeb))
+  , ("Bytes.flatten", (Untracked, flattenb))
 
-  , ("List.take", takes)
-  , ("List.drop", drops)
-  , ("List.size", sizes)
-  , ("List.++", appends)
-  , ("List.at", ats)
-  , ("List.cons", conss)
-  , ("List.snoc", snocs)
-  , ("List.empty", emptys)
-  , ("List.viewl", viewls)
-  , ("List.viewr", viewrs)
+  , ("List.take", (Untracked, takes))
+  , ("List.drop", (Untracked, drops))
+  , ("List.size", (Untracked, sizes))
+  , ("List.++", (Untracked, appends))
+  , ("List.at", (Untracked, ats))
+  , ("List.cons", (Untracked, conss))
+  , ("List.snoc", (Untracked, snocs))
+  , ("List.empty", (Untracked, emptys))
+  , ("List.viewl", (Untracked, viewls))
+  , ("List.viewr", (Untracked, viewrs))
 --
 --   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
-  , ("Universal.==", equ)
-  , ("Universal.compare", cmpu)
-  , ("Universal.>", gtu)
-  , ("Universal.<", ltu)
-  , ("Universal.>=", geu)
-  , ("Universal.<=", leu)
+  , ("Universal.==", (Untracked, equ))
+  , ("Universal.compare", (Untracked, cmpu))
+  , ("Universal.>", (Untracked, gtu))
+  , ("Universal.<", (Untracked, ltu))
+  , ("Universal.>=", (Untracked, geu))
+  , ("Universal.<=", (Untracked, leu))
 
   -- internal stuff
-  , ("jumpCont", jumpk)
-  , ("raise", raise)
+  , ("jumpCont", (Untracked, jumpk))
+  , ("raise", (Untracked, raise))
 
-  , ("IO.forkComp.v2", fork'comp)
+  , ("IO.forkComp.v2", (Tracked, fork'comp))
 
-  , ("Scope.run", scope'run)
+  , ("Scope.run", (Untracked, scope'run))
 
-  , ("Code.isMissing", code'missing)
-  , ("Code.cache_", code'cache)
-  , ("Code.lookup", code'lookup)
-  , ("Code.validate", code'validate)
-  , ("Value.load", value'load)
-  , ("Value.value", value'create)
-  , ("Any.Any", any'construct)
-  , ("Any.unsafeExtract", any'extract)
-  , ("Link.Term.toText", term'link'to'text)
-  , ("STM.atomically", stm'atomic)
+  , ("Code.isMissing", (Tracked, code'missing))
+  , ("Code.cache_", (Tracked, code'cache))
+  , ("Code.lookup", (Tracked, code'lookup))
+  , ("Code.validate", (Tracked, code'validate))
+  , ("Value.load", (Tracked, value'load))
+  , ("Value.value", (Tracked, value'create))
+  , ("Any.Any", (Untracked, any'construct))
+  , ("Any.unsafeExtract", (Untracked, any'extract))
+  , ("Link.Term.toText", (Untracked, term'link'to'text))
+  , ("STM.atomically", (Tracked, stm'atomic))
+
+  , ("validateSandboxed", (Untracked, check'sandbox))
   ] ++ foreignWrappers
 
 type FDecl v
-  = State (Word64, [(Data.Text.Text, SuperNormal v)], EnumMap Word64 ForeignFunc)
+  = State (Word64, [(Data.Text.Text, (Sandbox, SuperNormal v))], EnumMap Word64 ForeignFunc)
+
+-- Data type to determine whether a builtin should be tracked for
+-- sandboxing. Untracked means that it can be freely used, and Tracked
+-- means that the sandboxing check will by default consider them
+-- disallowed.
+data Sandbox = Tracked | Untracked
+  deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
 declareForeign
-  :: Data.Text.Text -> ForeignOp -> ForeignFunc -> FDecl Symbol ()
-declareForeign name op func
+  :: Sandbox
+  -> Data.Text.Text
+  -> ForeignOp
+  -> ForeignFunc
+  -> FDecl Symbol ()
+declareForeign sand name op func
   = modify $ \(w, cs, fs)
-      -> (w+1, (name, uncurry Lambda (op w)) : cs, mapInsert w func fs)
+      -> (w+1, (name, (sand, uncurry Lambda (op w))) : cs, mapInsert w func fs)
 
 mkForeignIOF
   :: (ForeignConvention a, ForeignConvention r)
@@ -1572,7 +1597,7 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
-  declareForeign "IO.openFile.impl.v3" boxIomrToEFBox $
+  declareForeign Tracked "IO.openFile.impl.v3" boxIomrToEFBox $
     mkForeignIOF $ \(fnameText :: Util.Text.Text, n :: Int) ->
       let fname = Util.Text.toString fnameText
           mode = case n of
@@ -1582,183 +1607,183 @@ declareForeigns = do
             _ -> ReadWriteMode
       in openFile fname mode
 
-  declareForeign "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
-  declareForeign "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
-  declareForeign "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
-  declareForeign "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
+  declareForeign Tracked "IO.closeFile.impl.v3" boxToEF0 $ mkForeignIOF hClose
+  declareForeign Tracked "IO.isFileEOF.impl.v3" boxToEFBool $ mkForeignIOF hIsEOF
+  declareForeign Tracked "IO.isFileOpen.impl.v3" boxToEFBool $ mkForeignIOF hIsOpen
+  declareForeign Tracked "IO.isSeekable.impl.v3" boxToEFBool $ mkForeignIOF hIsSeekable
 
-  declareForeign "IO.seekHandle.impl.v3" seek'handle
+  declareForeign Tracked "IO.seekHandle.impl.v3" seek'handle
     . mkForeignIOF $ \(h,sm,n) -> hSeek h sm (fromIntegral (n :: Int))
 
-  declareForeign "IO.handlePosition.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.handlePosition.impl.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \h -> fromInteger @Word64 <$> hTell h
 
-  declareForeign "IO.getBuffering.impl.v3" get'buffering
+  declareForeign Tracked "IO.getBuffering.impl.v3" get'buffering
     $ mkForeignIOF hGetBuffering
 
-  declareForeign "IO.setBuffering.impl.v3" set'buffering
+  declareForeign Tracked "IO.setBuffering.impl.v3" set'buffering
     . mkForeignIOF $ uncurry hSetBuffering
 
-  declareForeign "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
+  declareForeign Tracked "IO.getLine.impl.v1" boxToEFBox $ mkForeignIOF $
     fmap Util.Text.fromText . Text.IO.hGetLine
 
-  declareForeign "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
+  declareForeign Tracked "IO.getBytes.impl.v3" boxNatToEFBox .  mkForeignIOF
     $ \(h,n) -> Bytes.fromArray <$> hGet h n
 
-  declareForeign "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
+  declareForeign Tracked "IO.putBytes.impl.v3" boxBoxToEF0 .  mkForeignIOF $ \(h,bs) -> hPut h (Bytes.toArray bs)
 
-  declareForeign "IO.systemTime.impl.v3" unitToEFNat
+  declareForeign Tracked "IO.systemTime.impl.v3" unitToEFNat
     $ mkForeignIOF $ \() -> getPOSIXTime
 
-  declareForeign "IO.systemTimeMicroseconds.v1" unitToInt
+  declareForeign Tracked "IO.systemTimeMicroseconds.v1" unitToInt
     $ mkForeign $ \() -> fmap (1e6 *) getPOSIXTime
 
-  declareForeign "IO.getTempDirectory.impl.v3" unitToEFBox
+  declareForeign Tracked "IO.getTempDirectory.impl.v3" unitToEFBox
     $ mkForeignIOF $ \() -> getTemporaryDirectory
 
-  declareForeign "IO.createTempDirectory.impl.v3" boxToEFBox
+  declareForeign Tracked "IO.createTempDirectory.impl.v3" boxToEFBox
     $ mkForeignIOF $ \prefix -> do
        temp <- getTemporaryDirectory
        createTempDirectory temp prefix
 
-  declareForeign "IO.getCurrentDirectory.impl.v3" unitToEFBox
+  declareForeign Tracked "IO.getCurrentDirectory.impl.v3" unitToEFBox
     . mkForeignIOF $ \() -> getCurrentDirectory
 
-  declareForeign "IO.setCurrentDirectory.impl.v3" boxToEF0
+  declareForeign Tracked "IO.setCurrentDirectory.impl.v3" boxToEF0
     $ mkForeignIOF setCurrentDirectory
 
-  declareForeign "IO.fileExists.impl.v3" boxToEFBool
+  declareForeign Tracked "IO.fileExists.impl.v3" boxToEFBool
     $ mkForeignIOF doesPathExist
 
-  declareForeign "IO.getEnv.impl.v1" boxToEFBox
+  declareForeign Tracked "IO.getEnv.impl.v1" boxToEFBox
     $ mkForeignIOF getEnv
 
-  declareForeign "IO.getArgs.impl.v1" unitToEFBox
+  declareForeign Tracked "IO.getArgs.impl.v1" unitToEFBox
     $ mkForeignIOF $ \() -> fmap Util.Text.pack <$> SYS.getArgs
 
-  declareForeign "IO.isDirectory.impl.v3" boxToEFBool
+  declareForeign Tracked "IO.isDirectory.impl.v3" boxToEFBool
     $ mkForeignIOF doesDirectoryExist
 
-  declareForeign "IO.createDirectory.impl.v3" boxToEF0
+  declareForeign Tracked "IO.createDirectory.impl.v3" boxToEF0
     $ mkForeignIOF $ createDirectoryIfMissing True
 
-  declareForeign "IO.removeDirectory.impl.v3" boxToEF0
+  declareForeign Tracked "IO.removeDirectory.impl.v3" boxToEF0
     $ mkForeignIOF removeDirectoryRecursive
 
-  declareForeign "IO.renameDirectory.impl.v3" boxBoxToEF0
+  declareForeign Tracked "IO.renameDirectory.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameDirectory
 
-  declareForeign "IO.directoryContents.impl.v3" boxToEFBox
+  declareForeign Tracked "IO.directoryContents.impl.v3" boxToEFBox
     $ mkForeignIOF $ (fmap Util.Text.pack <$>) . getDirectoryContents
 
-  declareForeign "IO.removeFile.impl.v3" boxToEF0
+  declareForeign Tracked "IO.removeFile.impl.v3" boxToEF0
     $ mkForeignIOF removeFile
 
-  declareForeign "IO.renameFile.impl.v3" boxBoxToEF0
+  declareForeign Tracked "IO.renameFile.impl.v3" boxBoxToEF0
     $ mkForeignIOF $ uncurry renameFile
 
-  declareForeign "IO.getFileTimestamp.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.getFileTimestamp.impl.v3" boxToEFNat
     . mkForeignIOF $ fmap utcTimeToPOSIXSeconds . getModificationTime
 
-  declareForeign "IO.getFileSize.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.getFileSize.impl.v3" boxToEFNat
     -- TODO: truncating integer
     . mkForeignIOF $ \fp -> fromInteger @Word64 <$> getFileSize fp
 
-  declareForeign "IO.serverSocket.impl.v3" maybeBoxToEFBox
+  declareForeign Tracked "IO.serverSocket.impl.v3" maybeBoxToEFBox
     . mkForeignIOF $ \(mhst :: Maybe Util.Text.Text
                       , port) ->
         fst <$> SYS.bindSock (hostPreference mhst) port
 
-  declareForeign "Socket.toText" boxDirect
+  declareForeign Tracked "Socket.toText" boxDirect
     . mkForeign $ \(sock :: Socket) -> pure $ show sock
 
-  declareForeign "Handle.toText" boxDirect
+  declareForeign Tracked "Handle.toText" boxDirect
     . mkForeign $ \(hand :: Handle) -> pure $ show hand
 
-  declareForeign "ThreadId.toText" boxDirect
+  declareForeign Tracked "ThreadId.toText" boxDirect
     . mkForeign $ \(threadId :: ThreadId) -> pure $ show threadId
 
-  declareForeign "IO.socketPort.impl.v3" boxToEFNat
+  declareForeign Tracked "IO.socketPort.impl.v3" boxToEFNat
     . mkForeignIOF $ \(handle :: Socket) -> do
         n <- SYS.socketPort handle
         return (fromIntegral n :: Word64)
 
-  declareForeign "IO.listen.impl.v3" boxToEF0
+  declareForeign Tracked "IO.listen.impl.v3" boxToEF0
     . mkForeignIOF $ \sk -> SYS.listenSock sk 2
 
-  declareForeign "IO.clientSocket.impl.v3" boxBoxToEFBox
+  declareForeign Tracked "IO.clientSocket.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ fmap fst . uncurry SYS.connectSock
 
-  declareForeign "IO.closeSocket.impl.v3" boxToEF0
+  declareForeign Tracked "IO.closeSocket.impl.v3" boxToEF0
     $ mkForeignIOF SYS.closeSock
 
-  declareForeign "IO.socketAccept.impl.v3" boxToEFBox
+  declareForeign Tracked "IO.socketAccept.impl.v3" boxToEFBox
     . mkForeignIOF $ fmap fst . SYS.accept
 
-  declareForeign "IO.socketSend.impl.v3" boxBoxToEF0
+  declareForeign Tracked "IO.socketSend.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(sk,bs) -> SYS.send sk (Bytes.toArray bs)
 
-  declareForeign "IO.socketReceive.impl.v3" boxNatToEFBox
+  declareForeign Tracked "IO.socketReceive.impl.v3" boxNatToEFBox
     . mkForeignIOF $ \(hs,n) ->
     maybe mempty Bytes.fromArray <$> SYS.recv hs n
 
-  declareForeign "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
+  declareForeign Tracked "IO.kill.impl.v3" boxTo0 $ mkForeignIOF killThread
 
-  declareForeign "IO.delay.impl.v3" natToEFUnit
+  declareForeign Tracked "IO.delay.impl.v3" natToEFUnit
     $ mkForeignIOF threadDelay
 
-  declareForeign "IO.stdHandle" standard'handle
+  declareForeign Tracked "IO.stdHandle" standard'handle
     . mkForeign $ \(n :: Int) -> case n of
         0 -> pure (Just SYS.stdin)
         1 -> pure (Just SYS.stdout)
         2 -> pure (Just SYS.stderr)
         _ -> pure Nothing
 
-  declareForeign "MVar.new" boxDirect
+  declareForeign Tracked "MVar.new" boxDirect
     . mkForeign $ \(c :: Closure) -> newMVar c
 
-  declareForeign "MVar.newEmpty.v2" unitDirect
+  declareForeign Tracked "MVar.newEmpty.v2" unitDirect
     . mkForeign $ \() -> newEmptyMVar @Closure
 
-  declareForeign "MVar.take.impl.v3" boxToEFBox
+  declareForeign Tracked "MVar.take.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
 
-  declareForeign "MVar.tryTake" boxToMaybeBox
+  declareForeign Tracked "MVar.tryTake" boxToMaybeBox
     . mkForeign $ \(mv :: MVar Closure) -> tryTakeMVar mv
 
-  declareForeign "MVar.put.impl.v3" boxBoxToEF0
+  declareForeign Tracked "MVar.put.impl.v3" boxBoxToEF0
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> putMVar mv x
 
-  declareForeign "MVar.tryPut.impl.v3" boxBoxToEFBool
+  declareForeign Tracked "MVar.tryPut.impl.v3" boxBoxToEFBool
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> tryPutMVar mv x
 
-  declareForeign "MVar.swap.impl.v3" boxBoxToEFBox
+  declareForeign Tracked "MVar.swap.impl.v3" boxBoxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure, x) -> swapMVar mv x
 
-  declareForeign "MVar.isEmpty" boxToBool
+  declareForeign Tracked "MVar.isEmpty" boxToBool
     . mkForeign $ \(mv :: MVar Closure) -> isEmptyMVar mv
 
-  declareForeign "MVar.read.impl.v3" boxToEFBox
+  declareForeign Tracked "MVar.read.impl.v3" boxToEFBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> readMVar mv
 
-  declareForeign "MVar.tryRead.impl.v3" boxToEFMBox
+  declareForeign Tracked "MVar.tryRead.impl.v3" boxToEFMBox
     . mkForeignIOF $ \(mv :: MVar Closure) -> tryReadMVar mv
 
 
-  declareForeign "Char.toText" (wordDirect Ty.charRef) . mkForeign $
+  declareForeign Untracked "Char.toText" (wordDirect Ty.charRef) . mkForeign $
     \(ch :: Char) -> pure (Util.Text.singleton ch)
 
-  declareForeign "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
+  declareForeign Untracked "Text.repeat" (wordBoxDirect Ty.natRef) . mkForeign $
     \(n :: Word64, txt :: Util.Text.Text) -> pure (Util.Text.replicate (fromIntegral n) txt)
 
-  declareForeign "Text.toUtf8" boxDirect . mkForeign
+  declareForeign Untracked "Text.toUtf8" boxDirect . mkForeign
     $ pure . Util.Text.toUtf8
 
-  declareForeign "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
+  declareForeign Untracked "Text.fromUtf8.impl.v3" boxToEFBox . mkForeign
     $ pure . mapLeft (\t -> Failure Ty.ioFailureRef (Util.Text.pack t) unitValue) . Util.Text.fromUtf8
 
-  declareForeign "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
+  declareForeign Tracked "Tls.ClientConfig.default" boxBoxDirect .  mkForeign
     $ \(hostName :: Util.Text.Text, serverId:: Bytes.Bytes) ->
         fmap (\store ->
               (defaultParamsClient (Util.Text.unpack hostName) (Bytes.toArray serverId)) {
@@ -1766,7 +1791,7 @@ declareForeigns = do
                  TLS.clientShared = def { TLS.sharedCAStore = store }
                  }) X.getSystemCertificateStore
 
-  declareForeign "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
+  declareForeign Tracked "Tls.ServerConfig.default" boxBoxDirect $ mkForeign
     $ \(certs :: [X.SignedCertificate], key :: X.PrivKey) ->
         pure $ (def :: TLS.ServerParams) { TLS.serverSupported = def { TLS.supportedCiphers = Cipher.ciphersuite_strong }
                                          , TLS.serverShared = def { TLS.sharedCredentials = Credentials [(X.CertificateChain certs, key)] }
@@ -1775,63 +1800,63 @@ declareForeigns = do
   let updateClient :: X.CertificateStore -> TLS.ClientParams -> TLS.ClientParams
       updateClient certs client = client { TLS.clientShared = ((clientShared client) { TLS.sharedCAStore = certs }) } in
 
-        declareForeign "Tls.ClientConfig.certificates.set" boxBoxDirect . mkForeign $
+        declareForeign Tracked "Tls.ClientConfig.certificates.set" boxBoxDirect . mkForeign $
           \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
 
   let updateServer :: X.CertificateStore -> TLS.ServerParams -> TLS.ServerParams
       updateServer certs client = client { TLS.serverShared = ((serverShared client) { TLS.sharedCAStore = certs }) } in
-        declareForeign "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
+        declareForeign Tracked "Tls.ServerConfig.certificates.set" boxBoxDirect . mkForeign $
           \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
 
-  declareForeign "TVar.new" boxDirect . mkForeign
+  declareForeign Tracked "TVar.new" boxDirect . mkForeign
     $ \(c :: Closure) -> unsafeSTMToIO $ STM.newTVar c
 
-  declareForeign "TVar.read" boxDirect . mkForeign
+  declareForeign Tracked "TVar.read" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> unsafeSTMToIO $ STM.readTVar v
 
-  declareForeign "TVar.write" boxBoxTo0 . mkForeign
+  declareForeign Tracked "TVar.write" boxBoxTo0 . mkForeign
     $ \(v :: STM.TVar Closure, c :: Closure)
         -> unsafeSTMToIO $ STM.writeTVar v c
 
-  declareForeign "TVar.newIO" boxDirect . mkForeign
+  declareForeign Tracked "TVar.newIO" boxDirect . mkForeign
     $ \(c :: Closure) -> STM.newTVarIO c
 
-  declareForeign "TVar.readIO" boxDirect . mkForeign
+  declareForeign Tracked "TVar.readIO" boxDirect . mkForeign
     $ \(v :: STM.TVar Closure) -> STM.readTVarIO v
 
-  declareForeign "TVar.swap" boxBoxDirect . mkForeign
+  declareForeign Tracked "TVar.swap" boxBoxDirect . mkForeign
     $ \(v, c :: Closure) -> unsafeSTMToIO $ STM.swapTVar v c
 
-  declareForeign "STM.retry" unitDirect . mkForeign
+  declareForeign Tracked "STM.retry" unitDirect . mkForeign
     $ \() -> unsafeSTMToIO STM.retry :: IO Closure
 
   -- Scope and Ref stuff
-  declareForeign "Scope.ref" boxDirect
+  declareForeign Tracked "Scope.ref" boxDirect
     . mkForeign $ \(c :: Closure) -> newIORef c
 
-  declareForeign "IO.ref" boxDirect
+  declareForeign Tracked "IO.ref" boxDirect
     . mkForeign $ \(c :: Closure) -> newIORef c
 
-  declareForeign "Ref.read" boxDirect . mkForeign $
+  declareForeign Tracked "Ref.read" boxDirect . mkForeign $
     \(r :: IORef Closure) -> readIORef r
 
-  declareForeign "Ref.write" boxBoxTo0 . mkForeign $
+  declareForeign Tracked "Ref.write" boxBoxTo0 . mkForeign $
     \(r :: IORef Closure, c :: Closure) -> writeIORef r c
 
-  declareForeign "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.newClient.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ClientParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.newServer.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.newServer.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(config :: TLS.ServerParams,
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
-  declareForeign "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
+  declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
     \(tls :: TLS.Context) -> do
         i <- contextGetInformation tls
         traceShow i $ TLS.handshake tls
 
-  declareForeign "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,
       bytes :: Bytes.Bytes) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
 
@@ -1844,48 +1869,48 @@ declareForeigns = do
       asCert :: PEM -> Either String X.SignedCertificate
       asCert pem = X.decodeSignedCertificate  $ pemContent pem
     in
-      declareForeign "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTls $
+      declareForeign Tracked "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTls $
         \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
 
-  declareForeign "Tls.encodeCert" boxDirect . mkForeign $
+  declareForeign Tracked "Tls.encodeCert" boxDirect . mkForeign $
     \(cert :: X.SignedCertificate) -> pure $ Bytes.fromArray $ X.encodeSignedObject cert
 
-  declareForeign "Tls.decodePrivateKey" boxDirect . mkForeign $
+  declareForeign Tracked "Tls.decodePrivateKey" boxDirect . mkForeign $
     \(bytes :: Bytes.Bytes) -> pure $ X.readKeyFileFromMemory $ L.toStrict $ Bytes.toLazyByteString bytes
 
-  declareForeign "Tls.encodePrivateKey" boxDirect . mkForeign $
+  declareForeign Tracked "Tls.encodePrivateKey" boxDirect . mkForeign $
     \(privateKey :: X.PrivKey) -> pure $ Util.Text.pack $ show privateKey
 
-  declareForeign "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.receive.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> do
       bs <- TLS.recvData tls
       pure $ Bytes.fromArray bs
 
-  declareForeign "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
+  declareForeign Tracked "Tls.terminate.impl.v3" boxToEFBox . mkForeignTls $
     \(tls :: TLS.Context) -> TLS.bye tls
 
-  declareForeign "Code.dependencies" boxDirect
+  declareForeign Untracked "Code.dependencies" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure $ Wrap Ty.termLinkRef . Ref <$> groupTermLinks sg
-  declareForeign "Code.serialize" boxDirect
+  declareForeign Untracked "Code.serialize" boxDirect
     . mkForeign $ \(sg :: SuperGroup Symbol)
         -> pure . Bytes.fromArray $ serializeGroup sg
-  declareForeign "Code.deserialize" boxToEBoxBox
+  declareForeign Untracked "Code.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeGroup @Symbol . Bytes.toArray
-  declareForeign "Code.display" boxBoxDirect . mkForeign
+  declareForeign Untracked "Code.display" boxBoxDirect . mkForeign
     $ \(nm,sg) -> pure $ prettyGroup @Symbol (Util.Text.unpack nm) sg ""
-  declareForeign "Value.dependencies" boxDirect
+  declareForeign Untracked "Value.dependencies" boxDirect
     . mkForeign $
         pure . fmap (Wrap Ty.termLinkRef . Ref) . valueTermLinks
-  declareForeign "Value.serialize" boxDirect
+  declareForeign Untracked "Value.serialize" boxDirect
     . mkForeign $ pure . Bytes.fromArray . serializeValue
-  declareForeign "Value.deserialize" boxToEBoxBox
+  declareForeign Untracked "Value.deserialize" boxToEBoxBox
     . mkForeign $ pure . deserializeValue . Bytes.toArray
   -- Hashing functions
   let declareHashAlgorithm :: forall alg . Hash.HashAlgorithm alg => Data.Text.Text -> alg -> FDecl Symbol ()
       declareHashAlgorithm txt alg = do
         let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
-        declareForeign ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
+        declareForeign Untracked ("crypto.HashAlgorithm." <> txt) direct . mkForeign $ \() ->
           pure (HashAlgorithm algoRef alg)
 
   declareHashAlgorithm "Sha3_512" Hash.SHA3_512
@@ -1896,19 +1921,19 @@ declareForeigns = do
   declareHashAlgorithm "Blake2b_256" Hash.Blake2b_256
   declareHashAlgorithm "Blake2s_256" Hash.Blake2s_256
 
-  declareForeign "crypto.hashBytes" boxBoxDirect . mkForeign $
+  declareForeign Untracked "crypto.hashBytes" boxBoxDirect . mkForeign $
     \(HashAlgorithm _ alg, b :: Bytes.Bytes) ->
         let ctx = Hash.hashInitWith alg
         in pure . Bytes.fromArray . Hash.hashFinalize $ Hash.hashUpdates ctx (Bytes.byteStringChunks b)
 
-  declareForeign "crypto.hmacBytes" boxBoxBoxDirect
+  declareForeign Untracked "crypto.hmacBytes" boxBoxBoxDirect
     . mkForeign $ \(HashAlgorithm _ alg, key :: Bytes.Bytes, msg :: Bytes.Bytes) ->
         let out = u alg $ HMAC.hmac (Bytes.toArray @BA.Bytes key) (Bytes.toArray @BA.Bytes msg)
             u :: a -> HMAC.HMAC a -> HMAC.HMAC a
             u _ h = h -- to help typechecker along
         in pure $ Bytes.fromArray out
 
-  declareForeign "crypto.hash" crypto'hash . mkForeign
+  declareForeign Untracked "crypto.hash" crypto'hash . mkForeign
     $ \(HashAlgorithm _ alg, x)
    -> let hashlazy
             :: Hash.HashAlgorithm a
@@ -1916,7 +1941,7 @@ declareForeigns = do
           hashlazy _ l = Hash.hashlazy l
        in pure . Bytes.fromArray . hashlazy alg $ serializeValueLazy x
 
-  declareForeign "crypto.hmac" crypto'hmac . mkForeign
+  declareForeign Untracked "crypto.hmac" crypto'hmac . mkForeign
     $ \(HashAlgorithm _ alg, key, x)
    -> let hmac
             :: Hash.HashAlgorithm a => a -> L.ByteString -> HMAC.HMAC a
@@ -1936,40 +1961,40 @@ declareForeigns = do
         Left se -> Left (Util.Text.pack (show se))
         Right a -> Right a
 
-  declareForeign "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
-  declareForeign "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
-  declareForeign "Bytes.zlib.decompress" boxToEBoxBox . mkForeign $ \bs ->
+  declareForeign Untracked "Bytes.zlib.compress" boxDirect . mkForeign $ pure . Bytes.zlibCompress
+  declareForeign Untracked "Bytes.gzip.compress" boxDirect . mkForeign $ pure . Bytes.gzipCompress
+  declareForeign Untracked "Bytes.zlib.decompress" boxToEBoxBox . mkForeign $ \bs ->
     catchAll (pure (Bytes.zlibDecompress bs))
-  declareForeign "Bytes.gzip.decompress" boxToEBoxBox . mkForeign $ \bs ->
+  declareForeign Untracked "Bytes.gzip.decompress" boxToEBoxBox . mkForeign $ \bs ->
     catchAll (pure (Bytes.gzipDecompress bs))
 
-  declareForeign "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
-  declareForeign "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
-  declareForeign "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
-  declareForeign "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
+  declareForeign Untracked "Bytes.toBase16" boxDirect . mkForeign $ pure . Bytes.toBase16
+  declareForeign Untracked "Bytes.toBase32" boxDirect . mkForeign $ pure . Bytes.toBase32
+  declareForeign Untracked "Bytes.toBase64" boxDirect . mkForeign $ pure . Bytes.toBase64
+  declareForeign Untracked "Bytes.toBase64UrlUnpadded" boxDirect . mkForeign $ pure . Bytes.toBase64UrlUnpadded
 
-  declareForeign "Bytes.fromBase16" boxToEBoxBox . mkForeign $
+  declareForeign Untracked "Bytes.fromBase16" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase16
-  declareForeign "Bytes.fromBase32" boxToEBoxBox . mkForeign $
+  declareForeign Untracked "Bytes.fromBase32" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase32
-  declareForeign "Bytes.fromBase64" boxToEBoxBox . mkForeign $
+  declareForeign Untracked "Bytes.fromBase64" boxToEBoxBox . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64
-  declareForeign "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
+  declareForeign Untracked "Bytes.fromBase64UrlUnpadded" boxDirect . mkForeign $
     pure . mapLeft Util.Text.fromText . Bytes.fromBase64UrlUnpadded
 
-  declareForeign "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
-  declareForeign "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
-  declareForeign "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
-  declareForeign "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
-  declareForeign "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
-  declareForeign "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
+  declareForeign Untracked "Bytes.decodeNat64be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64be
+  declareForeign Untracked "Bytes.decodeNat64le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat64le
+  declareForeign Untracked "Bytes.decodeNat32be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32be
+  declareForeign Untracked "Bytes.decodeNat32le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat32le
+  declareForeign Untracked "Bytes.decodeNat16be" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16be
+  declareForeign Untracked "Bytes.decodeNat16le" boxToMaybeTup . mkForeign $ pure . Bytes.decodeNat16le
 
-  declareForeign "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
-  declareForeign "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
-  declareForeign "Bytes.encodeNat32be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32be
-  declareForeign "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
-  declareForeign "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
-  declareForeign "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
+  declareForeign Untracked "Bytes.encodeNat64be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64be
+  declareForeign Untracked "Bytes.encodeNat64le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat64le
+  declareForeign Untracked "Bytes.encodeNat32be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32be
+  declareForeign Untracked "Bytes.encodeNat32le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat32le
+  declareForeign Untracked "Bytes.encodeNat16be" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16be
+  declareForeign Untracked "Bytes.encodeNat16le" (wordDirect Ty.natRef) . mkForeign $ pure . Bytes.encodeNat16le
 
 hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
 hostPreference Nothing = SYS.HostAny
@@ -1983,15 +2008,15 @@ typeReferences = zip rs [1..]
     ++ [ DerivedId i | (_,i,_) <- Ty.builtinEffectDecls ]
 
 foreignDeclResults
-  :: (Word64, [(Data.Text.Text, SuperNormal Symbol)], EnumMap Word64 ForeignFunc)
+  :: (Word64, [(Data.Text.Text, (Sandbox, SuperNormal Symbol))], EnumMap Word64 ForeignFunc)
 foreignDeclResults = execState declareForeigns (0, [], mempty)
 
-foreignWrappers :: [(Data.Text.Text, SuperNormal Symbol)]
+foreignWrappers :: [(Data.Text.Text, (Sandbox, SuperNormal Symbol))]
 foreignWrappers | (_, l, _) <- foreignDeclResults = reverse l
 
 numberedTermLookup :: EnumMap Word64 (SuperNormal Symbol)
 numberedTermLookup
-  = mapFromList . zip [1..] . Map.elems $ builtinLookup
+  = mapFromList . zip [1..] . Map.elems . fmap snd $ builtinLookup
 
 builtinTermNumbering :: Map Reference Word64
 builtinTermNumbering
@@ -2010,6 +2035,17 @@ builtinTypeBackref = mapFromList $ swap <$> typeReferences
 
 builtinForeigns :: EnumMap Word64 ForeignFunc
 builtinForeigns | (_, _, m) <- foreignDeclResults = m
+
+-- Bootstrapping for sandbox check. The eventual map will be one with
+-- associations `r -> s` where `s` is all the 'sensitive' base
+-- functions that `r` calls.
+baseSandboxInfo :: Map Reference (Set Reference)
+baseSandboxInfo
+  = Map.fromList $
+  [ (r, Set.singleton r)
+  | (r, (sb, _)) <- Map.toList builtinLookup
+  , sb == Tracked
+  ]
 
 unsafeSTMToIO :: STM.STM a -> IO a
 unsafeSTMToIO (STM.STM m) = IO m
