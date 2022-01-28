@@ -27,6 +27,7 @@ import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
 import qualified Unison.UnisonFile as UF
 import qualified Unison.UnisonFile.Names as UF
+import qualified Unison.Util.Map as Map
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.Util.Set as Set
 import Unison.Var (Var)
@@ -99,7 +100,9 @@ pickPriorityStatus a b =
     (_, Ok Updated) -> Ok Updated
     (NeedsUpdate v, _) -> NeedsUpdate v
     (_, NeedsUpdate v) -> NeedsUpdate v
-    -- 'New' definitions take precedence over duplicated dependencies
+    -- 'New' definitions take precedence over duplicated dependencies when reporting status.
+    -- E.g. if a definition has dependencies which are duplicated, but it is itself a new
+    -- definition, we report it as New.
     (Ok New, _) -> Ok New
     (_, Ok New) -> Ok New
     (Ok Duplicated, _) -> Ok Duplicated
@@ -116,6 +119,9 @@ slurpFile ::
   SR.SlurpResult v
 slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
   let -- A mapping of all vars in the file to their references.
+      -- TypeVars are keyed to Type references
+      -- TermVars are keyed to Term references
+      -- ConstructorVars are keyed to Constructor references
       varReferences :: Map (TaggedVar v) LD.LabeledDependency
       varReferences = buildVarReferences uf
       -- All variables which were either:
@@ -300,6 +306,8 @@ computeInvolvedVars uf defsToConsider varReferences
     requestedVarsWhichActuallyExist = Set.fromList $ do
       v <- Set.toList defsToConsider
       -- We don't know whether each var is a type or term, so we try both.
+      -- We don't test ConstructorVar because you can't request to add/update a Constructor in
+      -- ucm, you add/update the type instead.
       tv <- [TypeVar v, TermVar v]
       guard (Map.member tv varReferences)
       pure tv
@@ -312,15 +320,12 @@ computeVarDeps ::
   Set (TaggedVar v) ->
   Map (TaggedVar v) (Set (TaggedVar v))
 computeVarDeps uf allInvolvedVars =
-  let depMap :: (Map (TaggedVar v) (Set (TaggedVar v)))
-      depMap =
-        allInvolvedVars
-          & Set.toList
-          & fmap
-            ( \tv -> (tv, Set.delete tv $ varClosure uf (Set.singleton tv))
-            )
-          & Map.fromListWith (<>)
-   in depMap
+  allInvolvedVars
+    & Set.toList
+    & fmap
+      ( \tv -> (tv, Set.delete tv $ varClosure uf (Set.singleton tv))
+      )
+    & Map.fromAscList
 
 -- | Compute the closure of all vars which the provided vars depend on.
 -- A type depends on its constructors.
@@ -337,56 +342,55 @@ buildVarReferences uf =
     terms :: Map (TaggedVar v) LD.LabeledDependency
     terms =
       UF.hashTermsId uf
-        & Map.toList
-        -- TODO: ensure we handle watches with assignments correctly.
-        -- Filter out watches
-        & mapMaybe
+        -- Filter out non-test watch expressions
+        & Map.filter
           ( \case
-              (v, (refId, w, _, _))
-                | w == Just TestWatch || w == Nothing ->
-                  Just (TermVar v, LD.derivedTerm refId)
-              _ -> Nothing
+              (_, w, _, _)
+                | w == Just TestWatch || w == Nothing -> True
+                | otherwise -> False
           )
-        & Map.fromList
+        & Map.bimap
+          TermVar
+          (\(refId, _, _, _) -> LD.derivedTerm refId)
     decls :: Map (TaggedVar v) LD.LabeledDependency
     decls =
       UF.dataDeclarationsId' uf
-        & Map.toList
-        & fmap (\(v, (refId, _)) -> (TypeVar v, LD.derivedType refId))
-        & Map.fromList
+        & Map.bimap
+          TypeVar
+          (\(refId, _) -> LD.derivedType refId)
 
     effects :: Map (TaggedVar v) LD.LabeledDependency
     effects =
       UF.effectDeclarationsId' uf
-        & Map.toList
-        & fmap (\(v, (refId, _)) -> (TypeVar v, (LD.derivedType refId)))
-        & Map.fromList
+        & Map.bimap
+          TypeVar
+          (\(refId, _) -> LD.derivedType refId)
 
     constructors :: Map (TaggedVar v) LD.LabeledDependency
     constructors =
       let effectConstructors :: Map (TaggedVar v) LD.LabeledDependency
           effectConstructors = Map.fromList $ do
-            (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarationsId' uf)
+            (_, (typeRefId, effect)) <- Map.toList (UF.effectDeclarations' uf)
             let decl = DD.toDataDecl effect
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
-            pure $ (ConstructorVar constructorV, LD.effectConstructor (CR.ConstructorReference (Ref.fromId typeRefId) conId))
+            pure $ (ConstructorVar constructorV, LD.effectConstructor (CR.ConstructorReference typeRefId conId))
 
           dataConstructors :: Map (TaggedVar v) LD.LabeledDependency
           dataConstructors = Map.fromList $ do
-            (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarationsId' uf)
+            (_, (typeRefId, decl)) <- Map.toList (UF.dataDeclarations' uf)
             (conId, constructorV) <- zip (DD.constructorIds decl) (DD.constructorVars decl)
-            pure $ (ConstructorVar constructorV, LD.dataConstructor (CR.ConstructorReference (Ref.fromId typeRefId) conId))
+            pure $ (ConstructorVar constructorV, LD.dataConstructor (CR.ConstructorReference typeRefId conId))
        in effectConstructors <> dataConstructors
 
 -- A helper type just used by 'toSlurpResult' for partitioning results.
 data SlurpingSummary v = SlurpingSummary
-  { adds :: SlurpComponent v,
-    duplicates :: SlurpComponent v,
-    updates :: SlurpComponent v,
-    termCtorColl :: SlurpComponent v,
-    ctorTermColl :: SlurpComponent v,
-    blocked :: SlurpComponent v,
-    conflicts :: SlurpComponent v
+  { adds :: !(SlurpComponent v),
+    duplicates :: !(SlurpComponent v),
+    updates :: !(SlurpComponent v),
+    termCtorColl :: !(SlurpComponent v),
+    ctorTermColl :: !(SlurpComponent v),
+    blocked :: !(SlurpComponent v),
+    conflicts :: !(SlurpComponent v)
   }
 
 instance (Ord v) => Semigroup (SlurpingSummary v) where
