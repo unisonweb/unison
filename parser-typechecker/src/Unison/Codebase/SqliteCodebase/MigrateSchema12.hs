@@ -117,7 +117,7 @@ migrateSchema12 conn codebase = do
     liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
     corruptedCausals <- runDB conn (liftQ Q.getCausalsWithoutBranchObjects)
     when (not . null $ corruptedCausals) $ do
-      liftIO $ putStrLn $ "⚠️  I detected " <> length corruptedCausals <> " missing namespace(s) in the codebase."
+      liftIO $ putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " missing namespace(s) in the codebase."
       liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any missing namespaces with empty ones."
       liftIO $ putStrLn $ "Typically this is no cause for concern."
 
@@ -125,7 +125,7 @@ migrateSchema12 conn codebase = do
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
     numEntitiesToMigrate <- runDB conn . liftQ $ do
       sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
-    v2EmptyBranchObjectId <- saveV2EmptyBranch conn
+    v2EmptyBranchHashInfo <- saveV2EmptyBranch conn
     watches <-
       foldMapM
         (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
@@ -133,7 +133,7 @@ migrateSchema12 conn codebase = do
     migrationState <-
       (Sync.sync @_ @Entity migrationSync (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches))
         `runReaderT` Env {db = conn, codebase}
-        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchObjectId
+        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchHashInfo
     let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
     liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
@@ -906,6 +906,8 @@ someReferenceIdToEntity = \case
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
 
+-- | Save an empty branch and get its new hash to use when replacing
+-- branches which are missing due to database corruption.
 saveV2EmptyBranch :: MonadIO m => Connection -> m (BranchHashId, Hash)
 saveV2EmptyBranch conn = do
   let branch = S.emptyBranch
