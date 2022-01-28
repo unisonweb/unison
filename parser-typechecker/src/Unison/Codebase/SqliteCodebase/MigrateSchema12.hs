@@ -115,6 +115,13 @@ migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codeb
 migrateSchema12 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
     liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
+    corruptedCausals <- runDB conn (liftQ Q.getCausalsWithoutBranchObjects)
+    when (not . null $ corruptedCausals) $ do
+      liftIO $ putStrLn $ "⚠️  I detected " <> length corruptedCausals <> " missing namespace(s) in the codebase."
+      liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any missing namespaces with empty ones."
+      liftIO $ putStrLn $ "Typically this is no cause for concern."
+
+    liftIO $ putStrLn $ "Updating Namespace Root..."
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
     numEntitiesToMigrate <- runDB conn . liftQ $ do
       sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
