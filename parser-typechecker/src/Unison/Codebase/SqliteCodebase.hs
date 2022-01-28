@@ -328,7 +328,7 @@ sqliteCodebase debugName root action = do
           putTerm :: MonadUnliftIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
           putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
           putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i n') tm tp =
-            runDBInTx conn $
+            runDBInTx  conn "putTerm" $
               unlessM
                 (Ops.objectExistsForHash h2 >>= if debug then \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b else pure)
                 ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
@@ -466,7 +466,7 @@ sqliteCodebase debugName root action = do
 
           putTypeDeclaration :: MonadUnliftIO m => Reference.Id -> Decl Symbol Ann -> m ()
           putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i n') decl =
-            runDBInTx conn $
+            runDBInTx conn "putTypeDeclaration" $
               unlessM
                 (Ops.objectExistsForHash h2)
                 ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
@@ -530,7 +530,7 @@ sqliteCodebase debugName root action = do
           putRootBranch rootBranchCache branch1 = do
             -- todo: check to see if root namespace hash has been externally modified
             -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-            runDBInTx conn
+            runDBInTx conn "putRootBranch"
               . void
               . Ops.saveRootBranch
               . Cv.causalbranch1to2
@@ -587,7 +587,7 @@ sqliteCodebase debugName root action = do
               Nothing -> pure Nothing
 
           putBranch :: MonadUnliftIO m => Branch m -> m ()
-          putBranch = runDBInTx conn . putBranch'
+          putBranch = runDBInTx conn "putBranch" . putBranch'
 
           isCausalHash :: MonadIO m => Branch.Hash -> m Bool
           isCausalHash = runDB conn . isCausalHash'
@@ -601,7 +601,7 @@ sqliteCodebase debugName root action = do
 
           putPatch :: MonadUnliftIO m => Branch.EditHash -> Patch -> m ()
           putPatch h p =
-            runDBInTx conn . void $
+            runDBInTx conn "putPatch" . void $
               Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
           patchExists :: MonadIO m => Branch.EditHash -> m Bool
@@ -645,7 +645,7 @@ sqliteCodebase debugName root action = do
           putWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
           putWatch k r@(Reference.Id h _i _n) tm
             | elem k standardWatchKinds =
-              runDBInTx conn $
+              runDBInTx conn "putWatch" $
                 Ops.saveWatch
                   (Cv.watchKind1to2 k)
                   (Cv.referenceid1to2 r)
@@ -930,10 +930,11 @@ runDB conn = (runExceptT >=> err) . flip runReaderT conn
 runDBInTx ::
   MonadUnliftIO m =>
   Connection ->
+  String ->
   ReaderT Connection (ExceptT Ops.Error m) a ->
   m a
-runDBInTx conn action =
-  runReaderT (Q.withTransaction (lift $ runDB conn action)) conn
+runDBInTx conn name action =
+  runReaderT (Q.withSavepoint_ name (lift $ runDB conn action)) conn
 
 data Entity m
   = B Branch.Hash (m (Branch m))
