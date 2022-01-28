@@ -21,7 +21,6 @@ import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import qualified Unison.Reference as Ref
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Referent' as Referent
@@ -73,14 +72,13 @@ data SlurpErr
 data DefnStatus
   = DefOk SlurpOk
   | DefErr SlurpErr
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 -- | A definition's final status, incorporating the statuses of all of its dependencies.
 data SummarizedStatus v
-  = Ok SlurpOk
-  | NeedsUpdate (TaggedVar v)
-  | ErrFrom (TaggedVar v) SlurpErr
-  | SelfErr SlurpErr
+  = SelfStatus DefnStatus
+  | -- Dependency Status
+    DepStatus (TaggedVar v) DefnStatus
   deriving (Eq, Ord, Show)
 
 -- | Ideally we would display all available information about each var to the end-user,
@@ -90,22 +88,25 @@ pickPriorityStatus :: SummarizedStatus v -> SummarizedStatus v -> SummarizedStat
 pickPriorityStatus a b =
   case (a, b) of
     -- If the definition has its own error, that takes highest priority.
-    (SelfErr err, _) -> SelfErr err
-    (_, SelfErr err) -> SelfErr err
+    (SelfStatus (DefErr err), _) -> SelfStatus (DefErr err)
+    (_, SelfStatus (DefErr err)) -> SelfStatus (DefErr err)
     -- Next we care if a dependency has an error
-    (ErrFrom v err, _) -> ErrFrom v err
-    (_, ErrFrom v err) -> ErrFrom v err
+    (DepStatus v (DefErr err), _) -> DepStatus v (DefErr err)
+    (_, DepStatus v (DefErr err)) -> DepStatus v (DefErr err)
     -- If our definition needs its own update then we don't care if dependencies need updates.
-    (Ok Updated, _) -> Ok Updated
-    (_, Ok Updated) -> Ok Updated
-    (NeedsUpdate v, _) -> NeedsUpdate v
-    (_, NeedsUpdate v) -> NeedsUpdate v
+    (SelfStatus (DefOk Updated), _) -> SelfStatus (DefOk Updated)
+    (_, SelfStatus (DefOk Updated)) -> SelfStatus (DefOk Updated)
+    (DepStatus v (DefOk Updated), _) -> DepStatus v (DefOk Updated)
+    (_, DepStatus v (DefOk Updated)) -> DepStatus v (DefOk Updated)
+    -- Any other 'ok' dependency status doesn't meaningfully affect anything the summary.
+    (DepStatus _ (DefOk _), x) -> x
+    (x, DepStatus _ (DefOk _)) -> x
     -- 'New' definitions take precedence over duplicated dependencies when reporting status.
     -- E.g. if a definition has dependencies which are duplicated, but it is itself a new
     -- definition, we report it as New.
-    (Ok New, _) -> Ok New
-    (_, Ok New) -> Ok New
-    (Ok Duplicated, _) -> Ok Duplicated
+    (SelfStatus (DefOk New), _) -> SelfStatus (DefOk New)
+    (_, SelfStatus (DefOk New)) -> SelfStatus (DefOk New)
+    (SelfStatus (DefOk Duplicated), _) -> SelfStatus (DefOk Duplicated)
 
 -- | Analyze a file and determine the status of all of its definitions with respect to a set
 -- of vars to analyze and an operation you wish to perform.
@@ -277,13 +278,13 @@ summarizeTransitiveStatus statuses deps =
     toSummary :: (Ord v, Show v) => Bool -> DefnStatus -> TaggedVar v -> SummarizedStatus v
     toSummary isDep defNotes tv =
       case defNotes of
-        DefOk Updated -> if isDep then NeedsUpdate tv else Ok Updated
+        DefOk Updated -> if isDep then DepStatus tv (DefOk Updated) else SelfStatus (DefOk Updated)
         DefErr err ->
           if isDep
-            then ErrFrom tv err
-            else SelfErr err
-        DefOk New -> Ok New
-        DefOk Duplicated -> Ok Duplicated
+            then DepStatus tv (DefErr err)
+            else SelfStatus (DefErr err)
+        DefOk New -> SelfStatus (DefOk New)
+        DefOk Duplicated -> SelfStatus (DefOk Duplicated)
 
 -- | Determine all variables which should be considered in analysis.
 -- I.e. any variable requested by the user and all of their dependencies,
@@ -453,10 +454,10 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
           ( \tv status ->
               let sc = scFromTaggedVar tv
                in case status of
-                    Ok New -> mempty {adds = sc}
-                    Ok Duplicated -> mempty {duplicates = sc}
-                    Ok Updated -> mempty {updates = sc}
-                    NeedsUpdate _ ->
+                    SelfStatus (DefOk New) -> mempty {adds = sc}
+                    SelfStatus (DefOk Duplicated) -> mempty {duplicates = sc}
+                    SelfStatus (DefOk Updated) -> mempty {updates = sc}
+                    DepStatus _ (DefOk Updated) ->
                       case op of
                         AddOp ->
                           mempty {blocked = sc}
@@ -464,12 +465,18 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames summarize
                           mempty {adds = sc}
                         CheckOp ->
                           mempty {adds = sc}
-                    ErrFrom _ TermCtorCollision -> mempty {blocked = sc}
-                    ErrFrom _ CtorTermCollision -> mempty {blocked = sc}
-                    ErrFrom _ Conflict -> mempty {blocked = sc}
-                    SelfErr TermCtorCollision -> mempty {termCtorColl = sc}
-                    SelfErr CtorTermCollision -> mempty {ctorTermColl = sc}
-                    SelfErr Conflict -> mempty {conflicts = sc}
+                    -- It shouldn't be possible for the two following cases to occur,
+                    -- since a 'SelfStatus' would take priority when summarizing.
+                    DepStatus _ (DefOk New) ->
+                      error $ "Unexpected summary status for " <> show tv <> ": " <> show status
+                    DepStatus _ (DefOk Duplicated) ->
+                      error $ "Unexpected summary status for " <> show tv <> ": " <> show status
+                    DepStatus _ (DefErr TermCtorCollision) -> mempty {blocked = sc}
+                    DepStatus _ (DefErr CtorTermCollision) -> mempty {blocked = sc}
+                    DepStatus _ (DefErr Conflict) -> mempty {blocked = sc}
+                    SelfStatus (DefErr TermCtorCollision) -> mempty {termCtorColl = sc}
+                    SelfStatus (DefErr CtorTermCollision) -> mempty {ctorTermColl = sc}
+                    SelfStatus (DefErr Conflict) -> mempty {conflicts = sc}
           )
 
     scFromTaggedVar :: TaggedVar v -> SlurpComponent v
