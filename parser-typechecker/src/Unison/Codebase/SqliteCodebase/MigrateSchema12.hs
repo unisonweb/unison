@@ -118,6 +118,7 @@ migrateSchema12 conn codebase = do
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
     numEntitiesToMigrate <- runDB conn . liftQ $ do
       sum <$> sequenceA [Q.countObjects, Q.countCausals, Q.countWatches]
+    v2EmptyBranchObjectId <- saveV2EmptyBranch conn
     watches <-
       foldMapM
         (\watchKind -> map (W watchKind) <$> Codebase.watches codebase (Cv.watchKind2to1 watchKind))
@@ -125,7 +126,7 @@ migrateSchema12 conn codebase = do
     migrationState <-
       (Sync.sync @_ @Entity migrationSync (progress numEntitiesToMigrate) (CausalE rootCausalHashId : watches))
         `runReaderT` Env {db = conn, codebase}
-        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0
+        `execStateT` MigrationState Map.empty Map.empty Map.empty Set.empty 0 v2EmptyBranchObjectId
     let (_, newRootCausalHashId) = causalMapping migrationState ^?! ix rootCausalHashId
     liftIO $ putStrLn $ "Updating Namespace Root..."
     runDB conn . liftQ $ Q.setNamespaceRoot newRootCausalHashId
@@ -188,7 +189,8 @@ data MigrationState = MigrationState
     objLookup :: Map (Old ObjectId) (New ObjectId, New HashId, New Hash, Old Hash),
     -- Remember the hashes of term/decls that we have already migrated to avoid migrating them twice.
     migratedDefnHashes :: Set (Old Hash),
-    numMigrated :: Int
+    numMigrated :: Int,
+    v2EmptyBranchHashInfo :: (BranchHashId, Hash)
   }
   deriving (Generic)
 
@@ -242,13 +244,15 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   oldBranchHashId <- runDB conn . liftQ $ Q.loadCausalValueHashId oldCausalHashId
   oldCausalParentHashIds <- runDB conn . liftQ $ Q.loadCausalParents oldCausalHashId
 
-  branchObjId <- runDB conn . liftQ $ Q.expectObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
+  maybeOldBranchObjId <-
+    runDB conn . liftQ $
+      Q.maybeObjectIdForAnyHashId (unBranchHashId oldBranchHashId)
   migratedObjIds <- gets objLookup
   -- If the branch for this causal hasn't been migrated, migrate it first.
   let unmigratedBranch =
-        if (branchObjId `Map.notMember` migratedObjIds)
-          then [BranchE branchObjId]
-          else []
+        case maybeOldBranchObjId of
+          Just branchObjId | branchObjId `Map.notMember` migratedObjIds -> [BranchE branchObjId]
+          _ -> []
 
   migratedCausals <- gets causalMapping
   let unmigratedParents =
@@ -258,7 +262,14 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   let unmigratedEntities = unmigratedBranch <> unmigratedParents
   when (not . null $ unmigratedParents <> unmigratedBranch) (throwE $ Sync.Missing unmigratedEntities)
 
-  (_, _, newBranchHash, _) <- gets (\MigrationState {objLookup} -> objLookup ^?! ix branchObjId)
+  (newBranchHashId, newBranchHash) <- case maybeOldBranchObjId of
+    -- Some codebases are corrupted, likely due to interrupted save operations.
+    -- It's unfortunate, but rather than fail the whole migration we'll just replace them
+    -- with an empty branch.
+    Nothing -> use (field @"v2EmptyBranchHashInfo")
+    Just branchObjId -> do
+      let (_, newBranchHashId, newBranchHash, _) = migratedObjIds ^?! ix branchObjId
+      pure (BranchHashId newBranchHashId, newBranchHash)
 
   let (newParentHashes, newParentHashIds) =
         oldCausalParentHashIds
@@ -280,7 +291,7 @@ migrateCausal conn oldCausalHashId = fmap (either id id) . runExceptT $ do
   let newCausal =
         DbCausal
           { selfHash = newCausalHashId,
-            valueHash = BranchHashId $ view _2 (migratedObjIds ^?! ix branchObjId),
+            valueHash = newBranchHashId,
             parents = newParentHashIds
           }
   runDB conn do
@@ -887,3 +898,12 @@ someReferenceIdToEntity = \case
 
 foldSetter :: LensLike (Writer [a]) s t a a -> s -> [a]
 foldSetter t s = execWriter (s & t %%~ \a -> tell [a] *> pure a)
+
+saveV2EmptyBranch :: MonadIO m => Connection -> m (BranchHashId, Hash)
+saveV2EmptyBranch conn = do
+  let branch = S.emptyBranch
+  let (localBranchIds, localBranch) = S.LocalizeObject.localizeBranch branch
+  newHash <- runDB conn (Ops.liftQ (Hashing.dbBranchHash branch))
+  newHashId <- runDB conn (Ops.liftQ (Q.saveBranchHash (BranchHash (Cv.hash1to2 newHash))))
+  _ <- runDB conn (Ops.saveBranchObject newHashId localBranchIds localBranch)
+  pure (newHashId, newHash)

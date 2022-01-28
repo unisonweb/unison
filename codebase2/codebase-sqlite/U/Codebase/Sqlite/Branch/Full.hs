@@ -18,6 +18,7 @@ import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchOb
 import qualified Unison.Util.Set as Set
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
+import qualified Data.Map as Map
 
 -- |
 -- @
@@ -50,6 +51,9 @@ data Branch' t h p c = Branch
     children :: Map t c
   }
   deriving (Show, Generic)
+
+emptyBranch :: Branch' t h p c
+emptyBranch = Branch Map.empty Map.empty Map.empty Map.empty
 
 branchHashes_ :: (Ord h', Ord t, Ord h) => Traversal (Branch' t h p c) (Branch' t h' p c) h h'
 branchHashes_ f Branch {..} = do
