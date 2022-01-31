@@ -298,7 +298,7 @@ computeInvolvedVars ::
   Set (TaggedVar v)
 computeInvolvedVars uf defsToConsider varReferences
   -- If nothing was specified, consider every var in the file.
-  | Set.null defsToConsider = Set.fromList $ Map.keys varReferences
+  | Set.null defsToConsider = Map.keysSet varReferences
   | otherwise = varClosure uf requestedVarsWhichActuallyExist
   where
     -- The user specifies _untyped_ names, which may not even exist in the file.
