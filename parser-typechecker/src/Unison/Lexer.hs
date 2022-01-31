@@ -397,7 +397,7 @@ lexemes' eof = P.optional space >> do
           pure s
 
     typeLink = wrap "syntax.docEmbedTypeLink" $ do
-      _ <- typeOrAbilityAlt lit <* CP.space
+      _ <- typeOrAbilityAlt wordyKw <* CP.space
       tok (symbolyId <|> wordyId) <* CP.space
 
     termLink = wrap "syntax.docEmbedTermLink" $
