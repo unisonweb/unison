@@ -974,7 +974,6 @@ saveBranch (C.Causal hc he parents me) = do
     -- if not exist, create these
     chId <- liftQ (Q.saveCausalHash hc)
     bhId <- liftQ (Q.saveBranchHash he)
-    liftQ (Q.saveCausal chId bhId)
     -- save the link between child and parents
     parentCausalHashIds <-
       -- so try to save each parent (recursively) before continuing to save hc
@@ -986,6 +985,9 @@ saveBranch (C.Causal hc he parents me) = do
           (mcausal >>= fmap snd . saveBranch)
     unless (null parentCausalHashIds) $
       liftQ (Q.saveCausalParents chId parentCausalHashIds)
+    -- Save the current causal last, since it's used as the guard condition for
+    -- short-circuiting.
+    liftQ (Q.saveCausal chId bhId)
     pure (chId, bhId)
   boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
     (li, lBranch) <- c2lBranch =<< me
