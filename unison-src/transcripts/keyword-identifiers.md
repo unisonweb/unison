@@ -40,7 +40,7 @@ identifier.
 
 `type`:
 
-```unison
+```unison:hide
 typeFoo = 99
 type1 = "I am a variable"
 type_ = 292
@@ -54,7 +54,7 @@ unique ability type'' type_ where type' : type_
 
 `ability`:
 
-```unison
+```unison:hide
 abilityFoo = 99
 ability1 = "I am a variable"
 ability_ = 292
@@ -66,7 +66,7 @@ unique ability ability'' ability_ where ability' : ability_
 
 `structural`
 
-```unison
+```unison:hide
 structuralFoo = 99
 structural1 = "I am a variable"
 structural_ = 292
@@ -78,7 +78,7 @@ unique ability structural'' structural_ where structural' : structural_
 
 `unique`
 
-```unison
+```unison:hide
 uniqueFoo = 99
 unique1 = "I am a variable"
 unique_ = 292
@@ -90,7 +90,7 @@ unique ability unique'' unique_ where unique' : unique_
 
 `if`
 
-```unison
+```unison:hide
 ifFoo = 99
 if1 = "I am a variable"
 if_ = 292
@@ -102,7 +102,7 @@ unique ability if'' if_ where if' : if_
 
 `then`
 
-```unison
+```unison:hide
 thenFoo = 99
 then1 = "I am a variable"
 then_ = 292
@@ -114,7 +114,7 @@ unique ability then'' then_ where then' : then_
 
 `else`
 
-```unison
+```unison:hide
 elseFoo = 99
 else1 = "I am a variable"
 else_ = 292
@@ -126,7 +126,7 @@ unique ability else'' else_ where else' : else_
 
 `forall`
 
-```unison
+```unison:hide
 forallFoo = 99
 forall1 = "I am a variable"
 forall_ = 292
@@ -138,7 +138,7 @@ unique ability forall'' forall_ where forall' : forall_
 
 `handle`
 
-```unison
+```unison:hide
 handleFoo = 99
 handle1 = "I am a variable"
 handle_ = 292
@@ -150,7 +150,7 @@ unique ability handle'' handle_ where handle' : handle_
 
 `with`
 
-```unison
+```unison:hide
 withFoo = 99
 with1 = "I am a variable"
 with_ = 292
@@ -162,7 +162,7 @@ unique ability with'' with_ where with' : with_
 
 `where`
 
-```unison
+```unison:hide
 whereFoo = 99
 where1 = "I am a variable"
 where_ = 292
@@ -174,7 +174,7 @@ unique ability where'' where_ where where' : where_
 
 `use`
 
-```unison
+```unison:hide
 useFoo = 99
 use1 = "I am a variable"
 use_ = 292
@@ -186,7 +186,7 @@ unique ability use'' use_ where use' : use_
 
 `true`
 
-```unison
+```unison:hide
 trueFoo = 99
 true1 = "I am a variable"
 true_ = 292
@@ -198,7 +198,7 @@ unique ability true'' true_ where true' : true_
 
 `false`
 
-```unison
+```unison:hide
 falseFoo = 99
 false1 = "I am a variable"
 false_ = 292
@@ -210,7 +210,7 @@ unique ability false'' false_ where false' : false_
 
 `alias`
 
-```unison
+```unison:hide
 aliasFoo = 99
 alias1 = "I am a variable"
 alias_ = 292
@@ -222,7 +222,7 @@ unique ability alias'' alias_ where alias' : alias_
 
 `typeLink`
 
-```unison
+```unison:hide
 typeLinkFoo = 99
 typeLink1 = "I am a variable"
 typeLink_ = 292
@@ -234,7 +234,7 @@ unique ability typeLink'' typeLink_ where typeLink' : typeLink_
 
 `termLink`
 
-```unison
+```unison:hide
 termLinkFoo = 99
 termLink1 = "I am a variable"
 termLink_ = 292
@@ -246,7 +246,7 @@ unique ability termLink'' termLink_ where termLink' : termLink_
 
 `let`
 
-```unison
+```unison:hide
 letFoo = 99
 let1 = "I am a variable"
 let_ = 292
@@ -258,7 +258,7 @@ unique ability let'' let_ where let' : let_
 
 `namespace`
 
-```unison
+```unison:hide
 namespaceFoo = 99
 namespace1 = "I am a variable"
 namespace_ = 292
@@ -270,7 +270,7 @@ unique ability namespace'' namespace_ where namespace' : namespace_
 
 `match`
 
-```unison
+```unison:hide
 matchFoo = 99
 match1 = "I am a variable"
 match_ = 292
@@ -282,7 +282,7 @@ unique ability match'' match_ where match' : match_
 
 `cases`
 
-```unison
+```unison:hide
 casesFoo = 99
 cases1 = "I am a variable"
 cases_ = 292

@@ -52,23 +52,6 @@ structural type type! type_ = type' type_ | type''
 unique ability type'' type_ where type' : type_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type type! type_
-      unique ability type'' type_
-      type!   : ##Nat
-      type'   : ##Nat
-      type1   : ##Text
-      typeFoo : ##Nat
-      type_   : ##Nat
-
-```
 `ability`:
 
 ```unison
@@ -81,23 +64,6 @@ structural type ability! ability_ = ability' ability_ | ability''
 unique ability ability'' ability_ where ability' : ability_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type ability! ability_
-      unique ability ability'' ability_
-      ability!   : ##Nat
-      ability'   : ##Nat
-      ability1   : ##Text
-      abilityFoo : ##Nat
-      ability_   : ##Nat
-
-```
 `structural`
 
 ```unison
@@ -110,23 +76,6 @@ structural type structural! structural_ = structural' structural_ | structural''
 unique ability structural'' structural_ where structural' : structural_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type structural! structural_
-      unique ability structural'' structural_
-      structural!   : ##Nat
-      structural'   : ##Nat
-      structural1   : ##Text
-      structuralFoo : ##Nat
-      structural_   : ##Nat
-
-```
 `unique`
 
 ```unison
@@ -139,23 +88,6 @@ structural type unique! unique_ = unique' unique_ | unique''
 unique ability unique'' unique_ where unique' : unique_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type unique! unique_
-      unique ability unique'' unique_
-      unique!   : ##Nat
-      unique'   : ##Nat
-      unique1   : ##Text
-      uniqueFoo : ##Nat
-      unique_   : ##Nat
-
-```
 `if`
 
 ```unison
@@ -168,23 +100,6 @@ structural type if! if_ = if' if_ | if''
 unique ability if'' if_ where if' : if_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type if! if_
-      unique ability if'' if_
-      if!   : ##Nat
-      if'   : ##Nat
-      if1   : ##Text
-      ifFoo : ##Nat
-      if_   : ##Nat
-
-```
 `then`
 
 ```unison
@@ -197,23 +112,6 @@ structural type then! then_ = then' then_ | then''
 unique ability then'' then_ where then' : then_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type then! then_
-      unique ability then'' then_
-      then!   : ##Nat
-      then'   : ##Nat
-      then1   : ##Text
-      thenFoo : ##Nat
-      then_   : ##Nat
-
-```
 `else`
 
 ```unison
@@ -226,23 +124,6 @@ structural type else! else_ = else' else_ | else''
 unique ability else'' else_ where else' : else_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type else! else_
-      unique ability else'' else_
-      else!   : ##Nat
-      else'   : ##Nat
-      else1   : ##Text
-      elseFoo : ##Nat
-      else_   : ##Nat
-
-```
 `forall`
 
 ```unison
@@ -255,23 +136,6 @@ structural type forall! forall_ = forall' forall_ | forall''
 unique ability forall'' forall_ where forall' : forall_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type forall! forall_
-      unique ability forall'' forall_
-      forall!   : ##Nat
-      forall'   : ##Nat
-      forall1   : ##Text
-      forallFoo : ##Nat
-      forall_   : ##Nat
-
-```
 `handle`
 
 ```unison
@@ -284,23 +148,6 @@ structural type handle! handle_ = handle' handle_ | handle''
 unique ability handle'' handle_ where handle' : handle_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type handle! handle_
-      unique ability handle'' handle_
-      handle!   : ##Nat
-      handle'   : ##Nat
-      handle1   : ##Text
-      handleFoo : ##Nat
-      handle_   : ##Nat
-
-```
 `with`
 
 ```unison
@@ -313,23 +160,6 @@ structural type with! with_ = with' with_ | with''
 unique ability with'' with_ where with' : with_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type with! with_
-      unique ability with'' with_
-      with!   : ##Nat
-      with'   : ##Nat
-      with1   : ##Text
-      withFoo : ##Nat
-      with_   : ##Nat
-
-```
 `where`
 
 ```unison
@@ -342,23 +172,6 @@ structural type where! where_ = where' where_ | where''
 unique ability where'' where_ where where' : where_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type where! where_
-      unique ability where'' where_
-      where!   : ##Nat
-      where'   : ##Nat
-      where1   : ##Text
-      whereFoo : ##Nat
-      where_   : ##Nat
-
-```
 `use`
 
 ```unison
@@ -371,23 +184,6 @@ structural type use! use_ = use' use_ | use''
 unique ability use'' use_ where use' : use_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type use! use_
-      unique ability use'' use_
-      use!   : ##Nat
-      use'   : ##Nat
-      use1   : ##Text
-      useFoo : ##Nat
-      use_   : ##Nat
-
-```
 `true`
 
 ```unison
@@ -400,23 +196,6 @@ structural type true! true_ = true' true_ | true''
 unique ability true'' true_ where true' : true_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type true! true_
-      unique ability true'' true_
-      true!   : ##Nat
-      true'   : ##Nat
-      true1   : ##Text
-      trueFoo : ##Nat
-      true_   : ##Nat
-
-```
 `false`
 
 ```unison
@@ -429,23 +208,6 @@ structural type false! false_ = false' false_ | false''
 unique ability false'' false_ where false' : false_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type false! false_
-      unique ability false'' false_
-      false!   : ##Nat
-      false'   : ##Nat
-      false1   : ##Text
-      falseFoo : ##Nat
-      false_   : ##Nat
-
-```
 `alias`
 
 ```unison
@@ -458,23 +220,6 @@ structural type alias! alias_ = alias' alias_ | alias''
 unique ability alias'' alias_ where alias' : alias_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type alias! alias_
-      unique ability alias'' alias_
-      alias!   : ##Nat
-      alias'   : ##Nat
-      alias1   : ##Text
-      aliasFoo : ##Nat
-      alias_   : ##Nat
-
-```
 `typeLink`
 
 ```unison
@@ -487,23 +232,6 @@ structural type typeLink! typeLink_ = typeLink' typeLink_ | typeLink''
 unique ability typeLink'' typeLink_ where typeLink' : typeLink_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type typeLink! typeLink_
-      unique ability typeLink'' typeLink_
-      typeLink!   : ##Nat
-      typeLink'   : ##Nat
-      typeLink1   : ##Text
-      typeLinkFoo : ##Nat
-      typeLink_   : ##Nat
-
-```
 `termLink`
 
 ```unison
@@ -516,23 +244,6 @@ structural type termLink! termLink_ = termLink' termLink_ | termLink''
 unique ability termLink'' termLink_ where termLink' : termLink_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type termLink! termLink_
-      unique ability termLink'' termLink_
-      termLink!   : ##Nat
-      termLink'   : ##Nat
-      termLink1   : ##Text
-      termLinkFoo : ##Nat
-      termLink_   : ##Nat
-
-```
 `let`
 
 ```unison
@@ -545,23 +256,6 @@ structural type let! let_ = let' let_ | let''
 unique ability let'' let_ where let' : let_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type let! let_
-      unique ability let'' let_
-      let!   : ##Nat
-      let'   : ##Nat
-      let1   : ##Text
-      letFoo : ##Nat
-      let_   : ##Nat
-
-```
 `namespace`
 
 ```unison
@@ -574,23 +268,6 @@ structural type namespace! namespace_ = namespace' namespace_ | namespace''
 unique ability namespace'' namespace_ where namespace' : namespace_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type namespace! namespace_
-      unique ability namespace'' namespace_
-      namespace!   : ##Nat
-      namespace'   : ##Nat
-      namespace1   : ##Text
-      namespaceFoo : ##Nat
-      namespace_   : ##Nat
-
-```
 `match`
 
 ```unison
@@ -603,23 +280,6 @@ structural type match! match_ = match' match_ | match''
 unique ability match'' match_ where match' : match_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type match! match_
-      unique ability match'' match_
-      match!   : ##Nat
-      match'   : ##Nat
-      match1   : ##Text
-      matchFoo : ##Nat
-      match_   : ##Nat
-
-```
 `cases`
 
 ```unison
@@ -632,20 +292,3 @@ structural type cases! cases_ = cases' cases_ | cases''
 unique ability cases'' cases_ where cases' : cases_
 ```
 
-```ucm
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
-  
-    ⍟ These new definitions are ok to `add`:
-    
-      structural type cases! cases_
-      unique ability cases'' cases_
-      cases!   : ##Nat
-      cases'   : ##Nat
-      cases1   : ##Text
-      casesFoo : ##Nat
-      cases_   : ##Nat
-
-```
