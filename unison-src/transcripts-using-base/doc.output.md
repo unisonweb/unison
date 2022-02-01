@@ -300,6 +300,7 @@ and the rendered output using `display`:
     To include a typechecked snippet of code without evaluating
     it, you can do:
   
+        cube : Nat -> Nat
         cube x =
           use Nat *
           x * x * x
@@ -653,6 +654,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
