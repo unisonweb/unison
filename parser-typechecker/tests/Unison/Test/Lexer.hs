@@ -189,6 +189,14 @@ test =
         , Open "else"
         , Close
         ]
+  -- shouldn't be too eager to find keywords at the front of identifiers,
+  -- particularly for block-closing keywords (see #2727)
+      , tests $ do
+          kw <- ["if", "then", "else"]
+          suffix <- ["0", "x", "!", "'"] -- examples of wordyIdChar
+          let i = kw ++ suffix
+          -- a keyword at the front of an identifier should still be an identifier
+          pure $ t i [simpleWordyId i]
   -- Test string literals
       , t "\"simple string without escape characters\""
           [Textual "simple string without escape characters"]
