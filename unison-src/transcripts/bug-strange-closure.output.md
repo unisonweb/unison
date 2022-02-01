@@ -88,6 +88,7 @@ We can display the guide before and after adding it to the codebase:
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -297,6 +298,7 @@ We can display the guide before and after adding it to the codebase:
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -512,6 +514,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -714,6 +717,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -1880,6 +1884,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   0 (Term.Term
                                     (Any
                                       (_ ->
+                                        cube : Nat -> Nat
                                         cube x =
                                           use Nat *
                                           x * x * x
