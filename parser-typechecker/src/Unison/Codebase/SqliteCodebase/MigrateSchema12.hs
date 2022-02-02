@@ -117,9 +117,10 @@ migrateSchema12 conn codebase = do
     liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
     corruptedCausals <- runDB conn (liftQ Q.getCausalsWithoutBranchObjects)
     when (not . null $ corruptedCausals) $ do
-      liftIO $ putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " missing namespace(s) in the codebase."
-      liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any missing namespaces with empty ones."
-      liftIO $ putStrLn $ "Typically this is no cause for concern."
+      liftIO $ putStrLn $ "⚠️  I detected " <> show (length corruptedCausals) <> " corrupted namespace(s) in the history of the codebase."
+      liftIO $ putStrLn $ "This is due to a bug in a previous version of ucm."
+      liftIO $ putStrLn $ "This only affects the history of your codebase, the most up-to-date iteration will remain intact."
+      liftIO $ putStrLn $ "I'll go ahead with the migration, but will replace any corrupted namespaces with empty ones."
 
     liftIO $ putStrLn $ "Updating Namespace Root..."
     rootCausalHashId <- runDB conn (liftQ Q.loadNamespaceRoot)
