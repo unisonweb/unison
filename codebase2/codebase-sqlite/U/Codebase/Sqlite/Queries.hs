@@ -116,6 +116,7 @@ module U.Codebase.Sqlite.Queries (
   countObjects,
   countCausals,
   countWatches,
+  getCausalsWithoutBranchObjects,
 
   -- * db misc
   createSchema,
@@ -853,6 +854,18 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
 |]
+
+-- | Finds all causals that refer to a branch for which we don't have an object stored.
+-- Although there are plans to support this in the future, currently all such cases
+-- are the result of database inconsistencies and are unexpected.
+getCausalsWithoutBranchObjects :: DB m => m [CausalHashId]
+getCausalsWithoutBranchObjects = queryAtoms_ sql
+  where sql = [here|
+    SELECT self_hash_id from causal
+    WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
+|]
+
+
 {- ORMOLU_ENABLE -}
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
