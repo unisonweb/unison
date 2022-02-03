@@ -1,7 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Debug (debug, debugM, whenDebug, DebugFlag (..)) where
 
+import Control.Applicative (empty)
 import Control.Monad (when)
-import Data.Maybe (isJust)
+import Data.Set (Set)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO.Environment (lookupEnv)
@@ -10,25 +15,30 @@ data DebugFlag
   = Git
   | Sqlite
   | Codebase
+  deriving (Eq, Ord, Bounded, Enum)
 
-debugAll :: Bool
-debugAll =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG"))
-{-# NOINLINE debugAll #-}
+debugFlags :: Set DebugFlag
+debugFlags = case unsafePerformIO (lookupEnv "UNISON_DEBUG") of
+  Nothing -> Set.fromList [minBound .. maxBound]
+  Just s -> Set.fromList $ do
+    w <- (Text.splitOn "," . Text.pack $ s)
+    case Text.toUpper . Text.strip $ w of
+      "GIT" -> pure Git
+      "SQLITE" -> pure Sqlite
+      "CODEBASE" -> pure Codebase
+      _ -> empty
+{-# NOINLINE debugFlags #-}
 
 debugGit :: Bool
-debugGit =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_GIT"))
+debugGit = Git `Set.member` debugFlags
 {-# NOINLINE debugGit #-}
 
 debugSqlite :: Bool
-debugSqlite =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_SQLITE"))
+debugSqlite = Sqlite `Set.member` debugFlags
 {-# NOINLINE debugSqlite #-}
 
 debugCodebase :: Bool
-debugCodebase =
-  isJust (unsafePerformIO (lookupEnv "UNISON_DEBUG_CODEBASE"))
+debugCodebase = Codebase `Set.member` debugFlags
 {-# NOINLINE debugCodebase #-}
 
 -- | Use for trace-style selective debugging.
@@ -60,8 +70,7 @@ whenDebug flag action = do
   when (shouldDebug flag) action
 
 shouldDebug :: DebugFlag -> Bool
-shouldDebug flag =
-  debugAll || case flag of
-    Git -> debugGit
-    Sqlite -> debugSqlite
-    Codebase -> debugCodebase
+shouldDebug = \case
+  Git -> debugGit
+  Sqlite -> debugSqlite
+  Codebase -> debugCodebase
