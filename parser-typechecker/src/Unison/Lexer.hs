@@ -912,7 +912,7 @@ lexemes' eof = P.optional space >> do
     delayOrForce = separated ok $ do
       (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
       pure [Token (Reserved [op]) start end]
-      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
     open :: String -> P [Token Lexeme]
     open b = do

@@ -203,6 +203,8 @@ test =
       , t "\"test escaped quotes \\\"in quotes\\\"\""
           [Textual "test escaped quotes \"in quotes\""]
       , t "\"\\n \\t \\b \\a\"" [Textual "\n \t \b \a"]
+  -- Delayed string
+      , t "'\"\"" [Reserved "'", Textual ""]
       ]
 
 t :: String -> [Lexeme] -> Test ()
