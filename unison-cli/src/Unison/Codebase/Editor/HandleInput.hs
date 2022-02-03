@@ -1953,28 +1953,21 @@ addDefaultMetadata adds =
   when (not (SC.isEmpty adds)) do
     currentPath' <- use LoopState.currentPath
     let addedVs = Set.toList $ SC.types adds <> SC.terms adds
-        addedNs = traverse (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
-    case addedNs of
-      Nothing ->
-        error $
-          "I couldn't parse a name I just added to the codebase! "
-            <> "-- Added names: "
-            <> show addedVs
-      Just addedNames -> do
-        dm <- resolveDefaultMetadata currentPath'
-        case toList dm of
-          [] -> pure ()
-          dm' -> do
-            let hqs = traverse InputPatterns.parseHashQualifiedName dm'
-            case hqs of
-              Left e ->
-                respond $
-                  ConfiguredMetadataParseError
-                    (Path.absoluteToPath' currentPath')
-                    (show dm')
-                    e
-              Right defaultMeta ->
-                manageLinks True addedNames defaultMeta Metadata.insert
+        addedNames = map (Path.hqSplitFromName' . Name.unsafeFromVar) addedVs
+    dm <- resolveDefaultMetadata currentPath'
+    case toList dm of
+      [] -> pure ()
+      dm' -> do
+        let hqs = traverse InputPatterns.parseHashQualifiedName dm'
+        case hqs of
+          Left e ->
+            respond $
+              ConfiguredMetadataParseError
+                (Path.absoluteToPath' currentPath')
+                (show dm')
+                e
+          Right defaultMeta ->
+            manageLinks True addedNames defaultMeta Metadata.insert
 
 resolveDefaultMetadata :: Path.Absolute -> Action' m v [String]
 resolveDefaultMetadata path = do
@@ -3080,9 +3073,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     doTerm :: v -> (Path, Branch0 m -> Branch0 m)
     doTerm v = case toList (Names.termsNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
-      [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
-        Nothing -> errorEmptyVar
-        Just split -> BranchUtil.makeAddTermName split r (md v)
+      [r] -> BranchUtil.makeAddTermName (Path.splitFromName (Name.unsafeFromVar v)) r (md v)
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple terms named "
@@ -3092,16 +3083,13 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     doType :: v -> (Path, Branch0 m -> Branch0 m)
     doType v = case toList (Names.typesNamed names (Name.unsafeFromVar v)) of
       [] -> errorMissingVar v
-      [r] -> case Path.splitFromName (Name.unsafeFromVar v) of
-        Nothing -> errorEmptyVar
-        Just split -> BranchUtil.makeAddTypeName split r Metadata.empty
+      [r] -> BranchUtil.makeAddTypeName (Path.splitFromName (Name.unsafeFromVar v)) r Metadata.empty
       wha ->
         error $
           "Unison bug, typechecked file w/ multiple types named "
             <> Var.nameStr v
             <> ": "
             <> show wha
-    errorEmptyVar = error "encountered an empty var name"
     errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 
 doSlurpUpdates ::
@@ -3117,9 +3105,7 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     termActions = join . map doTerm . Map.toList $ termEdits
     deprecateActions = join . map doDeprecate $ deprecated
       where
-        doDeprecate (n, r) = case Path.splitFromName n of
-          Nothing -> errorEmptyVar
-          Just split -> [BranchUtil.makeDeleteTermName split r]
+        doDeprecate (n, r) = [BranchUtil.makeDeleteTermName (Path.splitFromName n) r]
 
     -- we copy over the metadata on the old thing
     -- todo: if the thing being updated, m, is metadata for something x in b0
@@ -3127,25 +3113,22 @@ doSlurpUpdates typeEdits termEdits deprecated b0 =
     doType,
       doTerm ::
         (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
-    doType (n, (old, new)) = case Path.splitFromName n of
-      Nothing -> errorEmptyVar
-      Just split ->
+    doType (n, (old, new)) =
+      let split = Path.splitFromName n
+          oldMd = BranchUtil.getTypeMetadataAt split old b0
+      in
         [ BranchUtil.makeDeleteTypeName split old,
           BranchUtil.makeAddTypeName split new oldMd
         ]
-        where
-          oldMd = BranchUtil.getTypeMetadataAt split old b0
-    doTerm (n, (old, new)) = case Path.splitFromName n of
-      Nothing -> errorEmptyVar
-      Just split ->
-        [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
-          BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
-        ]
-        where
+    doTerm (n, (old, new)) =
+      let split = Path.splitFromName n
           -- oldMd is the metadata linked to the old definition
           -- we relink it to the new definition
           oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
-    errorEmptyVar = error "encountered an empty var name"
+      in
+        [ BranchUtil.makeDeleteTermName split (Referent.Ref old),
+          BranchUtil.makeAddTermName split (Referent.Ref new) oldMd
+        ]
 
 loadDisplayInfo ::
   Set Reference ->

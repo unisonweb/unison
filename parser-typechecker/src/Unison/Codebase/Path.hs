@@ -75,6 +75,7 @@ import qualified Control.Lens as Lens
 import qualified Data.Foldable as Foldable
 import Data.List.Extra (dropPrefix)
 import qualified Data.List.NonEmpty as List.NonEmpty
+import Data.Maybe (fromJust)
 import Data.Sequence (Seq ((:<|), (:|>)))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
@@ -108,7 +109,13 @@ isRoot = Seq.null . toSeq . unabsolute
 absoluteToPath' :: Absolute -> Path'
 absoluteToPath' abs = Path' (Left abs)
 
+toAbsolute :: Path -> Path'
+toAbsolute =
+  Path' . Left . Absolute
 
+toRelative :: Path -> Path'
+toRelative =
+  Path' . Right . Relative
 
 instance Show Path' where
   show (Path' (Left abs)) = show abs
@@ -189,11 +196,11 @@ fromList = Path . Seq.fromList
 ancestors :: Absolute -> Seq Absolute
 ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 
-hqSplitFromName' :: Name -> Maybe HQSplit'
-hqSplitFromName' = fmap (fmap HQ'.fromName) . Lens.unsnoc . fromName'
+hqSplitFromName' :: Name -> HQSplit'
+hqSplitFromName' = fmap HQ'.fromName . fromJust . Lens.unsnoc . fromName'
 
-splitFromName :: Name -> Maybe Split
-splitFromName = unsnoc . fromName
+splitFromName :: Name -> Split
+splitFromName = fromJust . unsnoc . fromName
 
 -- | what is this? —AI
 unprefixName :: Absolute -> Name -> Name
@@ -233,12 +240,12 @@ fromName :: Name -> Path
 fromName = fromList . List.NonEmpty.toList . Name.segments
 
 fromName' :: Name -> Path'
-fromName' n = case take 1 (Name.toString n) of
-  "." -> Path' . Left . Absolute $ Path seq
-  _   -> Path' . Right $ Relative path
- where
-  path = fromName n
-  seq  = toSeq path
+fromName' n =
+  if Name.isAbsolute n
+    then toAbsolute path
+    else toRelative path
+  where
+    path = fromName n
 
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText
@@ -363,5 +370,5 @@ instance Convert HQSplit (HQ'.HashQualified Path) where convert = unsplitHQ
 instance Convert Path Name where convert = toName
 instance Convert Path' Name where convert = toName'
 instance Convert HQSplit' (HQ'.HashQualified Path') where convert = unsplitHQ'
-instance Parse Name HQSplit' where parse = hqSplitFromName'
-instance Parse Name Split where parse = splitFromName
+instance Convert Name HQSplit' where convert = hqSplitFromName'
+instance Convert Name Split where convert = splitFromName
