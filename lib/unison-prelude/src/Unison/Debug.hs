@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Debug (debug, debugM, whenDebug, debugLogM, DebugFlag (..)) where
+module Unison.Debug (debug, debugM, whenDebug, debugLog, debugLogM, DebugFlag (..)) where
 
 import Control.Applicative (empty)
 import Control.Monad (when)
@@ -15,11 +15,14 @@ data DebugFlag
   = Git
   | Sqlite
   | Codebase
-  deriving (Eq, Ord, Bounded, Enum)
+  deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
-debugFlags = case unsafePerformIO (lookupEnv "UNISON_DEBUG") of
-  Nothing -> Set.fromList [minBound .. maxBound]
+debugFlags = pTraceShowId $ case pTraceShowId $ (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
+  Nothing -> Set.empty
+  -- Enable all debugging flags for bare UNISON_DEBUG declarations like:
+  -- UNISON_DEBUG= ucm
+  Just "" -> Set.fromList [minBound .. maxBound]
   Just s -> Set.fromList $ do
     w <- (Text.splitOn "," . Text.pack $ s)
     case Text.toUpper . Text.strip $ w of
@@ -63,6 +66,12 @@ debugM flag msg a =
   when (shouldDebug flag) $ do
     pTraceM (msg <> ":\n")
     pTraceShowM a
+
+debugLog :: DebugFlag -> String -> a -> a
+debugLog flag msg =
+  if (shouldDebug flag)
+    then pTrace msg
+    else id
 
 debugLogM :: (Monad m) => DebugFlag -> String -> m ()
 debugLogM flag msg =
