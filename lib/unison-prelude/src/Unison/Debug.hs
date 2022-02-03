@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Debug (debug, debugM, whenDebug, DebugFlag (..)) where
+module Unison.Debug (debug, debugM, whenDebug, debugLogM, DebugFlag (..)) where
 
 import Control.Applicative (empty)
 import Control.Monad (when)
@@ -63,6 +63,10 @@ debugM flag msg a =
   when (shouldDebug flag) $ do
     pTraceM (msg <> ":\n")
     pTraceShowM a
+
+debugLogM :: (Monad m) => DebugFlag -> String -> m ()
+debugLogM flag msg =
+  when (shouldDebug flag) $ pTraceM msg
 
 -- | A 'when' block which is triggered if the given flag is being debugged.
 whenDebug :: Monad m => DebugFlag -> m () -> m ()
