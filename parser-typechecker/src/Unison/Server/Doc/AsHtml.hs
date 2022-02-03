@@ -274,7 +274,7 @@ toHtml docNamesByRef document =
             Strikethrough d ->
               span_ [class_ "strikethrough"] <$> currentSectionLevelToHtml d
             Style cssclass_ d ->
-              span_ [class_ $ textToClass cssclass_] <$> currentSectionLevelToHtml d
+              div_ [class_ $ textToClass cssclass_] <$> currentSectionLevelToHtml d
             Anchor id' d ->
               a_ [id_ id', href_ $ "#" <> id'] <$> currentSectionLevelToHtml d
             Blockquote d ->
