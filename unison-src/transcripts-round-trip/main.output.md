@@ -34,15 +34,15 @@ x = 1 + 1
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #edkeq4dlqo : add
-  2. #ehfimtkqge : builtins.mergeio
+  1. #2l4u38r8o4 : add
+  2. #3c9e0ekrve : builtins.mergeio
   3. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -116,17 +116,17 @@ Without the above stanza, the `edit` will send the definition to the most recent
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #dne7ugdlmg : add
-  2. #ehfimtkqge : reset-root #ehfimtkqge
-  3. #edkeq4dlqo : add
-  4. #ehfimtkqge : builtins.mergeio
+  1. #il1nrbvapm : add
+  2. #3c9e0ekrve : reset-root #3c9e0ekrve
+  3. #2l4u38r8o4 : add
+  4. #3c9e0ekrve : builtins.mergeio
   5. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -191,19 +191,19 @@ f x = let
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #ps96u84es8 : add
-  2. #ehfimtkqge : reset-root #ehfimtkqge
-  3. #dne7ugdlmg : add
-  4. #ehfimtkqge : reset-root #ehfimtkqge
-  5. #edkeq4dlqo : add
-  6. #ehfimtkqge : builtins.mergeio
+  1. #ujscu5crkl : add
+  2. #3c9e0ekrve : reset-root #3c9e0ekrve
+  3. #il1nrbvapm : add
+  4. #3c9e0ekrve : reset-root #3c9e0ekrve
+  5. #2l4u38r8o4 : add
+  6. #3c9e0ekrve : builtins.mergeio
   7. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -273,21 +273,21 @@ h xs = match xs with
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1. #13i3s2120q : add
-  2. #ehfimtkqge : reset-root #ehfimtkqge
-  3. #ps96u84es8 : add
-  4. #ehfimtkqge : reset-root #ehfimtkqge
-  5. #dne7ugdlmg : add
-  6. #ehfimtkqge : reset-root #ehfimtkqge
-  7. #edkeq4dlqo : add
-  8. #ehfimtkqge : builtins.mergeio
+  1. #nidbht5ocv : add
+  2. #3c9e0ekrve : reset-root #3c9e0ekrve
+  3. #ujscu5crkl : add
+  4. #3c9e0ekrve : reset-root #3c9e0ekrve
+  5. #il1nrbvapm : add
+  6. #3c9e0ekrve : reset-root #3c9e0ekrve
+  7. #2l4u38r8o4 : add
+  8. #3c9e0ekrve : builtins.mergeio
   9. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -353,23 +353,23 @@ foo n _ = n
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #29at46a9as : add
-  2.  #ehfimtkqge : reset-root #ehfimtkqge
-  3.  #13i3s2120q : add
-  4.  #ehfimtkqge : reset-root #ehfimtkqge
-  5.  #ps96u84es8 : add
-  6.  #ehfimtkqge : reset-root #ehfimtkqge
-  7.  #dne7ugdlmg : add
-  8.  #ehfimtkqge : reset-root #ehfimtkqge
-  9.  #edkeq4dlqo : add
-  10. #ehfimtkqge : builtins.mergeio
+  1.  #rrjp642tnp : add
+  2.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  3.  #nidbht5ocv : add
+  4.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  5.  #ujscu5crkl : add
+  6.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  7.  #il1nrbvapm : add
+  8.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  9.  #2l4u38r8o4 : add
+  10. #3c9e0ekrve : builtins.mergeio
   11. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -432,25 +432,25 @@ foo =
   most recent, along with the command that got us there. Try:
   
     `fork 2 .old`             
-    `fork #ehfimtkqge .old`   to make an old namespace
+    `fork #3c9e0ekrve .old`   to make an old namespace
                               accessible again,
                               
-    `reset-root #ehfimtkqge`  to reset the root namespace and
+    `reset-root #3c9e0ekrve`  to reset the root namespace and
                               its history to that of the
                               specified namespace.
   
-  1.  #7b35f5f5ue : add
-  2.  #ehfimtkqge : reset-root #ehfimtkqge
-  3.  #29at46a9as : add
-  4.  #ehfimtkqge : reset-root #ehfimtkqge
-  5.  #13i3s2120q : add
-  6.  #ehfimtkqge : reset-root #ehfimtkqge
-  7.  #ps96u84es8 : add
-  8.  #ehfimtkqge : reset-root #ehfimtkqge
-  9.  #dne7ugdlmg : add
-  10. #ehfimtkqge : reset-root #ehfimtkqge
-  11. #edkeq4dlqo : add
-  12. #ehfimtkqge : builtins.mergeio
+  1.  #876bkg1cir : add
+  2.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  3.  #rrjp642tnp : add
+  4.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  5.  #nidbht5ocv : add
+  6.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  7.  #ujscu5crkl : add
+  8.  #3c9e0ekrve : reset-root #3c9e0ekrve
+  9.  #il1nrbvapm : add
+  10. #3c9e0ekrve : reset-root #3c9e0ekrve
+  11. #2l4u38r8o4 : add
+  12. #3c9e0ekrve : builtins.mergeio
   13. #sjg2v58vn2 : (initial reflogged namespace)
 
 .> reset-root 2
@@ -1003,5 +1003,65 @@ foo = let
     
       structural type SomethingUnusuallyLong
       foo : 'Nat
+
+```
+## Nested fences
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+
+  I found and typechecked these definitions in
+  unison-src/transcripts-round-trip/nested.u. If you do an `add`
+  or `update`, here's how your codebase would change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      nested : Doc2
+
+.> add
+
+  ⍟ I've added these definitions:
+  
+    nested : Doc2
+
+```
+```ucm
+.> edit nested
+
+  ☝️
+  
+  I added these definitions to the top of
+  /Users/runar/work/unison/unison-src/transcripts-round-trip/nested.u
+  
+    nested : Doc2
+    nested =
+      {{ ```` raw
+      ```unison
+      r = "boopydoo"
+      ```
+      ```` }}
+  
+  You can edit them there, then do `update` to replace the
+  definitions currently in this namespace.
+
+.> undo
+
+  Here are the changes I undid
+  
+  Added definitions:
+  
+    1. nested : Doc2
+
+```
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+
+  I found and typechecked these definitions in
+  unison-src/transcripts-round-trip/nested.u. If you do an `add`
+  or `update`, here's how your codebase would change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      nested : Doc2
 
 ```
