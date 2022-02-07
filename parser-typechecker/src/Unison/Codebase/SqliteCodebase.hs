@@ -1032,7 +1032,8 @@ viewRemoteBranch' ::
   m (Either C.GitError r)
 viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
- time "Git fetch" $ throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remotePath -> do
+ time "Git fetch" $ throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
+  let remotePath = Git.gitDirToPath remoteRepo
   -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
   -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
   -- somehow corrupt, or not even a Unison database.
@@ -1101,9 +1102,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
   --
   -- set up the cache dir
  withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-   withOpenOrCreateCodebaseConnection @m "push.dest" pushStaging $ \destConn -> do
+   withOpenOrCreateCodebaseConnection @m "push.dest" (Git.gitDirToPath pushStaging) $ \destConn -> do
      flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-       throwExceptT $ doSync pushStaging srcConn destConn
+       throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
    void $ push pushStaging repo
   where
     readRepo :: ReadRepo
@@ -1184,7 +1185,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall m. MonadIO m => CodebasePath -> WriteRepo -> m Bool -- withIOError needs IO
+    push :: forall m. MonadIO m => Git.GitRepo -> WriteRepo -> m Bool -- withIOError needs IO
     push remotePath repo@(WriteGitRepo {url'=url, branch=mayGitBranch}) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
