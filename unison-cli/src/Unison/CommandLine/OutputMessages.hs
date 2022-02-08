@@ -329,6 +329,61 @@ notifyNumbered o = case o of
             <> IP.patternName IP.deleteNamespaceForce
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
+  History _cap history tail ->
+    let (tailMsg, tailHashes) = handleTail (length history + 1)
+        msg :: P.Pretty CT.ColorText
+        msg = P.lines
+          [ note $ "The most recent namespace hash is immediately below this message.",
+            "",
+            P.sep "\n\n" [go i h diff | (i, (h, diff)) <- zip [1..] reversedHistory],
+            "",
+            tailMsg
+          ]
+        allHashes :: [ShortBranchHash]
+        allHashes = (fst <$> reversedHistory) <> tailHashes
+     in (msg, show <$> allHashes)
+    where
+      reversedHistory = reverse history
+      showNum n = P.shown n <> ". "
+      handleTail :: Int -> (P.Pretty CT.ColorText, [ShortBranchHash])
+      handleTail n = case tail of
+        E.EndOfLog h ->
+          (P.lines
+            [ "□ " <> showNum n <> prettySBH h <> " (start of history)"
+            ]
+          , [h]
+          )
+        E.MergeTail h hs ->
+          (P.lines
+            [ P.wrap $ "This segment of history starts with a merge." <> ex,
+              "",
+              "⊙ " <> showNum n <> prettySBH h,
+              "⑃",
+              P.lines (hs & imap \i sbh -> showNum (n + 1 + i) <> prettySBH sbh)
+            ]
+          , h : hs
+          )
+        E.PageEnd h _n ->
+          (P.lines
+            [ P.wrap $ "There's more history before the versions shown here." <> ex,
+              "",
+              dots,
+              "",
+              "⊙ " <> showNum n <> prettySBH h,
+              ""
+            ]
+          , [h]
+          )
+      dots = "⠇"
+      go i hash diff =
+        P.lines
+          [ "⊙ " <> showNum i <> prettySBH hash,
+            "",
+            P.indentN 2 $ prettyDiff diff
+          ]
+      ex =
+        "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
+          <> "to view history starting from a given namespace hash."
   DeletedDespiteDependents ppeDecl endangerments ->
     (P.warnCallout $
       P.lines
@@ -578,7 +633,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       P.lines
         [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again." 
+          "Please switch to an empty namespace and try again."
         ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
@@ -1246,48 +1301,6 @@ notifyUser dir o = case o of
       renderEntry (Output.ReflogEntry hash reason) =
         P.wrap $
           P.blue (prettySBH hash) <> " : " <> P.text reason
-  History _cap history tail ->
-    pure $
-      P.lines
-        [ note $ "The most recent namespace hash is immediately below this message.",
-          "",
-          P.sep "\n\n" [go h diff | (h, diff) <- reverse history],
-          "",
-          tailMsg
-        ]
-    where
-      tailMsg = case tail of
-        E.EndOfLog h ->
-          P.lines
-            [ "□ " <> prettySBH h <> " (start of history)"
-            ]
-        E.MergeTail h hs ->
-          P.lines
-            [ P.wrap $ "This segment of history starts with a merge." <> ex,
-              "",
-              "⊙ " <> prettySBH h,
-              "⑃",
-              P.lines (prettySBH <$> hs)
-            ]
-        E.PageEnd h _n ->
-          P.lines
-            [ P.wrap $ "There's more history before the versions shown here." <> ex,
-              "",
-              dots,
-              "",
-              "⊙ " <> prettySBH h,
-              ""
-            ]
-      dots = "⠇"
-      go hash diff =
-        P.lines
-          [ "⊙ " <> prettySBH hash,
-            "",
-            P.indentN 2 $ prettyDiff diff
-          ]
-      ex =
-        "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
-          <> "to view history starting from a given namespace hash."
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"

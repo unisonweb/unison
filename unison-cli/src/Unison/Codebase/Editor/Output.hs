@@ -97,6 +97,8 @@ data NumberedOutput v
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    -- |    size limit, history                       , how the history ends
+  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
 
 --  | ShowDiff
 
@@ -208,7 +210,6 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
-  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
@@ -340,7 +341,6 @@ isFailure o = case o of
   PatchInvolvesExternalDependents {} -> True
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
-  History {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -383,4 +383,5 @@ isNumberedFailure = \case
   ShowDiffAfterCreateAuthor {} -> False
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
+  History {} -> False
   DeletedDespiteDependents {} -> False
