@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
--- {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
 
@@ -373,15 +373,15 @@ showListEdits patch ppe =
                 <> IP.deleteTypeReplacementCommand
                 <> ", as appropriate."
       ],
-    numberedArgs
+    numberedArgsCol1 <> numberedArgsCol2
   )
   where
     typeOutputs, termOutputs :: [(P.Pretty CT.ColorText, P.Pretty CT.ColorText)]
-    numberedArgs :: NumberedArgs
+    numberedArgsCol1, numberedArgsCol2 :: NumberedArgs
     -- We use the output of the first column's count as the first number in the second
     -- column's count. Laziness allows this since they're used independently of one another.
-    (((typeOutputs, termOutputs), (lastNumberInFirstColumn, _)), numberedArgs) =
-      runWriter . flip runStateT (0, lastNumberInFirstColumn) $ do
+    (((typeOutputs, termOutputs), (lastNumberInFirstColumn, _)), (numberedArgsCol1, numberedArgsCol2)) =
+      runWriter . flip runStateT (1, lastNumberInFirstColumn) $ do
         typeOutputs <- traverse prettyTypeEdit types
         termOutputs <- traverse prettyTermEdit terms
         pure (typeOutputs, termOutputs)
@@ -394,37 +394,47 @@ showListEdits patch ppe =
 
     prettyTermEdit ::
       (Reference.TermReference, TermEdit.TermEdit) ->
-      StateT (Int, Int) (Writer NumberedArgs) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
-    prettyTermEdit (r, TermEdit.Deprecate) = do
-      n1 <- _1 <+= 1
-      pure
-        ( showNum n1 <> (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r),
-          "-> (deprecated)"
-        )
-    prettyTermEdit (r, TermEdit.Replace r' _typing) = do
-      n1 <- _1 <+= 1
-      n2 <- _2 <+= 1
-      pure
-        ( showNum n1 <> (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r),
-          "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r')
-        )
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+    prettyTermEdit (lhsRef, termEdit) = do
+      n1 <- gets fst <* modify (first succ)
+      let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
+      case termEdit of
+        TermEdit.Deprecate -> do
+          lift $ tell ([HQ.toString lhsTermName], [])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
+              "-> (deprecated)"
+            )
+        TermEdit.Replace rhsRef _typing -> do
+          n2 <- gets snd <* modify (second succ)
+          let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
+          lift $ tell ([HQ.toString lhsTermName], [HQ.toString rhsTermName])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
+              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
+            )
 
     prettyTypeEdit ::
       (Reference, TypeEdit.TypeEdit) ->
-      StateT (Int, Int) (Writer NumberedArgs) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
-    prettyTypeEdit (r, TypeEdit.Deprecate) = do
-      n1 <- _1 <+= 1
-      pure
-        ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r),
-          "-> (deprecated)"
-        )
-    prettyTypeEdit (r, TypeEdit.Replace r') = do
-      n1 <- _1 <+= 1
-      n2 <- _2 <+= 1
-      pure
-        ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r),
-          "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified . PPE.typeName ppe $ r')
-        )
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+    prettyTypeEdit (lhsRef, typeEdit) = do
+      n1 <- gets fst <* modify (first succ)
+      let lhsTypeName = PPE.typeName ppe lhsRef
+      case typeEdit of
+        TypeEdit.Deprecate -> do
+          lift $ tell ([HQ.toString lhsTypeName], [])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
+              "-> (deprecated)"
+            )
+        TypeEdit.Replace rhsRef -> do
+          n2 <- gets snd <* modify (second succ)
+          let rhsTypeName = PPE.typeName ppe rhsRef
+          lift $ tell ([HQ.toString lhsTypeName], [HQ.toString rhsTypeName])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
+              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
+            )
 
 prettyRemoteNamespace :: ReadRemoteNamespace -> P.Pretty P.ColorText
 prettyRemoteNamespace =
