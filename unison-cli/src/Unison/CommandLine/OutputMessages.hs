@@ -133,6 +133,7 @@ import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
 import Control.Monad.State
 import Control.Monad.Trans.Writer.CPS
+import qualified Unison.ShortHash as ShortHash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -398,9 +399,12 @@ showListEdits patch ppe =
     prettyTermEdit (lhsRef, termEdit) = do
       n1 <- gets fst <* modify (first succ)
       let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
+      -- We use the shortHash of the lhs rather than its name for numbered args,
+      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
+      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
       case termEdit of
         TermEdit.Deprecate -> do
-          lift $ tell ([HQ.toString lhsTermName], [])
+          lift $ tell ([lhsHash], [])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
               "-> (deprecated)"
@@ -408,7 +412,7 @@ showListEdits patch ppe =
         TermEdit.Replace rhsRef _typing -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
-          lift $ tell ([HQ.toString lhsTermName], [HQ.toString rhsTermName])
+          lift $ tell ([lhsHash], [HQ.toString rhsTermName])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
@@ -420,9 +424,12 @@ showListEdits patch ppe =
     prettyTypeEdit (lhsRef, typeEdit) = do
       n1 <- gets fst <* modify (first succ)
       let lhsTypeName = PPE.typeName ppe lhsRef
+      -- We use the shortHash of the lhs rather than its name for numbered args,
+      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
+      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
       case typeEdit of
         TypeEdit.Deprecate -> do
-          lift $ tell ([HQ.toString lhsTypeName], [])
+          lift $ tell ([lhsHash], [])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
               "-> (deprecated)"
@@ -430,7 +437,7 @@ showListEdits patch ppe =
         TypeEdit.Replace rhsRef -> do
           n2 <- gets snd <* modify (second succ)
           let rhsTypeName = PPE.typeName ppe rhsRef
-          lift $ tell ([HQ.toString lhsTypeName], [HQ.toString rhsTypeName])
+          lift $ tell ([lhsHash], [HQ.toString rhsTypeName])
           pure
             ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
@@ -668,7 +675,7 @@ notifyUser dir o = case o of
     pure . P.warnCallout $
       P.lines
         [ "The current namespace '" <> prettyPath' path <> "' is not empty. `pull-request.load` downloads the PR into the current namespace which would clutter it.",
-          "Please switch to an empty namespace and try again." 
+          "Please switch to an empty namespace and try again."
         ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
