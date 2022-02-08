@@ -741,15 +741,15 @@ y = 2
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #is7tu6katt
+  ⊙ 1. #is7tu6katt
   
     + Adds / updates:
     
       y
   
-  □ #hkrqt3tm05 (start of history)
+  □ 2. #hkrqt3tm05 (start of history)
 
-.hashdiff> diff.namespace #hkrqt3tm05 #is7tu6katt
+.hashdiff> diff.namespace 2 1
 
   Added definitions:
   
