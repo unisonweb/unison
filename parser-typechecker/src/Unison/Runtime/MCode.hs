@@ -353,6 +353,8 @@ data BPrim2
   | TAKB | DRPB | IDXB | CATB -- take,drop,index,append
   -- general
   | THRO | TRCE        -- throw
+  -- code
+  | SDBX               -- sandbox
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -1071,6 +1073,7 @@ emitPOp ANF.TLTT = emitBP1 TLTT
 emitPOp ANF.CVLD = emitBP1 CVLD
 emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
+emitPOp ANF.SDBX = emitBP2 SDBX
 
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO

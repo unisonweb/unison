@@ -24,8 +24,8 @@ term2 _ = ()
     
       unique ability Bar
       unique ability Foo
-      term1 : '{Foo, Bar} ()
-      term2 : '{Foo, Bar} ()
+      term1 : '{Bar, Foo} ()
+      term2 : '{Bar, Foo} ()
 
 ```
 ```ucm
@@ -35,13 +35,13 @@ term2 _ = ()
   
     unique ability Bar
     unique ability Foo
-    term1 : '{Foo, Bar} ()
-    term2 : '{Foo, Bar} ()
+    term1 : '{Bar, Foo} ()
+    term2 : '{Bar, Foo} ()
 
 .> names term1
 
   Term
-  Hash:   #3g90c9l64s
+  Hash:   #8hum58rlih
   Names:  term1 term2
 
 ```

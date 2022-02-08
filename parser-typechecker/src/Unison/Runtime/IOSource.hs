@@ -11,6 +11,7 @@ import Unison.Prelude
 
 import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
+import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
@@ -59,6 +60,9 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
 
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
+
+codeLookupM :: Applicative m => CodeLookup Symbol m Ann
+codeLookupM = hoist (pure . runIdentity) codeLookup
 
 typeNamedId :: String -> R.Id
 typeNamedId s =

@@ -357,10 +357,10 @@ sqliteCodebase debugName root localOrRemote action = do
       -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
       -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
 
-      putTerm :: MonadIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
+      putTerm :: MonadUnliftIO m => Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> m ()
       putTerm id tm tp | debug && trace (show "SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
       putTerm (Reference.Id h@(Cv.hash1to2 -> h2) i) tm tp =
-        runDB conn $
+        runDBInTx  conn "putTerm" $
           unlessM
             (Ops.objectExistsForHash h2 >>= if debug then \b -> do traceM $ "objectExistsForHash " ++ show h2 ++ " = " ++ show b; pure b else pure)
             ( withBuffer termBuffer h \be@(BufferEntry size comp missing waiting) -> do
@@ -495,9 +495,9 @@ sqliteCodebase debugName root localOrRemote action = do
           (\h -> tryFlushTermBuffer h >> tryFlushDeclBuffer h)
           h
 
-      putTypeDeclaration :: MonadIO m => Reference.Id -> Decl Symbol Ann -> m ()
+      putTypeDeclaration :: MonadUnliftIO m => Reference.Id -> Decl Symbol Ann -> m ()
       putTypeDeclaration (Reference.Id h@(Cv.hash1to2 -> h2) i) decl =
-        runDB conn $
+        runDBInTx conn "putTypeDeclaration" $
           unlessM
             (Ops.objectExistsForHash h2)
             ( withBuffer declBuffer h \(BufferEntry size comp missing waiting) -> do
@@ -555,11 +555,11 @@ sqliteCodebase debugName root localOrRemote action = do
       getRootBranchExists =
         isJust <$> runDB conn (Ops.loadMaybeRootCausalHash)
 
-      putRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> Branch m -> m ()
+      putRootBranch :: MonadUnliftIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> Branch m -> m ()
       putRootBranch rootBranchCache branch1 = do
         -- todo: check to see if root namespace hash has been externally modified
         -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-        runDB conn
+        runDBInTx conn "putRootBranch"
           . void
           . Ops.saveRootBranch
           . Cv.causalbranch1to2
@@ -615,8 +615,8 @@ sqliteCodebase debugName root localOrRemote action = do
               =<< Cv.causalbranch2to1 getDeclType b
           Nothing -> pure Nothing
 
-      putBranch :: MonadIO m => Branch m -> m ()
-      putBranch = runDB conn . putBranch'
+      putBranch :: MonadUnliftIO m => Branch m -> m ()
+      putBranch = runDBInTx conn "putBranch" . putBranch'
 
       isCausalHash :: MonadIO m => Branch.Hash -> m Bool
       isCausalHash = runDB conn . isCausalHash'
@@ -628,9 +628,9 @@ sqliteCodebase debugName root localOrRemote action = do
             >>= Ops.loadPatchById
             <&> Cv.patch2to1
 
-      putPatch :: MonadIO m => Branch.EditHash -> Patch -> m ()
+      putPatch :: MonadUnliftIO m => Branch.EditHash -> Patch -> m ()
       putPatch h p =
-        runDB conn . void $
+        runDBInTx conn "putPatch" . void $
           Ops.savePatch (Cv.patchHash1to2 h) (Cv.patch1to2 p)
 
       patchExists :: MonadIO m => Branch.EditHash -> m Bool
@@ -677,7 +677,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
       standardWatchKinds = [UF.RegularWatch, UF.TestWatch]
 
-      putWatch :: MonadIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
+      putWatch :: MonadUnliftIO m => UF.WatchKind -> Reference.Id -> Term Symbol Ann -> m ()
       putWatch k r@(Reference.Id h _i) tm
         | elem k standardWatchKinds =
           runDB conn $
@@ -983,6 +983,17 @@ runDB :: MonadIO m => Connection -> ReaderT Connection (ExceptT Ops.Error m) a -
 runDB conn = (runExceptT >=> err) . flip runReaderT conn
   where
     err = \case Left err -> error $ show err; Right a -> pure a
+
+-- | Like 'runDB', but executes the action within a transaction on the provided
+-- connection.
+runDBInTx ::
+  MonadUnliftIO m =>
+  Connection ->
+  String ->
+  ReaderT Connection (ExceptT Ops.Error m) a ->
+  m a
+runDBInTx conn name action =
+  runReaderT (Q.withSavepoint_ name (lift $ runDB conn action)) conn
 
 data Entity m
   = B Branch.Hash (m (Branch m))

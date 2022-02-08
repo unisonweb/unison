@@ -49,8 +49,8 @@ baz = cases
   I couldn't find exact type matches, resorting to fuzzy
   matching...
 
-  1. baz : A -> Text
-  2. bar : Text -> A
+  1. bar : Text -> A
+  2. baz : A -> Text
   3. A.A : Text -> A
   
 

@@ -269,6 +269,19 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 .> add
 ```
 
+## Sandboxing functions
+
+```unison
+test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+test> Sandbox.test2 = checks [not (validateSandboxed [] openFile)]
+test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+openFile]
+```
+
+```ucm:hide
+.> add
+```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.

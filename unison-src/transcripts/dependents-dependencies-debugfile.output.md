@@ -17,14 +17,14 @@ inside.r = d
 ```ucm
 .> debug.file
 
-  type inside.M#goba2va40r
-  type outside.A#ihqhr4prbp
-  type outside.B#mm8h095nrg
-  inside.p#h63obi5rb4
-  inside.q#1qtbral9uo
-  inside.r#9guss29ljv
-  outside.c#fs7la111vn
-  outside.d#p7dvt0ka99
+  type inside.M#h37a56c5ep
+  type outside.A#6l6krl7n4l
+  type outside.B#eo6rj0lj1b
+  inside.p#htoo5rnb54
+  inside.q#vtdbqaojv6
+  inside.r#nkgohbke6n
+  outside.c#f3lgjvjqoo
+  outside.d#ukd7tu6kds
 
 ```
 This will help me make progress in some situations when UCM is being deficient or broken.
@@ -47,49 +47,49 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 
 .> dependents q
 
-  #1qtbral9uo doesn't have any named dependents.
+  #vtdbqaojv6 doesn't have any named dependents.
 
 .> dependencies q
 
-  Dependencies of #1qtbral9uo:
+  Dependencies of #vtdbqaojv6:
   
        Reference   Name
     1. ##Nat       builtin.Nat
     2. ##Nat.*     builtin.Nat.*
     3. ##Nat.+     builtin.Nat.+
-    4. #h63obi5rb4 inside.p
+    4. #htoo5rnb54 inside.p
 
 .> dependencies B
 
-  Dependencies of #mm8h095nrg:
+  Dependencies of #eo6rj0lj1b:
   
        Reference Name
     1. ##Int     builtin.Int
 
-  Dependencies of #mm8h095nrg#0:
+  Dependencies of #eo6rj0lj1b#0:
   
        Reference   Name
-    1. #mm8h095nrg outside.B
+    1. #eo6rj0lj1b outside.B
     2. ##Int       builtin.Int
 
 .> dependencies d
 
-  Dependencies of #p7dvt0ka99:
+  Dependencies of #ukd7tu6kds:
   
        Reference     Name
     1. ##Boolean     builtin.Boolean
     2. ##Nat         builtin.Nat
     3. ##Nat.+       builtin.Nat.+
     4. ##Universal.< builtin.Universal.<
-    5. #fs7la111vn   outside.c
-    6. #h63obi5rb4   inside.p
+    5. #f3lgjvjqoo   outside.c
+    6. #htoo5rnb54   inside.p
 
 .> dependents d
 
-  Dependents of #p7dvt0ka99:
+  Dependents of #ukd7tu6kds:
   
        Reference   Name
-    1. #9guss29ljv inside.r
+    1. #nkgohbke6n inside.r
 
 ```
 We don't have an index for dependents of constructors, but iirc if you ask for that, it will show you dependents of the structural type that provided the constructor.
