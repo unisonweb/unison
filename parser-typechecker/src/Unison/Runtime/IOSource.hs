@@ -101,6 +101,11 @@ eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
 
+authorRef, guidRef, copyrightHolderRef :: R.Reference
+authorRef = typeNamed "Author"
+guidRef = typeNamed "GUID"
+copyrightHolderRef = typeNamed "CopyrightHolder"
+
 doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
 doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
