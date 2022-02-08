@@ -12,6 +12,7 @@ import qualified Unison.Hashing.V2.Convert as H
 import Unison.Prelude (MonadIO, Word8)
 import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Reference as Reference
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -65,10 +66,6 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
       Foldable.toList $ fmap (\(id,tm,_tp) -> (id,tm)) $
         H.hashTermComponents
           (Map.singleton (Var.named v) (tm, typ))
-    (chType, chTypeRef) = (Type.ref a chTypeRef, unsafeParse copyrightHolderHash)
-    (authorType, authorTypeRef) = (Type.ref a authorTypeRef, unsafeParse authorHash)
-    (guidType, guidTypeRef) = (Type.ref a guidTypeRef, unsafeParse guidHash)
-    unsafeParse = either error id . Reference.fromText
-    guidHash = "#fg4sicimattgf7p2u0i752v6rvf4b6kmrtf0ovja81uptfqmcpe9vdo4vhb2ts2o8somo8t1cvv52lhlv5isr0ovf7h93h3sslnkrlo"
-    copyrightHolderHash = "#fodu3l22att8et4eiqhtog2p45bh2njh8qfm7mbe1rt4eg2scbgebedagqlo3g1l7ofm3na45julc6174v9cuu62qvo4toaf776kfj8"
-    authorHash = "#9akbttgrmjs8tmmfe3m1e9vg2nc0ufok4vjqcs0lm16ut8j3bu0osejahgb87i05k92md983o8rsfb44715indh4oruqeq105hec8l8"
+    (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
+    (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)
+    (guidType, guidTypeRef) = (Type.ref a guidTypeRef, IOSource.guidRef)
