@@ -32,6 +32,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
+import qualified Unison.Codebase.Editor.Git as Git
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -98,7 +99,7 @@ data Codebase m v a = Codebase
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
-    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
+    viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
     pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be

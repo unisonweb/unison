@@ -150,11 +150,11 @@ commandLine config awaitInput setBranchRef rt notifyUser notifyNumbered loadSour
     SyncLocalRootBranch branch -> lift $ do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    ViewRemoteBranch ns action -> do
+    ViewRemoteBranch ns gitBranchBehavior action -> do
       -- TODO: We probably won'd need to unlift anything once we remove the Command
       -- abstraction.
       toIO <- UnliftIO.askRunInIO
-      lift $ Codebase.viewRemoteBranch codebase ns (toIO . Free.fold go . action)
+      lift $ Codebase.viewRemoteBranch codebase ns gitBranchBehavior (toIO . Free.fold go . action)
     ImportRemoteBranch ns syncMode preprocess ->
       lift $ Codebase.importRemoteBranch codebase ns syncMode preprocess
     SyncRemoteBranch branch repo opts ->
