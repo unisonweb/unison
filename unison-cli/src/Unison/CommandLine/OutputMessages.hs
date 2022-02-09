@@ -1823,10 +1823,6 @@ renderNameConflicts ppe conflictedNames = do
           <> " has conflicting definitions:"
           ) `P.hang` P.lines prettyConflicts
 
-      -- pure . Monoid.unlessM (Set.null conflictedNames) $
-      --   P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
-      --     `P.hang` P.lines prettyConflicts
-
 renderEditConflicts ::
   PPE.PrettyPrintEnv -> Patch -> Numbered Pretty
 renderEditConflicts ppe Patch {..} = do
@@ -1839,30 +1835,21 @@ renderEditConflicts ppe Patch {..} = do
                 P.indentN 2 (P.lines formattedConflicts)
                 --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
               ]
-      -- numberedArgs = editConflicts >>= \case
-      --                  Left (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TypeEdit.references edit)
-      --                  Right (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TermEdit.references edit)
   where
     -- todo: could possibly simplify all of this, but today is a copy/paste day.
     editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
     editConflicts =
       (fmap Left . Map.toList . R.toMultimap . R.filterManyDom $ _typeEdits)
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
-    numberedTypeName :: Reference -> Numbered Pretty
-    numberedTypeName r = do
-      let name = (PPE.typeName ppe r)
-      n <- addNumberedArg (HQ.toString name)
-      pure $ formatNum n <> styleHashQualified P.bold name
-    numberedTermName :: Reference -> Numbered Pretty
-    numberedTermName r = do
-      let name = (PPE.termName ppe (Referent.Ref r))
-      n <- addNumberedArg (HQ.toString name)
-      pure $ formatNum n <> styleHashQualified P.bold name
+    numberedHQName :: HQ.HashQualified Name -> Numbered Pretty
+    numberedHQName hqName = do
+      n <- addNumberedArg (HQ.toString hqName)
+      pure $ formatNum n <> styleHashQualified P.bold hqName
     formatTypeEdits :: (Reference, Set TypeEdit.TypeEdit)
                     -> Numbered Pretty
     formatTypeEdits (r, toList -> es) = do
-      replacedType <- numberedTypeName r
-      replacements <- for [r | TypeEdit.Replace r <- es] numberedTypeName
+      replacedType <- numberedHQName (PPE.typeName ppe r)
+      replacements <- for [PPE.typeName ppe r | TypeEdit.Replace r <- es] numberedHQName
       pure . P.wrap $
         "The type" <> replacedType <> "was"
           <> ( if TypeEdit.Deprecate `elem` es
@@ -1873,8 +1860,8 @@ renderEditConflicts ppe Patch {..} = do
     formatTermEdits :: (Reference.TermReference, Set TermEdit.TermEdit)
                     -> Numbered Pretty
     formatTermEdits (r, toList -> es) = do
-      replacedTerm <- numberedTermName r
-      replacements <- for [r | TermEdit.Replace r _ <- es] numberedTermName
+      replacedTerm <- numberedHQName (PPE.termName ppe (Referent.Ref r))
+      replacements <- for [PPE.termName ppe (Referent.Ref r) | TermEdit.Replace r _ <- es] numberedHQName
       pure . P.wrap $
         "The term" <> replacedTerm <> "was"
           <> ( if TermEdit.Deprecate `elem` es
