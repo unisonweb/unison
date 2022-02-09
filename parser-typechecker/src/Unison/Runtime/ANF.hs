@@ -192,16 +192,19 @@ enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e)
     | Ann' _ ty <- b = ann a tm ty
     | otherwise = tm
   lamb = lam' a evs (annotate $ lam' a vs lbody)
-enclose keep rec t@(LamsNamed' vs body)
+enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body))
   = Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
   -- remove shadowed variables
-  keep' = Set.difference keep $ Set.fromList vs
+  keep' = Set.difference keep $ Set.fromList (vs0 ++ vs1)
   fvs = ABT.freeVars t
   evs = Set.toList $ Set.difference fvs keep
   a = ABT.annotation t
   lbody = rec keep' body
-  lamb = lam' a (evs ++ vs) lbody
+  annotate tm
+    | Just ty <- mty = ann a tm ty
+    | otherwise = tm
+  lamb = lam' a (evs ++ vs0) . annotate . lam' a vs1 $ lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body
   = Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
@@ -267,10 +270,11 @@ letFloater rec vbs e = do
   modify (\(vs,ctx,dcmp) -> (vs, ctx ++ fvbs, dcmp))
   pure $ ABT.renames shadowMap e
   where
-  rec' b@(Ann' (LamsNamed' vs bd) _ty)
-    = lam' a vs <$> rec bd
-    where a = ABT.annotation b
-  rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
+  rec' b
+    | Just (vs0, mty, vs1, bd) <- unLamsAnnot b
+    = lam' a vs0 . maybe id (flip $ ann a) mty . lam' a vs1 <$> rec bd
+    where
+    a = ABT.annotation b
   rec' b = rec b
 
 lamFloater
