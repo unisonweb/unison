@@ -178,7 +178,7 @@ enclose keep rec (LetRecNamedTop' top vbs bd)
   lvbs = (map.fmap) (rec keep' . abstract keep' . ABT.substs xpnd) vbs
   lbd = rec keep' . ABT.substs xpnd $ bd
 -- will be lifted, so keep this variable
-enclose keep rec (Let1NamedTop' top v b@(LamsNamed' vs bd) e)
+enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e)
   = Just . let1' top [(v, lamb)] . rec (Set.insert v keep)
   $ ABT.subst v av e
   where
@@ -188,7 +188,10 @@ enclose keep rec (Let1NamedTop' top v b@(LamsNamed' vs bd) e)
   evs = Set.toList $ Set.difference fvs keep
   a = ABT.annotation b
   lbody = rec keep' bd
-  lamb = lam' a (evs ++ vs) lbody
+  annotate tm
+    | Ann' _ ty <- b = ann a tm ty
+    | otherwise = tm
+  lamb = lam' a evs (annotate $ lam' a vs lbody)
 enclose keep rec t@(LamsNamed' vs body)
   = Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
@@ -264,6 +267,9 @@ letFloater rec vbs e = do
   modify (\(vs,ctx,dcmp) -> (vs, ctx ++ fvbs, dcmp))
   pure $ ABT.renames shadowMap e
   where
+  rec' b@(Ann' (LamsNamed' vs bd) _ty)
+    = lam' a vs <$> rec bd
+    where a = ABT.annotation b
   rec' b@(LamsNamed' vs bd) = lam' (ABT.annotation b) vs <$> rec bd
   rec' b = rec b
 
@@ -294,9 +300,9 @@ floater top rec (LetRecNamed' vbs e)
         where a = ABT.annotation lm
       tm -> rec tm
 floater _   rec (Let1Named' v b e)
-  | LamsNamed' vs bd <- b
+  | Just (vs0, _, vs1, bd) <- unLamsAnnot b
   = Just $ rec bd
-       >>= lamFloater (null $ ABT.freeVars b) b (Just v) a vs
+       >>= lamFloater (null $ ABT.freeVars b) b (Just v) a (vs0++vs1)
        >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where a = ABT.annotation b
 
@@ -311,7 +317,7 @@ floater _ _ _ = Nothing
 
 float :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
 float tm = case runState go0 (Set.empty, [], []) of
-  (bd, (_, ctx, dcmp)) -> (letRec' True ctx bd, dcmp)
+  (bd, (_, ctx, dcmp)) -> (deannotate $ letRec' True ctx bd, dcmp)
   where
   go0 = fromMaybe (go tm) (floater True go tm)
   go = ABT.visit $ floater False go
@@ -320,13 +326,32 @@ float tm = case runState go0 (Set.empty, [], []) of
   --    = let1' False pre . letRec' False rec . let1' False post $ e
   --    | otherwise = tm0
 
+unAnn :: Term v a -> Term v a
+unAnn (Ann' tm _) = tm
+unAnn tm = tm
+
+unLamsAnnot :: Term v a -> Maybe ([v], Maybe (Ty.Type v a), [v], Term v a)
+unLamsAnnot tm0
+  | null vs0, null vs1 = Nothing
+  | otherwise = Just (vs0, mty, vs1, bd)
+  where
+  (vs0, bd0)
+    | LamsNamed' vs bd <- tm0 = (vs, bd)
+    | otherwise = ([], tm0)
+  (mty, bd1)
+    | Ann' bd ty <- bd0 = (Just ty, bd)
+    | otherwise = (Nothing, bd0)
+  (vs1, bd)
+    | LamsNamed' vs bd <- bd1 = (vs, bd)
+    | otherwise = ([], bd1)
+
 deannotate :: Var v => Term v a -> Term v a
 deannotate = ABT.visitPure $ \case
   Ann' c _ -> Just $ deannotate c
   _ -> Nothing
 
 lamLift :: (Var v, Monoid a) => Term v a -> (Term v a, [(v, Term v a)])
-lamLift = float . close Set.empty . deannotate
+lamLift = float . close Set.empty
 
 saturate
   :: (Var v, Monoid a)
@@ -761,7 +786,7 @@ data POp
   | EQLU | CMPU | EROR
   -- Code
   | MISS | CACH | LKUP | LOAD -- isMissing,cache_,lookup,load
-  | CVLD                      -- validate
+  | CVLD | SDBX               -- validate, sandbox
   | VALU | TLTT               -- value, Term.Link.toText
   -- Debug
   | PRNT | INFO | TRCE

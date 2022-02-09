@@ -129,6 +129,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -259,8 +260,10 @@ typeLookupForDependencies codebase s = do
               Nothing -> pure mempty
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
-toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
+toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+  <> Builtin.codeLookup
+  <> IOSource.codeLookupM
 
 -- | Get the type of a term.
 --

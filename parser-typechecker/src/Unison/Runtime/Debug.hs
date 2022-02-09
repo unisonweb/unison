@@ -5,6 +5,7 @@ module Unison.Runtime.Debug
   , traceCombs
   , tracePretty
   , tracePrettyGroup
+  , module Debug.Trace
   ) where
 
 import Data.Word

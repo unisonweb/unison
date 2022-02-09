@@ -64,7 +64,7 @@ Update
 
 .> view.patch patch
 
-  Edited Terms: hey#ao70f78mjt -> hey
+  Edited Terms: hey#m0kuh98ou7 -> hey
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -72,7 +72,7 @@ Update
 
 .> view.patch 1
 
-  Edited Terms: hey#ao70f78mjt -> hey
+  Edited Terms: hey#m0kuh98ou7 -> hey
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

@@ -39,13 +39,13 @@ The history of the namespace should still exist if requested explicitly.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #3fdue8bl8c
+  ⊙ #nvh8d4j0fm
   
     - Deletes:
     
       x
   
-  □ #q9cdigs0bo (start of history)
+  □ #i52j9fd57b (start of history)
 
 ```
 Merging an empty namespace should still copy its history if it has some.
@@ -66,13 +66,13 @@ Merging an empty namespace should still copy its history if it has some.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #3fdue8bl8c
+  ⊙ #nvh8d4j0fm
   
     - Deletes:
     
       x
   
-  □ #q9cdigs0bo (start of history)
+  □ #i52j9fd57b (start of history)
 
 ```
 Add and then delete a term to add some history to a deleted namespace.
@@ -102,7 +102,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #ag66d092nt (start of history)
+  □ #q2dq4tsno1 (start of history)
 
 .> history deleted
 
@@ -111,7 +111,7 @@ The history from the `deleted` namespace should have been overwritten by the his
   
   
   
-  □ #ag66d092nt (start of history)
+  □ #q2dq4tsno1 (start of history)
 
 ```
 ## move.namespace
@@ -140,7 +140,7 @@ The history should be that of the moved namespace.
   
   
   
-  □ #j5moq3uqa9 (start of history)
+  □ #c5uisu4kll (start of history)
 
 .> move.namespace moveme moveoverme
 
@@ -153,6 +153,6 @@ The history should be that of the moved namespace.
   
   
   
-  □ #j5moq3uqa9 (start of history)
+  □ #c5uisu4kll (start of history)
 
 ```

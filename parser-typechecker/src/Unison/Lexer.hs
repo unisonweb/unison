@@ -825,8 +825,8 @@ lexemes' eof = P.optional space >> do
       ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
-                             <|> close' (Just "else") ["then"] (lit "else")
+        ifElse = openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
+                             <|> closeKw' (Just "else") ["then"] (lit "else")
         modKw = typeModifiersAlt (openKw1 wordySep)
         typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
         typ = modKw <|> typeOrAbilityKw
@@ -912,7 +912,7 @@ lexemes' eof = P.optional space >> do
     delayOrForce = separated ok $ do
       (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
       pure [Token (Reserved [op]) start end]
-      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
     open :: String -> P [Token Lexeme]
     open b = do
@@ -929,6 +929,9 @@ lexemes' eof = P.optional space >> do
       pure [Token (Open s) pos1 pos2]
 
     close = close' Nothing
+
+    closeKw' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+    closeKw' reopenBlockname open closeP = close' reopenBlockname open (separated wordySep closeP)
 
     blockDelimiter :: [String] -> P String -> P [Token Lexeme]
     blockDelimiter open closeP = do

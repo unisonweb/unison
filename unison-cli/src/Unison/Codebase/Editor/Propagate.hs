@@ -689,3 +689,4 @@ computeFrontier getDependents patch shouldUpdate = do
     (\ds -> R.insertManyDom ds ref dependents)
       .   Set.filter shouldUpdate
       <$> getDependents ref
+

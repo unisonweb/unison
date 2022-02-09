@@ -39,7 +39,7 @@ Copy the patch and make sure it's still there.
 
 .> view.patch foo.patch
 
-  Edited Terms: #rrsqv1ogaq -> x
+  Edited Terms: #gjmq673r1v -> x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -51,7 +51,7 @@ Copy the patch and make sure it's still there.
 
 .> view.patch bar.patch
 
-  Edited Terms: #rrsqv1ogaq -> x
+  Edited Terms: #gjmq673r1v -> x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

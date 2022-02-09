@@ -101,9 +101,9 @@ We can look at the links we have:
 ```ucm
 .> links coolFunction
 
-  1. coolFunction.doc     : Doc
-  2. alice                : Author
-  3. coolFunction.license : License
+  1. alice                : Author
+  2. coolFunction.license : License
+  3. coolFunction.doc     : Doc
   
   Tip: Try using `display 1` to display the first result or
        `view 1` to view its source.
@@ -194,11 +194,11 @@ myLibrary.h x = x + 3
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #noq1the6kh
+  ⊙ #fa706ukb83
   
     
   
-  □ #793qedilos (start of history)
+  □ #ikha0ltbmc (start of history)
 
 .> unlink coolFunction.doc coolFunction
 

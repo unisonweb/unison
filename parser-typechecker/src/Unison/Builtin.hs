@@ -613,6 +613,8 @@ ioBuiltins =
   , ("IO.kill.impl.v3", threadId --> iof unit)
   , ("IO.ref", forall1 "a" $ \a ->
         a --> io (reft (Type.effects () [Type.builtinIO ()]) a))
+  , ("validateSandboxed",
+        forall1 "a" $ \a -> list termLink --> a --> boolean)
   , ("Tls.newClient.impl.v3", tlsClientConfig --> socket --> iof tls)
   , ("Tls.newServer.impl.v3", tlsServerConfig --> socket --> iof tls)
   , ("Tls.handshake.impl.v3", tls --> iof unit)
@@ -631,7 +633,6 @@ ioBuiltins =
   , ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig)
   , ("Tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig)
   , ("Tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig)
-
   ]
 
 mvarBuiltins :: [(Text, Type)]

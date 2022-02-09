@@ -30,7 +30,7 @@ The child branch has a single history node representing the addition of `parent.
   
   
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 ```
 If we add another thing to the child namespace it should add another history node to both the child and parent.
@@ -51,26 +51,26 @@ parent.child.thing2 = "parent.child.thing2"
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #go29r9r4ok
+  ⊙ #2hv7t9lp40
   
     + Adds / updates:
     
       child.thing2
   
-  □ #rkui6ehfcq (start of history)
+  □ #i9lji1bli0 (start of history)
 
 .> history parent.child
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 ```
 ## Forking off some history on a separate branch
@@ -101,19 +101,19 @@ The child should have a new history node after adding `thing3`
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #9jb3t68gad
+  ⊙ #9rcfgbsp81
   
     + Adds / updates:
     
       thing3
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 ```
 ## Saving our parent state
@@ -143,19 +143,19 @@ For a squash merge, when I squash-merge back into parent, we expect `parent_fork
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #5f07ek0393
+  ⊙ #594e0e1p39
   
     + Adds / updates:
     
       child.thing3
   
-  ⊙ #go29r9r4ok
+  ⊙ #2hv7t9lp40
   
     + Adds / updates:
     
       child.thing2
   
-  □ #rkui6ehfcq (start of history)
+  □ #i9lji1bli0 (start of history)
 
 ```
 Notice that with the current behaviour, the history of `parent.child` is completely wiped out, containing nothing from the source OR destination.
@@ -166,32 +166,32 @@ Notice that with the current behaviour, the history of `parent.child` is complet
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 .> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #9jb3t68gad
+  ⊙ #9rcfgbsp81
   
     + Adds / updates:
     
       thing3
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 .> history parent_squash_base.child
 
@@ -200,7 +200,7 @@ Notice that with the current behaviour, the history of `parent.child` is complet
   
   
   
-  □ #u3n5lkrtde (start of history)
+  □ #19fd4mhpp4 (start of history)
 
 ```
 ## Standard merge
@@ -226,19 +226,19 @@ For a standard merge, if I merge back into parent, we expect `parent_fork.child.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #tibitdoffj
+  ⊙ #mtn8sha7gd
   
     + Adds / updates:
     
       child.thing3
   
-  ⊙ #go29r9r4ok
+  ⊙ #2hv7t9lp40
   
     + Adds / updates:
     
       child.thing2
   
-  □ #rkui6ehfcq (start of history)
+  □ #i9lji1bli0 (start of history)
 
 ```
 Child histories should also be *merged*.
@@ -249,50 +249,50 @@ Child histories should also be *merged*.
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 .> history parent_fork.child
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #9jb3t68gad
+  ⊙ #9rcfgbsp81
   
     + Adds / updates:
     
       thing3
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 .> history parent_merge_base.child
 
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #9jb3t68gad
+  ⊙ #9rcfgbsp81
   
     + Adds / updates:
     
       thing3
   
-  ⊙ #ab2160llo3
+  ⊙ #ggnrs01131
   
     + Adds / updates:
     
       thing2
   
-  □ #c9opo30t5h (start of history)
+  □ #0r73mam57g (start of history)
 
 ```

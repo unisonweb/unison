@@ -428,6 +428,7 @@ instance Tag BPrim2 where
   tag2word CATB = 19
   tag2word THRO = 20
   tag2word TRCE = 21
+  tag2word SDBX = 22
 
   word2tag  0 = pure EQLU
   word2tag  1 = pure CMPU
@@ -451,4 +452,5 @@ instance Tag BPrim2 where
   word2tag 19 = pure CATB
   word2tag 20 = pure THRO
   word2tag 21 = pure TRCE
+  word2tag 22 = pure SDBX
   word2tag n = unknownTag "BPrim2" n

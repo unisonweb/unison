@@ -363,113 +363,114 @@ Let's try it!
   273. io2.TVar.readIO : TVar a ->{IO} a
   274. io2.TVar.swap : TVar a -> a ->{STM} a
   275. io2.TVar.write : TVar a -> a ->{STM} ()
-  276. unique type IsPropagated
-  277. IsPropagated.IsPropagated : IsPropagated
-  278. unique type IsTest
-  279. IsTest.IsTest : IsTest
-  280. unique type Link
-  281. builtin type Link.Term
-  282. Link.Term : Term -> Link
-  283. Link.Term.toText : Term -> Text
-  284. builtin type Link.Type
-  285. Link.Type : Type -> Link
-  286. builtin type List
-  287. List.++ : [a] -> [a] -> [a]
-  288. List.+: : a -> [a] -> [a]
-  289. List.:+ : [a] -> a -> [a]
-  290. List.at : Nat -> [a] -> Optional a
-  291. List.cons : a -> [a] -> [a]
-  292. List.drop : Nat -> [a] -> [a]
-  293. List.empty : [a]
-  294. List.size : [a] -> Nat
-  295. List.snoc : [a] -> a -> [a]
-  296. List.take : Nat -> [a] -> [a]
-  297. metadata.isPropagated : IsPropagated
-  298. metadata.isTest : IsTest
-  299. builtin type Nat
-  300. Nat.* : Nat -> Nat -> Nat
-  301. Nat.+ : Nat -> Nat -> Nat
-  302. Nat./ : Nat -> Nat -> Nat
-  303. Nat.and : Nat -> Nat -> Nat
-  304. Nat.complement : Nat -> Nat
-  305. Nat.drop : Nat -> Nat -> Nat
-  306. Nat.eq : Nat -> Nat -> Boolean
-  307. Nat.fromText : Text -> Optional Nat
-  308. Nat.gt : Nat -> Nat -> Boolean
-  309. Nat.gteq : Nat -> Nat -> Boolean
-  310. Nat.increment : Nat -> Nat
-  311. Nat.isEven : Nat -> Boolean
-  312. Nat.isOdd : Nat -> Boolean
-  313. Nat.leadingZeros : Nat -> Nat
-  314. Nat.lt : Nat -> Nat -> Boolean
-  315. Nat.lteq : Nat -> Nat -> Boolean
-  316. Nat.mod : Nat -> Nat -> Nat
-  317. Nat.or : Nat -> Nat -> Nat
-  318. Nat.popCount : Nat -> Nat
-  319. Nat.pow : Nat -> Nat -> Nat
-  320. Nat.shiftLeft : Nat -> Nat -> Nat
-  321. Nat.shiftRight : Nat -> Nat -> Nat
-  322. Nat.sub : Nat -> Nat -> Int
-  323. Nat.toFloat : Nat -> Float
-  324. Nat.toInt : Nat -> Int
-  325. Nat.toText : Nat -> Text
-  326. Nat.trailingZeros : Nat -> Nat
-  327. Nat.xor : Nat -> Nat -> Nat
-  328. structural type Optional a
-  329. Optional.None : Optional a
-  330. Optional.Some : a -> Optional a
-  331. builtin type Ref
-  332. Ref.read : Ref g a ->{g} a
-  333. Ref.write : Ref g a -> a ->{g} ()
-  334. builtin type Request
-  335. builtin type Scope
-  336. Scope.ref : a ->{Scope s} Ref {Scope s} a
-  337. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
-  338. structural type SeqView a b
-  339. SeqView.VElem : a -> b -> SeqView a b
-  340. SeqView.VEmpty : SeqView a b
-  341. Socket.toText : Socket -> Text
-  342. unique type Test.Result
-  343. Test.Result.Fail : Text -> Result
-  344. Test.Result.Ok : Text -> Result
-  345. builtin type Text
-  346. Text.!= : Text -> Text -> Boolean
-  347. Text.++ : Text -> Text -> Text
-  348. Text.drop : Nat -> Text -> Text
-  349. Text.empty : Text
-  350. Text.eq : Text -> Text -> Boolean
-  351. Text.fromCharList : [Char] -> Text
-  352. Text.fromUtf8.impl : Bytes -> Either Failure Text
-  353. Text.gt : Text -> Text -> Boolean
-  354. Text.gteq : Text -> Text -> Boolean
-  355. Text.lt : Text -> Text -> Boolean
-  356. Text.lteq : Text -> Text -> Boolean
-  357. Text.repeat : Nat -> Text -> Text
-  358. Text.size : Text -> Nat
-  359. Text.take : Nat -> Text -> Text
-  360. Text.toCharList : Text -> [Char]
-  361. Text.toUtf8 : Text -> Bytes
-  362. Text.uncons : Text -> Optional (Char, Text)
-  363. Text.unsnoc : Text -> Optional (Text, Char)
-  364. ThreadId.toText : ThreadId -> Text
-  365. todo : a -> b
-  366. structural type Tuple a b
-  367. Tuple.Cons : a -> b -> Tuple a b
-  368. structural type Unit
-  369. Unit.Unit : ()
-  370. Universal.< : a -> a -> Boolean
-  371. Universal.<= : a -> a -> Boolean
-  372. Universal.== : a -> a -> Boolean
-  373. Universal.> : a -> a -> Boolean
-  374. Universal.>= : a -> a -> Boolean
-  375. Universal.compare : a -> a -> Int
-  376. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
-  377. builtin type Value
-  378. Value.dependencies : Value -> [Term]
-  379. Value.deserialize : Bytes -> Either Text Value
-  380. Value.load : Value ->{IO} Either [Term] a
-  381. Value.serialize : Value -> Bytes
-  382. Value.value : a -> Value
+  276. io2.validateSandboxed : [Term] -> a -> Boolean
+  277. unique type IsPropagated
+  278. IsPropagated.IsPropagated : IsPropagated
+  279. unique type IsTest
+  280. IsTest.IsTest : IsTest
+  281. unique type Link
+  282. builtin type Link.Term
+  283. Link.Term : Term -> Link
+  284. Link.Term.toText : Term -> Text
+  285. builtin type Link.Type
+  286. Link.Type : Type -> Link
+  287. builtin type List
+  288. List.++ : [a] -> [a] -> [a]
+  289. List.+: : a -> [a] -> [a]
+  290. List.:+ : [a] -> a -> [a]
+  291. List.at : Nat -> [a] -> Optional a
+  292. List.cons : a -> [a] -> [a]
+  293. List.drop : Nat -> [a] -> [a]
+  294. List.empty : [a]
+  295. List.size : [a] -> Nat
+  296. List.snoc : [a] -> a -> [a]
+  297. List.take : Nat -> [a] -> [a]
+  298. metadata.isPropagated : IsPropagated
+  299. metadata.isTest : IsTest
+  300. builtin type Nat
+  301. Nat.* : Nat -> Nat -> Nat
+  302. Nat.+ : Nat -> Nat -> Nat
+  303. Nat./ : Nat -> Nat -> Nat
+  304. Nat.and : Nat -> Nat -> Nat
+  305. Nat.complement : Nat -> Nat
+  306. Nat.drop : Nat -> Nat -> Nat
+  307. Nat.eq : Nat -> Nat -> Boolean
+  308. Nat.fromText : Text -> Optional Nat
+  309. Nat.gt : Nat -> Nat -> Boolean
+  310. Nat.gteq : Nat -> Nat -> Boolean
+  311. Nat.increment : Nat -> Nat
+  312. Nat.isEven : Nat -> Boolean
+  313. Nat.isOdd : Nat -> Boolean
+  314. Nat.leadingZeros : Nat -> Nat
+  315. Nat.lt : Nat -> Nat -> Boolean
+  316. Nat.lteq : Nat -> Nat -> Boolean
+  317. Nat.mod : Nat -> Nat -> Nat
+  318. Nat.or : Nat -> Nat -> Nat
+  319. Nat.popCount : Nat -> Nat
+  320. Nat.pow : Nat -> Nat -> Nat
+  321. Nat.shiftLeft : Nat -> Nat -> Nat
+  322. Nat.shiftRight : Nat -> Nat -> Nat
+  323. Nat.sub : Nat -> Nat -> Int
+  324. Nat.toFloat : Nat -> Float
+  325. Nat.toInt : Nat -> Int
+  326. Nat.toText : Nat -> Text
+  327. Nat.trailingZeros : Nat -> Nat
+  328. Nat.xor : Nat -> Nat -> Nat
+  329. structural type Optional a
+  330. Optional.None : Optional a
+  331. Optional.Some : a -> Optional a
+  332. builtin type Ref
+  333. Ref.read : Ref g a ->{g} a
+  334. Ref.write : Ref g a -> a ->{g} ()
+  335. builtin type Request
+  336. builtin type Scope
+  337. Scope.ref : a ->{Scope s} Ref {Scope s} a
+  338. Scope.run : (∀ s. '{g, Scope s} r) ->{g} r
+  339. structural type SeqView a b
+  340. SeqView.VElem : a -> b -> SeqView a b
+  341. SeqView.VEmpty : SeqView a b
+  342. Socket.toText : Socket -> Text
+  343. unique type Test.Result
+  344. Test.Result.Fail : Text -> Result
+  345. Test.Result.Ok : Text -> Result
+  346. builtin type Text
+  347. Text.!= : Text -> Text -> Boolean
+  348. Text.++ : Text -> Text -> Text
+  349. Text.drop : Nat -> Text -> Text
+  350. Text.empty : Text
+  351. Text.eq : Text -> Text -> Boolean
+  352. Text.fromCharList : [Char] -> Text
+  353. Text.fromUtf8.impl : Bytes -> Either Failure Text
+  354. Text.gt : Text -> Text -> Boolean
+  355. Text.gteq : Text -> Text -> Boolean
+  356. Text.lt : Text -> Text -> Boolean
+  357. Text.lteq : Text -> Text -> Boolean
+  358. Text.repeat : Nat -> Text -> Text
+  359. Text.size : Text -> Nat
+  360. Text.take : Nat -> Text -> Text
+  361. Text.toCharList : Text -> [Char]
+  362. Text.toUtf8 : Text -> Bytes
+  363. Text.uncons : Text -> Optional (Char, Text)
+  364. Text.unsnoc : Text -> Optional (Text, Char)
+  365. ThreadId.toText : ThreadId -> Text
+  366. todo : a -> b
+  367. structural type Tuple a b
+  368. Tuple.Cons : a -> b -> Tuple a b
+  369. structural type Unit
+  370. Unit.Unit : ()
+  371. Universal.< : a -> a -> Boolean
+  372. Universal.<= : a -> a -> Boolean
+  373. Universal.== : a -> a -> Boolean
+  374. Universal.> : a -> a -> Boolean
+  375. Universal.>= : a -> a -> Boolean
+  376. Universal.compare : a -> a -> Int
+  377. unsafe.coerceAbilities : (a ->{e1} b) -> a ->{e2} b
+  378. builtin type Value
+  379. Value.dependencies : Value -> [Term]
+  380. Value.deserialize : Bytes -> Either Text Value
+  381. Value.load : Value ->{IO} Either [Term] a
+  382. Value.serialize : Value -> Bytes
+  383. Value.value : a -> Value
   
 
 .builtin> alias.many 94-104 .mylib
