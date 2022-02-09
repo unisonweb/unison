@@ -97,6 +97,7 @@ data NumberedOutput v
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+  | ListEdits Patch PPE.PrettyPrintEnv
 
 --  | ShowDiff
 
@@ -190,7 +191,6 @@ data Output v
       [(Reference, Text)] -- oks
       [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
-  | ListEdits Patch PPE.PrettyPrintEnv
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
@@ -328,7 +328,6 @@ isFailure o = case o of
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  ListEdits {} -> False
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
@@ -384,3 +383,4 @@ isNumberedFailure = \case
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
+  ListEdits {} -> False

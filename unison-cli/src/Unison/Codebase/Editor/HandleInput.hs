@@ -1475,7 +1475,7 @@ loop = do
               ppe <-
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-              respond $ ListEdits patch ppe
+              respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
