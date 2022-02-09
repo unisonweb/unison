@@ -249,7 +249,7 @@ toHtml docNamesByRef document =
        in case doc of
             Tooltip triggerContent tooltipContent -> do
               tooltipNo <- State.get
-              let tooltipId = Text.pack . show $ tooltipId
+              let tooltipId = Text.pack . show $ tooltipNo
               State.put (tooltipNo + 1)
               tooltip <-
                 div_ [class_ "tooltip-content", id_ ("tooltip-" <> tooltipId)]
