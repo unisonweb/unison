@@ -294,18 +294,21 @@ toHtml docNamesByRef document =
                 [class_ "aside-anchor"]
                 . aside_ []
                 <$> currentSectionLevelToHtml d
-            Callout icon content ->
-              let (cls :: Attribute, ico :: Html ()) =
-                    case icon of
-                      Just emoji ->
-                        ( class_ "callout callout-with-icon",
-                          div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji
-                        )
-                      Nothing ->
-                        (class_ "callout", "")
-               in div_ [cls] <$> do
-                    _ <- pure ico
-                    div_ [class_ "callout-content"] <$> currentSectionLevelToHtml content
+            Callout icon content -> do
+              callout <- currentSectionLevelToHtml content
+              pure $
+                div_ [cls] $ do
+                  ico
+                  div_ [class_ "callout-content"] callout
+              where
+                (cls :: Attribute, ico :: Html ()) =
+                  case icon of
+                    Just emoji ->
+                      ( class_ "callout callout-with-icon",
+                        div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji
+                      )
+                    Nothing ->
+                      (class_ "callout", "")
             Table rows ->
               let cellToHtml c =
                     td_ [] <$> currentSectionLevelToHtml c
