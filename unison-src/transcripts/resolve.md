@@ -109,7 +109,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> delete.term 2
 .example.resolve.c> todo
 ```
 

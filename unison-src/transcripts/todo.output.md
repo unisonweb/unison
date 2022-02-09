@@ -120,11 +120,12 @@ structural type MyType = MyType Int
       6. x#msp7bv40rv
   ❓
   
-  These terms have conflicting definitions: 7. MyType.MyType
+  The term MyType.MyType has conflicting definitions:
+    7. MyType.MyType#d97e0jhkmd#0
+    8. MyType.MyType#muulibntaq#0
   
   Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `view MyType.MyType` to see
-       the conflicting definitions, then use `move.term` to
-       resolve the conflicts.
+       introduce the same name. Use `move.term` or `delete.term`
+       to resolve the conflicts.
 
 ```

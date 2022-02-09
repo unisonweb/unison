@@ -61,7 +61,7 @@ import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
-import Unison.CommandLine.InputPatterns (makeExample, makeExample')
+import Unison.CommandLine.InputPatterns (makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.DataDeclaration as DD
@@ -1774,36 +1774,58 @@ prettyDeclPair ::
   Pretty
 prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
-renderNameConflicts :: Set.Set Name -> Set.Set Name -> Numbered Pretty
-renderNameConflicts conflictedTypeNames conflictedTermNames = do
-  prettyConflictedTypes <- showConflictedNames "types" conflictedTypeNames
-  prettyConflictedTerms <- showConflictedNames "terms" conflictedTermNames
-  pure $ Monoid.unlessM (null allNames) $
+renderNameConflicts :: PPE.PrettyPrintEnv -> Names -> Numbered Pretty
+renderNameConflicts ppe conflictedNames = do
+  let conflictedTypeNames :: Map Name [HQ.HashQualified Name]
+      conflictedTypeNames = conflictedNames
+                          & Names.types
+                          & R.domain
+                          & fmap (foldMap (pure @[] . PPE.typeName ppe))
+  let conflictedTermNames :: Map Name [HQ.HashQualified Name]
+      conflictedTermNames = conflictedNames
+                          & Names.terms
+                          & R.domain
+                          & fmap (foldMap (pure @[] . PPE.termName ppe))
+  let allConflictedNames :: [Name]
+      allConflictedNames = Set.toList (Map.keysSet conflictedTermNames <> Map.keysSet conflictedTypeNames)
+  prettyConflictedTypes <- showConflictedNames "type" conflictedTypeNames
+  prettyConflictedTerms <- showConflictedNames "term" conflictedTermNames
+  pure $ Monoid.unlessM (null allConflictedNames) $
            P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
              [ prettyConflictedTypes,
                prettyConflictedTerms,
                tip $
-                 "This occurs when merging branches that both independently introduce the same name. Use "
-                   <> makeExample IP.view (prettyName <$> take 3 allNames)
-                   <> "to see the conflicting definitions, then use "
+                 "This occurs when merging branches that both independently introduce the same name."
+                   <> "Use "
                    <> makeExample'
                      ( if (not . null) conflictedTypeNames
                          then IP.renameType
                          else IP.renameTerm
                      )
+                   <> " or "
+                   <> makeExample'
+                     ( if (not . null) conflictedTypeNames
+                         then IP.deleteType
+                         else IP.deleteTerm
+                     )
                    <> "to resolve the conflicts."
              ]
   where
-    allNames = toList (conflictedTermNames <> conflictedTypeNames)
-    showConflictedNames :: Pretty -> Set Name -> Numbered Pretty
-    showConflictedNames things conflictedNames = do
-      prettyConflicts <- for (Set.toList conflictedNames) $ \name -> do
-        n <- addNumberedArg (Name.toString name)
-        pure $ formatNum n <> (P.blue . prettyName $ name)
 
-      pure . Monoid.unlessM (Set.null conflictedNames) $
-        P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
-          `P.hang` P.lines prettyConflicts
+    showConflictedNames :: Pretty -> Map Name [HQ.HashQualified Name] -> Numbered Pretty
+    showConflictedNames thingKind conflictedNames = P.lines <$> do
+      for (Map.toList conflictedNames) $ \(name, hashes) -> do
+        prettyConflicts <- for hashes \hash -> do
+          n <- addNumberedArg (HQ.toString hash)
+          pure $ formatNum n <> (P.blue . P.syntaxToColor . prettyHashQualified $ hash)
+        pure . P.wrap $
+          ("The " <> thingKind <> " " <> P.green (prettyName name)
+          <> " has conflicting definitions:"
+          ) `P.hang` P.lines prettyConflicts
+
+      -- pure . Monoid.unlessM (Set.null conflictedNames) $
+      --   P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
+      --     `P.hang` P.lines prettyConflicts
 
 renderEditConflicts ::
   PPE.PrettyPrintEnv -> Patch -> Numbered Pretty
@@ -1904,15 +1926,13 @@ todoOutput ppe todo = runNumbered do
         then pure mempty
         else do
           editConflicts <- renderEditConflicts ppeu (TO.editConflicts todo)
-          nameConflicts <- renderNameConflicts conflictedTypeNames conflictedTermNames
+          nameConflicts <- renderNameConflicts ppeu conflictedNames
           pure $ P.lines . P.nonEmpty $ [editConflicts, nameConflicts]
       where
         -- If a conflict is both an edit and a name conflict, we show it in the edit
         -- conflicts section
-        c :: Names
-        c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
-        conflictedTypeNames = (R.dom . Names.types) c
-        conflictedTermNames = (R.dom . Names.terms) c
+        conflictedNames :: Names
+        conflictedNames = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
         -- e.g. `foo#a` has been independently updated to `foo#b` and `foo#c`.
         -- This means there will be a name conflict:
         --    foo -> #b

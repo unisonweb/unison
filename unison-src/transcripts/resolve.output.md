@@ -209,7 +209,6 @@ We can resolve this conflict by picking one of the terms as the "winner":
   Done.
 
 ```
-
 This changes the merged `c.patch` so that only a single edit remains and resolves the conflict.
 
 ```ucm
@@ -229,18 +228,19 @@ We still have a remaining _name conflict_ since it just so happened that both of
 
   ❓
   
-  These terms have conflicting definitions: 1. foo
+  The term foo has conflicting definitions:
+    1. foo#8e68dvpr0a
+    2. foo#jdqoenu794
   
   Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `view foo` to see the
-       conflicting definitions, then use `move.term` to resolve
-       the conflicts.
+       introduce the same name. Use `move.term` or `delete.term`
+       to resolve the conflicts.
 
 ```
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> delete.term 2
 
   Resolved name conflicts:
   
