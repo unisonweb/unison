@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
--- {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
 
@@ -128,6 +128,8 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
+import qualified U.Util.Monoid as Monoid
+import qualified Data.Foldable as Foldable
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1774,12 +1776,12 @@ prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> Numbered Pretty
 renderNameConflicts conflictedTypeNames conflictedTermNames = do
-  conflictedTypeNames <- showConflictedNames "types" conflictedTypeNames
-  conflictedTermNames <- showConflictedNames "terms" conflictedTermNames
+  prettyConflictedTypes <- showConflictedNames "types" conflictedTypeNames
+  prettyConflictedTerms <- showConflictedNames "terms" conflictedTermNames
   pure $ Monoid.unlessM (null allNames) $
            P.callout "❓" . P.sep "\n\n" . P.nonEmpty $
-             [ conflictedTypeNames,
-               conflictedTermNames,
+             [ prettyConflictedTypes,
+               prettyConflictedTerms,
                tip $
                  "This occurs when merging branches that both independently introduce the same name. Use "
                    <> makeExample IP.view (prettyName <$> take 3 allNames)
@@ -1795,56 +1797,96 @@ renderNameConflicts conflictedTypeNames conflictedTermNames = do
     allNames = toList (conflictedTermNames <> conflictedTypeNames)
     showConflictedNames :: Pretty -> Set Name -> Numbered Pretty
     showConflictedNames things conflictedNames = do
-      Monoid.unlessM (Set.null conflictedNames) $
+      prettyConflicts <- for (Set.toList conflictedNames) $ \name -> do
+        n <- addNumberedArg (Name.toString name)
+        pure $ formatNum n <> (P.blue . prettyName $ name)
+
+      pure . Monoid.unlessM (Set.null conflictedNames) $
         P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
-          `P.hang` P.commas (P.blue . prettyName <$> toList conflictedNames)
+          `P.hang` P.lines prettyConflicts
 
 renderEditConflicts ::
   PPE.PrettyPrintEnv -> Patch -> Numbered Pretty
-renderEditConflicts ppe Patch {..} =
-  let msg = Monoid.unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $
+renderEditConflicts ppe Patch {..} = do
+  formattedConflicts <- for editConflicts formatConflict
+  pure . Monoid.unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $
               [ P.wrap $
                   "These" <> P.bold "definitions were edited differently"
                     <> "in namespaces that have been merged into this one."
                     <> "You'll have to tell me what to use as the new definition:",
-                P.indentN 2 (P.lines (formatConflict <$> editConflicts))
+                P.indentN 2 (P.lines formattedConflicts)
                 --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
               ]
-      numberedArgs = editConflicts >>= \case
-                       Left (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TypeEdit.references edit)
-                       Right (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TermEdit.references edit)
-   in (msg, numberedArgs)
+      -- numberedArgs = editConflicts >>= \case
+      --                  Left (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TypeEdit.references edit)
+      --                  Right (lhsRef, edit) -> SH.toString . Reference.toShortHash <$> (lhsRef : foldMap TermEdit.references edit)
   where
     -- todo: could possibly simplify all of this, but today is a copy/paste day.
     editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
     editConflicts =
       (fmap Left . Map.toList . R.toMultimap . R.filterManyDom $ _typeEdits)
         <> (fmap Right . Map.toList . R.toMultimap . R.filterManyDom $ _termEdits)
-    typeName r = styleHashQualified P.bold (PPE.typeName ppe r)
-    termName r = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
-    formatTypeEdits (r, toList -> es) =
-      P.wrap $
-        "The type" <> typeName r <> "was"
+    numberedTypeName :: Reference -> Numbered Pretty
+    numberedTypeName r = do
+      let name = (PPE.typeName ppe r)
+      n <- addNumberedArg (HQ.toString name)
+      pure $ formatNum n <> styleHashQualified P.bold name
+    numberedTermName :: Reference -> Numbered Pretty
+    numberedTermName r = do
+      let name = (PPE.termName ppe (Referent.Ref r))
+      n <- addNumberedArg (HQ.toString name)
+      pure $ formatNum n <> styleHashQualified P.bold name
+    formatTypeEdits :: (Reference, Set TypeEdit.TypeEdit)
+                    -> Numbered Pretty
+    formatTypeEdits (r, toList -> es) = do
+      replacedType <- numberedTypeName r
+      replacements <- for [r | TypeEdit.Replace r <- es] numberedTypeName
+      pure . P.wrap $
+        "The type" <> replacedType <> "was"
           <> ( if TypeEdit.Deprecate `elem` es
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          <> P.oxfordCommas [typeName r | TypeEdit.Replace r <- es]
-    formatTermEdits (r, toList -> es) =
-      P.wrap $
-        "The term" <> termName r <> "was"
+          `P.hang` P.lines replacements
+    formatTermEdits :: (Reference.TermReference, Set TermEdit.TermEdit)
+                    -> Numbered Pretty
+    formatTermEdits (r, toList -> es) = do
+      replacedTerm <- numberedTermName r
+      replacements <- for [r | TermEdit.Replace r _ <- es] numberedTermName
+      pure . P.wrap $
+        "The term" <> replacedTerm <> "was"
           <> ( if TermEdit.Deprecate `elem` es
                  then "deprecated and also replaced with"
                  else "replaced with"
              )
-          <> P.oxfordCommas [termName r | TermEdit.Replace r _ <- es]
+          `P.hang` P.lines replacements
+    formatConflict :: Either
+                       (Reference, Set TypeEdit.TypeEdit)
+                       (Reference.TermReference, Set TermEdit.TermEdit)
+                   -> Numbered Pretty
     formatConflict = either formatTypeEdits formatTermEdits
 
+type Numbered = State.State (Int, Seq.Seq String)
+
+addNumberedArg :: String -> Numbered Int
+addNumberedArg s = do
+  (n, args) <- State.get
+  State.put (n + 1, args Seq.|> s)
+  pure $ (n + 1)
+
+formatNum :: Int -> Pretty
+formatNum n = P.shown n <> ". "
+
+runNumbered :: Numbered a -> (a, NumberedArgs)
+runNumbered m =
+  let (a, (_, args)) = State.runState m (0, mempty)
+   in (a, Foldable.toList args)
 
 todoOutput :: Var v => PPE.PrettyPrintEnvDecl -> TO.TodoOutput v a -> (Pretty, NumberedArgs)
-todoOutput ppe todo =
-  ( todoConflicts <> todoEdits
-  , conflictNumberedArgs <> todoEditNumberedArgs)
+todoOutput ppe todo = runNumbered do
+  conflicts <- todoConflicts
+  edits <- todoEdits
+  pure (conflicts <> edits)
   where
     ppeu = PPE.unsuffixifiedPPE ppe
     ppes = PPE.suffixifiedPPE ppe
@@ -1897,10 +1939,18 @@ todoOutput ppe todo =
             typeEditConflicts = R.filterDom (`R.manyDom` _typeEdits) _typeEdits
             termEditConflicts = R.filterDom (`R.manyDom` _termEdits) _termEdits
 
-    todoEdits :: P.Pretty P.ColorText
-    todoEditNumberedArgs :: NumberedArgs
-    (todoEdits, todoEditNumberedArgs) =
-      let msg = Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+    todoEdits :: Numbered Pretty
+    todoEdits = do
+      numberedTypes <- for (unscore <$> dirtyTypes) \(ref, displayObj) -> do
+        n <- addNumberedArg (HQ.toString $ PPE.typeName ppeu ref)
+        pure $ formatNum n <> prettyDeclPair ppeu (ref, displayObj)
+      let filteredTerms = goodTerms (unscore <$> dirtyTerms)
+      termNumbers <- for filteredTerms \(ref, _, _) -> do
+          n <- addNumberedArg (HQ.toString $ PPE.termName ppeu ref)
+          pure $ formatNum n
+      let formattedTerms = TypePrinter.prettySignaturesCT ppes filteredTerms
+          numberedTerms = zipWith (<>) termNumbers formattedTerms
+      pure $ Monoid.unlessM (TO.noEdits todo) . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
                   [ P.wrap
                       ( "The namespace has" <> fromString (show (TO.todoScore todo))
                           <> "transitive dependent(s) left to upgrade."
@@ -1911,15 +1961,11 @@ todoOutput ppe todo =
                           ++ TypePrinter.prettySignaturesCT ppes (goodTerms frontierTerms)
                       ),
                     P.wrap "I recommend working on them in the following order:",
-                    P.numberedList $
-                      let unscore (_score, a, b) = (a, b)
-                       in (prettyDeclPair ppeu . unscore <$> toList dirtyTypes)
-                            ++ TypePrinter.prettySignaturesCT
-                              ppes
-                              (goodTerms $ unscore <$> dirtyTerms),
+                    P.lines $ numberedTypes ++ numberedTerms,
                     formatMissingStuff corruptTerms corruptTypes
                   ]
-       in (msg, [])
+    unscore :: (a, b, c) -> (b, c)
+    unscore (_score, b, c) = (b, c)
 
 listOfDefinitions ::
   Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
@@ -2346,15 +2392,15 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     -- DeclPrinter.prettyDeclHeader : HQ -> Either
     numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
     numPatch prefix name =
-      addNumberedArg $ prefixBranchId prefix name
+      addNumberedArg' $ prefixBranchId prefix name
 
     numHQ :: Input.AbsBranchId -> HQ.HashQualified Name -> Referent -> Numbered Pretty
     numHQ prefix hq r =
-      addNumberedArg . HQ.toStringWith (prefixBranchId prefix) . HQ.requalify hq $ r
+      addNumberedArg' . HQ.toStringWith (prefixBranchId prefix) . HQ.requalify hq $ r
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
-      addNumberedArg . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
+      addNumberedArg' . HQ'.toStringWith (prefixBranchId prefix) . HQ'.requalify hq $ r
 
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef.base.List.map"
@@ -2364,12 +2410,11 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       Left sbh -> "#" <> SBH.toString sbh <> ":" <> Name.toString (Name.makeAbsolute  name)
       Right pathPrefix -> Name.toString (Name.makeAbsolute . Path.prefixName pathPrefix $ name)
 
-    addNumberedArg :: String -> Numbered Pretty
-    addNumberedArg s = case sn of
+    addNumberedArg' :: String -> Numbered Pretty
+    addNumberedArg' s = case sn of
       ShowNumbers -> do
-        (n, args) <- State.get
-        State.put (n + 1, args Seq.|> s)
-        pure $ padNumber (n + 1)
+        n <- addNumberedArg s
+        pure $ padNumber n
       HideNumbers -> pure mempty
 
     padNumber :: Int -> Pretty
