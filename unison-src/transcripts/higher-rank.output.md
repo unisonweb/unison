@@ -124,3 +124,25 @@ Loc.transform2 nt = cases Loc f ->
                        -> Loc
 
 ```
+## Types with polymorphic fields
+
+```unison
+structural type HigherRanked = HigherRanked (forall a. a -> a)
+```
+
+We should be able to add and view records with higher-rank fields.
+
+```ucm
+  ☝️  The namespace .higher_ranked is empty.
+
+.higher_ranked> add
+
+  ⍟ I've added these definitions:
+  
+    structural type HigherRanked
+
+.higher_ranked> view HigherRanked
+
+  structural type HigherRanked = HigherRanked (∀ a. a -> a)
+
+```
