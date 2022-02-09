@@ -91,6 +91,8 @@ data NumberedOutput v
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
+    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
@@ -178,8 +180,6 @@ data Output v
       PPE.PrettyPrintEnvDecl
       (Map Reference (DisplayObject () (Decl v Ann)))
       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
-  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
   | TestResults
@@ -323,7 +323,6 @@ isFailure o = case o of
   Typechecked {} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
@@ -381,6 +380,7 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
