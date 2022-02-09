@@ -1875,7 +1875,7 @@ addNumberedArg s = do
   pure $ (n + 1)
 
 formatNum :: Int -> Pretty
-formatNum n = P.shown n <> ". "
+formatNum n = P.string (show n <> ". ")
 
 runNumbered :: Numbered a -> (a, NumberedArgs)
 runNumbered m =

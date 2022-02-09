@@ -194,8 +194,9 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term #44954ulpdf was replaced with foo#8e68dvpr0a and
-    foo#jdqoenu794
+    The term 1. #44954ulpdf was replaced with
+      2. foo#8e68dvpr0a
+      3. foo#jdqoenu794
 
 ```
 We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
@@ -227,7 +228,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
 
   ❓
   
-  These terms have conflicting definitions: foo
+  These terms have conflicting definitions: 1. foo
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `view foo` to see the
