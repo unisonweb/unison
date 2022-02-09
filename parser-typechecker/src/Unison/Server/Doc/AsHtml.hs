@@ -192,7 +192,7 @@ toHtml docNamesByRef document =
     content
     div_ [class_ "tooltips", style_ "display: none;"] $ sequence_ tooltips
   where
-    (content, (_, tooltips)) =
+    (_ :: Html (), (content, tooltips) :: (Html (), Seq (Html ()))) =
       runWriterT (evalStateT (toHtml_ 1 document) 0)
 
     toHtml_ ::
@@ -249,10 +249,10 @@ toHtml docNamesByRef document =
        in case doc of
             Tooltip triggerContent tooltipContent -> do
               tooltipNo <- State.get
-              let tooltipId = Text.pack . show $ tooltipNo
+              let tooltipId = "tooltip-" <> (Text.pack . show $ tooltipNo)
               State.put (tooltipNo + 1)
               tooltip <-
-                div_ [class_ "tooltip-content", id_ ("tooltip-" <> tooltipId)]
+                div_ [class_ "tooltip-content", id_ tooltipId]
                   <$> currentSectionLevelToHtml tooltipContent
               Writer.tell (pure tooltip)
 
