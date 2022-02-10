@@ -3,6 +3,7 @@
 
 module Unison.Hash
   ( Hash (Hash),
+    toString,
     base32Hex,
     fromBase32Hex,
     Hash.toByteString,
@@ -14,6 +15,11 @@ import qualified U.Util.Base32Hex as Base32Hex
 import U.Util.Hash (Hash (Hash))
 import qualified U.Util.Hash as Hash
 import Unison.Prelude
+
+-- | Produces a human readable string of the full hash.
+-- e.g. #abcdef
+toString :: Hash -> String
+toString = Hash.toString
 
 -- | Return the lowercase unpadded base32Hex encoding of this 'Hash'.
 -- Multibase prefix would be 'v', see https://github.com/multiformats/multibase

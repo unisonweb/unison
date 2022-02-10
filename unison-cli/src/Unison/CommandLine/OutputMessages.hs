@@ -342,7 +342,7 @@ notifyNumbered o = case o of
           ]
         branchHashes :: [Branch.Hash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, show <$> branchHashes)
+     in (msg, Causal.rawHashToString <$> branchHashes)
     where
       toSBH :: Branch.Hash -> ShortBranchHash
       toSBH h = SBH.fromHash sbhLength h

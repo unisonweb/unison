@@ -7,6 +7,7 @@ module Unison.Codebase.Causal
   ( Causal (..),
     Raw (..),
     RawHash (..),
+    rawHashToString,
     head_,
     one,
     cons,
@@ -44,6 +45,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified U.Util.Cache as Cache
 import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 import Prelude hiding (head, read, tail)
@@ -74,6 +76,12 @@ newtype RawHash a = RawHash { unRawHash :: Hash }
 
 instance Show (RawHash a) where
   show = show . unRawHash
+
+-- | Produces a human readable string of the full hash.
+-- e.g. #abcdef
+rawHashToString :: RawHash a -> String
+rawHashToString = Hash.toString . unRawHash
+
 
 instance Show e => Show (Causal m h e) where
   show = \case
