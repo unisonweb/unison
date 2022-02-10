@@ -131,6 +131,7 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
+import qualified Unison.Codebase.Branch as Branch
 
 type Pretty = P.Pretty P.ColorText
 
@@ -329,27 +330,29 @@ notifyNumbered o = case o of
             <> IP.patternName IP.deleteNamespaceForce
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
-  History _cap history tail ->
+  History _cap sbhLength history tail ->
     let (tailMsg, tailHashes) = handleTail (length history + 1)
         msg :: P.Pretty CT.ColorText
         msg = P.lines
           [ note $ "The most recent namespace hash is immediately below this message.",
             "",
-            P.sep "\n\n" [go i h diff | (i, (h, diff)) <- zip [1..] reversedHistory],
+            P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1..] reversedHistory],
             "",
             tailMsg
           ]
-        allHashes :: [ShortBranchHash]
-        allHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, show <$> allHashes)
+        branchHashes :: [Branch.Hash]
+        branchHashes = (fst <$> reversedHistory) <> tailHashes
+     in (msg, show <$> branchHashes)
     where
+      toSBH :: Branch.Hash -> ShortBranchHash
+      toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
       showNum n = P.shown n <> ". "
-      handleTail :: Int -> (P.Pretty CT.ColorText, [ShortBranchHash])
+      handleTail :: Int -> (P.Pretty CT.ColorText, [Branch.Hash])
       handleTail n = case tail of
         E.EndOfLog h ->
           (P.lines
-            [ "□ " <> showNum n <> prettySBH h <> " (start of history)"
+            [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
             ]
           , [h]
           )
@@ -357,9 +360,9 @@ notifyNumbered o = case o of
           (P.lines
             [ P.wrap $ "This segment of history starts with a merge." <> ex,
               "",
-              "⊙ " <> showNum n <> prettySBH h,
+              "⊙ " <> showNum n <> prettySBH (toSBH h),
               "⑃",
-              P.lines (hs & imap \i sbh -> showNum (n + 1 + i) <> prettySBH sbh)
+              P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
             ]
           , h : hs
           )
@@ -369,15 +372,15 @@ notifyNumbered o = case o of
               "",
               dots,
               "",
-              "⊙ " <> showNum n <> prettySBH h,
+              "⊙ " <> showNum n <> prettySBH (toSBH h),
               ""
             ]
           , [h]
           )
       dots = "⠇"
-      go i hash diff =
+      go i sbh diff =
         P.lines
-          [ "⊙ " <> showNum i <> prettySBH hash,
+          [ "⊙ " <> showNum i <> prettySBH sbh,
             "",
             P.indentN 2 $ prettyDiff diff
           ]

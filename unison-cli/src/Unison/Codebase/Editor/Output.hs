@@ -71,6 +71,8 @@ type SourceName = Text
 
 type NumberedArgs = [String]
 
+type HashLength = Int
+
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
 pushPull :: a -> a -> PushPull -> a
@@ -98,7 +100,11 @@ data NumberedOutput v
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
     -- |    size limit, history                       , how the history ends
-  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
+  | History
+      (Maybe Int) -- Amount of history to print
+      HashLength
+      [(Branch.Hash, Names.Diff)]
+      HistoryTail -- 'origin point' of this view of history.
 
 --  | ShowDiff
 
@@ -248,9 +254,9 @@ data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog ShortBranchHash
-  | MergeTail ShortBranchHash [ShortBranchHash]
-  | PageEnd ShortBranchHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.Hash
+  | MergeTail Branch.Hash [Branch.Hash]
+  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
