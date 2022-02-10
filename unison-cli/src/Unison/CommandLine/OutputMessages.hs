@@ -342,7 +342,7 @@ notifyNumbered o = case o of
           ]
         branchHashes :: [Branch.Hash]
         branchHashes = (fst <$> reversedHistory) <> tailHashes
-     in (msg, Causal.rawHashToString <$> branchHashes)
+     in (msg, displayBranchHash <$> branchHashes)
     where
       toSBH :: Branch.Hash -> ShortBranchHash
       toSBH h = SBH.fromHash sbhLength h
@@ -2683,3 +2683,7 @@ endangeredDependentsTable ppeDecl m =
       refs
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
+
+-- | Displays a full, non-truncated Branch Hash to a string, e.g. #abcdef
+displayBranchHash :: Branch.Hash -> String
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unRawHash

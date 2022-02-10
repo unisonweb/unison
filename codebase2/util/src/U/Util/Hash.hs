@@ -7,7 +7,6 @@ module U.Util.Hash
     fromByteString,
     toBase32Hex,
     toByteString,
-    toString,
   )
 where
 
@@ -15,18 +14,12 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Short (ShortByteString, fromShort)
 import qualified Data.ByteString.Short as B.Short
 import Data.Text (Text)
-import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import U.Util.Base32Hex (Base32Hex)
 import qualified U.Util.Base32Hex as Base32Hex
 
 -- | Hash which uniquely identifies a Unison type or term
 newtype Hash = Hash {toShort :: ShortByteString} deriving (Eq, Ord, Generic)
-
--- | Produces a human readable string of the full hash.
--- e.g. #abcdef
-toString :: Hash -> String
-toString h = Text.unpack ("#" <> toBase32HexText h)
 
 toBase32Hex :: Hash -> Base32Hex
 toBase32Hex = Base32Hex.fromByteString . toByteString
