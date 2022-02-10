@@ -105,6 +105,7 @@ data NumberedOutput v
       HashLength
       [(Branch.Hash, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
+  | ListEdits Patch PPE.PrettyPrintEnv
 
 --  | ShowDiff
 
@@ -198,7 +199,6 @@ data Output v
       [(Reference, Text)] -- oks
       [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
-  | ListEdits Patch PPE.PrettyPrintEnv
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
@@ -335,7 +335,6 @@ isFailure o = case o of
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  ListEdits {} -> False
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
@@ -391,3 +390,4 @@ isNumberedFailure = \case
   CantDeleteNamespace {} -> True
   History {} -> False
   DeletedDespiteDependents {} -> False
+  ListEdits {} -> False

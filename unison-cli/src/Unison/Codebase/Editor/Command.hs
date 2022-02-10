@@ -71,6 +71,7 @@ import UnliftIO (MonadUnliftIO(..), UnliftIO)
 import qualified UnliftIO
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
+import qualified Unison.Codebase.Editor.Git as Git
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
@@ -204,7 +205,7 @@ data Command
   Merge :: Branch.MergeMode -> Branch m -> Branch m -> Command m i v (Branch m)
 
   ViewRemoteBranch ::
-    ReadRemoteNamespace -> (Branch m -> (Free (Command m i v) r)) -> Command m i v (Either GitError r)
+    ReadRemoteNamespace -> Git.GitBranchBehavior -> (Branch m -> (Free (Command m i v) r)) -> Command m i v (Either GitError r)
 
   -- we want to import as little as possible, so we pass the SBH/path as part
   -- of the `RemoteNamespace`.  The Branch that's returned should be fully

@@ -11,7 +11,7 @@ import Data.Void
 
 import Unison.Codebase.Path (Path(..))
 import qualified Unison.Codebase.Path as Path
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (ReadGitRepo), WriteRemotePath, WriteRepo (WriteGitRepo))
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo (..), WriteRemotePath, WriteRepo (..))
 import Unison.Codebase.ShortBranchHash (ShortBranchHash(..))
 import Unison.Prelude
 import qualified Unison.Hash as Hash
@@ -37,19 +37,17 @@ repoPath :: P ReadRemoteNamespace
 repoPath = P.label "generic git repo" $ do
   protocol <- parseProtocol
   treeish <- P.optional treeishSuffix
-  case treeish of
-    Just t -> fail $ "Specifying a git 'commit-ish' (" ++ Text.unpack t ++ ") is not currently supported."
-      ++ " " ++ "If you need this, add your 2¢ at https://github.com/unisonweb/unison/issues/1436."
-    Nothing -> do
-      let repo = ReadGitRepo (printProtocol protocol)
-      nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
-      case nshashPath of
-        Nothing -> pure (repo, Nothing, Path.empty)
-        Just (sbh, p) -> pure (repo, sbh, p)
+  let repo = ReadGitRepo {url=printProtocol protocol,ref=treeish}
+  nshashPath <- P.optional (C.char ':' *> namespaceHashPath)
+  case nshashPath of
+    Nothing -> pure (repo, Nothing, Path.empty)
+    Just (sbh, p) -> pure (repo, sbh, p)
 
 writeRepo :: P WriteRepo
 writeRepo = P.label "repo root for writing" $ do
-  WriteGitRepo . printProtocol <$> parseProtocol
+  uri <- parseProtocol
+  treeish <- P.optional treeishSuffix
+  pure WriteGitRepo {url' = printProtocol uri, branch = treeish}
 
 writeRepoPath :: P WriteRemotePath
 writeRepoPath = P.label "generic git repo" $ do
