@@ -131,6 +131,7 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
+import qualified Unison.Codebase.Branch as Branch
 import Control.Monad.State
 import Control.Monad.Trans.Writer.CPS
 import qualified Unison.ShortHash as ShortHash
@@ -332,6 +333,63 @@ notifyNumbered o = case o of
             <> IP.patternName IP.deleteNamespaceForce
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
+  History _cap sbhLength history tail ->
+    let (tailMsg, tailHashes) = handleTail (length history + 1)
+        msg :: P.Pretty CT.ColorText
+        msg = P.lines
+          [ note $ "The most recent namespace hash is immediately below this message.",
+            "",
+            P.sep "\n\n" [go i (toSBH h) diff | (i, (h, diff)) <- zip [1..] reversedHistory],
+            "",
+            tailMsg
+          ]
+        branchHashes :: [Branch.Hash]
+        branchHashes = (fst <$> reversedHistory) <> tailHashes
+     in (msg, displayBranchHash <$> branchHashes)
+    where
+      toSBH :: Branch.Hash -> ShortBranchHash
+      toSBH h = SBH.fromHash sbhLength h
+      reversedHistory = reverse history
+      showNum n = P.shown n <> ". "
+      handleTail :: Int -> (P.Pretty CT.ColorText, [Branch.Hash])
+      handleTail n = case tail of
+        E.EndOfLog h ->
+          (P.lines
+            [ "□ " <> showNum n <> prettySBH (toSBH h) <> " (start of history)"
+            ]
+          , [h]
+          )
+        E.MergeTail h hs ->
+          (P.lines
+            [ P.wrap $ "This segment of history starts with a merge." <> ex,
+              "",
+              "⊙ " <> showNum n <> prettySBH (toSBH h),
+              "⑃",
+              P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySBH (toSBH h))
+            ]
+          , h : hs
+          )
+        E.PageEnd h _n ->
+          (P.lines
+            [ P.wrap $ "There's more history before the versions shown here." <> ex,
+              "",
+              dots,
+              "",
+              "⊙ " <> showNum n <> prettySBH (toSBH h),
+              ""
+            ]
+          , [h]
+          )
+      dots = "⠇"
+      go i sbh diff =
+        P.lines
+          [ "⊙ " <> showNum i <> prettySBH sbh,
+            "",
+            P.indentN 2 $ prettyDiff diff
+          ]
+      ex =
+        "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
+          <> "to view history starting from a given namespace hash."
   DeletedDespiteDependents ppeDecl endangerments ->
     (P.warnCallout $
       P.lines
@@ -1303,48 +1361,6 @@ notifyUser dir o = case o of
       renderEntry (Output.ReflogEntry hash reason) =
         P.wrap $
           P.blue (prettySBH hash) <> " : " <> P.text reason
-  History _cap history tail ->
-    pure $
-      P.lines
-        [ note $ "The most recent namespace hash is immediately below this message.",
-          "",
-          P.sep "\n\n" [go h diff | (h, diff) <- reverse history],
-          "",
-          tailMsg
-        ]
-    where
-      tailMsg = case tail of
-        E.EndOfLog h ->
-          P.lines
-            [ "□ " <> prettySBH h <> " (start of history)"
-            ]
-        E.MergeTail h hs ->
-          P.lines
-            [ P.wrap $ "This segment of history starts with a merge." <> ex,
-              "",
-              "⊙ " <> prettySBH h,
-              "⑃",
-              P.lines (prettySBH <$> hs)
-            ]
-        E.PageEnd h _n ->
-          P.lines
-            [ P.wrap $ "There's more history before the versions shown here." <> ex,
-              "",
-              dots,
-              "",
-              "⊙ " <> prettySBH h,
-              ""
-            ]
-      dots = "⠇"
-      go hash diff =
-        P.lines
-          [ "⊙ " <> prettySBH hash,
-            "",
-            P.indentN 2 $ prettyDiff diff
-          ]
-      ex =
-        "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
-          <> "to view history starting from a given namespace hash."
   StartOfCurrentPathHistory ->
     pure $
       P.wrap "You're already at the very beginning! 🙂"
@@ -2724,3 +2740,7 @@ endangeredDependentsTable ppeDecl m =
       refs
         & fmap (\(n, dep) -> numArg n <> prettyLabeled fqnEnv dep)
         & P.lines
+
+-- | Displays a full, non-truncated Branch Hash to a string, e.g. #abcdef
+displayBranchHash :: Branch.Hash -> String
+displayBranchHash = ("#" <>) . Text.unpack . Hash.base32Hex . Causal.unRawHash

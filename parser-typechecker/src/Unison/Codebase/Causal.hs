@@ -44,6 +44,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified U.Util.Cache as Cache
 import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 import Prelude hiding (head, read, tail)

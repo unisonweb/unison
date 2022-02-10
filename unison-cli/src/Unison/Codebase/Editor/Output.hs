@@ -71,6 +71,8 @@ type SourceName = Text
 
 type NumberedArgs = [String]
 
+type HashLength = Int
+
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
 pushPull :: a -> a -> PushPull -> a
@@ -97,6 +99,12 @@ data NumberedOutput v
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    -- |    size limit, history                       , how the history ends
+  | History
+      (Maybe Int) -- Amount of history to print
+      HashLength
+      [(Branch.Hash, Names.Diff)]
+      HistoryTail -- 'origin point' of this view of history.
   | ListEdits Patch PPE.PrettyPrintEnv
 
 --  | ShowDiff
@@ -208,7 +216,6 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
-  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
@@ -247,9 +254,9 @@ data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog ShortBranchHash
-  | MergeTail ShortBranchHash [ShortBranchHash]
-  | PageEnd ShortBranchHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.Hash
+  | MergeTail Branch.Hash [Branch.Hash]
+  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -339,7 +346,6 @@ isFailure o = case o of
   PatchInvolvesExternalDependents {} -> True
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
-  History {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -382,5 +388,6 @@ isNumberedFailure = \case
   ShowDiffAfterCreateAuthor {} -> False
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
+  History {} -> False
   DeletedDespiteDependents {} -> False
   ListEdits {} -> False
