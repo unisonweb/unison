@@ -258,7 +258,7 @@ pretty0
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
-                            (pretty0 n (ac 0 Normal im doc))
+                            (PP.indentNAfterNewline 2 . pretty0 n (ac 0 Normal im doc))
                             xs
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
