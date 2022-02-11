@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase
   ( Codebase,
 
@@ -36,8 +37,8 @@ module Unison.Codebase
 
     -- * Root branch
     getRootBranch,
+    getRootBranchExists,
     GetRootBranchError (..),
-    isBlank,
     putRootBranch,
     rootBranchUpdates,
 
@@ -73,7 +74,9 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
-    pushGitRootBranch,
+    Preprocessing(..),
+    pushGitBranch,
+    PushGitBranchOpts (..),
 
     -- * Codebase path
     getCodebaseDir,
@@ -88,9 +91,7 @@ module Unison.Codebase
   )
 where
 
-import Control.Error (rightMay)
 import Control.Error.Util (hush)
-import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -105,8 +106,15 @@ import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (Codebase (..), GetRootBranchError (..), GitError (GitCodebaseError), SyncToDir)
+import Unison.Codebase.Type
+  ( Codebase (..),
+    GetRootBranchError (..),
+    GitError (GitCodebaseError),
+    PushGitBranchOpts (..),
+    SyncToDir,
+  )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hashing.V2.Convert as Hashing
@@ -115,6 +123,7 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Referent as Referent
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Unison.Term as Term
@@ -125,6 +134,11 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
+import UnliftIO (MonadUnliftIO)
+import Control.Monad.Except (ExceptT(ExceptT))
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Except (throwE)
+import qualified Unison.Codebase.Editor.Git as Git
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -197,14 +211,14 @@ addDefsToCodebase c uf = do
     goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor ::
-  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
-getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  (Monad m, Ord v) => Codebase m v a -> ConstructorReference -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (ConstructorReference (Reference.DerivedId r) cid) = do
   maybeDecl <- getTypeDeclaration codebase r
   pure $ case maybeDecl of
     Nothing -> Nothing
     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
-getTypeOfConstructor _ r cid =
-  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+getTypeOfConstructor _ r =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r
 
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
@@ -219,9 +233,11 @@ lookupWatchCache codebase h = do
   m1 <- getWatch codebase WK.RegularWatch h
   maybe (getWatch codebase WK.TestWatch h) (pure . Just) m1
 
-typeLookupForDependencies
-  :: (Monad m, Var v, BuiltinAnnotation a)
-  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies ::
+  (Monad m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
+  Set Reference ->
+  m (TL.TypeLookup Symbol a)
 typeLookupForDependencies codebase s = do
   when debug $ traceM $ "typeLookupForDependencies " ++ show s
   foldM go mempty s
@@ -239,18 +255,20 @@ typeLookupForDependencies codebase s = do
               Nothing -> pure mempty
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
-toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
+toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+  <> Builtin.codeLookup
+  <> IOSource.codeLookupM
 
 -- | Get the type of a term.
 --
 -- Note that it is possible to call 'putTerm', then 'getTypeOfTerm', and receive @Nothing@, per the semantics of
 -- 'putTerm'.
 getTypeOfTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
   Reference.DerivedId h -> getTypeOfTermImpl c h
@@ -261,13 +279,13 @@ getTypeOfTerm c r = case r of
 
 -- | Get the type of a referent.
 getTypeOfReferent ::
-  (BuiltinAnnotation a, Var v, Monad m) =>
-  Codebase m v a ->
+  (BuiltinAnnotation a, Monad m) =>
+  Codebase m Symbol a ->
   Referent.Referent ->
-  m (Maybe (Type v a))
+  m (Maybe (Type Symbol a))
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
-  Referent.Con r cid _ -> getTypeOfConstructor c r cid
+  Referent.Con r _ -> getTypeOfConstructor c r
 
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
@@ -299,8 +317,8 @@ termsMentioningType c ty =
 
 -- | Check whether a reference is a term.
 isTerm ::
-  (Applicative m, Var v, BuiltinAnnotation a) =>
-  Codebase m v a ->
+  (Applicative m, BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
   Reference ->
   m Bool
 isTerm code = fmap isJust . getTypeOfTerm code
@@ -310,34 +328,41 @@ isType c r = case r of
   Reference.Builtin {} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
--- | Return whether the root branch is empty.
-isBlank :: Applicative m => Codebase m v a -> m Bool
-isBlank codebase = do
-  root <- fromMaybe Branch.empty . rightMay <$> getRootBranch codebase
-  pure (root == Branch.empty)
-
 -- * Git stuff
+
+-- | An optional preprocessing step to run on branches
+-- before they're imported into the local codebase.
+data Preprocessing m
+  = Unmodified
+  | Preprocessed (Branch m -> m (Branch m))
 
 -- | Sync elements as needed from a remote codebase into the local one.
 -- If `sbh` is supplied, we try to load the specified branch hash;
 -- otherwise we try to load the root branch.
 importRemoteBranch ::
   forall m v a.
-  MonadIO m =>
+  MonadUnliftIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
   SyncMode ->
+  Preprocessing m ->
   m (Either GitError (Branch m))
-importRemoteBranch codebase ns mode = runExceptT do
-  (cleanup, branch, cacheDir) <- ExceptT $ viewRemoteBranch' codebase ns
-  withStatus "Importing downloaded files into local codebase..." $
-    time "SyncFromDirectory" $
-      lift $ syncFromDirectory codebase cacheDir mode branch
-  ExceptT
-    let h = Branch.headHash branch
-        err = Left . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns h
-     in time "load fresh local branch after sync" $
-          (getBranchForHash codebase h <&> maybe err Right) <* cleanup
+importRemoteBranch codebase ns mode preprocess = runExceptT $ do
+  branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
+         withStatus "Importing downloaded files into local codebase..." $ do
+           processedBranch <- preprocessOp branch
+           time "SyncFromDirectory" $ do
+             syncFromDirectory codebase cacheDir mode processedBranch
+             pure $ Branch.headHash processedBranch
+  time "load fresh local branch after sync" $ do
+    lift (getBranchForHash codebase branchHash) >>= \case
+      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Just result -> pure $ result
+  where
+    preprocessOp :: Branch m -> m (Branch m)
+    preprocessOp = case preprocess of
+      Preprocessed f -> f
+      Unmodified -> pure
 
 -- | Pull a git branch and view it from the cache, without syncing into the
 -- local codebase.
@@ -345,10 +370,11 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
-  m (Either GitError (m (), Branch m))
-viewRemoteBranch codebase ns = runExceptT do
-  (cleanup, branch, _) <- ExceptT $ viewRemoteBranch' codebase ns
-  pure (cleanup, branch)
+  Git.GitBranchBehavior ->
+  (Branch m -> m r) ->
+  m (Either GitError r)
+viewRemoteBranch codebase ns gitBranchBehavior action =
+  viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
 unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)

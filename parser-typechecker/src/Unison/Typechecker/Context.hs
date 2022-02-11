@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -42,12 +43,13 @@ import Unison.Prelude
 
 import           Control.Lens                   (over, _2)
 import qualified Control.Monad.Fail            as MonadFail
-import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
+                                                , gets
                                                 , put
                                                 , StateT
                                                 , runStateT
                                                 , evalState
+                                                , MonadState
                                                 )
 import           Data.Bifunctor                 ( first
                                                 , second
@@ -64,6 +66,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 )
@@ -107,7 +110,7 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 -- | Elements of an ordered algorithmic context
 data Element v loc
   -- | A variable declaration
-  = Var (TypeVar v loc) 
+  = Var (TypeVar v loc)
   -- | `v` is solved to some monotype
   | Solved (B.Blank loc) v (Monotype v loc)
   -- | `v` has type `a`, maybe quantified
@@ -123,16 +126,17 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
   Marker v == Marker v2          = v == v2
   _ == _ = False
 
+-- The typechecking state
 data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration v loc)
 
-data Result v loc a = Success (Seq (InfoNote v loc)) a
-                    | TypeError (NESeq (ErrorNote v loc)) (Seq (InfoNote v loc))
-                    | CompilerBug (CompilerBug v loc)
-                                  (Seq (ErrorNote v loc)) -- type errors before hitting the bug
-                                  (Seq (InfoNote v loc))  -- info notes before hitting the bug
+data Result v loc a = Success !(Seq (InfoNote v loc)) !a
+                    | TypeError !(NESeq (ErrorNote v loc)) !(Seq (InfoNote v loc))
+                    | CompilerBug !(CompilerBug v loc)
+                                  !(Seq (ErrorNote v loc)) -- type errors before hitting the bug
+                                  !(Seq (InfoNote v loc))  -- info notes before hitting the bug
                     deriving (Functor)
 
 instance Applicative (Result v loc) where
@@ -142,11 +146,13 @@ instance Applicative (Result v loc) where
   TypeError es is       <*> r'                      = TypeError (es NESeq.|>< (typeErrors r')) (is <> infoNotes r')
   Success is _          <*> TypeError es' is'       = TypeError es' (is <> is')
   Success is f          <*> Success is' a           = Success (is <> is') (f a)
+  {-# INLINE (<*>) #-}
 
 instance Monad (Result v loc) where
   s@(Success _ a)       >>= f = s *> f a
   TypeError es is       >>= _ = TypeError es is
   CompilerBug bug es is >>= _ = CompilerBug bug es is
+  {-# INLINE (>>=) #-}
 
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
@@ -176,8 +182,14 @@ mapErrors f r = case r of
   s@(Success _ _) -> s
 
 newtype MT v loc f a = MT {
-  runM :: MEnv v loc -> f (a, Env v loc)
-}
+  runM ::
+    -- Data declarations in scope
+    DataDeclarations v loc ->
+    -- Effect declarations in scope
+    EffectDeclarations v loc ->
+    Env v loc ->
+    f (a, Env v loc)
+} deriving stock (Functor)
 
 -- | Typechecking monad
 type M v loc = MT v loc (Result v loc)
@@ -187,10 +199,10 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\m -> (, env m) <$> r)
+liftResult r = MT (\_ _ env -> (, env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \menv -> case m menv of
+liftTotalM (MT m) = MT $ \datas effects env -> case m datas effects env of
   Left bug -> CompilerBug bug mempty mempty
   Right a  -> Success mempty a
 
@@ -204,13 +216,13 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((), ) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\menv -> pure . f $ env menv)
+modEnv' f = MT (\_ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration v loc))
-  | UnknownConstructor Unknown Reference Int (DataDeclaration v loc)
+  | UnknownConstructor Unknown ConstructorReference (DataDeclaration v loc)
   | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
@@ -326,7 +338,7 @@ data Cause v loc
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
-  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
+  | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
   | PatternArityMismatch loc (Type v loc) Int
@@ -358,14 +370,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT (mapErrors (scope' p) . m)
-
--- | The typechecking environment
-data MEnv v loc = MEnv {
-  env :: Env v loc,                    -- The typechecking state
-  dataDecls :: DataDeclarations v loc, -- Data declarations in scope
-  effectDecls :: EffectDeclarations v loc -- Effect declarations in scope
-}
+scope p (MT m) = MT \datas effects env -> mapErrors (scope' p) (m datas effects env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -498,11 +503,8 @@ _logContext msg = when debugEnabled $ do
 usedVars :: Ord v => Context v loc -> Set v
 usedVars = allVars . info
 
-fromMEnv :: (MEnv v loc -> a) -> M v loc a
-fromMEnv f = f <$> ask
-
 getContext :: M v loc (Context v loc)
-getContext = fromMEnv $ ctx . env
+getContext = gets ctx
 
 setContext :: Context v loc -> M v loc ()
 setContext ctx = modEnv (\e -> e { ctx = ctx })
@@ -525,8 +527,9 @@ extendContext e = isReserved (varOf e) >>= \case
       " That means `freshenVar` is allowed to return it as a fresh variable, which would be wrong."
 
 replaceContext :: (Var v, Ord loc) => Element v loc -> [Element v loc] -> M v loc ()
-replaceContext elem replacement =
-  fromMEnv (\menv -> find (not . (`isReservedIn` env menv) . varOf) replacement) >>= \case
+replaceContext elem replacement = do
+  env <- get
+  case find (not . (`isReservedIn` env) . varOf) replacement of
     Nothing -> modifyContext (replace elem replacement)
     Just e -> getContext >>= \ctx -> compilerCrash $
       IllegalContextExtension ctx e $
@@ -540,7 +543,7 @@ varOf (Ann v _) = v
 varOf (Marker v) = v
 
 isReserved :: Var v => v -> M v loc Bool
-isReserved v = fromMEnv $ (v `isReservedIn`) . env
+isReserved v = (v `isReservedIn`) <$> get
 
 isReservedIn :: Var v => v -> Env v loc -> Bool
 isReservedIn v e = freshId e > Var.freshId v
@@ -657,7 +660,7 @@ extendN ctx es = foldM (flip extend) ctx es
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go where
-  go menv = runM m1 menv <|> runM m2 menv
+  go datas effects env = runM m1 datas effects env <|> runM m2 datas effects env
   s@(Success _ _)         <|> _ = s
   TypeError _ _           <|> r = r
   CompilerBug _ _ _       <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -671,10 +674,10 @@ orElse m1 m2 = MT go where
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = fromMEnv dataDecls
+getDataDeclarations = MT \datas _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = fromMEnv effectDecls
+getEffectDeclarations = MT \_ effects env -> pure (effects, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -709,10 +712,10 @@ getEffectDeclaration r = do
           liftResult . typeError $ DataEffectMismatch Data r decl
     Just decl -> pure decl
 
-getDataConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getDataConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getDataConstructorType = getConstructorType' Data getDataDeclaration
 
-getEffectConstructorType :: (Var v, Ord loc) => Reference -> Int -> M v loc (Type v loc)
+getEffectConstructorType :: (Var v, Ord loc) => ConstructorReference -> M v loc (Type v loc)
 getEffectConstructorType = getConstructorType' Effect go where
   go r = DD.toDataDecl <$> getEffectDeclaration r
 
@@ -721,13 +724,12 @@ getEffectConstructorType = getConstructorType' Effect go where
 getConstructorType' :: Var v
                     => Unknown
                     -> (Reference -> M v loc (DataDeclaration v loc))
-                    -> Reference
-                    -> Int
+                    -> ConstructorReference
                     -> M v loc (Type v loc)
-getConstructorType' kind get r cid = do
+getConstructorType' kind get (ConstructorReference r cid) = do
   decl <- get r
   case drop cid (DD.constructors decl) of
-    [] -> compilerCrash $ UnknownConstructor kind r cid decl
+    [] -> compilerCrash $ UnknownConstructor kind (ConstructorReference r cid) decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 extendUniversal :: (Var v) => v -> M v loc v
@@ -988,12 +990,12 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
     p (TypeVar.Existential _ v) = Set.singleton v
     p _ = mempty
 
-synthesizeWanted (Term.Constructor' r cid)
+synthesizeWanted (Term.Constructor' r)
   -- Constructors do not have effects
-  = (,[]) . Type.purifyArrows <$> getDataConstructorType r cid
-synthesizeWanted tm@(Term.Request' r cid) =
+  = (,[]) . Type.purifyArrows <$> getDataConstructorType r
+synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
-    =<< getEffectConstructorType r cid
+    =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding e) = do
   isClosed <- isClosed binding
   -- note: no need to freshen binding, it can't refer to v
@@ -1164,9 +1166,9 @@ checkCases scrutType outType cases@(Term.MatchCase _ _ t : _)
       coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 getEffect
-  :: Var v => Ord loc => Reference -> Int -> M v loc (Type v loc)
-getEffect ref cid = do
-  ect <- getEffectConstructorType ref cid
+  :: Var v => Ord loc => ConstructorReference -> M v loc (Type v loc)
+getEffect ref = do
+  ect <- getEffectConstructorType ref
   uect <- ungeneralize ect
   let final (Type.Arrow' _ o) = final o
       final t = t
@@ -1182,8 +1184,8 @@ requestType ps = getCompose . fmap fold $ traverse single ps
   where
   single (Pattern.As _ p) = single p
   single Pattern.EffectPure{} = Compose . pure . Just $ []
-  single (Pattern.EffectBind _ ref cid _ _)
-    = Compose $ Just . pure <$> getEffect ref cid
+  single (Pattern.EffectBind _ ref _ _)
+    = Compose $ Just . pure <$> getEffect ref
   single _ = Compose $ pure Nothing
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -1299,8 +1301,8 @@ checkPattern scrutineeType p =
       lift $ subtype (Type.text loc) scrutineeType $> mempty
     Pattern.Char loc _  ->
       lift $ subtype (Type.char loc) scrutineeType $> mempty
-    Pattern.Constructor loc ref cid args -> do
-      dct  <- lift $ getDataConstructorType ref cid
+    Pattern.Constructor loc ref args -> do
+      dct  <- lift $ getDataConstructorType ref
       udct <- lift $ skolemize forcedData dct
       unless (Type.arity udct == length args)
         . lift
@@ -1332,7 +1334,7 @@ checkPattern scrutineeType p =
         applyM vt
       checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...
-    Pattern.EffectBind loc ref cid args k -> do
+    Pattern.EffectBind loc ref args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
       e <- lift $ extendExistential Var.inferPatternBindE
@@ -1340,7 +1342,7 @@ checkPattern scrutineeType p =
       let evt = Type.effectV loc (loc, existentialp loc e)
                                  (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
-      ect  <- lift $ getEffectConstructorType ref cid
+      ect  <- lift $ getEffectConstructorType ref
       uect <- lift $ skolemize forcedEffect ect
       unless (Type.arity uect == length args)
         . lift
@@ -2637,8 +2639,8 @@ run
   -> f a
 run datas effects m =
   fmap fst
-    . runM m
-    $ MEnv (Env 1 context0) datas effects
+    . runM m datas effects
+    $ Env 1 context0
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
@@ -2659,12 +2661,12 @@ synthesizeClosed' abilities term = do
 
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
-succeeds m = do
-  e <- ask
-  case runM m e of
-    Success _ _ -> pure True
-    TypeError _ _ -> pure False
-    CompilerBug bug _ _ -> MT (\_ -> Left bug)
+succeeds m =
+  MT \datas effects env ->
+    case runM m datas effects env of
+      Success _ _ -> Right (True, env)
+      TypeError _ _ -> Right (False, env)
+      CompilerBug bug _ _ -> Left bug
 
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
 isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> TotalM v loc Bool
@@ -2733,24 +2735,19 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
--- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad f => Monad (MT v loc f) where
-  return a = MT (\menv -> pure (a, env menv))
-  m >>= f = MT go where
-    go menv = do
-      (a, env1) <- runM m menv
-      runM (f a) (menv { env = env1 })
+  return = pure
+  m >>= f = MT \datas effects env0 -> do
+    (a, env1) <- runM m datas effects env0
+    runM (f a) datas effects $! env1
 
 instance Monad f => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance Monad f => Applicative (MT v loc f) where
-  pure a = MT (\menv -> pure (a, env menv))
+  pure a = MT (\_ _ env -> pure (a, env))
   (<*>) = ap
 
-instance Functor f => Functor (MT v loc f) where
-  fmap f (MT m) = MT (\menv -> fmap (first f) (m menv))
-
-instance Monad f => MonadReader (MEnv v loc) (MT v loc f) where
-  ask = MT (\e -> pure (e, env e))
-  local f m = MT $ runM m . f
+instance Monad f => MonadState (Env v loc) (MT v loc f) where
+  get = MT \_ _ env -> pure (env, env)
+  put env = MT \_ _ _ -> pure ((), env)

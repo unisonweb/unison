@@ -18,6 +18,8 @@ source-repository head
 library
   exposed-modules:
       Unison.Prelude
+      Unison.Util.Map
+      Unison.Util.Set
   other-modules:
       Paths_unison_prelude
   hs-source-dirs:
@@ -46,4 +48,5 @@ library
     , safe
     , text
     , transformers
+    , unliftio
   default-language: Haskell2010

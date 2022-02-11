@@ -23,6 +23,7 @@ flag optimized
 
 library
   exposed-modules:
+      Compat
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.Command
       Unison.Codebase.Editor.HandleCommand
@@ -93,6 +94,7 @@ library
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , random >=1.2.0
     , regex-tdfa
@@ -108,6 +110,9 @@ library
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
+  if !os(windows)
+    build-depends:
+        unix
   default-language: Haskell2010
 
 executable integration-tests
@@ -158,6 +163,7 @@ executable integration-tests
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , process
     , random >=1.2.0
@@ -227,6 +233,7 @@ executable transcripts
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , process
     , random >=1.2.0
@@ -250,7 +257,6 @@ executable unison
   main-is: Main.hs
   other-modules:
       ArgParse
-      Compat
       System.Path
       Version
       Paths_unison_cli
@@ -296,6 +302,7 @@ executable unison
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
@@ -316,9 +323,6 @@ executable unison
     , unliftio
   if flag(optimized)
     ghc-options: -O2 -funbox-strict-fields
-  if !os(windows)
-    build-depends:
-        unix
   default-language: Haskell2010
 
 test-suite tests
@@ -376,6 +380,7 @@ test-suite tests
     , lens
     , megaparsec >=5.0.0 && <7.0.0
     , mtl
+    , nonempty-containers
     , open-browser
     , random >=1.2.0
     , regex-tdfa

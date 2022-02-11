@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -13,7 +14,7 @@ module Unison.Codebase.Causal
     consDistinct,
     uncons,
     hash,
-    children,
+    predecessors,
     Deserialize,
     Serialize,
     cachedRead,
@@ -43,6 +44,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified U.Util.Cache as Cache
 import Unison.Hash (Hash)
+import qualified Unison.Hash as Hash
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 import Prelude hiding (head, read, tail)
@@ -96,7 +98,16 @@ data Causal m h e
           , tails :: Map (RawHash h) (m (Causal m h e))
           }
 
-Lens.makeLensesFor [("head", "head_")] ''Causal
+-- | Focus the current head, keeping the hash up to date.
+head_ :: Hashable e => Lens.Lens' (Causal m h e) e
+head_ = Lens.lens getter setter
+  where
+    getter = head
+    setter causal e =
+      case causal of
+        One {} -> one e
+        Cons{tail=(rawHash, c)} -> cons' e rawHash c
+        Merge{tails} -> mergeNode e tails
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
@@ -196,19 +207,19 @@ lca' = go Set.empty Set.empty where
           else go seenRight
                   (Set.insert (currentHash left) seenLeft)
                   remainingRight
-                  (as <> children left)
+                  (as <> predecessors left)
   search seen remaining = case Seq.viewl remaining of
     Seq.EmptyL -> pure Nothing
     a :< as    -> do
       current <- a
       if Set.member (currentHash current) seen
         then pure $ Just current
-        else search seen (as <> children current)
+        else search seen (as <> predecessors current)
 
-children :: Causal m h e -> Seq (m (Causal m h e))
-children (One _ _         ) = Seq.empty
-children (Cons  _ _ (_, t)) = Seq.singleton t
-children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
+predecessors :: Causal m h e -> Seq (m (Causal m h e))
+predecessors (One _ _         ) = Seq.empty
+predecessors (Cons  _ _ (_, t)) = Seq.singleton t
+predecessors (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 -- A `squashMerge combine c1 c2` gives the same resulting `e`
 -- as a `threeWayMerge`, but doesn't introduce a merge node for the
@@ -258,11 +269,14 @@ threeWayMerge' lca combine c1 c2 = do
       | lca == c2 -> pure c1
       | otherwise -> done <$> combine (Just $ head lca) (head c1) (head c2)
  where
-  children =
+  predecessors =
     Map.fromList [(currentHash c1, pure c1), (currentHash c2, pure c2)]
   done :: e -> Causal m h e
-  done newHead =
-    Merge (RawHash (hash (newHead, Map.keys children))) newHead children
+  done newHead = mergeNode newHead predecessors
+
+mergeNode :: Hashable e => e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
+mergeNode newHead predecessors =
+  Merge (RawHash (hash (newHead, Map.keys predecessors))) newHead predecessors
 
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before a b = (== Just a) <$> lca a b
@@ -280,7 +294,7 @@ beforeHash maxDepth h c =
     then pure False
     else do
       seen <- State.get
-      cs <- lift . lift $ toList <$> sequence (children c)
+      cs <- lift . lift $ toList <$> sequence (predecessors c)
       let unseens = filter (\c -> c `Set.notMember` seen) cs
       State.modify' (<> Set.fromList cs)
       Monad.anyM (Reader.local (1+) . go) unseens

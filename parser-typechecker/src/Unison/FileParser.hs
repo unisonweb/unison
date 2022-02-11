@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language DeriveTraversable #-}
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
@@ -36,6 +37,7 @@ import qualified Unison.NamesWithHistory as NamesWithHistory
 import qualified Unison.Names as Names
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
+import qualified Unison.UnisonFile as UF
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
 resolutionFailures es = P.customFailure (ResolutionFailures es)
@@ -122,7 +124,51 @@ file = do
           ]
         uf = UnisonFileId (UF.datasId env) (UF.effectsId env) (terms <> join accessors)
                         (List.multimap watches)
+    validateUnisonFile uf
     pure uf
+
+-- | Final validations and sanity checks to perform before finishing parsing.
+validateUnisonFile :: forall v . Var v => UnisonFile v Ann -> P v ()
+validateUnisonFile uf =
+  checkForDuplicateTermsAndConstructors uf
+
+-- | Because types and abilities can introduce their own constructors and fields it's difficult
+-- to detect all duplicate terms during parsing itself. Here we collect all terms and
+-- constructors and verify that no duplicates exist in the file, triggering an error if needed.
+checkForDuplicateTermsAndConstructors ::
+  forall v.
+  (Ord v) =>
+  UnisonFile v Ann ->
+  P v ()
+checkForDuplicateTermsAndConstructors uf = do
+  when (not . null $ duplicates) $ do
+    let dupeList :: [(v, [Ann])]
+        dupeList = duplicates
+                 & fmap Set.toList
+                 & Map.toList
+    P.customFailure (DuplicateTermNames dupeList)
+  where
+    effectDecls :: [DataDeclaration v Ann]
+    effectDecls = (Map.elems . fmap (DD.toDataDecl . snd) $ (effectDeclarationsId uf))
+    dataDecls :: [DataDeclaration v Ann]
+    dataDecls = fmap snd $ Map.elems (dataDeclarationsId uf)
+    allConstructors :: [(v, Ann)]
+    allConstructors =
+        (dataDecls <> effectDecls)
+        & foldMap DD.constructors'
+        & fmap (\(ann, v, _typ) -> (v, ann))
+    allTerms :: [(v, Ann)]
+    allTerms =
+      UF.terms uf
+        <&> (\(v, t) -> (v, ABT.annotation t))
+    mergedTerms :: Map v (Set Ann)
+    mergedTerms = (allConstructors <> allTerms)
+           & (fmap . fmap) Set.singleton
+           & Map.fromListWith (<>)
+    duplicates :: Map v (Set Ann)
+    duplicates =
+      -- Any vars with multiple annotations are duplicates.
+      Map.filter ((> 1) . Set.size) mergedTerms
 
 -- A stanza is either a watch expression like:
 --   > 1 + x

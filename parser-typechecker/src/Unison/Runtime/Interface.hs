@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language DataKinds #-}
 {-# language PatternGuards #-}
 {-# language NamedFieldPuns #-}
@@ -13,6 +14,7 @@ module Unison.Runtime.Interface
   , runStandalone
   , StoredCache
   , decodeStandalone
+  , RuntimeHost(..)
   ) where
 
 import GHC.Stack (HasCallStack)
@@ -34,6 +36,7 @@ import Data.IORef
 import Data.Foldable
 import Data.Set as Set
   (Set, (\\), singleton, map, notMember, filter, fromList)
+import qualified Data.Set as Set
 import Data.Map.Strict (Map)
 import Data.Traversable (for)
 import Data.Text (Text, isPrefixOf, pack)
@@ -44,6 +47,7 @@ import qualified Data.Map.Strict as Map
 import qualified Unison.ABT as Tm (substs)
 import qualified Unison.Term as Tm
 
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (declFields, declDependencies, Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Builtin.Decls as RF
@@ -51,6 +55,7 @@ import qualified Unison.LabeledDependency as RF
 import Unison.Reference (Reference)
 import qualified Unison.Referent as RF (pattern Ref)
 import qualified Unison.Reference as RF
+import qualified Unison.Util.Text as UT
 
 import Unison.Util.EnumContainers as EC
 
@@ -73,6 +78,8 @@ import Unison.Runtime.Machine
   ( apply0, eval0
   , CCache(..), cacheAdd, cacheAdd0, baseCCache
   , refNumTm, refNumsTm, refNumsTy, refLookup
+  , ActiveThreads
+  , expandSandbox
   )
 import Unison.Runtime.MCode
   ( Combs, combDeps, combTypes, Args(..), Section(..), Instr(..)
@@ -82,6 +89,9 @@ import Unison.Runtime.Pattern
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import qualified Unison.Hashing.V2.Convert as Hashing
+import qualified Unison.ConstructorReference as RF
+import qualified UnliftIO.Concurrent as UnliftIO
+import qualified UnliftIO
 
 type Term v = Tm.Term v ()
 
@@ -92,10 +102,10 @@ data EvalCtx
   , ccache :: CCache
   }
 
-uncurryDspec :: DataSpec -> Map.Map (Reference,Int) Int
+uncurryDspec :: DataSpec -> Map.Map ConstructorReference Int
 uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
-  f (r,l) = zipWith (\n c -> ((r,n),c)) [0..] $ either id id l
+  f (r,l) = zipWith (\n c -> (ConstructorReference r n,c)) [0..] $ either id id l
 
 cacheContext :: CCache -> EvalCtx
 cacheContext
@@ -147,25 +157,31 @@ recursiveDeclDeps seen0 cl d = do
 
 categorize :: RF.LabeledDependency -> (Set Reference, Set Reference)
 categorize
-  = either ((,mempty) . singleton) ((mempty,) . singleton)
-  . RF.toReference
+  = \case
+      RF.TypeReference ref -> (Set.singleton ref, mempty)
+      RF.ConReference (RF.ConstructorReference ref _conId) _conType -> (Set.singleton ref, mempty)
+      RF.TermReference ref -> (mempty, Set.singleton ref)
 
-recursiveTermDeps
-  :: Set RF.LabeledDependency
-  -> CodeLookup Symbol IO ()
-  -> Term Symbol
-  -> IO (Set Reference, Set Reference)
+recursiveTermDeps ::
+  Set RF.LabeledDependency ->
+  CodeLookup Symbol IO () ->
+  Term Symbol ->
+  IO (Set Reference, Set Reference)
 recursiveTermDeps seen0 cl tm = do
-    rec <- for (RF.toReference <$> toList (deps \\ seen0)) $ \case
-      Left (RF.DerivedId i) -> getTypeDeclaration cl i >>= \case
+  rec <- for (toList (deps \\ seen0)) $ \case
+    RF.ConReference (RF.ConstructorReference (RF.DerivedId refId) _conId)  _conType -> handleTypeReferenceId refId
+    RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
+    RF.TermReference r -> recursiveRefDeps seen cl r
+    _ -> pure mempty
+  pure $ foldMap categorize deps <> fold rec
+  where
+    handleTypeReferenceId :: RF.Id -> IO (Set Reference, Set Reference)
+    handleTypeReferenceId refId =
+      getTypeDeclaration cl refId >>= \case
         Just d -> recursiveDeclDeps seen cl d
         Nothing -> pure mempty
-      Right r -> recursiveRefDeps seen cl r
-      _ -> pure mempty
-    pure $ foldMap categorize deps <> fold rec
-  where
-  deps = Tm.labeledDependencies tm
-  seen = seen0 <> deps
+    deps = Tm.labeledDependencies tm
+    seen = seen0 <> deps
 
 recursiveRefDeps
   :: Set RF.LabeledDependency
@@ -214,7 +230,9 @@ loadDeps
   -> [Reference]
   -> IO EvalCtx
 loadDeps cl ppe ctx tyrs tmrs = do
-  p <- refNumsTy (ccache ctx) <&> \m (r,_) -> case r of
+  let cc = ccache ctx
+  sand <- readTVarIO (sandbox cc)
+  p <- refNumsTy cc <&> \m (r,_) -> case r of
     RF.DerivedId{} -> r `Map.notMember` dspec ctx
                    || r `Map.notMember` m
     _ -> False
@@ -226,7 +244,8 @@ loadDeps cl ppe ctx tyrs tmrs = do
             $ Prelude.filter q tmrs
   let (rgrp, rbkr) = intermediateTerms ppe ctx rtms
       tyAdd = Set.fromList $ fst <$> tyrs
-  backrefAdd rbkr ctx <$ cacheAdd0 tyAdd rgrp (ccache ctx)
+  backrefAdd rbkr ctx
+    <$ cacheAdd0 tyAdd rgrp (expandSandbox sand rgrp) cc
 
 backrefLifted
   :: Term Symbol
@@ -265,15 +284,17 @@ intermediateTerm
   -> Term Symbol
   -> (SuperGroup Symbol, Map.Map Word64 (Term Symbol))
 intermediateTerm ppe ref ctx tm
-  = final
+  = first ( superNormalize
+          . splitPatterns (dspec ctx)
+          . addDefaultCases tmName
+          )
+  . memorize
   . lamLift
-  . splitPatterns (dspec ctx)
-  . addDefaultCases tmName
   . saturate (uncurryDspec $ dspec ctx)
   . inlineAlias
   $ tm
   where
-  final (ll, dcmp) = (superNormalize ll, backrefLifted ll dcmp)
+  memorize (ll, dcmp) = (ll, backrefLifted ll dcmp)
   tmName = HQ.toString . termName ppe $ RF.Ref ref
 
 prepareEvaluation
@@ -316,18 +337,30 @@ backReferenceTm ws rs c i = do
 evalInContext
   :: PrettyPrintEnv
   -> EvalCtx
+  -> ActiveThreads
   -> Word64
   -> IO (Either Error (Term Symbol))
-evalInContext ppe ctx w = do
+evalInContext ppe ctx activeThreads w = do
   r <- newIORef BlackHole
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompile (backReferenceTm crs (decompTm ctx))
+
       prettyError (PE _ p) = p
       prettyError (BU nm c) = either id (bugMsg ppe nm) $ decom c
+
+      tr tx c = case decom c of
+        Right dv -> do
+          putStrLn $ "trace: " ++ UT.unpack tx
+          putStrLn . toANSI 50 $ pretty ppe dv
+        Left _ -> do
+          putStrLn $ "trace: " ++ UT.unpack tx
+          putStrLn "Couldn't decompile value."
+          print c
+
   result <- traverse (const $ readIORef r)
           . first prettyError
-        <=< try $ apply0 (Just hook) (ccache ctx) w
+        <=< try $ apply0 (Just hook) ((ccache ctx) { tracer = tr }) activeThreads w
   pure $ decom =<< result
 
 executeMainComb
@@ -335,9 +368,16 @@ executeMainComb
   -> CCache
   -> IO ()
 executeMainComb init cc
-  = eval0 cc
+  = flip catch (putStrLn . toANSI 50 <=< handler)
+  . eval0 cc Nothing
   . Ins (Pack RF.unitRef 0 ZArgs)
   $ Call True init (BArg1 0)
+  where
+  handler (PE _ msg) = pure msg
+  handler (BU nm c) = do
+    crs <- readTVarIO (combRefs cc)
+    let decom = decompile (backReferenceTm crs (decompTm $ cacheContext cc))
+    pure . either id (bugMsg mempty nm) $ decom c
 
 bugMsg :: PrettyPrintEnv -> Text -> Term Symbol -> Pretty ColorText
 
@@ -365,6 +405,19 @@ bugMsg ppe name tm
   [ P.wrap ("The program halted with an unhandled exception:")
   , ""
   , P.indentN 2 $ pretty ppe tm
+  ]
+  | name == "builtin.bug"
+  , RF.TupleTerm' [Tm.Text' msg, x] <- tm
+  , "pattern match failure" `isPrefixOf` msg
+  = P.callout icon . P.lines $
+  [ P.wrap ("I've encountered a" <> P.red (P.text msg)
+      <> "while scrutinizing:")
+  , ""
+  , P.indentN 2 $ pretty ppe x
+  , ""
+  , "This happens when calling a function that doesn't handle all \
+    \possible inputs"
+  , sorryMsg
   ]
 bugMsg ppe name tm = P.callout icon . P.lines $
   [ P.wrap ("I've encountered a call to" <> P.red (P.text name)
@@ -400,9 +453,26 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
     <*> getNat
     <*> getStoredCache
 
-startRuntime :: String -> IO (Runtime Symbol)
-startRuntime version = do
+-- | Whether the runtime is hosted within a UCM session or as a standalone process.
+data RuntimeHost
+  = Standalone
+  | UCM
+
+startRuntime :: RuntimeHost -> String -> IO (Runtime Symbol)
+startRuntime runtimeHost version = do
   ctxVar <- newIORef =<< baseContext
+  (activeThreads, cleanupThreads) <- case runtimeHost of
+        -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
+        -- when the process itself exits.
+         Standalone -> pure (Nothing, pure ())
+        -- Track all forked threads so that they can be killed when the main process returns,
+        -- otherwise they'll be orphaned and left running.
+         UCM -> do
+           activeThreads <- newIORef Set.empty
+           let cleanupThreads = do
+                 threads <- readIORef activeThreads
+                 foldMap UnliftIO.killThread threads
+           pure (Just activeThreads, cleanupThreads)
   pure $ Runtime
        { terminate = pure ()
        , evaluate = \cl ppe tm -> catchInternalErrors $ do
@@ -411,7 +481,7 @@ startRuntime version = do
            ctx <- loadDeps cl ppe ctx tyrs tmrs
            (ctx, init) <- prepareEvaluation ppe tm ctx
            writeIORef ctxVar ctx
-           evalInContext ppe ctx init
+           evalInContext ppe ctx activeThreads init `UnliftIO.finally` cleanupThreads
        , compileTo = \cl ppe rf path -> tryM $ do
            ctx <- readIORef ctxVar
            (tyrs, tmrs) <- collectRefDeps cl rf
@@ -448,10 +518,11 @@ data StoredCache
       (Map Reference (SuperGroup Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+      (Map Reference (Set Reference))
   deriving (Show)
 
 putStoredCache :: MonadPut m => StoredCache -> m ()
-putStoredCache (SCache cs crs trs ftm fty int rtm rty) = do
+putStoredCache (SCache cs crs trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat (putEnumMap putNat putComb) cs
   putEnumMap putNat putReference crs
   putEnumMap putNat putReference trs
@@ -460,6 +531,7 @@ putStoredCache (SCache cs crs trs ftm fty int rtm rty) = do
   putMap putReference putGroup int
   putMap putReference putNat rtm
   putMap putReference putNat rty
+  putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: MonadGet m => m StoredCache
 getStoredCache = SCache
@@ -471,10 +543,11 @@ getStoredCache = SCache
   <*> getMap getReference getGroup
   <*> getMap getReference getNat
   <*> getMap getReference getNat
+  <*> getMap getReference (fromList <$> getList getReference)
 
 restoreCache :: StoredCache -> IO CCache
-restoreCache (SCache cs crs trs ftm fty int rtm rty)
-  = CCache builtinForeigns
+restoreCache (SCache cs crs trs ftm fty int rtm rty sbs)
+  = CCache builtinForeigns uglyTrace
       <$> newTVarIO (cs <> combs)
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO (trs <> builtinTypeBackref)
@@ -483,7 +556,11 @@ restoreCache (SCache cs crs trs ftm fty int rtm rty)
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO (sbs <> baseSandboxInfo)
   where
+  uglyTrace tx c = do
+    putStrLn $ "trace: " ++ UT.unpack tx
+    print c
   rns = emptyRNs { dnum = refLookup "ty" builtinTypeNumbering }
   combs
     = mapWithKey
@@ -495,7 +572,7 @@ traceNeeded
   -> EnumMap Word64 Combs
   -> IO (EnumMap Word64 Combs)
 traceNeeded init src = fmap (`withoutKeys` ks) $ go mempty init where
-  ks = keysSet (numberedTermLookup @Symbol)
+  ks = keysSet numberedTermLookup
   go acc w
     | hasKey w acc = pure acc
     | Just co <- EC.lookup w src
@@ -511,13 +588,15 @@ buildSCache
   -> Map Reference (SuperGroup Symbol)
   -> Map Reference Word64
   -> Map Reference Word64
+  -> Map Reference (Set Reference)
   -> StoredCache
-buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc
+buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx
   = SCache cs crs trs
       ftm fty
       (restrictTmR intsrc)
       (restrictTmR rtmsrc)
       (restrictTyR rtysrc)
+      (restrictTmR sndbx)
   where
   combKeys = keysSet cs
   crs = restrictTmW crsrc
@@ -544,3 +623,4 @@ standalone cc init =
     <*> readTVarIO (intermed cc)
     <*> readTVarIO (refTm cc)
     <*> readTVarIO (refTy cc)
+    <*> readTVarIO (sandbox cc)

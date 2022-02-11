@@ -22,6 +22,7 @@ packages:
 - codebase2/util-serialization
 - codebase2/util-term
 - lib/unison-prelude
+- lib/unison-sqlite
 - lib/unison-util-relation
 
 #compiler-check: match-exact
@@ -41,6 +42,8 @@ extra-deps:
 - fuzzyfind-3.0.0
 - monad-validate-1.2.0.0@sha256:9850f408431098b28806dd464b6825a88a0b56c84f380d7fe0454c1df9d6f881,3505
 - NanoID-3.1.0@sha256:9118ab00e8650b5a56a10c90295d357eb77a8057a598b7e56dfedc9c6d53c77d,1524
+# not in lts-18.13
+- recover-rtti-0.4.0.0@sha256:2ce1e031ec0e34d736fa45f0149bbd55026f614939dc90ffd14a9c5d24093ff4,4423
 
 ghc-options:
  # All packages

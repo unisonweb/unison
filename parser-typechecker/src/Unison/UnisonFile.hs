@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -39,6 +40,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
@@ -134,9 +136,13 @@ indexByReference uf = (tms, tys)
     tms = Map.fromList [
       (r, (tm,ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf) ]
 
+-- | A mapping of all terms in the file by their var name.
+-- The returned terms refer to other definitions in the file by their
+-- var, not by reference.
+-- Includes test watches.
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
-  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
+  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents uf ]
 
 -- |the top level components (no watches) plus test watches.
 topLevelComponents :: TypecheckedUnisonFile v a
@@ -193,7 +199,7 @@ hashConstructors
   :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)

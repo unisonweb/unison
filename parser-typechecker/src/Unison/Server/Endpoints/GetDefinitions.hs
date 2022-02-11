@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -47,8 +48,8 @@ import Unison.Server.Types
     addHeaders,
     defaultWidth,
   )
+import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
-import Unison.Var (Var)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
@@ -109,10 +110,9 @@ instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
 serveDefinitions
-  :: Var v
-  => Handler ()
-  -> Rt.Runtime v
-  -> Codebase IO v Ann
+  :: Handler ()
+  -> Rt.Runtime Symbol
+  -> Codebase IO Symbol Ann
   -> Maybe ShortBranchHash
   -> Maybe NamespaceFQN
   -> [HashQualifiedName]

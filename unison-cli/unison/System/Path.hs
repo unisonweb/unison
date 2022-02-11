@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 -- Copied from
 --
 -- <https://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html>

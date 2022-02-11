@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
@@ -44,6 +45,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Name as Name
@@ -120,7 +122,7 @@ generateRecordAccessors fields typename typ =
       (Term.var ann argname)
       [Term.MatchCase pat Nothing rhs]
       where
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = [ if j == i then Pattern.Var ann else Pattern.Unbound ann
               | (_, j) <- fields `zip` [0..]]
       rhs = ABT.abs' ann fname (Term.var ann fname)
@@ -131,10 +133,10 @@ generateRecordAccessors fields typename typ =
       where
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields)) fname
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = [ if j == i then Pattern.Unbound ann else Pattern.Var ann
               | (_, j) <- fields `zip` [0..]]
-      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
                   [ f | ((f, _), j) <- fields `zip` [0..], j /= i ]
       vargs = [ if j == i then Term.var ann fname' else Term.var ann v
               | ((v, _), j) <- fields `zip` [0..]]
@@ -146,9 +148,9 @@ generateRecordAccessors fields typename typ =
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields))
                            (Var.named "f")
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = replicate (length fields) $ Pattern.Var ann
-      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
                   (fst <$> fields)
       vargs = [ if j == i
                 then Term.apps' (Term.var ann fname') [Term.var ann v]
@@ -184,7 +186,7 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- reliable way of doing that. —AI
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
-  [ Referent'.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
+  [ Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [ConstructorId]

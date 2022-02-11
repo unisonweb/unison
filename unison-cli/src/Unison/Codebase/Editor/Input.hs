@@ -1,33 +1,39 @@
 module Unison.Codebase.Editor.Input
-  ( Input(..)
-  , Event(..)
-  , OutputLocation(..)
-  , PatchPath
-  , BranchId, parseBranchId
-  , HashOrHQSplit'
-  ) where
-
-import Unison.Prelude
-
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase.Branch.Merge as Branch
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
-import           Unison.Codebase.Path           ( Path' )
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.Path.Parse as Path
-import           Unison.Codebase.PushBehavior (PushBehavior)
-import           Unison.Codebase.Editor.RemoteRepo
-import           Unison.ShortHash (ShortHash)
-import           Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import qualified Unison.Codebase.ShortBranchHash as SBH
-import           Unison.Codebase.SyncMode       ( SyncMode )
-import           Unison.Name                    ( Name )
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.Util.Pretty as P
-import           Unison.Codebase.Verbosity
+  ( Input (..),
+    GistInput (..),
+    Event (..),
+    OutputLocation (..),
+    PatchPath,
+    BranchId,
+    AbsBranchId,
+    parseBranchId,
+    HashOrHQSplit',
+    Insistence (..),
+    PullMode (..),
+  )
+where
 
 import qualified Data.Text as Text
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Branch.Merge as Branch
+import Unison.Codebase.Editor.RemoteRepo
+import Unison.Codebase.Path (Path')
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Path.Parse as Path
+import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.ShortBranchHash (ShortBranchHash)
+import qualified Unison.Codebase.ShortBranchHash as SBH
+import Unison.Codebase.SyncMode (SyncMode)
+import Unison.Codebase.Verbosity
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
+import Unison.Prelude
+import Unison.ShortHash (ShortHash)
+import qualified Unison.Util.Pretty as P
+
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -37,13 +43,23 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
 type BranchId = Either ShortBranchHash Path'
+type AbsBranchId = Either ShortBranchHash Path.Absolute
 type HashOrHQSplit' = Either ShortHash Path.HQSplit'
+
+-- | Should we force the operation or not?
+data Insistence = Force | Try
+  deriving (Show, Eq)
 
 parseBranchId :: String -> Either String BranchId
 parseBranchId ('#':s) = case SBH.fromText (Text.pack s) of
   Nothing -> Left "Invalid hash, expected a base32hex string."
   Just h -> pure $ Left h
 parseBranchId s = Right <$> Path.parsePath' s
+
+data PullMode
+  = PullWithHistory
+  | PullWithoutHistory
+  deriving (Eq, Show)
 
 data Input
   -- names stuff:
@@ -54,8 +70,8 @@ data Input
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path' Branch.MergeMode
     | PreviewMergeLocalBranchI Path' Path'
-    | DiffNamespaceI Path' Path' -- old new
-    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode Verbosity
+    | DiffNamespaceI BranchId BranchId -- old new
+    | PullRemoteBranchI (Maybe ReadRemoteNamespace) Path' SyncMode PullMode Verbosity
     | PushRemoteBranchI (Maybe WriteRemotePath) Path' PushBehavior SyncMode
     | CreatePullRequestI ReadRemoteNamespace ReadRemoteNamespace
     | LoadPullRequestI ReadRemoteNamespace ReadRemoteNamespace Path'
@@ -87,7 +103,7 @@ data Input
     | DeleteI Path.HQSplit'
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
-    | DeleteBranchI (Maybe Path.Split')
+    | DeleteBranchI Insistence (Maybe Path.Split')
     | DeletePatchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
@@ -154,9 +170,17 @@ data Input
     | DebugDumpNamespaceSimpleI
     | DebugClearWatchI
     | QuitI
+    | ApiI
     | UiI
     | DocsToHtmlI Path' FilePath
+    | GistI GistInput
     deriving (Eq, Show)
+
+-- | @"gist repo"@ pushes the contents of the current namespace to @repo@.
+data GistInput = GistInput
+  { repo :: WriteRepo
+  }
+  deriving stock (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation

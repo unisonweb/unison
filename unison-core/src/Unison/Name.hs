@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Name
   ( Name,
     Convert (..),
@@ -27,6 +28,7 @@ module Unison.Name
     -- * Basic manipulation
     makeAbsolute,
     makeRelative,
+    setPosition,
     parent,
     stripNamePrefix,
     unqualified,
@@ -66,6 +68,7 @@ import qualified Data.Text.Lazy.Builder as Text.Builder
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
 import Unison.Prelude
+import Unison.Position (Position(..))
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
@@ -103,12 +106,6 @@ instance Ord Name where
 instance Show Name where
   show =
     Text.unpack . toText
-
--- Whether a name is absolute, e.g. ".foo.bar", or relative, e.g. "foo.bar"
-data Position
-  = Absolute
-  | Relative
-  deriving stock (Eq, Ord, Show)
 
 -- | @compareSuffix x y@ compares the suffix of @y@ (in reverse segment order) that is as long as @x@ to @x@ (in reverse
 -- segment order).
@@ -221,15 +218,22 @@ joinDot n1@(Name p0 ss0) n2@(Name p1 ss1) =
 --
 -- /O(1)/.
 makeAbsolute :: Name -> Name
-makeAbsolute (Name _ ss) =
-  Name Absolute ss
+makeAbsolute = setPosition Absolute
 
 -- | Make a name relative. No-op if the name is already relative.
 --
 -- /O(1)/.
 makeRelative :: Name -> Name
-makeRelative (Name _ ss) =
-  Name Relative ss
+makeRelative = setPosition Relative
+
+-- | Overwrite a name's position.
+-- This only changes the name's tag, it performs no manipulations to
+-- the segments of the name.
+--
+-- /O(1)/.
+setPosition :: Position -> Name -> Name
+setPosition pos (Name _ ss) =
+  Name pos ss
 
 -- | Compute the "parent" of a name, unless the name is only a single segment, in which case it has no parent.
 --

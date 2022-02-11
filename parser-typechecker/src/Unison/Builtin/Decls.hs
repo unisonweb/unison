@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -9,6 +10,7 @@ import Data.List (elemIndex, find)
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
 import qualified Unison.ABT as ABT
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration
   ( DataDeclaration (..),
@@ -34,14 +36,14 @@ lookupDeclRef str
   | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupDeclRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = [ (a,b) | (a,b,_) <- builtinDataDecls @Symbol ]
+    decls = [ (a,b) | (a,b,_) <- builtinDataDecls ]
 
 lookupEffectRef :: Text -> Reference
 lookupEffectRef str
   | [(_, d)] <- filter (\(v, _) -> v == Var.named str) decls = Reference.DerivedId d
   | otherwise = error $ "lookupEffectRef: missing \"" ++ unpack str ++ "\""
   where
-    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls @Symbol ]
+    decls = [ (a,b) | (a,b,_) <- builtinEffectDecls ]
 
 unitRef, pairRef, optionalRef, eitherRef :: Reference
 unitRef = lookupDeclRef "Unit"
@@ -76,12 +78,12 @@ seekModeRef = lookupDeclRef "io2.SeekMode"
 seqViewRef = lookupDeclRef "SeqView"
 
 pairCtorRef, unitCtorRef :: Referent
-pairCtorRef = Referent.Con pairRef 0 CT.Data
-unitCtorRef = Referent.Con unitRef 0 CT.Data
+pairCtorRef = Referent.Con (ConstructorReference pairRef 0) CT.Data
+unitCtorRef = Referent.Con (ConstructorReference unitRef 0) CT.Data
 
 constructorId :: Reference -> Text -> Maybe Int
 constructorId ref name = do
-  (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) (builtinDataDecls @Symbol)
+  (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) builtinDataDecls
   elemIndex name $ DD.constructorNames dd
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
@@ -112,12 +114,12 @@ Just bufferModeBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.Bl
 Just bufferModeSizedBlockBufferingId = constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
 
 okConstructorReferent, failConstructorReferent :: Referent.Referent
-okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
-failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
+okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
+failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: Var v => [(v, Reference.Id, DataDeclaration v ())]
+builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
 builtinDataDecls = rs1 ++ rs
  where
   rs1 = case hashDecls $ Map.fromList
@@ -307,7 +309,7 @@ builtinDataDecls = rs1 ++ rs
     , ((), v "Link.Type", Type.typeLink () `arr` var "Link")
     ]
 
-builtinEffectDecls :: Var v => [(v, Reference.Id, DD.EffectDeclaration v ())]
+builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
   case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
     Right a -> over _3 DD.EffectDeclaration <$> a
@@ -328,8 +330,8 @@ pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
 pattern EitherRef <- ((==) eitherRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
-pattern OptionalNone' <- Term.Constructor' OptionalRef ((==) noneId -> True)
-pattern OptionalSome' d <- Term.App' (Term.Constructor' OptionalRef ((==) someId -> True)) d
+pattern OptionalNone' <- Term.Constructor' (ConstructorReference OptionalRef ((==) noneId -> True))
+pattern OptionalSome' d <- Term.App' (Term.Constructor' (ConstructorReference OptionalRef ((==) someId -> True))) d
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
@@ -342,23 +344,23 @@ unLeftTerm, unRightTerm
   :: Term.Term2 vt at ap v a
   -> Maybe (Term.Term2 vt at ap v a)
 unRightTerm t = case t of
-  Term.App' (Term.Constructor' EitherRef EitherRightId) tm ->
+  Term.App' (Term.Constructor' (ConstructorReference EitherRef EitherRightId)) tm ->
     Just tm
   _                           -> Nothing
 unLeftTerm t = case t of
-  Term.App' (Term.Constructor' EitherRef EitherLeftId) tm ->
+  Term.App' (Term.Constructor' (ConstructorReference EitherRef EitherLeftId)) tm ->
     Just tm
   _                           -> Nothing
 
 -- some pattern synonyms to make pattern matching on some of these constants more pleasant
 pattern DocRef <- ((== docRef) -> True)
-pattern DocJoin segs <- Term.App' (Term.Constructor' DocRef DocJoinId) (Term.List' segs)
-pattern DocBlob txt <- Term.App' (Term.Constructor' DocRef DocBlobId) (Term.Text' txt)
-pattern DocLink link <- Term.App' (Term.Constructor' DocRef DocLinkId) link
-pattern DocSource link <- Term.App' (Term.Constructor' DocRef DocSourceId) link
-pattern DocSignature link <- Term.App' (Term.Constructor' DocRef DocSignatureId) link
-pattern DocEvaluate link <- Term.App' (Term.Constructor' DocRef DocEvaluateId) link
-pattern Doc <- Term.App' (Term.Constructor' DocRef _) _
+pattern DocJoin segs <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocJoinId)) (Term.List' segs)
+pattern DocBlob txt <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocBlobId)) (Term.Text' txt)
+pattern DocLink link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocLinkId)) link
+pattern DocSource link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSourceId)) link
+pattern DocSignature link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocSignatureId)) link
+pattern DocEvaluate link <- Term.App' (Term.Constructor' (ConstructorReference DocRef DocEvaluateId)) link
+pattern Doc <- Term.App' (Term.Constructor' (ConstructorReference DocRef _)) _
 pattern DocSignatureId <- ((== docSignatureId) -> True)
 pattern DocBlobId <- ((== docBlobId) -> True)
 pattern DocLinkId <- ((== docLinkId) -> True)
@@ -368,8 +370,8 @@ pattern DocJoinId <- ((== docJoinId) -> True)
 pattern LinkTermId <- ((== linkTermId) -> True)
 pattern LinkTypeId <- ((== linkTypeId) -> True)
 pattern LinkRef <- ((== linkRef) -> True)
-pattern LinkTerm tm <- Term.App' (Term.Constructor' LinkRef LinkTermId) tm
-pattern LinkType ty <- Term.App' (Term.Constructor' LinkRef LinkTypeId) ty
+pattern LinkTerm tm <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTermId)) tm
+pattern LinkType ty <- Term.App' (Term.Constructor' (ConstructorReference LinkRef LinkTypeId)) ty
 
 unitType, pairType, optionalType, testResultType,
   eitherType, ioErrorType, fileModeType, filePathType, bufferModeType, seekModeType,
@@ -393,14 +395,14 @@ tlsSignedCertType :: Var v => a -> Type v a
 tlsSignedCertType a = Type.ref a tlsSignedCertRef
 
 unitTerm :: Var v => a -> Term v a
-unitTerm ann = Term.constructor ann unitRef 0
+unitTerm ann = Term.constructor ann (ConstructorReference unitRef 0)
 
 tupleConsTerm :: (Ord v, Semigroup a)
               => Term2 vt at ap v a
               -> Term2 vt at ap v a
               -> Term2 vt at ap v a
 tupleConsTerm hd tl =
-  Term.apps' (Term.constructor (ABT.annotation hd) pairRef 0) [hd, tl]
+  Term.apps' (Term.constructor (ABT.annotation hd) (ConstructorReference pairRef 0)) [hd, tl]
 
 tupleTerm :: (Var v, Monoid a) => [Term v a] -> Term v a
 tupleTerm = foldr tupleConsTerm (unitTerm mempty)
@@ -417,10 +419,10 @@ unTupleTerm
   :: Term.Term2 vt at ap v a
   -> Maybe [Term.Term2 vt at ap v a]
 unTupleTerm t = case t of
-  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] ->
+  Term.Apps' (Term.Constructor' (ConstructorReference PairRef 0)) [fst, snd] ->
     (fst :) <$> unTupleTerm snd
-  Term.Constructor' UnitRef 0 -> Just []
-  _                           -> Nothing
+  Term.Constructor' (ConstructorReference UnitRef 0) -> Just []
+  _                                                  -> Nothing
 
 unTupleType :: Var v => Type v a -> Maybe [Type v a]
 unTupleType t = case t of
@@ -430,8 +432,8 @@ unTupleType t = case t of
 
 unTuplePattern :: Pattern.Pattern loc -> Maybe [Pattern.Pattern loc]
 unTuplePattern p = case p of
-  Pattern.Constructor _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
-  Pattern.Constructor _ UnitRef 0 [] -> Just []
+  Pattern.Constructor _ (ConstructorReference PairRef 0) [fst, snd] -> (fst : ) <$> unTuplePattern snd
+  Pattern.Constructor _ (ConstructorReference UnitRef 0) [] -> Just []
   _ -> Nothing
 
 unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool

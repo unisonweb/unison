@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.SqliteCodebase.Conversions where
@@ -5,12 +6,11 @@ module Unison.Codebase.SqliteCodebase.Conversions where
 import Control.Monad (foldM)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
-import Data.Either (fromRight)
 import Data.Foldable (Foldable (toList))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import qualified U.Codebase.Branch as V2.Branch
 import qualified U.Codebase.Causal as V2
 import qualified U.Codebase.Decl as V2.Decl
@@ -31,8 +31,8 @@ import qualified U.Codebase.WatchKind as V2.WatchKind
 import qualified U.Core.ABT as V2.ABT
 import qualified U.Util.Hash as V2
 import qualified U.Util.Hash as V2.Hash
-import qualified U.Util.Map as Map
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 import qualified Unison.ABT as V1.ABT
 import qualified Unison.Codebase.Branch as V1.Branch
 import qualified Unison.Codebase.Causal as V1.Causal
@@ -41,9 +41,10 @@ import qualified Unison.Codebase.Patch as V1
 import qualified Unison.Codebase.ShortBranchHash as V1
 import qualified Unison.Codebase.TermEdit as V1.TermEdit
 import qualified Unison.Codebase.TypeEdit as V1.TypeEdit
+import qualified Unison.ConstructorReference as V1 (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as V1.Decl
-import Unison.Hash (Hash)
+import Unison.Hash (base32Hex, Hash)
 import qualified Unison.Hash as V1
 import qualified Unison.Kind as V1.Kind
 import qualified Unison.NameSegment as V1
@@ -103,8 +104,8 @@ term1to2 h =
       V1.Term.Text t -> V2.Term.Text t
       V1.Term.Char c -> V2.Term.Char c
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
-      V1.Term.Constructor r i -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
-      V1.Term.Request r i -> V2.Term.Request (reference1to2 r) (fromIntegral i)
+      V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
+      V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
       V1.Term.Ann e t -> V2.Term.Ann e (ttype1to2 t)
@@ -118,7 +119,7 @@ term1to2 h =
       V1.Term.Match e cases -> V2.Term.Match e (goCase <$> cases)
       V1.Term.TermLink r -> V2.Term.TermLink (rreferent1to2 h r)
       V1.Term.TypeLink r -> V2.Term.TypeLink (reference1to2 r)
-      V1.Term.Blank _ -> error "can't serialize term with blanks"
+      V1.Term.Blank _ -> error ("can't serialize term with blanks (" ++ unpack (base32Hex h) ++ ")")
     goCase (V1.Term.MatchCase p g b) =
       V2.Term.MatchCase (goPat p) g b
     goPat :: V1.Pattern.Pattern a -> V2.Term.Pattern Text V2.Reference
@@ -131,11 +132,11 @@ term1to2 h =
       V1.Pattern.Float _ d -> V2.Term.PFloat d
       V1.Pattern.Text _ t -> V2.Term.PText t
       V1.Pattern.Char _ c -> V2.Term.PChar c
-      V1.Pattern.Constructor _ r i ps ->
+      V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
         V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
       V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
-      V1.Pattern.EffectBind _ r i ps k ->
+      V1.Pattern.EffectBind _ (V1.ConstructorReference r i) ps k ->
         V2.Term.PEffectBind (reference1to2 r) i (goPat <$> ps) (goPat k)
       V1.Pattern.SequenceLiteral _ ps -> V2.Term.PSequenceLiteral (goPat <$> ps)
       V1.Pattern.SequenceOp _ p op p2 ->
@@ -165,9 +166,9 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.Char c -> pure $ V1.Term.Char c
           V2.Term.Ref r -> V1.Term.Ref <$> rreference2to1 h lookupSize r
           V2.Term.Constructor r i ->
-            V1.Term.Constructor <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+            V1.Term.Constructor <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure (fromIntegral i))
           V2.Term.Request r i ->
-            V1.Term.Request <$> reference2to1 lookupSize r <*> pure (fromIntegral i)
+            V1.Term.Request <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure (fromIntegral i))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
           V2.Term.App a a4 -> pure $ V1.Term.App a a4
           V2.Term.Ann a t2 -> V1.Term.Ann a <$> ttype2to1 lookupSize t2
@@ -194,10 +195,11 @@ term2to1 h lookupSize lookupCT tm =
           V2.Term.PText t -> pure $ V1.Pattern.Text a t
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
-            V1.Pattern.Constructor a <$> reference2to1 lookupSize r <*> pure i <*> (traverse goPat ps)
+            V1.Pattern.Constructor a <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure i) <*> (traverse goPat ps)
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
-          V2.Term.PEffectBind r i ps p -> V1.Pattern.EffectBind a <$> reference2to1 lookupSize r <*> pure i <*> traverse goPat ps <*> goPat p
+          V2.Term.PEffectBind r i ps p ->
+            V1.Pattern.EffectBind a <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure i) <*> traverse goPat ps <*> goPat p
           V2.Term.PSequenceLiteral ps -> V1.Pattern.SequenceLiteral a <$> traverse goPat ps
           V2.Term.PSequenceOp p1 op p2 -> V1.Pattern.SequenceOp a <$> goPat p1 <*> pure (goOp op) <*> goPat p2
         goOp = \case
@@ -246,7 +248,8 @@ symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
 shortHashSuffix1to2 :: Text -> V1.Reference.Pos
 shortHashSuffix1to2 =
   fst
-    . fromRight (error "todo: move suffix parsing to frontend")
+    -- todo: move suffix parsing to frontend
+    . either error id
     . V1.Reference.readSuffix
 
 abt2to1 :: Functor f => V2.ABT.Term f v a -> V1.ABT.Term f v a
@@ -322,30 +325,28 @@ referenceid2to1 lookupSize (V2.Reference.Id h i) =
 rreferent2to1 :: Applicative m => Hash -> (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.ReferentH -> m V1.Referent
 rreferent2to1 h lookupSize lookupCT = \case
   V2.Ref r -> V1.Ref <$> rreference2to1 h lookupSize r
-  V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
+  V2.Con r i -> V1.Con <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure (fromIntegral i)) <*> lookupCT r
 
 rreferent1to2 :: Hash -> V1.Referent -> V2.ReferentH
 rreferent1to2 h = \case
   V1.Ref r -> V2.Ref (rreference1to2 h r)
-  V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
 referent2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent -> m V1.Referent
 referent2to1 lookupSize lookupCT = \case
   V2.Ref r -> V1.Ref <$> reference2to1 lookupSize r
-  V2.Con r i -> V1.Con <$> reference2to1 lookupSize r <*> pure (fromIntegral i) <*> lookupCT r
+  V2.Con r i -> V1.Con <$> (V1.ConstructorReference <$> reference2to1 lookupSize r <*> pure (fromIntegral i)) <*> lookupCT r
 
 referent1to2 :: V1.Referent -> V2.Referent
 referent1to2 = \case
   V1.Ref r -> V2.Ref $ reference1to2 r
-  V1.Con r i _ct -> V2.Con (reference1to2 r) (fromIntegral i)
+  V1.Con (V1.ConstructorReference r i) _ct -> V2.Con (reference1to2 r) (fromIntegral i)
 
 referentid2to1 :: Applicative m => (Hash -> m V1.Reference.Size) -> (V2.Reference -> m CT.ConstructorType) -> V2.Referent.Id -> m V1.Referent.Id
 referentid2to1 lookupSize lookupCT = \case
   V2.RefId r -> V1.RefId <$> referenceid2to1 lookupSize r
   V2.ConId r i ->
-    V1.ConId <$> referenceid2to1 lookupSize r
-      <*> pure (fromIntegral i)
-      <*> lookupCT (V2.ReferenceDerived r)
+    V1.ConId <$> (V1.ConstructorReference <$>referenceid2to1 lookupSize r <*> pure (fromIntegral i)) <*> lookupCT (V2.ReferenceDerived r)
 
 hash2to1 :: V2.Hash.Hash -> Hash
 hash2to1 (V2.Hash.Hash sbs) = V1.Hash sbs

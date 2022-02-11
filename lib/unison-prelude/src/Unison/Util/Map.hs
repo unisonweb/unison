@@ -1,13 +1,30 @@
+-- | @Map@ utilities.
 module Unison.Util.Map
-  ( foldMapM,
+  ( bimap,
+    bitraverse,
+    deleteLookup,
+    foldMapM,
     unionWithM,
   )
 where
 
 import qualified Control.Monad as Monad
+import qualified Data.Bifunctor as B
+import qualified Data.Bitraversable as B
 import Data.Foldable (foldlM)
 import qualified Data.Map.Strict as Map
 import Unison.Prelude
+
+bimap :: Ord a' => (a -> a') -> (b -> b') -> Map a b -> Map a' b'
+bimap fa fb = Map.fromList . map (B.bimap fa fb) . Map.toList
+
+bitraverse :: (Applicative f, Ord a') => (a -> f a') -> (b -> f b') -> Map a b -> f (Map a' b')
+bitraverse fa fb = fmap Map.fromList . traverse (B.bitraverse fa fb) . Map.toList
+
+-- | Like 'Map.delete', but returns the value as well.
+deleteLookup :: Ord k => k -> Map k v -> (Maybe v, Map k v)
+deleteLookup =
+  Map.alterF (,Nothing)
 
 -- | Construct a map from a foldable container by mapping each element to monadic action that returns a key and a value.
 --

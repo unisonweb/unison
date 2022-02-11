@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Codebase.Sqlite.ObjectType where
 
 import Database.SQLite.Simple.FromField (FromField(..))

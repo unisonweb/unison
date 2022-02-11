@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -7,6 +8,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Unison.Builtin.Decls as Decls
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Hashing.V2.Convert as H
 import qualified Unison.Reference as Reference
 import Unison.Term (Term)
@@ -15,15 +17,16 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Symbol (Symbol)
 
-builtinTermsSrc :: Var v => a -> [(v, Term v a, Type v a)]
+builtinTermsSrc :: a -> [(Symbol, Term Symbol a, Type Symbol a)]
 builtinTermsSrc a =
   [ ( v "metadata.isPropagated",
-      Term.constructor a Decls.isPropagatedRef Decls.isPropagatedConstructorId,
+      Term.constructor a (ConstructorReference Decls.isPropagatedRef Decls.isPropagatedConstructorId),
       Type.ref a Decls.isPropagatedRef
     ),
     ( v "metadata.isTest",
-      Term.constructor a Decls.isTestRef Decls.isTestConstructorId,
+      Term.constructor a (ConstructorReference Decls.isTestRef Decls.isTestConstructorId),
       Type.ref a Decls.isTestRef
     )
   ]
@@ -31,7 +34,7 @@ builtinTermsSrc a =
 v :: Var v => Text -> v
 v = Var.named
 
-builtinTermsRef :: Var v => a -> Map v Reference.Id
+builtinTermsRef :: a -> Map Symbol Reference.Id
 builtinTermsRef a =
   fmap fst
     . H.hashTermComponents

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Test.VersionParser where
 
@@ -23,6 +24,6 @@ makeTest (version, path) =
   scope (unpack version) $ expectEqual
     (rightMay $ runParser defaultBaseLib "versionparser" version)
     (Just
-      ( ReadGitRepo "https://github.com/unisonweb/base"
+      ( ReadGitRepo "https://github.com/unisonweb/base" Nothing
       , Nothing
       , Path.fromText path ))

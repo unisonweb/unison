@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
@@ -11,6 +12,10 @@ module Unison.Reference
    Id(..),
    Pos,
    Size,
+   TermReference,
+   TermReferenceId,
+   TypeReference,
+   TypeReferenceId,
    derivedBase32Hex,
    Component, members,
    component,
@@ -64,6 +69,16 @@ pattern Derived h i n = DerivedId (Id h i n)
 -- | @Pos@ is a position into a cycle of size @Size@, as cycles are hashed together.
 data Id = Id H.Hash Pos Size deriving (Generic)
 
+-- | A term reference.
+type TermReference = Reference
+
+type TermReferenceId = Id
+
+-- | A type declaration reference.
+type TypeReference = Reference
+
+type TypeReferenceId = Id
+
 unsafeId :: Reference -> Id
 unsafeId (Builtin b) =
   error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
@@ -107,9 +122,11 @@ showSuffix i n = Text.pack $ show i <> "c" <> show n
 -- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
 readSuffix t = case Text.breakOn "c" t of
-  (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
-    Right (read (Text.unpack pos), read (Text.unpack size))
-  _ -> Left "suffix decoding error"
+  (pos, Text.drop 1 -> size)
+    | Text.all isDigit pos && Text.all isDigit size,
+      Just pos' <- readMaybe (Text.unpack pos),
+      Just size' <- readMaybe (Text.unpack size) -> Right (pos', size')
+  _ -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)

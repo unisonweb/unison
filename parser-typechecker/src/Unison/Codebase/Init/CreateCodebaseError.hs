@@ -1,7 +1,8 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-module Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError(..), Pretty) where
+module Unison.Codebase.Init.CreateCodebaseError
+  ( CreateCodebaseError (..),
+    Pretty,
+  )
+where
 
 import qualified Unison.Util.Pretty as P
 

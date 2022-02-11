@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -101,7 +102,6 @@ import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Writer (MonadWriter, WriterT, runWriterT)
 import qualified Control.Monad.Writer as Writer
-import Data.Bifoldable (bifoldMap)
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import Data.ByteString (ByteString)
@@ -114,8 +114,7 @@ import Data.Functor.Identity (Identity)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import Data.Maybe (catMaybes, isJust)
-import Data.Monoid (First (First, getFirst))
+import Data.Maybe (isJust)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
@@ -194,12 +193,13 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Lens as Lens
-import qualified U.Util.Map as Map
+import qualified Unison.Util.Map as Map
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
-import qualified U.Util.Set as Set
+import qualified Unison.Util.Set as Set
 import qualified U.Util.Term as TermUtil
+import UnliftIO (Exception)
 
 -- * Error handling
 
@@ -241,6 +241,8 @@ data Error
   | LegacyUnknownConstructorType H.Hash C.Reference.Pos
   | NeedTypeForBuiltinMetadata Text
   deriving (Show)
+
+instance Exception Error
 
 getFromBytesOr :: Err m => DecodeError -> Get a -> ByteString -> m a
 getFromBytesOr e get bs = case runGetS get bs of
@@ -523,21 +525,25 @@ saveTermComponent h terms = do
             dependencies :: Set S.Reference =
               let (tmRefs, tpRefs, tmLinks, tpLinks) = TermUtil.dependencies tm
                   tpRefs' = Foldable.toList $ C.Type.dependencies tp
-                  getTermSRef :: S.Term.TermRef -> Maybe S.Reference
-                  getTermSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
-                  getTermSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
-                  getTermSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
+                  getTermSRef :: S.Term.TermRef -> S.Reference
+                  getTermSRef = \case
+                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+                    C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+                    C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
                   getTypeSRef :: S.Term.TypeRef -> S.Reference
-                  getTypeSRef (C.ReferenceBuiltin t) = C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
-                  getTypeSRef (C.Reference.Derived h i) = C.Reference.Derived (oIds Vector.! fromIntegral h) i
+                  getTypeSRef = \case
+                    C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+                    C.Reference.Derived h i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
                   getSTypeLink = getTypeSRef
-                  getSTermLink :: S.Term.TermLink -> Maybe S.Reference
-                  getSTermLink = getFirst . bifoldMap (First . getTermSRef) (First . Just . getTypeSRef)
+                  getSTermLink :: S.Term.TermLink -> S.Reference
+                  getSTermLink = \case
+                    C.Referent.Con ref _conId -> getTypeSRef ref
+                    C.Referent.Ref ref -> getTermSRef ref
                in Set.fromList $
-                    catMaybes
-                      (fmap getTermSRef tmRefs ++ fmap getSTermLink tmLinks)
-                      ++ fmap getTypeSRef (tpRefs ++ tpRefs')
-                      ++ fmap getSTypeLink tpLinks
+                    map getTermSRef tmRefs
+                      ++ map getSTermLink tmLinks
+                      ++ map getTypeSRef (tpRefs ++ tpRefs')
+                      ++ map getSTypeLink tpLinks
          in Set.map (,self) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
@@ -803,7 +809,7 @@ w2cTerm ids tm = do
 
 -- ** Saving & loading type decls
 
-saveDeclComponent :: EDB m => H.Hash -> [(C.Decl Symbol)] -> m Db.ObjectId
+saveDeclComponent :: EDB m => H.Hash -> [C.Decl Symbol] -> m Db.ObjectId
 saveDeclComponent h decls = do
   when debug . traceM $ "Operations.saveDeclComponent " ++ show h
   sDeclElements <- traverse (c2sDecl Q.saveText primaryHashToExistingObjectId) decls
@@ -817,11 +823,12 @@ saveDeclComponent h decls = do
       unlocalizeRefs ((LocalIds tIds oIds, decl), i) =
         let self = C.Reference.Id oId i
             dependencies :: Set S.Decl.TypeRef = C.Decl.dependencies decl
-            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> Maybe S.Reference.Reference
-            getSRef (C.ReferenceBuiltin t) = Just (C.ReferenceBuiltin (tIds Vector.! fromIntegral t))
-            getSRef (C.Reference.Derived (Just h) i) = Just (C.Reference.Derived (oIds Vector.! fromIntegral h) i)
-            getSRef _selfCycleRef@(C.Reference.Derived Nothing _) = Nothing
-         in Set.mapMaybe (fmap (,self) . getSRef) dependencies
+            getSRef :: C.Reference.Reference' LocalTextId (Maybe LocalDefnId) -> S.Reference.Reference
+            getSRef = \case
+              C.ReferenceBuiltin t -> C.ReferenceBuiltin (tIds Vector.! fromIntegral t)
+              C.Reference.Derived Nothing i -> C.Reference.Derived oId i -- index self-references
+              C.Reference.Derived (Just h) i -> C.Reference.Derived (oIds Vector.! fromIntegral h) i
+         in Set.map ((,self) . getSRef) dependencies
   traverse_ (uncurry Q.addToDependentsIndex) dependencies
 
   pure oId

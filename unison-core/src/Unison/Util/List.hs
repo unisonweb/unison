@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.List where
 
 import Unison.Prelude
@@ -5,6 +6,7 @@ import Unison.Prelude
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.List.Extra as List
 
 multimap :: Foldable f => Ord k => f (k, v) -> Map k [v]
 multimap kvs =
@@ -16,6 +18,19 @@ multimap kvs =
 groupBy :: (Foldable f, Ord k) => (v -> k) -> f v -> Map k [v]
 groupBy f vs = reverse <$> foldl' step Map.empty vs
   where step m v = Map.insertWith (++) (f v) [v] m
+
+-- | group _consecutive_ elements by a key.
+-- e.g.
+-- >>> groupMap (\n -> (odd n, show n)) [1, 3, 4, 6, 7]
+-- [(True,["1","3"]),(False,["4","6"]),(True,["7"])]
+groupMap :: (Foldable f, Eq k) => (a -> (k, b)) -> f a -> [(k, [b])]
+groupMap f xs =
+  xs
+  & toList
+  & fmap f
+  & List.groupOn fst
+  -- head is okay since groupOn only returns populated lists.
+  <&> \grp -> (fst . head $ grp, snd <$> grp)
 
 -- returns the subset of `f a` which maps to unique `b`s.
 -- prefers earlier copies, if many `a` map to some `b`.

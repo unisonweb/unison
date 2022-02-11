@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -7,6 +8,7 @@ import Unison.Prelude
 
 import           Data.List                      ( isPrefixOf )
 import qualified Data.Map                      as Map
+import Unison.ConstructorReference (GConstructorReference(..), ConstructorReference)
 import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 , toDataDecl
@@ -67,7 +69,7 @@ prettyGADT env ctorType r name dd = P.hang header . P.lines $ constructor <$> zi
   (DD.constructors' dd)
  where
   constructor (n, (_, _, t)) =
-    prettyPattern env ctorType r name n
+    prettyPattern env ctorType name (ConstructorReference r n)
       <>       (fmt S.TypeAscriptionColon " :")
       `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
   header = prettyEffectHeader name (DD.EffectDeclaration dd) <> (fmt S.ControlKeyword " where")
@@ -75,17 +77,16 @@ prettyGADT env ctorType r name dd = P.hang header . P.lines $ constructor <$> zi
 prettyPattern
   :: PrettyPrintEnv
   -> CT.ConstructorType
-  -> Reference
   -> HashQualified Name
-  -> Int
+  -> ConstructorReference
   -> Pretty SyntaxText
-prettyPattern env ctorType ref namespace cid = styleHashQualified''
+prettyPattern env ctorType namespace ref = styleHashQualified''
   (fmt (S.TermReference conRef))
   ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
   $ PPE.termName env conRef
   )
   where
-    conRef = Referent.Con ref cid ctorType
+    conRef = Referent.Con ref ctorType
 
 prettyDataDecl
   :: Var v
@@ -102,9 +103,9 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
   constructor (n, (_, _, (Type.ForallsNamed' _ t))) = constructor' n t
   constructor (n, (_, _, t)                       ) = constructor' n t
   constructor' n t = case Type.unArrows t of
-    Nothing -> prettyPattern suffixifiedPPE CT.Data r name n
+    Nothing -> prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)
     Just ts -> case fieldNames unsuffixifiedPPE r name dd of
-      Nothing -> P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data r name n) "      "
+      Nothing -> P.group . P.hang' (prettyPattern suffixifiedPPE CT.Data name (ConstructorReference r n)) "      "
                $ P.spaced (TypePrinter.prettyRaw suffixifiedPPE Map.empty 10 <$> init ts)
       Just fs -> P.group $ (fmt S.DelimiterChar "{ ")
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")

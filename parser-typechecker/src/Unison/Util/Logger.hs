@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 -- | Small logging library. Typical usage, import qualified:
 --
 --   import qualified Unison.Util.Logger as L

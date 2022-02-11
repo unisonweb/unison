@@ -118,7 +118,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 
 .example.resolve> view.patch a.patch
 
-  Edited Terms: c.foo -> a.foo
+  Edited Terms: 1. c.foo -> 2. a.foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -126,7 +126,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 
 .example.resolve> view.patch b.patch
 
-  Edited Terms: c.foo -> b.foo
+  Edited Terms: 1. c.foo -> 2. b.foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -194,26 +194,27 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term #44954ulpdf was replaced with foo#8e68dvpr0a and
-    foo#jdqoenu794
+    The term 1. #44954ulpdf was replaced with
+      2. foo#8e68dvpr0a
+      3. foo#jdqoenu794
 
 ```
-We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
+We see that the original hash of `a.foo` got replaced with _two different_ hashes.
 
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace #44954ulpdf #8e68dvpr0a
+.example.resolve.c> replace 1 2
 
   Done.
 
 ```
-This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e68dvpr0a remains:
+This changes the merged `c.patch` so that only a single edit remains and resolves the conflict.
 
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: #44954ulpdf -> foo#8e68dvpr0a
+  Edited Terms: 1. #44954ulpdf -> 2. foo#8e68dvpr0a
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -227,18 +228,19 @@ We still have a remaining _name conflict_ since it just so happened that both of
 
   ❓
   
-  These terms have conflicting definitions: foo
+  The term foo has conflicting definitions:
+    1. foo#8e68dvpr0a
+    2. foo#jdqoenu794
   
   Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `view foo` to see the
-       conflicting definitions, then use `move.term` to resolve
-       the conflicts.
+       introduce the same name. Use `move.term` or `delete.term`
+       to resolve the conflicts.
 
 ```
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> delete.term 2
 
   Resolved name conflicts:
   

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language BangPatterns #-}
 {-# language DeriveFunctor #-}
@@ -351,7 +352,9 @@ data BPrim2
   -- bytes
   | TAKB | DRPB | IDXB | CATB -- take,drop,index,append
   -- general
-  | THRO               -- throw
+  | THRO | TRCE        -- throw
+  -- code
+  | SDBX               -- sandbox
   deriving (Show, Eq, Ord)
 
 data MLit
@@ -1070,9 +1073,11 @@ emitPOp ANF.TLTT = emitBP1 TLTT
 emitPOp ANF.CVLD = emitBP1 CVLD
 emitPOp ANF.LOAD = emitBP1 LOAD
 emitPOp ANF.VALU = emitBP1 VALU
+emitPOp ANF.SDBX = emitBP2 SDBX
 
 -- error call
 emitPOp ANF.EROR = emitBP2 THRO
+emitPOp ANF.TRCE = emitBP2 TRCE
 
 -- non-prim translations
 emitPOp ANF.BLDS = Seq

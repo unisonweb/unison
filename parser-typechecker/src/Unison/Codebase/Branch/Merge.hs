@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -31,7 +32,7 @@ merge'' :: forall m . Monad m
         -> Branch m
         -> Branch m
         -> m (Branch m)
-merge'' _ _ b1 b2      | isEmpty b1 = pure b2
+merge'' _ _ b1 b2    | isEmpty b1 = pure b2
 merge'' _ mode b1 b2 | isEmpty b2 = case mode of
   RegularMerge -> pure b1
   SquashMerge -> pure $ cons (discardHistory0 (head b1)) b2

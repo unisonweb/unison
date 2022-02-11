@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -294,7 +295,7 @@ lexemes' eof = P.optional space >> do
   where
   toks = doc2 <|> doc <|> token numeric <|> token character <|> reserved
      <|> token symbolyId <|> token blank <|> token wordyId
-     <|> (asum . map token) [ semi, textual, backticks, hash ]
+     <|> (asum . map token) [ semi, textual, hash ]
 
   wordySep c = isSpace c || not (wordyIdChar c)
   positioned p = do start <- pos; a <- p; stop <- pos; pure (start, a, stop)
@@ -396,7 +397,7 @@ lexemes' eof = P.optional space >> do
           pure s
 
     typeLink = wrap "syntax.docEmbedTypeLink" $ do
-      _ <- typeOrAbilityAlt lit <* CP.space
+      _ <- typeOrAbilityAlt wordyKw <* CP.space
       tok (symbolyId <|> wordyId) <* CP.space
 
     termLink = wrap "syntax.docEmbedTermLink" $
@@ -681,10 +682,6 @@ lexemes' eof = P.optional space >> do
            where sp = lit "\\s" $> ' '
   character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
               where spEsc = P.try (char '\\' *> char 's' $> ' ')
-  backticks = tick <$> (t *> wordyId <* t)
-    where tick (WordyId n sh) = Backticks n sh
-          tick t = t
-          t = char '`' <* P.notFollowedBy (char '`')
   wordyId :: P Lexeme
   wordyId = P.label wordyMsg . P.try $ do
     dot <- P.optional (lit ".")
@@ -828,8 +825,8 @@ lexemes' eof = P.optional space >> do
       ifElse <|> withKw <|> openKw "match" <|> openKw "handle" <|> typ <|> arr <|> eq <|>
       openKw "cases" <|> openKw "where" <|> openKw "let"
       where
-        ifElse = openKw "if" <|> close' (Just "then") ["if"] (lit "then")
-                             <|> close' (Just "else") ["then"] (lit "else")
+        ifElse = openKw "if" <|> closeKw' (Just "then") ["if"] (lit "then")
+                             <|> closeKw' (Just "else") ["then"] (lit "else")
         modKw = typeModifiersAlt (openKw1 wordySep)
         typeOrAbilityKw = typeOrAbilityAlt openTypeKw1
         typ = modKw <|> typeOrAbilityKw
@@ -915,7 +912,7 @@ lexemes' eof = P.optional space >> do
     delayOrForce = separated ok $ do
       (start, op, end) <- positioned $ CP.satisfy isDelayOrForce
       pure [Token (Reserved [op]) start end]
-      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters
+      where ok c = isDelayOrForce c || isSpace c || isAlphaNum c || Set.member c delimiters || c == '\"'
 
     open :: String -> P [Token Lexeme]
     open b = do
@@ -932,6 +929,9 @@ lexemes' eof = P.optional space >> do
       pure [Token (Open s) pos1 pos2]
 
     close = close' Nothing
+
+    closeKw' :: Maybe String -> [String] -> P String -> P [Token Lexeme]
+    closeKw' reopenBlockname open closeP = close' reopenBlockname open (separated wordySep closeP)
 
     blockDelimiter :: [String] -> P String -> P [Token Lexeme]
     blockDelimiter open closeP = do

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.VersionParser where
@@ -24,6 +25,6 @@ defaultBaseLib = fmap makeNS $ latest <|> release
   version = do
     Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
   makeNS :: Text -> ReadRemoteNamespace
-  makeNS t = ( ReadGitRepo "https://github.com/unisonweb/base"
+  makeNS t = ( ReadGitRepo {url="https://github.com/unisonweb/base",ref=Nothing}
              , Nothing
              , Path.fromText t)

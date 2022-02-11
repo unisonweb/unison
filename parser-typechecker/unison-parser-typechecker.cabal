@@ -45,6 +45,7 @@ library
       Unison.Codebase.GitError
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
+      Unison.Codebase.Init.OpenCodebaseError
       Unison.Codebase.Init.Type
       Unison.Codebase.MainTerm
       Unison.Codebase.Metadata
@@ -122,6 +123,7 @@ library
       Unison.Server.Endpoints.GetDefinitions
       Unison.Server.Endpoints.NamespaceDetails
       Unison.Server.Endpoints.NamespaceListing
+      Unison.Server.Endpoints.Projects
       Unison.Server.Errors
       Unison.Server.QueryResult
       Unison.Server.SearchResult
@@ -157,7 +159,6 @@ library
       Unison.Util.Free
       Unison.Util.Less
       Unison.Util.Logger
-      Unison.Util.Map
       Unison.Util.PinBoard
       Unison.Util.Pretty
       Unison.Util.Range
@@ -255,6 +256,7 @@ library
     , regex-tdfa
     , safe
     , safe-exceptions
+    , semialign
     , servant
     , servant-docs
     , servant-openapi3
@@ -268,6 +270,7 @@ library
     , terminal-size
     , text
     , text-short
+    , these
     , time
     , tls
     , transformers

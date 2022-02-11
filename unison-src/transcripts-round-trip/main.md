@@ -255,3 +255,102 @@ x = 2
 .> add
 ```
 
+## Unison Cloud roundtrip issues
+
+Regression tests for  https://github.com/unisonweb/unison/issues/2650
+
+```unison:hide
+broken =
+    addNumbers: 'Nat
+    addNumbers = 'let
+      use Nat +
+      y = 12
+      13 + y
+    !addNumbers    
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+tvarmodify tvar fun = ()
+
+broken tvar = 
+  '(tvarmodify tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+```
+
+``` ucm
+.> add
+.> edit tvarmodify broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+broken = cases 
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Guard patterns on long lines
+
+```unison:hide
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+foo = let
+  go x = 
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+  go (SomethingUnusuallyLong "one" "two" "three")
+```
+
+```ucm
+.> add
+.> edit SomethingUnusuallyLong foo 
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+## Nested fences
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+.> add
+```
+
+```ucm
+.> edit nested
+.> undo
+```
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+```
+
