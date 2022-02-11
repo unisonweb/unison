@@ -23,7 +23,7 @@ module Unison.UnisonFile
     discardTypes,
     effectDeclarations',
     hashConstructors,
-    constructorsForTypeVars,
+    constructorsForDecls,
     hashTerms,
     indexByReference,
     lookupDecl,
@@ -206,9 +206,9 @@ hashConstructors file =
         [ (v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
--- | Returns the set of constructor names for type names in the given `Set`.
-constructorsForTypeVars :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
-constructorsForTypeVars types uf =
+-- | Returns the set of constructor names for decls whose names in the given Set.
+constructorsForDecls :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
+constructorsForDecls types uf =
   let dataConstructors =
         dataDeclarationsId' uf
           & Map.filterWithKey (\k _ -> Set.member k types)

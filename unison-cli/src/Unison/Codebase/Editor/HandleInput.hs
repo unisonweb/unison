@@ -1852,9 +1852,9 @@ handleUpdate input maybePatchPath requestedNames = do
                 ([old], [new]) -> (n, (old, new))
                 actual ->
                   error $
-                    "Expected unique matches for "
+                    "Expected unique matches for var \""
                       ++ Var.nameStr v
-                      ++ " but got: "
+                      ++ "\" but got: "
                       ++ show actual
                 where
                   n = Name.unsafeFromVar v
@@ -2871,7 +2871,7 @@ doSlurpAdds slurp uf = Branch.batchUpdates (typeActions <> termActions)
     typeActions = map doType . toList $ SC.types slurp
     termActions =
       map doTerm . toList $
-        SC.terms slurp <> UF.constructorsForTypeVars (SC.types slurp) uf
+        SC.terms slurp <> UF.constructorsForDecls (SC.types slurp) uf
     names = UF.typecheckedToNames uf
     tests = Set.fromList $ fst <$> UF.watchesOfKind WK.TestWatch (UF.discardTypes uf)
     (isTestType, isTestValue) = isTest
