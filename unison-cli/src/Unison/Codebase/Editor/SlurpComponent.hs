@@ -61,7 +61,7 @@ closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
     seenTypes = foldl' typeDeps mempty (types inputs)
 
     constructorDeps :: Set v
-    constructorDeps = UF.constructorsForTypeVars seenTypes uf
+    constructorDeps = UF.constructorsForDecls seenTypes uf
 
     termDeps :: SlurpComponent v -> v -> SlurpComponent v
     termDeps seen v | Set.member v (terms seen) = seen
