@@ -193,10 +193,7 @@ withRepo repo@(ReadGitRepo {url = uri, ref = mayGitRef}) branchBehavior action =
               "--force", -- force updating local refs even if not fast-forward
               -- update local refs with the same name they have on the remote.
               "--refmap", "*:*",
-            -- Note: a shallow fetch saves time initially, but prevents
-            -- 'local' clones from using hard-links, so doing a normal fetch saves the most time
-            -- in the long run.
-              -- "--depth", "1",
+              "--depth", "1",
               uri, -- The repo to fetch from
               gitRef -- The specific reference to fetch
             ] ++ gitVerbosity
@@ -221,10 +218,7 @@ cloneIfMissing repo@(ReadGitRepo {url=uri}) localPath = do
           gitGlobal
             (["clone"]
             ++ ["--bare"]
-            -- Note: a shallow clone saves time on the initial clone, but prevents all future
-            -- 'local' clones from using hard-links, so doing a full clone saves the most time
-            -- in the long run.
-            -- ++ ["--depth", "1"]
+            ++ ["--depth", "1"]
             ++ [uri, Text.pack localPath]))
           `withIOError` (throwError . GitError.CloneException repo . show)
       isGitDir <- liftIO $ isGitRepo (Bare localPath)
