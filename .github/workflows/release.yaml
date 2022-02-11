@@ -111,30 +111,3 @@ jobs:
           if-no-files-found: error
           name: build-macos
           path: ucm-macos.tar.gz
-
-
-  release:
-    name: "create_release"
-    runs-on: "ubuntu-latest"
-    needs:
-      - build_linux
-      - build_macos
-
-    steps:
-      - name: make download dir
-        run: "mkdir /tmp/ucm"
-
-      - name: "download artifacts"
-        uses: actions/download-artifact@v2
-        with:
-          path: /tmp/ucm
-
-
-      - uses: actions/checkout@v2
-      - uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "Development Build"
-          files: /tmp/ucm/**/*.tar.gz
