@@ -338,3 +338,19 @@ foo = let
 .> load scratch.u
 ```
 
+## Nested fences
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+.> add
+```
+
+```ucm
+.> edit nested
+.> undo
+```
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+```
+

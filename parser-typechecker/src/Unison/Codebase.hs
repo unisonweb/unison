@@ -138,6 +138,7 @@ import UnliftIO (MonadUnliftIO)
 import Control.Monad.Except (ExceptT(ExceptT))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (throwE)
+import qualified Unison.Codebase.Editor.Git as Git
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -347,7 +348,7 @@ importRemoteBranch ::
   Preprocessing m ->
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode preprocess = runExceptT $ do
-  branchHash <- ExceptT . viewRemoteBranch' codebase ns $ \(branch, cacheDir) -> do
+  branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
          withStatus "Importing downloaded files into local codebase..." $ do
            processedBranch <- preprocessOp branch
            time "SyncFromDirectory" $ do
@@ -369,10 +370,11 @@ viewRemoteBranch ::
   MonadIO m =>
   Codebase m v a ->
   ReadRemoteNamespace ->
+  Git.GitBranchBehavior ->
   (Branch m -> m r) ->
   m (Either GitError r)
-viewRemoteBranch codebase ns action =
-  viewRemoteBranch' codebase ns (\(b, _dir) -> action b)
+viewRemoteBranch codebase ns gitBranchBehavior action =
+  viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
 unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)

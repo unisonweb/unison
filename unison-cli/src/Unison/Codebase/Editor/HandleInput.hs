@@ -151,6 +151,7 @@ import qualified Data.Set.NonEmpty as NESet
 import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
+import qualified Unison.Codebase.Editor.Git as Git
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -635,8 +636,8 @@ loop = do
                       ppe
                       outputDiff
             CreatePullRequestI baseRepo headRepo -> do
-              result <- join @(Either GitError) <$> viewRemoteBranch baseRepo \baseBranch -> do
-                 viewRemoteBranch headRepo \headBranch -> do
+              result <- join @(Either GitError) <$> viewRemoteBranch baseRepo Git.RequireExistingBranch \baseBranch -> do
+                 viewRemoteBranch headRepo Git.RequireExistingBranch \headBranch -> do
                    merged <- eval $ Merge Branch.RegularMerge baseBranch headBranch
                    (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
                    pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
@@ -1474,7 +1475,7 @@ loop = do
               ppe <-
                 suffixifiedPPE
                   =<< makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-              respond $ ListEdits patch ppe
+              respondNumbered $ ListEdits patch ppe
             PullRemoteBranchI mayRepo path syncMode pullMode verbosity -> unlessError do
               let preprocess = case pullMode of
                     Input.PullWithHistory -> Unmodified
@@ -1721,7 +1722,7 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
                     runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
                       Left gitErr -> respond (Output.GitError gitErr)
                       Right () -> respond Success
-          viewRemoteBranch (writeToRead repo, Nothing, Path.empty) withRemoteRoot >>= \case
+          viewRemoteBranch (writeToRead repo, Nothing, Path.empty) Git.CreateBranchIfMissing withRemoteRoot >>= \case
             Left (GitSqliteCodebaseError NoDatabaseFile{}) -> withRemoteRoot Branch.empty
             Left err -> throwError err
             Right () -> pure ()
@@ -2086,9 +2087,14 @@ configKey k p =
         NameSegment.toText
         (Path.toSeq $ Path.unabsolute p)
 
-viewRemoteBranch :: (MonadCommand n m i v, MonadUnliftIO m) => ReadRemoteNamespace -> (Branch m -> Free (Command m i v) r) -> n (Either GitError r)
-viewRemoteBranch ns action = do
-  eval $ ViewRemoteBranch ns action
+viewRemoteBranch ::
+  (MonadCommand n m i v, MonadUnliftIO m) =>
+  ReadRemoteNamespace ->
+  Git.GitBranchBehavior ->
+  (Branch m -> Free (Command m i v) r) ->
+  n (Either GitError r)
+viewRemoteBranch ns gitBranchBehavior action = do
+  eval $ ViewRemoteBranch ns gitBranchBehavior action
 
 syncRemoteBranch :: MonadCommand n m i v => Branch m -> WriteRepo -> PushGitBranchOpts -> ExceptT GitError n ()
 syncRemoteBranch b repo opts =

@@ -67,9 +67,9 @@ Test that replace works with types
 
 .scratch> view.patch patch
 
-  Edited Types: X#d97e0jhkmd -> X
+  Edited Types: 1. X#d97e0jhkmd -> 3. X
   
-  Edited Terms: #jk19sm5bf8 -> x
+  Edited Terms: 2. #jk19sm5bf8 -> 4. x
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

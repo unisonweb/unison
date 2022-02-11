@@ -13,7 +13,7 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import qualified Control.Concurrent
-import Control.Monad.Except (runExceptT, withExceptT, throwError, ExceptT)
+import Control.Monad.Except (runExceptT, throwError, ExceptT)
 import qualified Control.Monad.Except as Except
 import qualified Control.Monad.Extra as Monad
 import Control.Monad.Reader (ReaderT (runReaderT))
@@ -54,8 +54,9 @@ import qualified Unison.Codebase as Codebase1
 import Unison.Codebase.Branch (Branch (..))
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Causal as Causal
-import Unison.Codebase.Editor.Git (gitIn, gitTextIn, pullRepo, withIsolatedRepo)
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (WriteGitRepo), printWriteRepo, writeToRead)
+import Unison.Codebase.Editor.Git (gitIn, gitTextIn, gitInCaptured, withRepo)
+import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (..), printWriteRepo, writeToRead, ReadRepo)
 import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
@@ -91,9 +92,8 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Util.Set as Set
 import qualified Unison.WatchKind as UF
-import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO)
-import qualified UnliftIO
-import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removePathForcibly)
+import UnliftIO (catchIO, finally, MonadUnliftIO, throwIO, try)
+import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist)
 import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
 import Data.Either.Extra ()
@@ -1027,12 +1027,13 @@ viewRemoteBranch' ::
   forall m r.
   (MonadUnliftIO m) =>
   ReadRemoteNamespace ->
+  Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
   m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) action = UnliftIO.try do
+viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
-  remotePath <- UnliftIO.fromEitherM . runExceptT . withExceptT C.GitProtocolError . time "Git fetch" $ pullRepo repo
-
+ time "Git fetch" $ throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
+  let remotePath = Git.gitDirToPath remoteRepo
   -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
   -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
   -- somehow corrupt, or not even a Unison database.
@@ -1085,7 +1086,7 @@ pushGitBranch ::
   WriteRepo ->
   PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try $ do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLeft C.GitProtocolError <$> do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -1100,19 +1101,14 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   -- Delete the temp-dir.
   --
   -- set up the cache dir
-  pathToCachedRemote <- time "Git fetch" $ throwExceptTWith C.GitProtocolError $ pullRepo (writeToRead repo)
-  throwEitherMWith C.GitProtocolError . withIsolatedRepo pathToCachedRemote $ \isolatedRemotePath -> do
-    -- Connect to codebase in the cached git repo so we can copy it over.
-    withOpenOrCreateCodebaseConnection @m "push.cached" pathToCachedRemote $ \cachedRemoteConn -> do
-      -- Copy our cached remote database cleanly into our isolated directory.
-      copyCodebase cachedRemoteConn isolatedRemotePath
-      -- Connect to the newly copied database which we know has been properly closed and
-      -- nobody else could be using.
-      withConnection @m "push.dest" isolatedRemotePath $ \destConn -> do
-        flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-          throwExceptT $ doSync isolatedRemotePath srcConn destConn
-    void $ push isolatedRemotePath repo
+ withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
+   withOpenOrCreateCodebaseConnection @m "push.dest" (Git.gitDirToPath pushStaging) $ \destConn -> do
+     flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+       throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
+   void $ push pushStaging repo
   where
+    readRepo :: ReadRepo
+    readRepo = writeToRead repo
     doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
     doSync remotePath srcConn destConn = do
       _ <- flip State.execStateT emptySyncProgressState $
@@ -1189,8 +1185,8 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall m. MonadIO m => CodebasePath -> WriteRepo -> m Bool -- withIOError needs IO
-    push remotePath (WriteGitRepo url) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: forall m. MonadIO m => Git.GitRepo -> WriteRepo -> m Bool -- withIOError needs IO
+    push remotePath repo@(WriteGitRepo {url'=url, branch=mayGitBranch}) = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -1217,14 +1213,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
             gitIn
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
-            -- Push our changes to the repo
-            gitIn remotePath ["push", "--quiet", url]
+            -- Push our changes to the repo, silencing all output.
+            -- Even with quiet, the remote (Github) can still send output through,
+            -- so we capture stdout and stderr.
+            (successful, _stdout, stderr) <- gitInCaptured remotePath $ ["push", "--quiet", url] ++ maybe [] (pure @[]) mayGitBranch
+            when (not successful) . throwIO $ GitError.PushException repo (Text.unpack stderr)
             pure True
-
--- | Make a clean copy of the connected codebase into the provided path. Destroys any existing `v2/` directory
-copyCodebase :: MonadIO m => Connection -> CodebasePath -> m ()
-copyCodebase srcConn destPath = runDB srcConn $ do
-  -- remove any existing codebase at the destination location.
-  removePathForcibly (makeCodebaseDirPath destPath)
-  createDirectoryIfMissing True (makeCodebaseDirPath destPath)
-  Q.vacuumInto (makeCodebasePath destPath)

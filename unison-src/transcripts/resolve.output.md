@@ -118,7 +118,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 
 .example.resolve> view.patch a.patch
 
-  Edited Terms: c.foo -> a.foo
+  Edited Terms: 1. c.foo -> 2. a.foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -126,7 +126,7 @@ The `a` and `b` namespaces now each contain a patch named `patch`. We can view t
 
 .example.resolve> view.patch b.patch
 
-  Edited Terms: c.foo -> b.foo
+  Edited Terms: 1. c.foo -> 2. b.foo
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -214,7 +214,7 @@ This changes the merged `c.patch` so that only a single edit remains and resolve
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: #44954ulpdf -> foo#8e68dvpr0a
+  Edited Terms: 1. #44954ulpdf -> 2. foo#8e68dvpr0a
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
