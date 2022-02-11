@@ -439,8 +439,8 @@ unique type Y a b = Y a b
 .> view.patch ns2.patch
 
   Edited Terms:
-    ns1.b         -> ns2.b
-    ns1.fromJust' -> ns2.fromJust
+    1. ns1.b         -> 3. ns2.b
+    2. ns1.fromJust' -> 4. ns2.fromJust
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as

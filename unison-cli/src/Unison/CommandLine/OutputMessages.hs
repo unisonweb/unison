@@ -131,6 +131,9 @@ import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
 import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
+import Control.Monad.State
+import Control.Monad.Trans.Writer.CPS
+import qualified Unison.ShortHash as ShortHash
 
 type Pretty = P.Pretty P.ColorText
 
@@ -337,6 +340,7 @@ notifyNumbered o = case o of
           endangeredDependentsTable ppeDecl endangerments
         ]
     , numberedArgsForEndangerments ppeDecl endangerments)
+  ListEdits patch ppe -> showListEdits patch ppe
   where
     absPathToBranchId = Right
     undoTip =
@@ -345,6 +349,99 @@ notifyNumbered o = case o of
           <> "or"
           <> IP.makeExample' IP.viewReflog
           <> "to undo this change."
+
+showListEdits :: Patch -> PPE.PrettyPrintEnv -> (P.Pretty P.ColorText, NumberedArgs)
+showListEdits patch ppe =
+  ( P.sepNonEmpty
+      "\n\n"
+      [ if null types
+          then mempty
+          else
+            "Edited Types:"
+              `P.hang` P.column2 typeOutputs,
+        if null terms
+          then mempty
+          else
+            "Edited Terms:"
+              `P.hang` P.column2 termOutputs,
+        if null types && null terms
+          then "This patch is empty."
+          else
+            tip . P.string $
+              "To remove entries from a patch, use "
+                <> IP.deleteTermReplacementCommand
+                <> " or "
+                <> IP.deleteTypeReplacementCommand
+                <> ", as appropriate."
+      ],
+    numberedArgsCol1 <> numberedArgsCol2
+  )
+  where
+    typeOutputs, termOutputs :: [(P.Pretty CT.ColorText, P.Pretty CT.ColorText)]
+    numberedArgsCol1, numberedArgsCol2 :: NumberedArgs
+    -- We use the output of the first column's count as the first number in the second
+    -- column's count. Laziness allows this since they're used independently of one another.
+    (((typeOutputs, termOutputs), (lastNumberInFirstColumn, _)), (numberedArgsCol1, numberedArgsCol2)) =
+      runWriter . flip runStateT (1, lastNumberInFirstColumn) $ do
+        typeOutputs <- traverse prettyTypeEdit types
+        termOutputs <- traverse prettyTermEdit terms
+        pure (typeOutputs, termOutputs)
+    types :: [(Reference, TypeEdit.TypeEdit)]
+    types = R.toList $ Patch._typeEdits patch
+    terms :: [(Reference, TermEdit.TermEdit)]
+    terms = R.toList $ Patch._termEdits patch
+    showNum :: Int -> P.Pretty CT.ColorText
+    showNum n = P.hiBlack (P.shown n <> ". ")
+
+    prettyTermEdit ::
+      (Reference.TermReference, TermEdit.TermEdit) ->
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+    prettyTermEdit (lhsRef, termEdit) = do
+      n1 <- gets fst <* modify (first succ)
+      let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
+      -- We use the shortHash of the lhs rather than its name for numbered args,
+      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
+      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      case termEdit of
+        TermEdit.Deprecate -> do
+          lift $ tell ([lhsHash], [])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
+              "-> (deprecated)"
+            )
+        TermEdit.Replace rhsRef _typing -> do
+          n2 <- gets snd <* modify (second succ)
+          let rhsTermName = PPE.termName ppe (Referent.Ref rhsRef)
+          lift $ tell ([lhsHash], [HQ.toString rhsTermName])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTermName),
+              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTermName)
+            )
+
+    prettyTypeEdit ::
+      (Reference, TypeEdit.TypeEdit) ->
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+    prettyTypeEdit (lhsRef, typeEdit) = do
+      n1 <- gets fst <* modify (first succ)
+      let lhsTypeName = PPE.typeName ppe lhsRef
+      -- We use the shortHash of the lhs rather than its name for numbered args,
+      -- since its name is likely to be "historical", and won't work if passed to a ucm command.
+      let lhsHash = ShortHash.toString . Reference.toShortHash $ lhsRef
+      case typeEdit of
+        TypeEdit.Deprecate -> do
+          lift $ tell ([lhsHash], [])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
+              "-> (deprecated)"
+            )
+        TypeEdit.Replace rhsRef -> do
+          n2 <- gets snd <* modify (second succ)
+          let rhsTypeName = PPE.typeName ppe rhsRef
+          lift $ tell ([lhsHash], [HQ.toString rhsTypeName])
+          pure
+            ( showNum n1 <> (P.syntaxToColor . prettyHashQualified $ lhsTypeName),
+              "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
+            )
 
 prettyRemoteNamespace :: ReadRemoteNamespace -> P.Pretty P.ColorText
 prettyRemoteNamespace =
@@ -928,6 +1025,9 @@ notifyUser dir o = case o of
           "I couldn't push to the repository at" <> prettyWriteRepo repo <> ";"
             <> "the error was:"
             <> (P.indentNAfterNewline 2 . P.group . P.string) msg
+      RemoteRefNotFound repo ref ->
+        P.wrap $
+          "I couldn't find the ref " <> P.green (P.text ref) <> " in the repository at " <> P.blue (P.text repo) <> ";"
       UnrecognizableCacheDir uri localPath ->
         P.wrap $
           "A cache directory for"
@@ -996,49 +1096,6 @@ notifyUser dir o = case o of
             "",
             P.wrap "Try again with a few more hash characters to disambiguate."
           ]
-  ListEdits patch ppe -> do
-    let types = Patch._typeEdits patch
-        terms = Patch._termEdits patch
-
-        prettyTermEdit (r, TermEdit.Deprecate) =
-          ( P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r,
-            "-> (deprecated)"
-          )
-        prettyTermEdit (r, TermEdit.Replace r' _typing) =
-          ( P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r,
-            "-> " <> (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r')
-          )
-        prettyTypeEdit (r, TypeEdit.Deprecate) =
-          ( P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r,
-            "-> (deprecated)"
-          )
-        prettyTypeEdit (r, TypeEdit.Replace r') =
-          ( P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r,
-            "-> " <> (P.syntaxToColor . prettyHashQualified . PPE.typeName ppe $ r')
-          )
-    pure $
-      P.sepNonEmpty
-        "\n\n"
-        [ if R.null types
-            then mempty
-            else
-              "Edited Types:"
-                `P.hang` P.column2 (prettyTypeEdit <$> R.toList types),
-          if R.null terms
-            then mempty
-            else
-              "Edited Terms:"
-                `P.hang` P.column2 (prettyTermEdit <$> R.toList terms),
-          if R.null types && R.null terms
-            then "This patch is empty."
-            else
-              tip . P.string $
-                "To remove entries from a patch, use "
-                  <> IP.deleteTermReplacementCommand
-                  <> " or "
-                  <> IP.deleteTypeReplacementCommand
-                  <> ", as appropriate."
-        ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -2603,10 +2660,10 @@ prettyTypeName ppe r =
     prettyHashQualified (PPE.typeName ppe r)
 
 prettyReadRepo :: ReadRepo -> Pretty
-prettyReadRepo (RemoteRepo.ReadGitRepo url) = P.blue (P.text url)
+prettyReadRepo (RemoteRepo.ReadGitRepo{url}) = P.blue (P.text url)
 
 prettyWriteRepo :: WriteRepo -> Pretty
-prettyWriteRepo (RemoteRepo.WriteGitRepo url) = P.blue (P.text url)
+prettyWriteRepo (RemoteRepo.WriteGitRepo{url'}) = P.blue (P.text url')
 
 isTestOk :: Term v Ann -> Bool
 isTestOk tm = case tm of

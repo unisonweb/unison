@@ -92,6 +92,7 @@ data CCache
   , intermed :: TVar (M.Map Reference (SuperGroup Symbol))
   , refTm :: TVar (M.Map Reference Word64)
   , refTy :: TVar (M.Map Reference Word64)
+  , sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
 refNumsTm :: CCache -> IO (M.Map Reference Word64)
@@ -124,6 +125,7 @@ baseCCache
       <*> newTVarIO mempty
       <*> newTVarIO builtinTermNumbering
       <*> newTVarIO builtinTypeNumbering
+      <*> newTVarIO baseSandboxInfo
   where
   noTrace _ _ = pure ()
   ftm = 1 + maximum builtinTermNumbering
@@ -317,6 +319,14 @@ exec !env !denv !_activeThreads !ustk !bstk !k (BPrim1 VALU i) = do
   pure (denv, ustk, bstk, k)
 exec !_   !denv !_activeThreads !ustk !bstk !k (BPrim1 op i) = do
   (ustk,bstk) <- bprim1 ustk bstk op i
+  pure (denv, ustk, bstk, k)
+exec !env !denv !_activeThreads !ustk !bstk !k (BPrim2 SDBX i j) = do
+  s <- peekOffS bstk i
+  c <- peekOff bstk j
+  l <- decodeSandboxArgument s
+  b <- checkSandboxing env l c
+  ustk <- bump ustk
+  poke ustk $ if b then 1 else 0
   pure (denv, ustk, bstk, k)
 exec !_   !denv !_activeThreads !ustk !bstk !k (BPrim2 EQLU i j) = do
   x <- peekOff bstk i
@@ -1429,6 +1439,7 @@ bprim2 !_    !bstk THRO i j = do
   throwIO (BU (Util.Text.toText name) x)
 bprim2 !ustk !bstk TRCE _ _ = pure (ustk, bstk) -- impossible
 bprim2 !ustk !bstk CMPU _ _ = pure (ustk, bstk) -- impossible
+bprim2 !ustk !bstk SDBX _ _ = pure (ustk, bstk) -- impossible
 {-# inline bprim2 #-}
 
 yield
@@ -1547,6 +1558,13 @@ decodeCacheArgument s = for (toList s) $ \case
       _ -> die "decodeCacheArgument: Con reference"
   _ -> die "decodeCacheArgument: unrecognized value"
 
+decodeSandboxArgument :: Sq.Seq Closure -> IO [Reference]
+decodeSandboxArgument s = fmap join . for (toList s) $ \case
+  Foreign x -> case unwrapForeign x of
+    Ref r -> pure [r]
+    _ -> pure [] -- constructor
+  _ -> die "decodeSandboxArgument: unrecognized value"
+
 addRefs
   :: TVar Word64
   -> TVar (M.Map Reference Word64)
@@ -1589,12 +1607,27 @@ codeValidate tml cc = do
       extra = Foreign . Wrap Rf.textRef . Util.Text.pack $ show cs in
       pure . Just $ Failure ioFailureRef msg extra
 
+checkSandboxing
+  :: CCache
+  -> [Reference]
+  -> Closure
+  -> IO Bool
+checkSandboxing cc allowed0 c = do
+  sands <- readTVarIO $ sandbox cc
+  let f r | Just rs <- M.lookup r sands
+          = rs `S.difference` allowed
+          | otherwise = mempty
+  pure $ S.null (closureTermRefs f c)
+  where
+  allowed = S.fromList allowed0
+
 cacheAdd0
   :: S.Set Reference
   -> [(Reference, SuperGroup Symbol)]
+  -> [(Reference, Set Reference)]
   -> CCache
   -> IO ()
-cacheAdd0 ntys0 tml cc = atomically $ do
+cacheAdd0 ntys0 tml sands cc = atomically $ do
   have <- readTVar (intermed cc)
   let new = M.difference toAdd have
       sz = fromIntegral $ M.size new
@@ -1608,9 +1641,23 @@ cacheAdd0 ntys0 tml cc = atomically $ do
       combinate n g = (n, emitCombs rns n g)
   nrs <- updateMap (mapFromList $ zip [ntm..] rs) (combRefs cc)
   ncs <- updateMap (mapFromList $ zipWith combinate [ntm..] gs) (combs cc)
-  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` ()
+  nsn <- updateMap (M.fromList sands) (sandbox cc)
+  pure $ int `seq` rtm `seq` nrs `seq` ncs `seq` nsn `seq` ()
   where
   toAdd = M.fromList tml
+
+expandSandbox
+  :: Map Reference (Set Reference)
+  -> [(Reference, SuperGroup Symbol)]
+  -> [(Reference, Set Reference)]
+expandSandbox sand = mapMaybe h
+  where
+  f False r = fromMaybe mempty $ M.lookup r sand
+  f True  _ = mempty
+
+  h (r, groupLinks f -> s)
+    | S.null s = Nothing
+    | otherwise = Just (r, s)
 
 cacheAdd
   :: [(Reference, SuperGroup Symbol)]
@@ -1619,6 +1666,7 @@ cacheAdd
 cacheAdd l cc = do
   rtm <- readTVarIO (refTm cc)
   rty <- readTVarIO (refTy cc)
+  sand <- readTVarIO (sandbox cc)
   let known = M.keysSet rtm <> S.fromList (fst <$> l)
       f b r | not b, S.notMember r known = (S.singleton r, mempty)
             | b, M.notMember r rty = (mempty, S.singleton r)
@@ -1626,7 +1674,7 @@ cacheAdd l cc = do
       (missing, tys) = (foldMap.foldMap) (groupLinks f) l
       l' = filter (\(r,_) -> M.notMember r rtm) l
   if S.null missing
-    then [] <$ cacheAdd0 tys l' cc
+    then [] <$ cacheAdd0 tys l' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 reflectValue :: EnumMap Word64 Reference -> Closure -> IO ANF.Value

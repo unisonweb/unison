@@ -77,9 +77,18 @@ We can display the guide before and after adding it to the codebase:
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -278,9 +287,18 @@ We can display the guide before and after adding it to the codebase:
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -485,9 +503,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -679,9 +706,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x
@@ -1797,6 +1833,29 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                           (!Lit (Right (Plain "  ")))
                           (!Annotated.Group
                             (!Wrap
+                              (!Lit (Right (Plain "also:"))))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Lit
+                              (Left
+                                (Eval
+                                  (Term.Term
+                                    (Any
+                                      (_ ->
+                                        (match 1 with
+                                          1 -> "hi"
+                                          _ -> "goodbye")))))))),
+                          !Lit (Right (Plain "\n")),
+                          !Lit (Right (Plain "\n")),
+                          !Indent
+                          (!Lit (Right (Plain "  ")))
+                          (!Lit (Right (Plain "  ")))
+                          (!Annotated.Group
+                            (!Wrap
                               (!Annotated.Append
                                 [ !Lit (Right (Plain "To")),
                                   !Lit (Right (Plain "include")),
@@ -1825,6 +1884,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                   0 (Term.Term
                                     (Any
                                       (_ ->
+                                        cube : Nat -> Nat
                                         cube x =
                                           use Nat *
                                           x * x * x

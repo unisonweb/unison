@@ -257,6 +257,14 @@ and the rendered output using `display`:
       id (sqr 10)
       ```
       
+      also:
+      
+      ```
+      match 1 with
+        1 -> "hi"
+        _ -> "goodbye"
+      ```
+      
       To include a typechecked snippet of code without
       evaluating it, you can do:
       
@@ -281,9 +289,18 @@ and the rendered output using `display`:
         ⧨
         100
   
+    also:
+  
+        match 1 with
+          1 -> "hi"
+          _ -> "goodbye"
+        ⧨
+        "hi"
+  
     To include a typechecked snippet of code without evaluating
     it, you can do:
   
+        cube : Nat -> Nat
         cube x =
           use Nat *
           x * x * x
@@ -626,9 +643,18 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
           ⧨
           100
     
+      also:
+    
+          match 1 with
+            1 -> "hi"
+            _ -> "goodbye"
+          ⧨
+          "hi"
+    
       To include a typechecked snippet of code without
       evaluating it, you can do:
     
+          cube : Nat -> Nat
           cube x =
             use Nat *
             x * x * x

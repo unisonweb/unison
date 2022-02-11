@@ -11,6 +11,7 @@ import Unison.Prelude
 
 import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
+import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
@@ -60,6 +61,9 @@ termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
 
+codeLookupM :: Applicative m => CodeLookup Symbol m Ann
+codeLookupM = hoist (pure . runIdentity) codeLookup
+
 typeNamedId :: String -> R.Id
 typeNamedId s =
   case Map.lookup (Var.nameds s) (UF.dataDeclarationsId' typecheckedFile) of
@@ -96,6 +100,11 @@ eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
+
+authorRef, guidRef, copyrightHolderRef :: R.Reference
+authorRef = typeNamed "Author"
+guidRef = typeNamed "GUID"
+copyrightHolderRef = typeNamed "CopyrightHolder"
 
 doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
