@@ -2269,7 +2269,7 @@ showTodoOutput getPpe patch names0 = do
                <$> fst (TO.todoFrontierDependents todo)
            )
       ppe <- getPpe
-      respond $ TodoOutput ppe todo
+      respondNumbered $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
