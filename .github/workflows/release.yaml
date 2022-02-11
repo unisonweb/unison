@@ -7,23 +7,6 @@ on:
 
 jobs:
   release:
-    name: "release"
-    runs-on: "ubuntu-latest"
-
-    strategy:
-      # Run each build to completion, regardless of if any have failed
-      fail-fast: false
-    steps:
-      - name: create-release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        with:
-          if-no-files-found: error
-          name: build-linux
-          path: ucm-linux.tar.gz
-  
-  release:
     name: "create_release"
     runs-on: "ubuntu-latest"
     needs:
@@ -52,4 +35,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: /tmp/ucm/**/*.tar.gz
-
