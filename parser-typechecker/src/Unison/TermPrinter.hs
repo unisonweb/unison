@@ -327,12 +327,17 @@ pretty0
 
     t -> l "error: " <> l (show t)
  where
+  goNormal prec tm = pretty0 n (ac prec Normal im doc) tm     
   specialCases term _go | Just p <- prettyDoc2 n a term = p
   specialCases term go = case (term, binaryOpsPred) of
     (DD.Doc, _) | doc == MaybeDoc ->
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
+    (App' f@(Builtin' "Any.Any") arg, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
+    (Apps' f@(Constructor' _) args, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
     (TupleTerm' [x], _) ->
       let
           conRef = DD.pairCtorRef
