@@ -334,10 +334,6 @@ pretty0
       if isDocLiteral term
       then prettyDoc n im term
       else pretty0 n (a {docContext = NoDoc}) term
-    (App' f@(Builtin' "Any.Any") arg, _) ->   
-      paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
-    (Apps' f@(Constructor' _) args, _) ->   
-      paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
     (TupleTerm' [x], _) ->
       let
           conRef = DD.pairCtorRef
@@ -350,7 +346,10 @@ pretty0
     (TupleTerm' xs, _) ->
       let tupleLink p = fmt (S.TypeReference DD.unitRef) p
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
-
+    (App' f@(Builtin' "Any.Any") arg, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
+    (Apps' f@(Constructor' _) args, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
