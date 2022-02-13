@@ -1513,12 +1513,82 @@ ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
 
 ungeneralize' :: (Var v, Ord loc) => Type v loc -> M v loc ([v], Type v loc)
-ungeneralize' (Type.Forall' t) = do
-  v <- ABT.freshen t freshenTypeVar
-  appendContext [existential v]
-  t <- pure $ ABT.bindInheritAnnotation t (existential' () B.Blank v)
-  first (v:) <$> ungeneralize' t
+ungeneralize' (Type.ForallNamed' v t) = do
+  (vs, t) <- tweakEffects v t
+  first (vs++) <$> ungeneralize' t
 ungeneralize' t = pure ([], t)
+
+-- Tries to massage types like:
+--
+--     (a ->{e} b ->{e} c) ->{e} d
+--
+-- by rewriting them into:
+--
+--     (a ->{e1} b ->{e2} c) ->{e1,e2} d
+--
+-- The strategy is to find all negative occurrences of `e` and
+-- introduce a new variable for each, and then replace any
+-- non-negative occurrences with the row of all negative
+-- variables. The reason this is valid is that `e` can be
+-- instantiated with the entire row, and then all the negative
+-- rows can be pared down to the single variable via subtyping.
+--
+-- This is meant to occur when a polymorphic type is
+-- de-generalized, and replaces simple freshening of the
+-- polymorphic variable.
+tweakEffects
+  :: Var v
+  => Ord loc
+  => TypeVar v loc
+  -> Type v loc
+  -> M v loc ([v], Type v loc)
+tweakEffects v0 t0
+  | isEffectVar v0 t0 = rewrite (Just False) t0 >>= \case
+    ([], ty) ->
+      freshenTypeVar v0 >>= \out -> finish [out] ty
+    (vs, ty) -> finish vs ty
+  | otherwise
+  = freshenTypeVar v0 >>= \out -> finish [out] t0
+  where
+  negative = fromMaybe False
+
+  typ [v] = existential' () B.Blank v
+  typ vs = Type.effects () $ existential' () B.Blank <$> vs
+
+  finish vs ty = do
+    appendContext (existential <$> vs)
+    pure (vs, ABT.substInheritAnnotation v0 (typ vs) ty)
+
+  rewrite p ty@(Type.ForallNamed' v t)
+    | v0 /= v = second (Type.forall a v) <$> rewrite p t
+    where a = loc ty
+  rewrite p ty@(Type.Arrow'' i es o) = do
+    (vis, i) <- rewrite (not <$> p) i
+    (vos, o) <- rewrite p o
+    ess <- traverse (rewrite p) es
+    let es = snd <$> ess ; ves = fst =<< ess
+    pure (vis ++ ves ++ vos, Type.arrow a i (Type.effect a es o))
+    where a = loc ty
+  rewrite p ty@(Type.Var' v)
+    | v0 == v && negative p = do
+      u <- freshenTypeVar v0
+      pure ([u], existential' (loc ty) B.Blank u)
+  rewrite p ty@(Type.App' f x) = do
+    (vfs, f) <- rewrite p f
+    (vxs, x) <- rewrite Nothing x
+    pure (vfs ++ vxs, Type.app (loc ty) f x)
+  rewrite _ ty = pure ([], ty)
+
+isEffectVar :: Var v => TypeVar v loc -> Type v loc -> Bool
+isEffectVar u (Type.ForallNamed' v t)
+  | u == v = False
+  | otherwise = isEffectVar u t
+isEffectVar u (Type.Arrow'' i es o) =
+  any p es || isEffectVar u i || isEffectVar u o
+  where
+  p (Type.Var' v) = v == u
+  p _ = False
+isEffectVar _ _ = False
 
 skolemize
   :: Var v
