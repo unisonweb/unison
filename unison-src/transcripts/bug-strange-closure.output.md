@@ -2827,15 +2827,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (SpecialForm.Source
-                                        [ Cons
-                                            (Left
-                                              (typeLink Optional))
-                                            (Cons [] ()),
-                                          Cons
-                                            (Right
-                                              (Term.Term
-                                                (Any (_ -> sqr))))
-                                            (Cons [] ()) ]))))),
+                                        [ (Left
+                                            (typeLink Optional),
+                                          []),
+                                          (Right
+                                            (Term.Term
+                                              (Any (_ -> sqr))),
+                                          []) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent
@@ -2884,15 +2882,13 @@ rendered = Pretty.get (docFormatConsole doc.guide)
                                     ()
                                     (Left
                                       (FoldedSource
-                                        [ Cons
-                                            (Left
-                                              (typeLink Optional))
-                                            (Cons [] ()),
-                                          Cons
-                                            (Right
-                                              (Term.Term
-                                                (Any (_ -> sqr))))
-                                            (Cons [] ()) ]))))),
+                                        [ (Left
+                                            (typeLink Optional),
+                                          []),
+                                          (Right
+                                            (Term.Term
+                                              (Any (_ -> sqr))),
+                                          []) ]))))),
                             Lit () (Right (Plain "\n")),
                             Lit () (Right (Plain "\n")),
                             Indent

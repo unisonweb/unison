@@ -494,16 +494,16 @@ and the rendered output using `display`:
     {{
     docTable
       [ [ {{
-      a
-      }},
-        {{
-      b
-      }},
-        {{
-      A longer paragraph that will split onto multiple lines,
-      such that this row occupies multiple lines in the rendered
-      table.
-      }} ],
+          a
+          }},
+          {{
+          b
+          }},
+          {{
+          A longer paragraph that will split onto multiple
+          lines, such that this row occupies multiple lines in
+          the rendered table.
+          }} ],
         [{{ Some text }}, {{ More text }}, {{ Zounds! }}] ] }}
     }}
 
