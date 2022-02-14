@@ -24,6 +24,7 @@ makeTest (version, path) =
   scope (unpack version) $ expectEqual
     (rightMay $ runParser defaultBaseLib "versionparser" version)
     (Just
-      ( ReadGitRepo "https://github.com/unisonweb/base" Nothing
+      -- We've hard-coded the v2 branch for base for now. See 'defaultBaseLib'
+      ( ReadGitRepo "https://github.com/unisonweb/base" (Just "v2")
       , Nothing
       , Path.fromText path ))
