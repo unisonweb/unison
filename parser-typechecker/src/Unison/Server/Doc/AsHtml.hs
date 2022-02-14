@@ -10,6 +10,7 @@ import Control.Monad.Trans.State (evalStateT)
 import Control.Monad.Writer.Class (MonadWriter)
 import qualified Control.Monad.Writer.Class as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
+import qualified Data.Char as Char
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -348,8 +349,13 @@ toHtml docNamesByRef document =
                in ol_ [start_ $ Text.pack $ show startNum]
                     <$> renderSequence itemToHtml (mergeWords " " items)
             Section title docs -> do
+              let sectionId =
+                    Text.toLower $
+                      Text.filter (\c -> c == '-' || Char.isAlphaNum c) $
+                        toText "-" title
+
               titleEl <-
-                h sectionLevel <$> currentSectionLevelToHtml title
+                h sectionLevel sectionId <$> currentSectionLevelToHtml title
 
               docs' <- renderSequence (sectionContentToHtml (toHtml_ (sectionLevel + 1))) docs
 
@@ -454,16 +460,16 @@ toHtml docNamesByRef document =
 -- | Unison Doc allows endlessly deep section nesting with
 -- titles, but HTML only supports to h1-h6, so we clamp
 -- the sectionLevel when converting
-h :: Nat -> (Html () -> Html ())
-h n =
+h :: Nat -> Text -> (Html () -> Html ())
+h n anchorId =
   case n of
-    1 -> h1_
-    2 -> h2_
-    3 -> h3_
-    4 -> h4_
-    5 -> h5_
-    6 -> h6_
-    _ -> h6_
+    1 -> h1_ [id_ anchorId]
+    2 -> h2_ [id_ anchorId]
+    3 -> h3_ [id_ anchorId]
+    4 -> h4_ [id_ anchorId]
+    5 -> h5_ [id_ anchorId]
+    6 -> h6_ [id_ anchorId]
+    _ -> h6_ [id_ anchorId]
 
 badge :: Html () -> Html ()
 badge =
