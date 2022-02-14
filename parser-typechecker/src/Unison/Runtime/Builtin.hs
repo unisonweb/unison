@@ -166,10 +166,6 @@ fresh4 :: Var v => (v, v, v, v)
 fresh4 = (v1, v2, v3, v4) where
   [v1, v2, v3, v4] = freshes 4
 
-fresh5 :: Var v => (v, v, v, v, v)
-fresh5 = (v1, v2, v3, v4, v5) where
-  [v1, v2, v3, v4, v5] = freshes 5
-
 fresh6 :: Var v => (v, v, v, v, v, v)
 fresh6 = (v1, v2, v3, v4, v5, v6) where
   [v1, v2, v3, v4, v5, v6] = freshes 6
@@ -1055,12 +1051,12 @@ outIoFailNat stack1 stack2 stack3 fail nat result =
         $ right nat)
   ]
 
-outIoFailBox :: forall v. Var v => v -> v -> v -> v -> ANormal v
-outIoFailBox stack1 stack2 fail result =
+outIoFailBox :: forall v. Var v => v -> v -> v -> v -> v -> ANormal v
+outIoFailBox stack1 stack2 stack3 fail result =
   TMatch result . MatchSum  $ mapFromList
-  [ (0, ([BX, BX],)
-        . TAbss [stack1, stack2]
-        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2])
+  [ (0, ([BX, BX, BX],)
+        . TAbss [stack1, stack2, stack3]
+        . TLetD fail BX (TCon Ty.failureRef 0 [stack1, stack2, stack3])
         $ left fail)
   , (1, ([BX],)
         . TAbs stack1
@@ -1148,14 +1144,14 @@ unitToInt = inUnit unit result
 -- () -> Either Failure a
 unitToEFBox :: ForeignOp
 unitToEFBox = inUnit unit result
-            $ outIoFailBox stack1 stack2 fail result
-  where (unit, stack1, stack2, fail, result) = fresh5
+            $ outIoFailBox stack1 stack2 stack3 fail result
+  where (unit, stack1, stack2, stack3, fail, result) = fresh6
 
 boxIomrToEFBox :: ForeignOp
 boxIomrToEFBox = inBxIomr arg1 arg2 enum result
-              $ outIoFailBox stack1 stack2 fail result
+              $ outIoFailBox stack1 stack2 stack3 fail result
   where
-    (arg1, arg2, enum, stack1, stack2, fail, result) = fresh7
+    (arg1, arg2, enum, stack1, stack2, stack3, fail, result) = fresh8
 
 -- a -> ()
 boxTo0 :: ForeignOp
@@ -1235,9 +1231,9 @@ boxBoxBoxDirect instr
 boxToEFBox :: ForeignOp
 boxToEFBox =
   inBx arg result $
-    outIoFail stack1 stack2 fail result
+    outIoFailBox stack1 stack2 stack3 fail result
   where
-    (arg, result, stack1, stack2, fail) = fresh5
+    (arg, result, stack1, stack2, stack3, fail) = fresh6
 
 -- a -> Either Failure (Maybe b)
 boxToEFMBox :: ForeignOp
@@ -1592,8 +1588,23 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
   tryIO2 = try
   flatten :: Either IOException (Either TLS.TLSException r) -> Either (Failure ) r
   flatten (Left e) = Left (Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue)
-  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (Util.Text.pack (show e)) (unitValue))
+  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (Util.Text.pack (show e)) unitValue)
   flatten (Right (Right a)) = Right a
+
+mkForeignTlsE
+  :: forall a r.(ForeignConvention a, ForeignConvention r)
+  => (a -> IO (Either Failure r)) -> ForeignFunc
+mkForeignTlsE f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
+  where
+  tryIO1 :: IO (Either Failure r) -> IO (Either TLS.TLSException (Either Failure r))
+  tryIO1 = try
+  tryIO2 :: IO (Either TLS.TLSException (Either Failure r)) -> IO (Either IOException (Either TLS.TLSException (Either Failure r)))
+  tryIO2 = try
+  flatten :: Either IOException (Either TLS.TLSException (Either Failure r)) -> Either Failure r
+  flatten (Left e) = Left (Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue)
+  flatten (Right (Left e)) = Left (Failure Ty.tlsFailureRef (Util.Text.pack (show e)) unitValue)
+  flatten (Right (Right (Left e))) = Left e
+  flatten (Right (Right (Right a))) = Right a
 
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
@@ -1852,9 +1863,7 @@ declareForeigns = do
       socket :: SYS.Socket) -> TLS.contextNew socket config
 
   declareForeign Tracked "Tls.handshake.impl.v3" boxToEF0 . mkForeignTls $
-    \(tls :: TLS.Context) -> do
-        i <- contextGetInformation tls
-        traceShow i $ TLS.handshake tls
+    \(tls :: TLS.Context) -> TLS.handshake tls
 
   declareForeign Tracked "Tls.send.impl.v3" boxBoxToEFBox . mkForeignTls $
     \(tls :: TLS.Context,
@@ -1864,12 +1873,12 @@ declareForeigns = do
       decoded :: Bytes.Bytes -> Either String PEM
       decoded bytes = case pemParseLBS $ Bytes.toLazyByteString bytes of
         Right (pem : _) -> Right pem
-        Right _ -> Left "no PEM found"
+        Right [] -> Left "no PEM found"
         Left l -> Left l
       asCert :: PEM -> Either String X.SignedCertificate
       asCert pem = X.decodeSignedCertificate  $ pemContent pem
     in
-      declareForeign Tracked "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTls $
+      declareForeign Tracked "Tls.decodeCert.impl.v3" boxToEFBox . mkForeignTlsE $
         \(bytes :: Bytes.Bytes) -> pure $ mapLeft wrapFailure $ (decoded >=> asCert) bytes
 
   declareForeign Tracked "Tls.encodeCert" boxDirect . mkForeign $

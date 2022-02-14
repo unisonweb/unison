@@ -43,10 +43,10 @@ fslkdjflskdjflksjdf = 663
   
   New name conflicts:
   
-    1. fslkdjflskdjflksjdf#4vn50bh8pk : Nat
+    1. fslkdjflskdjflksjdf#u520d1t9kc : Nat
        ↓
-    2. ┌ fslkdjflskdjflksjdf#4vn50bh8pk : Nat
-    3. └ fslkdjflskdjflksjdf#9mupj24g1n : Nat
+    2. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
+    3. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -57,33 +57,33 @@ fslkdjflskdjflksjdf = 663
 
   Resolved name conflicts:
   
-    1. ┌ fslkdjflskdjflksjdf#4vn50bh8pk : Nat
-    2. └ fslkdjflskdjflksjdf#9mupj24g1n : Nat
+    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
+    2. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
        ↓
-    3. fslkdjflskdjflksjdf#4vn50bh8pk : Nat
+    3. fslkdjflskdjflksjdf#u520d1t9kc : Nat
   
   Name changes:
   
     Original                             Changes
     4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#4vn50bh8pk ┘  7. fslkdjflskdjflksjdf (added)
-                                         8. fslkdjflskdjflksjdf#4vn50bh8pk (removed)
+    6. fslkdjflskdjflksjdf#u520d1t9kc ┘  7. fslkdjflskdjflksjdf (added)
+                                         8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
 
 .b2> diff.namespace .b1
 
   Resolved name conflicts:
   
-    1. ┌ fslkdjflskdjflksjdf#4vn50bh8pk : Nat
-    2. └ fslkdjflskdjflksjdf#9mupj24g1n : Nat
+    1. ┌ fslkdjflskdjflksjdf#sekb3fdsvb : Nat
+    2. └ fslkdjflskdjflksjdf#u520d1t9kc : Nat
        ↓
-    3. fslkdjflskdjflksjdf#4vn50bh8pk : Nat
+    3. fslkdjflskdjflksjdf#u520d1t9kc : Nat
   
   Name changes:
   
     Original                             Changes
     4. x                              ┐  5. abc (added)
-    6. fslkdjflskdjflksjdf#4vn50bh8pk ┘  7. fslkdjflskdjflksjdf (added)
-                                         8. fslkdjflskdjflksjdf#4vn50bh8pk (removed)
+    6. fslkdjflskdjflksjdf#u520d1t9kc ┘  7. fslkdjflskdjflksjdf (added)
+                                         8. fslkdjflskdjflksjdf#u520d1t9kc (removed)
 
 ```
 Things we want to test:
@@ -184,10 +184,10 @@ fromJust = "asldkfjasldkfj"
   
   New name conflicts:
   
-    1. fromJust#rrsqv1ogaq : Nat
+    1. fromJust#gjmq673r1v : Nat
        ↓
-    2. ┌ fromJust#8vv2a5jnig : Text
-    3. └ fromJust#rrsqv1ogaq : Nat
+    2. ┌ fromJust#gjmq673r1v : Nat
+    3. └ fromJust#rnbo52q2sh : Text
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -232,10 +232,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#8vv2a5jnig : Text
-    2.  └ fromJust#rrsqv1ogaq : Nat
+    1.  ┌ fromJust#gjmq673r1v : Nat
+    2.  └ fromJust#rnbo52q2sh : Text
         ↓
-    3.  fromJust#mkj3tehhkv : Nat
+    3.  fromJust#6gn1k53ie0 : Nat
         - 4.  ns1.b : Nat
         + 5.  ns2.b : Text
   
@@ -277,10 +277,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#8vv2a5jnig : Text
-    2.  └ fromJust#rrsqv1ogaq : Nat
+    1.  ┌ fromJust#gjmq673r1v : Nat
+    2.  └ fromJust#rnbo52q2sh : Text
         ↓
-    3.  fromJust#mkj3tehhkv : Nat
+    3.  fromJust#6gn1k53ie0 : Nat
         - 4.  ns1.b : Nat
         + 5.  ns2.b : Text
   
@@ -332,10 +332,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#8vv2a5jnig : Text
-    2.  └ fromJust#rrsqv1ogaq : Nat
+    1.  ┌ fromJust#gjmq673r1v : Nat
+    2.  └ fromJust#rnbo52q2sh : Text
         ↓
-    3.  fromJust#mkj3tehhkv : Nat
+    3.  fromJust#6gn1k53ie0 : Nat
         - 4.  ns1.b : Nat
         + 5.  ns2.b : Text
   
@@ -380,10 +380,10 @@ unique type Y a b = Y a b
 
   Resolved name conflicts:
   
-    1.  ┌ fromJust#8vv2a5jnig : Text
-    2.  └ fromJust#rrsqv1ogaq : Nat
+    1.  ┌ fromJust#gjmq673r1v : Nat
+    2.  └ fromJust#rnbo52q2sh : Text
         ↓
-    3.  fromJust#mkj3tehhkv : Nat
+    3.  fromJust#6gn1k53ie0 : Nat
         - 4.  ns1.b : Nat
         + 5.  ns2.b : Text
   
@@ -431,8 +431,8 @@ unique type Y a b = Y a b
 .> view.patch ns2.patch
 
   Edited Terms:
-    ns1.b         -> ns2.b
-    ns1.fromJust' -> ns2.fromJust
+    1. ns1.b         -> 3. ns2.b
+    2. ns1.fromJust' -> 4. ns2.fromJust
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -570,14 +570,14 @@ a = 555
   
   New name conflicts:
   
-    1. a#er8q007v02 : Nat
+    1. a#mdl4vqtu00 : Nat
        ↓
-    2. ┌ a#75jrr0qj1c : Nat
-    3. └ a#er8q007v02 : Nat
+    2. ┌ a#mdl4vqtu00 : Nat
+    3. └ a#vrs8gtkl2t : Nat
   
   Updates:
   
-    4. b#j6aq9c9k9v : Nat
+    4. b#unkqhuu66p : Nat
   
     There were 1 auto-propagated updates.
   
@@ -597,10 +597,10 @@ a = 555
 
   New name conflicts:
   
-    1. a#nfb8lmj46i : Nat
+    1. a#uiiiv8a86s : Nat
        ↓
-    2. ┌ a#75jrr0qj1c : Nat
-    3. └ a#er8q007v02 : Nat
+    2. ┌ a#mdl4vqtu00 : Nat
+    3. └ a#vrs8gtkl2t : Nat
   
   Updates:
   
@@ -612,21 +612,21 @@ a = 555
 
 .nsw> view a b
 
-  a#75jrr0qj1c : Nat
-  a#75jrr0qj1c = 555
+  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 = 444
   
-  a#er8q007v02 : Nat
-  a#er8q007v02 = 444
+  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t = 555
   
-  b#j6aq9c9k9v : Nat
-  b#j6aq9c9k9v =
+  b#aapqletas7 : Nat
+  b#aapqletas7 =
     use Nat +
-    a#er8q007v02 + 1
+    a#vrs8gtkl2t + 1
   
-  b#p50ctv8q17 : Nat
-  b#p50ctv8q17 =
+  b#unkqhuu66p : Nat
+  b#unkqhuu66p =
     use Nat +
-    a#75jrr0qj1c + 1
+    a#mdl4vqtu00 + 1
 
 ```
 ```unison
@@ -662,21 +662,21 @@ a = 777
 
 .nsw> view a b
 
-  a#75jrr0qj1c : Nat
-  a#75jrr0qj1c = 555
+  a#mdl4vqtu00 : Nat
+  a#mdl4vqtu00 = 444
   
-  a#er8q007v02 : Nat
-  a#er8q007v02 = 444
+  a#vrs8gtkl2t : Nat
+  a#vrs8gtkl2t = 555
   
-  b#j6aq9c9k9v : Nat
-  b#j6aq9c9k9v =
+  b#aapqletas7 : Nat
+  b#aapqletas7 =
     use Nat +
-    a#er8q007v02 + 1
+    a#vrs8gtkl2t + 1
   
-  b#p50ctv8q17 : Nat
-  b#p50ctv8q17 =
+  b#unkqhuu66p : Nat
+  b#unkqhuu66p =
     use Nat +
-    a#75jrr0qj1c + 1
+    a#mdl4vqtu00 + 1
 
 ```
 ## Should be able to diff a namespace hash from history.
@@ -733,17 +733,17 @@ y = 2
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ #r0471p61ch
+  ⊙ 1. #ru1hnjofdj
   
     + Adds / updates:
     
       y
   
-  □ #q9cdigs0bo (start of history)
+  □ 2. #i52j9fd57b (start of history)
 
-.hashdiff> diff.namespace #r0471p61ch #q9cdigs0bo
+.hashdiff> diff.namespace 2 1
 
-  Removed definitions:
+  Added definitions:
   
     1. y : Nat
 

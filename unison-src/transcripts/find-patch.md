@@ -23,6 +23,5 @@ Update
 ```ucm
 .> update
 .> find.patch
-.> view.patch patch
 .> view.patch 1
 ```

@@ -71,6 +71,8 @@ type SourceName = Text
 
 type NumberedArgs = [String]
 
+type HashLength = Int
+
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
 pushPull :: a -> a -> PushPull -> a
@@ -91,12 +93,21 @@ data NumberedOutput v
   | ShowDiffAfterCreatePR ReadRemoteNamespace ReadRemoteNamespace PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput v Ann)
+  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
+    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
     DeletedDespiteDependents PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
+    -- |    size limit, history                       , how the history ends
+  | History
+      (Maybe Int) -- Amount of history to print
+      HashLength
+      [(Branch.Hash, Names.Diff)]
+      HistoryTail -- 'origin point' of this view of history.
+  | ListEdits Patch PPE.PrettyPrintEnv
 
 --  | ShowDiff
 
@@ -178,8 +189,6 @@ data Output v
       PPE.PrettyPrintEnvDecl
       (Map Reference (DisplayObject () (Decl v Ann)))
       (Map Reference (DisplayObject (Type v Ann) (Term v Ann)))
-  | -- | Invariant: there's at least one conflict or edit in the TodoOutput.
-    TodoOutput PPE.PrettyPrintEnvDecl (TO.TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int, Int) Reference (Term v Ann)
   | TestResults
@@ -190,7 +199,6 @@ data Output v
       [(Reference, Text)] -- oks
       [(Reference, Text)] -- fails
   | CantUndo UndoFailureReason
-  | ListEdits Patch PPE.PrettyPrintEnv
   | -- new/unrepresented references followed by old/removed
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
@@ -208,7 +216,6 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch ShortBranchHash (Set ShortBranchHash)
   | StartOfCurrentPathHistory
-  | History (Maybe Int) [(ShortBranchHash, Names.Diff)] HistoryTail
   | ShowReflog [ReflogEntry]
   | PullAlreadyUpToDate ReadRemoteNamespace Path'
   | PullSuccessful ReadRemoteNamespace Path'
@@ -247,9 +254,9 @@ data ReflogEntry = ReflogEntry {hash :: ShortBranchHash, reason :: Text}
   deriving (Show)
 
 data HistoryTail
-  = EndOfLog ShortBranchHash
-  | MergeTail ShortBranchHash [ShortBranchHash]
-  | PageEnd ShortBranchHash Int -- PageEnd nextHash nextIndex
+  = EndOfLog Branch.Hash
+  | MergeTail Branch.Hash [Branch.Hash]
+  | PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
   deriving (Show)
 
 data TestReportStats
@@ -323,12 +330,10 @@ isFailure o = case o of
   Typechecked {} -> False
   DisplayDefinitions _ _ m1 m2 -> null m1 && null m2
   DisplayRendered {} -> False
-  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   TestIncrementalOutputStart {} -> False
   TestIncrementalOutputEnd {} -> False
   TestResults _ _ _ _ _ fails -> not (null fails)
   CantUndo {} -> True
-  ListEdits {} -> False
   GitError {} -> True
   BustedBuiltins {} -> True
   ConfiguredMetadataParseError {} -> True
@@ -340,7 +345,6 @@ isFailure o = case o of
   PatchInvolvesExternalDependents {} -> True
   NothingToPatch {} -> False
   WarnIncomingRootBranch {} -> False
-  History {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -381,6 +385,9 @@ isNumberedFailure = \case
   ShowDiffAfterPull {} -> False
   ShowDiffAfterCreatePR {} -> False
   ShowDiffAfterCreateAuthor {} -> False
+  TodoOutput _ todo -> TO.todoScore todo > 0 || not (TO.noConflicts todo)
   CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
+  History {} -> False
   DeletedDespiteDependents {} -> False
+  ListEdits {} -> False

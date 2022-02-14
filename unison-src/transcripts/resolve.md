@@ -86,15 +86,15 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
 .example.resolve.c> todo
 ```
 
-We see that `#5cj58badlt` (the original hash of `a.foo`) got replaced with _both_ the `#39feiiunjf` and `#iqa41ufqol`.
+We see that the original hash of `a.foo` got replaced with _two different_ hashes.
 
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace #5cj58badlt #39feiiunjf
+.example.resolve.c> replace 1 2
 ```
 
-This changes the merged `c.patch` so that only the edit from #5cj58badlt to  #39feiiunjf remains:
+This changes the merged `c.patch` so that only a single edit remains and resolves the conflict.
 
 ```ucm
 .example.resolve.c> view.patch
@@ -109,7 +109,7 @@ We still have a remaining _name conflict_ since it just so happened that both of
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#iqa41ufqol
+.example.resolve.c> delete.term 2
 .example.resolve.c> todo
 ```
 

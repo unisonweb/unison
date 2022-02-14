@@ -169,7 +169,7 @@ y = 2
 ```ucm
 .hashdiff> add
 .hashdiff> history
-.hashdiff> diff.namespace #r0471p61ch #q9cdigs0bo
+.hashdiff> diff.namespace 2 1
 ```
 
 ##

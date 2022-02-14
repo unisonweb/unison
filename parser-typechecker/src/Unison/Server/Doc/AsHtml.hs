@@ -192,7 +192,7 @@ toHtml docNamesByRef document =
     content
     div_ [class_ "tooltips", style_ "display: none;"] $ sequence_ tooltips
   where
-    (content, (_, tooltips)) =
+    (_ :: Html (), (content, tooltips) :: (Html (), Seq (Html ()))) =
       runWriterT (evalStateT (toHtml_ 1 document) 0)
 
     toHtml_ ::
@@ -249,10 +249,10 @@ toHtml docNamesByRef document =
        in case doc of
             Tooltip triggerContent tooltipContent -> do
               tooltipNo <- State.get
-              let tooltipId = Text.pack . show $ tooltipId
+              let tooltipId = "tooltip-" <> (Text.pack . show $ tooltipNo)
               State.put (tooltipNo + 1)
               tooltip <-
-                div_ [class_ "tooltip-content", id_ ("tooltip-" <> tooltipId)]
+                div_ [class_ "tooltip-content", id_ tooltipId]
                   <$> currentSectionLevelToHtml tooltipContent
               Writer.tell (pure tooltip)
 
@@ -274,7 +274,7 @@ toHtml docNamesByRef document =
             Strikethrough d ->
               span_ [class_ "strikethrough"] <$> currentSectionLevelToHtml d
             Style cssclass_ d ->
-              span_ [class_ $ textToClass cssclass_] <$> currentSectionLevelToHtml d
+              div_ [class_ $ textToClass cssclass_] <$> currentSectionLevelToHtml d
             Anchor id' d ->
               a_ [id_ id', href_ $ "#" <> id'] <$> currentSectionLevelToHtml d
             Blockquote d ->
@@ -294,18 +294,21 @@ toHtml docNamesByRef document =
                 [class_ "aside-anchor"]
                 . aside_ []
                 <$> currentSectionLevelToHtml d
-            Callout icon content ->
-              let (cls :: Attribute, ico :: Html ()) =
-                    case icon of
-                      Just emoji ->
-                        ( class_ "callout callout-with-icon",
-                          div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji
-                        )
-                      Nothing ->
-                        (class_ "callout", "")
-               in div_ [cls] <$> do
-                    _ <- pure ico
-                    div_ [class_ "callout-content"] <$> currentSectionLevelToHtml content
+            Callout icon content -> do
+              callout <- currentSectionLevelToHtml content
+              pure $
+                div_ [cls] $ do
+                  ico
+                  div_ [class_ "callout-content"] callout
+              where
+                (cls :: Attribute, ico :: Html ()) =
+                  case icon of
+                    Just emoji ->
+                      ( class_ "callout callout-with-icon",
+                        div_ [class_ "callout-icon"] $ L.toHtml . toText "" $ emoji
+                      )
+                    Nothing ->
+                      (class_ "callout", "")
             Table rows ->
               let cellToHtml c =
                     td_ [] <$> currentSectionLevelToHtml c

@@ -66,3 +66,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Sameer Kolhar (@kolharsam)
 * Nicole Prindle (@nprindle)
 * Harald Gliebe (@hagl)
+* Phil de Joux (@philderbeast)
