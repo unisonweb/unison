@@ -11,6 +11,7 @@ module Unison.Codebase.Editor.Output
     UndoFailureReason (..),
     PushPull (..),
     ReflogEntry (..),
+    HashLength,
     pushPull,
     isFailure,
     isNumberedFailure,
@@ -203,7 +204,7 @@ data Output v
     -- todo: eventually replace these sets with [SearchResult' v Ann]
     -- and a nicer render.
     BustedBuiltins (Set Reference) (Set Reference)
-  | GitError GitError
+  | GitError HashLength GitError
   | ConfiguredMetadataParseError Path' String (P.Pretty P.ColorText)
   | NoConfiguredGitUrl PushPull Path'
   | ConfiguredGitUrlParseError PushPull Path' Text String

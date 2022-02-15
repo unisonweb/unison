@@ -8,7 +8,6 @@ where
 import qualified Unison.Codebase.Branch as Branch
 import Unison.CodebasePath (CodebasePath)
 import Unison.Prelude
-import Unison.Util.Pretty (ColorText, Pretty)
 
 data GetRootBranchError
   = NoRootBranch
@@ -21,7 +20,6 @@ data OpenCodebaseError
   = -- | The codebase doesn't exist.
     OpenCodebaseDoesntExist CodebasePath
   | -- | The codebase exists, but its schema version is unknown to this application.
-    OpenCodebaseUnknownSchemaVersion Word64
-  | OpenCodebaseRootBranchError GetRootBranchError
-  | OpenCodebaseOther (Pretty ColorText)
+    OpenCodebaseUnknownSchemaVersion CodebasePath Word64
+  | OpenCodebaseRootBranchError CodebasePath GetRootBranchError
   deriving stock (Show)

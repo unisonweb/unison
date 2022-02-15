@@ -113,7 +113,6 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
     Left err@OpenCodebaseUnknownSchemaVersion{} -> pure (Left (resolvedPath, InitErrorOpen err))
     Left err@OpenCodebaseRootBranchError{} -> pure (Left (resolvedPath, InitErrorOpen err))
-    Left err@OpenCodebaseOther{} -> pure (Left (resolvedPath, InitErrorOpen err))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path action = do

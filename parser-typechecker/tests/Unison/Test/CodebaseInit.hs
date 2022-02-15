@@ -59,7 +59,7 @@ test = scope "Codebase.Init" $ tests
         res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
           _ -> pure False
         case res of
-          Left (_, CI.InitErrorOpen OpenCodebaseDoesntExist) -> expect True
+          Left (_, CI.InitErrorOpen OpenCodebaseDoesntExist{}) -> expect True
           _ -> expect False
     ]
   , scope "*with* a --codebase-create flag" $ tests
@@ -103,7 +103,7 @@ initMockWithoutCodebase ::  IO (Init IO v a)
 initMockWithoutCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
-    withOpenCodebase = \_ _ _ -> pure (Left OpenCodebaseDoesntExist),
+    withOpenCodebase = \_ _ _ -> pure (Left (OpenCodebaseDoesntExist "dir")),
     -- withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
     withCreatedCodebase = \_ _ action -> Right <$> action codebase,
     -- CodebasePath -> CodebasePath

@@ -71,12 +71,10 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError(NoDatabaseFile))
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.TermEdit (TermEdit (..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TermEdit.Typing as TermEdit
-import Unison.Codebase.Type (GitError(GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import qualified Unison.Codebase.Verbosity as Verbosity
 import qualified Unison.CommandLine.DisplayValues as DisplayValues
@@ -152,6 +150,8 @@ import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Type (GitError (GitOpenCodebaseError))
+import qualified Unison.Codebase.Init.OpenCodebaseError as Init
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -477,7 +477,7 @@ loop = do
             -> (Branch m -> Action m i v1 (Branch m))
             -> Action m i v1 Bool
           updateAtM = Unison.Codebase.Editor.HandleInput.updateAtM inputDescription
-          unlessGitError = unlessError' Output.GitError
+          unlessGitError = unlessError' (Output.GitError sbhLength)
           importRemoteBranch ns mode preprocess =
             ExceptT . eval $ ImportRemoteBranch ns mode preprocess
           loadSearchResults = eval . LoadSearchResults
@@ -641,7 +641,7 @@ loop = do
                    (ppe, diff) <- diffHelperCmd root' currentPath' (Branch.head baseBranch) (Branch.head merged)
                    pure $ ShowDiffAfterCreatePR baseRepo headRepo ppe diff
               case result of
-                Left gitErr -> respond (Output.GitError gitErr)
+                Left gitErr -> respond (Output.GitError sbhLength gitErr)
                 Right diff -> respondNumbered diff
             LoadPullRequestI baseRepo headRepo dest0 -> do
               let desta = resolveToAbsolute dest0
@@ -1507,7 +1507,8 @@ loop = do
                        then respond $ PullSuccessful ns path
                        else respond unchangedMsg
 
-            PushRemoteBranchI mayRepo path pushBehavior syncMode -> handlePushRemoteBranch mayRepo path pushBehavior syncMode
+            PushRemoteBranchI mayRepo path pushBehavior syncMode ->
+              handlePushRemoteBranch sbhLength mayRepo path pushBehavior syncMode
             ListDependentsI hq -> handleDependents hq
             ListDependenciesI hq ->
               -- todo: add flag to handle transitive efficiently
@@ -1616,7 +1617,7 @@ loop = do
             ShowDefinitionByPrefixI {} -> notImplemented
             UpdateBuiltinsI -> notImplemented
             QuitI -> MaybeT $ pure Nothing
-            GistI input -> handleGist input
+            GistI input -> handleGist sbhLength input
       where
         notImplemented = eval $ Notify NotImplemented
         success = respond Success
@@ -1662,14 +1663,15 @@ handleDependents hq = do
         respond (ListDependents hqLength ld results)
 
 -- | Handle a @gist@ command.
-handleGist :: MonadUnliftIO m => GistInput -> Action' m v ()
-handleGist (GistInput repo) =
-  doPushRemoteBranch repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
+handleGist :: MonadUnliftIO m => HashLength -> GistInput -> Action' m v ()
+handleGist sbhLength (GistInput repo) =
+  doPushRemoteBranch sbhLength repo Path.relativeEmpty' SyncMode.ShortCircuit Nothing
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch ::
   forall m v.
   MonadUnliftIO m =>
+  HashLength ->
   -- | The repo to push to. If missing, it is looked up in `.unisonConfig`.
   Maybe WriteRemotePath ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
@@ -1678,15 +1680,16 @@ handlePushRemoteBranch ::
   PushBehavior ->
   SyncMode.SyncMode ->
   Action' m v ()
-handlePushRemoteBranch mayRepo path pushBehavior syncMode = do
+handlePushRemoteBranch sbhLength mayRepo path pushBehavior syncMode = do
   unlessError do
     (repo, remotePath) <- maybe (resolveConfiguredGitUrl Push path) pure mayRepo
-    lift (doPushRemoteBranch repo path syncMode (Just (remotePath, pushBehavior)))
+    lift (doPushRemoteBranch sbhLength repo path syncMode (Just (remotePath, pushBehavior)))
 
 -- Internal helper that implements pushing to a remote repo, which generalizes @gist@ and @push@.
 doPushRemoteBranch ::
   forall m v.
   MonadUnliftIO m =>
+  HashLength ->
   -- | The repo to push to.
   WriteRepo ->
   -- | The local path to push. If relative, it's resolved relative to the current path (`cd`).
@@ -1696,13 +1699,13 @@ doPushRemoteBranch ::
   -- root namespace.
   Maybe (Path, PushBehavior) ->
   Action' m v ()
-doPushRemoteBranch repo localPath syncMode remoteTarget = do
+doPushRemoteBranch sbhLength repo localPath syncMode remoteTarget = do
   sourceBranch <- do
     currentPath' <- use LoopState.currentPath
     getAt (Path.resolve currentPath' localPath)
 
   unlessError do
-    withExceptT Output.GitError $ do
+    withExceptT (Output.GitError sbhLength) $ do
       case remoteTarget of
         Nothing -> do
           let opts = PushGitBranchOpts {setRoot = False, syncMode}
@@ -1719,10 +1722,10 @@ doPushRemoteBranch repo localPath syncMode remoteTarget = do
                   Just newRemoteRoot -> do
                     let opts = PushGitBranchOpts {setRoot = True, syncMode}
                     runExceptT (syncRemoteBranch newRemoteRoot repo opts) >>= \case
-                      Left gitErr -> respond (Output.GitError gitErr)
+                      Left gitErr -> respond (Output.GitError sbhLength gitErr)
                       Right () -> respond Success
           viewRemoteBranch (writeToRead repo, Nothing, Path.empty) Git.CreateBranchIfMissing withRemoteRoot >>= \case
-            Left (GitSqliteCodebaseError NoDatabaseFile{}) -> withRemoteRoot Branch.empty
+            Left (GitOpenCodebaseError _repo Init.OpenCodebaseDoesntExist{}) -> withRemoteRoot Branch.empty
             Left err -> throwError err
             Right () -> pure ()
   where

@@ -57,7 +57,6 @@ initCodebase fmt = do
   result <- Codebase.Init.withCreatedCodebase cbInit "ucm-test" tmp (const $ pure ())
   case result of
     Left CreateCodebaseAlreadyExists -> fail $ P.toANSI 80 "Codebase already exists"
-    Left (CreateCodebaseOther p) -> fail $ P.toANSI 80 p
     Right _ -> pure $ Codebase tmp fmt
 
 deleteCodebase :: Codebase -> IO ()

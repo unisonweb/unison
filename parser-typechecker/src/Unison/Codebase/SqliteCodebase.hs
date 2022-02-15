@@ -169,41 +169,6 @@ createCodebaseOrError debugName path action = do
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
--- withOpenOrCreateCodebaseConnection ::
---   (MonadUnliftIO m) =>
---   Codebase.DebugName ->
---   FilePath ->
---   (Connection -> m r) ->
---   m r
--- withOpenOrCreateCodebaseConnection debugName path action = do
---   unlessM
---     (doesFileExist $ makeCodebasePath path)
---     (initSchemaIfNotExist path)
---   withConnection debugName path action
-
--- ensureMigrated :: CodebasePath -> LocalOrRemote -> Connection -> m (Either SchemaVersion ())
--- ensureMigrated path localOrRemote conn =
---   runReaderT Q.schemaVersion conn >>= \case
---     SchemaVersion 2 -> pure (Right ())
---     SchemaVersion 1 -> do
---       liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
---       case localOrRemote of
---         Local ->
---           liftIO do
---             backupPath <- backupCodebasePath <$> getPOSIXTime
---             copyFile (path </> codebasePath) (path </> backupPath)
---             -- FIXME prettify
---             putStrLn ("📋 I backed up your codebase to " ++ (path </> backupPath))
---             putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
---             putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
---             void $ liftIO getLine
---         Remote -> pure ()
---       migrateSchema12 conn codebase
---       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
---       Right <$> action codebase
---     v -> pure $ Left v
-
-
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.
 withCodebaseOrError ::
@@ -886,7 +851,7 @@ sqliteCodebase debugName root localOrRemote action = do
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
       Right <$> action (codebase, conn)
-    v -> pure $ Left (Codebase1.OpenCodebaseUnknownSchemaVersion $ fromIntegral v)
+    v -> pure $ Left (Codebase1.OpenCodebaseUnknownSchemaVersion root $ fromIntegral v)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1145,7 +1110,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
           Left (Codebase1.CouldntLoadRootBranch h) ->
             throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
           Left (Codebase1.CouldntParseRootBranch s) ->
-            throwIO . C.GitOpenCodebaseError repo . Codebase1.OpenCodebaseRootBranchError $ Codebase1.CouldntParseRootBranch s
+            throwIO . C.GitOpenCodebaseError repo . Codebase1.OpenCodebaseRootBranchError remotePath $ Codebase1.CouldntParseRootBranch s
           Right b -> pure b
       -- load from a specific `ShortBranchHash`
       Just sbh -> do

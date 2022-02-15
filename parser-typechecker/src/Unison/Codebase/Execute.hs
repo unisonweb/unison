@@ -26,7 +26,6 @@ import           System.Exit (die)
 import           Control.Exception (finally)
 import qualified Unison.Names as Names
 import Unison.Symbol (Symbol)
-import Unison.Codebase.Init.OpenCodebaseError
 
 execute
   :: Codebase.Codebase IO Symbol Ann
@@ -37,11 +36,11 @@ execute codebase runtime mainName =
   (`finally` Runtime.terminate runtime) $ do
     root <- Codebase.getRootBranch codebase >>= \case
       Right r -> pure r
-      Left NoRootBranch ->
+      Left Codebase.NoRootBranch ->
         die "Couldn't identify a root namespace."
-      Left (CouldntLoadRootBranch h) ->
+      Left (Codebase.CouldntLoadRootBranch h) ->
         die ("Couldn't load root branch " ++ show h)
-      Left (CouldntParseRootBranch h) ->
+      Left (Codebase.CouldntParseRootBranch h) ->
         die ("Couldn't parse root branch head " ++ show h)
     let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase

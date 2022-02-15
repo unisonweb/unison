@@ -374,26 +374,40 @@ getCodebaseOrExit codebasePathOption action = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case err of
-            InitErrorOpen OpenCodebaseDoesntExist ->
+            InitErrorOpen (OpenCodebaseDoesntExist _codebasePath) ->
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
 
-            InitErrorOpen (OpenCodebaseUnknownSchemaVersion _) ->
+            InitErrorOpen (OpenCodebaseUnknownSchemaVersion _path _version) ->
               pure (P.lines
                 [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison."
                 , "Please upgrade your version of UCM."
                 ])
-
-            InitErrorOpen (OpenCodebaseOther errMessage) ->
-              pure errMessage
+            InitErrorOpen (OpenCodebaseRootBranchError _path getRootBranchErr) ->
+              case getRootBranchErr of
+                Codebase.NoRootBranch ->
+                  pure (P.lines
+                    [ "I can't find a root namespace for the codebase in " <> pDir
+                    , "Please report this as a bug."
+                    ])
+                Codebase.CouldntParseRootBranch _rb ->
+                  pure (P.lines
+                    [ "I was unable parse the root namespace for the codebase in " <> pDir
+                    , "Please report this as a bug."
+                    ])
+                Codebase.CouldntLoadRootBranch _ ->
+                  pure (P.lines
+                    [ "I was unable parse the root namespace for the codebase in " <> pDir
+                    , "Please report this as a bug."
+                    ])
 
             FoundV1Codebase ->
               pure (P.lines
                 [ "Found a v1 codebase at " <> pDir <> ".",
                   "v1 codebases are no longer supported in this version of the UCM.",
-                  "Please download version M2g of the UCM to upgrade."
+                  "Please download version M2g (or newer) of the UCM to upgrade."
                 ])
             CouldntCreateCodebase errMessage ->
               pure errMessage

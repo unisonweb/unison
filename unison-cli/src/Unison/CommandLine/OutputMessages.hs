@@ -27,7 +27,6 @@ import System.Directory
     doesFileExist,
     getHomeDirectory,
   )
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion))
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
 import qualified Unison.Codebase as Codebase
@@ -50,15 +49,7 @@ import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.ShortBranchHash as SBH
-import Unison.Codebase.SqliteCodebase.GitError
-  ( GitSqliteCodebaseError
-      ( GitCouldntParseRootBranchHash,
-        NoDatabaseFile,
-        UnrecognizedSchemaVersion
-      ),
-  )
 import qualified Unison.Codebase.TermEdit as TermEdit
-import Unison.Codebase.Type (GitError (GitCodebaseError, GitProtocolError, GitSqliteCodebaseError))
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.CommandLine (bigproblem, note, tip)
 import Unison.CommandLine.InputPatterns (makeExample')
@@ -133,6 +124,8 @@ import qualified Unison.Codebase.Branch as Branch
 import Control.Monad.State
 import Control.Monad.Trans.Writer.CPS
 import qualified Unison.ShortHash as ShortHash
+import Unison.Codebase.Type (GitError(..))
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -1036,27 +1029,39 @@ notifyUser dir o = case o of
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  GitError e -> pure $ case e of
-    GitSqliteCodebaseError e -> case e of
-      NoDatabaseFile repo localPath ->
+  GitError sbhLength e -> pure $ case e of
+    GitOpenCodebaseError repo e -> case e of
+      OpenCodebaseDoesntExist localPath ->
         P.wrap $
           "I didn't find a codebase in the repository at"
             <> prettyReadRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
-      UnrecognizedSchemaVersion repo localPath (SchemaVersion v) ->
+      OpenCodebaseUnknownSchemaVersion localPath v ->
         P.wrap $
           "I don't know how to interpret schema version " <> P.shown v
             <> "in the repository at"
             <> prettyReadRepo repo
             <> "in the cache directory at"
             <> P.backticked' (P.string localPath) "."
-      GitCouldntParseRootBranchHash repo s ->
-        P.wrap $
-          "I couldn't parse the string"
-            <> P.red (P.string s)
-            <> "into a namespace hash, when opening the repository at"
-            <> P.group (prettyReadRepo repo <> ".")
+      OpenCodebaseRootBranchError _ rootBranchErr ->
+        case rootBranchErr of
+          Codebase.CouldntParseRootBranch s ->
+            P.wrap $
+              "I couldn't parse the string"
+                <> P.red (P.string s)
+                <> "into a namespace hash, when opening the repository at"
+                <> P.group (prettyReadRepo repo <> ".")
+          Codebase.NoRootBranch ->
+            P.wrap $
+              "I couldn't find a root namespace when opening the repository at"
+                <> P.group (prettyReadRepo repo <> ".")
+          Codebase.CouldntLoadRootBranch sbh ->
+            P.wrap $
+              "I couldn't load the root namespace: "
+                <> P.group (prettySBH $ SBH.fromHash sbhLength sbh)
+                <> "in the repository at"
+                <> P.group (prettyReadRepo repo <> ".")
     GitProtocolError e -> case e of
       NoGit ->
         P.wrap $
