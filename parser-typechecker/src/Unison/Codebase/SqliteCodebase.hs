@@ -49,7 +49,6 @@ import qualified U.Codebase.Sqlite.Operations as Ops
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Sync22 as Sync22
 import qualified U.Codebase.Sync as Sync
-import qualified U.Codebase.WatchKind as WK
 import qualified U.Util.Cache as Cache
 import qualified U.Util.Hash as H2
 import qualified U.Util.Monoid as Monoid
@@ -962,10 +961,6 @@ syncInternal progress srcConn destConn b = time "syncInternal" do
     let progress' = Sync.transformProgress (lift . lift) progress
         bHash = Branch.headHash b
     se $ time "SyncInternal.processBranches" $ processBranches sync progress' [B bHash (pure b)]
-    testWatchRefs <- time "SyncInternal enumerate testWatches" $
-      lift . fmap concat $ for [WK.TestWatch] \wk ->
-        fmap (Sync22.W wk) <$> flip runReaderT srcConn (Q.loadWatchesByWatchKind wk)
-    se . r $ Sync.sync sync progress' testWatchRefs
   let onSuccess a = runDB destConn (Q.release "sync") *> pure a
       onFailure e = do
         if debugCommitFailedTransaction
