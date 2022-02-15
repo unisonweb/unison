@@ -104,6 +104,7 @@ import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Util.AnnotatedText (AnnotatedText)
 import qualified Unison.Util.Monoid as Monoid
 import Unison.Symbol (Symbol)
+import qualified Unison.Codebase.Init.OpenCodebaseError as Init
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -124,7 +125,7 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
-  | BadRootBranch Codebase.GetRootBranchError
+  | BadRootBranch Init.GetRootBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash

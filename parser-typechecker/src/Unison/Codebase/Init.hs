@@ -92,7 +92,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
     action (OpenedCodebase, resolvedPath, codebase)
   case result of
     Right r -> pure $ Right r
-    Left OpenCodebaseDoesntExist ->
+    Left (OpenCodebaseDoesntExist _path)->
       case initOptions of
         Home homeDir -> do
           ifM
@@ -108,10 +108,11 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
             (pure $ Left (resolvedPath, FoundV1Codebase))
             case specified of
               DontCreateWhenMissing dir ->
-                pure (Left (dir, (InitErrorOpen OpenCodebaseDoesntExist)))
+                pure (Left (dir, (InitErrorOpen (OpenCodebaseDoesntExist resolvedPath))))
               CreateWhenMissing dir ->
                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
     Left err@OpenCodebaseUnknownSchemaVersion{} -> pure (Left (resolvedPath, InitErrorOpen err))
+    Left err@OpenCodebaseRootBranchError{} -> pure (Left (resolvedPath, InitErrorOpen err))
     Left err@OpenCodebaseOther{} -> pure (Left (resolvedPath, InitErrorOpen err))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
@@ -122,13 +123,6 @@ createCodebase cbInit debugName path action = do
       P.wrap $
         "It looks like there's already a codebase in: "
           <> prettyDir
-    CreateCodebaseOther message ->
-      P.wrap ("I ran into an error when creating the codebase in: " <> prettyDir)
-        <> P.newline
-        <> P.newline
-        <> "The error was:"
-        <> P.newline
-        <> P.indentN 2 message
 
 -- * compatibility stuff
 

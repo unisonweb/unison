@@ -62,7 +62,6 @@ import qualified Unison.Codebase.Causal.Type as Causal
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo (..), ReadRepo, printWriteRepo, writeToRead)
 import Unison.Codebase.Editor.Git (gitIn, gitTextIn, gitInCaptured, withRepo)
 import qualified Unison.Codebase.Editor.Git as Git
-import qualified Unison.Codebase.GitError as GitError
 import qualified Unison.Codebase.Init as Codebase
 import qualified Unison.Codebase.Init.CreateCodebaseError as Codebase1
 import qualified Unison.Codebase.Init.OpenCodebaseError as Codebase1
@@ -71,11 +70,10 @@ import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
 import Unison.Codebase.SqliteCodebase.MigrateSchema12 (migrateSchema12)
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts (..))
+import Unison.Codebase.Type (PushGitBranchOpts (..), GitError (GitOpenCodebaseError))
 import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -103,6 +101,7 @@ import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFil
 import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
 import Data.Either.Extra ()
+import qualified Unison.Codebase.GitError as GitError
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -126,15 +125,32 @@ makeCodebaseDirPath root = root </> ".unison" </> "v2"
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
   { withOpenCodebase=withCodebaseOrError
-  , withCreatedCodebase=createCodebaseOrError
+  , withCreatedCodebase = withCreatedCodebase'
   , codebasePath=makeCodebaseDirPath
   }
+    where
+      withCreatedCodebase' debugName path action =
+        createCodebaseOrError debugName path (action . fst)
+
+
+withOpenOrCreateCodebase ::
+  MonadUnliftIO m =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  C.LocalOrRemote ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
+withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
+  createCodebaseOrError debugName codebasePath action >>= \case
+    Left (Codebase1.CreateCodebaseAlreadyExists) -> do
+      sqliteCodebase debugName codebasePath localOrRemote action
+    Right r -> pure (Right r)
 
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
 createCodebaseOrError debugName path action = do
   ifM
@@ -149,21 +165,44 @@ createCodebaseOrError debugName path action = do
             Left e -> error $ show e
             Right () -> pure ()
 
-      sqliteCodebase debugName path Local action >>= \case
+      sqliteCodebase debugName path C.Local action >>= \case
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
-withOpenOrCreateCodebaseConnection ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  FilePath ->
-  (Connection -> m r) ->
-  m r
-withOpenOrCreateCodebaseConnection debugName path action = do
-  unlessM
-    (doesFileExist $ makeCodebasePath path)
-    (initSchemaIfNotExist path)
-  withConnection debugName path action
+-- withOpenOrCreateCodebaseConnection ::
+--   (MonadUnliftIO m) =>
+--   Codebase.DebugName ->
+--   FilePath ->
+--   (Connection -> m r) ->
+--   m r
+-- withOpenOrCreateCodebaseConnection debugName path action = do
+--   unlessM
+--     (doesFileExist $ makeCodebasePath path)
+--     (initSchemaIfNotExist path)
+--   withConnection debugName path action
+
+-- ensureMigrated :: CodebasePath -> LocalOrRemote -> Connection -> m (Either SchemaVersion ())
+-- ensureMigrated path localOrRemote conn =
+--   runReaderT Q.schemaVersion conn >>= \case
+--     SchemaVersion 2 -> pure (Right ())
+--     SchemaVersion 1 -> do
+--       liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
+--       case localOrRemote of
+--         Local ->
+--           liftIO do
+--             backupPath <- backupCodebasePath <$> getPOSIXTime
+--             copyFile (path </> codebasePath) (path </> backupPath)
+--             -- FIXME prettify
+--             putStrLn ("📋 I backed up your codebase to " ++ (path </> backupPath))
+--             putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
+--             putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
+--             void $ liftIO getLine
+--         Remote -> pure ()
+--       migrateSchema12 conn codebase
+--       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
+--       Right <$> action codebase
+--     v -> pure $ Left v
+
 
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.
@@ -176,9 +215,9 @@ withCodebaseOrError ::
   m (Either Codebase1.OpenCodebaseError r)
 withCodebaseOrError debugName dir action = do
   doesFileExist (makeCodebasePath dir) >>= \case
-    False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
+    False -> pure (Left $ Codebase1.OpenCodebaseDoesntExist dir)
     True ->
-      sqliteCodebase debugName dir Local action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
+      sqliteCodebase debugName dir C.Local (action . fst)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -273,20 +312,15 @@ withConnection name root act = do
     (\(closeConn, _) -> liftIO closeConn)
     (\(_, conn) -> act conn)
 
--- | Whether a codebase is local or remote.
-data LocalOrRemote
-  = Local
-  | Remote
-
 sqliteCodebase ::
   forall m r.
   MonadUnliftIO m =>
   Codebase.DebugName ->
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
-  LocalOrRemote ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either SchemaVersion r)
+  C.LocalOrRemote ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
  withConnection debugName root $ \conn -> do
@@ -646,9 +680,9 @@ sqliteCodebase debugName root localOrRemote action = do
           Set.map Cv.referenceid2to1
             <$> Ops.dependentsOfComponent (Cv.hash1to2 h)
 
-      syncFromDirectory :: MonadUnliftIO m => Codebase1.CodebasePath -> SyncMode -> Branch m -> m ()
-      syncFromDirectory srcRoot _syncMode b = do
-        withConnection (debugName ++ ".sync.src") srcRoot $ \srcConn -> do
+      syncFromDirectory :: MonadUnliftIO m => C.LocalOrRemote -> CodebasePath -> SyncMode -> Branch m -> m (Either Codebase1.OpenCodebaseError ())
+      syncFromDirectory localOrRemote srcRoot _syncMode b = do
+        sqliteCodebase (debugName ++ ".sync.src") srcRoot localOrRemote $ \(_srcCodebase, srcConn) -> do
           flip State.evalStateT emptySyncProgressState $ do
             syncInternal syncProgress srcConn conn $ Branch.transform lift b
 
@@ -835,11 +869,11 @@ sqliteCodebase debugName root localOrRemote action = do
 
   -- Migrate if necessary.
   (`finally` finalizer) $ runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 2 -> Right <$> action codebase
+    SchemaVersion 2 -> Right <$> action (codebase, conn)
     SchemaVersion 1 -> do
       liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
       case localOrRemote of
-        Local ->
+        C.Local ->
           liftIO do
             backupPath <- backupCodebasePath <$> getPOSIXTime
             copyFile (root </> codebasePath) (root </> backupPath)
@@ -848,11 +882,11 @@ sqliteCodebase debugName root localOrRemote action = do
             putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
             putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
             void $ liftIO getLine
-        Remote -> pure ()
+        C.Remote -> pure ()
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
-      Right <$> action codebase
-    v -> pure $ Left v
+      Right <$> action (codebase, conn)
+    v -> pure $ Left (Codebase1.OpenCodebaseUnknownSchemaVersion $ fromIntegral v)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1096,11 +1130,11 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
   (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
     case Sqlite.sqlError sqlError of
-      Sqlite.ErrorCan'tOpen -> throwIO (C.GitSqliteCodebaseError (GitError.NoDatabaseFile repo remotePath))
+      Sqlite.ErrorCan'tOpen -> throwIO (C.GitOpenCodebaseError repo (Codebase1.OpenCodebaseDoesntExist remotePath))
       -- Unexpected error from sqlite
       _ -> throwIO sqlError
 
-  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \codebase -> do
+  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath C.Remote \(codebase, _conn) -> do
     -- try to load the requested branch from it
     branch <- time "Git fetch (sbh)" $ case sbh of
       -- no sub-branch was specified, so use the root.
@@ -1111,7 +1145,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
           Left (Codebase1.CouldntLoadRootBranch h) ->
             throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
           Left (Codebase1.CouldntParseRootBranch s) ->
-            throwIO . C.GitSqliteCodebaseError $ GitError.GitCouldntParseRootBranchHash repo s
+            throwIO . C.GitOpenCodebaseError repo . Codebase1.OpenCodebaseRootBranchError $ Codebase1.CouldntParseRootBranch s
           Right b -> pure b
       -- load from a specific `ShortBranchHash`
       Just sbh -> do
@@ -1127,7 +1161,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
       Just b -> action (b, remotePath)
       Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
   case result of
-    Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
+    Left err -> throwIO $ C.GitOpenCodebaseError repo err
     Right inner -> pure inner
 
 -- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
@@ -1140,7 +1174,7 @@ pushGitBranch ::
   WriteRepo ->
   PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLeft C.GitProtocolError <$> do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try $ do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -1155,10 +1189,11 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
   -- Delete the temp-dir.
   --
   -- set up the cache dir
- withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-   withOpenOrCreateCodebaseConnection @m "push.dest" (Git.gitDirToPath pushStaging) $ \destConn -> do
-     flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-       throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
+ throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
+   throwEitherMWith (GitOpenCodebaseError readRepo)
+     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) C.Remote $ \(_destCodebase, destConn) -> do
+         flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+           throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
    void $ push pushStaging repo
   where
     readRepo :: ReadRepo

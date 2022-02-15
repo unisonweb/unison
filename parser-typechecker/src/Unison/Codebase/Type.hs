@@ -1,25 +1,25 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
     PushGitBranchOpts (..),
     GitError (..),
-    GetRootBranchError (..),
     SyncToDir,
+    LocalOrRemote(..),
   )
 where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo, ReadRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
@@ -33,6 +33,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError, GetRootBranchError)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -96,7 +97,7 @@ data Codebase m v a = Codebase
     dependentsImpl :: Reference -> m (Set Reference.Id),
     dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
-    syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
+    syncFromDirectory :: LocalOrRemote -> CodebasePath -> SyncMode -> Branch m -> m (Either OpenCodebaseError ()),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
@@ -164,16 +165,14 @@ data PushGitBranchOpts = PushGitBranchOpts
     syncMode :: SyncMode
   }
 
-data GetRootBranchError
-  = NoRootBranch
-  | CouldntParseRootBranch String
-  | CouldntLoadRootBranch Branch.Hash
-  deriving (Show)
+-- | Whether a codebase is local or remote.
+data LocalOrRemote
+  = Local
+  | Remote
 
 data GitError
   = GitProtocolError GitProtocolError
   | GitCodebaseError (GitCodebaseError Branch.Hash)
-  | GitSqliteCodebaseError GitSqliteCodebaseError
-  deriving (Show)
-
-instance Exception GitError
+  | GitOpenCodebaseError ReadRepo OpenCodebaseError
+  deriving stock (Show)
+  deriving anyclass (Exception)

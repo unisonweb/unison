@@ -113,10 +113,9 @@ import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GetRootBranchError (..),
     GitError (GitCodebaseError),
     PushGitBranchOpts (..),
-    SyncToDir,
+    SyncToDir, LocalOrRemote (Remote)
   )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
@@ -145,6 +144,7 @@ import Control.Monad.Except (ExceptT(ExceptT))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Init.OpenCodebaseError (GetRootBranchError(..))
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -370,7 +370,7 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
          withStatus "Importing downloaded files into local codebase..." $ do
            processedBranch <- preprocessOp branch
            time "SyncFromDirectory" $ do
-             syncFromDirectory codebase cacheDir mode processedBranch
+             syncFromDirectory codebase Remote cacheDir mode processedBranch
              pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
