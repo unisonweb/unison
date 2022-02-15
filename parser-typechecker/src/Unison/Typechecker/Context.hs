@@ -71,6 +71,7 @@ import           Unison.DataDeclaration         ( DataDeclaration
                                                 , EffectDeclaration
                                                 )
 import qualified Unison.DataDeclaration        as DD
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Pattern                 ( Pattern )
 import qualified Unison.Pattern                as Pattern
 import           Unison.Reference               ( Reference )
@@ -260,7 +261,6 @@ data PathElement v loc
 
 type ExpectedArgCount = Int
 type ActualArgCount = Int
-type ConstructorId = Int
 
 data SuggestionMatch = Exact | WrongType | WrongName
   deriving (Ord, Eq, Show)
@@ -728,7 +728,7 @@ getConstructorType' :: Var v
                     -> M v loc (Type v loc)
 getConstructorType' kind get (ConstructorReference r cid) = do
   decl <- get r
-  case drop cid (DD.constructors decl) of
+  case drop (fromIntegral cid) (DD.constructors decl) of
     [] -> compilerCrash $ UnknownConstructor kind (ConstructorReference r cid) decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 

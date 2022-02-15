@@ -1579,8 +1579,8 @@ toDocEval _ _ = Nothing
 --
 -- See https://github.com/unisonweb/unison/issues/2238
 _oldDocEval, _oldDocEvalInline :: Reference
-_oldDocEval = Reference.unsafeFromText "#0ua7gqa7kqnj80ulhmtcqsfgalmh4g9kg198dt2uen0s0jeebbo4ljnj4133cn1kbm38i2q3joivodtfei3jfln5scof0r0381k8dm0"
-_oldDocEvalInline = Reference.unsafeFromText "#maleg6fmu3j0k0vgm99lgrsnhio3ba750hcainuv5jdi9scdsg43hpicmf6lovsa0mnaija7bjebnr5nas3qsj4r087hur1jh0rsfso"
+_oldDocEval = Reference.unsafeFromText "#m2bmkdos2669tt46sh2gf6cmb4td5le8lcqnmsl9nfaqiv7s816q8bdtjdbt98tkk11ejlesepe7p7u8p0asu9758gdseffh0t78m2o"
+_oldDocEvalInline = Reference.unsafeFromText "#7pjlvdu42gmfvfntja265dmi08afk08l54kpsuu55l9hq4l32fco2jlrm8mf2jbn61esfsi972b6e66d9on4i5bkmfchjdare1v5npg"
 
 toDocEvalInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocEvalInline ppe (App' (Ref' r) (Delay' tm))

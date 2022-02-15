@@ -352,16 +352,18 @@ and the rendered output using `display`:
   
     Unison definitions can be included in docs. For instance:
   
-        structural type Optional a = None | Some a
+        structural type Optional a = Some a | None
         
+        sqr : Nat -> Nat
         sqr x =
           use Nat *
           x * x
   
     Some rendering targets also support folded source:
   
-        structural type Optional a = None | Some a
+        structural type Optional a = Some a | None
         
+        sqr : Nat -> Nat
         sqr x =
           use Nat *
           x * x
@@ -663,16 +665,18 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x

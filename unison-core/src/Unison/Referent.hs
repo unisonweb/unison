@@ -6,7 +6,6 @@ module Unison.Referent
   ( Referent,
     pattern Ref,
     pattern Con,
-    ConstructorId,
     Id,
     pattern RefId,
     pattern ConId,
@@ -136,7 +135,7 @@ fromText t = either (const Nothing) Just $
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
 
-fold :: (r -> a) -> (r -> Int -> ConstructorType -> a) -> Referent' r -> a
+fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r -> a
 fold fr fc = \case
   Ref' r -> fr r
   Con' (ConstructorReference r i) ct -> fc r i ct

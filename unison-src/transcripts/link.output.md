@@ -194,11 +194,11 @@ myLibrary.h x = x + 3
   Note: The most recent namespace hash is immediately below this
         message.
   
-  ⊙ 1. #o2uud8au0e
+  ⊙ 1. #fa706ukb83
   
     
   
-  □ 2. #7rksc58cce (start of history)
+  □ 2. #ikha0ltbmc (start of history)
 
 .> unlink coolFunction.doc coolFunction
 

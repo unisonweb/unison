@@ -44,9 +44,11 @@ library
     , containers
     , either
     , extra
+    , lens
     , mtl
     , safe
     , text
     , transformers
     , unliftio
+    , vector
   default-language: Haskell2010

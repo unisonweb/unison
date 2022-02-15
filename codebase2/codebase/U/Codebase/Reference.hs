@@ -11,7 +11,7 @@ module U.Codebase.Reference where
 import Data.Text (Text)
 import Data.Word (Word64)
 import U.Util.Hash (Hash)
-import Control.Lens (lens, Lens, Bifunctor(..), Traversal)
+import Control.Lens (lens, Lens, Bifunctor(..), Traversal, Prism, prism)
 import Data.Bitraversable (Bitraversable(..))
 import Data.Bifoldable (Bifoldable(..))
 
@@ -24,6 +24,13 @@ data Reference' t h
   | ReferenceDerived (Id' h)
   deriving (Eq, Ord, Show)
 
+_ReferenceDerived :: Prism (Reference' t h) (Reference' t h') (Id' h) (Id' h')
+_ReferenceDerived = prism embed project
+  where
+    embed (Id h pos) = ReferenceDerived (Id h pos)
+    project (ReferenceDerived id') = Right id'
+    project (ReferenceBuiltin t) = Left (ReferenceBuiltin t)
+
 pattern Derived :: h -> Pos -> Reference' t h
 pattern Derived h i = ReferenceDerived (Id h i)
 
@@ -33,13 +40,13 @@ type Pos = Word64
 data Id' h = Id h Pos
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-t :: Traversal (Reference' t h) (Reference' t' h) t t'
-t f = \case
+t_ :: Traversal (Reference' t h) (Reference' t' h) t t'
+t_ f = \case
   ReferenceBuiltin t -> ReferenceBuiltin <$> f t
   ReferenceDerived id -> pure (ReferenceDerived id)
 
-h :: Traversal (Reference' t h) (Reference' t h') h h'
-h f = \case
+h_ :: Traversal (Reference' t h) (Reference' t h') h h'
+h_ f = \case
   ReferenceBuiltin t -> pure (ReferenceBuiltin t)
   Derived h i -> Derived <$> f h <*> pure i
 

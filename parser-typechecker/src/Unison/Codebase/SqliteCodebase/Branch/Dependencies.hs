@@ -76,13 +76,13 @@ fromBranch0 b =
   fromTermsStar :: Branch.Star Referent NameSegment -> Dependencies
   fromTermsStar s = Dependencies mempty terms decls where
     terms = Set.fromList $
-      [ h | Referent.Ref (Derived h _ _) <- references s] ++
-      [ h | (Derived h _ _) <- mdValues s]
+      [ h | Referent.Ref (Derived h _) <- references s] ++
+      [ h | (Derived h _) <- mdValues s]
     decls = Set.fromList $
-      [ h | Referent.Con (ConstructorReference (Derived h _i _n) _) _ <- references s ]
+      [ h | Referent.Con (ConstructorReference (Derived h _i) _) _ <- references s ]
   fromTypesStar :: Branch.Star Reference NameSegment -> Dependencies
   fromTypesStar s = Dependencies mempty terms decls where
-    terms = Set.fromList [ h | (Derived h _ _) <- mdValues s ]
-    decls = Set.fromList [ h | (Derived h _ _) <- references s ]
+    terms = Set.fromList [ h | (Derived h _) <- mdValues s ]
+    decls = Set.fromList [ h | (Derived h _) <- references s ]
   fromEdits :: Map NameSegment (EditHash, m Patch) -> Dependencies
   fromEdits m = Dependencies (Set.fromList . fmap fst $ toList m) mempty mempty

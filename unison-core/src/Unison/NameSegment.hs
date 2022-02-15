@@ -8,7 +8,6 @@ import Unison.Prelude
 import qualified Data.Text                     as Text
 import qualified Data.Text.Lazy.Builder        as Text (Builder)
 import qualified Data.Text.Lazy.Builder        as Text.Builder
-import qualified Unison.Hashable               as H
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 
 -- Represents the parts of a name between the `.`s
@@ -46,9 +45,6 @@ reverseSegments' = go
       seg = if Text.null seg0 then Text.takeEnd 1 t else seg0
       rem = Text.dropEnd (Text.length seg + 1) t
       in seg : go rem
-
-instance H.Hashable NameSegment where
-  tokens s = [H.Text (toText s)]
 
 isEmpty :: NameSegment -> Bool
 isEmpty ns = toText ns == mempty

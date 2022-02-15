@@ -49,7 +49,7 @@ structural type Foo = Foo Nat
 
   Removed definitions:
   
-    1. Foo.Foo : Nat -> #d97e0jhkmd
+    1. Foo.Foo : Nat -> #68k40ra7l7
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -90,10 +90,10 @@ foo = 2
   
   New name conflicts:
   
-    1. foo#jk19sm5bf8 : Nat
+    1. foo#gjmq673r1v : Nat
        ↓
-    2. ┌ foo#0ja1qfpej6 : Nat
-    3. └ foo#jk19sm5bf8 : Nat
+    2. ┌ foo#dcgdua2lj6 : Nat
+    3. └ foo#gjmq673r1v : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -108,13 +108,13 @@ A delete should remove both versions of the term.
 
   Removed definitions:
   
-    1. a.foo#jk19sm5bf8 : Nat
+    1. a.foo#gjmq673r1v : Nat
   
   Name changes:
   
     Original               Changes
-    2. b.foo            ┐  3. a.foo#0ja1qfpej6 (removed)
-    4. a.foo#0ja1qfpej6 ┘  
+    2. b.foo            ┐  3. a.foo#dcgdua2lj6 (removed)
+    4. a.foo#dcgdua2lj6 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -157,18 +157,18 @@ structural type Foo = Foo Boolean
   
   New name conflicts:
   
-    1. structural type Foo#d97e0jhkmd
+    1. structural type Foo#68k40ra7l7
          
        ↓
-    2. ┌ structural type Foo#d97e0jhkmd
+    2. ┌ structural type Foo#68k40ra7l7
            
-    3. └ structural type Foo#gq9inhvg9h
+    3. └ structural type Foo#cbdjc64ffs
            
     
-    4. Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
+    4. Foo.Foo#68k40ra7l7#0 : Nat -> Foo#68k40ra7l7
        ↓
-    5. ┌ Foo.Foo#d97e0jhkmd#0 : Nat -> Foo#d97e0jhkmd
-    6. └ Foo.Foo#gq9inhvg9h#0 : Boolean -> Foo#gq9inhvg9h
+    5. ┌ Foo.Foo#68k40ra7l7#0 : Nat -> Foo#68k40ra7l7
+    6. └ Foo.Foo#cbdjc64ffs#0 : Boolean -> Foo#cbdjc64ffs
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
@@ -181,13 +181,13 @@ structural type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. structural type a.Foo#d97e0jhkmd
+    1. structural type a.Foo#68k40ra7l7
   
   Name changes:
   
     Original               Changes
-    2. b.Foo            ┐  3. a.Foo#gq9inhvg9h (removed)
-    4. a.Foo#gq9inhvg9h ┘  
+    2. b.Foo            ┐  3. a.Foo#cbdjc64ffs (removed)
+    4. a.Foo#cbdjc64ffs ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 
@@ -197,13 +197,13 @@ structural type Foo = Foo Boolean
 
   Removed definitions:
   
-    1. a.Foo.Foo#d97e0jhkmd#0 : Nat -> #d97e0jhkmd
+    1. a.Foo.Foo#68k40ra7l7#0 : Nat -> #68k40ra7l7
   
   Name changes:
   
     Original                     Changes
-    2. b.Foo.Foo              ┐  3. a.Foo.Foo#gq9inhvg9h#0 (removed)
-    4. a.Foo.Foo#gq9inhvg9h#0 ┘  
+    2. b.Foo.Foo              ┐  3. a.Foo.Foo#cbdjc64ffs#0 (removed)
+    4. a.Foo.Foo#cbdjc64ffs#0 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

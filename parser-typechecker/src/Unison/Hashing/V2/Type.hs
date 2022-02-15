@@ -6,13 +6,11 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Hashing.V2.Type
-(
+module Unison.Hashing.V2.Type (
   Type,
   F(..),
   bindExternal,
   bindReferences,
-  dependencies,
   -- * find by type index stuff
   toReference,
   toReferenceMentions,
@@ -25,24 +23,22 @@ module Unison.Hashing.V2.Type
   listRef,
   natRef,
   textRef,
-)
- where
+) where
 
-import Unison.Prelude
-
-import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import           Unison.Hashable (Hashable1)
-import qualified Unison.Hashable as Hashable
-import qualified Unison.Kind as K
-import           Unison.Hashing.V2.Reference (Reference)
+import Unison.Hashing.V2.Tokenizable (Hashable1)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import qualified Unison.Hashing.V2.ABT as ABT
+import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
-import           Unison.Var (Var)
-import qualified Unison.Names.ResolutionResult as Names
+import qualified Unison.Hashing.V2.Kind as K
 import qualified Unison.Name as Name
+import qualified Unison.Names.ResolutionResult as Names
+import Unison.Prelude
 import qualified Unison.Util.List as List
+import Unison.Var (Var)
 
 -- | Base functor for types in the Unison language
 data F a
@@ -120,16 +116,11 @@ unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-dependencies :: Ord v => Type v a -> Set Reference
-dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Ref r) = Writer.tell [r] $> t
-        f t = pure t
-
 toReference :: (ABT.Var v, Show v) => Type v a -> Reference
 toReference (Ref' r) = r
 -- a bit of normalization - any unused type parameters aren't part of the hash
 toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
-toReference t = Reference.Derived (ABT.hash t) 0 1
+toReference t = Reference.Derived (ABT.hash t) 0
 
 toReferenceMentions :: (ABT.Var v, Show v) => Type v a -> Set Reference
 toReferenceMentions ty =

@@ -118,7 +118,6 @@ import qualified Unison.TermPrinter as TermPrinter
 import Unison.Type (Type)
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.List as List
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.Pretty as P
@@ -335,7 +334,7 @@ notifyNumbered o = case o of
     , numberedArgsForEndangerments ppeDecl endangerments)
   History _cap sbhLength history tail ->
     let (tailMsg, tailHashes) = handleTail (length history + 1)
-        msg :: P.Pretty CT.ColorText
+        msg :: Pretty
         msg = P.lines
           [ note $ "The most recent namespace hash is immediately below this message.",
             "",
@@ -351,7 +350,7 @@ notifyNumbered o = case o of
       toSBH h = SBH.fromHash sbhLength h
       reversedHistory = reverse history
       showNum n = P.shown n <> ". "
-      handleTail :: Int -> (P.Pretty CT.ColorText, [Branch.Hash])
+      handleTail :: Int -> (Pretty, [Branch.Hash])
       handleTail n = case tail of
         E.EndOfLog h ->
           (P.lines
@@ -435,7 +434,7 @@ showListEdits patch ppe =
     numberedArgsCol1 <> numberedArgsCol2
   )
   where
-    typeOutputs, termOutputs :: [(P.Pretty CT.ColorText, P.Pretty CT.ColorText)]
+    typeOutputs, termOutputs :: [(Pretty, Pretty)]
     numberedArgsCol1, numberedArgsCol2 :: NumberedArgs
     -- We use the output of the first column's count as the first number in the second
     -- column's count. Laziness allows this since they're used independently of one another.
@@ -448,12 +447,12 @@ showListEdits patch ppe =
     types = R.toList $ Patch._typeEdits patch
     terms :: [(Reference, TermEdit.TermEdit)]
     terms = R.toList $ Patch._termEdits patch
-    showNum :: Int -> P.Pretty CT.ColorText
+    showNum :: Int -> Pretty
     showNum n = P.hiBlack (P.shown n <> ". ")
 
     prettyTermEdit ::
       (Reference.TermReference, TermEdit.TermEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
     prettyTermEdit (lhsRef, termEdit) = do
       n1 <- gets fst <* modify (first succ)
       let lhsTermName = PPE.termName ppe (Referent.Ref lhsRef)
@@ -478,7 +477,7 @@ showListEdits patch ppe =
 
     prettyTypeEdit ::
       (Reference, TypeEdit.TypeEdit) ->
-      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (P.Pretty CT.ColorText, P.Pretty CT.ColorText)
+      StateT (Int, Int) (Writer (NumberedArgs, NumberedArgs)) (Pretty, Pretty)
     prettyTypeEdit (lhsRef, typeEdit) = do
       n1 <- gets fst <* modify (first succ)
       let lhsTypeName = PPE.typeName ppe lhsRef
@@ -501,7 +500,9 @@ showListEdits patch ppe =
               "-> " <> showNum n2 <> (P.syntaxToColor . prettyHashQualified $ rhsTypeName)
             )
 
-prettyRemoteNamespace :: ReadRemoteNamespace -> P.Pretty P.ColorText
+prettyRemoteNamespace ::
+  ReadRemoteNamespace  ->
+  Pretty
 prettyRemoteNamespace =
   P.group . P.blue . P.text . uncurry3 RemoteRepo.printNamespace
 
@@ -871,12 +872,12 @@ notifyUser dir o = case o of
         then P.lit "nothing to show"
         else numberedEntries entries
     where
-      numberedEntries :: [ShallowListEntry v a] -> P.Pretty P.ColorText
+      numberedEntries :: [ShallowListEntry v a] -> Pretty
       numberedEntries entries =
         (P.column3 . fmap f) ([(1 :: Integer) ..] `zip` fmap formatEntry entries)
         where
           f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
-      formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
+      formatEntry :: ShallowListEntry v a -> (Pretty, Pretty)
       formatEntry = \case
         ShallowTermEntry (TermEntry _r hq ot _) ->
           ( P.syntaxToColor . prettyHashQualified' . fmap Name.fromSegment $ hq,
@@ -1187,7 +1188,7 @@ notifyUser dir o = case o of
         then P.lit "nothing to show"
         else numberedPatches patches
     where
-      numberedPatches :: Set Name -> P.Pretty P.ColorText
+      numberedPatches :: Set Name -> Pretty
       numberedPatches patches =
         (P.column2 . fmap format) ([(1 :: Integer) ..] `zip` (toList patches))
         where
@@ -1252,13 +1253,13 @@ notifyUser dir o = case o of
         P.indentN 2 (P.lines (map qualifyTerm tms ++ map qualifyType tps))
       ]
     where
-      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm :: Referent -> Pretty
       qualifyTerm =
         P.syntaxToColor . case hq of
           HQ.NameOnly n -> prettyNamedReferent hashLen n
           HQ.HashQualified n _ -> prettyNamedReferent hashLen n
           HQ.HashOnly _ -> prettyReferent hashLen
-      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType :: Reference -> Pretty
       qualifyType =
         P.syntaxToColor . case hq of
           HQ.NameOnly n -> prettyNamedReference hashLen n
@@ -1280,9 +1281,9 @@ notifyUser dir o = case o of
     where
       name :: Name
       name = Path.toName' (HQ'.toName (Path.unsplitHQ' p))
-      qualifyTerm :: Referent -> P.Pretty P.ColorText
+      qualifyTerm :: Referent -> Pretty
       qualifyTerm = P.syntaxToColor . prettyNamedReferent hashLen name
-      qualifyType :: Reference -> P.Pretty P.ColorText
+      qualifyType :: Reference -> Pretty
       qualifyType = P.syntaxToColor . prettyNamedReference hashLen name
   TermAmbiguous _ _ -> pure "That term is ambiguous."
   HashAmbiguous h rs ->
@@ -1356,7 +1357,7 @@ notifyUser dir o = case o of
           P.numberedList . fmap renderEntry $ entries
         ]
     where
-      renderEntry :: Output.ReflogEntry -> P.Pretty CT.ColorText
+      renderEntry :: Output.ReflogEntry -> Pretty
       renderEntry (Output.ReflogEntry hash reason) =
         P.wrap $
           P.blue (prettySBH hash) <> " : " <> P.text reason
@@ -2305,7 +2306,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
     13. ┌ability Yyz         (+1 metadata)
     14. └ability copies.Yyz  (+2 metadata)
     -}
-    prettyAddTypes :: [OBD.AddedTypeDisplay v a] -> Numbered Pretty
+    prettyAddTypes :: forall a. [OBD.AddedTypeDisplay v a] -> Numbered Pretty
     prettyAddTypes = fmap P.lines . traverse prettyGroup
       where
         prettyGroup :: OBD.AddedTypeDisplay v a -> Numbered Pretty
@@ -2322,7 +2323,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               0 -> mempty
               c -> " (+" <> P.shown c <> " metadata)"
 
-    prettyAddTerms :: [OBD.AddedTermDisplay v a] -> Numbered Pretty
+    prettyAddTerms :: forall a. [OBD.AddedTermDisplay v a] -> Numbered Pretty
     prettyAddTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms
       where
         reorderTerms = sortOn (not . Referent.isConstructor . view _2)
@@ -2332,6 +2333,11 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           let (nums, names, decls) = unzip3 pairs
               boxLeft = case hqmds of _ : _ : _ -> P.boxLeft; _ -> id
           pure $ zip3 nums (boxLeft names) decls
+        prettyLine ::
+          Referent ->
+          Maybe (Type v a) ->
+          (HQ'.HashQualified Name, [OBD.MetadataDisplay v a]) ->
+          Numbered (Pretty, Pretty, Pretty)
         prettyLine r otype (hq, mds) = do
           n <- numHQ' newPath hq r
           pure . (n,phq' hq,) $
@@ -2369,7 +2375,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
        12.  ability BadType
        13.  patch defunctThingy
     -}
-    prettyRemoveTypes :: [OBD.RemovedTypeDisplay v a] -> Numbered Pretty
+    prettyRemoveTypes :: forall a. [OBD.RemovedTypeDisplay v a] -> Numbered Pretty
     prettyRemoveTypes = fmap P.lines . traverse prettyGroup
       where
         prettyGroup :: OBD.RemovedTypeDisplay v a -> Numbered Pretty
@@ -2378,11 +2384,12 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           let (nums, decls) = unzip lines
               boxLeft = case hqs of _ : _ : _ -> P.boxLeft; _ -> id
           pure . P.column2 $ zip nums (boxLeft decls)
+        prettyLine :: Reference -> Maybe (DD.DeclOrBuiltin v a) -> HQ'.HashQualified Name -> Numbered (Pretty, Pretty)
         prettyLine r odecl hq = do
           n <- numHQ' newPath hq (Referent.Ref r)
           pure (n, prettyDecl hq odecl)
 
-    prettyRemoveTerms :: [OBD.RemovedTermDisplay v a] -> Numbered Pretty
+    prettyRemoveTerms :: forall a. [OBD.RemovedTermDisplay v a] -> Numbered Pretty
     prettyRemoveTerms = fmap (P.column3 . mconcat) . traverse prettyGroup . reorderTerms
       where
         reorderTerms = sortOn (not . Referent.isConstructor . view _2)
@@ -2461,6 +2468,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           num <- numHQ p hq r
           pure (x <> num <> " " <> phq hq, ": " <> prettyType otype)
 
+    prettyType :: Maybe (Type v a) -> Pretty
     prettyType = maybe (P.red "type not found") (TypePrinter.pretty ppe)
     prettyDecl hq =
       maybe

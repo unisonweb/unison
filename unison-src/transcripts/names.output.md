@@ -16,17 +16,17 @@ intTriple = IntTriple(+1, +1, +1)
 .> names IntTriple
 
   Type
-  Hash:  #170h4ackk7
+  Hash:  #cp7a2qo5du
   Names: IntTriple namespc.another.TripleInt
   
   Term
-  Hash:   #170h4ackk7#0
+  Hash:   #cp7a2qo5du#0
   Names:  IntTriple.IntTriple
 
 .> names intTriple
 
   Term
-  Hash:   #uif14vd2oj
+  Hash:   #6nuu8h1ib1
   Names:  intTriple namespc.another.tripleInt
 
 ```

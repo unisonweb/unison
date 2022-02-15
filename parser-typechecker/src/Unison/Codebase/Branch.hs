@@ -3,11 +3,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Codebase.Branch
   ( -- * Branch types
     Branch(..)
-  , BranchDiff(..)
   , UnwrappedBranch
   , Branch0(..)
   , Raw(..)
@@ -24,7 +24,6 @@ module Unison.Codebase.Branch
   , empty0
   , discardHistory
   , discardHistory0
-  , toCausalRaw
   , transform
   -- * Branch tests
   , isEmpty
@@ -32,8 +31,6 @@ module Unison.Codebase.Branch
   , isOne
   , before
   , lca
-  -- * diff
-  , diff0
   -- * properties
   , history
   , head
@@ -75,11 +72,6 @@ module Unison.Codebase.Branch
     -- ** Term/type queries
   , deepReferents
   , deepTypeReferences
-  -- * Branch serialization
-  , cachedRead
-  , Cache
-  , sync
-
   , consBranchSnapshot
   ) where
 
@@ -87,50 +79,45 @@ import Unison.Prelude hiding (empty)
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, cons, transform, uncons )
-import qualified Control.Monad.State           as State
-import           Control.Monad.State            ( StateT )
-import           Data.Bifunctor                 ( second )
-import qualified Data.Map                      as Map
-import qualified Data.Map.Merge.Lazy           as Map
-import qualified Data.Set                      as Set
-import qualified Unison.Codebase.Patch         as Patch
-import           Unison.Codebase.Patch          ( Patch )
-import qualified Unison.Codebase.Causal        as Causal
-import           Unison.Codebase.Causal         ( Causal
-                                                , pattern RawOne
-                                                , pattern RawCons
-                                                , pattern RawMerge
-                                                )
-import           Unison.Codebase.Path           ( Path(..) )
-import qualified Unison.Codebase.Path          as Path
-import           Unison.NameSegment             ( NameSegment )
-import qualified Unison.Codebase.Metadata      as Metadata
-import qualified Unison.Hash                   as Hash
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Hashable               as H
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import           Unison.Reference               ( TypeReference )
-import           Unison.Referent                ( Referent )
-
-import qualified U.Util.Cache             as Cache
-import qualified Unison.Util.Relation          as R
-import           Unison.Util.Relation            ( Relation )
-import qualified Unison.Util.Relation4         as R4
-import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.List as List
+import Control.Lens hiding (children, cons, transform, uncons)
+import Data.Bifunctor (second)
+import qualified Data.Map as Map
 import qualified Data.Semialign as Align
-import Data.These (These(..))
+import qualified Data.Set as Set
+import Data.These (These (..))
+import Unison.Codebase.Branch.Raw (Raw (Raw))
+import Unison.Codebase.Branch.Type
+  ( Branch (..),
+    Branch0 (..),
+    EditHash,
+    Hash,
+    Star,
+    UnwrappedBranch,
+    edits,
+    head,
+    headHash,
+    history,
+  )
+import Unison.Codebase.Causal (Causal)
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Metadata as Metadata
+import Unison.Codebase.Patch (Patch)
+import qualified Unison.Codebase.Patch as Patch
+import Unison.Codebase.Path (Path (..))
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Hashing.V2.Convert as H
+import qualified Unison.Hashing.V2.Hashable as H
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.NameSegment (NameSegment)
+import Unison.Reference (TypeReference)
+import Unison.Referent (Referent)
+import qualified Unison.Util.List as List
+import Unison.Util.Relation (Relation)
+import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Relation as Relation
-
--- | A node in the Unison namespace hierarchy
--- along with its history.
-newtype Branch m = Branch { _history :: UnwrappedBranch m }
-  deriving (Eq, Ord)
-
-history :: Iso' (Branch m) (UnwrappedBranch m)
-history = iso _history Branch
+import qualified Unison.Util.Relation4 as R4
+import qualified Unison.Util.Star3 as Star3
 
 instance AsEmpty (Branch m) where
   _Empty = prism' (const empty) matchEmpty
@@ -139,72 +126,8 @@ instance AsEmpty (Branch m) where
         | b0 == empty = Just ()
         | otherwise = Nothing
 
-type UnwrappedBranch m = Causal m Raw (Branch0 m)
-
-type Hash = Causal.RawHash Raw
-type EditHash = Hash.Hash
-
-type Star r n = Metadata.Star r n
-
--- | A node in the Unison namespace hierarchy.
---
--- '_terms' and '_types' are the declarations at this level.
--- '_children' are the nodes one level below us.
--- '_edits' are the 'Patch's stored at this node in the code.
---
--- The @deep*@ fields are derived from the four above.
-data Branch0 m = Branch0
-  { _terms :: Star Referent NameSegment
-  , _types :: Star TypeReference NameSegment
-  , _children :: Map NameSegment (Branch m)
-    -- ^ Note the 'Branch' here, not 'Branch0'.
-    -- Every level in the tree has a history.
-  , _edits :: Map NameSegment (EditHash, m Patch)
-  -- names and metadata for this branch and its children
-  -- (ref, (name, value)) iff ref has metadata `value` at name `name`
-  , deepTerms :: Relation Referent Name
-  , deepTypes :: Relation TypeReference Name
-  , deepTermMetadata :: Metadata.R4 Referent Name
-  , deepTypeMetadata :: Metadata.R4 TypeReference Name
-  , deepPaths :: Set Path
-  , deepEdits :: Map Name EditHash
-  }
-
-edits :: Lens' (Branch0 m) (Map NameSegment (EditHash, m Patch))
-edits = lens _edits (\b0 e -> b0{_edits=e})
-
--- Represents a shallow diff of a Branch0.
--- Each of these `Star`s contain metadata as well, so an entry in
--- `added` or `removed` could be an update to the metadata.
-data BranchDiff = BranchDiff
-  { addedTerms :: Star Referent NameSegment
-  , removedTerms :: Star Referent NameSegment
-  , addedTypes :: Star TypeReference NameSegment
-  , removedTypes :: Star TypeReference NameSegment
-  , changedPatches :: Map NameSegment Patch.PatchDiff
-  } deriving (Eq, Ord, Show)
-
-instance Semigroup BranchDiff where
-  left <> right = BranchDiff
-    { addedTerms     = addedTerms left <> addedTerms right
-    , removedTerms   = removedTerms left <> removedTerms right
-    , addedTypes     = addedTypes left <> addedTypes right
-    , removedTypes   = removedTypes left <> removedTypes right
-    , changedPatches =
-        Map.unionWith (<>) (changedPatches left) (changedPatches right)
-    }
-
-instance Monoid BranchDiff where
-  mappend = (<>)
-  mempty = BranchDiff mempty mempty mempty mempty mempty
-
--- The raw Branch
-data Raw = Raw
-  { _termsR :: Star Referent NameSegment
-  , _typesR :: Star TypeReference NameSegment
-  , _childrenR :: Map NameSegment Hash
-  , _editsR :: Map NameSegment EditHash
-  }
+instance H.Hashable (Branch0 m) where
+  hash = H.hashBranch0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -346,16 +269,10 @@ deriveDeepEdits branch =
         go n b =
           Map.mapKeys (Name.cons n) (deepEdits $ head b)
 
-head :: Branch m -> Branch0 m
-head (Branch c) = Causal.head c
-
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
-
-headHash :: Branch m -> Hash
-headHash (Branch c) = Causal.currentHash c
 
 -- | a version of `deepEdits` that returns the `m Patch` as well.
 deepEdits' :: Branch0 m -> Map Name (EditHash, m Patch)
@@ -390,96 +307,6 @@ toList0 :: Branch0 m -> [(Path, Branch0 m)]
 toList0 = go Path.empty where
   go p b = (p, b) : (Map.toList (_children b) >>= (\(seg, cb) ->
     go (Path.snoc p seg) (head cb) ))
-
-instance Eq (Branch0 m) where
-  a == b = view terms a == view terms b
-    && view types a == view types b
-    && view children a == view children b
-    && (fmap fst . view edits) a == (fmap fst . view edits) b
-
--- This type is a little ugly, so we wrap it up with a nice type alias for
--- use outside this module.
-type Cache m = Cache.Cache (Causal.RawHash Raw) (UnwrappedBranch m)
-
--- Can use `Cache.nullCache` to disable caching if needed
-cachedRead :: forall m . MonadIO m
-           => Cache m
-           -> Causal.Deserialize m Raw Raw
-           -> (EditHash -> m Patch)
-           -> Hash
-           -> m (Branch m)
-cachedRead cache deserializeRaw deserializeEdits h =
- Branch <$> Causal.cachedRead cache d h
- where
-  fromRaw :: Raw -> m (Branch0 m)
-  fromRaw Raw {..} = do
-    children <- traverse go _childrenR
-    edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ branch0 _termsR _typesR children edits
-  go = cachedRead cache deserializeRaw deserializeEdits
-  d :: Causal.Deserialize m Raw (Branch0 m)
-  d h = deserializeRaw h >>= \case
-    RawOne raw      -> RawOne <$> fromRaw raw
-    RawCons  raw h  -> flip RawCons h <$> fromRaw raw
-    RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
-
-sync
-  :: Monad m
-  => (Hash -> m Bool)
-  -> Causal.Serialize m Raw Raw
-  -> (EditHash -> m Patch -> m ())
-  -> Branch m
-  -> m ()
-sync exists serializeRaw serializeEdits b = do
-  _written <- State.execStateT (sync' exists serializeRaw serializeEdits b) mempty
-  -- traceM $ "Branch.sync wrote " <> show (Set.size written) <> " namespace files."
-  pure ()
-
--- serialize a `Branch m` indexed by the hash of its corresponding Raw
-sync'
-  :: forall m
-   . Monad m
-  => (Hash -> m Bool)
-  -> Causal.Serialize m Raw Raw
-  -> (EditHash -> m Patch -> m ())
-  -> Branch m
-  -> StateT (Set Hash) m ()
-sync' exists serializeRaw serializeEdits b = Causal.sync exists
-                                                         serialize0
-                                                         (view history b)
- where
-  serialize0 :: Causal.Serialize (StateT (Set Hash) m) Raw (Branch0 m)
-  serialize0 h b0 = case b0 of
-    RawOne b0 -> do
-      writeB0 b0
-      lift $ serializeRaw h $ RawOne (toRaw b0)
-    RawCons b0 ht -> do
-      writeB0 b0
-      lift $ serializeRaw h $ RawCons (toRaw b0) ht
-    RawMerge b0 hs -> do
-      writeB0 b0
-      lift $ serializeRaw h $ RawMerge (toRaw b0) hs
-   where
-    writeB0 :: Branch0 m -> StateT (Set Hash) m ()
-    writeB0 b0 = do
-      for_ (view children b0) $ \c -> do
-        queued <- State.get
-        when (Set.notMember (headHash c) queued) $
-          sync' exists serializeRaw serializeEdits c
-      for_ (view edits b0) (lift . uncurry serializeEdits)
-
-  -- this has to serialize the branch0 and its descendants in the tree,
-  -- and then serialize the rest of the history of the branch as well
-
-toRaw :: Branch0 m -> Raw
-toRaw Branch0 {..} =
-  Raw _terms _types (headHash <$> _children) (fst <$> _edits)
-
-toCausalRaw :: Branch m -> Causal.Raw Raw Raw
-toCausalRaw = \case
-  Branch (Causal.One _h e)           -> RawOne (toRaw e)
-  Branch (Causal.Cons _h e (ht, _m)) -> RawCons (toRaw e) ht
-  Branch (Causal.Merge _h e tls)     -> RawMerge (toRaw e) (Map.keysSet tls)
 
 -- returns `Nothing` if no Branch at `path` or if Branch is empty at `path`
 getAt :: Path
@@ -631,11 +458,11 @@ modifyPatches seg f = mapMOf edits update
     p' <- case Map.lookup seg m of
       Nothing     -> pure $ f Patch.empty
       Just (_, p) -> f <$> p
-    let h = H.accumulate' p'
+    let h = H.hashPatch p'
     pure $ Map.insert seg (h, pure p') m
 
 replacePatch :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
+replacePatch n p = over edits (Map.insert n (H.hashPatch p, pure p))
 
 deletePatch :: NameSegment -> Branch0 m -> Branch0 m
 deletePatch n = over edits (Map.delete n)
@@ -748,14 +575,6 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
     pathLocation (Path Empty) = HereActions
     pathLocation _ = ChildActions
 
-instance Hashable (Branch0 m) where
-  tokens b =
-    [ H.accumulateToken (_terms b)
-    , H.accumulateToken (_types b)
-    , H.accumulateToken (headHash <$> _children b)
-    , H.accumulateToken (fst <$> _edits b)
-    ]
-
 -- todo: consider inlining these into Actions2
 addTermName
   :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
@@ -780,23 +599,6 @@ deleteTypeName _ _ b = b
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
-diff0 :: Monad m => Branch0 m -> Branch0 m -> m BranchDiff
-diff0 old new = do
-  newEdits <- sequenceA $ snd <$> _edits new
-  oldEdits <- sequenceA $ snd <$> _edits old
-  let diffEdits = Map.merge (Map.mapMissing $ \_ p -> Patch.diff p mempty)
-                            (Map.mapMissing $ \_ p -> Patch.diff mempty p)
-                            (Map.zipWithMatched (const Patch.diff))
-                            newEdits
-                            oldEdits
-  pure $ BranchDiff
-    { addedTerms     = Star3.difference (_terms new) (_terms old)
-    , removedTerms   = Star3.difference (_terms old) (_terms new)
-    , addedTypes     = Star3.difference (_types new) (_types old)
-    , removedTypes   = Star3.difference (_types old) (_types new)
-    , changedPatches = diffEdits
-    }
-
 transform :: Functor m => (forall a . m a -> n a) -> Branch m -> Branch n
 transform f b = case _history b of
   causal -> Branch . Causal.transform f $ transformB0s f causal
@@ -812,12 +614,10 @@ transform f b = case _history b of
                -> Causal m Raw (Branch0 n)
   transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
-
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 children0 = children .> itraversed <. (history . Causal.head_)
-
 
 -- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'

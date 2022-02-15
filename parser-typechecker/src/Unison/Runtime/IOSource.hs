@@ -283,6 +283,7 @@ constructorNamed ref name =
         $  "There's a bug in the Unison runtime. Couldn't find type "
         <> show ref
     Just decl ->
+      fromIntegral .
       fromMaybe
           (  error
           $  "Unison runtime bug. The type "

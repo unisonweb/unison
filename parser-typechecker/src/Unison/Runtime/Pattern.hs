@@ -32,7 +32,7 @@ import Unison.Pattern
 import qualified Unison.Pattern as P
 import Unison.Reference (Reference(..))
 import Unison.Runtime.ANF (internalBug)
-import Unison.Term hiding (Term)
+import Unison.Term hiding (Term, matchPattern)
 import qualified Unison.Term as Tm
 import Unison.Var (Var, typed, freshIn, freshenId, Type(Pattern))
 
@@ -161,7 +161,7 @@ decomposePattern (Just rf0) t _       (P.Boolean _ b)
   , t == if b then 1 else 0
   = [[]]
 decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference rf u) ps)
-  | t == u
+  | t == fromIntegral u
   , rf0 == rf
   = if length ps == nfields
     then [ps]
@@ -170,7 +170,7 @@ decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference r
   err = "decomposePattern: wrong number of constructor fields: "
      ++ show (nfields, p)
 decomposePattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf u) ps pk)
-  | t == u
+  | t == fromIntegral u
   , rf0 == rf
   = if length ps + 1 == nfields
     then [ps ++ [pk]]
@@ -664,7 +664,7 @@ buildCase
 buildCase spec r eff cons ctx0 (t, vts, m)
   = MatchCase pat Nothing . absChain' vs $ compile spec ctx m
   where
-  pat = buildPattern eff (ConstructorReference r t) vs $ cons !! t
+  pat = buildPattern eff (ConstructorReference r (fromIntegral t)) vs $ cons !! t
   vs = ((),) . fst <$> vts
   ctx = Map.fromList vts <> ctx0
 

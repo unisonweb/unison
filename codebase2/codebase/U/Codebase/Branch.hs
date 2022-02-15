@@ -12,7 +12,7 @@ import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
 import qualified Data.Map as Map
 
-newtype NameSegment = NameSegment Text deriving (Eq, Ord, Show)
+newtype NameSegment = NameSegment { unNameSegment :: Text } deriving (Eq, Ord, Show)
 
 type MetadataType = Reference
 type MetadataValue = Reference

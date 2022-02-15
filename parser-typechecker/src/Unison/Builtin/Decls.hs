@@ -17,11 +17,11 @@ import Unison.DataDeclaration
     Modifier (Structural, Unique),
   )
 import qualified Unison.DataDeclaration as DD
-import Unison.Hashing.V2.Convert (hashDecls)
+import Unison.Hashing.V2.Convert (hashDataDecls)
 import qualified Unison.Pattern as Pattern
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import Unison.Referent (ConstructorId, Referent)
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term, Term2)
@@ -30,6 +30,7 @@ import Unison.Type (Type)
 import qualified Unison.Type as Type
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 
 lookupDeclRef :: Text -> Reference
 lookupDeclRef str
@@ -81,10 +82,10 @@ pairCtorRef, unitCtorRef :: Referent
 pairCtorRef = Referent.Con (ConstructorReference pairRef 0) CT.Data
 unitCtorRef = Referent.Con (ConstructorReference unitRef 0) CT.Data
 
-constructorId :: Reference -> Text -> Maybe Int
+constructorId :: Reference -> Text -> Maybe ConstructorId
 constructorId ref name = do
   (_,_,dd) <- find (\(_,r,_) -> Reference.DerivedId r == ref) builtinDataDecls
-  elemIndex name $ DD.constructorNames dd
+  fmap fromIntegral . elemIndex name $ DD.constructorNames dd
 
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId  :: ConstructorId
@@ -122,10 +123,10 @@ failConstructorReferent = Referent.Con (ConstructorReference testResultRef failC
 builtinDataDecls :: [(Symbol, Reference.Id, DataDeclaration Symbol ())]
 builtinDataDecls = rs1 ++ rs
  where
-  rs1 = case hashDecls $ Map.fromList
+  rs1 = case hashDataDecls $ Map.fromList
     [ (v "Link"                , link)
     ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
-  rs = case hashDecls $ Map.fromList
+  rs = case hashDataDecls $ Map.fromList
     [ (v "Unit"               , unit)
     , (v "Tuple"              , tuple)
     , (v "Optional"           , opt)
@@ -311,7 +312,7 @@ builtinDataDecls = rs1 ++ rs
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
-  case hashDecls $ Map.fromList [ (v "Exception", exception) ] of
+  case hashDataDecls $ Map.fromList [ (v "Exception", exception) ] of
     Right a -> over _3 DD.EffectDeclaration <$> a
     Left e -> error $ "builtinEffectDecls: " <> show e
   where

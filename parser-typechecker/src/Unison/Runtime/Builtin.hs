@@ -187,15 +187,15 @@ fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
 none :: Var v => ANormal v
-none = TCon Ty.optionalRef (toEnum Ty.noneId) []
+none = TCon Ty.optionalRef (fromIntegral Ty.noneId) []
 some, left, right :: Var v => v -> ANormal v
-some a = TCon Ty.optionalRef (toEnum Ty.someId) [a]
-left x = TCon Ty.eitherRef (toEnum Ty.eitherLeftId) [x]
-right x = TCon Ty.eitherRef (toEnum Ty.eitherRightId) [x]
+some a = TCon Ty.optionalRef (fromIntegral Ty.someId) [a]
+left x = TCon Ty.eitherRef (fromIntegral Ty.eitherLeftId) [x]
+right x = TCon Ty.eitherRef (fromIntegral Ty.eitherRightId) [x]
 seqViewEmpty :: Var v => ANormal v
-seqViewEmpty = TCon Ty.seqViewRef (toEnum Ty.seqViewEmpty) []
+seqViewEmpty = TCon Ty.seqViewRef (fromIntegral Ty.seqViewEmpty) []
 seqViewElem :: Var v => v -> v -> ANormal v
-seqViewElem l r = TCon Ty.seqViewRef (toEnum Ty.seqViewElem) [l,r]
+seqViewElem l r = TCon Ty.seqViewRef (fromIntegral Ty.seqViewElem) [l,r]
 
 boolift :: Var v => v -> ANormal v
 boolift v
@@ -842,10 +842,10 @@ seek'handle instr
     (arg1, arg2, arg3, seek, nat, stack1, stack2, stack3, unit, fail, result) = fresh11
 
 no'buf, line'buf, block'buf, sblock'buf :: Enum e => e
-no'buf = toEnum Ty.bufferModeNoBufferingId
-line'buf = toEnum Ty.bufferModeLineBufferingId
-block'buf = toEnum Ty.bufferModeBlockBufferingId
-sblock'buf = toEnum Ty.bufferModeSizedBlockBufferingId
+no'buf = toEnum $ fromIntegral Ty.bufferModeNoBufferingId
+line'buf = toEnum $ fromIntegral Ty.bufferModeLineBufferingId
+block'buf = toEnum $ fromIntegral Ty.bufferModeBlockBufferingId
+sblock'buf = toEnum $ fromIntegral Ty.bufferModeSizedBlockBufferingId
 
 infixr 0 -->
 (-->) :: a -> b -> (a, b)
@@ -970,9 +970,9 @@ inMaybeBx arg1 arg2 arg3 mb result cont instr =
   . TAbss [arg1, arg2]
   . TMatch arg1 . flip (MatchData Ty.optionalRef) Nothing
   $ mapFromList
-    [ (toEnum Ty.noneId, ([], TLetD mb UN (TLit $ I 0)
+    [ (fromIntegral Ty.noneId, ([], TLetD mb UN (TLit $ I 0)
                $ TLetD result UN (TFOp instr [mb, arg2]) cont))
-    , (toEnum Ty.someId, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
+    , (fromIntegral Ty.someId, ([BX], TAbs arg3 . TLetD mb UN (TLit $ I 1) $ TLetD result UN (TFOp instr [mb, arg3, arg2]) cont))
     ]
 
 -- a -> b -> ...

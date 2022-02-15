@@ -149,7 +149,7 @@ denormalizeMatch b
   ipat r _ i
     | r == Ty.natRef = P.Nat () $ fromIntegral i
     | otherwise = P.Int () $ fromIntegral i
-  dpat r n t = P.Constructor () (ConstructorReference r (fromEnum t)) (replicate n $ P.Var ())
+  dpat r n t = P.Constructor () (ConstructorReference r (fromIntegral (fromEnum t))) (replicate n $ P.Var ())
 
 denormalizeBranch :: (Num a, Var v) =>
                      Term ANormalF v -> (a, ABT.Term (Term.F v () ()) v ())
@@ -173,7 +173,7 @@ denormalizeHandler cs df = dcs
    where (_, db) = denormalizeBranch df
   rf r rcs = foldMapWithKey (cf r) rcs
   cf r t b = [ Term.MatchCase
-                 (P.EffectBind () (ConstructorReference r (fromEnum t))
+                 (P.EffectBind () (ConstructorReference r (fromIntegral (fromEnum t)))
                    (replicate n $ P.Var ()) (P.Var ()))
                  Nothing
                  db

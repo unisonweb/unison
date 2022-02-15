@@ -37,7 +37,7 @@ import qualified Unison.Codebase as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Branch.Names as Branch
-import qualified Unison.Codebase.Causal (RawHash(RawHash))
+import qualified Unison.Codebase.Causal.Type (RawHash(RawHash))
 import Unison.Codebase.Editor.DisplayObject
 import qualified Unison.Codebase.Metadata as Metadata
 import Unison.Codebase.Path (Path)
@@ -921,19 +921,25 @@ definitionsBySuffixes ::
   m (DefinitionResults Symbol)
 definitionsBySuffixes namesScope branch codebase includeCycles query = do
   QueryResult misses results <- hqNameQuery namesScope branch codebase query
+  -- todo: remember to replace this with getting components directly,
+  -- and maybe even remove getComponentLength from Codebase interface altogether
   terms <- do
     let termRefsWithoutCycles = searchResultsToTermRefs results
-    let termRefs =
-          case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) termRefsWithoutCycles
-            DontIncludeCycles -> termRefsWithoutCycles
+    termRefs <- case includeCycles of
+      IncludeCycles ->
+        Monoid.foldMapM
+          (Codebase.componentReferencesForReference codebase)
+          termRefsWithoutCycles
+      DontIncludeCycles -> pure termRefsWithoutCycles
     Map.foldMapM (\ref -> (ref,) <$> displayTerm ref) termRefs
   types <- do
     let typeRefsWithoutCycles = searchResultsToTypeRefs results
-    let typeRefs =
-          case includeCycles of
-            IncludeCycles -> foldMap (Reference.members . Reference.componentFor) typeRefsWithoutCycles
-            DontIncludeCycles -> typeRefsWithoutCycles
+    typeRefs <- case includeCycles of
+      IncludeCycles ->
+        Monoid.foldMapM
+          (Codebase.componentReferencesForReference codebase)
+          typeRefsWithoutCycles
+      DontIncludeCycles -> pure typeRefsWithoutCycles
     Map.foldMapM (\ref -> (ref,) <$> displayType ref) typeRefs
   pure (DefinitionResults terms types misses)
   where
@@ -1042,4 +1048,3 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
-

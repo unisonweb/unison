@@ -21,11 +21,13 @@ library
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
+      U.Codebase.Sqlite.Causal
       U.Codebase.Sqlite.Connection
       U.Codebase.Sqlite.DbId
       U.Codebase.Sqlite.Decl.Format
       U.Codebase.Sqlite.JournalMode
       U.Codebase.Sqlite.LocalIds
+      U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Patch.Diff
@@ -44,12 +46,35 @@ library
       Paths_unison_codebase_sqlite
   hs-source-dirs:
       ./
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      ConstraintKinds
+      DeriveFunctor
+      DerivingStrategies
+      DoAndIfThenElse
+      FlexibleContexts
+      FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      InstanceSigs
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      PatternSynonyms
+      ScopedTypeVariables
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      TypeFamilyDependencies
   build-depends:
       base
     , bytes
     , bytestring
     , containers
     , extra
+    , generic-lens
     , here
     , lens
     , monad-validate

@@ -6,12 +6,12 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 .> view builtin.Doc
 
   unique type builtin.Doc
-    = Link Link
+    = Blob Text
+    | Link Link
     | Source Link
-    | Blob Text
-    | Join [builtin.Doc]
     | Signature Term
     | Evaluate Term
+    | Join [builtin.Doc]
 
 ```
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
@@ -147,12 +147,14 @@ Now that documentation is linked to the definition. We can view it if we like:
   
   ## Examples:
   
-    List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+    List.take.ex1 : [Nat]
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
     🔽
     ex1 = []
   
   
-    List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+    List.take.ex2 : [Nat]
+  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
     🔽
     ex2 = [1, 2]
   
@@ -170,12 +172,14 @@ Or there's also a convenient function, `docs`, which shows the `Doc` values that
   
   ## Examples:
   
-    List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
+    List.take.ex1 : [Nat]
+  List.take.ex1 = builtin.List.take 0 [1, 2, 3, 4, 5]
     🔽
     ex1 = []
   
   
-    List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
+    List.take.ex2 : [Nat]
+  List.take.ex2 = builtin.List.take 2 [1, 2, 3, 4, 5]
     🔽
     ex2 = [1, 2]
   

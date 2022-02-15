@@ -283,36 +283,19 @@ test = scope "gitsync22" . tests $
         ```ucm
         .> pull ${repo}
         .> history
-        .> reset-root #dshactmb93
+        .> reset-root #l43v9nr16v
         .> history
         ```
-    |])
+    |]) -- Not sure why this hash is here.
+    -- Is it to test `reset-root`?
+    -- Or to notice a change in hashing?
+    -- Or to test that two distinct points of history were pulled?
+    -- It would be great to not need the explicit hash here,
+    -- since it does change periodically.
+    -- Though, I guess that should also be rare, so maybe this is fine.
   ,
 
   pushPullTest "one-term" fmt
--- simplest-author
-    (\repo -> [i|
-      ```unison
-      c = 3
-      ```
-      ```ucm
-      .> debug.file
-      .> add
-      .> push.create ${repo}
-      ```
-    |])
--- simplest-user
-    (\repo -> [i|
-      ```ucm
-      .> pull ${repo}
-      .> alias.term ##Nat.+ +
-      ```
-      ```unison
-      > #msp7bv40rv + 1
-      ```
-    |])
-  ,
-  pushPullTest "one-term2" fmt
 -- simplest-author
     (\repo -> [i|
       ```unison
@@ -613,7 +596,7 @@ gistTest fmt =
     userScript repo =
       [i|
         ```ucm
-        .> pull ${repo}:#n611nnppp5
+        .> pull ${repo}:#td09c6jlks
         .> find
         ```
         ```unison

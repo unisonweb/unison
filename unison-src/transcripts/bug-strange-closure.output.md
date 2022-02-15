@@ -97,16 +97,18 @@ We can display the guide before and after adding it to the codebase:
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
@@ -307,16 +309,18 @@ We can display the guide before and after adding it to the codebase:
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
@@ -523,16 +527,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
@@ -726,16 +732,18 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = None | Some a
+          structural type Optional a = Some a | None
           
+          sqr : Nat -> Nat
           sqr x =
             use Nat *
             x * x

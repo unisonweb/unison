@@ -12,7 +12,6 @@ import qualified Data.Set as Set
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import qualified Unison.Hashable as H
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
 import Unison.Reference (Reference)
@@ -66,11 +65,6 @@ updateDependencies tms p = case p of
   SequenceOp loc lhs op rhs ->
     SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
 
-instance H.Hashable SeqOp where
-  tokens Cons = [H.Tag 0]
-  tokens Snoc = [H.Tag 1]
-  tokens Concat = [H.Tag 2]
-
 instance Show (Pattern loc) where
   show (Unbound _  ) = "Unbound"
   show (Var     _  ) = "Var"
@@ -105,24 +99,6 @@ setLoc p loc = case p of
   SequenceLiteral _ ps -> SequenceLiteral loc ps
   SequenceOp _ ph op pt -> SequenceOp loc ph op pt
   x -> fmap (const loc) x
-
-instance H.Hashable (Pattern p) where
-  tokens (Unbound _) = [H.Tag 0]
-  tokens (Var _) = [H.Tag 1]
-  tokens (Boolean _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
-  tokens (Int _ n) = H.Tag 3 : [H.Int n]
-  tokens (Nat _ n) = H.Tag 4 : [H.Nat n]
-  tokens (Float _ f) = H.Tag 5 : H.tokens f
-  tokens (Constructor _ (ConstructorReference r n) args) =
-    [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
-  tokens (EffectPure _ p) = H.Tag 7 : H.tokens p
-  tokens (EffectBind _ (ConstructorReference r n) args k) =
-    [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
-  tokens (As _ p) = H.Tag 9 : H.tokens p
-  tokens (Text _ t) = H.Tag 10 : H.tokens t
-  tokens (SequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps
-  tokens (SequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
-  tokens (Char _ c) = H.Tag 13 : H.tokens c
 
 instance Eq (Pattern loc) where
   Unbound _ == Unbound _ = True

@@ -33,12 +33,15 @@ module Unison.DataDeclaration
     withEffectDeclM,
     amap,
     updateDependencies,
+
+    constructors_,
+    asDataDecl_,
   )
 where
 
 import Unison.Prelude
 
-import Control.Lens (over, _3)
+import Control.Lens (over, _3, Iso', iso, Lens', lens)
 import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
@@ -91,9 +94,18 @@ data DataDeclaration v a = DataDeclaration {
   constructors' :: [(a, v, Type v a)]
 } deriving (Eq, Show, Functor)
 
+constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
+constructors_ = lens getter setter
+  where
+    getter = constructors'
+    setter dd ctors = dd{constructors'=ctors}
+
 newtype EffectDeclaration v a = EffectDeclaration {
   toDataDecl :: DataDeclaration v a
 } deriving (Eq,Show,Functor)
+
+asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
+asDataDecl_ = iso toDataDecl EffectDeclaration
 
 withEffectDeclM :: Functor f
                 => (DataDeclaration v a -> f (DataDeclaration v' a'))
@@ -170,7 +182,7 @@ declFields = bimap cf cf . first toDataDecl
   fields _ = 0
 
 typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
-typeOfConstructor dd i = constructorTypes dd `atMay` i
+typeOfConstructor dd i = constructorTypes dd `atMay` fromIntegral i
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
@@ -190,7 +202,7 @@ declConstructorReferents rid decl =
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. length (constructors dd) - 1]
+constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
@@ -249,20 +261,20 @@ updateDependencies typeUpdates decl = back $ dataDecl
 -- have been replaced with the corresponding output `v`s in the output `Decl`s,
 -- which are fresh with respect to all input Decls.
 unhashComponent
-  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
+  :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m
   = let
       usedVars :: Set v
       usedVars = foldMap allVars' m
       -- We assign fresh names to each reference/decl pair.
       -- We haven't modified the decls yet, but we will, further below.
-      m' :: Map Reference (v, Decl v a)
+      m' :: Map Reference.Id (v, Decl v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refIdNamed r)
       unhash1 :: ABT.Term Type.F v a -> ABT.Term Type.F v a
       unhash1  = ABT.rebuildUp' go
        where
-        go e@(Type.Ref' r) = case Map.lookup r m' of
+        go e@(Type.Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
           Nothing -> e
           Just (v,_)  -> Type.var (ABT.annotation e) v
         go e = e
@@ -277,4 +289,3 @@ unhashComponent m
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)
 amap f (Right d) = Right (f <$> d)
-
