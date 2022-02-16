@@ -29,7 +29,6 @@ import System.Directory
   )
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (BuiltinObject, MissingObject, UserObject))
 import qualified Unison.Codebase.Editor.Input as Input
@@ -124,8 +123,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Control.Monad.State
 import Control.Monad.Trans.Writer.CPS
 import qualified Unison.ShortHash as ShortHash
-import Unison.Codebase.Type (GitError(..))
-import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
+import Unison.Codebase.Init.OpenCodebaseError as CodebaseErr (OpenCodebaseError(..), GetBranchError(..))
 
 type Pretty = P.Pretty P.ColorText
 
@@ -505,20 +503,42 @@ notifyUser dir o = case o of
   PrintMessage pretty -> do
     pure pretty
   BadRootBranch e -> case e of
-    Codebase.NoRootBranch ->
+    NoRootBranch ->
       pure . P.fatalCallout $ "I couldn't find the codebase root!"
-    Codebase.CouldntParseRootBranch s ->
+    CouldntParseRootBranch s ->
       pure
         . P.warnCallout
         $ "I coulnd't parse a valid namespace from "
           <> P.string (show s)
           <> "."
-    Codebase.CouldntLoadRootBranch h ->
+    CouldntLoadRootBranch h -> do
+      let prettyHash = P.blue . prettySBH $ either id SBH.fullFromHash h
       pure
         . P.warnCallout
         $ "I couldn't find a root namespace with the hash "
-          <> prettySBH (SBH.fullFromHash h)
+          <> prettyHash
           <> "."
+    CouldntFindPath path ->
+      pure
+        . P.warnCallout
+        $ "I couldn't find a namespace at the path "
+          <> prettyPath' (Path.toPath' path)
+          <> "."
+    CodebaseErr.BranchHashAmbiguous sbh options ->
+      pure . P.lines $
+        [ P.wrap $
+            "The namespace hash" <> prettySBH sbh
+              <> "is ambiguous."
+              <> "Did you mean one of these hashes?",
+          "",
+          P.indentN 2 $
+            P.lines
+              ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+                  <$> Set.toList options
+              ),
+          "",
+          P.wrap "Try again with a few more hash characters to disambiguate."
+        ]
   CouldntLoadBranch h ->
     pure . P.fatalCallout . P.wrap $
       "I have reason to believe that"
@@ -1030,38 +1050,6 @@ notifyUser dir o = case o of
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
   GitError sbhLength e -> pure $ case e of
-    GitOpenCodebaseError repo e -> case e of
-      OpenCodebaseDoesntExist localPath ->
-        P.wrap $
-          "I didn't find a codebase in the repository at"
-            <> prettyReadRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      OpenCodebaseUnknownSchemaVersion localPath v ->
-        P.wrap $
-          "I don't know how to interpret schema version " <> P.shown v
-            <> "in the repository at"
-            <> prettyReadRepo repo
-            <> "in the cache directory at"
-            <> P.backticked' (P.string localPath) "."
-      OpenCodebaseRootBranchError _ rootBranchErr ->
-        case rootBranchErr of
-          Codebase.CouldntParseRootBranch s ->
-            P.wrap $
-              "I couldn't parse the string"
-                <> P.red (P.string s)
-                <> "into a namespace hash, when opening the repository at"
-                <> P.group (prettyReadRepo repo <> ".")
-          Codebase.NoRootBranch ->
-            P.wrap $
-              "I couldn't find a root namespace when opening the repository at"
-                <> P.group (prettyReadRepo repo <> ".")
-          Codebase.CouldntLoadRootBranch sbh ->
-            P.wrap $
-              "I couldn't load the root namespace: "
-                <> P.group (prettySBH $ SBH.fromHash sbhLength sbh)
-                <> "in the repository at"
-                <> P.group (prettyReadRepo repo <> ".")
     GitProtocolError e -> case e of
       NoGit ->
         P.wrap $
@@ -1118,47 +1106,56 @@ notifyUser dir o = case o of
         where
           push = P.group . P.backticked . IP.patternName $ IP.push
           pull = P.group . P.backticked . IP.patternName $ IP.pull
-    GitCodebaseError e -> case e of
-      CouldntLoadRootBranch repo hash ->
+    GitOpenCodebaseError (repo, _, _) e -> case e of
+      CodebaseDoesntExist ->
         P.wrap $
-          "I couldn't load the designated root hash"
-            <> P.group ("(" <> P.text (Hash.base32Hex $ Causal.unRawHash hash) <> ")")
-            <> "from the repository at"
+          "I didn't find a codebase in the repository at"
             <> prettyReadRepo repo
-      CouldntLoadSyncedBranch ns h ->
+      UnknownSchemaVersion v ->
         P.wrap $
-          "I just finished importing the branch" <> P.red (P.shown h)
-            <> "from"
-            <> P.red (prettyRemoteNamespace ns)
-            <> "but now I can't find it."
-      CouldntFindRemoteBranch repo path ->
-        P.wrap $
-          "I couldn't find the remote branch at"
-            <> P.shown path
+          "I don't know how to interpret schema version " <> P.shown v
             <> "in the repository at"
             <> prettyReadRepo repo
-      NoRemoteNamespaceWithHash repo sbh ->
-        P.wrap $
-          "The repository at" <> prettyReadRepo repo
-            <> "doesn't contain a namespace with the hash prefix"
-            <> (P.blue . P.text . SBH.toText) sbh
-      RemoteNamespaceHashAmbiguous repo sbh hashes ->
-        P.lines
-          [ P.wrap $
-              "The namespace hash" <> prettySBH sbh
-                <> "at"
-                <> prettyReadRepo repo
-                <> "is ambiguous."
-                <> "Did you mean one of these hashes?",
-            "",
-            P.indentN 2 $
-              P.lines
-                ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
-                    <$> Set.toList hashes
-                ),
-            "",
-            P.wrap "Try again with a few more hash characters to disambiguate."
-          ]
+      GetBranchError branchErr -> case branchErr of
+        CouldntParseRootBranch s ->
+          P.wrap $
+            "I couldn't parse the string"
+              <> P.red (P.string s)
+              <> "into a namespace hash, when opening the repository at"
+              <> P.group (prettyReadRepo repo <> ".")
+        NoRootBranch ->
+          P.wrap $
+            "I couldn't find a root namespace when opening the repository at"
+              <> P.group (prettyReadRepo repo <> ".")
+        CouldntFindPath path ->
+          P.wrap $
+            "I couldn't find the remote branch at"
+              <> P.shown path
+              <> "in the repository at"
+              <> prettyReadRepo repo
+        CouldntLoadRootBranch hash ->
+          let prettyHash = P.blue . prettySBH $ either id (SBH.fromHash sbhLength) hash
+           in P.wrap $
+                "The repository at" <> prettyReadRepo repo
+                  <> "doesn't contain a namespace with the hash prefix"
+                  <> prettyHash
+        CodebaseErr.BranchHashAmbiguous sbh hashes ->
+          P.lines
+            [ P.wrap $
+                "The namespace hash" <> prettySBH sbh
+                  <> "at"
+                  <> prettyReadRepo repo
+                  <> "is ambiguous."
+                  <> "Did you mean one of these hashes?",
+              "",
+              P.indentN 2 $
+                P.lines
+                  ( prettySBH . SBH.fromHash ((Text.length . SBH.toText) sbh * 2)
+                      <$> Set.toList hashes
+                  ),
+              "",
+              P.wrap "Try again with a few more hash characters to disambiguate."
+            ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -1301,7 +1298,7 @@ notifyUser dir o = case o of
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
-  BranchHashAmbiguous h rs ->
+  Output.BranchHashAmbiguous h rs ->
     pure . P.callout "\129300" . P.lines $
       [ P.wrap $
           "The namespace hash" <> prettySBH h <> "is ambiguous."

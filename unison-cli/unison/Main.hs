@@ -65,6 +65,7 @@ import ArgParse
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
+import qualified Unison.Codebase.ShortBranchHash as SBH
 
 main :: IO ()
 main = do
@@ -374,32 +375,44 @@ getCodebaseOrExit codebasePathOption action = do
           executableName <- P.text . Text.pack <$> getProgName
 
           case err of
-            InitErrorOpen (OpenCodebaseDoesntExist _codebasePath) ->
+            InitErrorOpen CodebaseDoesntExist ->
               pure (P.lines
                 [ "No codebase exists in " <> pDir <> ".",
                   "Run `" <> executableName <> " --codebase-create " <> P.string dir <> " to create one, then try again!"
                 ])
 
-            InitErrorOpen (OpenCodebaseUnknownSchemaVersion _path _version) ->
+            InitErrorOpen (UnknownSchemaVersion _version) ->
               pure (P.lines
                 [ "I can't read the codebase in " <> pDir <> " because it was constructed using a newer version of unison."
                 , "Please upgrade your version of UCM."
                 ])
-            InitErrorOpen (OpenCodebaseRootBranchError _path getRootBranchErr) ->
+            InitErrorOpen (GetBranchError getRootBranchErr) ->
               case getRootBranchErr of
                 Codebase.NoRootBranch ->
                   pure (P.lines
                     [ "I can't find a root namespace for the codebase in " <> pDir
                     , "Please report this as a bug."
                     ])
-                Codebase.CouldntParseRootBranch _rb ->
+                Codebase.CouldntParseRootBranch _ ->
                   pure (P.lines
                     [ "I was unable parse the root namespace for the codebase in " <> pDir
                     , "Please report this as a bug."
                     ])
                 Codebase.CouldntLoadRootBranch _ ->
                   pure (P.lines
-                    [ "I was unable parse the root namespace for the codebase in " <> pDir
+                    [ "I was unable load the root namespace for the codebase in " <> pDir
+                    , "Please report this as a bug."
+                    ])
+                Codebase.CouldntFindPath path ->
+                  pure (P.lines
+                    [ "I was unable find the namespace at " <> (P.text . Path.toText $ path)
+                      <> " in the codebase at " <> pDir
+                    , "Please report this as a bug."
+                    ])
+                Codebase.BranchHashAmbiguous sbh _options ->
+                  pure (P.lines
+                    [ "The namespace hash prefix #" <> P.text (SBH.toText sbh)
+                      <> " is ambiguous."
                     , "Please report this as a bug."
                     ])
 

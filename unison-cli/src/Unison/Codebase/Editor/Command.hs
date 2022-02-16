@@ -66,13 +66,13 @@ import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
 import qualified Unison.Hash as H
 import qualified Unison.WatchKind as WK
-import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
 import UnliftIO (MonadUnliftIO(..), UnliftIO)
 import qualified UnliftIO
 import Unison.Util.Free (Free)
 import qualified Unison.Util.Free as Free
 import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.GitError (GitError)
 
 type AmbientAbilities v = [Type v Ann]
 type SourceName = Text

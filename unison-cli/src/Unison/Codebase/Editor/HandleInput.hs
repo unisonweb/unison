@@ -150,8 +150,9 @@ import Data.Set.NonEmpty (NESet)
 import Unison.Symbol (Symbol)
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Type (GitError (GitOpenCodebaseError))
 import qualified Unison.Codebase.Init.OpenCodebaseError as Init
+import Unison.Codebase.GitError (GitError)
+import qualified Unison.Codebase.GitError as GitError
 
 defaultPatchNameSegment :: NameSegment
 defaultPatchNameSegment = "patch"
@@ -1725,7 +1726,7 @@ doPushRemoteBranch sbhLength repo localPath syncMode remoteTarget = do
                       Left gitErr -> respond (Output.GitError sbhLength gitErr)
                       Right () -> respond Success
           viewRemoteBranch (writeToRead repo, Nothing, Path.empty) Git.CreateBranchIfMissing withRemoteRoot >>= \case
-            Left (GitOpenCodebaseError _repo Init.OpenCodebaseDoesntExist{}) -> withRemoteRoot Branch.empty
+            Left (GitError.GitOpenCodebaseError _repo Init.CodebaseDoesntExist{}) -> withRemoteRoot Branch.empty
             Left err -> throwError err
             Right () -> pure ()
   where

@@ -34,7 +34,6 @@ import qualified Unison.Codebase.Path as Path
 import Unison.Codebase.PushBehavior (PushBehavior)
 import qualified Unison.Codebase.Runtime as Runtime
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
-import Unison.Codebase.Type (GitError)
 import Unison.DataDeclaration (Decl)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -65,6 +64,7 @@ import qualified Unison.WatchKind as WK
 import Data.Set.NonEmpty (NESet)
 import qualified Unison.CommandLine.InputPattern as Input
 import Data.List.NonEmpty (NonEmpty)
+import Unison.Codebase.GitError (GitError)
 
 type ListDetailed = Bool
 
