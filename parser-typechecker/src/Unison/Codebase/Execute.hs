@@ -42,6 +42,10 @@ execute codebase runtime mainName =
         die ("Couldn't load root branch " ++ show h)
       Left (Codebase.CouldntParseRootBranch h) ->
         die ("Couldn't parse root branch head " ++ show h)
+      Left (Codebase.CouldntFindPath p) ->
+        die ("Couldn't find namespace at path " ++ show p)
+      Left (Codebase.BranchHashAmbiguous sbh _options) ->
+        die ("Branch hash " ++ show sbh ++ " is ambiguous.")
     let parseNames = Names.makeAbsolute (Branch.toNames (Branch.head root))
         loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime

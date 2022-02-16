@@ -7,7 +7,6 @@ module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
     PushGitBranchOpts (..),
-    GitError (..),
     SyncToDir,
     LocalOrRemote(..),
   )
@@ -15,8 +14,8 @@ where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo, ReadRepo)
-import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo)
+import Unison.Codebase.GitError (GitError)
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -33,7 +32,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError, GetRootBranchError)
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError, GetBranchError)
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -70,7 +69,7 @@ data Codebase m v a = Codebase
     getDeclComponent :: Hash -> m (Maybe [Decl v a]),
     getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch.
-    getRootBranch :: m (Either GetRootBranchError (Branch m)),
+    getRootBranch :: m (Either GetBranchError (Branch m)),
     -- | Get whether the root branch exists.
     getRootBranchExists :: m Bool,
     -- | Like 'putBranch', but also adjusts the root branch pointer afterwards.
@@ -169,10 +168,3 @@ data PushGitBranchOpts = PushGitBranchOpts
 data LocalOrRemote
   = Local
   | Remote
-
-data GitError
-  = GitProtocolError GitProtocolError
-  | GitCodebaseError (GitCodebaseError Branch.Hash)
-  | GitOpenCodebaseError ReadRepo OpenCodebaseError
-  deriving stock (Show)
-  deriving anyclass (Exception)

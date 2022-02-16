@@ -46,7 +46,7 @@ backendError = \case
     ambiguousNamespace (SBH.toText sbh) (Set.map SBH.toText hashes)
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
 
-rootBranchError :: Codebase.GetRootBranchError -> ServerError
+rootBranchError :: Codebase.GetBranchError -> ServerError
 rootBranchError rbe = err500
   { errBody = case rbe of
                 Codebase.NoRootBranch -> "Couldn't identify a root namespace."
@@ -54,7 +54,11 @@ rootBranchError rbe = err500
                   "Couldn't load root branch " <> mungeShow h
                 Codebase.CouldntParseRootBranch h ->
                   "Couldn't parse root branch head " <> mungeShow h
-  }
+                Codebase.CouldntFindPath p ->
+                  "Couldn't find namespace at path " <> mungeShow p
+                Codebase.BranchHashAmbiguous sbh _options ->
+                  "Branch hash " <> mungeShow sbh <> " is ambiguous."
+            }
 
 badNamespace :: String -> String -> ServerError
 badNamespace err namespace = err400

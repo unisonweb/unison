@@ -40,7 +40,7 @@ module Unison.Codebase
     -- * Root branch
     getRootBranch,
     getRootBranchExists,
-    GetRootBranchError (..),
+    GetBranchError (..),
     putRootBranch,
     rootBranchUpdates,
 
@@ -109,13 +109,12 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
-import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.Codebase.Type
   ( Codebase (..),
-    GitError (GitCodebaseError),
     PushGitBranchOpts (..),
-    SyncToDir, LocalOrRemote (Remote)
+    SyncToDir,
+    LocalOrRemote(..)
   )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
@@ -144,7 +143,9 @@ import Control.Monad.Except (ExceptT(ExceptT))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (throwE)
 import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Init.OpenCodebaseError (GetRootBranchError(..))
+import Unison.Codebase.Init.OpenCodebaseError (GetBranchError(..), OpenCodebaseError(..))
+import Unison.Codebase.GitError (GitError)
+import qualified Unison.Codebase.GitError as GitError
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -374,7 +375,7 @@ importRemoteBranch codebase ns mode preprocess = runExceptT $ do
              pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
-      Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash
+      Nothing -> throwE . GitError.GitOpenCodebaseError ns . GetBranchError $ CouldntLoadRootBranch (Right branchHash)
       Just result -> pure $ result
   where
     preprocessOp :: Branch m -> m (Branch m)

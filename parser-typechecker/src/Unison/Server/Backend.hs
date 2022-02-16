@@ -125,7 +125,7 @@ listEntryName = \case
 
 data BackendError
   = NoSuchNamespace Path.Absolute
-  | BadRootBranch Init.GetRootBranchError
+  | BadRootBranch Init.GetBranchError
   | CouldntExpandBranchHash ShortBranchHash
   | AmbiguousBranchHash ShortBranchHash (Set ShortBranchHash)
   | NoBranchForHash Branch.Hash

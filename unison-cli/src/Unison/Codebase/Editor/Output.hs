@@ -19,7 +19,7 @@ module Unison.Codebase.Editor.Output
 where
 
 import qualified Data.Set as Set
-import Unison.Codebase (GetRootBranchError)
+import Unison.Codebase (GetBranchError)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.Input
@@ -241,7 +241,7 @@ data Output v
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName String
   | DefaultMetadataNotification
-  | BadRootBranch GetRootBranchError
+  | BadRootBranch GetBranchError
   | CouldntLoadBranch Branch.Hash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty AbsBranchId)

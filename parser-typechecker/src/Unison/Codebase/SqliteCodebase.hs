@@ -73,7 +73,7 @@ import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import Unison.Codebase.SqliteCodebase.MigrateSchema12 (migrateSchema12)
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts (..), GitError (GitOpenCodebaseError))
+import Unison.Codebase.Type (PushGitBranchOpts (..))
 import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -102,6 +102,7 @@ import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
 import Data.Either.Extra ()
 import qualified Unison.Codebase.GitError as GitError
+import Unison.Codebase.GitError (GitError)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
@@ -180,7 +181,7 @@ withCodebaseOrError ::
   m (Either Codebase1.OpenCodebaseError r)
 withCodebaseOrError debugName dir action = do
   doesFileExist (makeCodebasePath dir) >>= \case
-    False -> pure (Left $ Codebase1.OpenCodebaseDoesntExist dir)
+    False -> pure (Left Codebase1.CodebaseDoesntExist)
     True ->
       sqliteCodebase debugName dir C.Local (action . fst)
 
@@ -512,7 +513,7 @@ sqliteCodebase debugName root localOrRemote action = do
                 tryFlushDeclBuffer h
             )
 
-      getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetRootBranchError (Branch m))
+      getRootBranch :: MonadIO m => TVar (Maybe (Q.DataVersion, Branch m)) -> m (Either Codebase1.GetBranchError (Branch m))
       getRootBranch rootBranchCache =
         readTVarIO rootBranchCache >>= \case
           Nothing -> forceReload
@@ -537,7 +538,7 @@ sqliteCodebase debugName root localOrRemote action = do
             v <- runDB conn Ops.dataVersion
             for_ b (atomically . writeTVar rootBranchCache . Just . (v,))
             pure b
-          err :: Ops.Error -> Codebase1.GetRootBranchError
+          err :: Ops.Error -> Codebase1.GetBranchError
           err = \case
             Ops.DatabaseIntegrityError Q.NoNamespaceRoot ->
               Codebase1.NoRootBranch
@@ -545,7 +546,7 @@ sqliteCodebase debugName root localOrRemote action = do
               Codebase1.CouldntParseRootBranch $
                 "Couldn't decode " ++ show oId ++ ": " ++ _msg
             Ops.ExpectedBranch ch _bh ->
-              Codebase1.CouldntLoadRootBranch $ Cv.causalHash2to1 ch
+              Codebase1.CouldntLoadRootBranch . Right $ Cv.causalHash2to1 ch
             e -> error $ show e
 
       getRootBranchExists :: MonadIO m => m Bool
@@ -851,7 +852,7 @@ sqliteCodebase debugName root localOrRemote action = do
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
       Right <$> action (codebase, conn)
-    v -> pure $ Left (Codebase1.OpenCodebaseUnknownSchemaVersion root $ fromIntegral v)
+    v -> pure $ Left (Codebase1.UnknownSchemaVersion $ fromIntegral v)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1082,10 +1083,10 @@ viewRemoteBranch' ::
   ReadRemoteNamespace ->
   Git.GitBranchBehavior ->
   ((Branch m, CodebasePath) -> m r) ->
-  m (Either C.GitError r)
-viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
+  m (Either GitError r)
+viewRemoteBranch' ns@(repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- set up the cache dir
- time "Git fetch" $ throwEitherMWith C.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
+ time "Git fetch" $ throwEitherMWith GitError.GitProtocolError . withRepo repo gitBranchBehavior $ \remoteRepo -> do
   let remotePath = Git.gitDirToPath remoteRepo
   -- Tickle the database before calling into `sqliteCodebase`; this covers the case that the database file either
   -- doesn't exist at all or isn't a SQLite database file, but does not cover the case that the database file itself is
@@ -1095,7 +1096,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
   -- its output type, which currently indicates the only way it can fail is with an `UnknownSchemaVersion` error.
   (withConnection "codebase exists check" remotePath \_ -> pure ()) `catch` \sqlError ->
     case Sqlite.sqlError sqlError of
-      Sqlite.ErrorCan'tOpen -> throwIO (C.GitOpenCodebaseError repo (Codebase1.OpenCodebaseDoesntExist remotePath))
+      Sqlite.ErrorCan'tOpen -> throwIO (GitError.GitOpenCodebaseError ns Codebase1.CodebaseDoesntExist)
       -- Unexpected error from sqlite
       _ -> throwIO sqlError
 
@@ -1107,26 +1108,24 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
         (time "Get remote root branch" $ Codebase1.getRootBranch codebase) >>= \case
           -- this NoRootBranch case should probably be an error too.
           Left Codebase1.NoRootBranch -> pure Branch.empty
-          Left (Codebase1.CouldntLoadRootBranch h) ->
-            throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch repo h
-          Left (Codebase1.CouldntParseRootBranch s) ->
-            throwIO . C.GitOpenCodebaseError repo . Codebase1.OpenCodebaseRootBranchError remotePath $ Codebase1.CouldntParseRootBranch s
+          Left e ->
+            throwIO $ GitError.GitOpenCodebaseError ns (Codebase1.GetBranchError e)
           Right b -> pure b
       -- load from a specific `ShortBranchHash`
       Just sbh -> do
         branchCompletions <- Codebase1.branchHashesByPrefix codebase sbh
         case toList branchCompletions of
-          [] -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
+          [] -> throwIO . GitError.GitOpenCodebaseError ns . Codebase1.GetBranchError $ Codebase1.CouldntLoadRootBranch (Left sbh)
           [h] ->
             (Codebase1.getBranchForHash codebase h) >>= \case
               Just b -> pure b
-              Nothing -> throwIO . C.GitCodebaseError $ GitError.NoRemoteNamespaceWithHash repo sbh
-          _ -> throwIO . C.GitCodebaseError $ GitError.RemoteNamespaceHashAmbiguous repo sbh branchCompletions
+              Nothing -> throwIO . GitError.GitOpenCodebaseError ns . Codebase1.GetBranchError $ Codebase1.CouldntLoadRootBranch (Right h)
+          _ -> throwIO . GitError.GitOpenCodebaseError ns . Codebase1.GetBranchError $ Codebase1.BranchHashAmbiguous sbh branchCompletions
     case Branch.getAt path branch of
       Just b -> action (b, remotePath)
-      Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
+      Nothing -> throwIO . GitError.GitOpenCodebaseError ns . Codebase1.GetBranchError $ Codebase1.CouldntFindPath path
   case result of
-    Left err -> throwIO $ C.GitOpenCodebaseError repo err
+    Left err -> throwIO $ GitError.GitOpenCodebaseError ns err
     Right inner -> pure inner
 
 -- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
@@ -1138,7 +1137,7 @@ pushGitBranch ::
   Branch m ->
   WriteRepo ->
   PushGitBranchOpts ->
-  m (Either C.GitError ())
+  m (Either GitError ())
 pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try $ do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
@@ -1154,8 +1153,8 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   -- Delete the temp-dir.
   --
   -- set up the cache dir
- throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-   throwEitherMWith (GitOpenCodebaseError readRepo)
+ throwEitherMWith GitError.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
+   throwEitherMWith (GitError.GitOpenCodebaseError (readRepo, Nothing, mempty))
      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) C.Remote $ \(_destCodebase, destConn) -> do
          flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
            throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
@@ -1163,12 +1162,12 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
-    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
+    doSync :: FilePath -> Connection -> Connection -> ExceptT GitError (ReaderT Connection m) ()
     doSync remotePath srcConn destConn = do
       _ <- flip State.execStateT emptySyncProgressState $
         syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) branch)
       when setRoot $ overwriteRoot remotePath destConn
-    overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT C.GitError m ()
+    overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT GitError m ()
     overwriteRoot remotePath destConn = do
       let newRootHash = Branch.headHash branch
       -- the call to runDB "handles" the possible DB error by bombing
@@ -1187,7 +1186,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
                   ++ show remotePath
                   ++ "."
             Just False -> do
-              lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+              lift . lift . throwError . GitError.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
             Just True -> do
               setRepoRoot newRootHash
 
