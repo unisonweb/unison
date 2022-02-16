@@ -10,4 +10,3 @@ type Pretty = P.Pretty P.ColorText
 
 data CreateCodebaseError
   = CreateCodebaseAlreadyExists
-  | CreateCodebaseOther Pretty
