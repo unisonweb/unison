@@ -1650,14 +1650,22 @@ expandSandbox
   :: Map Reference (Set Reference)
   -> [(Reference, SuperGroup Symbol)]
   -> [(Reference, Set Reference)]
-expandSandbox sand = mapMaybe h
+expandSandbox sand0 groups = fixed mempty
   where
-  f False r = fromMaybe mempty $ M.lookup r sand
-  f True  _ = mempty
+  f sand False r = fromMaybe mempty $ M.lookup r sand
+  f _    True  _ = mempty
 
-  h (r, groupLinks f -> s)
+  h sand (r, groupLinks (f sand) -> s)
     | S.null s = Nothing
     | otherwise = Just (r, s)
+
+  fixed extra
+    | extra == extra' = new
+    | otherwise = fixed extra'
+    where
+    new = mapMaybe (h $ extra <> sand0) groups
+    extra' = M.fromList new
+
 
 cacheAdd
   :: [(Reference, SuperGroup Symbol)]
