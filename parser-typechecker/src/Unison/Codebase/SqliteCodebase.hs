@@ -133,19 +133,26 @@ init = Codebase.Init
     withCreatedCodebase' debugName path action =
       createCodebaseOrError debugName path (action . fst)
 
+data CodebaseStatus =
+    ExistingCodebase
+  | CreatedCodebase
+  deriving (Eq)
+
 -- | Open the codebase at the given location, or create it if one doesn't already exist.
 withOpenOrCreateCodebase ::
   MonadUnliftIO m =>
   Codebase.DebugName ->
   CodebasePath ->
   LocalOrRemote ->
-  ((Codebase m Symbol Ann, Connection) -> m r) ->
+  ((CodebaseStatus, Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.OpenCodebaseError r)
 withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
-  createCodebaseOrError debugName codebasePath action >>= \case
+  createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
     Left (Codebase1.CreateCodebaseAlreadyExists) -> do
-      sqliteCodebase debugName codebasePath localOrRemote action
+      sqliteCodebase debugName codebasePath localOrRemote (action' ExistingCodebase)
     Right r -> pure (Right r)
+  where
+    action' openOrCreate (codebase, conn) = action (openOrCreate, codebase, conn)
 
 -- | Create a codebase at the given location.
 createCodebaseOrError ::
@@ -1163,40 +1170,43 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   -- set up the cache dir
  throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
    throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(_destCodebase, destConn) -> do
+     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(codebaseStatus, _destCodebase, destConn) -> do
          flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-           throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
+           throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn
    void $ push pushStaging repo
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
-    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
-    doSync remotePath srcConn destConn = do
+    doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
+    doSync codebaseStatus remotePath srcConn destConn = do
       _ <- flip State.execStateT emptySyncProgressState $
         syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) branch)
-      when setRoot $ overwriteRoot remotePath destConn
-    overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT C.GitError m ()
-    overwriteRoot remotePath destConn = do
+      when setRoot $ overwriteRoot codebaseStatus remotePath destConn
+    overwriteRoot :: forall m. MonadIO m => CodebaseStatus -> FilePath -> Connection -> ExceptT C.GitError m ()
+    overwriteRoot codebaseStatus remotePath destConn = do
       let newRootHash = Branch.headHash branch
-      -- the call to runDB "handles" the possible DB error by bombing
-      maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
-      case maybeOldRootHash of
-        Nothing -> runDB destConn $ do
-          setRepoRoot newRootHash
-        (Just oldRootHash) -> runDB destConn $ do
-          before oldRootHash newRootHash >>= \case
-            Nothing ->
-              error $
-                "I couldn't find the hash " ++ show newRootHash
-                  ++ " that I just synced to the cached copy of "
-                  ++ repoString
-                  ++ " in "
-                  ++ show remotePath
-                  ++ "."
-            Just False -> do
-              lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-            Just True -> do
+      case codebaseStatus of
+        ExistingCodebase -> do
+          -- the call to runDB "handles" the possible DB error by bombing
+          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
+          case maybeOldRootHash of
+            Nothing -> runDB destConn $ do
               setRepoRoot newRootHash
+            (Just oldRootHash) -> runDB destConn $ do
+              before oldRootHash newRootHash >>= \case
+                Nothing ->
+                  error $
+                    "I couldn't find the hash " ++ show newRootHash
+                      ++ " that I just synced to the cached copy of "
+                      ++ repoString
+                      ++ " in "
+                      ++ show remotePath
+                      ++ "."
+                Just False -> do
+                  lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                Just True -> pure ()
+        CreatedCodebase -> pure ()
+      runDB destConn $ setRepoRoot newRootHash
 
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
