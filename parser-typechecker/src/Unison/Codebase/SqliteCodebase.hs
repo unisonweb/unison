@@ -133,6 +133,7 @@ init = Codebase.Init
     withCreatedCodebase' debugName path action =
       createCodebaseOrError debugName path (action . fst)
 
+-- | Open the codebase at the given location, or create it if one doesn't already exist.
 withOpenOrCreateCodebase ::
   MonadUnliftIO m =>
   Codebase.DebugName ->
@@ -146,6 +147,7 @@ withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
       sqliteCodebase debugName codebasePath localOrRemote action
     Right r -> pure (Right r)
 
+-- | Create a codebase at the given location.
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
@@ -1161,7 +1163,6 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   -- set up the cache dir
  throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
    throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-
      . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(_destCodebase, destConn) -> do
          flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
            throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
