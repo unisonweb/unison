@@ -1559,25 +1559,32 @@ tweakEffects v0 t0
     appendContext (existential <$> vs)
     pure (vs, ABT.substInheritAnnotation v0 (typ vs) ty)
 
-  rewrite p ty@(Type.ForallNamed' v t)
-    | v0 /= v = second (Type.forall a v) <$> rewrite p t
-    where a = loc ty
-  rewrite p ty@(Type.Arrow'' i es o) = do
-    (vis, i) <- rewrite (not <$> p) i
-    (vos, o) <- rewrite p o
-    ess <- traverse (rewrite p) es
-    let es = snd <$> ess ; ves = fst =<< ess
-    pure (vis ++ ves ++ vos, Type.arrow a i (Type.effect a es o))
-    where a = loc ty
-  rewrite p ty@(Type.Var' v)
-    | v0 == v && negative p = do
+  rewrite p ty
+    | Type.ForallNamed' v t <- ty
+    , v0 /= v
+    = second (Type.forall a v) <$> rewrite p t
+    | Type.Arrow' i o <- ty = do
+      (vis, i) <- rewrite (not <$> p) i
+      (vos, o) <- rewrite p o
+      pure (vis ++ vos, Type.arrow a i o)
+    | Type.Effect1' e t <- ty = do
+      (ves, e) <- rewrite p e
+      (vts, t) <- rewrite p t
+      pure (ves ++ vts, Type.effect1 a e t)
+    | Type.Effects' es <- ty = do
+      ess <- traverse (rewrite p) es
+      let es = snd <$> ess ; ves = fst =<< ess
+      pure (ves, Type.effects a es)
+    | Type.Var' v <- ty
+    , v0 == v && negative p = do
       u <- freshenTypeVar v0
       pure ([u], existential' (loc ty) B.Blank u)
-  rewrite p ty@(Type.App' f x) = do
-    (vfs, f) <- rewrite p f
-    (vxs, x) <- rewrite Nothing x
-    pure (vfs ++ vxs, Type.app (loc ty) f x)
-  rewrite _ ty = pure ([], ty)
+    | Type.App' f x <- ty = do
+      (vfs, f) <- rewrite p f
+      (vxs, x) <- rewrite Nothing x
+      pure (vfs ++ vxs, Type.app (loc ty) f x)
+    | otherwise = pure ([], ty)
+    where a = loc ty
 
 isEffectVar :: Var v => TypeVar v loc -> Type v loc -> Bool
 isEffectVar u (Type.ForallNamed' v t)
