@@ -11,7 +11,7 @@ module Unison.CommandLine.FuzzySelect
   ) where
 import Unison.Prelude
 import qualified UnliftIO.Process as Proc
-import UnliftIO.Exception (bracket_, bracket)
+import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hSetBuffering, stdin, hGetBuffering)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import GHC.IO.Handle (hDuplicateTo)
@@ -44,17 +44,12 @@ optsToArgs opts = defaultArgs <> case opts of
       -- Don't show or match on the first column of input.
       -- This allows us to prepend each line with a number, and use that number to determine
       -- which values from the input list were selected.
-      [ "--with-nth", "2.."
+      [ "--with-nth", "2..",
+        -- Use only half the screen (it's nice to see what you were working on when searching)
+        "--height=50%",
+        -- But if 50% of the screen is too small, ensure show at least 10 results.
+        "--min-height=10"
       ]
-
--- | Run the given IO block within a fresh terminal screen, clean it up and restore the
--- previous screen after the block is finished.
-withTempScreen :: IO a -> IO a
-withTempScreen =
-  bracket_
-    (Proc.callCommand "tput smcup") -- Stash existing screen, create a new one
-    (Proc.callCommand "tput rmcup") -- Delete the temporary screen, restore the original.
-
 
 -- | Allows prompting the user to interactively fuzzy-select a result from a list of options, currently shells out to `fzf` under the hood.
 -- If fzf is missing, or an error (other than ctrl-c) occurred, returns Nothing.
@@ -62,7 +57,6 @@ fuzzySelect :: forall a. Options -> (a -> Text) -> [a] -> IO (Maybe [a])
 fuzzySelect opts intoSearchText choices =
   handleAny handleException
     . handleError
-    . withTempScreen
     . restoreBuffering
     . runExceptT $ do
     fzfPath <- liftIO (findExecutable "fzf") >>= \case
