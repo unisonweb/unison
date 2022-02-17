@@ -1278,7 +1278,7 @@ anfFLinks f g (AName er _ e)
 anfFLinks f g (AMatch _ bs) = branchLinks (f True) g bs
 anfFLinks f g (AShift r e) = f True r <> g e
 anfFLinks f g (AHnd rs _ e) = foldMap (f True) rs <> g e
-anfFLinks f _ (AApp fu _) = funcLinks (f False) fu
+anfFLinks f _ (AApp fu _) = funcLinks f fu
 anfFLinks _ _ _ = mempty
 
 branchLinks
@@ -1296,9 +1296,11 @@ tyRefs _ _ = mempty
 
 funcLinks
   :: Monoid a
-  => (Reference -> a)
+  => (Bool -> Reference -> a)
   -> Func v -> a
-funcLinks f (FComb r) = f r
+funcLinks f (FComb r) = f False r
+funcLinks f (FCon r _) = f True r
+funcLinks f (FReq r _) = f True r
 funcLinks _ _ = mempty
 
 expandBindings'
