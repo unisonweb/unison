@@ -51,6 +51,9 @@ cradle:
     - path: "unison-cli/src"
       component: "unison-cli:lib"
 
+    - path: "unison-cli/integration-tests"
+      component: "unison-cli:exe:integration-tests"
+
     - path: "unison-cli/tests"
       component: "unison-cli:test:tests"
 
