@@ -258,7 +258,7 @@ pretty0
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
-                            (pretty0 n (ac 0 Normal im doc))
+                            (PP.indentNAfterNewline 2 . pretty0 n (ac 0 Normal im doc))
                             xs
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
@@ -327,6 +327,7 @@ pretty0
 
     t -> l "error: " <> l (show t)
  where
+  goNormal prec tm = pretty0 n (ac prec Normal im doc) tm     
   specialCases term _go | Just p <- prettyDoc2 n a term = p
   specialCases term go = case (term, binaryOpsPred) of
     (DD.Doc, _) | doc == MaybeDoc ->
@@ -345,7 +346,10 @@ pretty0
     (TupleTerm' xs, _) ->
       let tupleLink p = fmt (S.TypeReference DD.unitRef) p
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
-
+    (App' f@(Builtin' "Any.Any") arg, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
+    (Apps' f@(Constructor' _) args, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
