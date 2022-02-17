@@ -8,10 +8,10 @@ import Data.List (intercalate)
 import Data.Text (pack)
 import Data.Time (getCurrentTime, diffUTCTime)
 import EasyTest
-import Shellmet (($|))
 import System.Exit (ExitCode (ExitSuccess))
 import System.Process (readProcessWithExitCode)
 import Text.Printf
+import U.Util.Process (($|))
 
 uFile :: String
 uFile = "unison-cli/integration-tests/IntegrationTests/print.u"

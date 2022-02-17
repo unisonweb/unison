@@ -10,10 +10,10 @@ import Data.Maybe (fromJust)
 import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
-import Shellmet ()
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
+import U.Util.Process (($$))
 import qualified Unison.Codebase as Codebase
 import Unison.Codebase (Codebase)
 import Unison.Parser.Ann (Ann)
@@ -721,13 +721,13 @@ destroyedRemote = scope "destroyed-remote" do
   ok
   where
     reinitRepo (Text.pack -> repo) = do
-      "rm" ["-rf", repo]
-      "git" ["init", "--bare", repo]
+      "rm" $$ ["-rf", repo]
+      "git" $$ ["init", "--bare", repo]
 
 
 initGitRepo :: IO FilePath
 initGitRepo = do
   tmp <- Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory ("git-simple")
   let repo = tmp </> "repo.git"
-  "git" ["init", "--bare", Text.pack repo]
+  "git" $$ ["init", "--bare", Text.pack repo]
   pure repo

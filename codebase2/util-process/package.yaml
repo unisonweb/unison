@@ -1,0 +1,11 @@
+name: unison-util-process
+
+library:
+  source-dirs: .
+
+dependencies:
+  - base
+  - process
+  - text
+  - transformers
+  - unliftio

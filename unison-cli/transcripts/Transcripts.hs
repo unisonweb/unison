@@ -12,7 +12,6 @@ import Data.Text
     unpack,
   )
 import EasyTest
-import Shellmet (($|))
 import System.Directory
 import System.Environment (getArgs)
 import System.FilePath
@@ -22,6 +21,7 @@ import System.FilePath
     (</>),
   )
 import System.Process (readProcessWithExitCode)
+import U.Util.Process (($|), ($$))
 import Unison.Prelude
 
 data TestConfig = TestConfig
@@ -34,7 +34,7 @@ type TestBuilder = FilePath -> FilePath -> [String] -> String -> Test ()
 testBuilder ::
   FilePath -> FilePath -> [String] -> String -> Test ()
 testBuilder ucm dir prelude transcript = scope transcript $ do
-  io $ fromString ucm args
+  io $ ucm $$ args
   ok
   where
     files = fmap (pack . (dir </>)) (prelude ++ [transcript])

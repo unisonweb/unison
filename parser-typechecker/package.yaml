@@ -105,7 +105,6 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
-    - shellmet
     - stm
     - strings
     - sqlite-simple
@@ -136,6 +135,7 @@ library:
     - unison-core1
     - unison-prelude
     - unison-util
+    - unison-util-process
     - unison-util-relation
     - open-browser
     - uri-encode
@@ -174,7 +174,6 @@ executables:
       - mtl
       - raw-strings-qq
       - stm
-      - shellmet
       - split
       - temporary
       - text

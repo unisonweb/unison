@@ -18,6 +18,9 @@ cradle:
     - path: "codebase2/util/src"
       component: "unison-util:lib"
 
+    - path: "codebase2/util-process"
+      component: "unison-util-process:lib"
+
     - path: "codebase2/util-serialization"
       component: "unison-util-serialization:lib"
 

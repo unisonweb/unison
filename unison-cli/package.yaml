@@ -51,9 +51,9 @@ tests:
     dependencies:
       - easytest
       - here
-      - shellmet
       - temporary
       - unison-cli
+      - unison-util-process
     main: Main.hs
     source-dirs: tests
 
@@ -64,10 +64,10 @@ executables:
     ghc-options: -threaded -rtsopts -with-rtsopts=-I0 -optP-Wno-nonportable-include-path
     dependencies:
       - optparse-applicative >= 0.16.1.0
-      - shellmet
       - template-haskell
       - temporary
       - unison-cli
+      - unison-util-process
 
   transcripts:
     source-dirs: transcripts
@@ -76,7 +76,7 @@ executables:
     dependencies:
       - easytest
       - process
-      - shellmet
+      - unison-util-process
     build-tools:
       - unison-cli:unison
 
@@ -87,8 +87,8 @@ executables:
     dependencies:
       - easytest
       - process
-      - shellmet
       - time
+      - unison-util-process
 
 when:
   - condition: flag(optimized)

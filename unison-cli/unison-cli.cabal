@@ -168,7 +168,6 @@ executable integration-tests
     , process
     , random >=1.2.0
     , regex-tdfa
-    , shellmet
     , stm
     , text
     , time
@@ -178,6 +177,7 @@ executable integration-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-util
+    , unison-util-process
     , unison-util-relation
     , unliftio
   if flag(optimized)
@@ -238,7 +238,6 @@ executable transcripts
     , process
     , random >=1.2.0
     , regex-tdfa
-    , shellmet
     , stm
     , text
     , transformers
@@ -247,6 +246,7 @@ executable transcripts
     , unison-parser-typechecker
     , unison-prelude
     , unison-util
+    , unison-util-process
     , unison-util-relation
     , unliftio
   if flag(optimized)
@@ -307,7 +307,6 @@ executable unison
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
     , regex-tdfa
-    , shellmet
     , stm
     , template-haskell
     , temporary
@@ -319,6 +318,7 @@ executable unison
     , unison-parser-typechecker
     , unison-prelude
     , unison-util
+    , unison-util-process
     , unison-util-relation
     , unliftio
   if flag(optimized)
@@ -384,7 +384,6 @@ test-suite tests
     , open-browser
     , random >=1.2.0
     , regex-tdfa
-    , shellmet
     , stm
     , temporary
     , text
@@ -395,6 +394,7 @@ test-suite tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-util
+    , unison-util-process
     , unison-util-relation
     , unliftio
   if flag(optimized)

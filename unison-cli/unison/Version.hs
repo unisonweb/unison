@@ -6,8 +6,8 @@ module Version where
 
 import Language.Haskell.TH (runIO, Exp(TupE))
 import Language.Haskell.TH.Syntax (Exp(LitE), Lit(StringL))
-import Shellmet
 import Data.Text
+import U.Util.Process (($?), ($|))
 
 -- | A formatted descriptor of when and against which commit this unison executable was built
 -- E.g. latest-149-g5cef8f851 (built on 2021-10-04)

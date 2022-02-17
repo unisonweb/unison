@@ -1,0 +1,24 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           unison-util-process
+version:        0.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      U.Util.Process
+  other-modules:
+      Paths_unison_util_process
+  hs-source-dirs:
+      ./
+  build-depends:
+      base
+    , process
+    , text
+    , transformers
+    , unliftio
+  default-language: Haskell2010

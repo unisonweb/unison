@@ -276,7 +276,6 @@ library
     , servant-docs
     , servant-openapi3
     , servant-server
-    , shellmet
     , sqlite-simple
     , stm
     , strings
@@ -297,6 +296,7 @@ library
     , unison-core1
     , unison-prelude
     , unison-util
+    , unison-util-process
     , unison-util-relation
     , unliftio
     , uri-encode
@@ -427,7 +427,6 @@ executable tests
     , megaparsec
     , mtl
     , raw-strings-qq
-    , shellmet
     , split
     , stm
     , temporary
