@@ -20,6 +20,7 @@ import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryR
 import System.Environment (getProgName, withArgs)
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
+import System.IO.CodePage (withCP65001)
 import System.IO.Error (catchIOError)
 import qualified System.IO.Temp as Temp
 import qualified System.Path as Path
@@ -67,7 +68,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Unison.CommandLine.Welcome (CodebaseInitStatus(..))
 
 main :: IO ()
-main = do
+main = withCP65001 do
  interruptHandler <- defaultInterruptHandler
  withInterruptHandler interruptHandler $ do
   progName <- getProgName

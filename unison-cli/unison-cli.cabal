@@ -298,6 +298,7 @@ executable unison
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -376,6 +377,7 @@ test-suite tests
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
