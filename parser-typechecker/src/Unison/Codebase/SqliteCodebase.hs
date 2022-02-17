@@ -1259,7 +1259,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
           Nothing ->
             error $
               "An error occurred during push.\n"
-                <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+                <> "I was expecting only to see "
+                <> codebasePath
+                <> " modified, but saw:\n\n"
                 <> Text.unpack status
                 <> "\n\n"
                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
@@ -1267,9 +1269,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
           Just (hasDeleteWal, hasDeleteShm) -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage
-            gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+            gitIn remotePath ["add", Text.pack codebasePath]
+            when hasDeleteWal $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-wal"]
+            when hasDeleteShm $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-shm"]
             gitIn
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
