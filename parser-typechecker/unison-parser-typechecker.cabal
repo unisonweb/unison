@@ -447,9 +447,11 @@ benchmark runtime
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Benchmarks.Util.Bytes
+      Benchmarks.Util.Text
       Paths_unison_parser_typechecker
   hs-source-dirs:
-      benchmarks/runtime
+      benchmarks
   default-extensions:
       ApplicativeDo
       BangPatterns
@@ -474,8 +476,10 @@ benchmark runtime
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
+    , bytestring
     , containers
     , criterion
+    , text
     , unison-core1
     , unison-parser-typechecker
   if flag(optimized)
