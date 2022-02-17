@@ -49,10 +49,10 @@ Cause a conflict:
   
   New name conflicts:
   
-    1. x#jk19sm5bf8 : Nat
+    1. x#gjmq673r1v : Nat
        ↓
-    2. ┌ x#0ja1qfpej6 : Nat
-    3. └ x#jk19sm5bf8 : Nat
+    2. ┌ x#dcgdua2lj6 : Nat
+    3. └ x#gjmq673r1v : Nat
   
   Tip: You can use `todo` to see if this generated any work to
        do in this namespace and `test` to run the tests. Or you
