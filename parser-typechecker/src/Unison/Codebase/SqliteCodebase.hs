@@ -37,6 +37,8 @@ import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Console.ANSI as ANSI
 import System.Directory (copyFile)
 import System.FilePath ((</>))
+import qualified System.FilePath as FilePath
+import qualified System.FilePath.Posix as FilePath.Posix
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -1226,14 +1228,18 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
         then Just (hasDeleteWal, hasDeleteShm)
         else Nothing
       where
+        -- `git status` always displays paths using posix forward-slashes,
+        -- so we have to convert our expected path to test.
+        posixCodebasePath =
+          FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath = True
+        okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
         okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isShmDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isShmDelete _ = False
         hasDeleteWal = any isWalDelete statusLines
         hasDeleteShm = any isShmDelete statusLines
