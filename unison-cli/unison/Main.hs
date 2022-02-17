@@ -386,9 +386,6 @@ getCodebaseOrExit codebasePathOption action = do
                 , "Please upgrade your version of UCM."
                 ])
 
-            InitErrorOpen (OpenCodebaseOther errMessage) ->
-              pure errMessage
-
             FoundV1Codebase ->
               pure (P.lines
                 [ "Found a v1 codebase at " <> pDir <> ".",

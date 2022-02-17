@@ -126,15 +126,40 @@ makeCodebaseDirPath root = root </> ".unison" </> "v2"
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
   { withOpenCodebase=withCodebaseOrError
-  , withCreatedCodebase=createCodebaseOrError
+  , withCreatedCodebase=withCreatedCodebase'
   , codebasePath=makeCodebaseDirPath
   }
+  where
+    withCreatedCodebase' debugName path action =
+      createCodebaseOrError debugName path (action . fst)
 
+data CodebaseStatus =
+    ExistingCodebase
+  | CreatedCodebase
+  deriving (Eq)
+
+-- | Open the codebase at the given location, or create it if one doesn't already exist.
+withOpenOrCreateCodebase ::
+  MonadUnliftIO m =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  LocalOrRemote ->
+  ((CodebaseStatus, Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
+withOpenOrCreateCodebase debugName codebasePath localOrRemote action = do
+  createCodebaseOrError debugName codebasePath (action' CreatedCodebase) >>= \case
+    Left (Codebase1.CreateCodebaseAlreadyExists) -> do
+      sqliteCodebase debugName codebasePath localOrRemote (action' ExistingCodebase)
+    Right r -> pure (Right r)
+  where
+    action' openOrCreate (codebase, conn) = action (openOrCreate, codebase, conn)
+
+-- | Create a codebase at the given location.
 createCodebaseOrError ::
   (MonadUnliftIO m) =>
   Codebase.DebugName ->
   CodebasePath ->
-  (Codebase m Symbol Ann -> m r) ->
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
   m (Either Codebase1.CreateCodebaseError r)
 createCodebaseOrError debugName path action = do
   ifM
@@ -153,18 +178,6 @@ createCodebaseOrError debugName path action = do
         Left schemaVersion -> error ("Failed to open codebase with schema version: " ++ show schemaVersion ++ ", which is unexpected because I just created this codebase.")
         Right result -> pure (Right result)
 
-withOpenOrCreateCodebaseConnection ::
-  (MonadUnliftIO m) =>
-  Codebase.DebugName ->
-  FilePath ->
-  (Connection -> m r) ->
-  m r
-withOpenOrCreateCodebaseConnection debugName path action = do
-  unlessM
-    (doesFileExist $ makeCodebasePath path)
-    (initSchemaIfNotExist path)
-  withConnection debugName path action
-
 -- | Use the codebase in the provided path.
 -- The codebase is automatically closed when the action completes or throws an exception.
 withCodebaseOrError ::
@@ -178,7 +191,7 @@ withCodebaseOrError debugName dir action = do
   doesFileExist (makeCodebasePath dir) >>= \case
     False -> pure (Left Codebase1.OpenCodebaseDoesntExist)
     True ->
-      sqliteCodebase debugName dir Local action <&> mapLeft \(SchemaVersion n) -> Codebase1.OpenCodebaseUnknownSchemaVersion n
+      sqliteCodebase debugName dir Local (action . fst)
 
 initSchemaIfNotExist :: MonadIO m => FilePath -> m ()
 initSchemaIfNotExist path = liftIO do
@@ -285,8 +298,8 @@ sqliteCodebase ::
   CodebasePath ->
   -- | When local, back up the existing codebase before migrating, in case there's a catastrophic bug in the migration.
   LocalOrRemote ->
-  (Codebase m Symbol Ann -> m r) ->
-  m (Either SchemaVersion r)
+  ((Codebase m Symbol Ann, Connection) -> m r) ->
+  m (Either Codebase1.OpenCodebaseError r)
 sqliteCodebase debugName root localOrRemote action = do
  Monad.when debug $ traceM $ "sqliteCodebase " ++ debugName ++ " " ++ root
  withConnection debugName root $ \conn -> do
@@ -835,7 +848,7 @@ sqliteCodebase debugName root localOrRemote action = do
 
   -- Migrate if necessary.
   (`finally` finalizer) $ runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 2 -> Right <$> action codebase
+    SchemaVersion 2 -> Right <$> action (codebase, conn)
     SchemaVersion 1 -> do
       liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
       case localOrRemote of
@@ -851,8 +864,8 @@ sqliteCodebase debugName root localOrRemote action = do
         Remote -> pure ()
       migrateSchema12 conn codebase
       -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
-      Right <$> action codebase
-    v -> pure $ Left v
+      Right <$> action (codebase, conn)
+    v -> pure . Left $ Codebase1.OpenCodebaseUnknownSchemaVersion (fromIntegral v)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
@@ -1100,7 +1113,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
       -- Unexpected error from sqlite
       _ -> throwIO sqlError
 
-  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \codebase -> do
+  result <- sqliteCodebase "viewRemoteBranch.gitCache" remotePath Remote \(codebase, _conn) -> do
     -- try to load the requested branch from it
     branch <- time "Git fetch (sbh)" $ case sbh of
       -- no sub-branch was specified, so use the root.
@@ -1127,7 +1140,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
       Just b -> action (b, remotePath)
       Nothing -> throwIO . C.GitCodebaseError $ GitError.CouldntFindRemoteBranch repo path
   case result of
-    Left schemaVersion -> throwIO . C.GitSqliteCodebaseError $ GitError.UnrecognizedSchemaVersion repo remotePath schemaVersion
+    Left err -> throwIO . C.GitSqliteCodebaseError $ C.gitErrorFromOpenCodebaseError remotePath repo err
     Right inner -> pure inner
 
 -- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
@@ -1140,7 +1153,7 @@ pushGitBranch ::
   WriteRepo ->
   PushGitBranchOpts ->
   m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLeft C.GitProtocolError <$> do
+pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -1155,41 +1168,45 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = mapLef
   -- Delete the temp-dir.
   --
   -- set up the cache dir
- withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-   withOpenOrCreateCodebaseConnection @m "push.dest" (Git.gitDirToPath pushStaging) $ \destConn -> do
-     flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-       throwExceptT $ doSync (Git.gitDirToPath pushStaging) srcConn destConn
+ throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
+   throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
+     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(codebaseStatus, _destCodebase, destConn) -> do
+         flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+           throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn
    void $ push pushStaging repo
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
-    doSync :: FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
-    doSync remotePath srcConn destConn = do
+    doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
+    doSync codebaseStatus remotePath srcConn destConn = do
       _ <- flip State.execStateT emptySyncProgressState $
         syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) branch)
-      when setRoot $ overwriteRoot remotePath destConn
-    overwriteRoot :: forall m. MonadIO m => FilePath -> Connection -> ExceptT C.GitError m ()
-    overwriteRoot remotePath destConn = do
+      when setRoot $ overwriteRoot codebaseStatus remotePath destConn
+    overwriteRoot :: forall m. MonadIO m => CodebaseStatus -> FilePath -> Connection -> ExceptT C.GitError m ()
+    overwriteRoot codebaseStatus remotePath destConn = do
       let newRootHash = Branch.headHash branch
-      -- the call to runDB "handles" the possible DB error by bombing
-      maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
-      case maybeOldRootHash of
-        Nothing -> runDB destConn $ do
-          setRepoRoot newRootHash
-        (Just oldRootHash) -> runDB destConn $ do
-          before oldRootHash newRootHash >>= \case
-            Nothing ->
-              error $
-                "I couldn't find the hash " ++ show newRootHash
-                  ++ " that I just synced to the cached copy of "
-                  ++ repoString
-                  ++ " in "
-                  ++ show remotePath
-                  ++ "."
-            Just False -> do
-              lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
-            Just True -> do
+      case codebaseStatus of
+        ExistingCodebase -> do
+          -- the call to runDB "handles" the possible DB error by bombing
+          maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
+          case maybeOldRootHash of
+            Nothing -> runDB destConn $ do
               setRepoRoot newRootHash
+            (Just oldRootHash) -> runDB destConn $ do
+              before oldRootHash newRootHash >>= \case
+                Nothing ->
+                  error $
+                    "I couldn't find the hash " ++ show newRootHash
+                      ++ " that I just synced to the cached copy of "
+                      ++ repoString
+                      ++ " in "
+                      ++ show remotePath
+                      ++ "."
+                Just False -> do
+                  lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
+                Just True -> pure ()
+        CreatedCodebase -> pure ()
+      runDB destConn $ setRepoRoot newRootHash
 
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
