@@ -1303,11 +1303,15 @@ prettyParseError s = \case
               <> style ErrorSite "with"
               <> " but I didn't find any."
               )
+    , ""
     , tokenAsErrorSite s tok
     ]
 
-  go Parser.EmptyWatch =
-    "I expected a non-empty watch expression and not just \">\""
+  go (Parser.EmptyWatch tok) =
+    Pr.lines [ "I expected a non-empty watch expression and not just \">\""
+             , ""
+             , annotatedAsErrorSite s tok
+             ]
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
   go (Parser.UnknownId               tok referents references) = Pr.lines

@@ -205,10 +205,16 @@ stanza = watchExpression <|> unexpectedAction <|> binding
     P.customFailure $ DidntExpectExpression t t2
   watchExpression = do
     (kind, guid, ann) <- watched
-    _ <- closed
+    _ <- guardEmptyWatch ann
     msum [
       WatchBinding kind ann <$> TermParser.binding,
       WatchExpression kind guid ann <$> TermParser.blockTerm ]
+  guardEmptyWatch ann =
+    P.try $ do
+      op <- optional (L.payload <$> P.lookAhead closeBlock)
+      case op of Just () -> P.customFailure (EmptyWatch ann)
+                 _ -> pure ()
+
 
   -- binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
   binding = do
@@ -230,12 +236,6 @@ watched = P.try $ do
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
   pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)
-
-closed :: Var v => P v ()
-closed = P.try $ do
-  op <- optional (L.payload <$> P.lookAhead closeBlock)
-  case op of Just () -> P.customFailure EmptyWatch
-             _ -> pure ()
 
 -- The parsed form of record accessors, as in:
 --

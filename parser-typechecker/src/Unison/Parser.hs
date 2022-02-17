@@ -115,7 +115,7 @@ data Error v
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyMatch (L.Token ())
-  | EmptyWatch
+  | EmptyWatch Ann
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
