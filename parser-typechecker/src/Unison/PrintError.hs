@@ -692,7 +692,7 @@ renderTypeError e env src = case e of
       , ", actual="
       , (fromString . show) a
       , ", reference="
-      , showConstructor env r 
+      , showConstructor env r
       ]
     C.MalformedEffectBind ctorType ctorResult es -> mconcat
       [ "MalformedEffectBind: "
@@ -1061,11 +1061,17 @@ prettyParseError s = \case
         excerpt,
         "Here's a few examples of valid syntax: " <>
         style Code "abba1', snake_case, Foo.zoink!, 🌻" ]
+      L.ReservedWordyId _id -> Pr.lines [
+        "The identifier used here isn't allowed to be a reserved keyword: ", "",
+        excerpt ]
       L.InvalidSymbolyId _id -> Pr.lines [
         "This infix identifier isn't valid syntax: ", "",
         excerpt,
         "Here's a few valid examples: " <>
         style Code "++, Float./, `List.map`" ]
+      L.ReservedSymbolyId _id -> Pr.lines [
+        "This identifier is reserved by Unison and can't be used as an operator: ", "",
+        excerpt ]
       L.InvalidBytesLiteral bs -> Pr.lines [
         "This bytes literal isn't valid syntax: " <> style ErrorSite (fromString bs), "",
         excerpt,
@@ -1289,15 +1295,23 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
-  go Parser.EmptyMatch = mconcat
-    ["I expected some patterns after a "
-    , style ErrorSite "match"
-    , "/"
-    , style ErrorSite "with"
-    , " but I didn't find any."
+  go (Parser.EmptyMatch tok) =
+    Pr.indentN 2 . Pr.callout "😶" $ Pr.lines
+    [ Pr.wrap ( "I expected some patterns after a "
+              <> style ErrorSite "match"
+              <> "/"
+              <> style ErrorSite "with"
+              <> " but I didn't find any."
+              )
+    , ""
+    , tokenAsErrorSite s tok
     ]
-  go Parser.EmptyWatch =
-    "I expected a non-empty watch expression and not just \">\""
+
+  go (Parser.EmptyWatch tok) =
+    Pr.lines [ "I expected a non-empty watch expression and not just \">\""
+             , ""
+             , annotatedAsErrorSite s tok
+             ]
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
   go (Parser.UnknownId               tok referents references) = Pr.lines

@@ -81,7 +81,7 @@ module Unison.Test.FileParser where
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
-          P.EmptyWatch -> ok
+          P.EmptyWatch _ann -> ok
           _ -> crash "Error wasn't EmptyWatch"
 
   signatureNeedsAccompanyingBodyTest :: Test ()
