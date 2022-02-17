@@ -40,7 +40,6 @@ import Unison.CommandLine.InputPattern
   )
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -174,15 +173,7 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.AddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
 
 previewAdd :: InputPattern
 previewAdd =
@@ -195,15 +186,7 @@ previewAdd =
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewAddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
 update :: InputPattern
 update =
@@ -240,13 +223,8 @@ update =
     ( \case
         patchStr : ws -> do
           patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
-          case traverse HQ'.fromString ws of
-            Just ws -> Right $ Input.UpdateI (Just patch) ws
-            Nothing ->
-              Left . warn . P.lines . fmap fromString
-                . ("I don't know what these refer to:\n" :)
-                $ collectNothings HQ'.fromString ws
-        [] -> Right $ Input.UpdateI Nothing []
+          pure $ Input.UpdateI (Just patch) (Set.fromList $ map Name.unsafeFromString ws)
+        [] -> Right $ Input.UpdateI Nothing mempty
     )
 
 previewUpdate :: InputPattern
@@ -260,15 +238,7 @@ previewUpdate =
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewUpdateI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
 
 patch :: InputPattern
 patch =

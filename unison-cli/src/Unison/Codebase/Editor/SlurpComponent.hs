@@ -12,35 +12,38 @@ import qualified Unison.Term as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.UnisonFile as UF
 
-data SlurpComponent v = SlurpComponent {types :: Set v, terms :: Set v}
+data SlurpComponent v = SlurpComponent {types :: Set v, terms :: Set v, ctors :: Set v}
   deriving (Eq, Ord, Show)
 
 isEmpty :: SlurpComponent v -> Bool
-isEmpty sc = Set.null (types sc) && Set.null (terms sc)
+isEmpty sc = Set.null (types sc) && Set.null (terms sc) && Set.null (ctors sc)
 
 empty :: Ord v => SlurpComponent v
-empty = SlurpComponent {types = mempty, terms = mempty}
+empty = SlurpComponent {types = mempty, terms = mempty, ctors = mempty}
 
 difference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-difference c1 c2 = SlurpComponent {types = types', terms = terms'}
+difference c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
   where
     types' = types c1 `Set.difference` types c2
     terms' = terms c1 `Set.difference` terms c2
+    ctors' = ctors c1 `Set.difference` ctors c2
 
 intersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-intersection c1 c2 = SlurpComponent {types = types', terms = terms'}
+intersection c1 c2 = SlurpComponent {types = types', terms = terms', ctors = ctors'}
   where
     types' = types c1 `Set.intersection` types c2
     terms' = terms c1 `Set.intersection` terms c2
+    ctors' = ctors c1 `Set.intersection` ctors c2
 
 instance Ord v => Semigroup (SlurpComponent v) where (<>) = mappend
 
 instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent {types = mempty, terms = mempty}
+  mempty = SlurpComponent {types = mempty, terms = mempty, ctors = mempty}
   c1 `mappend` c2 =
     SlurpComponent
       { types = types c1 <> types c2,
-        terms = terms c1 <> terms c2
+        terms = terms c1 <> terms c2,
+        ctors = ctors c1 <> ctors c2
       }
 
 -- I'm calling this `closeWithDependencies` because it doesn't just compute
@@ -52,10 +55,13 @@ closeWithDependencies ::
   TypecheckedUnisonFile v a ->
   SlurpComponent v ->
   SlurpComponent v
-closeWithDependencies uf inputs = seenDefns
+closeWithDependencies uf inputs = seenDefns {ctors = constructorDeps}
   where
-    seenDefns = foldl' termDeps (SlurpComponent {types = seenTypes, terms = mempty}) (terms inputs)
+    seenDefns = foldl' termDeps (SlurpComponent {terms = mempty, types = seenTypes, ctors = mempty}) (terms inputs)
     seenTypes = foldl' typeDeps mempty (types inputs)
+
+    constructorDeps :: Set v
+    constructorDeps = UF.constructorsForDecls seenTypes uf
 
     termDeps :: SlurpComponent v -> v -> SlurpComponent v
     termDeps seen v | Set.member v (terms seen) = seen
@@ -100,3 +106,12 @@ closeWithDependencies uf inputs = seenDefns
 
     invert :: forall k v. Ord k => Ord v => Map k v -> Map v k
     invert m = Map.fromList (swap <$> Map.toList m)
+
+fromTypes :: Ord v => Set v -> SlurpComponent v
+fromTypes vs = mempty {types = vs}
+
+fromTerms :: Ord v => Set v -> SlurpComponent v
+fromTerms vs = mempty {terms = vs}
+
+fromCtors :: Ord v => Set v -> SlurpComponent v
+fromCtors vs = mempty {ctors = vs}

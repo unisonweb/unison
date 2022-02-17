@@ -10,6 +10,8 @@ flags:
 ghc-options: -Wall
 
 dependencies:
+  - semialign
+  - these
   - ListLike
   - async
   - base

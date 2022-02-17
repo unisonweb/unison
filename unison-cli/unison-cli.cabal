@@ -35,6 +35,7 @@ library
       Unison.Codebase.Editor.Output.BranchDiff
       Unison.Codebase.Editor.Output.DumpNamespace
       Unison.Codebase.Editor.Propagate
+      Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
       Unison.Codebase.Editor.TodoOutput
@@ -98,8 +99,10 @@ library
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -168,9 +171,11 @@ executable integration-tests
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , time
     , transformers
     , unison-codebase-sqlite
@@ -238,9 +243,11 @@ executable transcripts
     , process
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , text
+    , these
     , transformers
     , unison-codebase-sqlite
     , unison-core1
@@ -307,11 +314,13 @@ executable unison
     , optparse-applicative >=0.16.1.0
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , template-haskell
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
@@ -384,10 +393,12 @@ test-suite tests
     , open-browser
     , random >=1.2.0
     , regex-tdfa
+    , semialign
     , shellmet
     , stm
     , temporary
     , text
+    , these
     , transformers
     , unison-cli
     , unison-codebase-sqlite
