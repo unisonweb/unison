@@ -2092,7 +2092,15 @@ viewRemoteBranch ::
 viewRemoteBranch ns gitBranchBehavior action = do
   eval $ ViewRemoteBranch ns gitBranchBehavior action
 
-syncRemoteBranch :: MonadCommand n m i v => WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> ExceptT GitError n (Either e (Branch m))
+-- | Given the current root branch of a remote
+-- (or an empty branch if no root branch exists)
+-- compute a new branch, which will then be synced and pushed.
+syncRemoteBranch ::
+  MonadCommand n m i v =>
+  WriteRepo ->
+  PushGitBranchOpts ->
+  (Branch m -> m (Either e (Branch m))) ->
+  ExceptT GitError n (Either e (Branch m))
 syncRemoteBranch repo opts action =
   ExceptT . eval $ SyncRemoteBranch repo opts action
 

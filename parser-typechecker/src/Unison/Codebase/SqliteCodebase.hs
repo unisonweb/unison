@@ -816,7 +816,7 @@ sqliteCodebase debugName root localOrRemote action = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (\b r opts -> pushGitBranch conn b r opts)
+            (\r opts action -> pushGitBranch conn r opts action)
             watches
             getWatch
             putWatch
@@ -1143,7 +1143,7 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
     Left err -> throwIO . C.GitSqliteCodebaseError $ C.gitErrorFromOpenCodebaseError remotePath repo err
     Right inner -> pure inner
 
--- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
+-- | Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
 -- the existing root.
 pushGitBranch ::
   forall m e.
@@ -1151,6 +1151,7 @@ pushGitBranch ::
   Connection ->
   WriteRepo ->
   PushGitBranchOpts ->
+  -- An action which accepts the current root branch on the remote and computes a new branch.
   (Branch m -> m (Either e (Branch m))) ->
   m (Either C.GitError (Either e (Branch m)))
 pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = UnliftIO.try do
