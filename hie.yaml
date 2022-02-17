@@ -60,9 +60,6 @@ cradle:
     - path: "unison-cli/unison"
       component: "unison-cli:exe:unison"
 
-    - path: "parser-typechecker/benchmarks/runtime"
-      component: "unison-parser-typechecker:bench:runtime"
-
     - path: "unison-core/src"
       component: "unison-core1:lib"
 
