@@ -58,3 +58,20 @@ foo = then -- unclosed
 ```unison:error
 foo = with -- unclosed
 ```
+
+```unison:error
+foo = match 1 with
+  2 -- no right-hand-side
+```
+
+### Keywords
+
+```unison:error
+use.keyword.in.namespace = 1
+```
+
+
+```unison:error
+-- reserved operator
+a ! b = 1
+```

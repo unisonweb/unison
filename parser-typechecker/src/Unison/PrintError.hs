@@ -1062,7 +1062,7 @@ prettyParseError s = \case
         "Here's a few examples of valid syntax: " <>
         style Code "abba1', snake_case, Foo.zoink!, 🌻" ]
       L.ReservedWordyId _id -> Pr.lines [
-        "The identifier used here can't be a reserved keyword: ", "",
+        "The identifier used here isn't allowed to be a reserved keyword: ", "",
         excerpt ]
       L.InvalidSymbolyId _id -> Pr.lines [
         "This infix identifier isn't valid syntax: ", "",

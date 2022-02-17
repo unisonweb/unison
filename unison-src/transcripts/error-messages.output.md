@@ -159,3 +159,55 @@ foo = with -- unclosed
   
 
 ```
+```unison
+foo = match 1 with
+  2 -- no right-hand-side
+```
+
+```ucm
+
+    😶
+    
+    I expected some patterns after a match / with but I didn't
+    find any.
+        1 | foo = match 1 with
+    
+
+```
+### Keywords
+
+```unison
+use.keyword.in.namespace = 1
+```
+
+```ucm
+
+  The identifier used here isn't allowed to be a reserved keyword: 
+  
+      1 | use.keyword.in.namespace = 1
+  
+
+```
+```unison
+-- reserved operator
+a ! b = 1
+```
+
+```ucm
+
+  This looks like the start of an expression here 
+  
+      2 | a ! b = 1
+  
+  but at the file top-level, I expect one of the following:
+  
+    - A binding, like a = 42 OR
+                      a : Nat
+                      a = 42
+    - A watch expression, like > a + 1
+    - An `ability` declaration, like ability Foo where ...
+    - A `type` declaration, like type Optional a = None | Some a
+    - A `namespace` declaration, like namespace Seq where ...
+  
+
+```
