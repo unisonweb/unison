@@ -59,9 +59,26 @@ foo = then -- unclosed
 foo = with -- unclosed
 ```
 
+### Matching
+
 ```unison:error
 foo = match 1 with
   2 -- no right-hand-side
+```
+
+```unison:error
+-- Mismatched arities
+foo = cases
+  1, 2 -> ()
+  3 -> ()
+```
+
+
+### Watches
+
+```unison:error
+-- Empty watch
+>
 ```
 
 ### Keywords
@@ -69,7 +86,6 @@ foo = match 1 with
 ```unison:error
 use.keyword.in.namespace = 1
 ```
-
 
 ```unison:error
 -- reserved operator

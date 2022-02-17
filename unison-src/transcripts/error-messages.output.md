@@ -159,6 +159,8 @@ foo = with -- unclosed
   
 
 ```
+### Matching
+
 ```unison
 foo = match 1 with
   2 -- no right-hand-side
@@ -170,8 +172,43 @@ foo = match 1 with
     
     I expected some patterns after a match / with but I didn't
     find any.
+    
         1 | foo = match 1 with
     
+
+```
+```unison
+-- Mismatched arities
+foo = cases
+  1, 2 -> ()
+  3 -> ()
+```
+
+```ucm
+
+    😶
+    
+    Not all the branches of this pattern matching have the same
+    number of arguments. I was assuming they'd all have 2
+    arguments (based on the previous patterns) but this one has
+    1 arguments:
+        4 |   3 -> ()
+    
+
+```
+### Watches
+
+```unison
+-- Empty watch
+>
+```
+
+```ucm
+
+  I expected a non-empty watch expression and not just ">"
+  
+      2 | >
+  
 
 ```
 ### Keywords
