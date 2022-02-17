@@ -17,6 +17,7 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Debug
       Unison.Prelude
       Unison.Util.Map
       Unison.Util.Set
@@ -46,6 +47,7 @@ library
     , extra
     , lens
     , mtl
+    , pretty-simple
     , safe
     , text
     , transformers
