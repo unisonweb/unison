@@ -37,6 +37,8 @@ import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Console.ANSI as ANSI
 import System.Directory (copyFile)
 import System.FilePath ((</>))
+import qualified System.FilePath as FilePath
+import qualified System.FilePath.Posix as FilePath.Posix
 import U.Codebase.HashTags (CausalHash (CausalHash, unCausalHash))
 import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
@@ -1243,14 +1245,18 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
         then Just (hasDeleteWal, hasDeleteShm)
         else Nothing
       where
+        -- `git status` always displays paths using posix forward-slashes,
+        -- so we have to convert our expected path to test.
+        posixCodebasePath =
+          FilePath.Posix.joinPath (FilePath.splitDirectories codebasePath)
         statusLines = Text.unpack <$> Text.lines status
         t = dropWhile Char.isSpace
-        okLine (t -> '?' : '?' : (t -> p)) | p == codebasePath = True
-        okLine (t -> 'M' : (t -> p)) | p == codebasePath = True
+        okLine (t -> '?' : '?' : (t -> p)) | p == posixCodebasePath = True
+        okLine (t -> 'M' : (t -> p)) | p == posixCodebasePath = True
         okLine line = isWalDelete line || isShmDelete line
-        isWalDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isWalDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isWalDelete _ = False
-        isShmDelete (t -> 'D' : (t -> p)) | p == codebasePath ++ "-wal" = True
+        isShmDelete (t -> 'D' : (t -> p)) | p == posixCodebasePath ++ "-wal" = True
         isShmDelete _ = False
         hasDeleteWal = any isWalDelete statusLines
         hasDeleteShm = any isShmDelete statusLines
@@ -1270,7 +1276,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
           Nothing ->
             error $
               "An error occurred during push.\n"
-                <> "I was expecting only to see .unison/v2/unison.sqlite3 modified, but saw:\n\n"
+                <> "I was expecting only to see "
+                <> codebasePath
+                <> " modified, but saw:\n\n"
                 <> Text.unpack status
                 <> "\n\n"
                 <> "Please visit https://github.com/unisonweb/unison/issues/2063\n"
@@ -1278,9 +1286,9 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
           Just (hasDeleteWal, hasDeleteShm) -> do
             -- Only stage files we're expecting; don't `git add --all .`
             -- which could accidentally commit some garbage
-            gitIn remotePath ["add", ".unison/v2/unison.sqlite3"]
-            when hasDeleteWal $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-wal"]
-            when hasDeleteShm $ gitIn remotePath ["rm", ".unison/v2/unison.sqlite3-shm"]
+            gitIn remotePath ["add", Text.pack codebasePath]
+            when hasDeleteWal $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-wal"]
+            when hasDeleteShm $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-shm"]
             gitIn
               remotePath
               ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
