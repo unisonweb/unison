@@ -78,7 +78,9 @@ parseFailure e = PI.ParsecT $ \s _ _ _ eerr -> eerr e s
 
 data Err
   = InvalidWordyId String
+  | ReservedWordyId String
   | InvalidSymbolyId String
+  | ReservedSymbolyId String
   | InvalidShortHash String
   | InvalidBytesLiteral String
   | InvalidHexLiteral
@@ -708,9 +710,12 @@ lexemes' eof = P.optional space >> do
 
   symbolyIdSeg :: P String
   symbolyIdSeg = do
+    start <- pos
     id <- P.takeWhile1P (Just symbolMsg) symbolyIdChar
-    if Set.member id reservedOperators then fail "reserved operator"
-    else pure id
+    when (Set.member id reservedOperators) $ do
+       stop <- pos
+       P.customFailure (Token (ReservedSymbolyId id) start stop)
+    pure id
 
   wordyIdSeg :: P String
   -- wordyIdSeg = litSeg <|> (P.try do -- todo
@@ -718,10 +723,10 @@ lexemes' eof = P.optional space >> do
     start <- pos
     ch <- CP.satisfy wordyIdStartChar
     rest <- P.many (CP.satisfy wordyIdChar)
-    when (Set.member (ch : rest) keywords) $ do
+    let word = ch : rest
+    when (Set.member word keywords) $ do
       stop <- pos
-      let msg = show start <> ": Identifier segment can't be a keyword: " <> (ch:rest)
-      P.customFailure (Token (Opaque msg) start stop)
+      P.customFailure (Token (ReservedWordyId word) start stop)
     pure (ch : rest)
 
   {-

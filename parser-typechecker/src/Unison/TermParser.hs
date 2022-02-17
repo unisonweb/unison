@@ -51,6 +51,8 @@ import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 import qualified Unison.NamesWithHistory as NamesWithHistory
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty (NonEmpty)
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -134,16 +136,19 @@ match = do
   _         <- P.try (openBlockWith "with") <|> do
     t <- anyToken
     P.customFailure (ExpectedBlockOpen "with" t)
-  (_arities, cases) <- unzip <$> matchCases
-  when (null cases) $ P.customFailure EmptyMatch
+  (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
   _ <- closeBlock
-  pure $ Term.match (ann start <> maybe (ann start) ann (lastMay cases))
+  pure $ Term.match (ann start <> ann (NonEmpty.last cases))
                     scrutinee
-                    cases
+                    (toList cases)
 
-matchCases :: Var v => P v [(Int, Term.MatchCase Ann (Term v Ann))]
-matchCases = sepBy1 semi matchCase
+matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
+matchCases1 start = do
+  cases <- sepBy1 semi matchCase
          <&> \cases -> [ (n,c) | (n,cs) <- cases, c <- cs ]
+  case cases of
+    [] -> P.customFailure (EmptyMatch start)
+    (c:cs) -> pure (c NonEmpty.:| cs)
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -284,7 +289,7 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
-letBlock, handle, lamCase, ifthen :: Var v => TermP v
+letBlock, handle, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
@@ -292,21 +297,17 @@ handle = label "handle" $ do
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
 
-checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v (Int, [a])
-checkCasesArities cases = go Nothing cases where
-  go arity [] = case arity of
-    Nothing -> fail "empty list of cases"
-    Just a -> pure (a, map snd cases)
-  go Nothing ((i,_):t) = go (Just i) t
-  go (Just i) ((j,a):t) =
-    if i == j then go (Just i) t
-    else P.customFailure $ PatternArityMismatch i j (ann a)
+checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v (Int, NonEmpty a)
+checkCasesArities cases@((i,_) NonEmpty.:| rest) =
+  case List.find (\(j, _) -> j /= i) rest of
+    Nothing -> pure (i, snd <$> cases)
+    Just (j, a) -> P.customFailure $ PatternArityMismatch i j (ann a)
 
+lamCase :: Var v => TermP v
 lamCase = do
   start          <- openBlockWith "cases"
-  cases          <- matchCases
+  cases          <- matchCases1 start
   (arity, cases) <- checkCasesArities cases
-  when (null cases) (P.customFailure EmptyMatch)
   _       <- closeBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
   let vars =
@@ -317,8 +318,8 @@ lamCase = do
       lamvarTerm  = case lamvarTerms of
         [e] -> e
         es  -> DD.tupleTerm es
-      anns      = ann start <> maybe (ann start) ann (lastMay cases)
-      matchTerm = Term.match anns lamvarTerm cases
+      anns      = ann start <> ann (NonEmpty.last cases)
+      matchTerm = Term.match anns lamvarTerm (toList cases)
   pure $ Term.lam' anns vars matchTerm
 ifthen = label "if" $ do
   start <- peekAny
