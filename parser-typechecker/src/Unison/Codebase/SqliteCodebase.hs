@@ -1182,35 +1182,35 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
             Right br -> pure br
          action currentRootBranch >>= \case
            Left e -> pure $ Left e
-           Right newRootBranch -> do
+           Right newBranch -> do
              flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-               throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn newRootBranch
-             pure (Right newRootBranch)
+               throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn newBranch
+             pure (Right newBranch)
    for newBranchOrErr $ push pushStaging repo
    pure newBranchOrErr
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
     doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> Branch m -> ExceptT C.GitError (ReaderT Connection m) ()
-    doSync codebaseStatus remotePath srcConn destConn newRootBranch = do
+    doSync codebaseStatus remotePath srcConn destConn newBranch = do
       _ <- flip State.execStateT emptySyncProgressState $
-        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) newRootBranch)
-      when setRoot $ overwriteRoot codebaseStatus remotePath destConn newRootBranch
+        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) newBranch)
+      when setRoot $ overwriteRoot codebaseStatus remotePath destConn newBranch
     overwriteRoot :: forall n. MonadIO n => CodebaseStatus -> FilePath -> Connection -> Branch m -> ExceptT C.GitError n ()
-    overwriteRoot codebaseStatus remotePath destConn newRootBranch = do
-      let newRootHash = Branch.headHash newRootBranch
+    overwriteRoot codebaseStatus remotePath destConn newBranch = do
+      let newBranchHash = Branch.headHash newBranch
       case codebaseStatus of
         ExistingCodebase -> do
           -- the call to runDB "handles" the possible DB error by bombing
           maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
           case maybeOldRootHash of
             Nothing -> runDB destConn $ do
-              setRepoRoot newRootHash
+              setRepoRoot newBranchHash
             (Just oldRootHash) -> runDB destConn $ do
-              before oldRootHash newRootHash >>= \case
+              before oldRootHash newBranchHash >>= \case
                 Nothing ->
                   error $
-                    "I couldn't find the hash " ++ show newRootHash
+                    "I couldn't find the hash " ++ show newBranchHash
                       ++ " that I just synced to the cached copy of "
                       ++ repoString
                       ++ " in "
@@ -1220,7 +1220,7 @@ pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = Unlift
                   lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
                 Just True -> pure ()
         CreatedCodebase -> pure ()
-      runDB destConn $ setRepoRoot newRootHash
+      runDB destConn $ setRepoRoot newBranchHash
 
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
