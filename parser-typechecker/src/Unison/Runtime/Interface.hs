@@ -312,7 +312,7 @@ prepareEvaluation ppe tm ctx = do
   (rmn, rtms)
     | Tm.LetRecNamed' bs mn0 <- tm
     , hcs <- fmap (first RF.DerivedId)
-           . Hashing.hashTermComponents $ Map.fromList bs
+           . Hashing.hashTermComponentsWithoutTypes $ Map.fromList bs
     , mn <- Tm.substs (Map.toList $ Tm.ref () . fst <$> hcs) mn0
     , rmn <- RF.DerivedId $ Hashing.hashClosedTerm mn
     = (rmn , (rmn, mn) : Map.elems hcs)
@@ -607,6 +607,7 @@ buildSCache cs crsrc trsrc ftm fty intsrc rtmsrc rtysrc sndbx
   typeRefs = foldMap Set.singleton trs
 
   restrictTmW m = restrictKeys m combKeys
+  restrictTmR :: Map Reference a -> Map Reference a
   restrictTmR m = Map.restrictKeys m termRefs
 
   restrictTyW m = restrictKeys m typeKeys

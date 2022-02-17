@@ -37,7 +37,6 @@ import qualified Unison.Test.Var as Var
 import qualified Unison.Test.ANF as ANF
 import qualified Unison.Test.MCode as MCode
 import qualified Unison.Test.CodebaseInit as CodebaseInit
--- import qualified Unison.Test.BaseUpgradePushPullTest as BaseUpgradePushPullTest
 
 test :: Test ()
 test = tests

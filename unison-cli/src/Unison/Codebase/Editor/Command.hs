@@ -64,6 +64,7 @@ import Unison.Name (Name)
 import Unison.Server.QueryResult (QueryResult)
 import qualified Unison.Server.SearchResult as SR
 import qualified Unison.Server.SearchResult' as SR'
+import qualified Unison.Hash as H
 import qualified Unison.WatchKind as WK
 import Unison.Codebase.Type (GitError)
 import qualified Unison.CommandLine.FuzzySelect as Fuzzy
@@ -232,10 +233,13 @@ data Command
   LoadReflog :: Command m i v [Reflog.Entry Branch.Hash]
 
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
+  -- LoadTermComponent :: H.Hash -> Command m i v (Maybe [Term v Ann])
+  LoadTermComponentWithTypes :: H.Hash -> Command m i v (Maybe [(Term v Ann, Type v Ann)])
 
   -- todo: change this to take Reference and return DeclOrBuiltin
+  -- todo: change this to LoadDecl
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
-
+  LoadDeclComponent :: H.Hash -> Command m i v (Maybe [Decl v Ann])
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
 
   PutTerm :: Reference.Id -> Term v Ann -> Type v Ann -> Command m i v ()
@@ -246,11 +250,14 @@ data Command
   -- (why, again? because we can know from the Reference?)
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
+  -- IsDerivedTerm :: H.Hash -> Command m i v Bool
+  -- IsDerivedType :: H.Hash -> Command m i v Bool
 
   -- | Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
+  GetDependentsOfComponent :: H.Hash -> Command m i v (Set Reference)
 
   GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
   GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
@@ -333,13 +340,16 @@ commandName = \case
   AppendToReflog {} -> "AppendToReflog"
   LoadReflog -> "LoadReflog"
   LoadTerm {} -> "LoadTerm"
+  LoadTermComponentWithTypes {} -> "LoadTermComponentWithTypes"
   LoadType {} -> "LoadType"
   LoadTypeOfTerm {} -> "LoadTypeOfTerm"
+  LoadDeclComponent {} -> "LoadDeclComponent"
   PutTerm {} -> "PutTerm"
   PutDecl {} -> "PutDecl"
   IsTerm {} -> "IsTerm"
   IsType {} -> "IsType"
   GetDependents {} -> "GetDependents"
+  GetDependentsOfComponent {} -> "GetDependentsOfComponent"
   GetTermsOfType {} -> "GetTermsOfType"
   GetTermsMentioningType {} -> "GetTermsMentioningType"
   Execute {} -> "Execute"

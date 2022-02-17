@@ -163,10 +163,10 @@ Let's now merge these namespaces into `c`:
   
   New name conflicts:
   
-    1. foo#jdqoenu794 : Nat
+    1. foo#emomp74i93 : Nat
        ↓
-    2. ┌ foo#8e68dvpr0a : Nat
-    3. └ foo#jdqoenu794 : Nat
+    2. ┌ foo#a84tg4er4k : Nat
+    3. └ foo#emomp74i93 : Nat
   
   Updates:
   
@@ -194,26 +194,27 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term #44954ulpdf was replaced with foo#8e68dvpr0a and
-    foo#jdqoenu794
+    The term 1. #qkhkl0n238 was replaced with
+      2. foo#a84tg4er4k
+      3. foo#emomp74i93
 
 ```
-We see that `#44954ulpdf` (the original hash of `a.foo`) got replaced with _both_ the `#8e68dvpr0a` and `#jdqoenu794`.
+We see that the original hash of `a.foo` got replaced with _two different_ hashes.
 
 We can resolve this conflict by picking one of the terms as the "winner":
 
 ```ucm
-.example.resolve.c> replace #44954ulpdf #8e68dvpr0a
+.example.resolve.c> replace 1 2
 
   Done.
 
 ```
-This changes the merged `c.patch` so that only the edit from #44954ulpdf to  #8e68dvpr0a remains:
+This changes the merged `c.patch` so that only a single edit remains and resolves the conflict.
 
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: 1. #44954ulpdf -> 2. foo#8e68dvpr0a
+  Edited Terms: 1. #qkhkl0n238 -> 2. foo#a84tg4er4k
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -227,31 +228,32 @@ We still have a remaining _name conflict_ since it just so happened that both of
 
   ❓
   
-  These terms have conflicting definitions: foo
+  The term foo has conflicting definitions:
+    1. foo#a84tg4er4k
+    2. foo#emomp74i93
   
   Tip: This occurs when merging branches that both independently
-       introduce the same name. Use `view foo` to see the
-       conflicting definitions, then use `move.term` to resolve
-       the conflicts.
+       introduce the same name. Use `move.term` or `delete.term`
+       to resolve the conflicts.
 
 ```
 We can resolve the name conflict by deleting one of the names.
 
 ```ucm
-.example.resolve.c> delete.term foo#jdqoenu794
+.example.resolve.c> delete.term 2
 
   Resolved name conflicts:
   
-    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
-    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+    1. ┌ example.resolve.c.foo#a84tg4er4k : Nat
+    2. └ example.resolve.c.foo#emomp74i93 : Nat
        ↓
-    3. example.resolve.c.foo#8e68dvpr0a : Nat
+    3. example.resolve.c.foo#a84tg4er4k : Nat
   
   Name changes:
   
     Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
+    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#emomp74i93 (removed)
+    6. example.resolve.c.foo#emomp74i93 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

@@ -349,9 +349,10 @@ lookupTermElementDiscardingTerm i =
 getTType :: MonadGet m => m TermFormat.Type
 getTType = getType getReference
 
-getType :: MonadGet m => m r -> m (Type.TypeR r Symbol)
+getType :: forall m r. MonadGet m => m r -> m (Type.TypeR r Symbol)
 getType getReference = getABT getSymbol getUnit go
   where
+    go :: m x -> m (Type.F' r x)
     go getChild =
       getWord8 >>= \case
         0 -> Type.Ref <$> getReference
@@ -808,6 +809,7 @@ putDType :: MonadPut m => DeclFormat.Type Symbol -> m ()
 putDType = putType putRecursiveReference putSymbol
 
 putType ::
+  forall m r v.
   (MonadPut m, Ord v) =>
   (r -> m ()) ->
   (v -> m ()) ->
@@ -815,6 +817,7 @@ putType ::
   m ()
 putType putReference putVar = putABT putVar putUnit go
   where
+    go :: (x -> m ()) -> Type.F' r x -> m ()
     go putChild t = case t of
       Type.Ref r -> putWord8 0 *> putReference r
       Type.Arrow i o -> putWord8 1 *> putChild i *> putChild o

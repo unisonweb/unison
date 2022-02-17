@@ -25,6 +25,12 @@ defaultBaseLib = fmap makeNS $ latest <|> release
   version = do
     Text.pack <$> some (alphaNumChar <|> ('_' <$ oneOf ['.', '_', '-']))
   makeNS :: Text -> ReadRemoteNamespace
-  makeNS t = ( ReadGitRepo {url="https://github.com/unisonweb/base",ref=Nothing}
+  makeNS t = ( ReadGitRepo { url="https://github.com/unisonweb/base"
+                           -- Use the 'v2' branch of base for now.
+                           -- We can revert back to the main branch once enough people have upgraded ucm and
+                           -- we're okay with pushing the v2 base codebase to main (perhaps by the next ucm
+                           -- release).
+                           , ref=Just "v2"
+                           }
              , Nothing
              , Path.fromText t)

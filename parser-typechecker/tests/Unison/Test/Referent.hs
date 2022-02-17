@@ -62,8 +62,8 @@ test = scope "hashparsing" . tests $
   ]
   where
   h = "#1tdqrgl90qnmqvrff0j76kg2rnajq7n8j54e9cbk4p8pdi41q343bnh8h2rv6nadhlin8teg8371d445pvo0as7j2sav8k401d2s3no"
-  suffix1 = Rf.showSuffix 0 10
-  suffix2 = Rf.showSuffix 3 6
+  suffix1 = Rf.showSuffix 0
+  suffix2 = Rf.showSuffix 3
   ref txt = scope (Text.unpack txt) $ case Rf.fromText txt of
     Left e -> fail e
     Right r1 -> case Rf.fromText (Rf.toText r1) of

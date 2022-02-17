@@ -26,13 +26,18 @@ import           Unison.PrettyPrintEnvDecl     ( PrettyPrintEnvDecl(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference(DerivedId) )
+import qualified Unison.Result as Result
 import qualified Unison.Util.SyntaxText        as S
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup(TypeLookup))
+import qualified Unison.Typechecker.TypeLookup as TypeLookup
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.Term as Term
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -128,35 +133,60 @@ prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) r name dd =
 --
 -- This function bails with `Nothing` if the names aren't an exact match for
 -- the expected record naming convention.
-fieldNames
-  :: forall v a . Var v
-  => PrettyPrintEnv
-  -> Reference
-  -> HashQualified Name
-  -> DataDeclaration v a
-  -> Maybe [HashQualified Name]
-fieldNames env r name dd = case DD.constructors dd of
-  [(_, typ)] -> let
-    vars :: [v]
-    vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
-    accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
-    hashes = Hashing.hashTermComponents (Map.fromList accessors)
-    names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
-            | r <- fst <$> Map.elems hashes ]
-    fieldNames = Map.fromList
-      [ (r, f) | (r, n) <- names
-               , typename <- pure (HQ.toString name)
-               , typename `isPrefixOf` n
-               , rest <- pure $ drop (length typename + 1) n
-               , (f, rest) <- pure $ span (/= '.') rest
-               , rest `elem` ["",".set",".modify"] ]
-    in if Map.size fieldNames == length names then
-         Just [ HQ.unsafeFromString name
-              | v <- vars
-              , Just (ref, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
-              , Just name <- [Map.lookup ref fieldNames] ]
-       else Nothing
-  _ -> Nothing
+fieldNames ::
+  forall v a.
+  Var v =>
+  PrettyPrintEnv ->
+  Reference ->
+  HashQualified Name ->
+  DataDeclaration v a ->
+  Maybe [HashQualified Name]
+fieldNames env r name dd = do
+  typ <- case DD.constructors dd of
+    [(_, typ)] -> Just typ
+    _ -> Nothing
+  let vars :: [v]
+      vars = [Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0 .. Type.arity typ - 1]]
+  let accessors :: [(v, Term.Term v ())]
+      accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
+  let typeLookup :: TypeLookup v ()
+      typeLookup =
+        TypeLookup
+          { TypeLookup.typeOfTerms = mempty,
+            TypeLookup.dataDecls = Map.singleton r (void dd),
+            TypeLookup.effectDecls = mempty
+          }
+  let typecheckingEnv :: Typechecker.Env v ()
+      typecheckingEnv =
+        Typechecker.Env
+          { Typechecker._ambientAbilities = mempty,
+            Typechecker._typeLookup = typeLookup,
+            Typechecker._termsByShortname = mempty
+          }
+  accessorsWithTypes :: [(v, Term.Term v (), Type.Type v ())] 
+    <- for accessors \(v, trm) ->
+         case Result.result (Typechecker.synthesize typecheckingEnv trm) of
+           Nothing -> Nothing
+           Just typ -> Just (v, trm, typ)
+  let hashes = Hashing.hashTermComponents (Map.fromList . fmap (\(v, trm, typ) -> (v, (trm, typ))) $ accessorsWithTypes)
+  let names =
+        [ (r, HQ.toString . PPE.termName env . Referent.Ref $ DerivedId r)
+          | r <- (\(refId, _trm, _typ) -> refId) <$> Map.elems hashes
+        ]
+  let fieldNames =
+        Map.fromList
+          [ (r, f) | (r, n) <- names, typename <- pure (HQ.toString name), typename `isPrefixOf` n, rest <- pure $ drop (length typename + 1) n, (f, rest) <- pure $ span (/= '.') rest, rest `elem` ["", ".set", ".modify"]
+          ]
+
+  if Map.size fieldNames == length names
+    then
+      Just
+        [ HQ.unsafeFromString name
+          | v <- vars,
+            Just (ref, _, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes],
+            Just name <- [Map.lookup ref fieldNames]
+        ]
+    else Nothing
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = fmt S.DataTypeModifier "structural"

@@ -6,6 +6,7 @@ module Unison.Codebase
     getTerm,
     unsafeGetTerm,
     unsafeGetTermWithType,
+    getTermComponentWithTypes,
     getTypeOfTerm,
     unsafeGetTypeOfTermById,
     isTerm,
@@ -23,6 +24,7 @@ module Unison.Codebase
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
+    getDeclComponent,
     putTypeDeclaration,
     typeReferencesByPrefix,
     isType,
@@ -64,6 +66,7 @@ module Unison.Codebase
 
     -- * Dependents
     dependents,
+    dependentsOfComponent,
 
     -- * Sync
 
@@ -83,11 +86,13 @@ module Unison.Codebase
     CodebasePath,
     SyncToDir,
 
-    -- * Misc
+    -- * Misc (organize these better)
     addDefsToCodebase,
+    componentReferencesForReference,
     installUcmDependencies,
     toCodeLookup,
     typeLookupForDependencies,
+    unsafeGetComponentLength,
   )
 where
 
@@ -117,6 +122,7 @@ import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
+import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.Convert as Hashing
 import qualified Unison.Parser.Ann as Parser
 import Unison.Prelude
@@ -287,6 +293,12 @@ getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
 
+componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
+componentReferencesForReference c = \case
+  r@Reference.Builtin{} -> pure (Set.singleton r)
+  Reference.Derived h _i ->
+    Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength c h
+
 -- | Get the set of terms, type declarations, and builtin types that depend on the given term, type declaration, or
 -- builtin type.
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
@@ -294,6 +306,12 @@ dependents c r =
   Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
     <$> dependentsImpl c r
+
+dependentsOfComponent :: Functor f => Codebase f v a -> Hash -> f (Set Reference)
+dependentsOfComponent c h =
+  Set.union (Builtin.builtinTypeDependentsOfComponent h)
+    . Set.map Reference.DerivedId
+    <$> dependentsOfComponentImpl c h
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
@@ -375,6 +393,12 @@ viewRemoteBranch ::
   m (Either GitError r)
 viewRemoteBranch codebase ns gitBranchBehavior action =
   viewRemoteBranch' codebase ns gitBranchBehavior (\(b, _dir) -> action b)
+
+unsafeGetComponentLength :: (HasCallStack, Monad m) => Codebase m v a -> Hash -> m Reference.CycleSize
+unsafeGetComponentLength codebase h =
+  getComponentLength codebase h >>= \case
+    Nothing -> error (reportBug "E713350" ("component with hash " ++ show h ++ " not found"))
+    Just size -> pure size
 
 -- | Like 'getTerm', for when the term is known to exist in the codebase.
 unsafeGetTerm :: (HasCallStack, Monad m) => Codebase m v a -> Reference.Id -> m (Term v a)

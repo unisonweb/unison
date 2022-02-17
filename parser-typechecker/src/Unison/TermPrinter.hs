@@ -258,7 +258,7 @@ pretty0
     List' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
-                            (pretty0 n (ac 0 Normal im doc))
+                            (PP.indentNAfterNewline 2 . pretty0 n (ac 0 Normal im doc))
                             xs
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
@@ -327,6 +327,7 @@ pretty0
 
     t -> l "error: " <> l (show t)
  where
+  goNormal prec tm = pretty0 n (ac prec Normal im doc) tm     
   specialCases term _go | Just p <- prettyDoc2 n a term = p
   specialCases term go = case (term, binaryOpsPred) of
     (DD.Doc, _) | doc == MaybeDoc ->
@@ -345,7 +346,10 @@ pretty0
     (TupleTerm' xs, _) ->
       let tupleLink p = fmt (S.TypeReference DD.unitRef) p
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
-
+    (App' f@(Builtin' "Any.Any") arg, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
+    (Apps' f@(Constructor' _) args, _) ->   
+      paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -1579,8 +1583,8 @@ toDocEval _ _ = Nothing
 --
 -- See https://github.com/unisonweb/unison/issues/2238
 _oldDocEval, _oldDocEvalInline :: Reference
-_oldDocEval = Reference.unsafeFromText "#0ua7gqa7kqnj80ulhmtcqsfgalmh4g9kg198dt2uen0s0jeebbo4ljnj4133cn1kbm38i2q3joivodtfei3jfln5scof0r0381k8dm0"
-_oldDocEvalInline = Reference.unsafeFromText "#maleg6fmu3j0k0vgm99lgrsnhio3ba750hcainuv5jdi9scdsg43hpicmf6lovsa0mnaija7bjebnr5nas3qsj4r087hur1jh0rsfso"
+_oldDocEval = Reference.unsafeFromText "#m2bmkdos2669tt46sh2gf6cmb4td5le8lcqnmsl9nfaqiv7s816q8bdtjdbt98tkk11ejlesepe7p7u8p0asu9758gdseffh0t78m2o"
+_oldDocEvalInline = Reference.unsafeFromText "#7pjlvdu42gmfvfntja265dmi08afk08l54kpsuu55l9hq4l32fco2jlrm8mf2jbn61esfsi972b6e66d9on4i5bkmfchjdare1v5npg"
 
 toDocEvalInline :: Ord v => PrettyPrintEnv -> Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation)
 toDocEvalInline ppe (App' (Ref' r) (Delay' tm))

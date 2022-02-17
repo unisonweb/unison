@@ -507,7 +507,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with args" !Any
+    Failure (typeLink IOFailure) "called with args" (Any ())
 
 ```
 ```ucm
@@ -517,7 +517,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```
 ```ucm
@@ -528,7 +528,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure
-      (typeLink IOFailure) "called with too many args" !Any
+      (typeLink IOFailure) "called with too many args" (Any ())
 
 ```
 ```ucm
@@ -538,6 +538,6 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```

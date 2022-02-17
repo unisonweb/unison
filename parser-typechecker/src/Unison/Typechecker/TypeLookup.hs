@@ -3,15 +3,15 @@ module Unison.Typechecker.TypeLookup where
 
 import Unison.Prelude
 
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
+import qualified Data.Map as Map
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import qualified Unison.ConstructorType as CT
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
+import qualified Unison.DataDeclaration as DD
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Type (Type)
-import qualified Data.Map as Map
-import qualified Unison.ConstructorType as CT
-import qualified Unison.DataDeclaration as DD
-import Unison.DataDeclaration (EffectDeclaration, DataDeclaration)
 import qualified Unison.Referent as Referent
+import Unison.Type (Type)
 
 -- Used for typechecking.
 data TypeLookup v a =

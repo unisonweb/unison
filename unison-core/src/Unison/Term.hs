@@ -8,6 +8,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Term where
 
@@ -26,6 +27,7 @@ import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Names ( Names )
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -34,7 +36,7 @@ import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
-import           Unison.Referent (Referent, ConstructorId)
+import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -48,9 +50,20 @@ import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Data.Set.NonEmpty as NES
+import Data.Generics.Sum (_Ctor)
+import Control.Lens (Prism', Lens', lens)
 
-data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
+data MatchCase loc a = MatchCase
+  { matchPattern :: Pattern loc,
+    matchGuard :: Maybe a,
+    matchBody :: a
+  }
+  deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
+
+matchPattern_ :: Lens' (MatchCase loc a) (Pattern loc)
+matchPattern_ = lens matchPattern setter
+  where
+    setter m p = m {matchPattern = p}
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
@@ -93,6 +106,27 @@ data F typeVar typeAnn patternAnn a
   | TermLink Referent
   | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
+
+_Ref :: Prism' (F tv ta pa a) Reference
+_Ref = _Ctor @"Ref"
+
+_Match :: Prism' (F tv ta pa a) (a, [MatchCase pa a])
+_Match = _Ctor @"Match"
+
+_Constructor :: Prism' (F tv ta pa a) ConstructorReference
+_Constructor = _Ctor @"Constructor"
+
+_Request :: Prism' (F tv ta pa a) ConstructorReference
+_Request = _Ctor @"Request"
+
+_Ann :: Prism' (F tv ta pa a) (a, ABT.Term Type.F tv ta)
+_Ann = _Ctor @"Ann"
+
+_TermLink :: Prism' (F tv ta pa a) Referent
+_TermLink = _Ctor @"TermLink"
+
+_TypeLink :: Prism' (F tv ta pa a) Reference
+_TypeLink = _Ctor @"TypeLink"
 
 type IsTop = Bool
 
@@ -741,7 +775,7 @@ unLetRecNamed
        , [(v, Term2 vt at ap v a)]
        , Term2 vt at ap v a
        )
-unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
+unLetRecNamed (ABT.Cycle' vs (LetRec isTop bs e))
   | length vs == length bs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
@@ -1028,15 +1062,16 @@ etaReduceEtaVars tm = case tm of
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent :: forall v a. Var v
-                => Map Reference (Term v a)
-                -> Map Reference (v, Term v a)
+                => Map Reference.Id (Term v a)
+                -> Map Reference.Id (v, Term v a)
 unhashComponent m = let
   usedVars = foldMap (Set.fromList . ABT.allVars) m
-  m' :: Map Reference (v, Term v a)
+  m' :: Map Reference.Id (v, Term v a)
   m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
+    assignVar r t = (,t) <$> ABT.freshenS (Var.refIdNamed r)
+  unhash1 :: Term v a -> Term v a
   unhash1 = ABT.rebuildUp' go where
-    go e@(Ref' r) = case Map.lookup r m' of
+    go e@(Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
       Nothing -> e
       Just (v, _) -> var (ABT.annotation e) v
     go e = e

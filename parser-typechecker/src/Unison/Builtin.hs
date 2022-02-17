@@ -11,6 +11,7 @@ module Unison.Builtin
   ,builtinEffectDecls
   ,builtinConstructorType
   ,builtinTypeDependents
+  ,builtinTypeDependentsOfComponent
   ,builtinTypes
   ,builtinTermsByType
   ,builtinTermsByTypeMention
@@ -35,6 +36,7 @@ import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.Builtin.Decls          as DD
 import qualified Unison.Builtin.Terms          as TD
 import qualified Unison.DataDeclaration        as DD
+import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann (..))
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
@@ -64,7 +66,7 @@ names0 = Names terms types where
                     ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]] <>
     Rel.fromList [ (Name.unsafeFromVar v, Referent.Ref (R.DerivedId i))
-                 | (v,i) <- Map.toList $ TD.builtinTermsRef Intrinsic]
+                 | (v,i) <- Map.toList $ TD.builtinTermsRef]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.unsafeFromVar v, R.DerivedId r)
                  | (v,(r,_)) <- builtinDataDecls ] <>
@@ -122,6 +124,15 @@ builtinTermsByTypeMention =
 -- mention that type.
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r = Rel.lookupRan r builtinDependencies
+
+builtinTypeDependentsOfComponent :: Hash -> Set R.Reference
+builtinTypeDependentsOfComponent h0 = Rel.searchRan ord builtinDependencies
+  where
+    ord :: R.Reference -> Ordering
+    ord = \case
+      R.Derived h _i -> compare h h0
+      r -> compare r r0
+    r0 = R.Derived h0 0
 
 -- WARNING:
 -- As with the terms, we should avoid changing these references, even

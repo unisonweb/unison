@@ -115,11 +115,10 @@ typecheckedUnisonFile datas effects tlcs watches =
     watchKinds = Map.fromList $
       [(v,Nothing) | (v,_e,_t) <- join tlcs]
       ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _e, _t) <- wkTerms ]
-    -- good spot incorporate type of term into its hash, if not already present as an annotation (#2276)
-    hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, _t) -> (v, e)) <$> allTerms
+    hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, t) -> (v, (e, t))) <$> allTerms
     in Map.fromList
           [ (v, (r, wk, e, t))
-          | (v, (r, e)) <- Map.toList hcs
+          | (v, (r, e, _typ)) <- Map.toList hcs
           , Just t <- [Map.lookup v types]
           , wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]]
 

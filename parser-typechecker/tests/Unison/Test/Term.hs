@@ -43,10 +43,10 @@ test = scope "term" $ tests
       ok
   , scope "Term.unhashComponent" $
       let h = Hash.fromByteString (encodeUtf8 "abcd")
-          ref = R.Derived h 0 1
-          v1 = Var.refNamed @Symbol ref
+          ref = R.Id h 0
+          v1 = Var.refIdNamed @Symbol ref
           -- input component: `ref = \v1 -> ref`
-          component = Map.singleton ref (Term.lam () v1 (Term.ref () ref))
+          component = Map.singleton ref (Term.lam () v1 (Term.refId () ref))
           component' = Term.unhashComponent component
           -- expected unhashed component: `v2 = \v1 -> v2`, where `v2 /= v1`,
           -- i.e. `v2` cannot be just `ref` converted to a ref-named variable,

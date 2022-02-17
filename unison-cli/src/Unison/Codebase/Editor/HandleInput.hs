@@ -180,7 +180,6 @@ loop = do
   sbhLength <- eval BranchHashLength
   let currentPath'' = Path.unabsolute currentPath'
       hqNameQuery q = eval $ HQNameQuery (Just currentPath'') root' q
-      sbh = SBH.fromHash sbhLength
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
@@ -812,15 +811,15 @@ loop = do
               where
                 doHistory !n b acc =
                   if maybe False (n >=) resultsCap
-                    then respond $ History diffCap acc (PageEnd (sbh $ Branch.headHash b) n)
+                    then respondNumbered $ History diffCap sbhLength acc (PageEnd (Branch.headHash b) n)
                     else case Branch._history b of
                       Causal.One {} ->
-                        respond $ History diffCap acc (EndOfLog . sbh $ Branch.headHash b)
-                      Causal.Merge {Causal.tails} ->
-                        respond $ History diffCap acc (MergeTail (sbh $ Branch.headHash b) . map sbh $ Map.keys tails)
-                      Causal.Cons {Causal.tail} -> do
+                        respondNumbered $ History diffCap sbhLength acc (EndOfLog $ Branch.headHash b)
+                      Causal.Merge _ _ tails ->
+                        respondNumbered $ History diffCap sbhLength acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+                      Causal.Cons _ _ tail -> do
                         b' <- fmap Branch.Branch . eval . Eval $ snd tail
-                        let elem = (sbh $ Branch.headHash b, Branch.namesDiff b' b)
+                        let elem = (Branch.headHash b, Branch.namesDiff b' b)
                         doHistory (n + 1) b' (elem : acc)
             UndoI -> do
               prev <- eval . Eval $ Branch.uncons root'
@@ -2265,11 +2264,12 @@ showTodoOutput getPpe patch names0 = do
                <$> fst (TO.todoFrontierDependents todo)
            )
       ppe <- getPpe
-      respond $ TodoOutput ppe todo
+      respondNumbered $ TodoOutput ppe todo
 
 checkTodo :: Patch -> Names -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
-  f <- computeFrontier (eval . GetDependents) patch names0
+  let shouldUpdate = Names.contains names0
+  f <- Propagate.computeFrontier (eval . GetDependents) patch shouldUpdate
   let dirty = R.dom f
       frontier = R.ran f
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
@@ -2297,34 +2297,6 @@ checkTodo patch names0 = do
       tdeps <- transitiveClosure branchDependents rs
       -- we don't want the frontier in the result
       pure $ tdeps `Set.difference` rs
-
--- (d, f) when d is "dirty" (needs update),
---             f is in the frontier (an edited dependency of d),
---         and d depends on f
--- a ⋖ b = a depends directly on b
--- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
---
--- The range of this relation is the frontier, and the domain is
--- the set of dirty references.
-computeFrontier ::
-  forall m.
-  Monad m =>
-  (Reference -> m (Set Reference)) -> -- eg Codebase.dependents codebase
-  Patch ->
-  Names ->
-  m (R.Relation Reference Reference)
-computeFrontier getDependents patch names =
-  let edited :: Set Reference
-      edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-      addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
-      addDependents dependents ref =
-        (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
-          <$> getDependents ref
-   in do
-        -- (r,r2) ∈ dependsOn if r depends on r2
-        dependsOn <- foldM addDependents R.empty edited
-        -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-        pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 confirmedCommand :: Input -> Action m i v Bool
 confirmedCommand i = do

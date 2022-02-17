@@ -5,6 +5,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Type where
 
@@ -27,6 +28,8 @@ import qualified Unison.Settings as Settings
 import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
 import qualified Unison.Util.List as List
+import Control.Lens (Prism')
+import Data.Generics.Sum (_Ctor)
 
 -- | Base functor for types in the Unison language
 data F a
@@ -45,6 +48,9 @@ data F a
 instance Eq1 F where (==#) = (==)
 instance Ord1 F where compare1 = compare
 instance Show1 F where showsPrec1 = showsPrec
+
+_Ref :: Prism' (F a) Reference
+_Ref = _Ctor @"Ref"
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a

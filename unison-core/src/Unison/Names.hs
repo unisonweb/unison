@@ -433,6 +433,7 @@ expandWildcardImport prefix ns =
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms ns) ] <>
   [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types ns) ]
   where
+  go :: (Name, a) -> Maybe (Name, Name)
   go (full, _) = do
     -- running example:
     --   prefix = Int
@@ -469,4 +470,3 @@ hashQualifyRelation fromNamedRef rel = R.map go rel
       if Set.size (R.lookupDom n rel) > 1
       then (HQ.take numHashChars $ fromNamedRef n r, r)
       else (HQ.NameOnly n, r)
-

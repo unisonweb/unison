@@ -23,6 +23,7 @@ import Unison.Codebase.SqliteCodebase.GitError (GitSqliteCodebaseError)
 import Unison.Codebase.SyncMode (SyncMode)
 import Unison.CodebasePath (CodebasePath)
 import Unison.DataDeclaration (Decl)
+import Unison.Hash (Hash)
 import Unison.Prelude
 import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
@@ -63,6 +64,10 @@ data Codebase m v a = Codebase
     -- | Enqueue the put of a type declaration into the codebase, if it doesn't already exist. The implementation may
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: Reference.Id -> Decl v a -> m (),
+    -- getTermComponent :: Hash -> m (Maybe [Term v a]),
+    getTermComponentWithTypes :: Hash -> m (Maybe [(Term v a, Type v a)]),
+    getDeclComponent :: Hash -> m (Maybe [Decl v a]),
+    getComponentLength :: Hash -> m (Maybe Reference.CycleSize),
     -- | Get the root branch.
     getRootBranch :: m (Either GetRootBranchError (Branch m)),
     -- | Get whether the root branch exists.
@@ -89,6 +94,7 @@ data Codebase m v a = Codebase
     -- | Get the set of user-defined terms and type declarations that depend on the given term, type declaration, or
     -- builtin type.
     dependentsImpl :: Reference -> m (Set Reference.Id),
+    dependentsOfComponentImpl :: Hash -> m (Set Reference.Id),
     -- | Copy a branch and all of its dependencies from the given codebase into this one.
     syncFromDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     -- | Copy a branch and all of its dependencies from this codebase into the given codebase.

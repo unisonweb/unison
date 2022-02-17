@@ -1,8 +1,6 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.TermEdit where
 
-import Unison.Hashable (Hashable)
-import qualified Unison.Hashable as H
 import Unison.Reference (Reference)
 
 data TermEdit = Replace Reference Typing | Deprecate
@@ -17,15 +15,6 @@ references Deprecate = []
 -- Replacements of a Different type need to be manually propagated by the programmer.
 data Typing = Same | Subtype | Different
   deriving (Eq, Ord, Show)
-
-instance Hashable Typing where
-  tokens Same = [H.Tag 0]
-  tokens Subtype = [H.Tag 1]
-  tokens Different = [H.Tag 2]
-
-instance Hashable TermEdit where
-  tokens (Replace r t) = [H.Tag 0] ++ H.tokens r ++ H.tokens t
-  tokens Deprecate = [H.Tag 1]
 
 toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r

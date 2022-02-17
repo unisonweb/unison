@@ -248,3 +248,87 @@ data BranchLocalIds = LocalIds
 `PatchObjectIds` reference the object ids of patch objects, as you might imagine.
 
 `branchChildLookup` contains two fields: a `CausalHashId` which points to the history of the child, and the `BranchObjectId` which proves that the relevant namespace slice is also present.  In general, a codebase may not have the namespace slice corresponding to every causal id, but it ought to have them for the children of another namespace slice it does have (thus, the `BranchObjectId` is used).  The causal relationship stored relationally rather than as blobs, and the `CausalHashId` is a useful index into the `causal_parents` table.
+
+
+<!---
+
+Here are some examples that Arya Chris Mitchell worked through during their onboarding
+{-
+projects.arya.message = "hello, world"     -> <text constant> -> #abc
+projects.arya.program = printLine message  -> printLine #abc  -> #def
+
+projects.arya {
+  terms = { "message" -> #abc
+          , "program" -> #def
+          }
+}
+
+text table =
+  { 1 -> "hello, world"
+  , 2 -> "message"
+  , 3 -> "program"
+  }
+
+hash table =
+  { 10 -> "abc"
+  , 11 -> "def"
+  }
+
+object table =
+  { ...
+  }
+
+projects.arya {
+  terms = { TextId 2 -> Reference { builtin = null, object = ObjectId 20, position = 0 }
+          , TextId 3 -> Reference { builtin = null, object = ObjectId 21, position = 0 }
+          }
+}
+
+stored in original codebase:
+projects.arya = BranchFormat.Full {
+  localIds = {
+    text = [2, 3]
+    hash = [10, 11]
+    object = [20, 21]
+  }
+  localBranch = {
+    terms = { LocalTextId 0 -> Reference { builtin = null, object = LocalObjectId 0, position = 0 }
+            , LocalTextId 1 -> Reference { builtin = null, object = LocalObjectId 1, position = 0 }
+            }
+    ...
+  }
+}
+
+write to dest codebase:
+text table =
+  { ...
+  , 901 -> "hello, world"
+  , 902 -> "message"
+  , 903 -> "program"
+  }
+
+hash table =
+  { ...
+  , 500 -> "abc"
+  , 501 -> "def"
+  }
+
+projects.arya {
+
+  -- updated copy of original localIds, with new mapping
+  localIds = {
+    text = [902, 903]
+    hash = [500, 501]
+    object = [300, 301]
+  }
+
+  -- copy unmodified from original
+  localBranch = {
+    terms = { LocalTextId 0 -> Reference { builtin = null, object = LocalObjectId 0, position = 0 }
+            , LocalTextId 1 -> Reference { builtin = null, object = LocalObjectId 1, position = 0 }
+            }
+    ...
+  }
+}
+
+-->
