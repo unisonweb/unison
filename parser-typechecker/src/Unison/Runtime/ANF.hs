@@ -281,11 +281,16 @@ lamFloater
   :: (Var v, Monoid a)
   => Bool -> Term v a -> Maybe v -> a -> [v] -> Term v a -> FloatM v a v
 lamFloater closed tm mv a vs bd
-  = state $ \(cvs, ctx, dcmp) ->
-      let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
-       in (v, ( Set.insert v cvs
-              , ctx <> [(v, lam' a vs bd)]
-              , floatDecomp closed v tm dcmp))
+  = state $ \trip@(cvs, ctx, dcmp) -> case find p ctx of
+      Just (v, _) -> (v, trip)
+      Nothing ->
+        let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
+         in (v, ( Set.insert v cvs
+                , ctx <> [(v, lam' a vs bd)]
+                , floatDecomp closed v tm dcmp))
+  where
+  tgt = unannotate (lam' a vs bd)
+  p (_, flam) = unannotate flam == tgt
 
 floatDecomp
   :: Bool -> v -> Term v a -> [(v, Term v a)] -> [(v, Term v a)]
