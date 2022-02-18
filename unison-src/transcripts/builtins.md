@@ -213,6 +213,8 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
 ```
 
 ```ucm:hide
