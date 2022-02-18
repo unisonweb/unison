@@ -1292,7 +1292,7 @@ bprim2 !ustk !bstk EQLU i j = do
   x <- peekOff bstk i
   y <- peekOff bstk j
   ustk <- bump ustk
-  poke ustk $ if x == y then 1 else 0
+  poke ustk $ if universalEq (==) x y then 1 else 0
   pure (ustk, bstk)
 bprim2 !ustk !bstk DRPT i j = do
   n <- peekOff ustk i
