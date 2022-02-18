@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language OverloadedStrings #-}
 {-# Language BangPatterns #-}
 {-# Language ViewPatterns #-}
@@ -10,7 +11,7 @@ module Unison.Codebase.TranscriptParser
     ExpectingError,
     Hidden,
     Err,
-    UcmCommand (..),
+    UcmLine (..),
     run,
     parse,
     parseFile,
@@ -48,7 +49,7 @@ import qualified Text.Megaparsec as P
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import qualified Unison.Codebase.Editor.HandleInput.LoopState as LoopState
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -58,6 +59,7 @@ import qualified Unison.Util.TQueue as Q
 import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
 import Control.Error (rightMay)
+import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: P.Width
@@ -70,16 +72,19 @@ type FenceType = Text
 
 data Hidden = Shown | HideOutput | HideAll
             deriving (Eq, Show)
-data UcmCommand = UcmCommand Path.Absolute Text
+data UcmLine =
+  UcmCommand Path.Absolute Text
+  | UcmComment Text -- Text does not include the '--' prefix.
 
 data Stanza
-  = Ucm Hidden ExpectingError [UcmCommand]
+  = Ucm Hidden ExpectingError [UcmLine]
   | Unison Hidden ExpectingError (Maybe ScratchFileName) Text
   | UnprocessedFence FenceType Text
   | Unfenced Text
 
-instance Show UcmCommand where
+instance Show UcmLine where
   show (UcmCommand path txt) = show path <> ">" <> Text.unpack txt
+  show (UcmComment txt) = "--" ++ Text.unpack txt
 
 instance Show Stanza where
   show s = case s of
@@ -144,7 +149,7 @@ run version dir configFile stanzas codebase = do
     (config, cancelConfig)   <-
       catchIOError (watchConfig configFile) $ \_ ->
         die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- RTI.startRuntime version
+    runtime                  <- RTI.startRuntime RTI.Standalone version
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList
@@ -180,21 +185,26 @@ run version dir configFile stanzas codebase = do
             dieUnexpectedSuccess
             awaitInput
           -- ucm command to run
-          Just (Just p@(UcmCommand path lineTxt)) -> do
-            curPath <- readIORef pathRef
-            if curPath /= path then do
-              atomically $ Q.undequeue cmdQueue (Just p)
-              pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
-            else case words . Text.unpack $ lineTxt of
-              [] -> awaitInput
-              args -> do
-                output ("\n" <> show p <> "\n")
-                numberedArgs <- readIORef numberedArgsRef
-                currentRoot <- Branch.head <$> readIORef rootBranchRef
-                case parseInput currentRoot curPath numberedArgs patternMap args of
-                  -- invalid command is treated as a failure
-                  Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
-                  Right input -> pure $ Right input
+          Just (Just ucmLine) -> do
+            case ucmLine of
+              p@(UcmComment {}) -> do
+                output ("\n" <> show p)
+                awaitInput
+              p@(UcmCommand path lineTxt) -> do
+                curPath <- readIORef pathRef
+                if curPath /= path then do
+                  atomically $ Q.undequeue cmdQueue (Just p)
+                  pure $ Right (SwitchBranchI $ Just (Path.absoluteToPath' path))
+                else case words . Text.unpack $ lineTxt of
+                  [] -> awaitInput
+                  args -> do
+                    output ("\n" <> show p <> "\n")
+                    numberedArgs <- readIORef numberedArgsRef
+                    currentRoot <- Branch.head <$> readIORef rootBranchRef
+                    case parseInput currentRoot curPath numberedArgs patternMap args of
+                      -- invalid command is treated as a failure
+                      Left msg -> dieWithMsg $ P.toPlain terminalWidth msg
+                      Right input -> pure $ Right input
 
           Nothing -> do
             dieUnexpectedSuccess
@@ -305,7 +315,7 @@ run version dir configFile stanzas codebase = do
             "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
 
       loop state = do
-        writeIORef pathRef (view HandleInput.currentPath state)
+        writeIORef pathRef (view LoopState.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
             rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
         (o, state') <- HandleCommand.commandLine config awaitInput
@@ -323,11 +333,11 @@ run version dir configFile stanzas codebase = do
             texts <- readIORef out
             pure $ Text.concat (Text.pack <$> toList (texts :: Seq String))
           Just () -> do
-            writeIORef numberedArgsRef (HandleInput._numberedArgs state')
-            writeIORef rootBranchRef (HandleInput._root state')
+            writeIORef numberedArgsRef (LoopState._numberedArgs state')
+            writeIORef rootBranchRef (LoopState._root state')
             loop state'
     (`finally` cleanup)
-      $ loop (HandleInput.loopState0 root initialPath)
+      $ loop (LoopState.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
@@ -343,17 +353,26 @@ type P = P.Parsec () Text
 stanzas :: P [Stanza]
 stanzas = P.many (fenced <|> unfenced)
 
-ucmCommand :: P UcmCommand
-ucmCommand = do
-  P.lookAhead (word ".")
-  path <- P.takeWhile1P Nothing (/= '>')
-  void $ word ">"
-  line <- P.takeWhileP Nothing (/= '\n') <* spaces
-  path <- case Path.parsePath' (Text.unpack path) of
-    Right (Path.unPath' -> Left abs) -> pure abs
-    Right _ -> fail "expected absolute path"
-    Left e -> fail e
-  pure $ UcmCommand path line
+ucmLine :: P UcmLine
+ucmLine = ucmCommand <|> ucmComment
+  where
+    ucmCommand :: P UcmLine
+    ucmCommand = do
+      P.lookAhead (word ".")
+      path <- P.takeWhile1P Nothing (/= '>')
+      void $ word ">"
+      line <- P.takeWhileP Nothing (/= '\n') <* spaces
+      path <- case Path.parsePath' (Text.unpack path) of
+        Right (Path.unPath' -> Left abs) -> pure abs
+        Right _ -> fail "expected absolute path"
+        Left e -> fail e
+      pure $ UcmCommand path line
+
+    ucmComment :: P UcmLine
+    ucmComment = do
+      word "--"
+      line <- P.takeWhileP Nothing (/= '\n') <* spaces
+      pure $ UcmComment line
 
 fenced :: P Stanza
 fenced = do
@@ -364,7 +383,7 @@ fenced = do
       hide <- hidden
       err <- expectingError
       _ <- spaces
-      cmds <- many ucmCommand
+      cmds <- many ucmLine
       pure $ Ucm hide err cmds
     else if fenceType == "unison" then do
       -- todo: this has to be more interesting

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 
@@ -5,7 +6,7 @@ module Unison.Codebase.Causal.FoldHistory (FoldHistoryResult (..), foldHistoryUn
 
 import Unison.Prelude
 
-import Unison.Codebase.Causal ( Causal(..), RawHash )
+import Unison.Codebase.Causal (Causal(..), RawHash, pattern One, pattern Cons, pattern Merge)
 import Prelude hiding (tail, head)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set

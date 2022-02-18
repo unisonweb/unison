@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,19 +15,12 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
-import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
-import qualified Unison.Names as Names
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Referent as Referent
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
-import qualified Unison.UnisonFile.Names as UF
-import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
-import qualified Unison.Util.Relation as R
 import qualified Unison.Var as Var
 
 -- `oldRefNames` are the previously existing names for the old reference
@@ -51,6 +45,7 @@ data SlurpResult v = SlurpResult {
   , duplicates :: SlurpComponent v
   -- Not added to codebase due to the name already existing
   -- in the branch with a different definition.
+  -- I.e. an update is required but we're performing an add.
   , collisions :: SlurpComponent v
   -- Not added to codebase due to the name existing
   -- in the branch with a conflict (two or more definitions).
@@ -69,61 +64,13 @@ data SlurpResult v = SlurpResult {
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
--- Returns the set of constructor names for type names in the given `Set`.
-constructorsFor :: Var v => Set v -> UF.TypecheckedUnisonFile v Ann -> Set v
-constructorsFor types uf = let
-  names = UF.typecheckedToNames uf
-  typesRefs = Set.unions $ Names.typesNamed names . Name.unsafeFromVar <$> toList types
-  ctorNames = R.filterRan isOkCtor (Names.terms names)
-  isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
-  isOkCtor _ = False
-  in Set.map Name.toVar $ R.dom ctorNames
-
--- Remove `removed` from the slurp result, and move any defns with transitive
--- dependencies on the removed component into `defsWithBlockedDependencies`.
--- Also removes `removed` from `extraDefinitions`.
-subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
-subtractComponent removed sr =
-  sr { adds = SC.difference (adds sr) (removed <> blocked)
-     , updates = SC.difference (updates sr) (removed <> blocked)
-     , defsWithBlockedDependencies = blocked
-     , extraDefinitions = SC.difference (extraDefinitions sr) blocked
-     }
-  where
-  -- for each v in adds, move to blocked if transitive dependency in removed
-  blocked = defsWithBlockedDependencies sr <>
-    SC.difference (blockedTerms <> blockedTypes) removed
-
-  uf = originalFile sr
-  constructorsFor v = case UF.lookupDecl v uf of
-    Nothing -> mempty
-    Just (_, e) -> Set.fromList . DD.constructorVars $ either DD.toDataDecl id e
-
-  blockedTypes = foldMap doType . SC.types $ adds sr <> updates sr where
-    -- include this type if it or any of its dependencies are removed
-    doType :: v -> SlurpComponent v
-    doType v =
-      if null (Set.intersection (SC.types removed) (SC.types (SC.closeWithDependencies uf vc)))
-         && null (Set.intersection (SC.terms removed) (constructorsFor v))
-      then mempty else vc
-      where vc = mempty { types = Set.singleton v }
-
-  blockedTerms = foldMap doTerm . SC.terms $ adds sr <> updates sr where
-    doTerm :: v -> SlurpComponent v
-    doTerm v =
-      if mempty == SC.intersection removed (SC.closeWithDependencies uf vc)
-      then mempty else vc
-      where vc = mempty { terms = Set.singleton v }
-
--- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
--- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
-disallowUpdates sr =
-  let sr2 = subtractComponent (updates sr) sr
-  in sr2 { collisions = collisions sr2 <> updates sr }
-
-isNonempty :: Ord v => SlurpResult v -> Bool
-isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
+hasAddsOrUpdates :: Ord v => SlurpResult v -> Bool
+hasAddsOrUpdates s =
+  -- We intentionally ignore constructors here since they are added as part of adding their
+  -- types.
+  let SC.SlurpComponent{terms=termAdds, types=typeAdds} = adds s
+      SC.SlurpComponent{terms=termUpdates, types=typeUpdates} = updates s
+   in not . null $ termAdds <> typeAdds <> termUpdates <> typeUpdates
 
 data Status =
   Add | Update | Duplicate | Collision | Conflicted |
@@ -240,7 +187,7 @@ pretty isPast ppe sr =
           : ((, Nothing) <$> aliases)
        where
         aliases = fmap (P.indentN 2) . aliasesMessage . Map.lookup v $ termAlias sr
-    ok _ _ sc | SC.isEmpty sc = mempty
+    ok _ _ sc | null (SC.terms sc) && null (SC.types sc) = mempty
     ok past present sc =
       let header = goodIcon <> P.indentNAfterNewline
             2
@@ -318,7 +265,7 @@ pretty isPast ppe sr =
   in
     P.sepNonEmpty
       "\n\n"
-      [ if SC.isEmpty (duplicates sr)
+      [ if null (terms (duplicates sr)) && null (types (duplicates sr))
         then mempty
         else
           (if isPast
@@ -350,16 +297,20 @@ isOk SlurpResult {..} =
 
 isAllDuplicates :: Ord v => SlurpResult v -> Bool
 isAllDuplicates SlurpResult {..} =
-  SC.isEmpty adds &&
-  SC.isEmpty updates &&
-  SC.isEmpty extraDefinitions &&
+  emptyIgnoringConstructors adds &&
+  emptyIgnoringConstructors updates &&
+  emptyIgnoringConstructors extraDefinitions &&
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
   Map.null typeAlias &&
   Map.null termAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
-  SC.isEmpty defsWithBlockedDependencies
+  emptyIgnoringConstructors defsWithBlockedDependencies
+    where
+      emptyIgnoringConstructors :: SlurpComponent v -> Bool
+      emptyIgnoringConstructors SlurpComponent{types, terms} =
+        null types && null terms
 
 -- stack repl
 --

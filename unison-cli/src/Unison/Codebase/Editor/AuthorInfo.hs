@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.AuthorInfo where
@@ -9,7 +10,9 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Prelude (MonadIO, Word8)
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Reference as Reference
+import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Term (Term)
 import qualified Unison.Term as Term
 import Unison.Type (Type)
@@ -27,10 +30,10 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
     createAuthorInfo' :: [Word8] -> AuthorInfo v a
     createAuthorInfo' bytes =
       let [(guidRef, guidTerm)] =
-            hashAndWrangle "guid" $
+            hashAndWrangle "guid" guidType $
               Term.app
                 a
-                (Term.constructor a guidTypeRef 0)
+                (Term.constructor a (ConstructorReference guidTypeRef 0))
                 ( Term.app
                     a
                     (Term.builtin a "Bytes.fromList")
@@ -38,17 +41,17 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
                 )
 
           [(authorRef, authorTerm)] =
-            hashAndWrangle "author" $
+            hashAndWrangle "author" authorType $
               Term.apps
-                (Term.constructor a authorTypeRef 0)
+                (Term.constructor a (ConstructorReference authorTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
                   (a, Term.text a t)
                 ]
 
           [(chRef, chTerm)] =
-            hashAndWrangle "copyrightHolder" $
+            hashAndWrangle "copyrightHolder" chType $
               Term.apps
-                (Term.constructor a chTypeRef 0)
+                (Term.constructor a (ConstructorReference chTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
                   (a, Term.text a t)
                 ]
@@ -56,14 +59,13 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
             (guidRef, guidTerm, guidType)
             (authorRef, authorTerm, authorType)
             (chRef, chTerm, chType)
-    hashAndWrangle v tm =
-      Foldable.toList $
+    hashAndWrangle :: Text
+                  -> Type v a -> Term v a
+                  -> [(Reference.Id, Term v a)]
+    hashAndWrangle v typ tm =
+      Foldable.toList $ fmap (\(id,tm,_tp) -> (id,tm)) $
         H.hashTermComponents
-          (Map.fromList [(Var.named v, tm)])
-    (chType, chTypeRef) = (Type.ref a chTypeRef, unsafeParse copyrightHolderHash)
-    (authorType, authorTypeRef) = (Type.ref a authorTypeRef, unsafeParse authorHash)
-    (guidType, guidTypeRef) = (Type.ref a guidTypeRef, unsafeParse guidHash)
-    unsafeParse = either error id . Reference.fromText
-    guidHash = "#rc29vdqe019p56kupcgkg07fkib86r3oooatbmsgfbdsgpmjhsh00l307iuts3r973q5etb61vbjkes42b6adb3mkorusvmudiuorno"
-    copyrightHolderHash = "#aohndsu9bl844vspujp142j5aijv86rifmnrbnjvpv3h3f3aekn45rj5s1uf1ucrrtm5urbc5d1ajtm7lqq1tr8lkgv5fathp6arqug"
-    authorHash = "#5hi1vvs5t1gmu6vn1kpqmgksou8ie872j31gc294lgqks71di6gm3d4ugnrr4mq8ov0ap1e20lq099d5g6jjf9c6cbp361m9r9n5g50"
+          (Map.singleton (Var.named v) (tm, typ))
+    (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
+    (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)
+    (guidType, guidTypeRef) = (Type.ref a guidTypeRef, IOSource.guidRef)

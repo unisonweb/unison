@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -20,6 +21,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import Unison.Builtin.Decls                   (pattern TupleType')
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -524,6 +526,15 @@ renderTypeError e env src = case e of
            [Type.var () (Var.named "e"), Type.var () (Var.named "a") ])
         (Type.var () (Var.named "o"))
 
+  Other (C.cause -> C.PatternArityMismatch loc typ num) ->
+    Pr.lines [
+      Pr.wrap "This pattern has the wrong number of arguments", "",
+      annotatedAsErrorSite src loc,
+      "The constructor has type ", "",
+      Pr.indentN 2 (stylePretty Type1 (Pr.group (renderType' env typ))), "",
+      "but you supplied " <> (Pr.shown num) <> " arguments."
+     ]
+
   Other note -> mconcat
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
@@ -587,52 +598,53 @@ renderTypeError e env src = case e of
     , "    "
     , simpleCause (C.cause note)
     , "\n"
-    , case toList (C.path note) of
-      [] -> "  path: (empty)\n"
-      l  -> "  path:\n" <> mconcat (simplePath <$> l)
+-- This can be very slow to print in large file. This was taking several minutes to print out the path in a file when the error occurred deep in the file after many other let bindings - stew
+--    , case toList (C.path note) of
+--      [] -> "  path: (empty)\n"
+--      l  -> "  path:\n" <> mconcat (simplePath <$> l)
     ]
-  simplePath :: C.PathElement v loc -> Pretty ColorText
-  simplePath e = "    " <> simplePath' e <> "\n"
-  simplePath' :: C.PathElement v loc -> Pretty ColorText
-  simplePath' = \case
-    C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
-    C.InEquate t1 t2 ->
-      "InEquate t1=" <> renderType' env t1 <>
-      ", t2=" <> renderType' env t2
-    C.InSubtype t1 t2 ->
-      "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
-    C.InCheck e t ->
-      "InCheck e=" <> renderTerm env e <> "," <> " t=" <> renderType' env t
-    C.InInstantiateL v t ->
-      "InInstantiateL v=" <> renderVar v <> ", t=" <> renderType' env t
-    C.InInstantiateR t v ->
-      "InInstantiateR t=" <> renderType' env t <> " v=" <> renderVar v
-    C.InSynthesizeApp t e n ->
-      "InSynthesizeApp t="
-        <> renderType' env t
-        <> ", e="
-        <> renderTerm env e
-        <> ", n="
-        <> fromString (show n)
-    C.InFunctionCall vs f ft es ->
-      "InFunctionCall vs=["
-        <> commas renderVar vs
-        <> "]"
-        <> ", f="
-        <> renderTerm env f
-        <> ", ft="
-        <> renderType' env ft
-        <> ", es=["
-        <> commas (renderTerm env) es
-        <> "]"
-    C.InIfCond        -> "InIfCond"
-    C.InIfBody loc    -> "InIfBody thenBody=" <> annotatedToEnglish loc
-    C.InAndApp        -> "InAndApp"
-    C.InOrApp         -> "InOrApp"
-    C.InVectorApp loc -> "InVectorApp firstTerm=" <> annotatedToEnglish loc
-    C.InMatch     loc -> "InMatch firstBody=" <> annotatedToEnglish loc
-    C.InMatchGuard    -> "InMatchGuard"
-    C.InMatchBody     -> "InMatchBody"
+--   simplePath :: C.PathElement v loc -> Pretty ColorText
+--   simplePath e = "    " <> simplePath' e <> "\n"
+--   simplePath' :: C.PathElement v loc -> Pretty ColorText
+--   simplePath' = \case
+--     C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
+--     C.InEquate t1 t2 ->
+--       "InEquate t1=" <> renderType' env t1 <>
+--       ", t2=" <> renderType' env t2
+--     C.InSubtype t1 t2 ->
+--       "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
+--     C.InCheck e t ->
+--       "InCheck e=" <> renderTerm env e <> "," <> " t=" <> renderType' env t
+--     C.InInstantiateL v t ->
+--       "InInstantiateL v=" <> renderVar v <> ", t=" <> renderType' env t
+--     C.InInstantiateR t v ->
+--       "InInstantiateR t=" <> renderType' env t <> " v=" <> renderVar v
+--     C.InSynthesizeApp t e n ->
+--       "InSynthesizeApp t="
+--         <> renderType' env t
+--         <> ", e="
+--         <> renderTerm env e
+--         <> ", n="
+--         <> fromString (show n)
+--     C.InFunctionCall vs f ft es ->
+--       "InFunctionCall vs=["
+--         <> commas renderVar vs
+--         <> "]"
+--         <> ", f="
+--         <> renderTerm env f
+--         <> ", ft="
+--         <> renderType' env ft
+--         <> ", es=["
+--         <> commas (renderTerm env) es
+--         <> "]"
+--     C.InIfCond        -> "InIfCond"
+--     C.InIfBody loc    -> "InIfBody thenBody=" <> annotatedToEnglish loc
+--     C.InAndApp        -> "InAndApp"
+--     C.InOrApp         -> "InOrApp"
+--     C.InVectorApp loc -> "InVectorApp firstTerm=" <> annotatedToEnglish loc
+--     C.InMatch     loc -> "InMatch firstBody=" <> annotatedToEnglish loc
+--     C.InMatchGuard    -> "InMatchGuard"
+--     C.InMatchBody     -> "InMatchBody"
   simpleCause :: C.Cause v loc -> Pretty ColorText
   simpleCause = \case
     C.TypeMismatch c ->
@@ -673,14 +685,14 @@ renderTypeError e env src = case e of
       , "}\n"
       , renderContext env c
       ]
-    C.EffectConstructorWrongArgCount e a r cid -> mconcat
+    C.EffectConstructorWrongArgCount e a r -> mconcat
       [ "EffectConstructorWrongArgCount:"
       , "  expected="
       , (fromString . show) e
       , ", actual="
       , (fromString . show) a
       , ", reference="
-      , showConstructor env r cid
+      , showConstructor env r
       ]
     C.MalformedEffectBind ctorType ctorResult es -> mconcat
       [ "MalformedEffectBind: "
@@ -746,7 +758,7 @@ renderCompilerBug env _src bug = mconcat $ case bug of
     , "  reerence = "
     , showTypeRef env rf
     ]
-  C.UnknownConstructor sort rf i _decl ->
+  C.UnknownConstructor sort (ConstructorReference rf i) _decl ->
     [ "UnknownConstructor:\n"
     , case sort of
         C.Data -> "  data type\n"
@@ -913,9 +925,9 @@ showTypeRef :: IsString s => Env -> R.Reference -> s
 showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
-showConstructor :: IsString s => Env -> R.Reference -> Int -> s
-showConstructor env r cid = fromString . HQ.toString $
-  PPE.patternName env r cid
+showConstructor :: IsString s => Env -> ConstructorReference -> s
+showConstructor env r = fromString . HQ.toString $
+  PPE.patternName env r
 
 styleInOverallType
   :: (Var v, Annotated a, Eq a)
@@ -1049,11 +1061,17 @@ prettyParseError s = \case
         excerpt,
         "Here's a few examples of valid syntax: " <>
         style Code "abba1', snake_case, Foo.zoink!, 🌻" ]
+      L.ReservedWordyId _id -> Pr.lines [
+        "The identifier used here isn't allowed to be a reserved keyword: ", "",
+        excerpt ]
       L.InvalidSymbolyId _id -> Pr.lines [
         "This infix identifier isn't valid syntax: ", "",
         excerpt,
         "Here's a few valid examples: " <>
         style Code "++, Float./, `List.map`" ]
+      L.ReservedSymbolyId _id -> Pr.lines [
+        "This identifier is reserved by Unison and can't be used as an operator: ", "",
+        excerpt ]
       L.InvalidBytesLiteral bs -> Pr.lines [
         "This bytes literal isn't valid syntax: " <> style ErrorSite (fromString bs), "",
         excerpt,
@@ -1277,15 +1295,23 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
-  go Parser.EmptyMatch = mconcat
-    ["I expected some patterns after a "
-    , style ErrorSite "match"
-    , "/"
-    , style ErrorSite "with"
-    , " but I didn't find any."
+  go (Parser.EmptyMatch tok) =
+    Pr.indentN 2 . Pr.callout "😶" $ Pr.lines
+    [ Pr.wrap ( "I expected some patterns after a "
+              <> style ErrorSite "match"
+              <> "/"
+              <> style ErrorSite "with"
+              <> " but I didn't find any."
+              )
+    , ""
+    , tokenAsErrorSite s tok
     ]
-  go Parser.EmptyWatch =
-    "I expected a non-empty watch expression and not just \">\""
+
+  go (Parser.EmptyWatch tok) =
+    Pr.lines [ "I expected a non-empty watch expression and not just \">\""
+             , ""
+             , annotatedAsErrorSite s tok
+             ]
   go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
   go (Parser.UnknownId               tok referents references) = Pr.lines

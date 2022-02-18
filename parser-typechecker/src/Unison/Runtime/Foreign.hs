@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language BangPatterns #-}
 {-# language PatternGuards #-}
@@ -39,25 +40,43 @@ data Foreign where
 promote :: (a -> a -> r) -> b -> c -> r
 promote (~~) x y = unsafeCoerce x ~~ unsafeCoerce y
 
+tylEq :: Reference -> Reference -> Bool
+tylEq r l = r == l
+{-# noinline tylEq #-}
+
+tmlEq :: Referent -> Referent -> Bool
+tmlEq r l = r == l
+{-# noinline tmlEq #-}
+
+tylCmp :: Reference -> Reference -> Ordering
+tylCmp r l = compare r l
+{-# noinline tylCmp #-}
+
+tmlCmp :: Referent -> Referent -> Ordering
+tmlCmp r l = compare r l
+{-# noinline tmlCmp #-}
+
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
   | r == Ty.textRef = Just $ promote ((==) @Text)
-  | r == Ty.termLinkRef = Just $ promote ((==) @Referent)
-  | r == Ty.typeLinkRef = Just $ promote ((==) @Reference)
+  | r == Ty.termLinkRef = Just $ promote tmlEq
+  | r == Ty.typeLinkRef = Just $ promote tylEq
   | r == Ty.bytesRef = Just $ promote ((==) @Bytes)
   -- Note: MVar equality is just reference equality, so it shouldn't
   -- matter what type the MVar holds.
   | r == Ty.mvarRef = Just $ promote ((==) @(MVar ()))
   -- Ditto
   | r == Ty.refRef = Just $ promote ((==) @(IORef ()))
+  | r == Ty.threadIdRef = Just $ promote ((==) @ThreadId)
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
 ref2cmp r
   | r == Ty.textRef = Just $ promote (compare @Text)
-  | r == Ty.termLinkRef = Just $ promote (compare @Referent)
-  | r == Ty.typeLinkRef = Just $ promote (compare @Reference)
+  | r == Ty.termLinkRef = Just $ promote tmlCmp
+  | r == Ty.typeLinkRef = Just $ promote tylCmp
   | r == Ty.bytesRef = Just $ promote (compare @Bytes)
+  | r == Ty.threadIdRef = Just $ promote (compare @ThreadId)
   | otherwise = Nothing
 
 instance Eq Foreign where

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -217,8 +218,7 @@ putFramedArray put (toList -> as) = do
 getFramedArray :: MonadGet m => m a -> m (Vector a)
 getFramedArray getA = do
   offsets :: [Int] <- getList getVarInt
-  _end <- getVarInt @_ @Int
-  let count = length offsets
+  let count = length offsets - 1
   Vector.replicateM count getA
 
 -- | Look up a 0-based index in a framed array, O(num array elements),

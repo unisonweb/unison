@@ -10,12 +10,15 @@ flags:
 ghc-options: -Wall
 
 dependencies:
+  - semialign
+  - these
   - ListLike
   - async
   - base
   - bytestring
   - configurator
   - containers >= 0.6.3
+  - nonempty-containers
   - cryptonite
   - directory
   - errors
@@ -25,6 +28,7 @@ dependencies:
   - lens
   - megaparsec >= 5.0.0 && < 7.0.0
   - mtl
+  - transformers
   - open-browser
   - random >= 1.2.0
   - regex-tdfa
@@ -40,6 +44,9 @@ dependencies:
 
 library:
   source-dirs: src
+  when:
+    - condition: '!os(windows)'
+      dependencies: unix
 
 tests:
   tests:
@@ -63,9 +70,6 @@ executables:
       - template-haskell
       - temporary
       - unison-cli
-    when:
-      - condition: '!os(windows)'
-        dependencies: unix
 
   transcripts:
     source-dirs: transcripts
@@ -97,6 +101,8 @@ default-extensions:
   - BangPatterns
   - BlockArguments
   - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
   - DeriveGeneric
   - DerivingStrategies
   - DoAndIfThenElse

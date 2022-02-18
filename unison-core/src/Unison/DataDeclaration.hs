@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
@@ -20,6 +21,7 @@ module Unison.DataDeclaration
     constructorType,
     constructorTypes,
     constructorVars,
+    constructorIds,
     declConstructorReferents,
     declDependencies,
     declFields,
@@ -32,18 +34,22 @@ module Unison.DataDeclaration
     withEffectDeclM,
     amap,
     updateDependencies,
+
+    constructors_,
+    asDataDecl_,
   )
 where
 
 import Unison.Prelude
 
-import Control.Lens (over, _3)
+import Control.Lens (over, _3, Iso', iso, Lens', lens)
 import Control.Monad.State (evalState)
 import Data.Bifunctor (bimap, first, second)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Name as Name
@@ -89,9 +95,18 @@ data DataDeclaration v a = DataDeclaration {
   constructors' :: [(a, v, Type v a)]
 } deriving (Eq, Show, Functor)
 
+constructors_ :: Lens' (DataDeclaration v a) [(a, v, Type v a)]
+constructors_ = lens getter setter
+  where
+    getter = constructors'
+    setter dd ctors = dd{constructors'=ctors}
+
 newtype EffectDeclaration v a = EffectDeclaration {
   toDataDecl :: DataDeclaration v a
 } deriving (Eq,Show,Functor)
+
+asDataDecl_ :: Iso' (EffectDeclaration v a) (DataDeclaration v a)
+asDataDecl_ = iso toDataDecl EffectDeclaration
 
 withEffectDeclM :: Functor f
                 => (DataDeclaration v a -> f (DataDeclaration v' a'))
@@ -120,7 +135,7 @@ generateRecordAccessors fields typename typ =
       (Term.var ann argname)
       [Term.MatchCase pat Nothing rhs]
       where
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = [ if j == i then Pattern.Var ann else Pattern.Unbound ann
               | (_, j) <- fields `zip` [0..]]
       rhs = ABT.abs' ann fname (Term.var ann fname)
@@ -131,10 +146,10 @@ generateRecordAccessors fields typename typ =
       where
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields)) fname
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = [ if j == i then Pattern.Unbound ann else Pattern.Var ann
               | (_, j) <- fields `zip` [0..]]
-      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
                   [ f | ((f, _), j) <- fields `zip` [0..], j /= i ]
       vargs = [ if j == i then Term.var ann fname' else Term.var ann v
               | ((v, _), j) <- fields `zip` [0..]]
@@ -146,9 +161,9 @@ generateRecordAccessors fields typename typ =
       fname' = Var.named . Var.name $
                Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields))
                            (Var.named "f")
-      pat = Pattern.Constructor ann typ 0 cargs
+      pat = Pattern.Constructor ann (ConstructorReference typ 0) cargs
       cargs = replicate (length fields) $ Pattern.Var ann
-      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann (ConstructorReference typ 0) `Term.apps'` vargs)
                   (fst <$> fields)
       vargs = [ if j == i
                 then Term.apps' (Term.var ann fname') [Term.var ann v]
@@ -168,7 +183,7 @@ declFields = bimap cf cf . first toDataDecl
   fields _ = 0
 
 typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
-typeOfConstructor dd i = constructorTypes dd `atMay` i
+typeOfConstructor dd i = constructorTypes dd `atMay` fromIntegral i
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
@@ -184,11 +199,11 @@ constructorNames dd = Var.name <$> constructorVars dd
 -- reliable way of doing that. —AI
 declConstructorReferents :: Reference.Id -> Decl v a -> [Referent.Id]
 declConstructorReferents rid decl =
-  [ Referent'.Con' rid i ct | i <- constructorIds (asDataDecl decl) ]
+  [ Referent'.Con' (ConstructorReference rid i) ct | i <- constructorIds (asDataDecl decl) ]
   where ct = constructorType decl
 
 constructorIds :: DataDeclaration v a -> [ConstructorId]
-constructorIds dd = [0 .. length (constructors dd) - 1]
+constructorIds dd = [0 .. fromIntegral $ length (constructors dd) - 1]
 
 -- | All variables mentioned in the given data declaration.
 -- Includes both term and type variables, both free and bound.
@@ -247,20 +262,20 @@ updateDependencies typeUpdates decl = back $ dataDecl
 -- have been replaced with the corresponding output `v`s in the output `Decl`s,
 -- which are fresh with respect to all input Decls.
 unhashComponent
-  :: forall v a. Var v => Map Reference (Decl v a) -> Map Reference (v, Decl v a)
+  :: forall v a. Var v => Map Reference.Id (Decl v a) -> Map Reference.Id (v, Decl v a)
 unhashComponent m
   = let
       usedVars :: Set v
       usedVars = foldMap allVars' m
       -- We assign fresh names to each reference/decl pair.
       -- We haven't modified the decls yet, but we will, further below.
-      m' :: Map Reference (v, Decl v a)
+      m' :: Map Reference.Id (v, Decl v a)
       m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-        assignVar r d = (,d) <$> ABT.freshenS (Var.refNamed r)
+        assignVar r d = (,d) <$> ABT.freshenS (Var.refIdNamed r)
       unhash1 :: ABT.Term Type.F v a -> ABT.Term Type.F v a
       unhash1  = ABT.rebuildUp' go
        where
-        go e@(Type.Ref' r) = case Map.lookup r m' of
+        go e@(Type.Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
           Nothing -> e
           Just (v,_)  -> Type.var (ABT.annotation e) v
         go e = e
@@ -275,4 +290,3 @@ unhashComponent m
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)
 amap f (Right d) = Right (f <$> d)
-

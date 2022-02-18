@@ -1,27 +1,27 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 
-{-| Provides Globbing for selecting types, terms and namespaces using wildcards.  -}
+-- | Provides Globbing for selecting types, terms and namespaces using wildcards.
 module Unison.CommandLine.Globbing
-  ( expandGlobs
-  , TargetType(..)
-  ) where
-import Unison.NameSegment (NameSegment (NameSegment))
-import Unison.Codebase.Branch (Branch0)
-import qualified Unison.Codebase.Path as Path
-import Data.Text (Text)
+  ( expandGlobs,
+    TargetType (..),
+  )
+where
+
 import Control.Lens as Lens hiding (noneOf)
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.NameSegment as NameSegment
-import qualified Data.Text as Text
-import qualified Unison.Util.Star3 as Star3
-import qualified Unison.Util.Relation as Relation
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Unison.Util.Monoid as Monoid
 import qualified Data.Either as Either
-import Control.Monad (when)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Unison.Codebase.Branch (Branch0)
+import qualified Unison.Codebase.Branch as Branch
+import qualified Unison.Codebase.Path as Path
+import Unison.NameSegment (NameSegment (NameSegment))
+import qualified Unison.NameSegment as NameSegment
+import Unison.Prelude
+import qualified Unison.Util.Monoid as Monoid
+import qualified Unison.Util.Relation as Relation
+import qualified Unison.Util.Star3 as Star3
 
 -- | Possible targets which a glob may select.
 data TargetType
@@ -36,9 +36,10 @@ type GlobPath = [Either NameSegment GlobArg]
 -- | Represents a name segment containing a glob pattern
 --   e.g. start?end -> GlobArg "start" "end"
 data GlobArg = GlobArg
-    { namespacePrefix :: Text
-    , namespaceSuffix :: Text
-    } deriving (Show)
+  { namespacePrefix :: Text,
+    namespaceSuffix :: Text
+  }
+  deriving (Show)
 
 -- | Constructs a namespace "matcher" from a 'GlobArg'
 globPredicate :: Either NameSegment GlobArg -> (NameSegment -> Bool)
@@ -60,8 +61,8 @@ expandGlobToNameSegments targets branch globPath =
     [] -> []
     -- If we're at the end of the path, add any targets which match.
     [segment] ->
-           Monoid.whenM (Set.member Term targets)      matchingTerms
-        <> Monoid.whenM (Set.member Type targets)      matchingTypes
+      Monoid.whenM (Set.member Term targets) matchingTerms
+        <> Monoid.whenM (Set.member Type targets) matchingTypes
         <> Monoid.whenM (Set.member Namespace targets) matchingNamespaces
       where
         predicate :: NameSegment -> Bool
@@ -73,25 +74,23 @@ expandGlobToNameSegments targets branch globPath =
         matchingNamesInStar :: (NameSegment -> Bool) -> Branch.Star a NameSegment -> [[NameSegment]]
         matchingNamesInStar predicate star =
           star & Star3.d1
-               & Relation.ran
-               & Set.toList
-               & filter predicate
-               & fmap (pure @[]) -- Embed each name segment into a path.
-    -- If we have multiple remaining segments, descend into any children matching the current
-    -- segment, then keep matching on the remainder of the path.
-    (segment:rest) -> recursiveMatches
+            & Relation.ran
+            & Set.toList
+            & filter predicate
+            & fmap (pure @[]) -- Embed each name segment into a path.
+            -- If we have multiple remaining segments, descend into any children matching the current
+            -- segment, then keep matching on the remainder of the path.
+    (segment : rest) -> recursiveMatches
       where
         nextBranches :: [(NameSegment, (Branch0 m))]
         nextBranches = branch ^@.. matchingChildBranches (globPredicate segment)
         recursiveMatches :: [[NameSegment]]
         recursiveMatches =
-          foldMap (\(ns, b) -> (ns:) <$> expandGlobToNameSegments targets b rest) nextBranches
+          foldMap (\(ns, b) -> (ns :) <$> expandGlobToNameSegments targets b rest) nextBranches
 
 -- | Find all child branches whose name matches a predicate.
 matchingChildBranches :: (NameSegment -> Bool) -> IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
 matchingChildBranches keyPredicate = Branch.children0 . indices keyPredicate
-
-data GlobFailure = NoGlobs | NoTargets
 
 -- | Expand a single glob pattern into all matching targets of the specified types.
 expandGlobs ::
@@ -106,11 +105,10 @@ expandGlobs ::
   -- | Nothing if arg was not a glob.
   -- otherwise, fully expanded, absolute paths. E.g. [".base.List.map"]
   Maybe [String]
-expandGlobs targets rootBranch currentPath s = either recover Just $ do
+expandGlobs targets rootBranch currentPath s = do
+  guard (not . null $ targets)
   let (isAbsolute, globPath) = globbedPathParser (Text.pack s)
-  -- If we don't have any actual globs, we can fail to fall back to the original argument.
-  when (not . any Either.isRight $ globPath) (Left NoGlobs)
-  when (null targets) (Left NoTargets)
+  guard (any Either.isRight $ globPath)
   let currentBranch :: Branch0 m
       currentBranch
         | isAbsolute = rootBranch
@@ -120,10 +118,6 @@ expandGlobs targets rootBranch currentPath s = either recover Just $ do
         | isAbsolute = (Path.Absolute . Path.unrelative) <$> paths
         | otherwise = Path.resolve currentPath <$> paths
   pure (Path.convert <$> relocatedPaths)
-  where
-    recover = \case
-      NoGlobs -> Nothing
-      NoTargets -> Just []
 
 -- | Parses a single name segment into a GlobArg or a bare segment according to whether
 -- there's a glob.
@@ -132,11 +126,11 @@ expandGlobs targets rootBranch currentPath s = either recover Just $ do
 --   "to?" -> Left (GlobArg "to" "")
 -- We unintuitively use '?' for glob patterns right now since they're not valid in names.
 globbedPathParser :: Text -> (Bool, GlobPath)
-globbedPathParser txt = 
-  let (isAbsolute, segments) = 
+globbedPathParser txt =
+  let (isAbsolute, segments) =
         case Text.split (== '.') txt of
           -- An initial '.' creates an empty split
-          ("":segments) -> (True, segments)
+          ("" : segments) -> (True, segments)
           (segments) -> (False, segments)
    in (isAbsolute, fmap globArgParser segments)
 

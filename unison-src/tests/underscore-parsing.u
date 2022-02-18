@@ -1,7 +1,3 @@
 _prefix = 1
 prefix_ _x = _x
 _prefix_ _ = 2
-
-_x `_infix` y_ = (_x, y_)
-x_ `infix_` _y = (x_, _y)
-_ `_infix_` _ = ()

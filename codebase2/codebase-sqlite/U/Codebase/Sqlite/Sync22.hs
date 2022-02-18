@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -360,22 +361,27 @@ trySync tCache hCache oCache cCache = \case
       srcParents <- runSrc $ Q.loadCausalParents chId
       traverse syncCausal srcParents
 
+    -- Sync any watches of the given kinds to the dest if and only if watches of those kinds
+    -- exist in the src.
     syncWatch :: WK.WatchKind -> Sqlite.Reference.IdH -> m (TrySyncResult Entity)
     syncWatch wk r | debug && trace ("Sync22.syncWatch " ++ show wk ++ " " ++ show r) False = undefined
     syncWatch wk r = do
-      r' <- traverse syncHashLiteral r
-      doneKinds <- runDest (Q.loadWatchKindsByReference r')
-      if (notElem wk doneKinds) then do
-        runSrc (Q.loadWatch wk r) >>= traverse \blob -> do
-          TL.SyncWatchResult li body <-
-            either (throwError . DecodeError ErrWatchResult blob) pure $ runGetS S.decomposeWatchFormat blob
-          li' <- bitraverse syncTextLiteral syncHashLiteral li
-          when debug $ traceM $ "LocalIds for Source watch result " ++ show r ++ ": " ++ show li
-          when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show li'
-          let blob' = runPutS $ S.recomposeWatchFormat (TL.SyncWatchResult li' body)
-          runDest (Q.saveWatch wk r' blob')
-        pure Sync.Done
-      else pure Sync.PreviouslyDone
+      runSrc (Q.loadWatch wk r) >>= \case
+        Nothing -> pure Sync.Done
+        Just blob -> do
+          r' <- traverse syncHashLiteral r
+          doneKinds <- runDest (Q.loadWatchKindsByReference r')
+          if (elem wk doneKinds)
+            then pure Sync.PreviouslyDone
+            else do
+              TL.SyncWatchResult li body <-
+                either (throwError . DecodeError ErrWatchResult blob) pure $ runGetS S.decomposeWatchFormat blob
+              li' <- bitraverse syncTextLiteral syncHashLiteral li
+              when debug $ traceM $ "LocalIds for Source watch result " ++ show r ++ ": " ++ show li
+              when debug $ traceM $ "LocalIds for Dest watch result " ++ show r' ++ ": " ++ show li'
+              let blob' = runPutS $ S.recomposeWatchFormat (TL.SyncWatchResult li' body)
+              runDest (Q.saveWatch wk r' blob')
+              pure Sync.Done
 
     syncSecondaryHashes oId oId' =
       runSrc (Q.hashIdWithVersionForObject oId) >>= traverse_ (go oId')

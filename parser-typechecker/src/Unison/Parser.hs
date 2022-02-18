@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -28,7 +29,6 @@ import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
--- import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
 import           Data.Typeable        (Proxy (..))
@@ -36,6 +36,7 @@ import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
+import Unison.ConstructorReference (ConstructorReference)
 import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
@@ -45,6 +46,7 @@ import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile.Error as UF
+import qualified U.Util.Base32Hex as Base32Hex
 import Unison.Util.Bytes              (Bytes)
 import Unison.Name as Name
 import Unison.NamesWithHistory (NamesWithHistory)
@@ -99,21 +101,21 @@ uniqueName :: Var v => Int -> P v Text
 uniqueName lenInBase32Hex = do
   UniqueName mkName <- asks uniqueNames
   pos <- L.start <$> P.lookAhead anyToken
-  let none = Hash.base32Hex . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
+  let none = Base32Hex.toText . Base32Hex.fromByteString . encodeUtf8 . Text.pack $ show pos
   pure . fromMaybe none $ mkName pos lenInBase32Hex
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
-  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set (Reference, Int))
+  | UnknownAbilityConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
+  | UnknownDataConstructor (L.Token (HQ.HashQualified Name)) (Set ConstructorReference)
   | UnknownTerm (L.Token (HQ.HashQualified Name)) (Set Referent)
   | UnknownType (L.Token (HQ.HashQualified Name)) (Set Reference)
   | UnknownId (L.Token (HQ.HashQualified Name)) (Set Referent) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
-  | EmptyMatch
-  | EmptyWatch
+  | EmptyMatch (L.Token ())
+  | EmptyWatch Ann
   | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
   | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
@@ -323,13 +325,9 @@ symbolyIdString = queryToken $ \case
   L.SymbolyId s Nothing -> Just s
   _                     -> Nothing
 
--- Parse an infix id e.g. + or `cons`, discarding any hash
+-- Parse an infix id e.g. + or Docs.++, discarding any hash
 infixDefinitionName :: Var v => P v (L.Token v)
-infixDefinitionName = symbolyDefinitionName <|> backticked where
-  backticked :: Var v => P v (L.Token v)
-  backticked = queryToken $ \case
-    L.Backticks s _ -> Just $ Var.nameds s
-    _               -> Nothing
+infixDefinitionName = symbolyDefinitionName
 
 -- Parse a symboly ID like >>= or &&, discarding any hash
 symbolyDefinitionName :: Var v => P v (L.Token v)
@@ -342,7 +340,7 @@ parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
 
 hqPrefixId, hqInfixId :: Ord v => P v (L.Token (HQ.HashQualified Name))
 hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
-hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
+hqInfixId = hqSymbolyId_
 
 -- Parse a hash-qualified alphanumeric identifier
 hqWordyId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
@@ -360,13 +358,6 @@ hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromString s)
-  _ -> Nothing
-
-hqBacktickedId_ :: Ord v => P v (L.Token (HQ.HashQualified Name))
-hqBacktickedId_ = queryToken $ \case
-  L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
-  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.unsafeFromString s) h
-  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.unsafeFromString s)
   _ -> Nothing
 
 -- Parse a reserved word

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -30,10 +31,10 @@ bindNames keepFree ns0 t = let
   ns = Names.NamesWithHistory ns0 mempty
   fvs = ABT.freeVarOccurrences keepFree t
   rs = [(v, a, Names.lookupHQType (Name.convert $ Name.unsafeFromVar v) ns) | (v,a) <- fvs ]
-  ok (v, a, rs) = 
-    if Set.size rs == 1 
+  ok (v, a, rs) =
+    if Set.size rs == 1
        then pure (v, Set.findMin rs)
-       else 
+       else
          case NES.nonEmptySet rs of
            Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
            Just rs' -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns0 rs')))

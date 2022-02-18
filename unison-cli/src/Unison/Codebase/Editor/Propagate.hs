@@ -1,11 +1,13 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Editor.Propagate (propagateAndApply) where
+module Unison.Codebase.Editor.Propagate (computeFrontier, propagateAndApply) where
 
 import           Control.Error.Util             ( hush )
 import           Control.Lens
@@ -21,8 +23,10 @@ import           Unison.Codebase.Editor.Command
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
+import Unison.ConstructorReference (GConstructorReference(..))
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.DataDeclaration        as Decl
+import Unison.Hash (Hash)
 import qualified Unison.Name                   as Name
 import           Unison.Names                  ( Names )
 import qualified Unison.Names                 as Names
@@ -37,6 +41,7 @@ import           Unison.Term                    ( Term )
 import           Unison.Util.Free               ( Free
                                                 , eval
                                                 )
+import           Unison.Util.Monoid             ( foldMapM )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  ( transitiveClosure )
 import           Unison.Var                     ( Var )
@@ -54,6 +59,7 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.WatchKind (WatchKind)
+import Unison.NameSegment (NameSegment)
 
 type F m i v = Free (Command m i v)
 
@@ -123,8 +129,8 @@ propagateCtorMapping oldComponent newComponent = let
     , (newC, (_,newName,_)) <- zip [0 ..] $ Decl.constructors' newDecl
     , ol'Name == newName || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
     , oldR /= newR
-    , let oldCon = Referent.Con oldR oldC t
-          newCon = Referent.Con newR newC t
+    , let oldCon = Referent.Con (ConstructorReference oldR oldC) t
+          newCon = Referent.Con (ConstructorReference newR newC) t
     ]
   in if debugMode then traceShow ("constructorMappings", r) r else r
 
@@ -182,8 +188,8 @@ genInitialCtorMapping rootNames initialTypeReplacements = do
       , let t = Decl.constructorType oldDecl
       , (oldC, _) <- zip [0 ..] $ Decl.constructors' (Decl.asDataDecl oldDecl)
       , (newC, _) <- zip [0 ..] $ Decl.constructors' newDecl
-      , let oldCon = Referent.Con oldR oldC t
-            newCon = Referent.Con newR newC t
+      , let oldCon = Referent.Con (ConstructorReference oldR oldC) t
+            newCon = Referent.Con (ConstructorReference newR newC) t
       , ctorNamesMatch oldCon newCon
         || (isSingleton (Decl.asDataDecl oldDecl) && isSingleton newDecl)
       , oldR /= newR
@@ -257,7 +263,7 @@ propagate rootNames patch b = case validatePatch patch of
         [] -> Referent.toString r
         n : _ -> show n
 
-    initialDirty <- R.dom <$> computeFrontier (eval . GetDependents) patch names0
+    initialDirty <- computeDirty (eval . GetDependents) patch (Names.contains names0)
 
     let initialTypeReplacements = Map.mapMaybe TypeEdit.toReference initialTypeEdits
     -- TODO: once patches can directly contain constructor replacements, this
@@ -305,12 +311,9 @@ propagate rootNames patch b = case validatePatch patch of
                 (Nothing    , seen') -> collectEdits es seen' todo
                 (Just edits', seen') -> do
                   -- plan to update the dependents of this component too
-                  dependents <-
-                    fmap Set.unions
-                    . traverse (eval . GetDependents)
-                    . toList
-                    . Reference.members
-                    $ Reference.componentFor r
+                  dependents <- case r of
+                    Reference.Builtin{} -> eval $ GetDependents r
+                    Reference.Derived h _i -> eval $ GetDependentsOfComponent h
                   let todo' = todo <> getOrdered dependents
                   collectEdits edits' seen' todo'
 
@@ -324,7 +327,7 @@ propagate rootNames patch b = case validatePatch patch of
               declMap = over _2 (either Decl.toDataDecl id) <$> componentMap'
               -- TODO: kind-check the new components
               hashedDecls = (fmap . fmap) (over _2 DerivedId)
-                          . Hashing.hashDecls
+                          . Hashing.hashDataDecls
                           $ view _2 <$> declMap
           hashedComponents' <- case hashedDecls of
             Left _ ->
@@ -460,6 +463,7 @@ propagate rootNames patch b = case validatePatch patch of
     :: Patch -> Maybe (Map Reference TermEdit, Map Reference TypeEdit)
   validatePatch p =
     (,) <$> R.toMap (Patch._termEdits p) <*> R.toMap (Patch._typeEdits p)
+
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.
   -- todo: Maybe this an others can be moved to HandleCommand, in the
@@ -471,27 +475,29 @@ propagate rootNames patch b = case validatePatch patch of
      . (Applicative m, Var v)
     => Reference
     -> F m i v (Map v (Reference, Term v _, Type v _))
-  unhashTermComponent ref = do
-    let component = Reference.members $ Reference.componentFor ref
-        termInfo
-          :: Reference -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
-        termInfo termRef = do
-          tpm <- eval $ LoadTypeOfTerm termRef
-          tp  <- maybe (error $ "Missing type for term " <> show termRef)
-                       pure
-                       tpm
-          case termRef of
-            Reference.DerivedId id -> do
-              mtm <- eval $ LoadTerm id
-              tm  <- maybe (error $ "Missing term with id " <> show id) pure mtm
-              pure $ Just (termRef, (tm, tp))
-            Reference.Builtin{} -> pure Nothing
-        unhash m =
-          let f (_oldTm, oldTyp) (v, newTm) = (v, newTm, oldTyp)
-              m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
-          in  Map.fromList
-                [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
-    unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
+  unhashTermComponent r = case Reference.toId r of
+    Nothing -> pure mempty
+    Just r -> do
+      unhashed <- unhashTermComponent' (Reference.idToHash r)
+      pure $ fmap (over _1 Reference.DerivedId) unhashed
+
+  unhashTermComponent'
+    :: forall m v
+      . (Applicative m, Var v)
+    => Hash
+    -> F m i v (Map v (Reference.Id, Term v _, Type v _))
+  unhashTermComponent' h =
+    eval (LoadTermComponentWithTypes h) <&> foldMap \termsWithTypes ->
+      unhash $ Map.fromList (Reference.componentFor h termsWithTypes)
+    where
+      unhash m =
+        -- this grabs the corresponding input map values (with types)
+        -- and arranges them with the newly unhashed terms.
+        let f (_oldTm, typ) (v, newTm) = (v, newTm, typ)
+            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+        in  Map.fromList
+              [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
+
   verifyTermComponent
     :: Map v (Reference, Term v _, a)
     -> Edits v
@@ -525,22 +531,20 @@ propagate rootNames patch b = case validatePatch patch of
           >>= hush
 
 unhashTypeComponent :: Var v => Reference -> F m i v (Map v (Reference, Decl v Ann))
-unhashTypeComponent ref = do
-  let
-    component = Reference.members $ Reference.componentFor ref
-    typeInfo :: Reference -> F m i v (Maybe (Reference, Decl v Ann))
-    typeInfo typeRef = case typeRef of
-      Reference.DerivedId id -> do
-        declm <- eval $ LoadType id
-        decl  <- maybe (error $ "Missing type declaration " <> show typeRef)
-                       pure
-                       declm
-        pure $ Just (typeRef, decl)
-      Reference.Builtin{} -> pure Nothing
+unhashTypeComponent r = case Reference.toId r of
+  Nothing -> pure mempty
+  Just id -> do
+    unhashed <- unhashTypeComponent' (Reference.idToHash id)
+    pure $ over _1 Reference.DerivedId <$> unhashed
+
+unhashTypeComponent' :: Var v => Hash -> F m i v (Map v (Reference.Id, Decl v Ann))
+unhashTypeComponent' h =
+  eval (LoadDeclComponent h) <&> foldMap \decls ->
+      unhash $ Map.fromList (Reference.componentFor h decls)
+  where
     unhash =
       Map.fromList . map reshuffle . Map.toList . Decl.unhashComponent
       where reshuffle (r, (v, decl)) = (v, (r, decl))
-  unhash . Map.fromList . catMaybes <$> traverse typeInfo (toList component)
 
 applyDeprecations :: Applicative m => Patch -> Branch0 m -> Branch0 m
 applyDeprecations patch = deleteDeprecatedTerms deprecatedTerms
@@ -581,15 +585,23 @@ applyPropagate patch Edits {..} = do
   updateLevel termEdits typeEdits termTypes Branch0 {..} =
     Branch.branch0 terms types _children _edits
    where
-    isPropagatedReferent (Referent.Con _ _ _) = True
+    isPropagatedReferent (Referent.Con _ _) = True
     isPropagatedReferent (Referent.Ref r) = isPropagated r
 
+    terms0 :: Metadata.Star Referent NameSegment
     terms0 = Star3.replaceFacts replaceConstructor constructorReplacements _terms
+    terms :: Branch.Star Referent NameSegment
     terms = updateMetadatas Referent.Ref
           $ Star3.replaceFacts replaceTerm termEdits terms0
+    types :: Branch.Star Reference NameSegment
     types = updateMetadatas id
           $ Star3.replaceFacts replaceType typeEdits _types
 
+    updateMetadatas ::
+      Ord r =>
+      (Reference -> r) ->
+      Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value) ->
+      Star3.Star3 r NameSegment Metadata.Type (Metadata.Type, Metadata.Value)
     updateMetadatas ref s = clearPropagated $ Star3.mapD3 go s
       where
       clearPropagated s = foldl' go s allPatchTargets where
@@ -606,7 +618,7 @@ applyPropagate patch Edits {..} = do
        else Metadata.delete (propagatedMd r')) $ s
 
     replaceConstructor :: Referent -> Referent -> _ -> _
-    replaceConstructor (Referent.Con _ _ _) !new s =
+    replaceConstructor (Referent.Con _ _) !new s =
       -- TODO: revisit this once patches have constructor mappings
       -- at the moment, all constructor replacements are autopropagated
       -- rather than added manually
@@ -621,6 +633,31 @@ applyPropagate patch Edits {..} = do
   -- typePreservingTermEdits Patch {..} = Patch termEdits mempty
   --   where termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
 
+-- | Compute the set of "dirty" references. They each:
+--
+--   1. Depend directly on some reference that was edited in the given patch
+--   2. Have a name in the current namespace (the given Names)
+--   3. Are not themselves edited in the given patch.
+--
+-- Note: computeDirty a b c = R.dom <$> computeFrontier a b c
+computeDirty
+  :: forall m
+   . Monad m
+  => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+  -> Patch
+  -> (Reference -> Bool)
+  -> m (Set Reference)
+computeDirty getDependents patch shouldUpdate =
+  foldMapM (\ref -> keepDirtyDependents <$> getDependents ref) edited
+  where
+  -- Given a set of dependent references (satisfying 1. above), keep only the dirty ones (per 2. and 3. above)
+  keepDirtyDependents :: Set Reference -> Set Reference
+  keepDirtyDependents =
+    (`Set.difference` edited) . Set.filter shouldUpdate
+
+  edited :: Set Reference
+  edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
+
 -- (d, f) when d is "dirty" (needs update),
 --             f is in the frontier (an edited dependency of d),
 --         and d depends on f
@@ -634,9 +671,9 @@ computeFrontier
    . Monad m
   => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
   -> Patch
-  -> Names
+  -> (Reference -> Bool)
   -> m (R.Relation Reference Reference)
-computeFrontier getDependents patch names = do
+computeFrontier getDependents patch shouldUpdate = do
       -- (r,r2) ∈ dependsOn if r depends on r2
   dependsOn <- foldM addDependents R.empty edited
   -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
@@ -650,5 +687,6 @@ computeFrontier getDependents patch names = do
     -> m (R.Relation Reference Reference)
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents)
-      .   Set.filter (Names.contains names)
+      .   Set.filter shouldUpdate
       <$> getDependents ref
+

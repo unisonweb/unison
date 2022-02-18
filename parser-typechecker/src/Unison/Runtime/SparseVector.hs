@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language BangPatterns #-}
 {-# Language MagicHash #-} -- used for unsafe pointer equality
 
@@ -9,6 +10,7 @@ import Data.Bits ((.|.), (.&.))
 import qualified Data.Bits as B
 import qualified GHC.Exts as Exts
 import qualified Data.Vector.Unboxed           as UV
+import Control.Monad.ST (ST)
 
 -- Denotes a `Nat -> Maybe a`.
 -- Representation is a `Vector a` along with a bitset
@@ -27,7 +29,8 @@ map f v = v { elements = UV.map f (elements v) }
 
 -- Denotationally, a mask is a `Nat -> Bool`, so this implementation
 -- means: `mask ok v n = if ok n then v n else Nothing`
-mask :: (UV.Unbox a, B.FiniteBits bits)
+mask :: forall a bits.
+        (UV.Unbox a, B.FiniteBits bits)
      => bits -> SparseVector bits a -> SparseVector bits a
 mask bits a =
   if indices' == bits then a -- check if mask is a superset
@@ -37,6 +40,7 @@ mask bits a =
   where
    indices' = indices a .&. bits
    eas = elements a
+   go :: MUV.STVector s a -> bits -> bits -> Int -> Int -> ST s (MUV.STVector s a)
    go !out !indAs !indBs !i !k =
      if indAs == B.zeroBits || indBs == B.zeroBits then pure out
      else let
@@ -95,7 +99,8 @@ choose bits t f
     merge (mask bits t) (mask (B.complement bits) f)
 
 -- Denotationally: `merge a b n = a n <|> b n`
-merge :: (B.FiniteBits bits, UV.Unbox a)
+merge :: forall a bits.
+         (B.FiniteBits bits, UV.Unbox a)
       => SparseVector bits a
       -> SparseVector bits a
       -> SparseVector bits a
@@ -106,6 +111,7 @@ merge a b = SparseVector indices' tricky
     vec <- MUV.new (B.popCount indices')
     go vec (indices a) (indices b) 0 0 0
   (!eas, !ebs) = (elements a, elements b)
+  go :: MUV.STVector s a -> bits -> bits -> Int -> Int -> Int -> ST s (MUV.STVector s a)
   go !out !indAs !indBs !i !j !k =
     if indAs == B.zeroBits || indBs == B.zeroBits then pure out
     else let

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -22,6 +23,7 @@ module Unison.UnisonFile
     discardTypes,
     effectDeclarations',
     hashConstructors,
+    constructorsForDecls,
     hashTerms,
     indexByReference,
     lookupDecl,
@@ -39,6 +41,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
 import qualified Unison.DataDeclaration as DD
@@ -57,6 +60,7 @@ import Unison.UnisonFile.Type (TypecheckedUnisonFile (..), UnisonFile (..), patt
 import qualified Unison.Util.List as List
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind, pattern TestWatch)
+
 dataDeclarations :: UnisonFile v a -> Map v (Reference, DataDeclaration v a)
 dataDeclarations = fmap (first Reference.DerivedId) . dataDeclarationsId
 
@@ -111,11 +115,10 @@ typecheckedUnisonFile datas effects tlcs watches =
     watchKinds = Map.fromList $
       [(v,Nothing) | (v,_e,_t) <- join tlcs]
       ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _e, _t) <- wkTerms ]
-    -- good spot incorporate type of term into its hash, if not already present as an annotation (#2276)
-    hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, _t) -> (v, e)) <$> allTerms
+    hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, e, t) -> (v, (e, t))) <$> allTerms
     in Map.fromList
           [ (v, (r, wk, e, t))
-          | (v, (r, e)) <- Map.toList hcs
+          | (v, (r, e, _typ)) <- Map.toList hcs
           , Just t <- [Map.lookup v types]
           , wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]]
 
@@ -134,9 +137,13 @@ indexByReference uf = (tms, tys)
     tms = Map.fromList [
       (r, (tm,ty)) | (Reference.DerivedId r, _wk, tm, ty) <- toList (hashTerms uf) ]
 
+-- | A mapping of all terms in the file by their var name.
+-- The returned terms refer to other definitions in the file by their
+-- var, not by reference.
+-- Includes test watches.
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (Term v a)
 allTerms uf =
-  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
+  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents uf ]
 
 -- |the top level components (no watches) plus test watches.
 topLevelComponents :: TypecheckedUnisonFile v a
@@ -193,7 +200,24 @@ hashConstructors
   :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
-        [ (v, Referent.ConId ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
+
+-- | Returns the set of constructor names for decls whose names in the given Set.
+constructorsForDecls :: Ord v => Set v -> TypecheckedUnisonFile v a -> Set v
+constructorsForDecls types uf =
+  let dataConstructors =
+        dataDeclarationsId' uf
+          & Map.filterWithKey (\k _ -> Set.member k types)
+          & Map.elems
+          & fmap snd
+          & concatMap DD.constructorVars
+      effectConstructors =
+        effectDeclarationsId' uf
+          & Map.filterWithKey (\k _ -> Set.member k types)
+          & Map.elems
+          & fmap (DD.toDataDecl . snd)
+          & concatMap DD.constructorVars
+   in Set.fromList (dataConstructors <> effectConstructors)

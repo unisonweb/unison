@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
@@ -17,7 +18,8 @@
 {-# LANGUAGE TypeOperators #-}
 module U.Codebase.Sqlite.Queries (
   -- * Constraint kinds
-  DB, Err,
+  DB, EDB, Err,
+
   -- * Error types
   Integrity(..),
 
@@ -31,6 +33,7 @@ module U.Codebase.Sqlite.Queries (
   saveHashHash,
   loadHashId,
   loadHashById,
+  loadHashHashById,
   loadHashIdByHash,
   expectHashIdByHash,
   saveCausalHash,
@@ -45,6 +48,7 @@ module U.Codebase.Sqlite.Queries (
   expectObjectIdForAnyHashId,
   maybeObjectIdForPrimaryHashId,
   maybeObjectIdForAnyHashId,
+  recordObjectRehash,
 
   -- * object table
   saveObject,
@@ -85,6 +89,7 @@ module U.Codebase.Sqlite.Queries (
   -- ** dependents index
   addToDependentsIndex,
   getDependentsForDependency,
+  getDependentsForDependencyComponent,
   getDependenciesForDependent,
   getDependencyIdsForDependent,
   -- ** type index
@@ -102,9 +107,21 @@ module U.Codebase.Sqlite.Queries (
   namespaceHashIdByBase32Prefix,
   causalHashIdByBase32Prefix,
 
+  -- * garbage collection
+  vacuum,
+  garbageCollectObjectsWithoutHashes,
+  garbageCollectWatchesWithoutObjects,
+
+  -- migrations
+  countObjects,
+  countCausals,
+  countWatches,
+  getCausalsWithoutBranchObjects,
+
   -- * db misc
   createSchema,
   schemaVersion,
+  setSchemaVersion,
   setFlags,
 
   DataVersion,
@@ -113,7 +130,11 @@ module U.Codebase.Sqlite.Queries (
   savepoint,
   release,
   rollbackRelease,
+  rollbackTo,
+  withSavepoint,
+  withSavepoint_,
 
+  vacuumInto,
   setJournalMode,
   traceConnectionFile,
 ) where
@@ -154,7 +175,8 @@ import Debug.Trace (trace, traceM)
 import GHC.Stack (HasCallStack)
 import Safe (headMay)
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..))
-import U.Codebase.Reference (Reference')
+import U.Codebase.Reference (Reference' (..))
+import qualified U.Codebase.Reference as C.Reference
 import U.Codebase.Sqlite.Connection (Connection)
 import qualified U.Codebase.Sqlite.Connection as Connection
 import U.Codebase.Sqlite.DbId
@@ -178,6 +200,7 @@ import U.Util.Base32Hex (Base32Hex (..))
 import U.Util.Hash (Hash)
 import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
+import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
 -- * types
 
@@ -241,13 +264,38 @@ setFlags = do
   execute_ "PRAGMA foreign_keys = ON;"
   setJournalMode JournalMode.WAL
 
-{- ORMOLU_DISABLE -}
+-- | Copy the database into the specified location, performing a VACUUM in the process.
+vacuumInto :: DB m => FilePath -> m ()
+vacuumInto dest = do
+  execute "VACUUM INTO ?" [dest]
+
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms_ sql >>= \case
   [] -> error $ show NoSchemaVersion
   [v] -> pure v
   vs -> error $ show (MultipleSchemaVersions vs)
   where sql = "SELECT version from schema_version;"
+
+setSchemaVersion :: DB m => SchemaVersion -> m ()
+setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
+  where
+    sql = [here|
+     UPDATE schema_version
+     SET version = ?
+     |]
+
+countObjects :: DB m => m Int
+countObjects = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM object |]
+
+countCausals :: DB m => m Int
+countCausals = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM causal |]
+
+countWatches :: DB m => m Int
+countWatches = head <$> queryAtoms_ sql
+  where sql = [here| SELECT COUNT(*) FROM watch |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
@@ -316,7 +364,7 @@ saveHashObject hId oId version = execute sql (hId, oId, version) where
 saveObject :: DB m => HashId -> ObjectType -> ByteString -> m ObjectId
 saveObject h t blob = do
   oId <- execute sql (h, t, blob) >> queryOne (maybeObjectIdForPrimaryHashId h)
-  saveHashObject h oId 1 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
+  saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   pure oId
   where
   sql = [here|
@@ -388,6 +436,19 @@ hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, Int)]
 hashIdWithVersionForObject = query sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
+
+-- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
+--
+-- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
+recordObjectRehash :: DB m => ObjectId -> ObjectId -> m ()
+recordObjectRehash old new =
+  execute sql (new, old)
+  where
+    sql = [here|
+      UPDATE hash_object
+      SET object_id = ?
+      WHERE object_id = ?
+    |]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
 updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
@@ -532,7 +593,6 @@ clearWatches :: DB m => m ()
 clearWatches = do
   execute_ "DELETE FROM watch_result"
   execute_ "DELETE FROM watch"
-  execute_ "VACUUM"
 
 -- * Index-building
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
@@ -632,6 +692,62 @@ getTypeMentionsReferencesForComponent r =
 fixupTypeIndexRow :: Reference' TextId HashId :. Referent.Id -> (Reference' TextId HashId, Referent.Id)
 fixupTypeIndexRow (rh :. ri) = (rh, ri)
 
+-- | Delete objects without hashes. An object typically *would* have a hash, but (for example) during a migration in which an object's hash
+-- may change, its corresponding hash_object row may be updated to point at a new version of that object. This procedure clears out all
+-- references to objects that do not have any corresponding hash_object rows.
+garbageCollectObjectsWithoutHashes :: DB m => m ()
+garbageCollectObjectsWithoutHashes = do
+  execute_
+    [here|
+      CREATE TEMPORARY TABLE object_without_hash AS
+        SELECT id
+        FROM object
+        WHERE id NOT IN (
+          SELECT object_id
+          FROM hash_object
+        )
+    |]
+  execute_
+    [here|
+      DELETE FROM dependents_index
+      WHERE dependency_object_id IN object_without_hash
+        OR dependent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM find_type_index
+      WHERE term_referent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM find_type_mentions_index
+      WHERE term_referent_object_id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DELETE FROM object
+      WHERE id IN object_without_hash
+    |]
+  execute_
+    [here|
+      DROP TABLE object_without_hash
+    |]
+
+-- | Delete all
+garbageCollectWatchesWithoutObjects :: DB m => m ()
+garbageCollectWatchesWithoutObjects = do
+  execute_
+    [here|
+      DELETE FROM watch
+      WHERE watch.hash_id NOT IN
+      (SELECT hash_object.hash_id FROM hash_object)
+    |]
+
+-- | Clean the database and recover disk space.
+-- This is an expensive operation. Also note that it cannot be executed within a transaction.
+vacuum :: DB m => m ()
+vacuum = execute_ "VACUUM"
+
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
   where sql = [here|
@@ -645,31 +761,76 @@ addToDependentsIndex dependency dependent = execute sql (dependency :. dependent
     ON CONFLICT DO NOTHING
   |]
 
+-- | Get non-self, user-defined dependents of a dependency.
 getDependentsForDependency :: DB m => Reference.Reference -> m [Reference.Id]
-getDependentsForDependency dependency = query sql dependency where sql = [here|
-  SELECT dependent_object_id, dependent_component_index
-  FROM dependents_index
-  WHERE dependency_builtin IS ?
-    AND dependency_object_id IS ?
-    AND dependency_component_index IS ?
-|]
+getDependentsForDependency dependency =
+  filter isNotSelfReference <$> query sql dependency
+  where
+    sql =
+      [here|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS ?
+          AND dependency_object_id IS ?
+          AND dependency_component_index IS ?
+      |]
 
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference =
+      case dependency of
+        ReferenceBuiltin _ -> const True
+        ReferenceDerived (C.Reference.Id oid0 _pos0) -> \(C.Reference.Id oid1 _pos1) -> oid0 /= oid1
+
+getDependentsForDependencyComponent :: DB m => ObjectId -> m [Reference.Id]
+getDependentsForDependencyComponent dependency =
+  filter isNotSelfReference <$> query sql (Only dependency)
+  where
+    sql =
+      [here|
+        SELECT dependent_object_id, dependent_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS NULL
+          AND dependency_object_id IS ?
+      |]
+
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference = \case
+      (C.Reference.Id oid1 _pos1) -> dependency /= oid1
+
+-- | Get non-self dependencies of a user-defined dependent.
 getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
-getDependenciesForDependent dependent = query sql dependent where sql = [here|
-  SELECT dependency_builtin, dependency_object_id, dependency_component_index
-  FROM dependents_index
-  WHERE dependent_object_id IS ?
-    AND dependent_component_index IS ?
-|]
+getDependenciesForDependent dependent@(C.Reference.Id oid0 _) =
+  filter isNotSelfReference <$> query sql dependent
+  where
+    sql = [here|
+      SELECT dependency_builtin, dependency_object_id, dependency_component_index
+      FROM dependents_index
+      WHERE dependent_object_id IS ?
+        AND dependent_component_index IS ?
+    |]
 
+    isNotSelfReference :: Reference.Reference -> Bool
+    isNotSelfReference = \case
+      ReferenceBuiltin _ -> True
+      ReferenceDerived (C.Reference.Id oid1 _) -> oid0 /= oid1
+
+-- | Get non-self, user-defined dependencies of a user-defined dependent.
 getDependencyIdsForDependent :: DB m => Reference.Id -> m [Reference.Id]
-getDependencyIdsForDependent dependent = query sql dependent where sql = [here|
-  SELECT dependency_object_id, dependency_component_index
-  FROM dependents_index
-  WHERE dependency_builtin IS NULL
-    AND dependent_object_id = ?
-    AND dependen_component_index = ?
-|]
+getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
+  filter isNotSelfReference <$> query sql dependent
+  where
+    sql =
+      [here|
+        SELECT dependency_object_id, dependency_component_index
+        FROM dependents_index
+        WHERE dependency_builtin IS NULL
+          AND dependent_object_id = ?
+          AND dependen_component_index = ?
+      |]
+
+    isNotSelfReference :: Reference.Id -> Bool
+    isNotSelfReference (C.Reference.Id oid1 _) =
+      oid0 /= oid1
 
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
 objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%") where sql = [here|
@@ -693,6 +854,18 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") whe
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
 |]
+
+-- | Finds all causals that refer to a branch for which we don't have an object stored.
+-- Although there are plans to support this in the future, currently all such cases
+-- are the result of database inconsistencies and are unexpected.
+getCausalsWithoutBranchObjects :: DB m => m [CausalHashId]
+getCausalsWithoutBranchObjects = queryAtoms_ sql
+  where sql = [here|
+    SELECT self_hash_id from causal
+    WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
+|]
+
+
 {- ORMOLU_ENABLE -}
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
@@ -849,11 +1022,42 @@ withImmediateTransaction action = do
 
 
 -- | low-level transaction stuff
-savepoint, release, rollbackTo, rollbackRelease :: DB m => String -> m ()
+
+-- | Create a savepoint, which is a named transaction which may wrap many nested
+-- sub-transactions.
+savepoint :: DB m => String -> m ()
 savepoint name = execute_ (fromString $ "SAVEPOINT " ++ name)
+
+-- | Release a savepoint, which will commit the results once all
+-- wrapping transactions/savepoints are commited.
+release :: DB m => String -> m ()
 release name = execute_ (fromString $ "RELEASE " ++ name)
+
+-- | Roll the database back to its state from when the savepoint was created.
+-- Note: this also re-starts the savepoint and it must still be released if that is the
+-- intention. See 'rollbackRelease'.
+rollbackTo :: DB m => String -> m ()
 rollbackTo name = execute_ (fromString $ "ROLLBACK TO " ++ name)
+
+-- | Roll back the savepoint and immediately release it.
+-- This effectively _aborts_ the savepoint, useful if an irrecoverable error is
+-- encountered.
+rollbackRelease :: DB m => String -> m ()
 rollbackRelease name = rollbackTo name *> release name
+
+-- | Runs the provided action within a savepoint.
+-- Releases the savepoint on completion.
+-- If an exception occurs, the savepoint will be rolled-back and released,
+-- abandoning all changes.
+withSavepoint :: (MonadUnliftIO m, DB m) => String -> (m () -> m r) -> m r
+withSavepoint name action =
+  UnliftIO.bracket_
+    (savepoint name)
+    (release name)
+    (action (rollbackTo name) `UnliftIO.onException` rollbackTo name)
+
+withSavepoint_ :: (MonadUnliftIO m, DB m) => String -> m r -> m r
+withSavepoint_ name action = withSavepoint name (\_rollback -> action)
 
 -- * orphan instances
 

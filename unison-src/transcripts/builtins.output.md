@@ -11,18 +11,18 @@ use Int
 -- want to be able to tell which one is failing
 test> Int.tests.arithmetic =
       checks [
-        +1 + +1 `eq` +2,
+        eq (+1 + +1) +2,
         +10 - +4 == +6,
-        +11 * +6 `eq` +66,
-        +11 * +6 `eq` +66,
+        eq (+11 * +6) +66,
+        eq (+11 * +6) +66,
         +10 / +3 == +3,
         +10 / +5 == +2,
-        +10 `mod` +3 == +1,
-        +10 `mod` +2 == +0,
-        -13 `mod` +3 == +2,
-        -13 `mod` -3 == -1,
-        -13 `mod` -5 == -3,
-        -13 `mod` +5 == +2,
+        mod +10 +3 == +1,
+        mod +10 +2 == +0,
+        mod -13 +3 == +2,
+        mod -13 -3 == -1,
+        mod -13 -5 == -3,
+        mod -13 +5 == +2,
         negate +99 == -99,
         increment +99 == +100,
         not (isEven +99),
@@ -32,20 +32,20 @@ test> Int.tests.arithmetic =
         signum +99 == +1,
         signum -3949 == -1,
         signum +0 == +0,
-        +42 `gt` -1,
-        +42 `lt` +1000,
-        +43 `lteq` +43,
-        +43 `lteq` +44,
-        +43 `gteq` +43,
-        +43 `gteq` +41
+        gt +42 -1,
+        lt +42 +1000,
+        lteq +43 +43,
+        lteq +43 +44,
+        gteq +43 +43,
+        gteq +43 +41
         ]
 
 test> Int.tests.bitTwiddling =
       checks [
-        +5 `and` +4 == +4,
-        +5 `and` +1 == +1,
-        +4 `or` +1 == +5,
-        +5 `xor` +1 == +4,
+        and +5 +4 == +4,
+        and +5 +1 == +1,
+        or +4 +1 == +5,
+        xor +5 +1 == +4,
         complement -1 == +0,
         popCount +1 == 1,
         popCount +2 == 1,
@@ -83,35 +83,35 @@ use Nat
 
 test> Nat.tests.arithmetic =
       checks [
-        1 + 1 `eq` 2,
-        10 `drop` 4 == 6,
-        10 `sub` 12 == -2,
-        11 * 6 `eq` 66,
+        eq (1 + 1) 2,
+        drop 10 4 == 6,
+        sub 10 12 == -2,
+        eq (11 * 6) 66,
         10 / 3 == 3,
         10 / 5 == 2,
-        10 `mod` 3 == 1,
-        10 `mod` 2 == 0,
+        mod 10 3 == 1,
+        mod 10 2 == 0,
         18446744073709551615 / 2 == 9223372036854775807,
-        18446744073709551615 `mod` 2 == 1,
+        mod 18446744073709551615 2 == 1,
         increment 99 == 100,
         not (isEven 99),
         isEven 100,
         isOdd 105,
         not (isOdd 108),
-        42 `gt` 1,
-        42 `lt` 1000,
-        43 `lteq` 43,
-        43 `lteq` 44,
-        43 `gteq` 43,
-        43 `gteq` 41,
+        gt 42 1,
+        lt 42 1000,
+        lteq 43 43,
+        lteq 43 44,
+        gteq 43 43,
+        gteq 43 41,
         ]
 
 test> Nat.tests.bitTwiddling =
       checks [
-        5 `and` 4 == 4,
-        5 `and` 1 == 1,
-        4 `or` 1 == 5,
-        5 `xor` 1 == 4,
+        and 5 4 == 4,
+        and 5 1 == 1,
+        or 4 1 == 5,
+        xor 5 1 == 4,
         complement (complement 0) == 0,
         popCount 1 == 1,
         popCount 2 == 1,
@@ -194,6 +194,8 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
 ```
 
 ## `Bytes` functions
@@ -265,6 +267,55 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
     ✅ Passed Passed
 
 ```
+## Sandboxing functions
+
+```unison
+openFile1 t = openFile t
+openFile2 t = openFile1 t
+
+openFiles =
+  [ not (validateSandboxed [] openFile)
+  , not (validateSandboxed [] openFile1)
+  , not (validateSandboxed [] openFile2)
+  ]
+
+test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+test> Sandbox.test2 = checks openFiles
+test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+openFile]
+```
+
+```ucm
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+  
+    ⍟ These new definitions are ok to `add`:
+    
+      Sandbox.test1 : [Result]
+      Sandbox.test2 : [Result]
+      Sandbox.test3 : [Result]
+      openFile1     : Text -> FileMode ->{IO, Exception} Handle
+      openFile2     : Text -> FileMode ->{IO, Exception} Handle
+      openFiles     : [Boolean]
+  
+  Now evaluating any watch expressions (lines starting with
+  `>`)... Ctrl+C cancels.
+
+    10 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+    
+    ✅ Passed Passed
+  
+    11 | test> Sandbox.test2 = checks openFiles
+    
+    ✅ Passed Passed
+  
+    12 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+    
+    ✅ Passed Passed
+
+```
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
@@ -287,11 +338,15 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Nat.tests.arithmetic        Passed
   ◉ Nat.tests.bitTwiddling      Passed
   ◉ Nat.tests.conversions       Passed
+  ◉ Sandbox.test1               Passed
+  ◉ Sandbox.test2               Passed
+  ◉ Sandbox.test3               Passed
   ◉ Text.tests.alignment        Passed
+  ◉ Text.tests.literalsEq       Passed
   ◉ Text.tests.repeat           Passed
   ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 16 test(s) passing
+  ✅ 20 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language OverloadedStrings #-}
 
 module Unison.Test.Term where
@@ -5,7 +6,8 @@ module Unison.Test.Term where
 import EasyTest
 import qualified Data.Map         as Map
 import           Data.Map         ( (!) )
-import qualified Unison.Hash      as Hash
+import Data.Text.Encoding (encodeUtf8)
+import qualified U.Util.Hash      as Hash
 import qualified Unison.Reference as R
 import           Unison.Symbol    ( Symbol )
 import qualified Unison.Term      as Term
@@ -40,11 +42,11 @@ test = scope "term" $ tests
       expect $ tm' == expected
       ok
   , scope "Term.unhashComponent" $
-      let h = Hash.unsafeFromBase32Hex "abcd"
-          ref = R.Derived h 0 1
-          v1 = Var.refNamed @Symbol ref
+      let h = Hash.fromByteString (encodeUtf8 "abcd")
+          ref = R.Id h 0
+          v1 = Var.refIdNamed @Symbol ref
           -- input component: `ref = \v1 -> ref`
-          component = Map.singleton ref (Term.lam () v1 (Term.ref () ref))
+          component = Map.singleton ref (Term.lam () v1 (Term.refId () ref))
           component' = Term.unhashComponent component
           -- expected unhashed component: `v2 = \v1 -> v2`, where `v2 /= v1`,
           -- i.e. `v2` cannot be just `ref` converted to a ref-named variable,

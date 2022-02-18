@@ -19,6 +19,7 @@ dependencies:
   - bytestring
   - containers
   - cryptonite
+  - extra
   - lens
   - memory
   - safe
@@ -26,6 +27,7 @@ dependencies:
   - time
   - unison-util-relation
   - unliftio
+  - vector
 
 default-extensions:
   - ApplicativeDo

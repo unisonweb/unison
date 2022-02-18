@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -11,6 +12,7 @@ import Unison.Codebase.Init
     , Init(..)
     , SpecifiedCodebase(..)
     )
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 import qualified System.IO.Temp as Temp
 
 -- keep it off for CI, since the random temp dirs it generates show up in the
@@ -25,51 +27,62 @@ test = scope "Codebase.Init" $ tests
     [ scope "a v2 codebase should be opened" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Home tmp))
-        case res of 
-          CI.OpenedCodebase _ _ -> expect True
-          _ -> expect False
+        r <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Home tmp) \case
+          (CI.OpenedCodebase, _, _) -> pure True
+          _ -> pure False
+        case r of
+          Left _ -> expect False
+          Right b -> expect b
     , scope "a v2 codebase should be created when one does not exist" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Home tmp))
-        case res of 
-          CI.CreatedCodebase _ _ -> expect True
-          _ -> expect False
-    ] 
+        r <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Home tmp) \case
+          (CI.CreatedCodebase, _, _) -> pure True
+          _ -> pure False
+        case r of
+          Left _ -> expect False
+          Right b -> expect b
+    ]
   , scope "*with* a --codebase flag" $ tests
     [ scope "a v2 codebase should be opened" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)))
-        case res of 
-          CI.OpenedCodebase _ _ -> expect True
-          _ -> expect False
+        res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
+          (CI.OpenedCodebase, _, _) -> pure True
+          _ -> pure False
+        case res of
+          Left _ -> expect False
+          Right b -> expect b
     , scope "a v2 codebase should be *not* created when one does not exist at the Specified dir" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)))
-        case res of 
-          CI.Error _ CI.NoCodebaseFoundAtSpecifiedDir -> expect True
+        res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (DontCreateWhenMissing tmp)) $ \case
+          _ -> pure False
+        case res of
+          Left (_, CI.InitErrorOpen OpenCodebaseDoesntExist) -> expect True
           _ -> expect False
-    ] 
+    ]
   , scope "*with* a --codebase-create flag" $ tests
     [  scope "a v2 codebase should be created when one does not exist at the Specified dir" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithoutCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp))) 
-        case res of 
-          CI.CreatedCodebase _ _ -> expect True
-          _ -> expect False
-      , 
+        res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)) \case
+          (CI.CreatedCodebase, _, _) -> pure True
+          _ -> pure False
+        case res of
+          Left _ -> expect False
+          Right b -> expect b
+      ,
       scope "a v2 codebase should be opened when one exists" do
         tmp <- io (Temp.getCanonicalTemporaryDirectory >>= flip Temp.createTempDirectory "ucm-test")
         cbInit <- io initMockWithCodebase
-        res <- io (CI.openOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)))
-        case res of 
-          CI.OpenedCodebase _ _ -> expect True
-          _ -> expect False
-    ] 
+        res <- io $ CI.withOpenOrCreateCodebase cbInit "ucm-test" (Specified (CreateWhenMissing tmp)) \case
+          (CI.OpenedCodebase, _, _) -> pure True
+          _ -> pure False
+        case res of
+          Left _ -> expect False
+          Right b -> expect b
+    ]
   ]
 
 -- Test helpers
@@ -78,10 +91,10 @@ initMockWithCodebase ::  IO (Init IO v a)
 initMockWithCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
-    -- DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
-    openCodebase = \_ _ -> pure ( Right (pure (), codebase)),
-    -- DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
-    createCodebase' = \_ _ -> pure (Right (pure (), codebase)),
+    -- withOpenCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r),
+    withOpenCodebase = \_ _ action -> Right <$> action codebase,
+    -- withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
+    withCreatedCodebase = \_ _ action -> Right <$> action codebase,
     -- CodebasePath -> CodebasePath
     codebasePath = id
   }
@@ -90,10 +103,9 @@ initMockWithoutCodebase ::  IO (Init IO v a)
 initMockWithoutCodebase = do
   let codebase = error "did we /actually/ need a Codebase?"
   pure $ Init {
-    -- DebugName -> CodebasePath -> m (Either Pretty (m (), Codebase m v a)),
-    openCodebase = \_ _ -> pure (Left "no codebase found"),
-    -- DebugName -> CodebasePath -> m (Either CreateCodebaseError (m (), Codebase m v a)),
-    createCodebase' = \_ _ -> pure (Right (pure (), codebase)),
+    withOpenCodebase = \_ _ _ -> pure (Left OpenCodebaseDoesntExist),
+    -- withCreatedCodebase :: forall r. DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either CreateCodebaseError r),
+    withCreatedCodebase = \_ _ action -> Right <$> action codebase,
     -- CodebasePath -> CodebasePath
     codebasePath = id
   }

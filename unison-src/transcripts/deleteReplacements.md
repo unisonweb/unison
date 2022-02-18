@@ -18,7 +18,7 @@ x = 2
 ```
 
 ```ucm
-.> delete.term-replacement #jk19
+.> delete.term-replacement 1
 .> view.patch
 ```
 
@@ -40,7 +40,7 @@ unique[b] type Foo = Foo | Bar
 ```
 
 ```ucm
-.> delete.type-replacement #hsk1l8232e
+.> delete.type-replacement 1
 .> view.patch
 ```
 
@@ -60,6 +60,6 @@ unique[bb] type bar = Foo | Bar
 ```ucm
 .> update
 .> view.patch
-.> delete.type-replacement #b1ct5ub6du
+.> delete.type-replacement 1
 .> view.patch
 ```

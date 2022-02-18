@@ -255,3 +255,121 @@ x = 2
 .> add
 ```
 
+## Unison Cloud roundtrip issues
+
+Regression tests for  https://github.com/unisonweb/unison/issues/2650
+
+```unison:hide
+broken =
+    addNumbers: 'Nat
+    addNumbers = 'let
+      use Nat +
+      y = 12
+      13 + y
+    !addNumbers    
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+tvarmodify tvar fun = ()
+
+broken tvar = 
+  '(tvarmodify tvar (cases
+     Some _ -> "oh boy isn't this a very very very very very very very long string?"
+     None -> ""))
+```
+
+``` ucm
+.> add
+.> edit tvarmodify broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+```unison:hide
+broken = cases 
+  Some loooooooooooooooooooooooooooooooooooooooooooooooooooooooong | loooooooooooooooooooooooooooooooooooooooooooooooooooooooong == 1 -> ()
+```
+
+``` ucm
+.> add
+.> edit broken
+.> undo
+```
+
+``` ucm
+.> load scratch.u
+```
+
+## Guard patterns on long lines
+
+```unison:hide
+structural type SomethingUnusuallyLong = SomethingUnusuallyLong Text Text Text
+
+foo = let
+  go x = 
+    'match (a -> a) x with
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == aefilaeifhlei -> 0
+      SomethingUnusuallyLong lijaefliejalfijelfj aefilaeifhlei liaehjffeafijij |
+        lijaefliejalfijelfj == liaehjffeafijij -> 1
+  go (SomethingUnusuallyLong "one" "two" "three")
+```
+
+```ucm
+.> add
+.> edit SomethingUnusuallyLong foo 
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+## Nested fences
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+.> add
+```
+
+```ucm
+.> edit nested
+.> undo
+```
+
+```ucm
+.> load unison-src/transcripts-round-trip/nested.u
+```
+
+## Multiline expressions in multiliine lists
+
+```unison:hide
+foo a b c d e f g h i j = 42 
+
+use Nat +
+x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
+    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ] 
+```
+
+```ucm
+.> add
+.> edit foo x
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

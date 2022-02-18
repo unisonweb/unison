@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -9,11 +10,13 @@ import Unison.Prelude hiding (fromString)
 
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
+import Unison.ConstructorReference (ConstructorReference)
+import qualified Unison.ConstructorReference as ConstructorReference
 import           Unison.Name                    ( Name, Convert, Parse )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent, ConstructorId )
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.ShortHash               ( ShortHash )
 import qualified Unison.ShortHash              as SH
@@ -25,6 +28,7 @@ data HashQualified n
   deriving (Eq, Foldable, Traversable, Functor, Show, Generic)
 
 stripNamespace :: Text -> HashQualified Name -> HashQualified Name
+stripNamespace "" hq = hq
 stripNamespace namespace hq = case hq of
   NameOnly name         -> NameOnly $ strip name
   HashQualified name sh -> HashQualified (strip name) sh
@@ -49,10 +53,9 @@ toName = \case
 --   [.foo.bar, foo.bar] -> [foo.bar, .foo.bar]
 sortByLength :: [HashQualified Name] -> [HashQualified Name]
 sortByLength hs = sortOn f hs where
-  f (NameOnly n) = (countDots n, 0, Left n)
-  f (HashQualified n _h) = (countDots n, 1, Left n)
+  f (NameOnly n) = (length (Name.reverseSegments n), 0, Left n)
+  f (HashQualified n _h) = (length (Name.reverseSegments n), 1, Left n)
   f (HashOnly h) = (maxBound, 0, Right h)
-  countDots n = Text.count "." (Text.dropEnd 1 (Name.toText n))
 
 hasName, hasHash :: HashQualified Name -> Bool
 hasName = isJust . toName
@@ -82,6 +85,9 @@ take i = \case
 
 toString :: Show n => HashQualified n -> String
 toString = Text.unpack . toText
+
+toStringWith :: (n -> String) -> HashQualified n -> String
+toStringWith f = Text.unpack . toTextWith (Text.pack . f)
 
 fromString :: String -> Maybe (HashQualified Name)
 fromString = fromText . Text.pack
@@ -128,8 +134,8 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified Name
 fromReference = HashOnly . Reference.toShortHash
 
-fromPattern :: Reference -> ConstructorId -> HashQualified Name
-fromPattern r cid = HashOnly $ Referent.patternShortHash r cid
+fromPattern :: ConstructorReference -> HashQualified Name
+fromPattern r = HashOnly $ ConstructorReference.toShortHash r
 
 fromName :: n -> HashQualified n
 fromName = NameOnly

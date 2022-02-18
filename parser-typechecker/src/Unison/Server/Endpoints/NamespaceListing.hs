@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -56,6 +57,7 @@ import Unison.Server.Types
     addHeaders,
     branchToUnisonHash,
   )
+import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 import Unison.Var (Var)
 import Control.Error.Util ((??))
@@ -155,9 +157,8 @@ backendListEntryToNamespaceObject ppe typeWidth = \case
     PatchObject . NamedPatch $ NameSegment.toText name
 
 serve
-  :: Var v
-  => Handler ()
-  -> Codebase IO v Ann
+  :: Handler ()
+  -> Codebase IO Symbol Ann
   -> Maybe ShortBranchHash
   -> Maybe NamespaceFQN
   -> Maybe NamespaceFQN

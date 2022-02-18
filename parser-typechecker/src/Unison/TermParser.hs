@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 {-# LANGUAGE ViewPatterns #-}
@@ -34,6 +35,7 @@ import qualified Data.Sequence as Sequence
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin.Decls as DD
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
 import qualified Unison.ConstructorType as CT
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
@@ -49,6 +51,8 @@ import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 import qualified Unison.NamesWithHistory as NamesWithHistory
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty (NonEmpty)
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -132,16 +136,19 @@ match = do
   _         <- P.try (openBlockWith "with") <|> do
     t <- anyToken
     P.customFailure (ExpectedBlockOpen "with" t)
-  (_arities, cases) <- unzip <$> matchCases
-  when (null cases) $ P.customFailure EmptyMatch
+  (_arities, cases) <- NonEmpty.unzip <$> matchCases1 start
   _ <- closeBlock
-  pure $ Term.match (ann start <> maybe (ann start) ann (lastMay cases))
+  pure $ Term.match (ann start <> ann (NonEmpty.last cases))
                     scrutinee
-                    cases
+                    (toList cases)
 
-matchCases :: Var v => P v [(Int, Term.MatchCase Ann (Term v Ann))]
-matchCases = sepBy1 semi matchCase
+matchCases1 :: Var v => L.Token () -> P v (NonEmpty (Int, Term.MatchCase Ann (Term v Ann)))
+matchCases1 start = do
+  cases <- sepBy1 semi matchCase
          <&> \cases -> [ (n,c) | (n,cs) <- cases, c <- cs ]
+  case cases of
+    [] -> P.customFailure (EmptyMatch start)
+    (c:cs) -> pure (c NonEmpty.:| cs)
 
 -- Returns the arity of the pattern and the `MatchCase`. Examples:
 --
@@ -160,8 +167,8 @@ matchCase = do
       pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
-      unit ann = Pattern.Constructor ann DD.unitRef 0 []
-      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2]
+      unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
+      pair p1 p2 = Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2]
   guardsAndBlocks <- many $ do
     guard <- asum [ Nothing <$ P.try (reserved "|" *> quasikeyword "otherwise")
                   , optional $ reserved "|" *> infixAppOrBooleanOp ]
@@ -202,9 +209,9 @@ parsePattern = root
   char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-  unit ann = (Pattern.Constructor ann DD.unitRef 0 [], [])
+  unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
   pair (p1, v1) (p2, v2) =
-    (Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2],
+    (Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
      v1 ++ v2)
   -- Foo x@(Blah 10)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
@@ -216,7 +223,7 @@ parsePattern = root
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctor :: CT.ConstructorType -> _ -> P v (L.Token (Reference, Int))
+  ctor :: CT.ConstructorType -> _ -> P v (L.Token ConstructorReference)
   ctor ct err = do
     -- this might be a var, so we avoid consuming it at first
     tok <- P.try (P.lookAhead hqPrefixId)
@@ -248,10 +255,9 @@ parsePattern = root
 
   effectBind = do
     (tok, leaves) <- P.try effectBind0
-    let (ref,cid) = L.payload tok
     (cont, vsp) <- parsePattern
     pure $
-      let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) ref cid patterns cont, vs ++ vsp)
+      let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) (L.payload tok) patterns cont, vs ++ vsp)
       in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
@@ -266,15 +272,13 @@ parsePattern = root
   -- ex: unique type Day = Mon | Tue | ...
   nullaryCtor = P.try $ do
     tok <- ctor CT.Data UnknownDataConstructor
-    let (ref, cid) = L.payload tok
-    pure (Pattern.Constructor (ann tok) ref cid [], [])
+    pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
 
   constructor = do
     tok <- ctor CT.Data UnknownDataConstructor
-    let (ref,cid) = L.payload tok
-        f patterns vs =
+    let f patterns vs =
           let loc = foldl (<>) (ann tok) $ map ann patterns
-          in (Pattern.Constructor loc ref cid patterns, vs)
+          in (Pattern.Constructor loc (L.payload tok) patterns, vs)
     unzipPatterns f <$> many leaf
 
   seqLiteral = Parser.seq f root
@@ -285,7 +289,7 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
-letBlock, handle, lamCase, ifthen :: Var v => TermP v
+letBlock, handle, ifthen :: Var v => TermP v
 letBlock = label "let" $ block "let"
 
 handle = label "handle" $ do
@@ -293,21 +297,17 @@ handle = label "handle" $ do
   handler <- block "with"
   pure $ Term.handle (ann b) handler b
 
-checkCasesArities :: (Ord v, Annotated a) => [(Int, a)] -> P v (Int, [a])
-checkCasesArities cases = go Nothing cases where
-  go arity [] = case arity of
-    Nothing -> fail "empty list of cases"
-    Just a -> pure (a, map snd cases)
-  go Nothing ((i,_):t) = go (Just i) t
-  go (Just i) ((j,a):t) =
-    if i == j then go (Just i) t
-    else P.customFailure $ PatternArityMismatch i j (ann a)
+checkCasesArities :: (Ord v, Annotated a) => NonEmpty (Int, a) -> P v (Int, NonEmpty a)
+checkCasesArities cases@((i,_) NonEmpty.:| rest) =
+  case List.find (\(j, _) -> j /= i) rest of
+    Nothing -> pure (i, snd <$> cases)
+    Just (j, a) -> P.customFailure $ PatternArityMismatch i j (ann a)
 
+lamCase :: Var v => TermP v
 lamCase = do
   start          <- openBlockWith "cases"
-  cases          <- matchCases
+  cases          <- matchCases1 start
   (arity, cases) <- checkCasesArities cases
-  when (null cases) (P.customFailure EmptyMatch)
   _       <- closeBlock
   lamvars <- replicateM arity (Parser.uniqueName 10)
   let vars =
@@ -318,8 +318,8 @@ lamCase = do
       lamvarTerm  = case lamvarTerms of
         [e] -> e
         es  -> DD.tupleTerm es
-      anns      = ann start <> maybe (ann start) ann (lastMay cases)
-      matchTerm = Term.match anns lamvarTerm cases
+      anns      = ann start <> ann (NonEmpty.last cases)
+      matchTerm = Term.match anns lamvarTerm (toList cases)
   pure $ Term.lam' anns vars matchTerm
 ifthen = label "if" $ do
   start <- peekAny
@@ -520,12 +520,12 @@ docBlock = do
   segs <- many segment
   closeTok <- closeBlock
   let a = ann openTok <> ann closeTok
-  pure . docNormalize $ Term.app a (Term.constructor a DD.docRef DD.docJoinId) (Term.list a segs)
+  pure . docNormalize $ Term.app a (Term.constructor a (ConstructorReference DD.docRef DD.docJoinId)) (Term.list a segs)
   where
   segment = blob <|> linky
   blob = do
     s <- string
-    pure $ Term.app (ann s) (Term.constructor (ann s) DD.docRef DD.docBlobId)
+    pure $ Term.app (ann s) (Term.constructor (ann s) (ConstructorReference DD.docRef DD.docBlobId))
                             (Term.text (ann s) (L.payload s))
   linky = asum [include, signature, evaluate, source, link]
   include = do
@@ -535,29 +535,29 @@ docBlock = do
     _ <- P.try (reserved "signature")
     tok <- termLink'
     pure $ Term.app (ann tok)
-                    (Term.constructor (ann tok) DD.docRef DD.docSignatureId)
+                    (Term.constructor (ann tok) (ConstructorReference DD.docRef DD.docSignatureId))
                     (Term.termLink (ann tok) (L.payload tok))
   evaluate = do
     _ <- P.try (reserved "evaluate")
     tok <- termLink'
     pure $ Term.app (ann tok)
-                    (Term.constructor (ann tok) DD.docRef DD.docEvaluateId)
+                    (Term.constructor (ann tok) (ConstructorReference DD.docRef DD.docEvaluateId))
                     (Term.termLink (ann tok) (L.payload tok))
   source = do
     _ <- P.try (reserved "source")
     l <- link''
     pure $ Term.app (ann l)
-                    (Term.constructor (ann l) DD.docRef DD.docSourceId)
+                    (Term.constructor (ann l) (ConstructorReference DD.docRef DD.docSourceId))
                     l
   link'' = either ty t <$> link' where
     t tok = Term.app (ann tok)
-                     (Term.constructor (ann tok) DD.linkRef DD.linkTermId)
+                     (Term.constructor (ann tok) (ConstructorReference DD.linkRef DD.linkTermId))
                      (Term.termLink (ann tok) (L.payload tok))
     ty tok = Term.app (ann tok)
-                      (Term.constructor (ann tok) DD.linkRef DD.linkTypeId)
+                      (Term.constructor (ann tok) (ConstructorReference DD.linkRef DD.linkTypeId))
                       (Term.typeLink (ann tok) (L.payload tok))
   link = d <$> link'' where
-    d tm = Term.app (ann tm) (Term.constructor (ann tm) DD.docRef DD.docLinkId) tm
+    d tm = Term.app (ann tm) (Term.constructor (ann tm) (ConstructorReference DD.docRef DD.docLinkId)) tm
 
 -- Used by unbreakParas within docNormalize.  Doc literals are a joined sequence
 -- segments.  This type describes a property of a segment.
@@ -610,7 +610,7 @@ docNormalize :: (Ord v, Show v) => Term v a -> Term v a
 docNormalize tm = case tm of
   -- This pattern is just `DD.DocJoin seqs`, but exploded in order to grab
   -- the annotations.  The aim is just to map `normalize` over it.
-  a@(Term.App' c@(Term.Constructor' DD.DocRef DD.DocJoinId) s@(Term.List' seqs))
+  a@(Term.App' c@(Term.Constructor' (ConstructorReference DD.DocRef DD.DocJoinId)) s@(Term.List' seqs))
     -> join (ABT.annotation a)
             (ABT.annotation c)
             (ABT.annotation s)
@@ -806,12 +806,12 @@ docNormalize tm = case tm of
   tracing when x =
     (const id $ trace ("at " ++ when ++ ": " ++ (show x) ++ "\n")) x
   blob aa ac at txt =
-    Term.app aa (Term.constructor ac DD.docRef DD.docBlobId) (Term.text at txt)
+    Term.app aa (Term.constructor ac (ConstructorReference DD.docRef DD.docBlobId)) (Term.text at txt)
   join aa ac as segs =
-    Term.app aa (Term.constructor ac DD.docRef DD.docJoinId) (Term.list' as segs)
+    Term.app aa (Term.constructor ac (ConstructorReference DD.docRef DD.docJoinId)) (Term.list' as segs)
   mapBlob :: Ord v => (Text -> Text) -> Term v a -> Term v a
   -- this pattern is just `DD.DocBlob txt` but exploded to capture the annotations as well
-  mapBlob f (aa@(Term.App' ac@(Term.Constructor' DD.DocRef DD.DocBlobId) at@(Term.Text' txt)))
+  mapBlob f (aa@(Term.App' ac@(Term.Constructor' (ConstructorReference DD.DocRef DD.DocBlobId)) at@(Term.Text' txt)))
     = blob (ABT.annotation aa) (ABT.annotation ac) (ABT.annotation at) (f txt)
   mapBlob _ t = t
 
@@ -911,8 +911,7 @@ destructuringBind = do
 binding :: forall v. Var v => P v ((Ann, v), Term v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
-  -- a ++ b = ... OR
-  -- foo `mappend` bar = ...
+  -- a ++ b = ...
   let infixLhs = do
         (arg1, op) <- P.try $
           (,) <$> prefixDefinitionName <*> infixDefinitionName
@@ -1099,6 +1098,6 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) DD.pairRef 0)
+                  (Term.constructor (ann t1 <> ann t2) (ConstructorReference DD.pairRef 0))
                   t1)
         t2

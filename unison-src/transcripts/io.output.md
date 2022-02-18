@@ -94,6 +94,7 @@ testOpenClose _ =
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
     setBuffering handle1 (SizedBlockBuffering 1024)
+    check "file handle buffering should match what we just set." (getBuffering handle1 == SizedBlockBuffering 1024)
     setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs01
     setBuffering handle1 NoBuffering
@@ -146,12 +147,13 @@ testOpenClose _ =
     New test results:
   
   ◉ testOpenClose   file should be open
+  ◉ testOpenClose   file handle buffering should match what we just set.
   ◉ testOpenClose   file should be closed
   ◉ testOpenClose   bytes have been written
   ◉ testOpenClose   bytes have been written
   ◉ testOpenClose   file should be closed
   
-  ✅ 5 test(s) passing
+  ✅ 6 test(s) passing
   
   Tip: Use view testOpenClose to view the source of a test.
 
@@ -505,7 +507,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with args" !Any
+    Failure (typeLink IOFailure) "called with args" (Any ())
 
 ```
 ```ucm
@@ -515,7 +517,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```
 ```ucm
@@ -526,7 +528,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure
-      (typeLink IOFailure) "called with too many args" !Any
+      (typeLink IOFailure) "called with too many args" (Any ())
 
 ```
 ```ucm
@@ -536,6 +538,6 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```

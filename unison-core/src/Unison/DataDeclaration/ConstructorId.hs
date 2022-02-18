@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
@@ -8,4 +9,6 @@
 
 module Unison.DataDeclaration.ConstructorId (ConstructorId) where
 
-type ConstructorId = Int
+import Data.Word (Word64)
+
+type ConstructorId = Word64

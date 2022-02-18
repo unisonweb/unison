@@ -33,7 +33,7 @@ take n s =
       if n == 0 then ()
       else
         Emit.emit a
-        handle k () with step (n `drop` 1)
+        handle k () with step (drop n 1)
     {r} -> ()
   Stream ' handle run s with step n
 
@@ -49,7 +49,7 @@ map f s =
 -- toSeq : Stream {e} a r ->{e} [a]
 toSeq s =
   step acc = cases
-    {Emit.emit a -> k} -> handle k () with step (acc `snoc` a)
+    {Emit.emit a -> k} -> handle k () with step (snoc acc a)
     {_} -> acc
   handle run s with step []
 

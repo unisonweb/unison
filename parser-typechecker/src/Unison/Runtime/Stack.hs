@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language DataKinds #-}
 {-# language BangPatterns #-}
@@ -38,6 +39,7 @@ module Unison.Runtime.Stack
   , frameView
   , uscount
   , bscount
+  , closureTermRefs
   ) where
 
 import Prelude hiding (words)
@@ -318,13 +320,14 @@ instance MEM 'UN where
   {-# inline grab #-}
 
   ensure stki@(US ap fp sp stk) sze
-    | sze <= 0
-    || bytes (sp+sze+1) < ssz = pure stki
+    | sze <= 0 || bytes (sp+sze+1) < ssz = pure stki
     | otherwise = do
-      stk' <- resizeMutableByteArray stk (ssz+10240)
+      stk' <- resizeMutableByteArray stk (ssz+ext)
       pure $ US ap fp sp stk'
    where
    ssz = sizeofMutableByteArray stk
+   ext | bytes sze > 10240 = bytes sze + 4096
+       | otherwise = 10240
   {-# inline ensure #-}
 
   bump (US ap fp sp stk) = pure $ US ap fp (sp+1) stk
@@ -523,10 +526,13 @@ instance MEM 'BX where
     | sz <= 0 = pure stki
     | sp+sz+1 < ssz = pure stki
     | otherwise = do
-      stk' <- newArray (ssz+1280) BlackHole
+      stk' <- newArray (ssz+ext) BlackHole
       copyMutableArray stk' 0 stk 0 (sp+1)
       pure $ BS ap fp sp stk'
-    where ssz = sizeofMutableArray stk
+    where
+    ssz = sizeofMutableArray stk
+    ext | sz > 1280 = sz + 512
+        | otherwise = 1280
   {-# inline ensure #-}
 
   bump (BS ap fp sp stk) = pure $ BS ap fp (sp+1) stk
@@ -623,3 +629,24 @@ uscount seg = words $ sizeofByteArray seg
 bscount :: Seg 'BX -> Int
 bscount seg = sizeofArray seg
 
+closureTermRefs :: Monoid m => (Reference -> m) -> (Closure -> m)
+closureTermRefs f (PAp (CIx r _ _) _ cs)
+  = f r <> foldMap (closureTermRefs f) cs
+closureTermRefs f (DataB1 _ _ c) = closureTermRefs f c
+closureTermRefs f (DataB2 _ _ c1 c2)
+  = closureTermRefs f c1 <> closureTermRefs f c2
+closureTermRefs f (DataUB _ _ _ c)
+  = closureTermRefs f c
+closureTermRefs f (Captured k _ cs)
+  = contTermRefs f k <> foldMap (closureTermRefs f) cs
+closureTermRefs f (Foreign fo)
+  | Just (cs :: Seq Closure) <- maybeUnwrapForeign Ty.listRef fo
+  = foldMap (closureTermRefs f) cs
+closureTermRefs _ _ = mempty
+
+contTermRefs :: Monoid m => (Reference -> m) -> K -> m
+contTermRefs f (Mark _ m k)
+  = foldMap (closureTermRefs f) m <> contTermRefs f k
+contTermRefs f (Push _ _ _ _ (CIx r _ _) k)
+  = f r <> contTermRefs f k
+contTermRefs _ _ = mempty

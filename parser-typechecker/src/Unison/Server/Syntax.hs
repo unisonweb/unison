@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
@@ -156,6 +157,7 @@ reference (Segment _ el) =
         case el' of
           TermReference r -> Just r
           TypeReference r -> Just r
+          HashQualifier r -> Just r
           _ -> Nothing
    in el >>= reference'
 

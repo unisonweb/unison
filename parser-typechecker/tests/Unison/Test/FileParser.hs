@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language BangPatterns, OverloadedStrings #-}
 
 module Unison.Test.FileParser where
@@ -80,7 +81,7 @@ module Unison.Test.FileParser where
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
-          P.EmptyWatch -> ok
+          P.EmptyWatch _ann -> ok
           _ -> crash "Error wasn't EmptyWatch"
 
   signatureNeedsAccompanyingBodyTest :: Test ()

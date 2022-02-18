@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,8 +15,6 @@ import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.Hashable                ( Hashable )
-import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
@@ -118,10 +117,6 @@ instance Semigroup Patch where
 instance Monoid Patch where
   mappend = (<>)
   mempty = Patch mempty mempty
-
-instance Hashable Patch where
-  tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
-               H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
 
 instance Semigroup PatchDiff where
   a <> b = PatchDiff

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language OverloadedStrings #-}
 
 module Unison.Test.TermPrinter (test) where
@@ -210,7 +211,7 @@ test = scope "termprinter" $ tests
   , tcBreaks 16 "match (if a then\n\
                  \  b\n\
                  \else c) with\n\
-                 \  112 -> x"        -- dodgy layout.  note #517 and #518
+                 \  112 -> x"        -- dodgy layout.  note #517
   , tc "handle bar with Pair 1 1"
   , tc "handle bar with x -> foo"
   , tcDiffRtt True "let\n\
@@ -234,9 +235,11 @@ test = scope "termprinter" $ tests
                  \  12 -> x\n\
                  \  13 -> y\n\
                  \  14 -> z"
+  -- These used to align, but alignment looked very bad when guards were long.
+  -- -- R.Ó.B.
   , tcBreaks 21 "match x with\n\
-                 \  12 | p x   -> x\n\
-                 \  13 | q x   -> y\n\
+                 \  12 | p x -> x\n\
+                 \  13 | q x -> y\n\
                  \  14 | r x y -> z"
   , tcBreaks 9 "match x with\n\
                 \  112 ->\n\
@@ -311,7 +314,6 @@ test = scope "termprinter" $ tests
                  \     x + 1"  -- TODO parser looks like lambda body should be a block, but we hit 'unexpected ='
   , tc "x + y"
   , tc "x ~ y"
-  , tcDiff "x `foo` y" "foo x y"
   , tc "x + (y + z)"
   , tc "x + y + z"
   , tc "x + y * z" -- i.e. (x + y) * z !
@@ -409,7 +411,9 @@ test = scope "termprinter" $ tests
                      \    b" 80
   , tcBreaks 80 "if\n\
                  \  a = b\n\
-                 \  a then foo else bar"   -- missing break before 'then', issue #518
+                 \  a\n\
+                 \then foo\n\
+                 \else bar"
   , tcBreaks 80 "Stream.foldLeft 0 (+) t"
   , tcBreaks 80 "let\n\
                  \  delay = 'isEven\n\

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
@@ -7,9 +8,11 @@ import qualified Control.Lens.Cons as Cons
 import Data.Bifunctor (Bifunctor (bimap), first)
 import Data.List (intercalate, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Void (Void)
 import System.Console.Haskeline.Completion (Completion (Completion))
 import qualified System.Console.Haskeline.Completion as Completion
 import qualified Text.Megaparsec as P
@@ -24,6 +27,7 @@ import qualified Unison.Codebase.Editor.SlurpResult as SR
 import qualified Unison.Codebase.Editor.UriParser as UriParser
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Path.Parse as Path
+import qualified Unison.Codebase.PushBehavior as PushBehavior
 import qualified Unison.Codebase.SyncMode as SyncMode
 import Unison.Codebase.Verbosity (Verbosity)
 import qualified Unison.Codebase.Verbosity as Verbosity
@@ -36,7 +40,6 @@ import Unison.CommandLine.InputPattern
   )
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -44,8 +47,8 @@ import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Pretty as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -170,15 +173,7 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.AddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
 
 previewAdd :: InputPattern
 previewAdd =
@@ -191,15 +186,7 @@ previewAdd =
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewAddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
 update :: InputPattern
 update =
@@ -236,13 +223,8 @@ update =
     ( \case
         patchStr : ws -> do
           patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
-          case traverse HQ'.fromString ws of
-            Just ws -> Right $ Input.UpdateI (Just patch) ws
-            Nothing ->
-              Left . warn . P.lines . fmap fromString
-                . ("I don't know what these refer to:\n" :)
-                $ collectNothings HQ'.fromString ws
-        [] -> Right $ Input.UpdateI Nothing []
+          pure $ Input.UpdateI (Just patch) (Set.fromList $ map Name.unsafeFromString ws)
+        [] -> Right $ Input.UpdateI Nothing mempty
     )
 
 previewUpdate :: InputPattern
@@ -256,15 +238,7 @@ previewUpdate =
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewUpdateI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
 
 patch :: InputPattern
 patch =
@@ -298,7 +272,11 @@ view =
     "view"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`view foo` prints the definition of `foo`."
+    ( P.lines
+        [ "`view foo` prints the definition of `foo`.",
+          "`view` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( fmap (Input.ShowDefinitionI Input.ConsoleLocation)
         . traverse parseHashQualifiedName
     )
@@ -309,7 +287,11 @@ display =
     "display"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`display foo` prints a rendered version of the term `foo`."
+    ( P.lines
+        [ "`display foo` prints a rendered version of the term `foo`.",
+          "`display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     ( \xs -> Input.DisplayI Input.ConsoleLocation <$> (traverse parseHashQualifiedName xs)
     )
 
@@ -335,8 +317,21 @@ docs =
     "docs"
     []
     [(ZeroPlus, definitionQueryArg)]
-    "`docs foo` shows documentation for the definition `foo`."
+    ( P.lines
+        [ "`docs foo` shows documentation for the definition `foo`.",
+          "`docs` without arguments invokes a search to select which definition to view documentation for, which requires that `fzf` can be found within your PATH."
+        ]
+    )
     (bimap fromString Input.DocsI . traverse Path.parseHQSplit')
+
+api :: InputPattern
+api =
+  InputPattern
+    "api"
+    []
+    []
+    "`api` provides details about the API."
+    (const $ pure Input.ApiI)
 
 ui :: InputPattern
 ui =
@@ -667,13 +662,23 @@ cd =
     "namespace"
     ["cd", "j"]
     [(Required, namespaceArg)]
-    ( P.wrapColumn2
-        [ ( makeExample cd ["foo.bar"],
-            "descends into foo.bar from the current namespace."
-          ),
-          ( makeExample cd [".cat.dog"],
-            "sets the current namespace to the abolute namespace .cat.dog."
-          )
+    ( P.lines
+        [ "Moves your perspective to a different namespace.",
+          "",
+          P.wrapColumn2
+            [ ( makeExample cd ["foo.bar"],
+                "descends into foo.bar from the current namespace."
+              ),
+              ( makeExample cd [".cat.dog"],
+                "sets the current namespace to the abolute namespace .cat.dog."
+              ),
+              ( makeExample cd [".."],
+                "moves to the parent of the current namespace. E.g. moves from '.cat.dog' to '.cat'"
+              ),
+              ( makeExample cd [],
+                "invokes a search to select which namespace to move to, which requires that `fzf` can be found within your PATH."
+              )
+            ]
         ]
     )
     ( \case
@@ -703,22 +708,36 @@ back =
         _ -> Left (I.help cd)
     )
 
-deleteBranch :: InputPattern
-deleteBranch =
+deleteNamespace :: InputPattern
+deleteNamespace =
   InputPattern
     "delete.namespace"
     []
     [(Required, namespaceArg)]
     "`delete.namespace <foo>` deletes the namespace `foo`"
+    (deleteNamespaceParser (I.help deleteNamespace) Input.Try)
+
+deleteNamespaceForce :: InputPattern
+deleteNamespaceForce =
+  InputPattern
+    "delete.namespace.force"
+    []
+    [(Required, namespaceArg)]
+    ("`delete.namespace.force <foo>` deletes the namespace `foo`,"
+    <> "deletion will proceed even if other code depends on definitions in foo.")
+    (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
+
+deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
+deleteNamespaceParser helpText insistence =
     ( \case
         ["."] ->
           first fromString
             . pure
-            $ Input.DeleteBranchI Nothing
+            $ Input.DeleteBranchI insistence Nothing
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeleteBranchI $ Just p
-        _ -> Left (I.help deleteBranch)
+          pure . Input.DeleteBranchI insistence $ Just p
+        _ -> Left helpText
     )
 
 deletePatch :: InputPattern
@@ -853,16 +872,23 @@ resetRoot =
 
 pullSilent :: InputPattern
 pullSilent =
-  pullImpl "pull.silent" Verbosity.Silent
+  pullImpl "pull.silent" Verbosity.Silent Input.PullWithHistory "without listing the merged entities"
 
 pull :: InputPattern
-pull = pullImpl "pull" Verbosity.Default
+pull = pullImpl "pull" Verbosity.Default Input.PullWithHistory ""
 
-pullImpl :: String -> Verbosity -> InputPattern
-pullImpl name verbosity = do
+pullWithoutHistory :: InputPattern
+pullWithoutHistory =
+  pullImpl
+    "pull.without-history"
+    Verbosity.Default
+    Input.PullWithoutHistory
+    "without including the remote's history. This usually results in smaller codebase sizes."
+
+pullImpl :: String -> Verbosity -> Input.PullMode -> P.Pretty CT.ColorText -> InputPattern
+pullImpl name verbosity pullMode addendum = do
   self
   where
-    addendum = if Verbosity.isSilent verbosity then "without listing the merged entities" else ""
     self =
       InputPattern
         name
@@ -891,24 +917,19 @@ pullImpl name verbosity = do
                   )
                 ],
               "",
-              P.wrap "where `remote` is a git repository, optionally followed by `:`"
-                <> "and an absolute remote path, such as:",
-              P.indentN 2 . P.lines $
-                [ P.backticked "https://github.com/org/repo",
-                  P.backticked "https://github.com/org/repo:.some.remote.path"
-                ]
+              explainRemote
             ]
         )
         ( \case
             [] ->
-              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url] -> do
               ns <- parseUri "url" url
-              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.ShortCircuit pullMode verbosity
             [url, path] -> do
               ns <- parseUri "url" url
               p <- first fromString $ Path.parsePath' path
-              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit verbosity
+              Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.ShortCircuit pullMode verbosity
             _ -> Left (I.help self)
         )
 
@@ -929,14 +950,14 @@ pullExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url] -> do
           ns <- parseUri "url" url
-          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) Path.relativeEmpty' SyncMode.Complete Input.PullWithHistory Verbosity.Default
         [url, path] -> do
           ns <- parseUri "url" url
           p <- first fromString $ Path.parsePath' path
-          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Verbosity.Default
+          Right $ Input.PullRemoteBranchI (Just ns) p SyncMode.Complete Input.PullWithHistory Verbosity.Default
         _ -> Left (I.help pull)
     )
 
@@ -965,24 +986,59 @@ push =
               )
             ],
           "",
-          P.wrap "where `remote` is a git repository, optionally followed by `:`"
-            <> "and an absolute remote path, such as:",
-          P.indentN 2 . P.lines $
-            [ P.backticked "https://github.com/org/repo",
-              P.backticked "https://github.com/org/repo:.some.remote.path"
-            ]
+          explainRemote
         ]
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.ShortCircuit
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.ShortCircuit
+    )
+
+pushCreate :: InputPattern
+pushCreate =
+  InputPattern
+    "push.create"
+    []
+    [(Required, gitUrlArg), (Optional, namespaceArg)]
+    ( P.lines
+        [ P.wrap
+            "The `push.create` command pushes a local namespace to an empty remote namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`push.create remote local`",
+                "pushes the contents of the local namespace `local`"
+                  <> "into the empty remote namespace `remote`."
+              ),
+              ( "`push remote`",
+                "publishes the current namespace into the empty remote namespace `remote`"
+              ),
+              ( "`push`",
+                "publishes the current namespace"
+                  <> "into the empty remote namespace configured in `.unisonConfig`"
+                  <> "with the key `GitUrl.ns` where `ns` is the current namespace"
+              )
+            ],
+          "",
+          explainRemote
+        ]
+    )
+    ( \case
+        [] ->
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireEmpty SyncMode.ShortCircuit
+        url : rest -> do
+          (repo, path) <- parsePushPath "url" url
+          p <- case rest of
+            [] -> Right Path.relativeEmpty'
+            [path] -> first fromString $ Path.parsePath' path
+            _ -> Left (I.help push)
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireEmpty SyncMode.ShortCircuit
     )
 
 pushExhaustive :: InputPattern
@@ -1002,14 +1058,14 @@ pushExhaustive =
     )
     ( \case
         [] ->
-          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' SyncMode.Complete
+          Right $ Input.PushRemoteBranchI Nothing Path.relativeEmpty' PushBehavior.RequireNonEmpty SyncMode.Complete
         url : rest -> do
           (repo, path) <- parsePushPath "url" url
           p <- case rest of
             [] -> Right Path.relativeEmpty'
             [path] -> first fromString $ Path.parsePath' path
             _ -> Left (I.help push)
-          Right $ Input.PushRemoteBranchI (Just (repo, path)) p SyncMode.Complete
+          Right $ Input.PushRemoteBranchI (Just (repo, path)) p PushBehavior.RequireNonEmpty SyncMode.Complete
     )
 
 createPullRequest :: InputPattern
@@ -1073,10 +1129,40 @@ loadPullRequest =
     )
 
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
-parseUri label input = do
-  first
-    (fromString . show) -- turn any parsing errors into a Pretty.
-    (P.parse UriParser.repoPath label (Text.pack input))
+parseUri label input =
+  let printError err = P.lines [ P.string  "I couldn't parse the repository address given above.", prettyPrintParseError input err]
+  in first printError (P.parse UriParser.repoPath label (Text.pack input))
+
+prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
+prettyPrintParseError input = \case
+  P.TrivialError sp ue ee ->
+      P.lines [ printLocation sp,
+                P.newline,
+                printTrivial ue ee
+              ]
+  P.FancyError sp ee ->
+      let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
+      in P.lines
+         [ printLocation sp,
+           errors
+         ]
+  where
+    printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
+    printLocation sp =
+      let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
+          row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
+          errorLine = lines input !! row
+      in P.lines [ P.newline,
+                   P.string errorLine,
+                   P.string $ replicate col ' ' <> "^-- This is where I gave up."
+                 ]
+
+    printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
+    printTrivial ue ee =
+      let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
+          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue
+          message = [expected] <> catMaybes [found]
+      in P.oxfordCommasWith "." message
 
 parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
 parseWriteRepo label input = do
@@ -1154,12 +1240,12 @@ diffNamespace =
     )
     ( \case
         [before, after] -> first fromString $ do
-          before <- Path.parsePath' before
-          after <- Path.parsePath' after
+          before <- Input.parseBranchId before
+          after <- Input.parseBranchId after
           pure $ Input.DiffNamespaceI before after
         [before] -> first fromString $ do
-          before <- Path.parsePath' before
-          pure $ Input.DiffNamespaceI before Path.currentPath
+          before <- Input.parseBranchId before
+          pure $ Input.DiffNamespaceI before (Right Path.currentPath)
         _ -> Left $ I.help diffNamespace
     )
 
@@ -1250,8 +1336,11 @@ edit =
     "edit"
     []
     [(OnePlus, definitionQueryArg)]
-    ( "`edit foo` prepends the definition of `foo` to the top of the most "
-        <> "recently saved file."
+    ( P.lines
+        [ "`edit foo` prepends the definition of `foo` to the top of the most "
+            <> "recently saved file.",
+          "`edit` without arguments invokes a search to select a definition for editing, which requires that `fzf` can be found within your PATH."
+        ]
     )
     ( fmap (Input.ShowDefinitionI Input.LatestFileLocation)
         . traverse parseHashQualifiedName
@@ -1564,7 +1653,7 @@ dependents =
     "dependents"
     []
     []
-    "List the dependents of the specified definition."
+    "List the named dependents of the specified definition."
     ( \case
         [thing] -> fmap Input.ListDependentsI $ parseHashQualifiedName thing
         _ -> Left (I.help dependents)
@@ -1579,6 +1668,17 @@ dependencies =
         [thing] -> fmap Input.ListDependenciesI $ parseHashQualifiedName thing
         _ -> Left (I.help dependencies)
     )
+
+namespaceDependencies :: InputPattern
+namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
+  "List the external dependencies of the specified namespace."
+  (\case
+    [p] -> first fromString $ do
+             p <- Path.parsePath' p
+             pure $ Input.NamespaceDependenciesI (Just p)
+    [] -> pure (Input.NamespaceDependenciesI Nothing)
+    _ -> Left (I.help namespaceDependencies)
+  )
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
@@ -1655,23 +1755,25 @@ docsToHtml =
     )
 
 execute :: InputPattern
-execute = InputPattern
-  "run"
-  []
-  [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
-  (P.wrapColumn2
-    [ ( "`run mymain args...`"
-      , "Runs `!mymain`, where `mymain` is searched for in the most recent"
-        <> "typechecked file, or in the codebase."
-        <> "Any provided arguments will be passed as program arguments as though they were"
-        <> "provided at the command line when running mymain as an executable."
-      )
-    ]
-  )
-  (\case
-    [w] -> pure $ Input.ExecuteI w []
-    (w : ws) -> pure $ Input.ExecuteI w ws
-    _   -> Left $ showPatternHelp execute)
+execute =
+  InputPattern
+    "run"
+    []
+    [(Required, exactDefinitionTermQueryArg), (ZeroPlus, noCompletions)]
+    ( P.wrapColumn2
+        [ ( "`run mymain args...`",
+            "Runs `!mymain`, where `mymain` is searched for in the most recent"
+              <> "typechecked file, or in the codebase."
+              <> "Any provided arguments will be passed as program arguments as though they were"
+              <> "provided at the command line when running mymain as an executable."
+          )
+        ]
+    )
+    ( \case
+        [w] -> pure $ Input.ExecuteI w []
+        (w : ws) -> pure $ Input.ExecuteI w ws
+        _ -> Left $ showPatternHelp execute
+    )
 
 ioTest :: InputPattern
 ioTest =
@@ -1738,6 +1840,29 @@ createAuthor =
         _ -> Left $ showPatternHelp createAuthor
     )
 
+gist :: InputPattern
+gist =
+  InputPattern
+    "push.gist"
+    ["gist"]
+    [(Required, gitUrlArg)]
+    ( P.lines
+        [ "Publish the current namespace.",
+          "",
+          P.wrapColumn2
+            [ ( "`gist remote`",
+                "publishes the contents of the current namespace into the repo `remote`."
+              )
+            ]
+        ]
+    )
+    ( \case
+        [repoString] -> do
+          repo <- parseWriteRepo "repo" repoString
+          pure (Input.GistI (Input.GistInput repo))
+        _ -> Left (showPatternHelp gist)
+    )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help,
@@ -1755,7 +1880,9 @@ validInputs =
     diffNamespace,
     names,
     push,
+    pushCreate,
     pull,
+    pullWithoutHistory,
     pullSilent,
     pushExhaustive,
     pullExhaustive,
@@ -1764,7 +1891,8 @@ validInputs =
     cd,
     up,
     back,
-    deleteBranch,
+    deleteNamespace,
+    deleteNamespaceForce,
     renameBranch,
     deletePatch,
     renamePatch,
@@ -1775,6 +1903,7 @@ validInputs =
     view,
     display,
     displayTo,
+    api,
     ui,
     docs,
     docsToHtml,
@@ -1811,11 +1940,13 @@ validInputs =
     mergeIOBuiltins,
     dependents,
     dependencies,
+    namespaceDependencies,
     debugNumberedArgs,
     debugFileHashes,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
-    debugClearWatchCache
+    debugClearWatchCache,
+    gist
   ]
 
 commandNames :: [String]
@@ -1931,7 +2062,7 @@ bothCompletors c1 c2 q code b currentPath = do
     . nubOrdOn Completion.display
     $ suggestions1 ++ suggestions2
 
--- |
+-- | A completer for namespace paths.
 pathCompletor ::
   Applicative f =>
   -- | Turns a query and list of possible completions into a 'Completion'.
@@ -1948,8 +2079,8 @@ pathCompletor ::
 pathCompletor filterQuery getNames query _code b p =
   let b0root = Branch.head b
       b0local = Branch.getAt0 (Path.unabsolute p) b0root
-      -- todo: if these sets are huge, maybe trim results
-   in pure . filterQuery query . map Text.unpack $
+   in -- todo: if these sets are huge, maybe trim results
+      pure . filterQuery query . map Text.unpack $
         toList (getNames b0local)
           ++ if "." `isPrefixOf` query
             then map ("." <>) (toList (getNames b0root))
@@ -1966,7 +2097,7 @@ namespaceArg =
 -- | Recursively collects all names of namespaces which are children of the branch.
 allSubNamespaces :: Branch.Branch0 m -> [Text]
 allSubNamespaces b =
-  flip Map.foldMapWithKey (Branch._children b) $
+  flip Map.foldMapWithKey (Branch.nonEmptyChildren b) $
     \(NameSegment k) (Branch.head -> b') ->
       (k : fmap (\sn -> k <> "." <> sn) (allSubNamespaces b'))
 
@@ -2008,4 +2139,17 @@ gitUrlArg =
     }
 
 collectNothings :: (a -> Maybe b) -> [a] -> [a]
-collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]
+collectNothings f as = [a | (Nothing, a) <- map f as `zip` as]
+
+explainRemote :: P.Pretty CT.ColorText
+explainRemote =
+  P.lines
+    [ P.wrap "where `remote` is a git repository, optionally followed by `:`"
+          <> "and an absolute remote path, a branch, or both, such as:",
+      P.indentN 2 . P.lines $
+        [ P.backticked "https://github.com/org/repo",
+          P.backticked "https://github.com/org/repo:.some.remote.path",
+          P.backticked "https://github.com/org/repo:some-branch:.some.remote.path",
+          P.backticked "https://github.com/org/repo:some-branch"
+        ]
+    ]

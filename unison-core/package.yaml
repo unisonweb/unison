@@ -14,16 +14,17 @@ library:
     - either
     - extra
     - fuzzyfind
+    - generic-lens
     - lens
     - prelude-extras
     - memory
     - mtl
     - rfc5051
     - safe
-    - sandi
     - text
     - transformers
     - unison-prelude
+    - unison-util
     - unison-util-relation
     - util
     - vector

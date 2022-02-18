@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -7,6 +8,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module Unison.Term where
 
@@ -24,6 +26,8 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import           Unison.Names ( Names )
 import qualified Unison.Names as Names
 import qualified Unison.NamesWithHistory as Names
@@ -32,7 +36,7 @@ import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
-import           Unison.Referent (Referent, ConstructorId)
+import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -46,9 +50,20 @@ import qualified Unison.Name as Name
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Data.Set.NonEmpty as NES
+import Data.Generics.Sum (_Ctor)
+import Control.Lens (Prism', Lens', lens)
 
-data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
+data MatchCase loc a = MatchCase
+  { matchPattern :: Pattern loc,
+    matchGuard :: Maybe a,
+    matchBody :: a
+  }
+  deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
+
+matchPattern_ :: Lens' (MatchCase loc a) (Pattern loc)
+matchPattern_ = lens matchPattern setter
+  where
+    setter m p = m {matchPattern = p}
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
@@ -61,10 +76,8 @@ data F typeVar typeAnn patternAnn a
   | Char Char
   | Blank (B.Blank typeAnn)
   | Ref Reference
-  -- First argument identifies the data type,
-  -- second argument identifies the constructor
-  | Constructor Reference ConstructorId
-  | Request Reference ConstructorId
+  | Constructor ConstructorReference
+  | Request ConstructorReference
   | Handle a a
   | App a a
   | Ann a (Type typeVar typeAnn)
@@ -93,6 +106,27 @@ data F typeVar typeAnn patternAnn a
   | TermLink Referent
   | TypeLink Reference
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
+
+_Ref :: Prism' (F tv ta pa a) Reference
+_Ref = _Ctor @"Ref"
+
+_Match :: Prism' (F tv ta pa a) (a, [MatchCase pa a])
+_Match = _Ctor @"Match"
+
+_Constructor :: Prism' (F tv ta pa a) ConstructorReference
+_Constructor = _Ctor @"Constructor"
+
+_Request :: Prism' (F tv ta pa a) ConstructorReference
+_Request = _Ctor @"Request"
+
+_Ann :: Prism' (F tv ta pa a) (a, ABT.Term Type.F tv ta)
+_Ann = _Ctor @"Ann"
+
+_TermLink :: Prism' (F tv ta pa a) Referent
+_TermLink = _Ctor @"TermLink"
+
+_TypeLink :: Prism' (F tv ta pa a) Reference
+_TypeLink = _Ctor @"TypeLink"
 
 type IsTop = Bool
 
@@ -241,8 +275,8 @@ extraMap vtf atf apf = \case
   Char x -> Char x
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
-  Constructor x y -> Constructor x y
-  Request x y -> Request x y
+  Constructor x -> Constructor x
+  Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
   Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
@@ -419,19 +453,23 @@ pattern TypeLink' r <- (ABT.out -> ABT.Tm (TypeLink r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
-pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
-pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
-pattern RequestOrCtor' ref n <- (unReqOrCtor -> Just (ref, n))
+pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
+pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
+pattern RequestOrCtor' ref <- (unReqOrCtor -> Just ref)
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
 pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
 -- begin pretty-printer helper patterns
+pattern Ands' ands lastArg <- (unAnds -> Just (ands, lastArg))
+pattern Ors' ors lastArg <- (unOrs -> Just (ors, lastArg))
 pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
+pattern OverappliedBinaryAppPred' f arg1 arg2 rest <-
+  (unOverappliedBinaryAppPred -> Just (f, arg1, arg2, rest))
 -- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
@@ -480,8 +518,8 @@ pattern Referent' r <- (unReferent -> Just r)
 
 unReferent :: Term2 vt at ap v a -> Maybe Referent
 unReferent (Ref' r) = Just $ Referent.Ref r
-unReferent (Constructor' r cid) = Just $ Referent.Con r cid CT.Data
-unReferent (Request' r cid) = Just $ Referent.Con r cid CT.Effect
+unReferent (Constructor' r) = Just $ Referent.Con r CT.Data
+unReferent (Request' r) = Just $ Referent.Con r CT.Effect
 unReferent _ = Nothing
 
 refId :: Ord v => a -> Reference.Id -> Term2 vt at ap v a
@@ -531,11 +569,11 @@ placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 resolve :: Ord v => at -> ab -> String -> Term2 vt ab ap v at
 resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
-constructor :: Ord v => a -> Reference -> ConstructorId -> Term2 vt at ap v a
-constructor a ref n = ABT.tm' a (Constructor ref n)
+constructor :: Ord v => a -> ConstructorReference -> Term2 vt at ap v a
+constructor a ref = ABT.tm' a (Constructor ref)
 
-request :: Ord v => a -> Reference -> ConstructorId -> Term2 vt at ap v a
-request a ref n = ABT.tm' a (Request ref n)
+request :: Ord v => a -> ConstructorReference -> Term2 vt at ap v a
+request a ref = ABT.tm' a (Request ref)
 
 -- todo: delete and rename app' to app
 app_ :: Ord v => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -737,7 +775,7 @@ unLetRecNamed
        , [(v, Term2 vt at ap v a)]
        , Term2 vt at ap v a
        )
-unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
+unLetRecNamed (ABT.Cycle' vs (LetRec isTop bs e))
   | length vs == length bs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
@@ -761,6 +799,30 @@ unLetRec (unLetRecNamed -> Just (isTop, bs, e)) = Just
   )
 unLetRec _ = Nothing
 
+unAnds
+  :: Term2 vt at ap v a
+  -> Maybe
+       ( [Term2 vt at ap v a]
+       , Term2 vt at ap v a
+       )
+unAnds t = case t of
+  And' i o -> case unAnds i of
+    Just (as, xLast) -> Just (xLast:as, o)
+    Nothing -> Just ([i], o)
+  _ -> Nothing
+
+unOrs
+  :: Term2 vt at ap v a
+  -> Maybe
+       ( [Term2 vt at ap v a]
+       , Term2 vt at ap v a
+       )
+unOrs t = case t of
+  Or' i o -> case unOrs i of
+    Just (as, xLast) -> Just (xLast:as, o)
+    Nothing -> Just ([i], o)
+  _ -> Nothing
+
 unApps
   :: Term2 vt at ap v a
   -> Maybe (Term2 vt at ap v a, [Term2 vt at ap v a])
@@ -782,6 +844,19 @@ unBinaryApp :: Term2 vt at ap v a
 unBinaryApp t = case unApps t of
   Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
   _                      -> Nothing
+
+-- Special case for overapplied binary operators
+unOverappliedBinaryAppPred
+  :: (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
+  -> Maybe
+       ( Term2 vt at ap v a
+       , Term2 vt at ap v a
+       , Term2 vt at ap v a
+       , [Term2 vt at ap v a]
+       )
+unOverappliedBinaryAppPred (t, pred) = case unApps t of
+  Just (f, arg1 : arg2 : rest) | pred f -> Just (f, arg1, arg2, rest)
+  _                            -> Nothing
 
 -- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
 unBinaryApps
@@ -833,10 +908,10 @@ unLamsPred' (LamNamed' v body, pred) | pred v = case unLamsPred' (body, pred) of
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
 
-unReqOrCtor :: Term2 vt at ap v a -> Maybe (Reference, ConstructorId)
-unReqOrCtor (Constructor' r cid) = Just (r, cid)
-unReqOrCtor (Request' r cid)     = Just (r, cid)
-unReqOrCtor _                         = Nothing
+unReqOrCtor :: Term2 vt at ap v a -> Maybe ConstructorReference
+unReqOrCtor (Constructor' r) = Just r
+unReqOrCtor (Request' r)     = Just r
+unReqOrCtor _                = Nothing
 
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
@@ -891,8 +966,8 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
   f t@(Ref r) = Writer.tell [termRef r] $> t
   f t@(TermLink r) = case r of
     Referent.Ref r -> Writer.tell [termRef r] $> t
-    Referent.Con r id CT.Data -> Writer.tell [dataConstructor r id] $> t
-    Referent.Con r id CT.Effect -> Writer.tell [effectConstructor r id] $> t
+    Referent.Con (ConstructorReference r id) CT.Data -> Writer.tell [dataConstructor r id] $> t
+    Referent.Con (ConstructorReference r id) CT.Effect -> Writer.tell [effectConstructor r id] $> t
   f t@(TypeLink r) = Writer.tell [typeRef r] $> t
   f t@(Ann _ typ) =
     Writer.tell (map typeRef . toList $ Type.dependencies typ) $> t
@@ -902,9 +977,9 @@ generalizedDependencies termRef typeRef literalType dataConstructor dataType eff
   f t@(Boolean  _) = Writer.tell [literalType Type.booleanRef] $> t
   f t@(Text     _) = Writer.tell [literalType Type.textRef] $> t
   f t@(List _) = Writer.tell [literalType Type.listRef] $> t
-  f t@(Constructor r cid) =
+  f t@(Constructor (ConstructorReference r cid)) =
     Writer.tell [dataType r, dataConstructor r cid] $> t
-  f t@(Request r cid) =
+  f t@(Request (ConstructorReference r cid)) =
     Writer.tell [effectType r, effectConstructor r cid] $> t
   f t@(Match _ cases) = traverse_ goPat cases $> t
   f t                 = pure t
@@ -921,9 +996,9 @@ labeledDependencies
 labeledDependencies = generalizedDependencies LD.termRef
                                               LD.typeRef
                                               LD.typeRef
-                                              LD.dataConstructor
+                                              (\r i -> LD.dataConstructor (ConstructorReference r i))
                                               LD.typeRef
-                                              LD.effectConstructor
+                                              (\r i -> LD.effectConstructor (ConstructorReference r i))
                                               LD.typeRef
 
 updateDependencies
@@ -935,15 +1010,15 @@ updateDependencies
 updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
  where
   referent (Referent.Ref r) = Ref r
-  referent (Referent.Con r cid CT.Data) = Constructor r cid
-  referent (Referent.Con r cid CT.Effect) = Request r cid
+  referent (Referent.Con r CT.Data) = Constructor r
+  referent (Referent.Con r CT.Effect) = Request r
   go (Ref r    ) = case Map.lookup (Referent.Ref r) termUpdates of
     Nothing -> Ref r
     Just r -> referent r
-  go ct@(Constructor r cid) = case Map.lookup (Referent.Con r cid CT.Data) termUpdates of
+  go ct@(Constructor r) = case Map.lookup (Referent.Con r CT.Data) termUpdates of
     Nothing -> ct
     Just r -> referent r
-  go req@(Request r cid) = case Map.lookup (Referent.Con r cid CT.Effect) termUpdates of
+  go req@(Request r) = case Map.lookup (Referent.Con r CT.Effect) termUpdates of
     Nothing -> req
     Just r -> referent r
   go (TermLink r) = TermLink (Map.findWithDefault r r termUpdates)
@@ -968,7 +1043,8 @@ etaNormalForm :: Ord v => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
     where
-      step (LamNamed' v (App' f (Var' v'))) | v == v' = f
+      step (LamNamed' v (App' f (Var' v')))
+        | v == v' , v `Set.notMember` freeVars f = f
       step tm = tm
   _ -> tm
 
@@ -977,23 +1053,25 @@ etaReduceEtaVars :: Var v => Term0 v -> Term0 v
 etaReduceEtaVars tm = case tm of
   LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
     where
-      ok v v' = v == v' && Var.typeOf v == Var.Eta
-      step (LamNamed' v (App' f (Var' v'))) | ok v v' = f
+      ok v v' f = v == v' && Var.typeOf v == Var.Eta
+        && v `Set.notMember` freeVars f
+      step (LamNamed' v (App' f (Var' v'))) | ok v v' f = f
       step tm = tm
   _ -> tm
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent :: forall v a. Var v
-                => Map Reference (Term v a)
-                -> Map Reference (v, Term v a)
+                => Map Reference.Id (Term v a)
+                -> Map Reference.Id (v, Term v a)
 unhashComponent m = let
   usedVars = foldMap (Set.fromList . ABT.allVars) m
-  m' :: Map Reference (v, Term v a)
+  m' :: Map Reference.Id (v, Term v a)
   m' = evalState (Map.traverseWithKey assignVar m) usedVars where
-    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
+    assignVar r t = (,t) <$> ABT.freshenS (Var.refIdNamed r)
+  unhash1 :: Term v a -> Term v a
   unhash1 = ABT.rebuildUp' go where
-    go e@(Ref' r) = case Map.lookup r m' of
+    go e@(Ref' (Reference.DerivedId r)) = case Map.lookup r m' of
       Nothing -> e
       Just (v, _) -> var (ABT.annotation e) v
     go e = e
@@ -1005,9 +1083,9 @@ fromReferent :: Ord v
              -> Term2 vt at ap v a
 fromReferent a = \case
   Referent.Ref r -> ref a r
-  Referent.Con r i ct -> case ct of
-    CT.Data -> constructor a r i
-    CT.Effect -> request a r i
+  Referent.Con r ct -> case ct of
+    CT.Data -> constructor a r
+    CT.Effect -> request a r
 
 -- mostly boring serialization code below ...
 
@@ -1025,8 +1103,8 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Ref x == Ref y = x == y
   TermLink x == TermLink y = x == y
   TypeLink x == TypeLink y = x == y
-  Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
-  Request r cid == Request r2 cid2 = r == r2 && cid == cid2
+  Constructor r == Constructor r2 = r == r2
+  Request r == Request r2 = r == r2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
@@ -1069,13 +1147,13 @@ instance (Show v, Show a) => Show (F v a0 p a) where
     go _ (Handle b body) = showParen
       True
       (s "handle " <> shows b <> s " in " <> shows body)
-    go _ (Constructor r         n    ) = s "Con" <> shows r <> s "#" <> shows n
+    go _ (Constructor (ConstructorReference r n)) = s "Con" <> shows r <> s "#" <> shows n
     go _ (Match       scrutinee cases) = showParen
       True
       (s "case " <> shows scrutinee <> s " of " <> shows cases)
     go _ (Text s     ) = shows s
     go _ (Char c     ) = shows c
-    go _ (Request r n) = s "Req" <> shows r <> s "#" <> shows n
+    go _ (Request (ConstructorReference r n)) = s "Req" <> shows r <> s "#" <> shows n
     go p (If c t f) =
       showParen (p > 0)
         $  s "if "

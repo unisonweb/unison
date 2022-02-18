@@ -1,14 +1,18 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.ABT 
+module Unison.ABT
   ( -- * Types
     ABT(..)
   , Term(..)
@@ -53,6 +57,10 @@ module Unison.ABT
   , find'
   , FindAction(..)
 
+  -- * Optics
+  , baseFunctor_
+  , rewriteDown_
+
   -- * Safe Term constructors & Patterns
   , annotate
   , annotatedVar
@@ -69,6 +77,7 @@ module Unison.ABT
   , cycle'
   , cycler
   , pattern Abs'
+  , pattern Abs''
   , pattern AbsN'
   , pattern Var'
   , pattern Cycle'
@@ -78,36 +87,51 @@ module Unison.ABT
     -- * Algorithms
   , components
   , orderedComponents
-  , hash
-  , hashComponents
   ) where
 
-import Unison.Prelude
+import Control.Lens (Lens', lens, use, (%%~), (.=))
 import Control.Monad.State (MonadState)
-import Data.Functor.Identity (runIdentity)
-import Control.Lens (Lens', use, (.=))
 import qualified Data.Foldable as Foldable
+import Data.Functor.Identity (Identity (Identity), runIdentity)
 import Data.List hiding (cycle, find)
-import Data.Vector ((!))
-import Prelude hiding (abs,cycle)
-import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
-import Unison.Hashable (Accumulate,Hashable1,hash1)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Vector as Vector
-import qualified Unison.Hashable as Hashable
+import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
+import Unison.Prelude
 import qualified Unison.Util.Components as Components
+import Prelude hiding (abs, cycle)
 
 data ABT f v r
   = Var v
   | Cycle r
   | Abs v r
   | Tm (f r)
-  deriving (Functor, Foldable, Traversable)
+  deriving (Functor, Foldable, Traversable, Generic)
+
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+  deriving Generic
+
+abt_ :: Lens' (Term f v a) (ABT f v (Term f v a))
+abt_ = lens out setter
+  where
+    setter (Term fv a _) abt = Term fv a abt
+
+-- a.k.a. baseFunctor_ :: Traversal' (Term f v a) (f _)
+baseFunctor_ ::
+  Applicative m =>
+  (f (Term f v a) -> m (f (Term f v a))) ->
+  Term f v a ->
+  m (Term f v a)
+baseFunctor_ f t =
+  t & abt_ %%~ \case
+    Tm fx -> Tm <$> f (fx)
+    x -> pure x
+
+
+-- deriving instance (Data a, Data v, Typeable f, Data (f (Term f v a)), Ord v) => Data (Term f v a)
 
 -- | A class for variables.
 --
@@ -190,14 +214,15 @@ extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
     Tm x -> Tm (fmap (extraMap p) (p x))
 
 pattern Var' v <- Term _ _ (Var v)
-pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
--- pattern Abs' v body <- Term _ _ (Abs v body)
+pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs (Tm' t)))
+pattern Abs'' v body <- Term _ _ (Abs v body)
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 {-# COMPLETE AbsN' #-}
 pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
+{-# COMPLETE Var', Cycle', Abs'', Tm' #-}
 
 unabsA :: Term f v a -> ([(a,v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
@@ -225,9 +250,6 @@ absr' a v body = wrap' v body $ \v body -> abs' a v body
 
 absChain :: Ord v => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
-
-absCycle :: Ord v => [v] -> Term f v () -> Term f v ()
-absCycle vs t = cycle $ absChain vs t
 
 absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
 absChain' vs t = foldr (\(a,v) t -> abs' a v t) t vs
@@ -283,20 +305,25 @@ renames rn0 t0@(Term fvs ann t)
   = annotatedVar ann u
   | Cycle body <- t
   = cycle' ann (renames rn body)
-  | Abs v body <- t
-  , (u, rn) <- mangle (freeVars body) v rn
+  | Abs v t <- t
+  -- rename iterated variables all at once to avoid a capture issue
+  , AbsNA' (unzip -> (as,vs)) body <- t
+  , (rn, us) <- mangle (freeVars body) rn (v:vs)
   , not $ Map.null rn
-  = abs' ann u (renames rn body)
+  = absChain' (zip (ann:as) us) (renames rn body)
   | Tm body <- t
   = tm' ann (renames rn <$> body)
   | otherwise = t0
   where
   rn = Map.restrictKeys rn0 fvs
-  mangle fvs v m
+  mangle fvs m vs
+    = let avs = Set.fromList vs <> fvs
+      in mapAccumL (mangle1 avs) m vs
+  mangle1 avs m v
     | any (==v) vs
-    , u <- freshIn (fvs <> Set.fromList vs) v
-    = (u, Map.insert v u m)
-    | otherwise = (v, Map.delete v m)
+    , u <- freshIn (avs <> Set.fromList vs) v
+    = (Map.insert v u m, u)
+    | otherwise = (Map.delete v m, v)
     where
     vs = toList m
 
@@ -436,7 +463,7 @@ freeVarOccurrences except t =
     Tm body -> foldMap go body
 
 foreachSubterm
-  :: (Traversable f, Applicative g, Ord v)
+  :: (Traversable f, Applicative g)
   => (Term f v a -> g b)
   -> Term f v a
   -> g [b]
@@ -449,8 +476,11 @@ foreachSubterm f e = case out e of
       <$> f e
       <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
 
-subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
+subterms :: (Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
+
+-- subterms_ :: (Traversable f) => Fold (Term f v a) (Term f v a)
+-- subterms_ = folding subterms
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -468,6 +498,9 @@ visit f t = flip fromMaybe (f t) $ case out t of
   Cycle body -> cycle' (annotation t) <$> visit f body
   Abs x e    -> abs' (annotation t) x <$> visit f e
   Tm body    -> tm' (annotation t) <$> traverse (visit f) body
+
+-- subTermsSetter_ :: (Traversable f, Ord v) => Setter' (Term f v a) (Term f v a)
+-- subTermsSetter_ f tm = visit (Just . f) tm
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Monad g, Ord v)
@@ -489,11 +522,21 @@ rewriteDown :: (Traversable f, Ord v)
             => (Term f v a -> Term f v a)
             -> Term f v a
             -> Term f v a
-rewriteDown f t = let t' = f t in case out t' of
-  Var _ -> t'
-  Cycle body -> cycle' (annotation t) (rewriteDown f body)
-  Abs x e -> abs' (annotation t) x (rewriteDown f e)
-  Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
+rewriteDown f tm = runIdentity $ rewriteDown_ (Identity . f) tm
+
+
+-- | Setter' (Term f v a) (Term f v a)
+rewriteDown_ :: (Traversable f, Monad m, Ord v)
+            => (Term f v a -> m (Term f v a))
+            -> Term f v a
+            -> m (Term f v a)
+rewriteDown_ f t = do
+  t' <- f t
+  case out t' of
+    Var v -> pure (annotatedVar (annotation t') v)
+    Cycle body -> cycle' (annotation t') <$> rewriteDown_ f body
+    Abs x e -> abs' (annotation t') x <$> rewriteDown_ f e
+    Tm body -> tm' (annotation t') <$> (traverse (rewriteDown_ f) body)
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
@@ -501,10 +544,13 @@ data Subst f v a =
         , bindInheritAnnotation :: forall b . Term f v b -> Term f v a
         , variable :: v }
 
-unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
+unabs1 :: forall a f v. (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
 unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation v) where
+  freshen :: (v -> t) -> t
   freshen f = f v
+  bind :: Term f v a -> Term f v a
   bind x = subst v x body
+  bindInheritAnnotation :: Term f v b -> Term f v a
   bindInheritAnnotation x = substInheritAnnotation v x body
 unabs1 _ = Nothing
 
@@ -553,7 +599,8 @@ reannotateUp g t = case out t of
 
 -- Find all subterms that match a predicate.  Prune the search for speed.
 -- (Some patterns of pruning can cut the complexity of the search.)
-data FindAction x = Found x | Prune | Continue deriving Show
+data FindAction x = Found x | Prune | Continue
+  deriving (Show, Functor)
 find :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> FindAction x)
   -> Term f v a
@@ -641,90 +688,6 @@ orderedComponents bs0 = tweak =<< orderedComponents' bs0 where
   tweak bs = [bs] -- any cycle with < 2 bindings is left alone
   isCyclic [(v,b)] = Set.member v (freeVars b)
   isCyclic bs      = length bs > 1
-
--- Hash a strongly connected component and sort its definitions into a canonical order.
-hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v, Ord h, Accumulate h)
-  => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
-hashComponent byName = let
-  ts = Map.toList byName
-  embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
-  vs = fst <$> ts
-  tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
-  hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
-  sortedHashed = sortOn snd hashed
-  overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
-  in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
-
--- Group the definitions into strongly connected components and hash
--- each component. Substitute the hash of each component into subsequent
--- components (using the `termFromHash` function). Requires that the
--- overall component has no free variables.
-hashComponents
-  :: (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
-  => (h -> Word64 -> Word64 -> Term f v ())
-  -> Map.Map v (Term f v a)
-  -> [(h, [(v, Term f v a)])]
-hashComponents termFromHash termsByName = let
-  bound = Set.fromList (Map.keys termsByName)
-  escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
-  sccs = components (Map.toList termsByName)
-  go _ [] = []
-  go prevHashes (component : rest) = let
-    sub = substsInheritAnnotation (Map.toList prevHashes)
-    (h, sortedComponent) = hashComponent $ Map.fromList [ (v, sub t) | (v, t) <- component ]
-    size = fromIntegral (length sortedComponent)
-    curHashes = Map.fromList [ (v, termFromHash h i size) | ((v, _),i) <- sortedComponent `zip` [0..]]
-    newHashes = prevHashes `Map.union` curHashes
-    newHashesL = Map.toList newHashes
-    sortedComponent' = [ (v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent ]
-    in (h, sortedComponent') : go newHashes rest
-  in if Set.null escapedVars then go Map.empty sccs
-     else error $ "can't hashComponents if bindings have free variables:\n  "
-               ++ show (map show (Set.toList escapedVars))
-               ++ "\n  " ++ show (map show (Map.keys termsByName))
-
--- Implementation detail of hashComponent
-data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
-
-instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
-  hash1 hashCycle hash c = case c of
-    Component as a -> let
-      (hs, hash) = hashCycle as
-      toks = Hashable.Hashed <$> hs
-      in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
-    Embed fa -> Hashable.hash1 hashCycle hash fa
-
--- | We ignore annotations in the `Term`, as these should never affect the
--- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Ord h, Accumulate h)
-     => Term f v a -> h
-hash = hash' [] where
-  hash' :: [Either [v] v] -> Term f v a -> h
-  hash' env (Term _ _ t) = case t of
-    Var v -> maybe die hashInt ind
-      where lookup (Left cycle) = v `elem` cycle
-            lookup (Right v') = v == v'
-            ind = findIndex lookup env
-            hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show v
-                        ++ " environment = " ++ show env
-    Cycle (AbsN' vs t) -> hash' (Left vs : env) t
-    -- Cycle t -> hash' env t
-    Abs v t -> hash' (Right v : env) t
-    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
-
-  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
-  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
-    let
-      permute p xs = case Vector.fromList xs of xs -> map (xs !) p
-      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
-      pt = fst <$> sortOn snd hashed
-      (p,ts') = unzip pt
-    in case map Right (permute p cycle) ++ envTl of
-      env -> (map (hash' env) ts', hash' env)
-  hashCycle env ts = (map (hash' env) ts, hash' env)
 
 instance (Show1 f, Show v) => Show (Term f v a) where
   -- annotations not shown

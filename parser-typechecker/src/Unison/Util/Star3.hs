@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Util.Star3 where
@@ -6,7 +7,6 @@ import Unison.Prelude
 
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
-import qualified Unison.Hashable as H
 import qualified Unison.Util.Relation as R
 import qualified Data.Map as Map
 
@@ -165,15 +165,26 @@ deleteD3 :: (Ord fact, Ord d1, Ord d2, Ord d3)
           => (fact, d3)
           -> Star3 fact d1 d2 d3
           -> Star3 fact d1 d2 d3
-deleteD3 (f, x) s = Star3 (fact s) (d1 s) (d2 s) d3' where
+deleteD3 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) (d2 s) d3') where
   d3' = R.delete f x (d3 s)
 
 deleteD2 :: (Ord fact, Ord d1, Ord d2, Ord d3)
           => (fact, d2)
           -> Star3 fact d1 d2 d3
           -> Star3 fact d1 d2 d3
-deleteD2 (f, x) s = Star3 (fact s) (d1 s) d2' (d3 s) where
+deleteD2 (f, x) s = garbageCollect f (Star3 (fact s) (d1 s) d2' (d3 s)) where
   d2' = R.delete f x (d2 s)
+
+-- | Given a possibly-invalid Star3, which may contain the given fact in its fact set that are not related to any d1,
+-- d2, or d3, return a valid Star3, with this fact possibly removed.
+garbageCollect :: Ord fact => fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+garbageCollect f star =
+  star
+    { fact =
+        if R.memberDom f (d1 star) || R.memberDom f (d2 star) || R.memberDom f (d3 star)
+          then fact star
+          else Set.delete f (fact star)
+    }
 
 deleteFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
            => Set fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
@@ -224,11 +235,3 @@ instance (Ord fact, Ord d1, Ord d2, Ord d3) => Monoid (Star3 fact d1 d2 d3) wher
     d1'   = d1 s1 <> d1 s2
     d2'   = d2 s1 <> d2 s2
     d3'   = d3 s1 <> d3 s2
-
-instance (H.Hashable fact, H.Hashable d1, H.Hashable d2, H.Hashable d3)
-       => H.Hashable (Star3 fact d1 d2 d3) where
-  tokens s =
-    [ H.accumulateToken (fact s)
-    , H.accumulateToken (d1 s)
-    , H.accumulateToken (d2 s)
-    , H.accumulateToken (d3 s) ]

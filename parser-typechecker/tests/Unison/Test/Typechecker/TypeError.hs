@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Test.Typechecker.TypeError where
@@ -13,7 +14,6 @@ import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.Extractor (ErrorExtractor)
 import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
-import           Unison.Var                   (Var)
 import qualified Unison.Test.Common as Common
 
 test :: Test ()
@@ -46,12 +46,12 @@ test = scope "> extractor" . tests $
         y s ex = scope s $ expect $ yieldsError s ex
         n s ex = scope s $ expect $ noYieldsError s ex
 
-noYieldsError :: Var v => String -> ErrorExtractor v Ann a -> Bool
+noYieldsError :: String -> ErrorExtractor Symbol Ann a -> Bool
 noYieldsError s ex = not $ yieldsError s ex
 
-yieldsError :: forall v a. Var v => String -> ErrorExtractor v Ann a -> Bool
+yieldsError :: forall a. String -> ErrorExtractor Symbol Ann a -> Bool
 yieldsError s ex = let
   Result notes (Just _) = Common.parseAndSynthesizeAsFile [] "> test" s
-  notes' :: [C.ErrorNote v Ann]
+  notes' :: [C.ErrorNote Symbol Ann]
   notes' = [ n | Result.TypeError n <- toList notes ]
   in any (isJust . Ex.extract ex) notes'

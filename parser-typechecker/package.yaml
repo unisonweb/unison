@@ -66,6 +66,7 @@ library:
     - fingertree
     - fsnotify
     - generic-monoid
+    - generic-lens
     - hashable
     - hashtables
     - haskeline
@@ -95,9 +96,11 @@ library:
     - regex-tdfa
     - safe
     - safe-exceptions
+    - semialign
     - mwc-random
     - NanoID
     - lucid
+    - semialign
     - servant
     - servant-docs
     - servant-openapi3
@@ -111,6 +114,7 @@ library:
     - terminal-size
     - text
     - text-short
+    - these
     - time
     - tls
     - transformers
@@ -135,6 +139,7 @@ library:
     - unison-util-relation
     - open-browser
     - uri-encode
+    - generic-lens
 
 executables:
   prettyprintdemo:
@@ -180,14 +185,3 @@ executables:
       - unison-prelude
       - unison-util
       - unison-util-relation
-
-benchmarks:
-  runtime:
-    source-dirs: benchmarks/runtime
-    main: Main.hs
-    dependencies:
-      - base
-      - criterion
-      - containers
-      - unison-core1
-      - unison-parser-typechecker

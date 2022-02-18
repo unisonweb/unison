@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFoldable #-}
@@ -16,6 +17,7 @@ import qualified Unison.DataDeclaration as DD
 
 import qualified Unison.Util.Relation          as Rel
 import           Prelude                       hiding ( cycle )
+import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
@@ -34,7 +36,7 @@ toNames ct typeSymbol (Reference.DerivedId -> r) dd =
   <> Names mempty (Rel.singleton (Name.unsafeFromVar typeSymbol) r)
   where
   names (ctor, i) =
-    Names (Rel.singleton (Name.unsafeFromVar ctor) (Referent.Con r i ct)) mempty
+    Names (Rel.singleton (Name.unsafeFromVar ctor) (Referent.Con (ConstructorReference r i) ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference.Id -> DataDeclaration v a -> Names
 dataDeclToNames = toNames CT.Data

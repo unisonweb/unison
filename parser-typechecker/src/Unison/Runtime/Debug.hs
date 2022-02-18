@@ -1,9 +1,11 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 
 module Unison.Runtime.Debug
   ( traceComb
   , traceCombs
   , tracePretty
   , tracePrettyGroup
+  , module Debug.Trace
   ) where
 
 import Data.Word

@@ -60,8 +60,8 @@ jobs:
           # recent branch cache.
           # Then it will save a new cache at this commit sha, which should be used by
           # the next build on this branch.
-          key: stack-work-2_${{matrix.os}}-${{github.sha}}
-          restore-keys: stack-work-2_${{matrix.os}}
+          key: stack-work-3_${{matrix.os}}-${{github.sha}}
+          restore-keys: stack-work-3_${{matrix.os}}
 
       # Install stack by downloading the binary from GitHub. The installation process is different for Linux and macOS,
       # so this is split into two steps, only one of which will run on any particular build.

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Main where
 
 import qualified Codec.Binary.Base32Hex as Sandi
@@ -12,7 +13,7 @@ import qualified U.Util.Base32Hex as U.Base32Hex
 
 main :: IO ()
 main = do
-  let textual = U.Base32Hex.UnsafeBase32Hex "kccnret7m1895ta8ncs3ct5pqmguqntvjlcsr270ug8mbqvkh07v983i12obpgsii0gbga2esk1423t6evr03f62hkkfllrrj7iil30"
+  let textual = U.Base32Hex.UnsafeFromText "kccnret7m1895ta8ncs3ct5pqmguqntvjlcsr270ug8mbqvkh07v983i12obpgsii0gbga2esk1423t6evr03f62hkkfllrrj7iil30"
   let binary = "\163\EM}\187\167\176P\146\245H\187\&86t\185\213\161\237_\191\157Y\205\136\224\244\DC1e\235\244\136\SI\244\160r\b\176\188\195\146\144 \184(N\229\STXA\SI\166w\246\SOH\188\194\141(\250\215{\153\229*\140"
 
   defaultMain
@@ -29,7 +30,7 @@ sandi_fromByteString bs =
 
 -- The old implementation of `toByteString` which used `sandi`
 sandi_toByteString :: U.Base32Hex.Base32Hex -> ByteString
-sandi_toByteString (U.Base32Hex.UnsafeBase32Hex txt) =
+sandi_toByteString (U.Base32Hex.UnsafeFromText txt) =
   case Sandi.decode (Text.encodeUtf8 (Text.toUpper txt <> paddingChars)) of
     Left (_, _rem) -> error ("not base32: " <> Text.unpack txt)
     Right h -> h

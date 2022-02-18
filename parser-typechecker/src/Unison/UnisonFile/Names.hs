@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -97,7 +98,7 @@ environmentFor names dataDecls0 effectDecls0 = do
     traverse (DD.withEffectDeclM (DD.Names.bindNames locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDecls allDecls0
+  hashDecls' :: [(v, Reference.Id, DataDeclaration v a)] <- Hashing.hashDataDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
   let
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]

@@ -1,3 +1,4 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# language GADTs #-}
 {-# language DataKinds #-}
 {-# language ViewPatterns #-}
@@ -300,10 +301,10 @@ instance ( ForeignConvention a
     writeForeign ustk bstk a
 
 no'buf, line'buf, block'buf, sblock'buf :: Int
-no'buf = Ty.bufferModeNoBufferingId
-line'buf = Ty.bufferModeLineBufferingId
-block'buf = Ty.bufferModeBlockBufferingId
-sblock'buf = Ty.bufferModeSizedBlockBufferingId
+no'buf = fromIntegral Ty.bufferModeNoBufferingId
+line'buf = fromIntegral Ty.bufferModeLineBufferingId
+block'buf = fromIntegral Ty.bufferModeBlockBufferingId
+sblock'buf = fromIntegral Ty.bufferModeSizedBlockBufferingId
 
 instance ForeignConvention BufferMode where
   readForeign (i:us) bs ustk bstk
@@ -382,4 +383,3 @@ instance {-# overlappable #-} BuiltinForeign b => ForeignConvention [b]
 foreignCCError :: String -> IO a
 foreignCCError nm
   = die $ "mismatched foreign calling convention for `" ++ nm ++ "`"
-

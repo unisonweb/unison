@@ -1,14 +1,14 @@
 --The expression in red needs the {𝛆} ability, but this location only has access to the {𝛆} ability,
 --
---    8 | odd n = if n == 1 then true else even2 (n `drop` 1)
+--    8 | odd n = if n == 1 then true else even2 (drop n 1)
 
 use Universal ==
 
 even : Nat -> Boolean
-even n = if n == 0 then true else odd (n `drop` 1)
+even n = if n == 0 then true else odd (drop n 1)
 
 odd : Nat -> Boolean
-odd n = if n == 1 then true else even2 (n `drop` 1)
+odd n = if n == 1 then true else even2 (drop n 1)
 
 even2 = even
 

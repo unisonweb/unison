@@ -1,14 +1,16 @@
+{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 
 module Unison.Test.DataDeclaration where
 
 import Data.Map (Map, (!))
 import qualified Data.Map as Map
+import Data.Text.Encoding (encodeUtf8)
 import EasyTest
 import Text.RawString.QQ
+import qualified U.Util.Hash as Hash
 import Unison.DataDeclaration (DataDeclaration (..), Decl)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Hash as Hash
 import qualified Unison.Hashing.V2.Convert as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers (unsafeParseFile)
@@ -22,7 +24,7 @@ import qualified Unison.Var.RefNamed as Var
 
 test :: Test ()
 test = scope "datadeclaration" $
-  let Right hashes = Hashing.hashDecls . (snd <$>) . dataDeclarationsId $ file
+  let Right hashes = Hashing.hashDataDecls . (snd <$>) . dataDeclarationsId $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
       hashOf k = Map.lookup (Var.named k) hashMap
   in tests [
@@ -87,14 +89,14 @@ unhashComponentTest = tests
         app = Type.app ()
         forall = Type.forall ()
         (-->) = Type.arrow ()
-        h = Hash.unsafeFromBase32Hex "abcd"
-        ref = R.Derived h 0 1
-        a = Var.refNamed ref
+        h = Hash.fromByteString (encodeUtf8 "abcd")
+        ref = R.Id h 0
+        a = Var.refIdNamed ref
         b = Var.named "b"
         nil = Var.named "Nil"
-        cons = Var.refNamed ref
+        cons = Var.refIdNamed ref
         listRef = ref
-        listType = Type.ref () listRef
+        listType = Type.refId () listRef
         listDecl = DataDeclaration {
           modifier = DD.Structural,
           annotation = (),
@@ -104,9 +106,9 @@ unhashComponentTest = tests
            , ((), cons, forall b (var b --> listType `app` var b --> listType `app` var b))
            ]
         }
-        component :: Map R.Reference (Decl Symbol ())
+        component :: Map R.Id (Decl Symbol ())
         component = Map.singleton listRef (Right listDecl)
-        component' :: Map R.Reference (Symbol, Decl Symbol ())
+        component' :: Map R.Id (Symbol, Decl Symbol ())
         component' = DD.unhashComponent component
         (listVar, Right listDecl') = component' ! listRef
         listType' = var listVar
