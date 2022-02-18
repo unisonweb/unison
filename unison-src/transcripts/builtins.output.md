@@ -194,6 +194,8 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
 ```
 
 ## `Bytes` functions
@@ -340,10 +342,11 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test2               Passed
   ◉ Sandbox.test3               Passed
   ◉ Text.tests.alignment        Passed
+  ◉ Text.tests.literalsEq       Passed
   ◉ Text.tests.repeat           Passed
   ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 19 test(s) passing
+  ✅ 20 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 
