@@ -149,6 +149,8 @@ executable integration-tests
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
+  build-tools:
+      unison
   build-depends:
       ListLike
     , async

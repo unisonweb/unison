@@ -93,6 +93,8 @@ executables:
       - process
       - shellmet
       - time
+    build-tools:
+      - unison-cli:unison
 
 when:
   - condition: flag(optimized)
