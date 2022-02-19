@@ -12,6 +12,7 @@ jobs:
     needs:
       - build_linux
       - build_macos
+      - build_windows
 
     steps:
       - uses: actions/checkout@v2
@@ -48,12 +49,6 @@ jobs:
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-linux-x86_64.tar.gz | tar -xz
           echo "$HOME/stack-2.5.1-linux-x86_64/" >> $GITHUB_PATH
 
-      # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
@@ -84,12 +79,6 @@ jobs:
           curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
           echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
 
-      # One of the transcripts fails if the user's git name hasn't been set.
-      - name: set git user info
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-
       - name: remove ~/.stack/setup-exe-cache on macOS
         run: rm -rf ~/.stack/setup-exe-cache
 
@@ -111,3 +100,33 @@ jobs:
           if-no-files-found: error
           name: build-macos
           path: ucm-macos.tar.gz
+
+  build_windows:
+    name: "build_windows"
+    runs-on: windows-2019
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stack
+        run: |
+          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
+          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
+
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+
+      - name: fetch latest codebase-ui and package with ucm
+        run: |
+          mkdir -p /tmp/ucm/ui
+          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
+          cp $UCM /tmp/ucm/ucm
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
+          tar -c -z -f ucm-windows.tar.gz -C /tmp/ucm .
+
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v2
+        with:
+          if-no-files-found: error
+          name: build-windows
+          path: ucm-windows.tar.gz
