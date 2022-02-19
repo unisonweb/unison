@@ -5,10 +5,9 @@ module IntegrationTests.ArgumentParsing where
 
 import Data.List (intercalate)
 
-import Data.Text (pack)
 import Data.Time (getCurrentTime, diffUTCTime)
 import EasyTest
-import Shellmet (($|))
+import qualified System.Directory
 import System.Exit (ExitCode (ExitSuccess))
 import System.Process (readProcessWithExitCode)
 import Text.Printf
@@ -73,7 +72,6 @@ expectExitCode expected cmd args stdin = scope (intercalate " " (cmd : args)) do
 defaultArgs :: [String]
 defaultArgs = ["--codebase-create", tempCodebase, "--no-base"]
 
-clearTempCodebase :: () -> IO()
-clearTempCodebase _ = do
-    "rm" $| (map pack ["-rf", tempCodebase])
-    pure ()
+clearTempCodebase :: () -> IO ()
+clearTempCodebase _ =
+  System.Directory.removePathForcibly tempCodebase
