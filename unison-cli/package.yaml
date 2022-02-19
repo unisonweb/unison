@@ -78,6 +78,7 @@ executables:
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts -with-rtsopts=-N -v0
     dependencies:
+      - code-page
       - easytest
       - process
       - shellmet
@@ -89,6 +90,7 @@ executables:
     main: Suite.hs
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
+      - code-page
       - easytest
       - process
       - shellmet

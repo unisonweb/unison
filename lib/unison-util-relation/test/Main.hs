@@ -2,6 +2,7 @@
 module Main where
 
 import EasyTest
+import System.IO.CodePage (withCP65001)
 import System.Random (Random)
 import qualified Unison.Util.Relation as Relation
 import Unison.Util.Relation3 (Relation3)
@@ -10,7 +11,7 @@ import Unison.Util.Relation4 (Relation4)
 import qualified Unison.Util.Relation4 as Relation4
 
 main :: IO ()
-main =
+main = withCP65001 $
   (run . tests)
     [ (scope "Relation" . tests)
         [ scope "mapDom works" do

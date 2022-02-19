@@ -154,6 +154,7 @@ executable integration-tests
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite
@@ -226,6 +227,7 @@ executable transcripts
     , async
     , base
     , bytestring
+    , code-page
     , configurator
     , containers >=0.6.3
     , cryptonite

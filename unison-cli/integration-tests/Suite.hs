@@ -8,6 +8,7 @@ import EasyTest
 import qualified IntegrationTests.ArgumentParsing as ArgumentParsing
 import System.Environment (getArgs)
 import System.IO
+import System.IO.CodePage (withCP65001)
 
 test :: Test ()
 test =
@@ -16,7 +17,7 @@ test =
     ]
 
 main :: IO ()
-main = do
+main = withCP65001 do
   args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of
