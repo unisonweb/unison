@@ -21,6 +21,7 @@ benchmarks:
     main: Main.hs
     dependencies:
       - base
+      - code-page
       - containers
       - random
       - tasty-bench

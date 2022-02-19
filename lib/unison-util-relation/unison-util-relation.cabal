@@ -108,6 +108,7 @@ benchmark relation
   ghc-options: -Wall
   build-depends:
       base
+    , code-page
     , containers
     , deepseq
     , extra

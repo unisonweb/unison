@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad
 import qualified Data.Set as Set
+import System.IO.CodePage (withCP65001)
 import System.Random
 import Test.Tasty.Bench
 import Unison.Prelude
@@ -9,7 +10,7 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 
 main :: IO ()
-main =
+main = withCP65001 $
   defaultMain
     [ env (genRelations @Char @Char 10000 20) \rs ->
         bgroup
