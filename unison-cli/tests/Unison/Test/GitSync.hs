@@ -11,7 +11,7 @@ import Data.String.Here.Interpolated (i)
 import qualified Data.Text as Text
 import EasyTest
 import Shellmet ()
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (removePathForcibly)
 import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import qualified Unison.Codebase as Codebase
@@ -554,7 +554,7 @@ pushPullTest name fmt authorScript userScript = scope name do
       (authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
+    removePathForcibly repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
@@ -574,7 +574,7 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
       (authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
-    removeDirectoryRecursive repo
+    removePathForcibly repo
     Ucm.deleteCodebase author
     Ucm.deleteCodebase user
   ok
@@ -720,8 +720,8 @@ destroyedRemote = scope "destroyed-remote" do
     |]
   ok
   where
-    reinitRepo (Text.pack -> repo) = do
-      "rm" ["-rf", repo]
+    reinitRepo repoStr@(Text.pack -> repo) = do
+      removePathForcibly repoStr
       "git" ["init", "--bare", repo]
 
 
