@@ -8,6 +8,7 @@ library:
 tests:
   tests:
     dependencies:
+      - code-page
       - easytest
       - random
       - unison-util-relation
@@ -20,6 +21,7 @@ benchmarks:
     main: Main.hs
     dependencies:
       - base
+      - code-page
       - containers
       - random
       - tasty-bench

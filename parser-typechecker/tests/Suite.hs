@@ -7,6 +7,7 @@ module Main where
 import           EasyTest
 import           System.Environment (getArgs)
 import           System.IO
+import System.IO.CodePage (withCP65001)
 import qualified Unison.Core.Test.Name as Name
 import qualified Unison.Test.ABT as ABT
 import qualified Unison.Test.Cache as Cache
@@ -73,7 +74,7 @@ test = tests
  ]
 
 main :: IO ()
-main = do
+main = withCP65001 do
   args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of

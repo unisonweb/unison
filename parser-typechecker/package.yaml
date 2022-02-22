@@ -159,6 +159,7 @@ executables:
       - async
       - base
       - bytestring
+      - code-page
       - containers
       - directory
       - easytest

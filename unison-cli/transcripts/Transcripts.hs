@@ -21,6 +21,7 @@ import System.FilePath
     takeExtensions,
     (</>),
   )
+import System.IO.CodePage (withCP65001)
 import System.Process (readProcessWithExitCode)
 import Unison.Prelude
 
@@ -126,6 +127,6 @@ handleArgs args =
    in TestConfig matchPrefix
 
 main :: IO ()
-main = do
+main = withCP65001 do
   testConfig <- handleArgs <$> getArgs
   run (test testConfig)
