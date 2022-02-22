@@ -12,7 +12,7 @@ import Data.Text
     unpack,
   )
 import EasyTest
-import Shellmet (($|))
+import Shellmet () -- import instance for IsString ([Text] -> IO())
 import System.Directory
 import System.Environment (getArgs)
 import System.FilePath
@@ -80,7 +80,7 @@ buildTests config testBuilder dir = do
           -- if there is a matchPrefix set, filter non-prelude files by that prefix - or return True
           & second (filter (\f -> maybe True (`isPrefixOf` f) (matchPrefix config)))
 
-  ucm <- io $ unpack <$> "stack" $| ["exec", "--", "which", "unison"] -- todo: what is it in windows?
+  let ucm = "unison"
   case length transcripts of
     0 -> pure ()
     -- EasyTest exits early with "no test results recorded"
