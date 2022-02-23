@@ -23,6 +23,9 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Text.Lazy (toStrict)
+import qualified Data.Text.Encoding as TextE
+import qualified Data.Yaml as Yaml
 import Data.Tuple.Extra (dupe)
 import System.FilePath
 import System.Directory
@@ -860,14 +863,40 @@ docsInBranchToHtmlFiles runtime codebase root currentPath directory = do
       in dir </> fileName
 
     renderDocToHtmlFile :: Map Referent Name -> FilePath -> (Name, UnisonHash, Doc.Doc) -> IO ()
-    renderDocToHtmlFile docNamesByRef destination (docName, _, doc) =
+    renderDocToHtmlFile docNamesByRef destination (docName, _, doc) = do
       let
-        fullPath = docFilePath destination docName
-        directoryPath = takeDirectory fullPath
+        fullPath = 
+          docFilePath destination docName
+
+        directoryPath = 
+          takeDirectory fullPath
+
+        (DocHtml.FrontMatterData frontmatter, html) = 
+          DocHtml.toHtml docNamesByRef doc
+
+        go [v] = Yaml.String v
+        go vs = Yaml.array $ map Yaml.String vs
+
+        frontMatterToYaml fm =
+          fmap go fm
+
+        frontmatterTxt = 
+          if Map.null frontmatter then
+            ""
+          else
+            "---\n" <> TextE.decodeUtf8 (Yaml.encode $ frontMatterToYaml frontmatter) <> "---\n"
+
+        htmlAsText = 
+           Lucid.renderText html
+
+        fileContents = 
+          frontmatterTxt <> toStrict htmlAsText
+        
        in do
         -- Ensure all directories exists
         _ <- createDirectoryIfMissing True directoryPath
-        Lucid.renderToFile fullPath (DocHtml.toHtml docNamesByRef doc)
+        writeFile fullPath (Text.unpack fileContents)
+
 
 bestNameForTerm
   :: forall v . Var v => PPE.PrettyPrintEnv -> Width -> Referent -> Text

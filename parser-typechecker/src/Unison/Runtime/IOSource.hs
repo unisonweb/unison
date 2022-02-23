@@ -145,6 +145,18 @@ doc2UntitledSectionId = constructorNamed doc2Ref "Doc2.UntitledSection"
 doc2ColumnId = constructorNamed doc2Ref "Doc2.Column"
 doc2GroupId = constructorNamed doc2Ref "Doc2.Group"
 
+doc2MediaSourceRef :: R.Reference
+doc2MediaSourceRef = typeNamed "Doc2.MediaSource"
+pattern Doc2MediaSourceRef <- ((== doc2MediaSourceRef) -> True)
+
+doc2VideoRef :: R.Reference
+doc2VideoRef = typeNamed "Doc2.Video"
+pattern Doc2VideoRef <- ((== doc2VideoRef) -> True)
+
+doc2FrontMatterRef :: R.Reference
+doc2FrontMatterRef = typeNamed "Doc2.FrontMatter"
+pattern Doc2FrontMatterRef <- ((== doc2FrontMatterRef) -> True)
+
 pattern Doc2Word txt <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2WordId -> True))) (Term.Text' txt)
 pattern Doc2Code d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeId -> True))) d
 pattern Doc2CodeBlock lang d <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeBlockId -> True))) [Term.Text' lang, d]
@@ -198,6 +210,9 @@ pattern Doc2SpecialFormEval tm <- Term.App' (Term.Constructor' (ConstructorRefer
 pattern Doc2SpecialFormEvalInline tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEvalInlineId -> True))) tm
 pattern Doc2SpecialFormEmbed any <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEmbedId -> True))) any
 pattern Doc2SpecialFormEmbedInline any <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEmbedInlineId -> True))) any
+pattern Doc2MediaSource src mimeType <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2MediaSourceRef _)) [src, mimeType]
+pattern Doc2SpecialFormEmbedVideo sources config <- Doc2SpecialFormEmbed (Term.App' _ (Term.Apps' (Term.Constructor' (ConstructorReference Doc2VideoRef _)) [Term.List' (toList -> sources), Term.List' (toList -> config)]))
+pattern Doc2SpecialFormEmbedFrontMatter frontMatter <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2FrontMatterRef _)) (Term.List' (toList -> frontMatter))))
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
@@ -357,6 +372,26 @@ metadata.isPropagated = IsPropagated.IsPropagated
 
 -- A newtype used when embedding term references in a Doc2
 unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Term = Term Any
+
+-- Media types for Doc2.Embed. 
+-- Somewhat modelled after:
+--   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/source and
+--   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
+
+unique[ab9344724264495159ec7122d276a6358630403b6a5529e1e5d76bcf] type Doc2.MediaSource 
+  = { sourceUrl: Text, mimeType: Optional Text }
+
+-- Used with MediaSource to embed videos in a Doc. The `config` field is
+-- intended to be used to add attributes etc, like `poster` or `autoplay` for
+-- the HTML <video> element, if rendered as such.
+unique[b2ada5dfd4112ca3a7ba0a6483ce3d82811400c56eff8e6eca1b3fbf] type Doc2.Video
+  = { sources: [Doc2.MediaSource]
+    , config: [(Text, Text)]
+    }
+
+-- Useful for embedded data into a Doc, like title, date, tags etc:
+unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter 
+  = FrontMatter [(Text, Text)]
 
 -- ex: Doc2.term 'List.map
 Doc2.term : 'a -> Doc2.Term

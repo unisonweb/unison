@@ -20,12 +20,14 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Lucid
 import qualified Lucid as L
+import qualified Lucid.Base as LB
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Doc
+import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 
@@ -187,18 +189,38 @@ toText sep doc =
         . filter (not . isEmpty)
         . map (toText sep)
 
-toHtml :: Map Referent Name -> Doc -> Html ()
+data SideContent
+  = FrontMatterContent (Map Text [Text])
+  | TooltipContent (Html ())
+
+newtype FrontMatterData = FrontMatterData (Map Text [Text])
+
+toHtml :: Map Referent Name -> Doc -> (FrontMatterData, Html ())
 toHtml docNamesByRef document =
-  article_ [class_ "unison-doc"] $ do
-    content
-    div_ [class_ "tooltips", style_ "display: none;"] $ sequence_ tooltips
+  ( FrontMatterData frontMatterContent,
+    article_ [class_ "unison-doc"] $ do
+      content
+      div_ [class_ "tooltips", style_ "display: none;"] tooltips
+  )
   where
-    (_ :: Html (), (content, tooltips) :: (Html (), Seq (Html ()))) =
+    tooltips =
+      foldl go mempty sideContent
+      where
+        go acc (FrontMatterContent _) = acc
+        go acc (TooltipContent html) = acc <> html
+
+    frontMatterContent =
+      foldl go mempty sideContent
+      where
+        go acc (FrontMatterContent fm) = acc <> fm
+        go acc (TooltipContent _) = acc
+
+    (_ :: Html (), (content, sideContent) :: (Html (), Seq SideContent)) =
       runWriterT (evalStateT (toHtml_ 1 document) 0)
 
     toHtml_ ::
       forall m.
-      (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+      (MonadState Int m, MonadWriter (Seq SideContent) m) =>
       Nat ->
       Doc ->
       m (Html ())
@@ -206,7 +228,7 @@ toHtml docNamesByRef document =
       let -- Make it simple to retain the sectionLevel when recurring.
           -- the Section variant increments it locally
           currentSectionLevelToHtml ::
-            (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+            (MonadState Int m, MonadWriter (Seq SideContent) m) =>
             Doc ->
             m (Html ())
           currentSectionLevelToHtml =
@@ -217,7 +239,7 @@ toHtml docNamesByRef document =
             sequence_ <$> traverse f xs
 
           sectionContentToHtml ::
-            (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+            (MonadState Int m, MonadWriter (Seq SideContent) m) =>
             (Doc -> m (Html ())) ->
             Doc ->
             m (Html ())
@@ -255,7 +277,7 @@ toHtml docNamesByRef document =
               tooltip <-
                 div_ [class_ "tooltip-content", id_ tooltipId]
                   <$> currentSectionLevelToHtml tooltipContent
-              Writer.tell (pure tooltip)
+              Writer.tell (pure $ TooltipContent tooltip)
 
               span_
                 [ class_ "tooltip-trigger",
@@ -438,6 +460,23 @@ toHtml docNamesByRef document =
                           span_ [class_ "result"] $ do
                             "⧨"
                             Syntax.toHtml result
+                Video sources attrs ->
+                  let source (MediaSource s Nothing) =
+                        source_ [src_ s]
+                      source (MediaSource s (Just m)) =
+                        source_ [src_ s, type_ m]
+
+                      attrs' = foldMap go (Map.toList attrs)
+                        where
+                          go ("poster", p) = [LB.makeAttribute "poster" p]
+                          go ("autoplay", "true") = [LB.makeAttribute "autoplay" "autoplay"]
+                          go ("loop", "true") = [loop_ "loop"]
+                          go ("muted", "true") = [LB.makeAttribute "muted" "muted"]
+                          go _ = []
+                   in pure $ video_ attrs' $ mapM_ source sources
+                Doc.FrontMatter fm -> do
+                  Writer.tell (pure $ FrontMatterContent fm)
+                  pure mempty
                 Embed syntax ->
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->

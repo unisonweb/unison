@@ -12,13 +12,15 @@ module Unison.Server.Doc where
 
 import Control.Lens ((^.), view)
 import Control.Monad
-import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
+-- import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.Foldable
 import Data.Functor
-import Data.Maybe (fromMaybe)
-import Data.Text (Text)
+-- import Data.Maybe (fromMaybe)
+-- import Data.Text (Text)
+-- import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Word
-import GHC.Generics (Generic)
+-- import GHC.Generics (Generic)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -26,6 +28,7 @@ import Unison.Server.Syntax (SyntaxText)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import Unison.Prelude
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -49,6 +52,7 @@ import qualified Unison.Type as Type
 import qualified Unison.TypePrinter as TypePrinter
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.SyntaxText as S
+import qualified Unison.Util.List as List
 
 type Nat = Word64
 
@@ -89,6 +93,8 @@ type UnisonHash = Text
 
 data Ref a = Term a | Type a deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
+data MediaSource = MediaSource { mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text } deriving (Eq, Show, Generic)
+
 data SpecialForm
   = Source [Ref (UnisonHash, DisplayObject SyntaxText Src)]
   | FoldedSource [Ref (UnisonHash, DisplayObject SyntaxText Src)]
@@ -101,6 +107,8 @@ data SpecialForm
   | EvalInline SyntaxText SyntaxText
   | Embed SyntaxText
   | EmbedInline SyntaxText
+  | Video [MediaSource] (Map Text Text)
+  | FrontMatter (Map Text [Text])
   deriving (Eq,Show,Generic)
 
 -- `Src folded unfolded`
@@ -217,6 +225,21 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
     DD.Doc2SpecialFormEvalInline (DD.Doc2Term tm) -> eval tm >>= \case
       Nothing -> EvalInline <$> source tm <*> pure evalErrMsg
       Just result -> EvalInline <$> source tm <*> source result
+
+    -- Embed Video
+    DD.Doc2SpecialFormEmbedVideo sources config -> 
+      pure $ trace "video pattern" $ Video sources' config' 
+      where
+        sources' = [ MediaSource url mimeType | DD.Doc2MediaSource (Term.Text' url) (maybeText -> mimeType) <- sources ]
+        config' = Map.fromList [ (k,v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- config]
+        maybeText (Term.App' _ (Term.Text' a)) = Just a 
+        maybeText _ = Nothing
+
+    -- Embed FrontMatter
+    DD.Doc2SpecialFormEmbedFrontMatter frontMatter -> 
+      pure $ trace "frontmatter pattern" $ FrontMatter frontMatter'
+      where
+        frontMatter' = List.multimap [ (k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter]
 
     -- Embed Any
     DD.Doc2SpecialFormEmbed (Term.App' _ any) ->
