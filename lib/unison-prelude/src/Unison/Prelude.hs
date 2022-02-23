@@ -57,6 +57,8 @@ import Safe as X (atMay, headMay, lastMay, readMay)
 import Text.Read as X (readMaybe)
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT, withExceptT)
 import qualified UnliftIO
+import qualified System.IO as IO
+import qualified GHC.IO.Handle as Handle
 
 onNothing :: Applicative m => m a -> Maybe a -> m a
 onNothing x =
@@ -85,22 +87,43 @@ throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 tShow :: Show a => a -> Text
 tShow = Text.pack . show
 
--- Read an entire file strictly assuming UTF8
+-- | Strictly read an entire file decoding UTF8.
+-- Converts \r\n -> \n on windows.
 readUtf8 :: FilePath -> IO Text
-readUtf8 p = decodeUtf8 <$> BS.readFile p
+readUtf8 fileName =
+  UnliftIO.withFile fileName UnliftIO.ReadMode readUtf8Handle
 
+-- | Strictly read from a handle, decoding UTF8, or failing if not valid UTF8
+-- Converts \r\n -> \n on windows.
 safeReadUtf8 :: FilePath -> IO (Either IOException Text)
 safeReadUtf8 p = try (readUtf8 p)
 
+-- | Strictly read from a handle, decoding UTF8.
+-- Note, this changes the newline-mode of the handle
+-- to convert \r\n -> \n on windows.
+readUtf8Handle :: IO.Handle -> IO Text
+readUtf8Handle handle = do
+  IO.hSetNewlineMode handle IO.universalNewlineMode
+  decodeUtf8 <$> BS.hGetContents handle
+
+-- | Strictly read from stdin, decoding UTF8.
+-- Converts \r\n -> \n on windows.
 safeReadUtf8StdIn :: IO (Either IOException Text)
-safeReadUtf8StdIn = try $ decodeUtf8 <$> BS.getContents
+safeReadUtf8StdIn = do
+  handle <- Handle.hDuplicate IO.stdin
+  try $ readUtf8Handle handle
 
 uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
 uncurry4 f (a, b, c, d) =
   f a b c d
 
+-- | Write a file strictly assuming UTF8
+-- Converts \n -> \r\n on windows.
 writeUtf8 :: FilePath -> Text -> IO ()
-writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt)
+writeUtf8 fileName txt = do
+  UnliftIO.withFile fileName UnliftIO.WriteMode $ \handle -> do
+    IO.hSetNewlineMode handle IO.universalNewlineMode
+    BS.hPut handle (encodeUtf8 txt)
 
 reportBug :: String -> String -> String
 reportBug bugId msg =

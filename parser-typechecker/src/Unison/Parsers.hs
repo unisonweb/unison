@@ -4,8 +4,6 @@ module Unison.Parsers where
 import Unison.Prelude
 
 import qualified Data.Text                     as Text
-import           Data.Text.IO                   ( readFile )
-import           Prelude                 hiding ( readFile )
 import qualified Unison.NamesWithHistory                 as Names
 import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
@@ -62,7 +60,7 @@ readAndParseFile
   -> FilePath
   -> IO (Either (Parser.Err v) (UnisonFile v Ann))
 readAndParseFile penv fileName = do
-  txt <- readFile fileName
+  txt <- readUtf8 fileName
   let src = Text.unpack txt
   pure $ parseFile fileName src penv
 
@@ -72,7 +70,7 @@ unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 unsafeReadAndParseFile
   :: Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
-  txt <- readFile fileName
+  txt <- readUtf8 fileName
   let str = Text.unpack txt
   pure . unsafeGetRightFrom str $ parseFile fileName str penv
 

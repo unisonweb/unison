@@ -14,7 +14,6 @@ import Control.Exception (finally, catch)
 import Control.Monad.State (runStateT)
 import Data.Configurator.Types (Config)
 import Data.IORef
-import Prelude hiding (readFile, writeFile)
 import System.IO.Error (isDoesNotExistError)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -33,7 +32,6 @@ import Unison.Symbol (Symbol)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Data.Text.IO
 import qualified System.Console.Haskeline as Line
 import qualified Crypto.Random        as Random
 import qualified Unison.Codebase.Path as Path
@@ -148,7 +146,7 @@ main dir welcome initialPath (config, cancelConfig) initialInputs runtime codeba
                       _ | isDoesNotExistError e -> return InvalidSourceNameError
                       _ -> return LoadError
                   go = do
-                    contents <- Data.Text.IO.readFile $ Text.unpack fname
+                    contents <- readUtf8 $ Text.unpack fname
                     return $ LoadSuccess contents
                   in catch go handle
             else return InvalidSourceNameError

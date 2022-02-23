@@ -19,7 +19,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Set.NonEmpty (NESet)
 import qualified Data.Text as Text
-import Data.Text.IO (readFile, writeFile)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe, uncurry3)
 import System.Directory
@@ -125,7 +124,6 @@ import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.WatchKind as WK
-import Prelude hiding (readFile, writeFile)
 import qualified Data.List.NonEmpty as NEList
 import qualified U.Util.Monoid as Monoid
 import qualified Data.Foldable as Foldable
@@ -1645,9 +1643,9 @@ displayRendered outputLoc pp =
           existingContents <- do
             exists <- doesFileExist path
             if exists
-              then readFile path
+              then readUtf8 path
               else pure ""
-          writeFile path . Text.pack . P.toPlain 80 $
+          writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines [pp, "", P.text existingContents]
         message pp path =
           P.callout "☝️" $
@@ -1681,9 +1679,9 @@ displayDefinitions outputLoc ppe types terms =
           existingContents <- do
             exists <- doesFileExist path
             if exists
-              then readFile path
+              then readUtf8 path
               else pure ""
-          writeFile path . Text.pack . P.toPlain 80 $
+          writeUtf8 path . Text.pack . P.toPlain 80 $
             P.lines
               [ code,
                 "",
