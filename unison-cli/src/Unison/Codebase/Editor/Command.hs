@@ -225,7 +225,7 @@ data Command
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
 
-  SyncRemoteBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> Command m i v (Either GitError ())
+  SyncRemoteBranch :: WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> Command m i v (Either GitError (Either e (Branch m)))
 
   AppendToReflog :: Text -> Branch m -> Branch m -> Command m i v ()
 

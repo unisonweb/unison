@@ -1114,6 +1114,12 @@ notifyUser dir o = case o of
           push = P.group . P.backticked . IP.patternName $ IP.push
           pull = P.group . P.backticked . IP.patternName $ IP.pull
     GitCodebaseError e -> case e of
+      CouldntParseRemoteBranch repo s ->
+        P.wrap $
+          "I couldn't decode the root branch "
+            <> P.string s
+            <> "from the repository at"
+            <> prettyReadRepo repo
       CouldntLoadRootBranch repo hash ->
         P.wrap $
           "I couldn't load the designated root hash"

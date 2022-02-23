@@ -818,7 +818,7 @@ sqliteCodebase debugName root localOrRemote action = do
             syncFromDirectory
             syncToDirectory
             viewRemoteBranch'
-            (\b r opts -> pushGitBranch conn b r opts)
+            (\r opts action -> pushGitBranch conn r opts action)
             watches
             getWatch
             putWatch
@@ -1145,17 +1145,18 @@ viewRemoteBranch' (repo, sbh, path) gitBranchBehavior action = UnliftIO.try $ do
     Left err -> throwIO . C.GitSqliteCodebaseError $ C.gitErrorFromOpenCodebaseError remotePath repo err
     Right inner -> pure inner
 
--- Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
+-- | Push a branch to a repo. Optionally attempt to set the branch as the new root, which fails if the branch is not after
 -- the existing root.
 pushGitBranch ::
-  forall m.
+  forall m e.
   (MonadUnliftIO m) =>
   Connection ->
-  Branch m ->
   WriteRepo ->
   PushGitBranchOpts ->
-  m (Either C.GitError ())
-pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = UnliftIO.try do
+  -- An action which accepts the current root branch on the remote and computes a new branch.
+  (Branch m -> m (Either e (Branch m))) ->
+  m (Either C.GitError (Either e (Branch m)))
+pushGitBranch srcConn repo (PushGitBranchOpts setRoot _syncMode) action = UnliftIO.try do
   -- Pull the latest remote into our git cache
   -- Use a local git clone to copy this git repo into a temp-dir
   -- Delete the codebase in our temp-dir
@@ -1171,34 +1172,47 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
   --
   -- set up the cache dir
  throwEitherMWith C.GitProtocolError . withRepo readRepo Git.CreateBranchIfMissing $ \pushStaging -> do
-   throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
-     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(codebaseStatus, _destCodebase, destConn) -> do
-         flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
-           throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn
-   void $ push pushStaging repo
+   newBranchOrErr <- throwEitherMWith (C.GitSqliteCodebaseError . C.gitErrorFromOpenCodebaseError (Git.gitDirToPath pushStaging) readRepo)
+     . withOpenOrCreateCodebase "push.dest" (Git.gitDirToPath pushStaging) Remote $ \(codebaseStatus, destCodebase, destConn) -> do
+         currentRootBranch <- C.getRootBranch destCodebase >>= \case
+            Left err -> case err of
+              C.NoRootBranch -> pure Branch.empty
+              C.CouldntParseRootBranch s ->
+                throwIO . C.GitCodebaseError $ GitError.CouldntParseRemoteBranch readRepo s
+              C.CouldntLoadRootBranch h ->
+                throwIO . C.GitCodebaseError $ GitError.CouldntLoadRootBranch readRepo h
+            Right br -> pure br
+         action currentRootBranch >>= \case
+           Left e -> pure $ Left e
+           Right newBranch -> do
+             flip runReaderT destConn $ Q.withSavepoint_ @(ReaderT _ m) "push" $ do
+               throwExceptT $ doSync codebaseStatus (Git.gitDirToPath pushStaging) srcConn destConn newBranch
+             pure (Right newBranch)
+   for newBranchOrErr $ push pushStaging repo
+   pure newBranchOrErr
   where
     readRepo :: ReadRepo
     readRepo = writeToRead repo
-    doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> ExceptT C.GitError (ReaderT Connection m) ()
-    doSync codebaseStatus remotePath srcConn destConn = do
+    doSync :: CodebaseStatus -> FilePath -> Connection -> Connection -> Branch m -> ExceptT C.GitError (ReaderT Connection m) ()
+    doSync codebaseStatus remotePath srcConn destConn newBranch = do
       _ <- flip State.execStateT emptySyncProgressState $
-        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) branch)
-      when setRoot $ overwriteRoot codebaseStatus remotePath destConn
-    overwriteRoot :: forall m. MonadIO m => CodebaseStatus -> FilePath -> Connection -> ExceptT C.GitError m ()
-    overwriteRoot codebaseStatus remotePath destConn = do
-      let newRootHash = Branch.headHash branch
+        syncInternal syncProgress srcConn destConn (Branch.transform (lift . lift . lift) newBranch)
+      when setRoot $ overwriteRoot codebaseStatus remotePath destConn newBranch
+    overwriteRoot :: forall n. MonadIO n => CodebaseStatus -> FilePath -> Connection -> Branch m -> ExceptT C.GitError n ()
+    overwriteRoot codebaseStatus remotePath destConn newBranch = do
+      let newBranchHash = Branch.headHash newBranch
       case codebaseStatus of
         ExistingCodebase -> do
           -- the call to runDB "handles" the possible DB error by bombing
           maybeOldRootHash <- fmap Cv.branchHash2to1 <$> runDB destConn Ops.loadMaybeRootCausalHash
           case maybeOldRootHash of
             Nothing -> runDB destConn $ do
-              setRepoRoot newRootHash
+              setRepoRoot newBranchHash
             (Just oldRootHash) -> runDB destConn $ do
-              before oldRootHash newRootHash >>= \case
+              before oldRootHash newBranchHash >>= \case
                 Nothing ->
                   error $
-                    "I couldn't find the hash " ++ show newRootHash
+                    "I couldn't find the hash " ++ show newBranchHash
                       ++ " that I just synced to the cached copy of "
                       ++ repoString
                       ++ " in "
@@ -1208,7 +1222,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
                   lift . lift . throwError . C.GitProtocolError $ GitError.PushDestinationHasNewStuff repo
                 Just True -> pure ()
         CreatedCodebase -> pure ()
-      runDB destConn $ setRepoRoot newRootHash
+      runDB destConn $ setRepoRoot newBranchHash
 
     repoString = Text.unpack $ printWriteRepo repo
     setRepoRoot :: forall m. Q.DB m => Branch.Hash -> m ()
@@ -1262,8 +1276,8 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
         hasDeleteShm = any isShmDelete statusLines
 
     -- Commit our changes
-    push :: forall m. MonadIO m => Git.GitRepo -> WriteRepo -> m Bool -- withIOError needs IO
-    push remotePath repo@(WriteGitRepo {url'=url, branch=mayGitBranch}) = time "SqliteCodebase.pushGitRootBranch.push" $ do
+    push :: forall n. MonadIO n => Git.GitRepo -> WriteRepo -> Branch m -> n Bool -- withIOError needs IO
+    push remotePath repo@(WriteGitRepo {url'=url, branch=mayGitBranch}) newRootBranch = time "SqliteCodebase.pushGitRootBranch.push" $ do
       -- has anything changed?
       -- note: -uall recursively shows status for all files in untracked directories
       --   we want this so that we see
@@ -1291,7 +1305,7 @@ pushGitBranch srcConn branch repo (PushGitBranchOpts setRoot _syncMode) = Unlift
             when hasDeleteShm $ gitIn remotePath ["rm", Text.pack $ codebasePath <> "-shm"]
             gitIn
               remotePath
-              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash branch)]
+              ["commit", "-q", "-m", "Sync branch " <> Text.pack (show $ Branch.headHash newRootBranch)]
             -- Push our changes to the repo, silencing all output.
             -- Even with quiet, the remote (Github) can still send output through,
             -- so we capture stdout and stderr.

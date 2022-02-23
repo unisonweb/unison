@@ -103,7 +103,7 @@ data Codebase m v a = Codebase
     syncToDirectory :: CodebasePath -> SyncMode -> Branch m -> m (),
     viewRemoteBranch' :: forall r. ReadRemoteNamespace -> Git.GitBranchBehavior -> ((Branch m, CodebasePath) -> m r) -> m (Either GitError r),
     -- | Push the given branch to the given repo, and optionally set it as the root branch.
-    pushGitBranch :: Branch m -> WriteRepo -> PushGitBranchOpts -> m (Either GitError ()),
+    pushGitBranch :: forall e. WriteRepo -> PushGitBranchOpts -> (Branch m -> m (Either e (Branch m))) -> m (Either GitError (Either e (Branch m))),
     -- | @watches k@ returns all of the references @r@ that were previously put by a @putWatch k r t@. @t@ can be
     -- retrieved by @getWatch k r@.
     watches :: WK.WatchKind -> m [Reference.Id],
