@@ -307,6 +307,7 @@ library
     , x509
     , x509-store
     , x509-system
+    , yaml
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
