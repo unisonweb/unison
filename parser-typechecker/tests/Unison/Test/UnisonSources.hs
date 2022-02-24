@@ -7,9 +7,7 @@ module Unison.Test.UnisonSources where
 import           Control.Exception      (throwIO)
 import           Control.Lens           ( view )
 import           Control.Lens.Tuple     ( _5 )
-import           Control.Monad.IO.Class (liftIO)
 import qualified Data.Map               as Map
-import           Data.Sequence          (Seq)
 import           Data.Text              (unpack)
 import           EasyTest
 import           System.FilePath        (joinPath, splitPath, replaceExtension)
@@ -21,6 +19,7 @@ import Unison.Parser.Ann (Ann)
 import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrettyPrintEnv.Names as PPE
+import           Unison.Prelude
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result

@@ -27,7 +27,7 @@ errorFileName :: String -> String
 errorFileName n = dropExtension n ++ ".message.txt"
 
 emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
-emitAsPlainTextTo src e f = writeFile f plainErr
+emitAsPlainTextTo src e f = writeUtf8 f plainErr
   where plainErr = Color.toPlain $ prettyParseError src e
 
 printError :: Var v => String -> Err v -> IO ()
