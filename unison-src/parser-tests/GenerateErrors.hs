@@ -2,8 +2,7 @@
 {- For every file foo.u in the current directory write the parse error to foo.message.txt -}
 module GenerateErrors where
 import qualified Data.Text                as Text
-import           Data.Text.IO             ( readFile )
-import           Prelude           hiding ( readFile )
+import           Prelude
 import           System.Directory         ( listDirectory, getCurrentDirectory )
 import           System.FilePath          ( takeExtension, dropExtension )
 import           System.IO                ( putStrLn )
@@ -36,7 +35,7 @@ printError src e = putStrLn $ B.showParseError src e
 
 processFile :: FilePath -> IO ()
 processFile f = do
-  content <- Text.unpack <$> readFile f
+  content <- Text.unpack <$> readUtf8 f
   let res = P.parseFile f content B.names
   case res of
     Left err -> do

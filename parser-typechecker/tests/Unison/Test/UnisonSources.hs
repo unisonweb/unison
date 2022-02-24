@@ -11,7 +11,6 @@ import           Control.Monad.IO.Class (liftIO)
 import qualified Data.Map               as Map
 import           Data.Sequence          (Seq)
 import           Data.Text              (unpack)
-import           Data.Text.IO           (readFile)
 import           EasyTest
 import           System.FilePath        (joinPath, splitPath, replaceExtension)
 import           System.FilePath.Find   (always, extension, find, (==?))
@@ -119,7 +118,7 @@ shortName = joinPath . drop 1 . splitPath
 
 typecheckingTest :: (EitherResult -> Test TFile) -> FilePath -> Test TFile
 typecheckingTest how filepath = scope "typecheck" $ do
-  source <- io $ unpack <$> Data.Text.IO.readFile filepath
+  source <- io $ unpack <$> readUtf8 filepath
   how . decodeResult source $ parseAndSynthesizeAsFile [] (shortName filepath) source
 
 resultTest
@@ -129,7 +128,7 @@ resultTest rt uf filepath = do
   rFileExists <- io $ doesFileExist valueFile
   if rFileExists
     then scope "result" $ do
-      values <- io $ unpack <$> Data.Text.IO.readFile valueFile
+      values <- io $ unpack <$> readUtf8 valueFile
       let term        = Parsers.parseTerm values parsingEnv
       let report e = throwIO (userError $ toPlain 10000 e)
       (bindings, watches) <- io $ either report pure =<<

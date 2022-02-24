@@ -21,7 +21,6 @@ import           UnliftIO.IORef                 ( newIORef
                                                 , writeIORef
                                                 )
 import qualified Data.Map                      as Map
-import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
                                                 )
@@ -92,7 +91,7 @@ watchDirectory dir allow = do
           liftIO $ print (e :: IOException)
         go :: IO (Maybe (FilePath, Text))
         go = liftIO $ do
-          contents <- Data.Text.IO.readFile file
+          contents <- readUtf8 file
           prevs    <- readIORef previousFiles
           case Map.lookup file prevs of
             -- if the file's content's haven't changed and less than .5s
