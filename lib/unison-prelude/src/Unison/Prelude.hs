@@ -103,7 +103,7 @@ safeReadUtf8 p = try (readUtf8 p)
 -- to convert \r\n -> \n on windows.
 readUtf8Handle :: IO.Handle -> IO Text
 readUtf8Handle handle = do
-  IO.hSetNewlineMode handle IO.universalNewlineMode
+  IO.hSetNewlineMode handle IO.nativeNewlineMode
   decodeUtf8 <$> BS.hGetContents handle
 
 -- | Strictly read from stdin, decoding UTF8.
