@@ -549,9 +549,9 @@ pushPullTest name fmt authorScript userScript = scope name do
     user <- Ucm.initCodebase fmt
     userOutput <- Ucm.runTranscript user (userScript repo)
 
-    when writeTranscriptOutput $ writeFile
+    when writeTranscriptOutput $ writeUtf8
       (transcriptOutputFile name)
-      (authorOutput <> "\n-------\n" <> userOutput)
+      (Text.pack $ authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
     removePathForcibly repo
@@ -569,9 +569,9 @@ watchPushPullTest name fmt authorScript userScript codebaseCheck = scope name do
     userOutput <- Ucm.runTranscript user (userScript repo)
     Ucm.lowLevel user codebaseCheck
 
-    when writeTranscriptOutput $ writeFile
+    when writeTranscriptOutput $ writeUtf8
       (transcriptOutputFile name)
-      (authorOutput <> "\n-------\n" <> userOutput)
+      (Text.pack $ authorOutput <> "\n-------\n" <> userOutput)
 
     -- if we haven't crashed, clean up!
     removePathForcibly repo

@@ -42,6 +42,7 @@ import Text.Megaparsec.Char (char)
 import qualified Text.Megaparsec.Char.Lexer as LP
 import Unison.Lexer.Pos (Pos (Pos), Column, Line, column, line)
 import qualified Unison.Util.Bytes as Bytes
+import qualified Data.Text as Text
 
 type BlockName = String
 type Layout = [(BlockName,Column)]
@@ -1188,8 +1189,8 @@ inc (Pos line col) = Pos line (col + 1)
 
 debugFileLex :: String -> IO ()
 debugFileLex file = do
-  contents <- readFile file
-  let s = debugLex'' (lexer file contents)
+  contents <- readUtf8 file
+  let s = debugLex'' (lexer file (Text.unpack contents))
   putStrLn s
 
 debugLex'' :: [Token Lexeme] -> String

@@ -30,7 +30,6 @@ import Control.Monad.IO.Class as X (MonadIO (liftIO))
 import Control.Monad.Trans as X (MonadTrans (lift))
 import Control.Monad.Trans.Maybe as X (MaybeT (MaybeT, runMaybeT))
 import Data.ByteString as X (ByteString)
-import qualified Data.ByteString as BS
 import Data.Coerce as X (Coercible, coerce)
 import Data.Either as X
 import Data.Either.Combinators as X (mapLeft, maybeToRight)
@@ -46,6 +45,7 @@ import Data.Set as X (Set)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
@@ -103,8 +103,8 @@ safeReadUtf8 p = try (readUtf8 p)
 -- to convert \r\n -> \n on windows.
 readUtf8Handle :: IO.Handle -> IO Text
 readUtf8Handle handle = do
-  IO.hSetNewlineMode handle IO.universalNewlineMode
-  decodeUtf8 <$> BS.hGetContents handle
+  Handle.hSetEncoding handle IO.utf8
+  Text.hGetContents handle
 
 -- | Strictly read from stdin, decoding UTF8.
 -- Converts \r\n -> \n on windows.
@@ -122,8 +122,8 @@ uncurry4 f (a, b, c, d) =
 writeUtf8 :: FilePath -> Text -> IO ()
 writeUtf8 fileName txt = do
   UnliftIO.withFile fileName UnliftIO.WriteMode $ \handle -> do
-    IO.hSetNewlineMode handle IO.universalNewlineMode
-    BS.hPut handle (encodeUtf8 txt)
+    Handle.hSetEncoding handle IO.utf8
+    Text.hPutStr handle txt
 
 reportBug :: String -> String -> String
 reportBug bugId msg =
