@@ -25,7 +25,7 @@ less str = do
       pager <-
         runMaybeT $
           msum
-            [ shell <$> MaybeT (lookupEnv "PAGER"),
+            [ shell <$> MaybeT (lookupEnv "UNISON_PAGER"),
               MaybeT (findExecutable "less") <&> \less -> proc less lessArgs,
               -- most windows machines have 'more'.
               MaybeT (findExecutable "more") <&> \more -> proc more []
