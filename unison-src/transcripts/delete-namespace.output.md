@@ -40,7 +40,7 @@ Deleting a namespace with external dependencies should fail and list all depende
                4. dependents.usage2
   
   If you want to proceed anyways and leave those definitions
-  without names, usedelete.namespace.force
+  without names, use delete.namespace.force
 
 ```
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
