@@ -18,7 +18,6 @@ where
 import Control.Monad (when)
 import qualified Data.Text as Text
 import System.Directory (removeDirectoryRecursive)
-import System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import U.Util.String (stripMargin)
 import Unison.Codebase (CodebasePath)
@@ -64,30 +63,20 @@ deleteCodebase (Codebase path _) = removeDirectoryRecursive path
 
 runTranscript :: Codebase -> Transcript -> IO TranscriptOutput
 runTranscript (Codebase codebasePath fmt) transcript = do
-  -- this configFile ought to be optional
-  configFile <- do
-    tmpDir <-
-      Temp.getCanonicalTemporaryDirectory
-        >>= flip Temp.createTempDirectory ("ucm-test")
-    pure $ tmpDir </> ".unisonConfig"
-  let err err = fail $ "Parse error: \n" <> show err
+  let err e = fail $ "Parse error: \n" <> show e
       cbInit = case fmt of CodebaseFormat2 -> SC.init
-  result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath \codebase -> do
-    Codebase.installUcmDependencies codebase
-    -- parse and run the transcript
-    output <-
-      flip (either err) (TR.parse "transcript" (Text.pack . stripMargin $ unTranscript transcript)) $ \stanzas ->
-        fmap Text.unpack $
-          TR.run "Unison.Test.Ucm.runTranscript Invalid Version String"
-            codebasePath
-            configFile
-            stanzas
-            codebase
-    when debugTranscriptOutput $ traceM output
-    pure output
-  case result of
-    Left e -> fail $ P.toANSI 80 (P.shown e)
-    Right x -> pure x
+  TR.withTranscriptRunner "Unison.Test.Ucm.runTranscript Invalid Version String" configFile $ \runner -> do
+    result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath \codebase -> do
+      Codebase.installUcmDependencies codebase
+      let transcriptSrc = Text.pack . stripMargin $ unTranscript transcript
+      output <- either err Text.unpack <$> runner "transcript" transcriptSrc (codebasePath, codebase)
+      when debugTranscriptOutput $ traceM output
+      pure output
+    case result of
+      Left e -> fail $ P.toANSI 80 (P.shown e)
+      Right x -> pure x
+  where
+    configFile = Nothing
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) action = do

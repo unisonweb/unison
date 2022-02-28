@@ -222,8 +222,6 @@ executable transcripts
       TypeApplications
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-  build-tools:
-      unison
   build-depends:
       ListLike
     , async
@@ -253,6 +251,7 @@ executable transcripts
     , text
     , these
     , transformers
+    , unison-cli
     , unison-codebase-sqlite
     , unison-core1
     , unison-parser-typechecker

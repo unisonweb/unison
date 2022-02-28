@@ -14,6 +14,7 @@ module Unison.Codebase.Init
     initCodebaseAndExit,
     withOpenOrCreateCodebase,
     withNewUcmCodebaseOrExit,
+    withTemporaryUcmCodebase,
   )
 where
 
@@ -29,6 +30,8 @@ import qualified Unison.Util.Pretty as P
 import UnliftIO.Directory (canonicalizePath)
 import Unison.Codebase.Init.CreateCodebaseError
 import Unison.Codebase.Init.OpenCodebaseError
+import UnliftIO (MonadUnliftIO)
+import qualified UnliftIO
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
@@ -142,3 +145,16 @@ initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe Code
 initCodebaseAndExit i debugName mdir = do
   codebaseDir <- Codebase.getCodebaseDir mdir
   withNewUcmCodebaseOrExit i debugName  codebaseDir (const $ pure ())
+
+
+withTemporaryUcmCodebase ::
+  MonadUnliftIO m =>
+  Init m Symbol Ann ->
+  DebugName ->
+  ((CodebasePath, Codebase m Symbol Ann) -> m r) ->
+  m r
+withTemporaryUcmCodebase cbInit debugName action = do
+  UnliftIO.withSystemTempDirectory debugName $ \tempDir -> do
+    withNewUcmCodebaseOrExit cbInit debugName tempDir $ \codebase -> do
+      action (tempDir, codebase)
+

@@ -1,4 +1,5 @@
 {- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
+{-# LANGUAGE DeriveAnyClass #-}
 {-# Language OverloadedStrings #-}
 {-# Language BangPatterns #-}
 {-# Language ViewPatterns #-}
@@ -10,16 +11,15 @@ module Unison.Codebase.TranscriptParser
     FenceType,
     ExpectingError,
     Hidden,
-    Err,
+    TranscriptError(..),
     UcmLine (..),
-    run,
+    withTranscriptRunner,
     parse,
     parseFile,
   )
 where
 
 import Control.Concurrent.STM (atomically)
-import Control.Exception (finally)
 import Control.Monad.State (runStateT)
 import Data.List (isSubsequenceOf)
 import Data.IORef
@@ -27,7 +27,6 @@ import Prelude hiding (readFile, writeFile)
 import System.Directory ( doesFileExist )
 import System.Exit (die)
 import System.IO.Error (catchIOError)
-import System.Environment (getProgName)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Command (LoadSourceResult (..))
 import Unison.Codebase.Editor.Input (Input (..), Event(UnisonFileChanged))
@@ -60,13 +59,15 @@ import qualified Unison.Codebase.Editor.Output as Output
 import Control.Lens (view)
 import Control.Error (rightMay)
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import qualified UnliftIO
+import Data.Configurator.Types (Config)
+import qualified Data.Configurator as Configurator
 
 -- | Render transcript errors at a width of 65 chars.
 terminalWidth :: P.Width
 terminalWidth = 65
 
 type ExpectingError = Bool
-type Err = String
 type ScratchFileName = Text
 type FenceType = Text
 
@@ -111,22 +112,67 @@ instance Show Stanza where
       "```", "" ]
     Unfenced txt -> Text.unpack txt
 
-parseFile :: FilePath -> IO (Either Err [Stanza])
+parseFile :: FilePath -> IO (Either TranscriptError [Stanza])
 parseFile filePath = do
   exists <- doesFileExist filePath
   if exists then do
     txt <- readUtf8 filePath
     pure $ parse filePath txt
   else
-    pure $ Left $ show filePath ++ " does not exist"
+    pure . Left . TranscriptParseError . Text.pack $ filePath <> " does not exist"
 
-parse :: String -> Text -> Either Err [Stanza]
+parse :: String -> Text -> Either TranscriptError [Stanza]
 parse srcName txt = case P.parse (stanzas <* P.eof) srcName txt of
   Right a -> Right a
-  Left e -> Left (show e)
+  Left e -> Left . TranscriptParseError $ tShow e
 
-run :: String -> FilePath -> FilePath -> [Stanza] -> Codebase IO Symbol Ann -> IO Text
-run version dir configFile stanzas codebase = do
+type TranscriptRunner =
+  ( String ->
+    Text ->
+    (FilePath, Codebase IO Symbol Ann) ->
+    IO (Either TranscriptError Text)
+  )
+
+withTranscriptRunner ::
+  forall m r.
+  UnliftIO.MonadUnliftIO m =>
+  String ->
+  Maybe FilePath ->
+  (TranscriptRunner -> m r) ->
+  m r
+withTranscriptRunner version configFile action = do
+  withRuntime $ \runtime -> withConfig $ \config -> do
+    action $ \transcriptName transcriptSrc (codebaseDir, codebase) -> do
+      let parsed = parse transcriptName transcriptSrc
+      result <- for parsed $ \stanzas -> do
+        liftIO $ run codebaseDir stanzas codebase runtime config
+      pure $ join @(Either TranscriptError) result
+  where
+    withRuntime :: ((Runtime.Runtime Symbol -> m a) -> m a)
+    withRuntime action =
+      UnliftIO.bracket (liftIO $ RTI.startRuntime RTI.UCM version)
+                       (liftIO . Runtime.terminate)
+                       action
+    withConfig :: forall a. ((Maybe Config -> m a) -> m a)
+    withConfig action = do
+      case configFile of
+        Nothing -> action Nothing
+        Just configFilePath -> do
+          let loadConfig = liftIO $ do
+                catchIOError (watchConfig configFilePath)
+                  $ \_ -> die "Your .unisonConfig could not be loaded. Check that it's correct!"
+          UnliftIO.bracket loadConfig
+                           (\(_config, cancelConfig) -> liftIO cancelConfig)
+                           (\(config, _cancelConfig) -> action (Just config))
+
+run ::
+  FilePath ->
+  [Stanza] ->
+  Codebase IO Symbol Ann ->
+  Runtime.Runtime Symbol ->
+  Maybe Config ->
+  IO (Either TranscriptError Text)
+run dir stanzas codebase runtime config = UnliftIO.try $ do
   let initialPath = Path.absoluteEmpty
   putPrettyLn $ P.lines [
     asciiartUnison, "",
@@ -146,10 +192,6 @@ run version dir configFile stanzas codebase = do
     allowErrors              <- newIORef False
     hasErrors                <- newIORef False
     mStanza                  <- newIORef Nothing
-    (config, cancelConfig)   <-
-      catchIOError (watchConfig configFile) $ \_ ->
-        die "Your .unisonConfig could not be loaded. Check that it's correct!"
-    runtime                  <- RTI.startRuntime RTI.Standalone version
     traverse_ (atomically . Q.enqueue inputQueue) (stanzas `zip` [1..])
     let patternMap =
           Map.fromList
@@ -259,7 +301,6 @@ run version dir configFile stanzas codebase = do
             let f = LoadSuccess <$> readUtf8 (Text.unpack name)
             in f <|> pure InvalidSourceNameError
 
-      cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
         msg <- notifyUser dir o
         errOk <- readIORef allowErrors
@@ -292,18 +333,16 @@ run version dir configFile stanzas codebase = do
       -- output ``` and new lines then call transcriptFailure
       dieWithMsg :: forall a. String -> IO a
       dieWithMsg msg = do
-        executable <- getProgName
         output "\n```\n\n"
         appendFailingStanza
         transcriptFailure out $ Text.unlines [
           "\128721", "",
           "The transcript failed due to an error in the stanza above. The error is:", "",
-          Text.pack msg, "",
-          "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+          Text.pack msg]
+
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
-        executable <- getProgName
         errOk <- readIORef allowErrors
         hasErr <- readIORef hasErrors
         when (errOk && not hasErr) $ do
@@ -311,14 +350,13 @@ run version dir configFile stanzas codebase = do
           appendFailingStanza
           transcriptFailure out $ Text.unlines [
             "\128721", "",
-            "The transcript was expecting an error in the stanza above, but did not encounter one.", "",
-            "Run `" <> Text.pack executable <> " --codebase " <> Text.pack dir <> "` " <> "to do more work with it."]
+            "The transcript was expecting an error in the stanza above, but did not encounter one."]
 
       loop state = do
         writeIORef pathRef (view LoopState.currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
             rng i = pure $ Random.drgNewSeed (Random.seedFromInteger (fromIntegral i))
-        (o, state') <- HandleCommand.commandLine config awaitInput
+        (o, state') <- HandleCommand.commandLine (fromMaybe Configurator.empty config) awaitInput
                                      (const $ pure ())
                                      runtime
                                      print
@@ -336,14 +374,13 @@ run version dir configFile stanzas codebase = do
             writeIORef numberedArgsRef (LoopState._numberedArgs state')
             writeIORef rootBranchRef (LoopState._root state')
             loop state'
-    (`finally` cleanup)
-      $ loop (LoopState.loopState0 root initialPath)
+    loop (LoopState.loopState0 root initialPath)
 
 transcriptFailure :: IORef (Seq String) -> Text -> IO b
 transcriptFailure out msg = do
   texts <- readIORef out
-  die
-    .  Text.unpack
+  UnliftIO.throwIO
+    . TranscriptRunFailure
     $  Text.concat (Text.pack <$> toList (texts :: Seq String))
     <> "\n\n"
     <> msg
@@ -464,3 +501,9 @@ spaces = void $ P.takeWhileP (Just "spaces") Char.isSpace
 
 -- single :: Char -> P Char
 -- single t = P.satisfy (== t)
+
+data TranscriptError =
+      TranscriptRunFailure Text
+    | TranscriptParseError Text
+  deriving stock Show
+  deriving anyclass Exception

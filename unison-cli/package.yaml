@@ -82,8 +82,7 @@ executables:
       - easytest
       - process
       - shellmet
-    build-tools:
-      - unison-cli:unison
+      - unison-cli
 
   integration-tests:
     source-dirs: integration-tests

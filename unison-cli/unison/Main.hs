@@ -229,32 +229,53 @@ prepareTranscriptDir shouldFork mCodePathOption = do
       CodebaseInit.withNewUcmCodebaseOrExit cbInit "main.transcript" tmp (const $ pure ())
   pure tmp
 
-runTranscripts'
-  :: Maybe FilePath
-  -> FilePath
-  -> NonEmpty String
-  -> IO Bool
-runTranscripts' mcodepath transcriptDir args = do
+runTranscripts' ::
+  String ->
+  Maybe FilePath ->
+  FilePath ->
+  NonEmpty String ->
+  IO Bool
+runTranscripts' progName mcodepath transcriptDir args = do
   currentDir <- getCurrentDirectory
   let (markdownFiles, invalidArgs) = NonEmpty.partition isMarkdown args
-  for_ markdownFiles $ \fileName -> do
-    parsed <- TR.parseFile fileName
-    case parsed of
-      Left err ->
-        PT.putPrettyLn $ P.callout "❓" (
-          P.lines [
-            P.indentN 2 "A parsing error occurred while reading a file:", "",
-            P.indentN 2 $ P.string err])
-      Right stanzas -> do
-        configFilePath <- getConfigFilePath mcodepath
-        -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
-        mdOut <- getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, _, theCodebase) -> do
-          TR.run Version.gitDescribeWithDate transcriptDir configFilePath stanzas theCodebase
-        let out = currentDir FP.</>
-                   FP.addExtension (FP.dropExtension fileName ++ ".output")
-                                   (FP.takeExtension fileName)
-        writeUtf8 out mdOut
-        putStrLn $ "💾  Wrote " <> out
+  configFilePath <- getConfigFilePath mcodepath
+  -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
+  getCodebaseOrExit (Just (DontCreateCodebaseWhenMissing transcriptDir)) \(_, codebasePath, theCodebase) -> do
+    TR.withTranscriptRunner Version.gitDescribeWithDate (Just configFilePath) $ \runTranscript -> do
+      for_ markdownFiles $ \fileName -> do
+        transcriptSrc <- readUtf8 fileName
+        result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
+        let outputFile = FP.replaceExtension (currentDir FP.</> fileName)  ".output.md"
+        output <- case result of
+          Left err -> case err of
+            TR.TranscriptParseError err -> do
+              PT.putPrettyLn $ P.callout "❓" (
+                P.lines [
+                  P.indentN 2 "An error occurred while parsing the following file: " <> P.string fileName, "",
+                  P.indentN 2 $ P.text err])
+              pure err
+
+            TR.TranscriptRunFailure err -> do
+              PT.putPrettyLn $
+                P.callout
+                  "❓"
+                  ( P.lines
+                      [ P.indentN 2 "An error occurred while running the following file: " <> P.string fileName,
+                        "",
+                        P.indentN 2 $ P.text err,
+                        P.text $ "Run `"
+                               <> Text.pack progName
+                               <> " --codebase "
+                               <> Text.pack codebasePath
+                               <> "` "
+                               <> "to do more work with it."
+                      ]
+                  )
+              pure err
+          Right mdOut -> do
+            pure mdOut
+        writeUtf8 outputFile output
+        putStrLn $ "💾  Wrote " <> outputFile
 
   when (not . null $ invalidArgs) $ do
     PT.putPrettyLn $ P.callout "❓" (
@@ -277,7 +298,7 @@ runTranscripts renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir shouldFork mCodePathOption
   completed <-
-    runTranscripts' (Just transcriptDir) transcriptDir args
+    runTranscripts' progName (Just transcriptDir) transcriptDir args
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
     SaveCodebase ->
