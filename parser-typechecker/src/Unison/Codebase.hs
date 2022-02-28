@@ -76,7 +76,7 @@ module Unison.Codebase
     -- ** Remote sync
     viewRemoteBranch,
     importRemoteBranch,
-    Preprocessing(..),
+    Preprocessing (..),
     pushGitBranch,
     PushGitBranchOpts (..),
 
@@ -96,6 +96,8 @@ module Unison.Codebase
 where
 
 import Control.Error.Util (hush)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
+import Control.Monad.Trans.Except (throwE)
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -107,6 +109,7 @@ import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Editor.Git (withStatus)
+import qualified Unison.Codebase.Editor.Git as Git
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import qualified Unison.Codebase.GitError as GitError
 import Unison.Codebase.SyncMode (SyncMode)
@@ -118,7 +121,7 @@ import Unison.Codebase.Type
     SyncToDir,
   )
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import qualified Unison.DataDeclaration as DD
 import Unison.Hash (Hash)
@@ -140,10 +143,6 @@ import qualified Unison.Util.Relation as Rel
 import Unison.Var (Var)
 import qualified Unison.WatchKind as WK
 import UnliftIO (MonadUnliftIO)
-import Control.Monad.Except (ExceptT(ExceptT))
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Trans.Except (throwE)
-import qualified Unison.Codebase.Editor.Git as Git
 
 -- | Get a branch from the codebase.
 getBranchForHash :: Monad m => Codebase m v a -> Branch.Hash -> m (Maybe (Branch m))
@@ -261,9 +260,10 @@ typeLookupForDependencies codebase s = do
     go tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
 
 toCodeLookup :: Monad m => Codebase m Symbol Parser.Ann -> CL.CodeLookup Symbol m Parser.Ann
-toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
-  <> Builtin.codeLookup
-  <> IOSource.codeLookupM
+toCodeLookup c =
+  CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+    <> Builtin.codeLookup
+    <> IOSource.codeLookupM
 
 -- | Get the type of a term.
 --
@@ -294,7 +294,7 @@ getTypeOfReferent c = \case
 
 componentReferencesForReference :: Monad m => Codebase m v a -> Reference -> m (Set Reference)
 componentReferencesForReference c = \case
-  r@Reference.Builtin{} -> pure (Set.singleton r)
+  r@Reference.Builtin {} -> pure (Set.singleton r)
   Reference.Derived h _i ->
     Set.mapMonotonic Reference.DerivedId . Reference.componentFromLength h <$> unsafeGetComponentLength c h
 
@@ -366,11 +366,11 @@ importRemoteBranch ::
   m (Either GitError (Branch m))
 importRemoteBranch codebase ns mode preprocess = runExceptT $ do
   branchHash <- ExceptT . viewRemoteBranch' codebase ns Git.RequireExistingBranch $ \(branch, cacheDir) -> do
-         withStatus "Importing downloaded files into local codebase..." $ do
-           processedBranch <- preprocessOp branch
-           time "SyncFromDirectory" $ do
-             syncFromDirectory codebase cacheDir mode processedBranch
-             pure $ Branch.headHash processedBranch
+    withStatus "Importing downloaded files into local codebase..." $ do
+      processedBranch <- preprocessOp branch
+      time "SyncFromDirectory" $ do
+        syncFromDirectory codebase cacheDir mode processedBranch
+        pure $ Branch.headHash processedBranch
   time "load fresh local branch after sync" $ do
     lift (getBranchForHash codebase branchHash) >>= \case
       Nothing -> throwE . GitCodebaseError $ GitError.CouldntLoadSyncedBranch ns branchHash

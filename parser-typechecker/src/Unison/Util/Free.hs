@@ -1,4 +1,5 @@
-{-# Language ExistentialQuantification, Rank2Types #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Unison.Util.Free where
 
@@ -10,7 +11,7 @@ import Unison.Prelude hiding (fold)
 --     nor http://hackage.haskell.org/package/freer
 --     appear to have this.
 
-data Free f a = Pure a | forall x . Bind (f x) (x -> Free f a)
+data Free f a = Pure a | forall x. Bind (f x) (x -> Free f a)
 
 eval :: f a -> Free f a
 eval fa = Bind fa Pure
@@ -30,8 +31,11 @@ unfold f seed = case f seed of
 unfold' :: (v -> Free f (Either a v)) -> v -> Free f a
 unfold' f seed = f seed >>= either Pure (unfold' f)
 
-unfoldM :: (Traversable f, Applicative m, Monad m)
-        => (b -> m (Either a (f b))) -> b -> m (Free f a)
+unfoldM ::
+  (Traversable f, Applicative m, Monad m) =>
+  (b -> m (Either a (f b))) ->
+  b ->
+  m (Free f a)
 unfoldM f seed = do
   e <- f seed
   case e of
@@ -40,17 +44,17 @@ unfoldM f seed = do
 
 free :: Traversable f => f (Free f a) -> Free f a
 free = go . sequence
-  where go (Pure fa) = Bind fa Pure
-        go (Bind fi f) = Bind fi (go . f)
+  where
+    go (Pure fa) = Bind fa Pure
+    go (Bind fi f) = Bind fi (go . f)
 
-
-foldWithIndex :: forall f m a . Monad m => (forall x. Int -> f x -> m x) -> Free f a -> m a
+foldWithIndex :: forall f m a. Monad m => (forall x. Int -> f x -> m x) -> Free f a -> m a
 foldWithIndex f m = go 0 f m
-  where go :: Int -> (forall x. Int -> f x -> m x) -> Free f a -> m a
-        go starting f m = case m of
-                            Pure a -> pure a
-                            Bind x k -> (f starting x) >>= (go $ starting + 1) f . k
-
+  where
+    go :: Int -> (forall x. Int -> f x -> m x) -> Free f a -> m a
+    go starting f m = case m of
+      Pure a -> pure a
+      Bind x k -> (f starting x) >>= (go $ starting + 1) f . k
 
 instance Functor (Free f) where
   fmap = liftM
@@ -59,7 +63,6 @@ instance Monad (Free f) where
   return = Pure
   Pure a >>= f = f a
   Bind fx f >>= g = Bind fx (f >=> g)
-
 
 instance Applicative (Free f) where
   pure = Pure

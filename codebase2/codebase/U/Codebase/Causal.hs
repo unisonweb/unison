@@ -1,4 +1,6 @@
-{-# LANGUAGE RankNTypes, PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes #-}
+
 module U.Codebase.Causal where
 
 import Data.Map (Map)
@@ -9,5 +11,3 @@ data Causal m hc he e = Causal
     parents :: Map hc (m (Causal m hc he e)),
     value :: m e
   }
-
-

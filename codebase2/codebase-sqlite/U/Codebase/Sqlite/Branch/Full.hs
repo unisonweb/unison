@@ -8,16 +8,16 @@
 module U.Codebase.Sqlite.Branch.Full where
 
 import Control.Lens
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import U.Codebase.Reference (Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (BranchObjectId, CausalHashId, ObjectId, PatchObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalBranchChildId, LocalDefnId, LocalPatchObjectId, LocalTextId)
-import qualified Unison.Util.Set as Set
 import Unison.Prelude
 import qualified Unison.Util.Map as Map
-import qualified Data.Map as Map
+import qualified Unison.Util.Set as Set
 
 -- |
 -- @

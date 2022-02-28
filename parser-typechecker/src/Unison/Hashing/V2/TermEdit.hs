@@ -1,8 +1,8 @@
 module Unison.Hashing.V2.TermEdit (TermEdit (..)) where
 
+import Unison.Hashing.V2.Referent (Referent)
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
 import qualified Unison.Hashing.V2.Tokenizable as H
-import Unison.Hashing.V2.Referent (Referent)
 
 data TermEdit = Replace Referent | Deprecate
   deriving (Eq, Ord, Show)

@@ -22,14 +22,14 @@ import U.Util.String (stripMargin)
 import Unison.Codebase (CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.Init as Codebase.Init
+import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError (..))
 import qualified Unison.Codebase.SqliteCodebase as SC
 import qualified Unison.Codebase.TranscriptParser as TR
+import Unison.Parser.Ann (Ann)
 import Unison.Prelude (traceM)
 import qualified Unison.PrettyTerminal as PT
-import qualified Unison.Util.Pretty as P
-import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
-import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError(..))
+import qualified Unison.Util.Pretty as P
 
 data CodebaseFormat = CodebaseFormat2 deriving (Show, Enum, Bounded)
 
@@ -38,6 +38,7 @@ data Codebase = Codebase CodebasePath CodebaseFormat deriving (Show)
 -- newtype Transcript = Transcript {unTranscript :: Text}
 --   deriving (IsString, Show, Semigroup) via Text
 type Transcript = String
+
 unTranscript :: a -> a
 unTranscript = id
 

@@ -6,5 +6,5 @@ class Convert a b where
 class Parse a b where
   parse :: a -> Maybe b
 
-instance (Parse a a2, Parse b b2) => Parse (a,b) (a2,b2) where
-  parse (a,b) = (,) <$> parse a <*> parse b
+instance (Parse a a2, Parse b b2) => Parse (a, b) (a2, b2) where
+  parse (a, b) = (,) <$> parse a <*> parse b

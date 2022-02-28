@@ -1,10 +1,10 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
+
 module U.Codebase.Sync where
 
 import Control.Monad (when)
@@ -15,9 +15,9 @@ debug :: Bool
 debug = False
 
 data TrySyncResult h = Missing [h] | Done | PreviouslyDone | NonFatalError
-  deriving Show
+  deriving (Show)
 
-data Sync m h = Sync { trySync :: h -> m (TrySyncResult h) }
+data Sync m h = Sync {trySync :: h -> m (TrySyncResult h)}
 
 transformSync :: (forall a. m a -> n a) -> Sync m h -> Sync n h
 transformSync f (Sync t) = Sync (f . t)
@@ -35,10 +35,10 @@ transformProgress f (Progress a b c d) = Progress (f . a) (f . b) (f . c) (f d)
 -- the Show constraint is just for debugging
 sync, sync' :: forall m h. (Monad m, Show h) => Sync m h -> Progress m h -> [h] -> m ()
 
--- |Calls `allDone` at the end
+-- | Calls `allDone` at the end
 sync s p roots = sync' s p roots >> allDone p
 
--- |Doesn't call `allDone` at the end, in case you plan to call sync more than once.
+-- | Doesn't call `allDone` at the end, in case you plan to call sync more than once.
 sync' Sync {..} Progress {..} roots = go roots
   where
     go :: [h] -> m ()

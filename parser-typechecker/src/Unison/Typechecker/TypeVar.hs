@@ -4,10 +4,10 @@ module Unison.Typechecker.TypeVar where
 
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import Unison.Term (Term, Term')
 import qualified Unison.Term as Term
-import           Unison.Term (Term, Term')
-import           Unison.Type (Type)
-import           Unison.Var (Var)
+import Unison.Type (Type)
+import Unison.Var (Var)
 import qualified Unison.Var as Var
 
 data TypeVar b v = Universal v | Existential b v deriving (Functor)

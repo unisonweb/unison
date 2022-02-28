@@ -5,7 +5,8 @@ module U.Codebase.Sqlite.Branch.Format
     localToDbBranch,
     localToDbDiff,
     -- dbToLocalDiff,
-  ) where
+  )
+where
 
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector

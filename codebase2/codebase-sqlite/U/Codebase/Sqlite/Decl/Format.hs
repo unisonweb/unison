@@ -12,16 +12,15 @@ import qualified U.Core.ABT as ABT
 
 -- | Add new formats here
 data DeclFormat = Decl LocallyIndexedComponent
-  deriving Show
+  deriving (Show)
 
 -- | V1: Decls included `Hash`es inline
 --   V2: Instead of `Hash`, we use a smaller index.
 newtype LocallyIndexedComponent
   = LocallyIndexedComponent (Vector (LocalIds, Decl Symbol))
-  deriving Show
+  deriving (Show)
 
 -- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
-
 
 -- type List a = Nil | Cons (List a)
 
@@ -36,7 +35,7 @@ newtype LocallyIndexedComponent
 --
 --  And write it with variables in place of recursive mentions like
 --
---     (Var 1, Alternatives [Nil, Cons a (Var 1)]  
+--     (Var 1, Alternatives [Nil, Cons a (Var 1)]
 
 -- can derive `original` from Hash + [OldDecl]
 -- original :: Map Reference.Id (Decl v a)

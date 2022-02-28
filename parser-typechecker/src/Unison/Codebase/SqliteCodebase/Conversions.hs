@@ -210,8 +210,8 @@ term2to1 h lookupCT tm =
 
 decl2to1 :: Hash -> V2.Decl.Decl V2.Symbol -> V1.Decl.Decl V1.Symbol Ann
 decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
-  goCT dt
-    $ V1.Decl.DataDeclaration (goMod m) Ann.External (symbol2to1 <$> bound) cts'
+  goCT dt $
+    V1.Decl.DataDeclaration (goMod m) Ann.External (symbol2to1 <$> bound) cts'
   where
     goMod = \case
       V2.Decl.Structural -> V1.Decl.Structural
@@ -222,7 +222,8 @@ decl2to1 h (V2.Decl.DataDeclaration dt m bound cts) =
     cts' = map mkCtor (zip cts [0 ..])
     mkCtor (type1, i) =
       (Ann.External, V1.symbol . pack $ "Constructor" ++ show i, type2)
-      where type2 = dtype2to1 h type1
+      where
+        type2 = dtype2to1 h type1
 
 decl1to2 :: Hash -> V1.Decl.Decl V1.Symbol a -> V2.Decl.Decl V2.Symbol
 decl1to2 h decl1 = case V1.Decl.asDataDecl decl1 of
@@ -279,7 +280,8 @@ rreference1to2 h = \case
 
 rreferenceid2to1 :: Hash -> V2.Reference.Id' (Maybe V2.Hash) -> V1.Reference.Id
 rreferenceid2to1 h (V2.Reference.Id oh i) = V1.Reference.Id h' i
-  where h' = maybe h hash2to1 oh
+  where
+    h' = maybe h hash2to1 oh
 
 rreferenceid1to2 :: Hash -> V1.Reference.Id -> V2.Reference.Id' (Maybe V2.Hash)
 rreferenceid1to2 h (V1.Reference.Id h' i) = V2.Reference.Id oh i
@@ -349,7 +351,7 @@ causalHash2to1 :: V2.CausalHash -> V1.Causal.RawHash V1.Branch.Raw
 causalHash2to1 = V1.Causal.RawHash . hash2to1 . V2.unCausalHash
 
 causalHash1to2 :: V1.Causal.RawHash V1.Branch.Raw -> V2.CausalHash
-causalHash1to2 =  V2.CausalHash . hash1to2 . V1.Causal.unRawHash
+causalHash1to2 = V2.CausalHash . hash1to2 . V1.Causal.unRawHash
 
 ttype2to1 :: V2.Term.Type V2.Symbol -> V1.Type.Type V1.Symbol Ann
 ttype2to1 = type2to1' reference2to1
@@ -462,14 +464,13 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
         doTerms s =
           Map.fromList
             [ (namesegment1to2 ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star3.d1 s
-              , let m2 =
+              | ns <- toList . Relation.ran $ V1.Star3.d1 s,
+                let m2 =
                       Map.fromList
                         [ (referent1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
-                          , let
-                              mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
-                              md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
+                            let mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
+                                md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
             ]
 
@@ -477,14 +478,13 @@ causalbranch1to2 (V1.Branch.Branch c) = causal1to2' hash1to2cb hash1to2c branch1
         doTypes s =
           Map.fromList
             [ (namesegment1to2 ns, m2)
-              | ns <- toList . Relation.ran $ V1.Star3.d1 s
-              , let m2 =
+              | ns <- toList . Relation.ran $ V1.Star3.d1 s,
+                let m2 =
                       Map.fromList
                         [ (reference1to2 r, pure md)
-                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s
-                          , let
-                              mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
-                              md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
+                          | r <- toList . Relation.lookupRan ns $ V1.Star3.d1 s,
+                            let mdrefs1to2 (typeR1, valR1) = (reference1to2 valR1, reference1to2 typeR1)
+                                md = V2.Branch.MdValues . Map.fromList . map mdrefs1to2 . toList . Relation.lookupDom r $ V1.Star3.d3 s
                         ]
             ]
 
@@ -573,4 +573,4 @@ branch2to1 lookupCT (V2.Branch.Branch v2terms v2types v2patches v2children) = do
                 Relation.insertManyRan ref (fmap mdref2to1 (Map.elems mdvals)) mempty
               vals :: Relation.Relation ref (V1.Metadata.Type, V1.Metadata.Value) =
                 Relation.insertManyRan ref (fmap (\(v, t) -> (mdref2to1 t, mdref2to1 v)) (Map.toList mdvals)) mempty
-          in star <> V1.Star3.Star3 facts names types vals
+           in star <> V1.Star3.Star3 facts names types vals

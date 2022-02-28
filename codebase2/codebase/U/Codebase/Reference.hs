@@ -1,21 +1,22 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Reference where
 
+import Control.Lens (Bifunctor (..), Lens, Prism, Traversal, lens, prism)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..))
 import Data.Text (Text)
 import Data.Word (Word64)
 import U.Util.Hash (Hash)
-import Control.Lens (lens, Lens, Bifunctor(..), Traversal, Prism, prism)
-import Data.Bitraversable (Bitraversable(..))
-import Data.Bifoldable (Bifoldable(..))
 
--- |This is the canonical representation of Reference
+-- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
+
 type Id = Id' Hash
 
 data Reference' t h
@@ -36,6 +37,7 @@ pattern Derived h i = ReferenceDerived (Id h i)
 {-# COMPLETE ReferenceBuiltin, Derived #-}
 
 type Pos = Word64
+
 data Id' h = Id h Pos
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 

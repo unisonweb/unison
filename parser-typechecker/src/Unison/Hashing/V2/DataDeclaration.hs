@@ -21,11 +21,11 @@ import qualified Data.Map as Map
 import qualified Unison.ABT as ABT
 import Unison.Hash (Hash)
 import qualified Unison.Hashing.V2.ABT as ABT
-import Unison.Hashing.V2.Tokenizable (Hashable1)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
 import qualified Unison.Hashing.V2.Reference.Util as Reference.Util
+import Unison.Hashing.V2.Tokenizable (Hashable1)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Hashing.V2.Type (Type)
 import qualified Unison.Hashing.V2.Type as Type
 import qualified Unison.Name as Name
@@ -61,7 +61,7 @@ constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
 toABT :: ABT.Var v => DataDeclaration v () -> ABT.Term F v ()
 toABT dd = ABT.tm $ Modified (modifier dd) dd'
   where
-  dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
+    dd' = ABT.absChain (bound dd) (ABT.tm (Constructors (ABT.transform Type <$> constructorTypes dd)))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, Reference.Id)]

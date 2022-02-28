@@ -43,11 +43,10 @@ applyPatchDiffs =
     apply (Patch termEdits typeEdits) (PatchDiff addedTermEdits addedTypeEdits removedTermEdits removedTypeEdits) =
       let !termEdits' = addRemove addedTermEdits removedTermEdits termEdits
           !typeEdits' = addRemove addedTypeEdits removedTypeEdits typeEdits
-      in
-        Patch
-          { termEdits = termEdits',
-            typeEdits = typeEdits'
-          }
+       in Patch
+            { termEdits = termEdits',
+              typeEdits = typeEdits'
+            }
 
     addRemove :: (Ord a, Ord b) => Map a (Set b) -> Map a (Set b) -> Map a (Set b) -> Map a (Set b)
     addRemove add del src =

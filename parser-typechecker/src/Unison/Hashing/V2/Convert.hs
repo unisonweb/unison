@@ -230,7 +230,7 @@ h2mReferent getCT = \case
   Hashing.Referent.Ref ref -> Memory.Referent.Ref (h2mReference ref)
   Hashing.Referent.Con ref n ->
     let mRef = h2mReference ref
-    in Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference mRef n) (getCT mRef)
+     in Memory.Referent.Con (Memory.ConstructorReference.ConstructorReference mRef n) (getCT mRef)
 
 hashDataDecls ::
   Var v =>

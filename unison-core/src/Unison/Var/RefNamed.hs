@@ -1,6 +1,6 @@
-{-# Language OverloadedStrings #-}
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Var.RefNamed where
 

@@ -3,7 +3,7 @@ module Unison.Codebase.Branch.BranchDiff where
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as MapMerge
-import Unison.Codebase.Branch.Type (Branch0(_types,_terms,_edits))
+import Unison.Codebase.Branch.Type (Branch0 (_edits, _terms, _types))
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Patch as Patch
 import Unison.NameSegment (NameSegment)

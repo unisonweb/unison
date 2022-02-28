@@ -14,7 +14,8 @@ import U.Codebase.Sqlite.DbId
 data LocalIds' t h = LocalIds
   { textLookup :: Vector t,
     defnLookup :: Vector h
-  } deriving Show
+  }
+  deriving (Show)
 
 type LocalIds = LocalIds' TextId ObjectId
 
@@ -25,7 +26,7 @@ newtype LocalTextId = LocalTextId Word64 deriving (Eq, Ord, Show, Num, Real, Enu
 
 -- | represents an index into a defnLookup
 --
--- In this context, "definition" means an object that is either a term component or a (type) decl component, not a 
+-- In this context, "definition" means an object that is either a term component or a (type) decl component, not a
 -- patch, namespace, or any other kind of object.
 newtype LocalDefnId = LocalDefnId Word64 deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Bits) via Word64
 

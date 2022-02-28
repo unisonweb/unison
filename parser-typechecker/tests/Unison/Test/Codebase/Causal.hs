@@ -83,7 +83,7 @@ extend ::
 extend 0 ca = pure ca
 extend n ca = do
   i <- int64
-  extend (n -1) (Causal.cons i ca)
+  extend (n - 1) (Causal.cons i ca)
 
 lcaPair :: Test (Causal Identity Hash Int64, Causal Identity Hash Int64)
 lcaPair = do

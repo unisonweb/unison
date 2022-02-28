@@ -1,25 +1,26 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Unison.Codebase.Editor.HandleInput.LoopState where
 
 import Control.Lens
+import Control.Monad.Except (ExceptT)
 import Control.Monad.State (StateT)
 import Data.Configurator ()
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as Nel
 import Unison.Codebase.Branch
   ( Branch (..),
   )
+import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import qualified Unison.Codebase.Path as Path
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.UnisonFile as UF
 import Unison.Util.Free (Free)
-import Unison.Codebase.Editor.Command
-import qualified Data.List.NonEmpty as Nel
 import qualified Unison.Util.Free as Free
-import Control.Monad.Except (ExceptT)
 
 type F m i v = Free (Command m i v)
 

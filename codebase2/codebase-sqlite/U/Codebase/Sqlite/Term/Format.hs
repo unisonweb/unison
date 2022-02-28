@@ -6,13 +6,13 @@ import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
+import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId, WatchLocalIds)
+import qualified U.Codebase.Sqlite.Reference as Sqlite
 import U.Codebase.Sqlite.Symbol (Symbol)
 import qualified U.Codebase.Term as Term
-import qualified U.Core.ABT as ABT
 import qualified U.Codebase.Type as Type
-import qualified U.Codebase.Sqlite.Reference as Sqlite
-import U.Codebase.Sqlite.DbId (ObjectId, TextId)
+import qualified U.Core.ABT as ABT
 
 -- |
 -- * Builtin terms are represented as local text ids.
@@ -26,6 +26,7 @@ type TermRef = Reference' LocalTextId (Maybe LocalDefnId)
 type TypeRef = Reference' LocalTextId LocalDefnId
 
 type TermLink = Referent' TermRef TypeRef
+
 type TypeLink = TypeRef
 
 -- | A 'LocallyIndexedComponent' is a vector that has one element per member of the component (invariant: 1+).
@@ -36,9 +37,10 @@ type TypeLink = TypeRef
 --   * The term itself, with internal references to local ids (offsets into the lookup vectors).
 --   * The term's type, also with internal references to local id.
 type LocallyIndexedComponent = LocallyIndexedComponent' TextId ObjectId
-newtype LocallyIndexedComponent' t d =
-  LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
-  deriving Show
+
+newtype LocallyIndexedComponent' t d
+  = LocallyIndexedComponent (Vector (LocalIds' t d, Term, Type))
+  deriving (Show)
 
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
@@ -97,11 +99,14 @@ type F =
 type FT = Type.F' TypeRef
 
 type Term = ABT.Term F Symbol ()
+
 type Type = ABT.Term FT Symbol ()
 
 -- * Type of Term
+
 -- Maybe these should have a LocalIds index too; or share one with the term?
 type FTT = Type.F' Sqlite.Reference
+
 type TypeOfTerm = ABT.Term FTT Symbol ()
 
 data TermFormat

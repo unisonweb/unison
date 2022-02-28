@@ -1,44 +1,45 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.LabeledDependency
-  ( derivedTerm
-  , derivedType
-  , termRef
-  , typeRef
-  , referent
-  , dataConstructor
-  , effectConstructor
-  , fold
-  , referents
-  , LabeledDependency(..)
-  , pattern ConReference
-  , pattern TermReference
-  , partition
-  ) where
+  ( derivedTerm,
+    derivedType,
+    termRef,
+    typeRef,
+    referent,
+    dataConstructor,
+    effectConstructor,
+    fold,
+    referents,
+    LabeledDependency (..),
+    pattern ConReference,
+    pattern TermReference,
+    partition,
+  )
+where
 
-import Unison.Prelude hiding (fold)
-
-import Unison.ConstructorReference (ConstructorReference)
-import Unison.ConstructorType (ConstructorType(Data, Effect))
-import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent)
 import qualified Data.Set as Set
+import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorType (ConstructorType (Data, Effect))
+import Unison.Prelude hiding (fold)
+import Unison.Reference (Id, Reference (DerivedId))
+import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
 -- | A Union Type which contains either Type References or Term Referents.
-data LabeledDependency =
-    TypeReference Reference
+data LabeledDependency
+  = TypeReference Reference
   | TermReferent Referent
   deriving (Eq, Ord, Show)
 
 -- | Match on a TermReferent which is a Constructor.
 pattern ConReference :: ConstructorReference -> ConstructorType -> LabeledDependency
 pattern ConReference ref conType = TermReferent (Referent.Con ref conType)
+
 -- | Match on a TermReferent which is NOT a Constructor.
 pattern TermReference :: Reference -> LabeledDependency
 pattern TermReference ref = TermReferent (Referent.Ref ref)
-{-# COMPLETE ConReference, TermReference, TypeReference #-}
 
+{-# COMPLETE ConReference, TermReference, TypeReference #-}
 
 derivedType :: Id -> LabeledDependency
 derivedType = TypeReference . DerivedId

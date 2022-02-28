@@ -21,16 +21,16 @@ import System.Exit (exitFailure)
 import Unison.Codebase (Codebase, CodebasePath)
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.FileCodebase as FCC
-import Unison.Parser.Ann (Ann(..))
+import Unison.Codebase.Init.CreateCodebaseError
+import Unison.Codebase.Init.OpenCodebaseError
+import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import qualified Unison.PrettyTerminal as PT
 import Unison.Symbol (Symbol)
 import qualified Unison.Util.Pretty as P
-import UnliftIO.Directory (canonicalizePath)
-import Unison.Codebase.Init.CreateCodebaseError
-import Unison.Codebase.Init.OpenCodebaseError
 import UnliftIO (MonadUnliftIO)
 import qualified UnliftIO
+import UnliftIO.Directory (canonicalizePath)
 
 -- CodebaseInitOptions is used to help pass around a Home directory that isn't the
 -- actual home directory of the user. Useful in tests.
@@ -43,7 +43,7 @@ data SpecifiedCodebase
   | DontCreateWhenMissing CodebasePath
 
 initOptionsToDir :: CodebaseInitOptions -> CodebasePath
-initOptionsToDir (Home dir ) = dir
+initOptionsToDir (Home dir) = dir
 initOptionsToDir (Specified (CreateWhenMissing dir)) = dir
 initOptionsToDir (Specified (DontCreateWhenMissing dir)) = dir
 
@@ -113,7 +113,7 @@ withOpenOrCreateCodebase cbInit debugName initOptions action = do
                 pure (Left (dir, (InitErrorOpen OpenCodebaseDoesntExist)))
               CreateWhenMissing dir ->
                 createCodebaseWithResult cbInit debugName dir (\codebase -> action (CreatedCodebase, dir, codebase))
-    Left err@OpenCodebaseUnknownSchemaVersion{} -> pure (Left (resolvedPath, InitErrorOpen err))
+    Left err@OpenCodebaseUnknownSchemaVersion {} -> pure (Left (resolvedPath, InitErrorOpen err))
 
 createCodebase :: MonadIO m => Init m v a -> DebugName -> CodebasePath -> (Codebase m v a -> m r) -> m (Either Pretty r)
 createCodebase cbInit debugName path action = do
@@ -134,17 +134,16 @@ withNewUcmCodebaseOrExit cbInit debugName path action = do
   let codebaseSetup codebase = do
         liftIO $ PT.putPrettyLn' . P.wrap $ "Initializing a new codebase in: " <> prettyDir
         Codebase.installUcmDependencies codebase
-  createCodebase cbInit debugName path (\cb -> codebaseSetup cb *> action cb) >>=
-    \case
-    Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
-    Right result -> pure result
+  createCodebase cbInit debugName path (\cb -> codebaseSetup cb *> action cb)
+    >>= \case
+      Left error -> liftIO $ PT.putPrettyLn' error >> exitFailure
+      Right result -> pure result
 
 -- | try to init a codebase where none exists and then exit regardless (i.e. `ucm --codebase dir init`)
 initCodebaseAndExit :: MonadIO m => Init m Symbol Ann -> DebugName -> Maybe CodebasePath -> m ()
 initCodebaseAndExit i debugName mdir = do
   codebaseDir <- Codebase.getCodebaseDir mdir
-  withNewUcmCodebaseOrExit i debugName  codebaseDir (const $ pure ())
-
+  withNewUcmCodebaseOrExit i debugName codebaseDir (const $ pure ())
 
 withTemporaryUcmCodebase ::
   MonadUnliftIO m =>
@@ -156,4 +155,3 @@ withTemporaryUcmCodebase cbInit debugName action = do
   UnliftIO.withSystemTempDirectory debugName $ \tempDir -> do
     withNewUcmCodebaseOrExit cbInit debugName tempDir $ \codebase -> do
       action (tempDir, codebase)
-

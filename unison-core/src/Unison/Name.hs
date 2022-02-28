@@ -66,8 +66,8 @@ import qualified Data.Text.Lazy.Builder as Text (Builder)
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import Unison.NameSegment (NameSegment (NameSegment))
 import qualified Unison.NameSegment as NameSegment
+import Unison.Position (Position (..))
 import Unison.Prelude
-import Unison.Position (Position(..))
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
 import qualified Unison.Util.Relation as R
 import Unison.Var (Var)
@@ -75,15 +75,15 @@ import qualified Unison.Var as Var
 
 -- | A name is an absolute-or-relative non-empty list of name segments.
 data Name
-  -- A few example names:
-  --
-  --   "foo.bar"  --> Name Relative ["bar", "foo"]
-  --   ".foo.bar" --> Name Absolute ["bar", "foo"]
-  --   "|>.<|"    --> Name Relative ["<|", "|>"]
-  --   "."        --> Name Relative ["."]
-  --   ".."       --> Name Absolute ["."]
-  --
-  = Name
+  = -- A few example names:
+    --
+    --   "foo.bar"  --> Name Relative ["bar", "foo"]
+    --   ".foo.bar" --> Name Absolute ["bar", "foo"]
+    --   "|>.<|"    --> Name Relative ["<|", "|>"]
+    --   "."        --> Name Relative ["."]
+    --   ".."       --> Name Absolute ["."]
+    --
+    Name
       -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
       Position
       -- the name segments in reverse order
