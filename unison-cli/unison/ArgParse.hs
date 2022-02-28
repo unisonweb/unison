@@ -34,6 +34,7 @@ import Options.Applicative
        , hsubparser
        , info
        , long
+       , short
        , metavar
        , option
        , parserFailure
@@ -244,7 +245,8 @@ codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
     optString <- optional . strOption $
          long "codebase"
-      <> metavar "codebase/path"
+      <> short 'c'
+      <> metavar "CODEBASE/PATH"
       <> help "The path to an existing codebase"
     pure (fmap DontCreateCodebaseWhenMissing optString)
 
@@ -252,7 +254,8 @@ codebaseCreateParser :: Parser (Maybe CodebasePathOption)
 codebaseCreateParser = do
     path <- optional . strOption $
          long "codebase-create"
-      <> metavar "codebase/path"
+      <> short 'C'
+      <> metavar "CODEBASE/PATH"
       <> help "The path to a new or existing codebase (one will be created if there isn't one)"
     pure (fmap CreateCodebaseWhenMissing path)
 
