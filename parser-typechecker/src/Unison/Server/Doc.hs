@@ -12,15 +12,15 @@ module Unison.Server.Doc where
 
 import Control.Lens ((^.), view)
 import Control.Monad
--- import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
+import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.Foldable
 import Data.Functor
--- import Data.Maybe (fromMaybe)
--- import Data.Text (Text)
--- import Data.Map (Map)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Word
--- import GHC.Generics (Generic)
+import GHC.Generics (Generic)
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -28,7 +28,6 @@ import Unison.Server.Syntax (SyntaxText)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
-import Unison.Prelude
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -228,7 +227,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
 
     -- Embed Video
     DD.Doc2SpecialFormEmbedVideo sources config -> 
-      pure $ trace "video pattern" $ Video sources' config' 
+      pure $ Video sources' config' 
       where
         sources' = [ MediaSource url mimeType | DD.Doc2MediaSource (Term.Text' url) (maybeText -> mimeType) <- sources ]
         config' = Map.fromList [ (k,v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- config]
@@ -237,7 +236,7 @@ renderDoc pped terms typeOf eval types tm = eval tm >>= \case
 
     -- Embed FrontMatter
     DD.Doc2SpecialFormEmbedFrontMatter frontMatter -> 
-      pure $ trace "frontmatter pattern" $ FrontMatter frontMatter'
+      pure $ FrontMatter frontMatter'
       where
         frontMatter' = List.multimap [ (k, v) | Decls.TupleTerm' [Term.Text' k, Term.Text' v] <- frontMatter]
 
