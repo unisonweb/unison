@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language DeriveFunctor, DeriveTraversable, DeriveFoldable #-}
 module Unison.Util.Alphabetical where
 

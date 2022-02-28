@@ -39,7 +39,6 @@ import UnliftIO.Environment (lookupEnv)
 import UnliftIO.IO (hFlush, stdout)
 import qualified UnliftIO.Process as UnliftIO
 
-{- ORMOLU_DISABLE -}
 
 debugGit :: Bool
 debugGit =

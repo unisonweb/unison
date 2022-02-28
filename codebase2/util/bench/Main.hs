@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Main where
 
 import qualified Codec.Binary.Base32Hex as Sandi

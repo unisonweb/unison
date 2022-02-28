@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Test.Util.Relation where
 
 import EasyTest

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
@@ -269,7 +268,6 @@ vacuumInto :: DB m => FilePath -> m ()
 vacuumInto dest = do
   execute "VACUUM INTO ?" [dest]
 
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
 schemaVersion = queryAtoms_ sql >>= \case
   [] -> error $ show NoSchemaVersion

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Codebase.Sqlite.Symbol where
 
 import Data.Word (Word64)

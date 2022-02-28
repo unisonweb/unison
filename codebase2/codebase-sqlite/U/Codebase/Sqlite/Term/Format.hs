@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DerivingVia #-}
 
 module U.Codebase.Sqlite.Term.Format where

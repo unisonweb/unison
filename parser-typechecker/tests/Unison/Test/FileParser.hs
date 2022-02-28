@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# Language BangPatterns, OverloadedStrings #-}
 
 module Unison.Test.FileParser where

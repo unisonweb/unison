@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.UriParser (repoPath,writeRepo,writeRepoPath) where
