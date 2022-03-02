@@ -5,8 +5,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.SqliteCodebase.MigrateSchema12
-  ( migrateSchema12,
+module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
+  ( migrateSchema1To2,
   )
 where
 
@@ -58,7 +58,7 @@ import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
-import qualified Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers as Hashing
+import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
 import Unison.Codebase.Type (Codebase (Codebase))
 import qualified Unison.ConstructorReference as ConstructorReference
 import qualified Unison.DataDeclaration as DD
@@ -99,10 +99,10 @@ import UnliftIO.Exception (bracket_, onException)
 --          * [x] I guess move Hashable to V2.Hashing pseudo-package
 --          * [x] Delete V1 Hashing to ensure it's unused
 --          * [x] Salt V2 hashes with version number
---    * [ ] confirm that pulls are handled ok
+--    * [x] confirm that pulls are handled ok
 --    * [x] Make a backup of the v1 codebase before migrating, in a temp directory.
 --          Include a message explaining where we put it.
---    * [ ] Improved error message (don't crash) if loading a codebase newer than your ucm
+--    * [x] Improved error message (don't crash) if loading a codebase newer than your ucm
 --    * [x] Update the schema version in the database after migrating so we only migrate
 --    once.
 
@@ -111,8 +111,8 @@ verboseOutput =
   isJust (unsafePerformIO (lookupEnv "UNISON_MIGRATION_DEBUG"))
 {-# NOINLINE verboseOutput #-}
 
-migrateSchema12 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
-migrateSchema12 conn codebase = do
+migrateSchema1To2 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
+migrateSchema1To2 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
     liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
     corruptedCausals <- runDB conn (liftQ Q.getCausalsWithoutBranchObjects)

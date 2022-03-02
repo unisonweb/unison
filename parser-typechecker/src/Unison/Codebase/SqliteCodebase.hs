@@ -31,11 +31,8 @@ import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time (NominalDiffTime)
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Database.SQLite.Simple as Sqlite
 import qualified System.Console.ANSI as ANSI
-import System.Directory (copyFile)
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 import qualified System.FilePath.Posix as FilePath.Posix
@@ -44,7 +41,7 @@ import qualified U.Codebase.Reference as C.Reference
 import qualified U.Codebase.Referent as C.Referent
 import U.Codebase.Sqlite.Connection (Connection (Connection))
 import qualified U.Codebase.Sqlite.Connection as Connection
-import U.Codebase.Sqlite.DbId (SchemaVersion (SchemaVersion), ObjectId)
+import U.Codebase.Sqlite.DbId (ObjectId)
 import qualified U.Codebase.Sqlite.ObjectType as OT
 import U.Codebase.Sqlite.Operations (EDB)
 import qualified U.Codebase.Sqlite.Operations as Ops
@@ -74,10 +71,9 @@ import Unison.Codebase.ShortBranchHash (ShortBranchHash)
 import qualified Unison.Codebase.SqliteCodebase.Branch.Dependencies as BD
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
 import qualified Unison.Codebase.SqliteCodebase.GitError as GitError
-import Unison.Codebase.SqliteCodebase.MigrateSchema12 (migrateSchema12)
 import qualified Unison.Codebase.SqliteCodebase.SyncEphemeral as SyncEphemeral
 import Unison.Codebase.SyncMode (SyncMode)
-import Unison.Codebase.Type (PushGitBranchOpts (..))
+import Unison.Codebase.Type (PushGitBranchOpts (..), LocalOrRemote (..))
 import qualified Unison.Codebase.Type as C
 import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
@@ -105,25 +101,13 @@ import UnliftIO.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFil
 import UnliftIO.Exception (bracket, catch)
 import UnliftIO.STM
 import Data.Either.Extra ()
+import Unison.Codebase.SqliteCodebase.Paths
+import Unison.Codebase.SqliteCodebase.Migrations (ensureCodebaseIsUpToDate)
 
 debug, debugProcessBranches, debugCommitFailedTransaction :: Bool
 debug = False
 debugProcessBranches = False
 debugCommitFailedTransaction = False
-
--- | Prefer makeCodebasePath or makeCodebaseDirPath when possible.
-codebasePath :: FilePath
-codebasePath = ".unison" </> "v2" </> "unison.sqlite3"
-
-backupCodebasePath :: NominalDiffTime -> FilePath
-backupCodebasePath now =
-  codebasePath ++ "." ++ show @Int (floor now)
-
-makeCodebasePath :: FilePath -> FilePath
-makeCodebasePath root = makeCodebaseDirPath root </> "unison.sqlite3"
-
-makeCodebaseDirPath :: FilePath -> FilePath
-makeCodebaseDirPath root = root </> ".unison" </> "v2"
 
 init :: HasCallStack => (MonadUnliftIO m) => Codebase.Init m Symbol Ann
 init = Codebase.Init
@@ -287,11 +271,6 @@ withConnection name root act = do
     (unsafeGetConnection name root)
     (\(closeConn, _) -> liftIO closeConn)
     (\(_, conn) -> act conn)
-
--- | Whether a codebase is local or remote.
-data LocalOrRemote
-  = Local
-  | Remote
 
 sqliteCodebase ::
   forall m r.
@@ -848,26 +827,11 @@ sqliteCodebase debugName root localOrRemote action = do
         printBuffer "Decls:" decls
         printBuffer "Terms:" terms
 
-  -- Migrate if necessary.
-  (`finally` finalizer) $ runReaderT Q.schemaVersion conn >>= \case
-    SchemaVersion 2 -> Right <$> action (codebase, conn)
-    SchemaVersion 1 -> do
-      liftIO $ putStrLn ("Migrating from schema version 1 -> 2.")
-      case localOrRemote of
-        Local ->
-          liftIO do
-            backupPath <- backupCodebasePath <$> getPOSIXTime
-            copyFile (root </> codebasePath) (root </> backupPath)
-            -- FIXME prettify
-            putStrLn ("📋 I backed up your codebase to " ++ (root </> backupPath))
-            putStrLn "⚠️  Please close all other ucm processes and wait for the migration to complete before interacting with your codebase."
-            putStrLn "Press <enter> to start the migration once all other ucm processes are shutdown..."
-            void $ liftIO getLine
-        Remote -> pure ()
-      migrateSchema12 conn codebase
-      -- it's ok to pass codebase along; whatever it cached during the migration won't break anything
-      Right <$> action (codebase, conn)
-    v -> pure . Left $ Codebase1.OpenCodebaseUnknownSchemaVersion (fromIntegral v)
+  flip finally finalizer $ do
+    -- Migrate if necessary.
+    ensureCodebaseIsUpToDate localOrRemote root conn codebase >>= \case
+      Left err -> pure $ Left err
+      Right () -> Right <$> action (codebase, conn)
 
 -- well one or the other. :zany_face: the thinking being that they wouldn't hash-collide
 termExists', declExists' :: MonadIO m => Hash -> ReaderT Connection (ExceptT Ops.Error m) Bool
