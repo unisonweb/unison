@@ -7,7 +7,7 @@ module Unison.TermPrinter where
 
 import Unison.Prelude
 
-import Control.Lens ((^.))
+import Control.Lens ((^.), unsnoc)
 import Control.Monad.State (evalState)
 import qualified Control.Monad.State as State
 import Data.List
@@ -348,8 +348,30 @@ pretty0
       in PP.group (tupleLink "(" <> commaList xs <> tupleLink ")")
     (App' f@(Builtin' "Any.Any") arg, _) ->   
       paren (p >= 10) $ goNormal 9 f `PP.hang` goNormal 10 arg
-    (Apps' f@(Constructor' _) args, _) ->   
+    (Apps' f@(Constructor' _) args, _) ->
       paren (p >= 10) $ goNormal 9 f `PP.hang` PP.spacedMap (goNormal 10) args
+    {-
+    When a delayed computation block is passed to a function as the last argument
+    in a context where the ambient precedence is low enough, we can elide parentheses 
+    around it and use a "soft hang" to put the `'let` on the same line as the function call. 
+    This looks nice.
+
+      forkAt usEast 'let
+        x = thing1
+        y = thing2
+        ...
+
+    instead of the ugly but effective
+
+      forkAt 
+        usEast 
+        ('let
+          x = thing1
+          y = thing2
+          ...)
+    -}
+    (Apps' f (unsnoc -> Just (args, lastArg@(Delay' (Lets' _ _)))), _) -> paren (p >= 3) $
+      goNormal 9 f `PP.softHang` (PP.spaced ((goNormal 10 <$> args) <> [goNormal 0 lastArg]))
     (Bytes' bs, _) ->
       fmt S.BytesLiteral "0xs" <> (PP.shown $ Bytes.fromWord8s (map fromIntegral bs))
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
