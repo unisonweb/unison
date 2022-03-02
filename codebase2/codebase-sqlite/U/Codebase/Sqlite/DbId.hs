@@ -13,6 +13,10 @@ import Data.Word (Word64)
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 
+newtype HashVersion = HashVersion Word64
+  deriving stock (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
+
 newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 

@@ -58,6 +58,7 @@ import U.Util.Monoid (foldMapM)
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.SqliteCodebase.Conversions as Cv
+import Unison.Codebase.SqliteCodebase.Migrations.Errors (MigrationError)
 import qualified Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers as Hashing
 import Unison.Codebase.Type (Codebase (Codebase))
 import qualified Unison.ConstructorReference as ConstructorReference
@@ -111,7 +112,7 @@ verboseOutput =
   isJust (unsafePerformIO (lookupEnv "UNISON_MIGRATION_DEBUG"))
 {-# NOINLINE verboseOutput #-}
 
-migrateSchema1To2 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m ()
+migrateSchema1To2 :: forall a m v. (MonadUnliftIO m, Var v) => Connection -> Codebase m v a -> m (Either MigrationError ())
 migrateSchema1To2 conn codebase = do
   withinSavepoint "MIGRATESCHEMA12" $ do
     liftIO $ putStrLn $ "Starting codebase migration. This may take a while, it's a good time to make some tea ☕️"
@@ -150,6 +151,7 @@ migrateSchema1To2 conn codebase = do
     runDB conn . liftQ $ Q.setSchemaVersion 2
   liftIO $ putStrLn $ "Cleaning up..."
   runDB conn (liftQ Q.vacuum)
+  pure $ Right ()
   where
     withinSavepoint :: (String -> m c -> m c)
     withinSavepoint name act =
