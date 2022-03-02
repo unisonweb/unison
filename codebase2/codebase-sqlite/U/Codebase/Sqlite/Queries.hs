@@ -287,32 +287,25 @@ schemaVersion =
 setSchemaVersion :: DB m => SchemaVersion -> m ()
 setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
   where
-    sql =
-      [here|
-     UPDATE schema_version
-     SET version = ?
-     |]
+    sql = "UPDATE schema_version SET version = ?"
 
+{- ORMOLU_DISABLE -}
+{- Please don't try to format the SQL blocks —AI -}
 countObjects :: DB m => m Int
 countObjects = head <$> queryAtoms_ sql
-  where
-    sql = [here| SELECT COUNT(*) FROM object |]
+  where sql = [here| SELECT COUNT(*) FROM object |]
 
 countCausals :: DB m => m Int
 countCausals = head <$> queryAtoms_ sql
-  where
-    sql = [here| SELECT COUNT(*) FROM causal |]
+  where sql = [here| SELECT COUNT(*) FROM causal |]
 
 countWatches :: DB m => m Int
 countWatches = head <$> queryAtoms_ sql
-  where
-    sql = [here| SELECT COUNT(*) FROM watch |]
+  where sql = [here| SELECT COUNT(*) FROM watch |]
 
 saveHash :: DB m => Base32Hex -> m HashId
 saveHash base32 = execute sql (Only base32) >> queryOne (loadHashId base32)
-  where
-    sql =
-      [here|
+  where sql = [here|
     INSERT INTO hash (base32) VALUES (?)
     ON CONFLICT DO NOTHING
   |]
@@ -322,8 +315,7 @@ saveHashHash = saveHash . Hash.toBase32Hex
 
 loadHashId :: DB m => Base32Hex -> m (Maybe HashId)
 loadHashId base32 = queryAtom sql (Only base32)
-  where
-    sql = [here| SELECT id FROM hash WHERE base32 = ? |]
+  where sql = [here| SELECT id FROM hash WHERE base32 = ? |]
 
 loadHashIdByHash :: DB m => Hash -> m (Maybe HashId)
 loadHashIdByHash = loadHashId . Hash.toBase32Hex
@@ -353,29 +345,23 @@ loadHashHashById h = Hash.fromBase32Hex <$> loadHashById h
 
 loadHashById :: EDB m => HashId -> m Base32Hex
 loadHashById h = queryAtom sql (Only h) >>= orError (UnknownHashId h)
-  where
-    sql = [here| SELECT base32 FROM hash WHERE id = ? |]
+  where sql = [here| SELECT base32 FROM hash WHERE id = ? |]
 
 saveText :: DB m => Text -> m TextId
 saveText t = execute sql (Only t) >> queryOne (loadText t)
-  where
-    sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
+  where sql = [here| INSERT INTO text (text) VALUES (?) ON CONFLICT DO NOTHING|]
 
 loadText :: DB m => Text -> m (Maybe TextId)
 loadText t = queryAtom sql (Only t)
-  where
-    sql = [here| SELECT id FROM text WHERE text = ? |]
+  where sql = [here| SELECT id FROM text WHERE text = ? |]
 
 loadTextById :: EDB m => TextId -> m Text
 loadTextById h = queryAtom sql (Only h) >>= orError (UnknownTextId h)
-  where
-    sql = [here| SELECT text FROM text WHERE id = ? |]
+  where sql = [here| SELECT text FROM text WHERE id = ? |]
 
 saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
-saveHashObject hId oId version = execute sql (hId, oId, version)
-  where
-    sql =
-      [here|
+saveHashObject hId oId version = execute sql (hId, oId, version) where
+  sql = [here|
     INSERT INTO hash_object (hash_id, object_id, hash_version)
     VALUES (?, ?, ?)
     ON CONFLICT DO NOTHING
@@ -387,8 +373,7 @@ saveObject h t blob = do
   saveHashObject h oId 2 -- todo: remove this from here, and add it to other relevant places once there are v1 and v2 hashes
   pure oId
   where
-    sql =
-      [here|
+  sql = [here|
     INSERT INTO object (primary_hash_id, type_id, bytes)
     VALUES (?, ?, ?)
     ON CONFLICT DO NOTHING
@@ -397,41 +382,32 @@ saveObject h t blob = do
 loadObjectById :: EDB m => ObjectId -> m ByteString
 loadObjectById id | debugQuery && trace ("loadObjectById " ++ show id) False = undefined
 loadObjectById oId = do
-  result <- queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
-  when debugQuery $ traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
-  pure result
-  where
-    sql =
-      [here|
+ result <- queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
+ when debugQuery $ traceM $ "loadObjectById " ++ show oId ++ " = " ++ show result
+ pure result
+  where sql = [here|
   SELECT bytes FROM object WHERE id = ?
 |]
 
 loadObjectWithTypeById :: EDB m => ObjectId -> m (ObjectType, ByteString)
 loadObjectWithTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjectId oId)
-  where
-    sql =
-      [here|
+  where sql = [here|
     SELECT type_id, bytes FROM object WHERE id = ?
   |]
 
 loadObjectWithHashIdAndTypeById :: EDB m => ObjectId -> m (HashId, ObjectType, ByteString)
 loadObjectWithHashIdAndTypeById oId = queryMaybe sql (Only oId) >>= orError (UnknownObjectId oId)
-  where
-    sql =
-      [here|
+  where sql = [here|
     SELECT primary_hash_id, type_id, bytes FROM object WHERE id = ?
   |]
 
--- | Not all hashes have corresponding objects; e.g., hashes of term types
+-- |Not all hashes have corresponding objects; e.g., hashes of term types
 expectObjectIdForPrimaryHashId :: EDB m => HashId -> m ObjectId
 expectObjectIdForPrimaryHashId h =
   maybeObjectIdForPrimaryHashId h >>= orError (NoObjectForPrimaryHashId h)
 
 maybeObjectIdForPrimaryHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdForPrimaryHashId h = queryAtom sql (Only h)
-  where
-    sql =
-      [here|
+maybeObjectIdForPrimaryHashId h = queryAtom sql (Only h) where sql = [here|
   SELECT id FROM object WHERE primary_hash_id = ?
 |]
 
@@ -440,19 +416,14 @@ expectObjectIdForAnyHashId h =
   maybeObjectIdForAnyHashId h >>= orError (NoObjectForHashId h)
 
 maybeObjectIdForAnyHashId :: DB m => HashId -> m (Maybe ObjectId)
-maybeObjectIdForAnyHashId h = queryAtom sql (Only h)
-  where
-    sql =
-      [here|
+maybeObjectIdForAnyHashId h = queryAtom sql (Only h) where sql = [here|
     SELECT object_id FROM hash_object WHERE hash_id = ?
   |]
 
--- | All objects have corresponding hashes.
+-- |All objects have corresponding hashes.
 loadPrimaryHashByObjectId :: EDB m => ObjectId -> m Base32Hex
 loadPrimaryHashByObjectId oId = queryAtom sql (Only oId) >>= orError (UnknownObjectId oId)
-  where
-    sql =
-      [here|
+ where sql = [here|
   SELECT hash.base32
   FROM hash INNER JOIN object ON object.primary_hash_id = hash.id
   WHERE object.id = ?
@@ -468,10 +439,7 @@ hashIdsForObject oId = do
     sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
 hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, Int)]
-hashIdWithVersionForObject = query sql . Only
-  where
-    sql =
-      [here|
+hashIdWithVersionForObject = query sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
 
@@ -482,39 +450,30 @@ recordObjectRehash :: DB m => ObjectId -> ObjectId -> m ()
 recordObjectRehash old new =
   execute sql (new, old)
   where
-    sql =
-      [here|
+    sql = [here|
       UPDATE hash_object
       SET object_id = ?
       WHERE object_id = ?
     |]
 
 updateObjectBlob :: DB m => ObjectId -> ByteString -> m ()
-updateObjectBlob oId bs = execute sql (oId, bs)
-  where
-    sql =
-      [here|
+updateObjectBlob oId bs = execute sql (oId, bs) where sql = [here|
   UPDATE object SET bytes = ? WHERE id = ?
 |]
 
--- | Maybe we would generalize this to something other than NamespaceHash if we
---  end up wanting to store other kinds of Causals here too.
+-- |Maybe we would generalize this to something other than NamespaceHash if we
+-- end up wanting to store other kinds of Causals here too.
 saveCausal :: DB m => CausalHashId -> BranchHashId -> m ()
-saveCausal self value = execute sql (self, value)
-  where
-    sql =
-      [here|
+saveCausal self value = execute sql (self, value) where sql = [here|
   INSERT INTO causal (self_hash_id, value_hash_id)
   VALUES (?, ?)
   ON CONFLICT DO NOTHING
 |]
-
 -- saveCausal self value = execute sql (self, value, Committed True, Generation 0) where sql = [here|
 --   INSERT INTO causal (self_hash_id, value_hash_id, commit_flag, gc_generation)
 --   VALUES (?, ?, ?, ?)
 --   ON CONFLICT DO NOTHING
-
--- | ]
+-- |]
 
 -- -- maybe: look at whether parent causal is "committed"; if so, then increment;
 -- -- otherwise, don't.
@@ -537,45 +496,31 @@ loadCausalHash (CausalHashId id) = CausalHash <$> loadHashHashById id
 
 loadMaybeCausalValueHashId :: DB m => HashId -> m (Maybe BranchHashId)
 loadMaybeCausalValueHashId id =
-  queryAtom sql (Only id)
-  where
-    sql =
-      [here|
+  queryAtom sql (Only id) where sql = [here|
   SELECT value_hash_id FROM causal WHERE self_hash_id = ?
 |]
 
 isCausalHash :: DB m => HashId -> m Bool
-isCausalHash = queryOne . queryAtom sql . Only
-  where
-    sql =
-      [here|
+isCausalHash = queryOne . queryAtom sql . Only where sql = [here|
     SELECT EXISTS (SELECT 1 FROM causal WHERE self_hash_id = ?)
   |]
 
 loadBranchObjectIdByCausalHashId :: EDB m => CausalHashId -> m (Maybe BranchObjectId)
-loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id)
-  where
-    sql =
-      [here|
+loadBranchObjectIdByCausalHashId id = queryAtom sql (Only id) where sql = [here|
   SELECT object_id FROM hash_object
   INNER JOIN causal ON hash_id = causal.value_hash_id
   WHERE causal.self_hash_id = ?
 |]
 
 saveCausalParents :: DB m => CausalHashId -> [CausalHashId] -> m ()
-saveCausalParents child parents = executeMany sql $ (child,) <$> parents
-  where
-    sql =
-      [here|
+saveCausalParents child parents = executeMany sql $ (child,) <$> parents where
+  sql = [here|
     INSERT INTO causal_parent (causal_id, parent_id) VALUES (?, ?)
     ON CONFLICT DO NOTHING
   |]
 
 loadCausalParents :: DB m => CausalHashId -> m [CausalHashId]
-loadCausalParents h = queryAtoms sql (Only h)
-  where
-    sql =
-      [here|
+loadCausalParents h = queryAtoms sql (Only h) where sql = [here|
   SELECT parent_id FROM causal_parent WHERE causal_id = ?
 |]
 
@@ -583,30 +528,23 @@ loadCausalParents h = queryAtoms sql (Only h)
 -- modification to the database since the last observed data version.
 newtype DataVersion = DataVersion Int
   deriving (Eq, Ord, Show)
-  deriving (FromField) via Int
-
+  deriving FromField via Int
 dataVersion :: DB m => m DataVersion
-dataVersion =
-  queryOne . fmap (fmap fromOnly) . fmap headMay $
-    query_
-      [here|
+dataVersion = queryOne . fmap (fmap fromOnly) . fmap headMay $ query_ [here|
     PRAGMA data_version
   |]
 
 loadNamespaceRoot :: EDB m => m CausalHashId
-loadNamespaceRoot =
-  loadMaybeNamespaceRoot >>= \case
-    Nothing -> throwError NoNamespaceRoot
-    Just id -> pure id
+loadNamespaceRoot = loadMaybeNamespaceRoot >>= \case
+  Nothing -> throwError NoNamespaceRoot
+  Just id -> pure id
 
 loadMaybeNamespaceRoot :: EDB m => m (Maybe CausalHashId)
-loadMaybeNamespaceRoot =
-  query_ sql >>= \case
-    [] -> pure Nothing
-    [Only id] -> pure (Just id)
-    (fmap fromOnly -> ids) -> throwError (MultipleNamespaceRoots ids)
-  where
-    sql = "SELECT causal_id FROM namespace_root"
+loadMaybeNamespaceRoot = query_ sql >>= \case
+  [] -> pure Nothing
+  [Only id] -> pure (Just id)
+  (fmap fromOnly -> ids) -> throwError (MultipleNamespaceRoots ids)
+ where sql = "SELECT causal_id FROM namespace_root"
 
 setNamespaceRoot :: forall m. DB m => CausalHashId -> m ()
 setNamespaceRoot id =
@@ -620,24 +558,19 @@ setNamespaceRoot id =
 saveWatch :: DB m => WatchKind -> Reference.IdH -> ByteString -> m ()
 saveWatch k r blob = execute sql (r :. Only blob) >> execute sql2 (r :. Only k)
   where
-    sql =
-      [here|
+    sql = [here|
       INSERT INTO watch_result (hash_id, component_index, result)
       VALUES (?, ?, ?)
       ON CONFLICT DO NOTHING
     |]
-    sql2 =
-      [here|
+    sql2 = [here|
       INSERT INTO watch (hash_id, component_index, watch_kind_id)
       VALUES (?, ?, ?)
       ON CONFLICT DO NOTHING
     |]
 
 loadWatch :: DB m => WatchKind -> Reference.IdH -> m (Maybe ByteString)
-loadWatch k r = queryAtom sql (Only k :. r)
-  where
-    sql =
-      [here|
+loadWatch k r = queryAtom sql (Only k :. r) where sql = [here|
     SELECT result FROM watch_result
     INNER JOIN watch
       ON watch_result.hash_id = watch.hash_id
@@ -648,10 +581,7 @@ loadWatch k r = queryAtom sql (Only k :. r)
   |]
 
 loadWatchKindsByReference :: DB m => Reference.IdH -> m [WatchKind]
-loadWatchKindsByReference r = queryAtoms sql r
-  where
-    sql =
-      [here|
+loadWatchKindsByReference r = queryAtoms sql r where sql = [here|
     SELECT watch_kind_id FROM watch_result
     INNER JOIN watch
       ON watch_result.hash_id = watch.hash_id
@@ -661,10 +591,7 @@ loadWatchKindsByReference r = queryAtoms sql r
   |]
 
 loadWatchesByWatchKind :: DB m => WatchKind -> m [Reference.IdH]
-loadWatchesByWatchKind k = query sql (Only k)
-  where
-    sql =
-      [here|
+loadWatchesByWatchKind k = query sql (Only k) where sql = [here|
   SELECT hash_id, component_index FROM watch WHERE watch_kind_id = ?
 |]
 
@@ -674,12 +601,8 @@ clearWatches = do
   execute_ "DELETE FROM watch"
 
 -- * Index-building
-
 addToTypeIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
-addToTypeIndex tp tm = execute sql (tp :. tm)
-  where
-    sql =
-      [here|
+addToTypeIndex tp tm = execute sql (tp :. tm) where sql = [here|
   INSERT INTO find_type_index (
     type_reference_builtin,
     type_reference_hash_id,
@@ -692,10 +615,7 @@ addToTypeIndex tp tm = execute sql (tp :. tm)
 |]
 
 getReferentsByType :: DB m => Reference' TextId HashId -> m [Referent.Id]
-getReferentsByType r = query sql r
-  where
-    sql =
-      [here|
+getReferentsByType r = query sql r where sql = [here|
   SELECT
     term_referent_object_id,
     term_referent_component_index,
@@ -709,9 +629,7 @@ getReferentsByType r = query sql r
 getTypeReferenceForReferent :: EDB m => Referent.Id -> m (Reference' TextId HashId)
 getTypeReferenceForReferent r =
   queryMaybe sql r >>= orError (NoTypeIndexForTerm r)
-  where
-    sql =
-      [here|
+  where sql = [here|
   SELECT
     type_reference_builtin,
     type_reference_hash_id,
@@ -725,10 +643,7 @@ getTypeReferenceForReferent r =
 -- todo: error if no results
 getTypeReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
 getTypeReferencesForComponent oId =
-  query sql (Only oId) <&> map fixupTypeIndexRow
-  where
-    sql =
-      [here|
+  query sql (Only oId) <&> map fixupTypeIndexRow where sql = [here|
     SELECT
       type_reference_builtin,
       type_reference_hash_id,
@@ -741,10 +656,7 @@ getTypeReferencesForComponent oId =
   |]
 
 addToTypeMentionsIndex :: DB m => Reference' TextId HashId -> Referent.Id -> m ()
-addToTypeMentionsIndex tp tm = execute sql (tp :. tm)
-  where
-    sql =
-      [here|
+addToTypeMentionsIndex tp tm = execute sql (tp :. tm) where sql = [here|
   INSERT INTO find_type_mentions_index (
     type_reference_builtin,
     type_reference_hash_id,
@@ -757,10 +669,7 @@ addToTypeMentionsIndex tp tm = execute sql (tp :. tm)
 |]
 
 getReferentsByTypeMention :: DB m => Reference' TextId HashId -> m [Referent.Id]
-getReferentsByTypeMention r = query sql r
-  where
-    sql =
-      [here|
+getReferentsByTypeMention r = query sql r where sql = [here|
   SELECT
     term_referent_object_id,
     term_referent_component_index,
@@ -774,10 +683,7 @@ getReferentsByTypeMention r = query sql r
 -- todo: error if no results
 getTypeMentionsReferencesForComponent :: EDB m => ObjectId -> m [(Reference' TextId HashId, Referent.Id)]
 getTypeMentionsReferencesForComponent r =
-  query sql (Only r) <&> map fixupTypeIndexRow
-  where
-    sql =
-      [here|
+  query sql (Only r) <&> map fixupTypeIndexRow where sql = [here|
     SELECT
       type_reference_builtin,
       type_reference_hash_id,
@@ -850,9 +756,7 @@ vacuum = execute_ "VACUUM"
 
 addToDependentsIndex :: DB m => Reference.Reference -> Reference.Id -> m ()
 addToDependentsIndex dependency dependent = execute sql (dependency :. dependent)
-  where
-    sql =
-      [here|
+  where sql = [here|
     INSERT INTO dependents_index (
       dependency_builtin,
       dependency_object_id,
@@ -904,8 +808,7 @@ getDependenciesForDependent :: DB m => Reference.Id -> m [Reference.Reference]
 getDependenciesForDependent dependent@(C.Reference.Id oid0 _) =
   filter isNotSelfReference <$> query sql dependent
   where
-    sql =
-      [here|
+    sql = [here|
       SELECT dependency_builtin, dependency_object_id, dependency_component_index
       FROM dependents_index
       WHERE dependent_object_id IS ?
@@ -936,10 +839,7 @@ getDependencyIdsForDependent dependent@(C.Reference.Id oid0 _) =
       oid0 /= oid1
 
 objectIdByBase32Prefix :: DB m => ObjectType -> Text -> m [ObjectId]
-objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%")
-  where
-    sql =
-      [here|
+objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%") where sql = [here|
   SELECT object.id FROM object
   INNER JOIN hash_object ON hash_object.object_id = object.id
   INNER JOIN hash ON hash_object.hash_id = hash.id
@@ -948,20 +848,14 @@ objectIdByBase32Prefix objType prefix = queryAtoms sql (objType, prefix <> "%")
 |]
 
 causalHashIdByBase32Prefix :: DB m => Text -> m [CausalHashId]
-causalHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%")
-  where
-    sql =
-      [here|
+causalHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") where sql = [here|
   SELECT self_hash_id FROM causal
   INNER JOIN hash ON id = self_hash_id
   WHERE base32 LIKE ?
 |]
 
 namespaceHashIdByBase32Prefix :: DB m => Text -> m [BranchHashId]
-namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%")
-  where
-    sql =
-      [here|
+namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%") where sql = [here|
   SELECT value_hash_id FROM causal
   INNER JOIN hash ON id = value_hash_id
   WHERE base32 LIKE ?
@@ -972,9 +866,7 @@ namespaceHashIdByBase32Prefix prefix = queryAtoms sql (Only $ prefix <> "%")
 -- are the result of database inconsistencies and are unexpected.
 getCausalsWithoutBranchObjects :: DB m => m [CausalHashId]
 getCausalsWithoutBranchObjects = queryAtoms_ sql
-  where
-    sql =
-      [here|
+  where sql = [here|
     SELECT self_hash_id from causal
     WHERE value_hash_id NOT IN (SELECT hash_id FROM hash_object)
 |]
