@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- | Open codebase error type.
 module Unison.Codebase.Init.OpenCodebaseError
   ( OpenCodebaseError (..),
@@ -13,3 +15,4 @@ data OpenCodebaseError
   | -- | The codebase exists, but its schema version is unknown to this application.
     OpenCodebaseUnknownSchemaVersion Word64
   deriving stock (Show)
+  deriving anyclass (Exception)

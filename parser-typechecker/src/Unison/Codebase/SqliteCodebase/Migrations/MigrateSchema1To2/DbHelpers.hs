@@ -1,4 +1,4 @@
-module Unison.Codebase.SqliteCodebase.MigrateSchema12.DbHelpers
+module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
   ( dbBranchHash,
     dbPatchHash,
   )
