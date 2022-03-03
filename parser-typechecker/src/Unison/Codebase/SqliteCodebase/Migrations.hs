@@ -49,8 +49,10 @@ ensureCodebaseIsUpToDate localOrRemote root conn codebase = UnliftIO.try do
         Map.filterWithKey (\v _ -> v > schemaVersion) migrations
   when (localOrRemote == Local && (not . null) migrationsToRun) $ backupCodebase root
   for_ (Map.toAscList migrationsToRun) $ \(SchemaVersion v, migration) -> do
-    liftIO . putStrLn $ "Migrating codebase to version " <> show v <> "..."
+    liftIO . putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
     migration conn codebase
+  when ((not . null) migrationsToRun) $ do
+    liftIO . putStrLn $ "🏁 Migration complete. 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.
 backupCodebase :: CodebasePath -> MonadIO m => m ()
