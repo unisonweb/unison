@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -9,15 +8,17 @@ module Unison.Codebase.Type
     GitError (..),
     GetRootBranchError (..),
     SyncToDir,
-    LocalOrRemote(..),
+    LocalOrRemote (..),
     gitErrorFromOpenCodebaseError,
   )
 where
 
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, WriteRepo, ReadRepo)
+import qualified Unison.Codebase.Editor.Git as Git
+import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace, ReadRepo, WriteRepo)
 import Unison.Codebase.GitError (GitCodebaseError, GitProtocolError)
+import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Patch (Patch)
 import qualified Unison.Codebase.Reflog as Reflog
 import Unison.Codebase.ShortBranchHash (ShortBranchHash)
@@ -34,8 +35,6 @@ import Unison.ShortHash (ShortHash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Unison.WatchKind as WK
-import qualified Unison.Codebase.Editor.Git as Git
-import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError(..))
 
 type SyncToDir m =
   CodebasePath -> -- dest codebase
@@ -166,7 +165,6 @@ data LocalOrRemote
   = Local
   | Remote
   deriving (Show, Eq, Ord)
-
 
 data PushGitBranchOpts = PushGitBranchOpts
   { -- | Set the branch as root?

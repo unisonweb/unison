@@ -1,7 +1,7 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Codebase.Branch where
 
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set)
 import Data.Text (Text)
 import qualified U.Codebase.Causal as C
@@ -10,12 +10,13 @@ import U.Codebase.Reference (Reference)
 import U.Codebase.Referent (Referent)
 import U.Codebase.TermEdit (TermEdit)
 import U.Codebase.TypeEdit (TypeEdit)
-import qualified Data.Map as Map
 
-newtype NameSegment = NameSegment { unNameSegment :: Text } deriving (Eq, Ord, Show)
+newtype NameSegment = NameSegment {unNameSegment :: Text} deriving (Eq, Ord, Show)
 
 type MetadataType = Reference
+
 type MetadataValue = Reference
+
 data MdValues = MdValues (Map MetadataValue MetadataType) deriving (Eq, Ord, Show)
 
 type Causal m = C.Causal m CausalHash BranchHash (Branch m)
@@ -34,7 +35,11 @@ data Patch = Patch
   }
 
 instance Show (Branch m) where
-  show b = "Branch { terms = " ++ show (fmap Map.keys (terms b)) ++
-          ", types = " ++ show (fmap Map.keys (types b)) ++
-          ", patches = " ++ show (fmap fst (patches b)) ++
-          ", children = " ++ show (Map.keys (children b))
+  show b =
+    "Branch { terms = " ++ show (fmap Map.keys (terms b))
+      ++ ", types = "
+      ++ show (fmap Map.keys (types b))
+      ++ ", patches = "
+      ++ show (fmap fst (patches b))
+      ++ ", children = "
+      ++ show (Map.keys (children b))

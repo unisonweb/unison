@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.TermEdit where
 
 import Unison.Reference (Reference)
@@ -18,7 +17,7 @@ data Typing = Same | Subtype | Different
 
 toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r
-toReference Deprecate     = Nothing
+toReference Deprecate = Nothing
 
 isTypePreserving :: TermEdit -> Bool
 isTypePreserving e = case e of
@@ -29,4 +28,4 @@ isTypePreserving e = case e of
 isSame :: TermEdit -> Bool
 isSame e = case e of
   Replace _ Same -> True
-  _              -> False
+  _ -> False

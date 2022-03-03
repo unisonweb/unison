@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -13,28 +12,36 @@ import Data.Word (Word64)
 import Database.SQLite.Simple.FromField
 import Database.SQLite.Simple.ToField
 
-newtype ObjectId = ObjectId Word64 deriving (Eq, Ord, Show)
+newtype ObjectId = ObjectId Word64
+  deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
-newtype TextId = TextId Word64 deriving (Eq, Ord, Show)
+newtype TextId = TextId Word64
+  deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
-newtype HashId = HashId Word64 deriving (Eq, Ord, Show)
+newtype HashId = HashId Word64
+  deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
-newtype PatchObjectId = PatchObjectId { unPatchObjectId :: ObjectId } deriving (Eq, Ord)
+newtype PatchObjectId = PatchObjectId {unPatchObjectId :: ObjectId}
+  deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via ObjectId
 
-newtype BranchObjectId = BranchObjectId { unBranchObjectId :: ObjectId } deriving (Eq, Ord)
+newtype BranchObjectId = BranchObjectId {unBranchObjectId :: ObjectId}
+  deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via ObjectId
 
-newtype BranchHashId = BranchHashId { unBranchHashId :: HashId } deriving (Eq, Ord)
+newtype BranchHashId = BranchHashId {unBranchHashId :: HashId}
+  deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
 
-newtype CausalHashId = CausalHashId { unCausalHashId :: HashId } deriving (Eq, Ord)
+newtype CausalHashId = CausalHashId {unCausalHashId :: HashId}
+  deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
 
-newtype SchemaVersion = SchemaVersion Word64 deriving (Eq, Ord, Show)
+newtype SchemaVersion = SchemaVersion Word64
+  deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
 
 instance Show PatchObjectId where

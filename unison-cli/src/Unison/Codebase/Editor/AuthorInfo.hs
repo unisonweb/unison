@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.AuthorInfo where
@@ -8,9 +7,9 @@ import Data.ByteString (unpack)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Prelude (MonadIO, Word8)
-import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Term (Term)
@@ -59,13 +58,16 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
             (guidRef, guidTerm, guidType)
             (authorRef, authorTerm, authorType)
             (chRef, chTerm, chType)
-    hashAndWrangle :: Text
-                  -> Type v a -> Term v a
-                  -> [(Reference.Id, Term v a)]
+    hashAndWrangle ::
+      Text ->
+      Type v a ->
+      Term v a ->
+      [(Reference.Id, Term v a)]
     hashAndWrangle v typ tm =
-      Foldable.toList $ fmap (\(id,tm,_tp) -> (id,tm)) $
-        H.hashTermComponents
-          (Map.singleton (Var.named v) (tm, typ))
+      Foldable.toList $
+        fmap (\(id, tm, _tp) -> (id, tm)) $
+          H.hashTermComponents
+            (Map.singleton (Var.named v) (tm, typ))
     (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
     (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)
     (guidType, guidTypeRef) = (Type.ref a guidTypeRef, IOSource.guidRef)

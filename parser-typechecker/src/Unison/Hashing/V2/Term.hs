@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -22,23 +21,23 @@ where
 
 import qualified Data.Sequence as Sequence
 import qualified Data.Text as Text
+import qualified Data.Zip as Zip
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import qualified Unison.Hash as Hash
-import Unison.Hashing.V2.Tokenizable (Hashable1, accumulateToken)
-import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import qualified Unison.Hashing.V2.ABT as ABT
 import Unison.Hashing.V2.Pattern (Pattern)
 import Unison.Hashing.V2.Reference (Reference)
 import qualified Unison.Hashing.V2.Reference as Reference
 import qualified Unison.Hashing.V2.Reference.Util as ReferenceUtil
 import Unison.Hashing.V2.Referent (Referent)
+import Unison.Hashing.V2.Tokenizable (Hashable1, accumulateToken)
+import qualified Unison.Hashing.V2.Tokenizable as Hashable
 import Unison.Hashing.V2.Type (Type)
 import Unison.Prelude
 import Unison.Var (Var)
 import Prelude hiding (and, or)
-import qualified Data.Zip as Zip
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show, Eq, Foldable, Functor, Generic, Generic1, Traversable)
@@ -105,10 +104,12 @@ refId a = ref a . Reference.DerivedId
 
 hashComponents ::
   forall v a.
-  Var v => Map v (Term v a, Type v a) -> Map v (Reference.Id, Term v a, Type v a)
+  Var v =>
+  Map v (Term v a, Type v a) ->
+  Map v (Reference.Id, Term v a, Type v a)
 hashComponents terms =
   Zip.zipWith keepType terms (ReferenceUtil.hashComponents (refId ()) terms')
-   where
+  where
     terms' :: Map v (Term v a)
     terms' = uncurry incorporateType <$> terms
 
@@ -119,14 +120,14 @@ hashComponents terms =
     incorporateType a@(ABT.out -> ABT.Tm (Ann e _tp)) typ = ABT.tm' (ABT.annotation a) (Ann e typ)
     incorporateType e typ = ABT.tm' (ABT.annotation e) (Ann e typ)
 
-    -- keep these until we decide if we want to add the appropriate smart constructors back into this module
-    -- incorporateType (Term.Ann' e _) typ = Term.ann () e typ
-    -- incorporateType e typ = Term.ann () e typ
+-- keep these until we decide if we want to add the appropriate smart constructors back into this module
+-- incorporateType (Term.Ann' e _) typ = Term.ann () e typ
+-- incorporateType e typ = Term.ann () e typ
 
-      -- Need to insert an "Ann" node inside the 'Tm' ABT wrapper
-      -- iff there isn't already a top-level annotation.
-      -- What if there's a top-level Annotation but it doesn't match
-      -- the type that was provided?
+-- Need to insert an "Ann" node inside the 'Tm' ABT wrapper
+-- iff there isn't already a top-level annotation.
+-- What if there's a top-level Annotation but it doesn't match
+-- the type that was provided?
 
 hashComponentsWithoutTypes :: Var v => Map v (Term v a) -> Map v (Reference.Id, Term v a)
 hashComponentsWithoutTypes = ReferenceUtil.hashComponents $ refId ()

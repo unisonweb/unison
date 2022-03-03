@@ -74,10 +74,13 @@ data Causal m h e
 
 pattern One :: RawHash h -> e -> Causal m h e
 pattern One h e <- UnsafeOne h e
+
 pattern Cons :: RawHash h -> e -> (RawHash h, m (Causal m h e)) -> Causal m h e
 pattern Cons h e tail <- UnsafeCons h e tail
+
 pattern Merge :: RawHash h -> e -> Map (RawHash h) (m (Causal m h e)) -> Causal m h e
 pattern Merge h e tails <- UnsafeMerge h e tails
+
 {-# COMPLETE One, Cons, Merge #-}
 
 predecessors :: Causal m h e -> Seq (m (Causal m h e))

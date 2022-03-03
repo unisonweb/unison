@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.PrettyPrintEnv.Util (declarationPPE, declarationPPEDecl) where
@@ -31,6 +30,6 @@ declarationPPE ppe ref = PrettyPrintEnv tm ty
       | otherwise = types (suffixifiedPPE ppe) r
 
 -- The suffixed names uses the fully-qualified name for `r`
-declarationPPEDecl ::  PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
+declarationPPEDecl :: PrettyPrintEnvDecl -> Reference -> PrettyPrintEnvDecl
 declarationPPEDecl ppe r =
-   ppe { suffixifiedPPE = declarationPPE ppe r }
+  ppe {suffixifiedPPE = declarationPPE ppe r}

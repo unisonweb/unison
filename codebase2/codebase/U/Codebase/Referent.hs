@@ -1,25 +1,25 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module U.Codebase.Referent where
 
+import Control.Lens (Prism, Traversal)
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bifunctor (Bifunctor (..))
+import Data.Bitraversable (Bitraversable (..))
+import Data.Generics.Sum (_Ctor)
+import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import qualified U.Codebase.Reference as Reference
 import U.Util.Hash (Hash)
-import Data.Bifunctor (Bifunctor(..))
-import Data.Bifoldable (Bifoldable(..))
-import Data.Bitraversable (Bitraversable(..))
-import U.Codebase.Decl (ConstructorId)
-import Control.Lens (Prism, Traversal)
-import Data.Generics.Sum (_Ctor)
 import Unison.Prelude
 
 type Referent = Referent' Reference Reference
+
 type ReferentH = Referent' (Reference' Text (Maybe Hash)) (Reference' Text Hash)
 
 data Referent' termRef typeRef
@@ -43,6 +43,7 @@ _Con :: Prism (Referent' tmr tyr) (Referent' tmr tyr') (tyr, ConstructorId) (tyr
 _Con = _Ctor @"Con"
 
 type Id = Id' Hash Hash
+
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId

@@ -10,32 +10,33 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Util.Relation as R
 
 main :: IO ()
-main = withCP65001 $
-  defaultMain
-    [ env (genRelations @Char @Char 10000 20) \rs ->
-        bgroup
-          "Relation"
-          [ bench "difference" $ nf (uncurry R.difference) rs,
-            bench "intersection" $ nf (uncurry R.intersection) rs,
-            bench "union" $ nf (uncurry R.union) rs
-          ],
-      env (pure (R.fromList ((,) <$> [(1 :: Int) .. 1000] <*> [(1 :: Int) .. 1000]))) \r ->
-        bgroup
-          "replaceDom"
-          [ bench "old implementation" (nf (oldReplaceDom 1 2) r),
-            bench "new implementation" (nf (R.replaceDom 2 2) r)
-          ],
-      env (genRelation @Char @Char 10000 2) \r ->
-        env (genSet @Char 100) \s ->
+main =
+  withCP65001 $
+    defaultMain
+      [ env (genRelations @Char @Char 10000 20) \rs ->
           bgroup
             "Relation"
-            [ bgroup
-                "subtractDom"
-                [ bench "old implementation" (nf (oldSubtractDom s) r),
-                  bench "new implementation" (nf (R.subtractDom s) r)
-                ]
-            ]
-    ]
+            [ bench "difference" $ nf (uncurry R.difference) rs,
+              bench "intersection" $ nf (uncurry R.intersection) rs,
+              bench "union" $ nf (uncurry R.union) rs
+            ],
+        env (pure (R.fromList ((,) <$> [(1 :: Int) .. 1000] <*> [(1 :: Int) .. 1000]))) \r ->
+          bgroup
+            "replaceDom"
+            [ bench "old implementation" (nf (oldReplaceDom 1 2) r),
+              bench "new implementation" (nf (R.replaceDom 2 2) r)
+            ],
+        env (genRelation @Char @Char 10000 2) \r ->
+          env (genSet @Char 100) \s ->
+            bgroup
+              "Relation"
+              [ bgroup
+                  "subtractDom"
+                  [ bench "old implementation" (nf (oldSubtractDom s) r),
+                    bench "new implementation" (nf (R.subtractDom s) r)
+                  ]
+              ]
+      ]
 
 oldReplaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 oldReplaceDom a a' r =

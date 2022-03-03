@@ -1,59 +1,58 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE ViewPatterns   #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Reference
-  (Reference,
-     pattern Builtin,
-     pattern Derived,
-     pattern DerivedId,
-     _DerivedId,
-   Id(..),
-   Pos,
-   CycleSize,
-   Size,
-   TermReference,
-   TermReferenceId,
-   TypeReference,
-   TypeReferenceId,
-   derivedBase32Hex,
-   component,
-   components,
-   groupByComponent,
-   componentFor,
-   componentFromLength,
-   unsafeFromText,
-   idFromText,
-   isPrefixOf,
-   fromShortHash,
-   fromText,
-   readSuffix,
-   showShort,
-   showSuffix,
-   toHash,
-   toId,
-   fromId,
-   toText,
-   unsafeId,
-   toShortHash,
-   idToHash,
-   idToShortHash,
-  ) where
+  ( Reference,
+    pattern Builtin,
+    pattern Derived,
+    pattern DerivedId,
+    _DerivedId,
+    Id (..),
+    Pos,
+    CycleSize,
+    Size,
+    TermReference,
+    TermReferenceId,
+    TypeReference,
+    TypeReferenceId,
+    derivedBase32Hex,
+    component,
+    components,
+    groupByComponent,
+    componentFor,
+    componentFromLength,
+    unsafeFromText,
+    idFromText,
+    isPrefixOf,
+    fromShortHash,
+    fromText,
+    readSuffix,
+    showShort,
+    showSuffix,
+    toHash,
+    toId,
+    fromId,
+    toText,
+    unsafeId,
+    toShortHash,
+    idToHash,
+    idToShortHash,
+  )
+where
 
+import Control.Lens (Prism')
+import Data.Char (isDigit)
+import Data.Generics.Sum (_Ctor)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.Hash as H
 import Unison.Prelude
-
-import qualified Data.Map        as Map
-import qualified Data.Text       as Text
-import qualified Unison.Hash     as H
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import Data.Char (isDigit)
-import Control.Lens (Prism')
-import Data.Generics.Sum (_Ctor)
-import qualified Data.Set as Set
 
 -- | Either a builtin or a user defined (hashed) top-level declaration.
 --
@@ -62,11 +61,12 @@ import qualified Data.Set as Set
 -- Other used defined things like local variables don't get @Reference@s.
 data Reference
   = Builtin Text.Text
-  -- `Derived` can be part of a strongly connected component.
-  -- The `Pos` refers to a particular element of the component
-  -- and the `Size` is the number of elements in the component.
-  -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq, Ord, Generic)
+  | -- `Derived` can be part of a strongly connected component.
+    -- The `Pos` refers to a particular element of the component
+    -- and the `Size` is the number of elements in the component.
+    -- Using an ugly name so no one tempted to use this
+    DerivedId Id
+  deriving (Eq, Ord, Generic)
 
 pattern Derived :: H.Hash -> Pos -> Reference
 pattern Derived h i = DerivedId (Id h i)
@@ -126,8 +126,10 @@ showSuffix = Text.pack . show
 
 readSuffix :: Text -> Either String Pos
 readSuffix = \case
-  pos | Text.all isDigit pos,
-        Just pos' <- readMaybe (Text.unpack pos) -> Right pos'
+  pos
+    | Text.all isDigit pos,
+      Just pos' <- readMaybe (Text.unpack pos) ->
+        Right pos'
   t -> Left $ "Invalid reference suffix: " <> show t
 
 isPrefixOf :: ShortHash -> Reference -> Bool
@@ -140,21 +142,23 @@ showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 type Pos = Word64
+
 type Size = CycleSize
+
 type CycleSize = Word64
 
 -- enumerate the `a`s and associates them with corresponding `Reference.Id`s
 componentFor :: H.Hash -> [a] -> [(Id, a)]
-componentFor h as = [ (Id h i, a) | (fromIntegral -> i, a) <- zip [0..] as]
+componentFor h as = [(Id h i, a) | (fromIntegral -> i, a) <- zip [0 ..] as]
 
 componentFromLength :: H.Hash -> CycleSize -> Set Id
-componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size -1]]
+componentFromLength h size = Set.fromList [Id h i | i <- [0 .. size - 1]]
 
 derivedBase32Hex :: Text -> Pos -> Reference
 derivedBase32Hex b32Hex i = DerivedId (Id (fromMaybe msg h) i)
   where
-  msg = error $ "Reference.derivedBase32Hex " <> show h
-  h = H.fromBase32Hex b32Hex
+    msg = error $ "Reference.derivedBase32Hex " <> show h
+    h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
@@ -167,7 +171,7 @@ idFromText s = case fromText s of
 
 toId :: Reference -> Maybe Id
 toId (DerivedId id) = Just id
-toId Builtin{} = Nothing
+toId Builtin {} = Nothing
 
 fromId :: Id -> Reference
 fromId = DerivedId
@@ -181,18 +185,20 @@ toHash r = idToHash <$> toId r
 -- `#y9ycWkiC1.y9` — derived, part of cycle
 -- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
 fromText :: Text -> Either String Reference
-fromText t = case Text.split (=='#') t of
+fromText t = case Text.split (== '#') t of
   [_, "", b] -> Right (Builtin b)
-  [_, h]     -> case Text.split (=='.') h of
-    [hash]         -> Right (derivedBase32Hex hash 0)
+  [_, h] -> case Text.split (== '.') h of
+    [hash] -> Right (derivedBase32Hex hash 0)
     [hash, suffix] -> derivedBase32Hex hash <$> readSuffix suffix
     _ -> bail
   _ -> bail
-  where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
+  where
+    bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
 component :: H.Hash -> [k] -> [(k, Id)]
-component h ks = let
-  in [ (k, (Id h i)) | (k, i) <- ks `zip` [0..]]
+component h ks =
+  let
+   in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
 
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
@@ -201,10 +207,11 @@ groupByComponent :: [(k, Reference)] -> [[(k, Reference)]]
 groupByComponent refs = done $ foldl' insert Map.empty refs
   where
     insert m (k, r@(Derived h _)) =
-      Map.unionWith (<>) m (Map.fromList [(Right h, [(k,r)])])
+      Map.unionWith (<>) m (Map.fromList [(Right h, [(k, r)])])
     insert m (k, r) =
-      Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
+      Map.unionWith (<>) m (Map.fromList [(Left r, [(k, r)])])
     done m = sortOn snd <$> toList m
 
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
+
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash

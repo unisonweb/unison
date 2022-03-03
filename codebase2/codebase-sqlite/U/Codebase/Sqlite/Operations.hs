@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -205,12 +204,12 @@ import qualified U.Core.ABT as ABT
 import qualified U.Util.Base32Hex as Base32Hex
 import qualified U.Util.Hash as H
 import qualified U.Util.Lens as Lens
-import qualified Unison.Util.Map as Map
 import qualified U.Util.Monoid as Monoid
 import U.Util.Serialization (Get)
 import qualified U.Util.Serialization as S
-import qualified Unison.Util.Set as Set
 import qualified U.Util.Term as TermUtil
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 import UnliftIO (Exception)
 
 -- * Error handling
@@ -329,9 +328,9 @@ loadMaybeRootCausalHash =
 
 -- ** read existing references
 
--- |Assumes that a derived reference would already exist in the database
--- (by virtue of dependencies being stored before dependents), but does
--- not assume a builtin reference would.
+-- | Assumes that a derived reference would already exist in the database
+--  (by virtue of dependencies being stored before dependents), but does
+--  not assume a builtin reference would.
 c2sReference :: EDB m => C.Reference -> m S.Reference
 c2sReference = bitraverse Q.saveText primaryHashToExistingObjectId
 
@@ -369,6 +368,7 @@ h2cReferent :: EDB m => S.ReferentH -> m C.Referent
 h2cReferent = bitraverse h2cReference h2cReference
 
 -- ** convert and save references
+
 -- | Save the text and hash parts of a Reference to the database and substitute their ids.
 saveReferenceH :: DB m => C.Reference -> m S.ReferenceH
 saveReferenceH = bitraverse Q.saveText Q.saveHashHash
@@ -403,9 +403,9 @@ s2cTypeEdit = \case
 -- | assumes that all relevant defns are already in the DB
 c2sPatch :: EDB m => C.Branch.Patch -> m S.Patch
 c2sPatch (C.Branch.Patch termEdits typeEdits) =
-   S.Patch
-      <$> Map.bitraverse saveReferentH (Set.traverse c2sTermEdit) termEdits
-      <*> Map.bitraverse saveReferenceH (Set.traverse c2sTypeEdit) typeEdits
+  S.Patch
+    <$> Map.bitraverse saveReferentH (Set.traverse c2sTermEdit) termEdits
+    <*> Map.bitraverse saveReferenceH (Set.traverse c2sTypeEdit) typeEdits
   where
     c2sTermEdit = \case
       C.TermEdit.Replace r t -> S.TermEdit.Replace <$> c2sReferent r <*> pure (c2sTyping t)

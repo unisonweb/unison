@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
@@ -133,9 +132,10 @@ putWatchResultFormat = \case
     putTerm t
 
 getWatchResultFormat :: MonadGet m => m TermFormat.WatchResultFormat
-getWatchResultFormat = getWord8 >>= \case
-  0 -> TermFormat.WatchResult <$> getWatchLocalIds <*> getTerm
-  other -> unknownTag "getWatchResultFormat" other
+getWatchResultFormat =
+  getWord8 >>= \case
+    0 -> TermFormat.WatchResult <$> getWatchLocalIds <*> getTerm
+    other -> unknownTag "getWatchResultFormat" other
 
 putTermFormat :: MonadPut m => TermFormat.TermFormat -> m ()
 putTermFormat = \case
@@ -649,19 +649,21 @@ recomposeComponent = putFramedArray \(localIds, bytes) -> do
   putByteString bytes
 
 decomposeWatchFormat :: MonadGet m => m TermFormat.SyncWatchResultFormat
-decomposeWatchFormat = getWord8 >>= \case
-  0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposeWatchFormat" x
+decomposeWatchFormat =
+  getWord8 >>= \case
+    0 -> TermFormat.SyncWatchResult <$> getWatchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposeWatchFormat" x
 
 recomposeWatchFormat :: MonadPut m => TermFormat.SyncWatchResultFormat -> m ()
 recomposeWatchFormat (TermFormat.SyncWatchResult wli bs) =
   putWord8 0 *> putLocalIds wli *> putByteString bs
 
 decomposePatchFormat :: MonadGet m => m PatchFormat.SyncPatchFormat
-decomposePatchFormat = getWord8 >>= \case
-  0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getRemainingByteString
-  1 -> PatchFormat.SyncDiff <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposePatchFormat" x
+decomposePatchFormat =
+  getWord8 >>= \case
+    0 -> PatchFormat.SyncFull <$> getPatchLocalIds <*> getRemainingByteString
+    1 -> PatchFormat.SyncDiff <$> getVarInt <*> getPatchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposePatchFormat" x
 
 recomposePatchFormat :: MonadPut m => PatchFormat.SyncPatchFormat -> m ()
 recomposePatchFormat = \case
@@ -671,10 +673,11 @@ recomposePatchFormat = \case
     putWord8 1 *> putVarInt id *> putPatchLocalIds li *> putByteString bs
 
 decomposeBranchFormat :: MonadGet m => m BranchFormat.SyncBranchFormat
-decomposeBranchFormat = getWord8 >>= \case
-  0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
-  1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
-  x -> unknownTag "decomposeBranchFormat" x
+decomposeBranchFormat =
+  getWord8 >>= \case
+    0 -> BranchFormat.SyncFull <$> getBranchLocalIds <*> getRemainingByteString
+    1 -> BranchFormat.SyncDiff <$> getVarInt <*> getBranchLocalIds <*> getRemainingByteString
+    x -> unknownTag "decomposeBranchFormat" x
 
 recomposeBranchFormat :: MonadPut m => BranchFormat.SyncBranchFormat -> m ()
 recomposeBranchFormat = \case

@@ -1,8 +1,7 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE ViewPatterns   #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Hashing.V2.Reference
   ( Reference,
@@ -14,12 +13,11 @@ module Unison.Hashing.V2.Reference
   )
 where
 
-import Unison.Prelude
-
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
 import Unison.Hashing.V2.Tokenizable (Tokenizable)
 import qualified Unison.Hashing.V2.Tokenizable as Hashable
+import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 
@@ -30,11 +28,12 @@ import qualified Unison.ShortHash as SH
 -- Other used defined things like local variables don't get @Reference@s.
 data Reference
   = Builtin Text.Text
-  -- `Derived` can be part of a strongly connected component.
-  -- The `Pos` refers to a particular element of the component
-  -- and the `Size` is the number of elements in the component.
-  -- Using an ugly name so no one tempted to use this
-  | DerivedId Id deriving (Eq, Ord)
+  | -- `Derived` can be part of a strongly connected component.
+    -- The `Pos` refers to a particular element of the component
+    -- and the `Size` is the number of elements in the component.
+    -- Using an ugly name so no one tempted to use this
+    DerivedId Id
+  deriving (Eq, Ord)
 
 type Pos = Word64
 
@@ -56,13 +55,15 @@ showSuffix :: Pos -> Text
 showSuffix = Text.pack . show
 
 component :: H.Hash -> [k] -> [(k, Id)]
-component h ks = let
-  in [ (k, (Id h i)) | (k, i) <- ks `zip` [0..]]
+component h ks =
+  let
+   in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
 
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs
 
 instance Show Id where show = SH.toString . SH.take 5 . toShortHash . DerivedId
+
 instance Show Reference where show = SH.toString . SH.take 5 . toShortHash
 
 instance Tokenizable Reference where
