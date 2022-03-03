@@ -1797,7 +1797,7 @@ makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
     "compile"
-    []
+    ["compile.output"]
     [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
     ( P.wrapColumn2
         [ ( "`compile main file`",
