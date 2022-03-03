@@ -25,6 +25,6 @@ main = '(printLine "Hello, world!")
   
     main : '{IO, Exception} ()
 
-.> compile.output main ./unison-cli/integration-tests/IntegrationTests/main
+.> compile main ./unison-cli/integration-tests/IntegrationTests/main
 
 ```

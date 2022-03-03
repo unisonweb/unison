@@ -394,7 +394,7 @@ loop = do
             MergeBuiltinsI -> "builtins.merge"
             MergeIOBuiltinsI -> "builtins.mergeio"
             MakeStandaloneI out nm ->
-              "compile.output " <> Text.pack out <> " " <> HQ.toText nm
+              "compile " <> Text.pack out <> " " <> HQ.toText nm
             PullRemoteBranchI orepo dest _syncMode pullMode _ ->
               (Text.pack . InputPattern.patternName $
                 case pullMode of
