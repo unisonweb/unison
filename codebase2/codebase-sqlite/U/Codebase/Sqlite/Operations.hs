@@ -993,11 +993,7 @@ saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashI
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
   (liftQ $ Q.loadCausalByCausalHash hc) >>= \case
-    Just (chId, bhId) -> do
-      boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
-        branch <- c2sBranch =<< me
-        let (li, lBranch) = LocalizeObject.localizeBranch branch
-        saveBranchObject bhId li lBranch
+    Just (chId, _bhId, boId) -> do
       pure (boId, chId)
     Nothing -> do
         bhId <- liftQ (Q.saveBranchHash he)

@@ -327,11 +327,12 @@ loadCausalHashIdByCausalHash ch = runMaybeT do
   hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
   Alternative.whenM (isCausalHash hId) (CausalHashId hId)
 
-loadCausalByCausalHash :: DB m => CausalHash -> m (Maybe (CausalHashId, BranchHashId))
+loadCausalByCausalHash :: DB m => CausalHash -> m (Maybe (CausalHashId, BranchHashId, BranchObjectId))
 loadCausalByCausalHash ch = runMaybeT do
   hId <- MaybeT $ loadHashIdByHash (unCausalHash ch)
   bhId <- MaybeT $ loadMaybeCausalValueHashId hId
-  pure (CausalHashId hId, bhId)
+  bObjId <- MaybeT $ maybeObjectIdForAnyHashId hId
+  pure (CausalHashId hId, bhId, BranchObjectId bObjId)
 
 expectHashIdByHash :: EDB m => Hash -> m HashId
 expectHashIdByHash h = loadHashIdByHash h >>= orError (UnknownHash h)
