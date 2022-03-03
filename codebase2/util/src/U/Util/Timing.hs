@@ -1,14 +1,13 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BangPatterns #-}
 
 module U.Util.Timing where
 
+import Data.Time.Clock (picosecondsToDiffTime)
+import Data.Time.Clock.System (getSystemTime, systemToTAITime)
+import Data.Time.Clock.TAI (diffAbsoluteTime)
 import System.CPUTime (getCPUTime)
 import System.IO.Unsafe (unsafePerformIO)
 import UnliftIO (MonadIO, liftIO)
-import Data.Time.Clock.System (getSystemTime, systemToTAITime)
-import Data.Time.Clock.TAI (diffAbsoluteTime)
-import Data.Time.Clock (picosecondsToDiffTime)
 
 enabled :: Bool
 enabled = False

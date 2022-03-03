@@ -1,5 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -7,12 +5,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Endpoints.FuzzyFind where
 
 import Control.Error (runExceptT)
-import Data.Aeson ( defaultOptions, genericToEncoding, ToJSON(toEncoding) )
+import Data.Aeson (ToJSON (toEncoding), defaultOptions, genericToEncoding)
 import Data.OpenApi (ToSchema)
 import qualified Data.Text as Text
 import Servant
@@ -61,11 +60,11 @@ import Unison.Util.Pretty (Width)
 
 type FuzzyFindAPI =
   "find" :> QueryParam "rootBranch" SBH.ShortBranchHash
-         :> QueryParam "relativeTo" HashQualifiedName
-         :> QueryParam "limit" Int
-         :> QueryParam "renderWidth" Width
-         :> QueryParam "query" String
-         :> APIGet [(FZF.Alignment, FoundResult)]
+    :> QueryParam "relativeTo" HashQualifiedName
+    :> QueryParam "limit" Int
+    :> QueryParam "renderWidth" Width
+    :> QueryParam "query" String
+    :> APIGet [(FZF.Alignment, FoundResult)]
 
 instance ToSample FZF.Alignment where
   toSamples _ = noSamples
@@ -87,31 +86,39 @@ instance ToParam (QueryParam "query" String) where
       Normal
 
 instance ToJSON FZF.Alignment where
-   toEncoding = genericToEncoding defaultOptions
+  toEncoding = genericToEncoding defaultOptions
+
 instance ToJSON FZF.Result where
-   toEncoding = genericToEncoding defaultOptions
+  toEncoding = genericToEncoding defaultOptions
+
 instance ToJSON FZF.ResultSegment where
-   toEncoding = genericToEncoding defaultOptions
+  toEncoding = genericToEncoding defaultOptions
 
 deriving instance ToSchema FZF.Alignment
+
 deriving anyclass instance ToSchema FZF.Result
+
 deriving instance ToSchema FZF.ResultSegment
 
 data FoundTerm = FoundTerm
-  { bestFoundTermName :: HashQualifiedName
-  , namedTerm :: NamedTerm
-  } deriving (Generic, Show)
+  { bestFoundTermName :: HashQualifiedName,
+    namedTerm :: NamedTerm
+  }
+  deriving (Generic, Show)
 
 data FoundType = FoundType
-  { bestFoundTypeName :: HashQualifiedName
-  , typeDef :: DisplayObject SyntaxText SyntaxText
-  , namedType :: NamedType
-  } deriving (Generic, Show)
+  { bestFoundTypeName :: HashQualifiedName,
+    typeDef :: DisplayObject SyntaxText SyntaxText,
+    namedType :: NamedType
+  }
+  deriving (Generic, Show)
 
 instance ToJSON FoundType
+
 deriving instance ToSchema FoundType
 
 instance ToJSON FoundTerm
+
 deriving instance ToSchema FoundTerm
 
 data FoundResult
@@ -126,24 +133,24 @@ deriving instance ToSchema FoundResult
 instance ToSample FoundResult where
   toSamples _ = noSamples
 
-serveFuzzyFind
-  :: Handler ()
-  -> Codebase IO Symbol Ann
-  -> Maybe SBH.ShortBranchHash
-  -> Maybe HashQualifiedName
-  -> Maybe Int
-  -> Maybe Width
-  -> Maybe String
-  -> Handler (APIHeaders [(FZF.Alignment, FoundResult)])
+serveFuzzyFind ::
+  Handler () ->
+  Codebase IO Symbol Ann ->
+  Maybe SBH.ShortBranchHash ->
+  Maybe HashQualifiedName ->
+  Maybe Int ->
+  Maybe Width ->
+  Maybe String ->
+  Handler (APIHeaders [(FZF.Alignment, FoundResult)])
 serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
   addHeaders <$> do
     h
     rel <-
       maybe mempty Path.fromPath'
-      <$> traverse (parsePath . Text.unpack) relativePath
+        <$> traverse (parsePath . Text.unpack) relativePath
     hashLength <- liftIO $ Codebase.hashLength codebase
-    ea         <- liftIO . runExceptT $ do
-      root   <- traverse (Backend.expandShortBranchHash codebase) mayRoot
+    ea <- liftIO . runExceptT $ do
+      root <- traverse (Backend.expandShortBranchHash codebase) mayRoot
       branch <- Backend.resolveBranchHash root codebase
       let b0 = Branch.head branch
           alignments =
@@ -152,27 +159,27 @@ serveFuzzyFind h codebase mayRoot relativePath limit typeWidth query =
           ppe = Backend.basicSuffixifiedNames hashLength branch (Backend.AllNames rel)
       join <$> traverse (loadEntry root (Just rel) ppe b0) alignments
     errFromEither backendError ea
- where
-  loadEntry _root _rel ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
-    for refs $
-      \case
-        Backend.FoundTermRef r ->
-          (\te ->
-              ( a
-              , FoundTermResult
-                . FoundTerm
-                    (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
-                $ Backend.termEntryToNamedTerm ppe typeWidth te
-              )
+  where
+    loadEntry _root _rel ppe b0 (a, HQ'.NameOnly . NameSegment -> n, refs) =
+      for refs $
+        \case
+          Backend.FoundTermRef r ->
+            ( \te ->
+                ( a,
+                  FoundTermResult
+                    . FoundTerm
+                      (Backend.bestNameForTerm @Symbol ppe (mayDefaultWidth typeWidth) r)
+                    $ Backend.termEntryToNamedTerm ppe typeWidth te
+                )
             )
-            <$> Backend.termListEntry codebase b0 r n
-        Backend.FoundTypeRef r -> do
-          te <- Backend.typeListEntry codebase r n
-          let namedType = Backend.typeEntryToNamedType te
-          let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
-          typeHeader <- Backend.typeDeclHeader codebase ppe r
-          let ft = FoundType typeName typeHeader namedType
-          pure (a, FoundTypeResult ft)
+              <$> Backend.termListEntry codebase b0 r n
+          Backend.FoundTypeRef r -> do
+            te <- Backend.typeListEntry codebase r n
+            let namedType = Backend.typeEntryToNamedType te
+            let typeName = Backend.bestNameForType @Symbol ppe (mayDefaultWidth typeWidth) r
+            typeHeader <- Backend.typeDeclHeader codebase ppe r
+            let ft = FoundType typeName typeHeader namedType
+            pure (a, FoundTypeResult ft)
 
-  parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  errFromEither f = either (throwError . f) pure
+    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    errFromEither f = either (throwError . f) pure

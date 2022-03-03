@@ -1,13 +1,11 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.ShortHash where
 
-import Unison.Prelude
-
 import qualified Data.Text as Text
+import Unison.Prelude
 
 -- Arya created this type to be able to query the Codebase for anonymous definitions.  The parsing functions can't fail,
 -- because they only try to pull apart the syntactic elements "#" and ".".  They don't necessarily produce a meaningful
@@ -16,7 +14,7 @@ import qualified Data.Text as Text
 -- None of the punctuation is stored here.
 data ShortHash
   = Builtin Text
-  | ShortHash { prefix :: Text, cycle :: Maybe Text, cid :: Maybe Text }
+  | ShortHash {prefix :: Text, cycle :: Maybe Text, cid :: Maybe Text}
   deriving (Eq, Ord, Show, Generic)
 
 -- currently unused
@@ -41,33 +39,37 @@ isConstructor = \case
 -- Anything after a second . before a second # is ignored.
 --   e.g. foo#abc.1f.x is parsed as #abc.1f
 fromText :: Text -> Maybe ShortHash
-fromText t = case Text.split (=='#') t of
+fromText t = case Text.split (== '#') t of
   [_, "", b] -> Just $ Builtin b -- builtin starts with ##
-  _ : "" : b : _ -> -- builtin with a CID todo: could be rejected
+  _ : "" : b : _ ->
+    -- builtin with a CID todo: could be rejected
     Just $ Builtin b
-  [_, h]     -> Just $ uncurry ShortHash (getCycle h) Nothing
+  [_, h] -> Just $ uncurry ShortHash (getCycle h) Nothing
   [_, h, c] -> Just $ uncurry ShortHash (getCycle h) (Just c)
-  _ : h : c : _garbage -> -- CID with more hash after todo: could be rejected
+  _ : h : c : _garbage ->
+    -- CID with more hash after todo: could be rejected
     Just $ uncurry ShortHash (getCycle h) (Just c)
   _ -> Nothing
   where
-  getCycle :: Text -> (Text, Maybe Text)
-  getCycle h = case Text.split (=='.') h of
-    [] -> ("", Nothing) -- e.g. foo#.1j
-    [hash] -> (hash, Nothing)
-    hash : suffix : _garbage -> (hash, Just suffix)
+    getCycle :: Text -> (Text, Maybe Text)
+    getCycle h = case Text.split (== '.') h of
+      [] -> ("", Nothing) -- e.g. foo#.1j
+      [hash] -> (hash, Nothing)
+      hash : suffix : _garbage -> (hash, Just suffix)
 
 unsafeFromText :: Text -> ShortHash
-unsafeFromText t = fromMaybe
+unsafeFromText t =
+  fromMaybe
     (error . Text.unpack $ "can't parse ShortHash from: " <> t)
     (fromText t)
 
 toText :: ShortHash -> Text
 toText (Builtin b) = "##" <> b
-toText (ShortHash p i cid) = "#" <> p <> i' <> c' where
-  i', c' :: Text
-  i' = maybe "" ("."<>) i
-  c' = maybe "" ("#" <>) cid
+toText (ShortHash p i cid) = "#" <> p <> i' <> c'
+  where
+    i', c' :: Text
+    i' = maybe "" ("." <>) i
+    c' = maybe "" ("#" <>) cid
 
 toString :: ShortHash -> String
 toString = Text.unpack . toText
@@ -77,7 +79,7 @@ fromString = fromText . Text.pack
 
 take :: Int -> ShortHash -> ShortHash
 take _ b@(Builtin _) = b
-take i s@ShortHash{..} = s { prefix = Text.take i prefix }
+take i s@ShortHash {..} = s {prefix = Text.take i prefix}
 
 -- x `isPrefixOf` y is True iff x might be a shorter version of y
 -- if a constructor id is provided on the right-hand side, the left-hand side
@@ -87,11 +89,11 @@ isPrefixOf (Builtin t) (Builtin t2) = t `Text.isPrefixOf` t2
 isPrefixOf (ShortHash h n cid) (ShortHash h2 n2 cid2) =
   Text.isPrefixOf h h2 && maybePrefixOf n n2 && maybePrefixOf cid cid2
   where
-  Nothing `maybePrefixOf` Nothing = True
-  Nothing `maybePrefixOf` Just _ = False
-  Just _ `maybePrefixOf` Nothing = False
-  Just a `maybePrefixOf` Just b = a == b
+    Nothing `maybePrefixOf` Nothing = True
+    Nothing `maybePrefixOf` Just _ = False
+    Just _ `maybePrefixOf` Nothing = False
+    Just a `maybePrefixOf` Just b = a == b
 isPrefixOf _ _ = False
 
---instance Show ShortHash where
+-- instance Show ShortHash where
 --  show = Text.unpack . toText

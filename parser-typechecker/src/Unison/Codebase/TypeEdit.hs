@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.TypeEdit where
 
 import Unison.Reference (Reference)
@@ -12,4 +11,4 @@ references Deprecate = []
 
 toReference :: TypeEdit -> Maybe Reference
 toReference (Replace r) = Just r
-toReference Deprecate     = Nothing
+toReference Deprecate = Nothing

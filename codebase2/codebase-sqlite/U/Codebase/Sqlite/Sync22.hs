@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -29,13 +28,13 @@ import U.Codebase.Sqlite.Connection (Connection)
 import U.Codebase.Sqlite.DbId
 import qualified U.Codebase.Sqlite.LocalIds as L
 import qualified U.Codebase.Sqlite.ObjectType as OT
-import qualified U.Codebase.Sqlite.Term.Format as TL
 import qualified U.Codebase.Sqlite.Patch.Format as PL
 import qualified U.Codebase.Sqlite.Queries as Q
 import qualified U.Codebase.Sqlite.Reference as Sqlite
 import qualified U.Codebase.Sqlite.Reference as Sqlite.Reference
 import qualified U.Codebase.Sqlite.Referent as Sqlite.Referent
 import qualified U.Codebase.Sqlite.Serialization as S
+import qualified U.Codebase.Sqlite.Term.Format as TL
 import U.Codebase.Sync (Sync (Sync), TrySyncResult)
 import qualified U.Codebase.Sync as Sync
 import qualified U.Codebase.WatchKind as WK

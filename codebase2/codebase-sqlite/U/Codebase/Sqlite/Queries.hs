@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
@@ -12,133 +11,137 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE TypeOperators #-}
-module U.Codebase.Sqlite.Queries (
-  -- * Constraint kinds
-  DB, EDB, Err,
+module U.Codebase.Sqlite.Queries
+  ( -- * Constraint kinds
+    DB,
+    EDB,
+    Err,
 
-  -- * Error types
-  Integrity(..),
+    -- * Error types
+    Integrity (..),
 
-  -- * text table
-  saveText,
-  loadText,
-  loadTextById,
+    -- * text table
+    saveText,
+    loadText,
+    loadTextById,
 
-  -- * hash table
-  saveHash,
-  saveHashHash,
-  loadHashId,
-  loadHashById,
-  loadHashHashById,
-  loadHashIdByHash,
-  expectHashIdByHash,
-  saveCausalHash,
-  loadCausalHash,
-  saveBranchHash,
+    -- * hash table
+    saveHash,
+    saveHashHash,
+    loadHashId,
+    loadHashById,
+    loadHashHashById,
+    loadHashIdByHash,
+    expectHashIdByHash,
+    saveCausalHash,
+    loadCausalHash,
+    saveBranchHash,
 
-  -- * hash_object table
-  saveHashObject,
-  hashIdsForObject,
-  hashIdWithVersionForObject,
-  expectObjectIdForPrimaryHashId,
-  expectObjectIdForAnyHashId,
-  maybeObjectIdForPrimaryHashId,
-  maybeObjectIdForAnyHashId,
-  recordObjectRehash,
+    -- * hash_object table
+    saveHashObject,
+    hashIdsForObject,
+    hashIdWithVersionForObject,
+    expectObjectIdForPrimaryHashId,
+    expectObjectIdForAnyHashId,
+    maybeObjectIdForPrimaryHashId,
+    maybeObjectIdForAnyHashId,
+    recordObjectRehash,
 
-  -- * object table
-  saveObject,
-  loadObjectById,
-  loadPrimaryHashByObjectId,
-  loadObjectWithTypeById,
-  loadObjectWithHashIdAndTypeById,
-  updateObjectBlob, -- unused
+    -- * object table
+    saveObject,
+    loadObjectById,
+    loadPrimaryHashByObjectId,
+    loadObjectWithTypeById,
+    loadObjectWithHashIdAndTypeById,
+    updateObjectBlob, -- unused
 
-  -- * namespace_root table
-  loadMaybeNamespaceRoot,
-  setNamespaceRoot,
-  loadNamespaceRoot,
+    -- * namespace_root table
+    loadMaybeNamespaceRoot,
+    setNamespaceRoot,
+    loadNamespaceRoot,
 
-  -- * causals
-  -- ** causal table
-  saveCausal,
-  isCausalHash,
-  loadCausalHashIdByCausalHash,
-  loadCausalValueHashId,
-  loadCausalByCausalHash,
-  loadBranchObjectIdByCausalHashId,
+    -- * causals
 
-  -- ** causal_parent table
-  saveCausalParents,
-  loadCausalParents,
-  before,
-  lca,
+    -- ** causal table
+    saveCausal,
+    isCausalHash,
+    loadCausalHashIdByCausalHash,
+    loadCausalValueHashId,
+    loadCausalByCausalHash,
+    loadBranchObjectIdByCausalHashId,
 
-  -- * watch table
-  saveWatch,
-  loadWatch,
-  loadWatchesByWatchKind,
-  loadWatchKindsByReference,
-  clearWatches,
+    -- ** causal_parent table
+    saveCausalParents,
+    loadCausalParents,
+    before,
+    lca,
 
-  -- * indexes
-  -- ** dependents index
-  addToDependentsIndex,
-  getDependentsForDependency,
-  getDependentsForDependencyComponent,
-  getDependenciesForDependent,
-  getDependencyIdsForDependent,
-  -- ** type index
-  addToTypeIndex,
-  getReferentsByType,
-  getTypeReferenceForReferent,
-  getTypeReferencesForComponent,
-  -- ** type mentions index
-  addToTypeMentionsIndex,
-  getReferentsByTypeMention,
-  getTypeMentionsReferencesForComponent,
+    -- * watch table
+    saveWatch,
+    loadWatch,
+    loadWatchesByWatchKind,
+    loadWatchKindsByReference,
+    clearWatches,
 
-  -- * hash prefix lookup
-  objectIdByBase32Prefix,
-  namespaceHashIdByBase32Prefix,
-  causalHashIdByBase32Prefix,
+    -- * indexes
 
-  -- * garbage collection
-  vacuum,
-  garbageCollectObjectsWithoutHashes,
-  garbageCollectWatchesWithoutObjects,
+    -- ** dependents index
+    addToDependentsIndex,
+    getDependentsForDependency,
+    getDependentsForDependencyComponent,
+    getDependenciesForDependent,
+    getDependencyIdsForDependent,
 
-  -- migrations
-  countObjects,
-  countCausals,
-  countWatches,
-  getCausalsWithoutBranchObjects,
-  removeHashObjectsByHashingVersion,
+    -- ** migrations
+    countObjects,
+    countCausals,
+    countWatches,
+    getCausalsWithoutBranchObjects,
+    removeHashObjectsByHashingVersion,
 
-  -- * db misc
-  createSchema,
-  schemaVersion,
-  setSchemaVersion,
-  setFlags,
+    -- ** type index
+    addToTypeIndex,
+    getReferentsByType,
+    getTypeReferenceForReferent,
+    getTypeReferencesForComponent,
 
-  DataVersion,
-  dataVersion,
+    -- ** type mentions index
+    addToTypeMentionsIndex,
+    getReferentsByTypeMention,
+    getTypeMentionsReferencesForComponent,
 
-  savepoint,
-  release,
-  rollbackRelease,
-  rollbackTo,
-  withSavepoint,
-  withSavepoint_,
+    -- * hash prefix lookup
+    objectIdByBase32Prefix,
+    namespaceHashIdByBase32Prefix,
+    causalHashIdByBase32Prefix,
 
-  vacuumInto,
-  setJournalMode,
-  traceConnectionFile,
-) where
+    -- * garbage collection
+    vacuum,
+    garbageCollectObjectsWithoutHashes,
+    garbageCollectWatchesWithoutObjects,
+
+    -- * db misc
+    createSchema,
+    schemaVersion,
+    setSchemaVersion,
+    setFlags,
+    DataVersion,
+    dataVersion,
+    savepoint,
+    release,
+    rollbackRelease,
+    rollbackTo,
+    withSavepoint,
+    withSavepoint_,
+    vacuumInto,
+    setJournalMode,
+    traceConnectionFile,
+  )
+where
 
 import qualified Control.Exception as Exception
 import Control.Monad (when)
@@ -185,9 +188,10 @@ import U.Codebase.Sqlite.DbId
     BranchObjectId (..),
     CausalHashId (..),
     HashId (..),
+    HashVersion,
     ObjectId (..),
     SchemaVersion,
-    TextId, HashVersion
+    TextId,
   )
 import U.Codebase.Sqlite.JournalMode (JournalMode)
 import qualified U.Codebase.Sqlite.JournalMode as JournalMode
@@ -203,6 +207,7 @@ import qualified U.Util.Hash as Hash
 import UnliftIO (MonadUnliftIO, throwIO, try, tryAny, withRunInIO)
 import qualified UnliftIO
 import UnliftIO.Concurrent (myThreadId)
+
 -- * types
 
 type DB m = (MonadIO m, MonadReader Connection m)
@@ -244,6 +249,7 @@ orError :: Err m => Integrity -> Maybe b -> m b
 orError e = maybe (throwError e) pure
 
 -- * main squeeze
+
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
@@ -252,13 +258,15 @@ createSchema = do
 setJournalMode :: DB m => JournalMode -> m ()
 setJournalMode m =
   let s = Char.toLower <$> show m
-  in map (fromOnly @String)
-    <$> query_ (fromString $ "PRAGMA journal_mode = " ++ s) >>= \case
-      [y] | y == s -> pure ()
-      y ->
-        liftIO . putStrLn $
-          "I couldn't set the codebase journal mode to " ++ s ++
-          "; it's set to " ++ show y ++ "."
+   in map (fromOnly @String)
+        <$> query_ (fromString $ "PRAGMA journal_mode = " ++ s) >>= \case
+          [y] | y == s -> pure ()
+          y ->
+            liftIO . putStrLn $
+              "I couldn't set the codebase journal mode to " ++ s
+                ++ "; it's set to "
+                ++ show y
+                ++ "."
 
 setFlags :: DB m => m ()
 setFlags = do
@@ -270,22 +278,22 @@ vacuumInto :: DB m => FilePath -> m ()
 vacuumInto dest = do
   execute "VACUUM INTO ?" [dest]
 
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 schemaVersion :: DB m => m SchemaVersion
-schemaVersion = queryAtoms_ sql >>= \case
-  [] -> error $ show NoSchemaVersion
-  [v] -> pure v
-  vs -> error $ show (MultipleSchemaVersions vs)
-  where sql = "SELECT version from schema_version;"
+schemaVersion =
+  queryAtoms_ sql >>= \case
+    [] -> error $ show NoSchemaVersion
+    [v] -> pure v
+    vs -> error $ show (MultipleSchemaVersions vs)
+  where
+    sql = "SELECT version from schema_version;"
 
 setSchemaVersion :: DB m => SchemaVersion -> m ()
 setSchemaVersion schemaVersion = execute sql (Only schemaVersion)
   where
-    sql = [here|
-     UPDATE schema_version
-     SET version = ?
-     |]
+    sql = "UPDATE schema_version SET version = ?"
 
+{- ORMOLU_DISABLE -}
+{- Please don't try to format the SQL blocks —AI -}
 countObjects :: DB m => m Int
 countObjects = head <$> queryAtoms_ sql
   where sql = [here| SELECT COUNT(*) FROM object |]
@@ -882,7 +890,8 @@ removeHashObjectsByHashingVersion hashVersion =
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)
-  where sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
+  where
+    sql = fromString $ "SELECT EXISTS (" ++ ancestorSql ++ " WHERE ancestor.id = ?)"
 
 -- the `Connection` arguments come second to fit the shape of Exception.bracket + uncurry curry
 lca :: CausalHashId -> CausalHashId -> Connection -> Connection -> IO (Maybe CausalHashId)
@@ -896,26 +905,33 @@ lca x y (Connection.underlying -> cx) (Connection.underlying -> cy) = Exception.
           (Just (Only px), Just (Only py)) ->
             let seenX' = Set.insert px seenX
                 seenY' = Set.insert py seenY
-              in if Set.member px seenY' then pure (Just px)
-              else if Set.member py seenX' then pure (Just py)
-              else loop2 seenX' seenY'
+             in if Set.member px seenY'
+                  then pure (Just px)
+                  else
+                    if Set.member py seenX'
+                      then pure (Just py)
+                      else loop2 seenX' seenY'
           (Nothing, Nothing) -> pure Nothing
           (Just (Only px), Nothing) -> loop1 (SQLite.nextRow sx) seenY px
           (Nothing, Just (Only py)) -> loop1 (SQLite.nextRow sy) seenX py
       loop1 getNext matches v =
-        if Set.member v matches then pure (Just v)
-        else getNext >>= \case
-          Just (Only v) -> loop1 getNext matches v
-          Nothing -> pure Nothing
+        if Set.member v matches
+          then pure (Just v)
+          else
+            getNext >>= \case
+              Just (Only v) -> loop1 getNext matches v
+              Nothing -> pure Nothing
   loop2 (Set.singleton x) (Set.singleton y)
   where
-    open = (,) <$>
-      SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
+    open =
+      (,)
+        <$> SQLite.openStatement cx sql <*> SQLite.openStatement cy sql
     close (cx, cy) = SQLite.closeStatement cx *> SQLite.closeStatement cy
     sql = fromString ancestorSql
 
 ancestorSql :: String
-ancestorSql = [here|
+ancestorSql =
+  [here|
     WITH RECURSIVE
       ancestor(id) AS (
         SELECT self_hash_id
@@ -974,12 +990,12 @@ queryTrace :: (MonadUnliftIO m, Show q, Show a) => String -> SQLite.Query -> q -
 queryTrace title query input m = do
   let showInput = title ++ " " ++ show query ++ "\n  input: " ++ show input
   if debugQuery || alwaysTraceOnCrash
-    then
-     do
+    then do
       try @_ @SQLite.SQLError m >>= \case
         Right a -> do
-          when debugQuery . traceM $ showInput ++
-            if " execute" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
+          when debugQuery . traceM $
+            showInput
+              ++ if " execute" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ showInput ++ "\n(and crashed)\n"
@@ -992,15 +1008,16 @@ queryTrace_ title query m =
     then
       tryAny @_ m >>= \case
         Right a -> do
-          when debugQuery . traceM $ title ++ " " ++ show query ++
-            if " execute_" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
+          when debugQuery . traceM $
+            title ++ " " ++ show query
+              ++ if " execute_" `List.isSuffixOf` title then mempty else "\n output: " ++ show a
           pure a
         Left e -> do
           traceM $ title ++ " " ++ show query ++ "\n(and crashed)\n"
           throwIO e
     else m
 
--- |print the active database filename
+-- | print the active database filename
 traceConnectionFile :: DB m => m ()
 traceConnectionFile = do
   c <- Reader.reader Connection.underlying
@@ -1031,7 +1048,6 @@ withImmediateTransaction :: (DB m, MonadUnliftIO m) => m a -> m a
 withImmediateTransaction action = do
   c <- Reader.reader Connection.underlying
   withRunInIO \run -> SQLite.withImmediateTransaction c (run action)
-
 
 -- | low-level transaction stuff
 
@@ -1083,7 +1099,8 @@ instance ToField WatchKind where
     WatchKind.TestWatch -> SQLite.SQLInteger 1
 
 instance FromField WatchKind where
-  fromField = fromField @Int8  <&> fmap \case
-    0 -> WatchKind.RegularWatch
-    1 -> WatchKind.TestWatch
-    tag -> error $ "Unknown WatchKind id " ++ show tag
+  fromField =
+    fromField @Int8 <&> fmap \case
+      0 -> WatchKind.RegularWatch
+      1 -> WatchKind.TestWatch
+      tag -> error $ "Unknown WatchKind id " ++ show tag

@@ -1,13 +1,10 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.TQueue where
 
-import Unison.Prelude
-
-import UnliftIO.STM hiding (TQueue)
 import qualified Control.Concurrent.Async as Async
-
+import Data.Sequence (Seq ((:<|)), (|>))
 import qualified Data.Sequence as S
-import Data.Sequence (Seq((:<|)), (|>))
+import Unison.Prelude
+import UnliftIO.STM hiding (TQueue)
 
 data TQueue a = TQueue (TVar (Seq a)) (TVar Word64)
 
@@ -21,33 +18,40 @@ size (TQueue q _) = S.length <$> readTVar q
 -- Consumes no elements; it's expected there is some
 -- other thread which is consuming elements from the queue.
 awaitSize :: Int -> TQueue a -> STM ()
-awaitSize target q = size q >>= \n ->
-  if n <= target then pure ()
-  else retrySTM
+awaitSize target q =
+  size q >>= \n ->
+    if n <= target
+      then pure ()
+      else retrySTM
 
 peek :: TQueue a -> STM a
-peek (TQueue v _) = readTVar v >>= \case
-  a :<| _ -> pure a
-  _ -> retrySTM
+peek (TQueue v _) =
+  readTVar v >>= \case
+    a :<| _ -> pure a
+    _ -> retrySTM
 
 dequeue :: TQueue a -> STM a
-dequeue (TQueue v _) = readTVar v >>= \case
-  a :<| as -> writeTVar v as *> pure a
-  _ -> retrySTM
+dequeue (TQueue v _) =
+  readTVar v >>= \case
+    a :<| as -> writeTVar v as *> pure a
+    _ -> retrySTM
 
 undequeue :: TQueue a -> a -> STM ()
-undequeue (TQueue v _) a = readTVar v >>= \
-  as -> writeTVar v (a :<| as)
+undequeue (TQueue v _) a =
+  readTVar v >>= \as -> writeTVar v (a :<| as)
 
 tryDequeue :: TQueue a -> STM (Maybe a)
-tryDequeue (TQueue v _) = readTVar v >>= \case
-  a :<| as -> writeTVar v as *> pure (Just a)
-  _ -> pure Nothing
+tryDequeue (TQueue v _) =
+  readTVar v >>= \case
+    a :<| as -> writeTVar v as *> pure (Just a)
+    _ -> pure Nothing
 
 dequeueN :: TQueue a -> Int -> STM [a]
-dequeueN (TQueue v _) n = readTVar v >>= \s ->
-  if length s >= n then writeTVar v (S.drop n s) $> toList (S.take n s)
-  else retrySTM
+dequeueN (TQueue v _) n =
+  readTVar v >>= \s ->
+    if length s >= n
+      then writeTVar v (S.drop n s) $> toList (S.take n s)
+      else retrySTM
 
 -- return the number of enqueues over the life of the queue
 enqueueCount :: TQueue a -> STM Word64
@@ -62,7 +66,7 @@ flush (TQueue v _) = do
 enqueue :: TQueue a -> a -> STM ()
 enqueue (TQueue v count) a = do
   modifyTVar' v (|> a)
-  modifyTVar' count (+1)
+  modifyTVar' count (+ 1)
 
 raceIO :: MonadIO m => STM a -> STM b -> m (Either a b)
 raceIO a b = liftIO do
@@ -77,13 +81,17 @@ tryPeekWhile cond (TQueue v _) = toList . S.takeWhileL cond <$> readTVar v
 -- block until at least one element is enqueued not satisfying cond,
 -- then return the prefix before that
 takeWhile :: (a -> Bool) -> TQueue a -> STM [a]
-takeWhile cond (TQueue v _) = readTVar v >>= \s -> let
-  (left, right) = S.spanl cond s in
-  if null right then retrySTM
-  else writeTVar v right $> toList left
+takeWhile cond (TQueue v _) =
+  readTVar v >>= \s ->
+    let (left, right) = S.spanl cond s
+     in if null right
+          then retrySTM
+          else writeTVar v right $> toList left
 
 peekWhile :: (a -> Bool) -> TQueue a -> STM [a]
-peekWhile cond (TQueue v _) = readTVar v >>= \s -> let
-  (left, right) = S.spanl cond s in
-  if null right then retrySTM
-  else pure $ toList left
+peekWhile cond (TQueue v _) =
+  readTVar v >>= \s ->
+    let (left, right) = S.spanl cond s
+     in if null right
+          then retrySTM
+          else pure $ toList left

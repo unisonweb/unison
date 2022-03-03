@@ -1,9 +1,7 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.Monoid where
 
-import Unison.Prelude hiding (whenM)
-
 import Data.List (intersperse)
+import Unison.Prelude hiding (whenM)
 
 -- List.intercalate extended to any monoid
 -- "The type that intercalate should have had to begin with."

@@ -1,11 +1,9 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Util.Components where
-
-import Unison.Prelude
 
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Unison.Prelude
 
 -- | Order bindings by dependencies and group into components.
 -- Each component consists of > 1 bindings, each of which depends
@@ -43,7 +41,7 @@ components freeVars bs =
 
       -- use ints as keys for graph to preserve original source order as much as
       -- possible
-      graph = [ ((v, b), varId v, deps b) | (v, b) <- bs ]
-      vars  = Set.fromList (map fst bs)
+      graph = [((v, b), varId v, deps b) | (v, b) <- bs]
+      vars = Set.fromList (map fst bs)
       deps b = varId <$> Set.toList (Set.intersection vars (freeVars b))
-  in  Graph.flattenSCC <$> Graph.stronglyConnComp graph
+   in Graph.flattenSCC <$> Graph.stronglyConnComp graph

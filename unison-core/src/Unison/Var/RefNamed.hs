@@ -1,7 +1,6 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language OverloadedStrings #-}
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Var.RefNamed where
 

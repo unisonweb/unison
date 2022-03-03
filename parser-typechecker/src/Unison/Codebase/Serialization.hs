@@ -1,24 +1,24 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Serialization where
 
+import Data.ByteString (ByteString, readFile, writeFile)
 import Data.Bytes.Get (MonadGet, runGetS)
 import Data.Bytes.Put (MonadPut, runPutS)
-import Data.ByteString (ByteString, readFile, writeFile)
-import UnliftIO.Directory (doesFileExist, createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
-import Prelude hiding (readFile, writeFile)
 import UnliftIO (MonadIO, liftIO)
+import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
+import Prelude hiding (readFile, writeFile)
 
-type Get a = forall m . MonadGet m => m a
-type Put a = forall m . MonadPut m => a -> m ()
+type Get a = forall m. MonadGet m => m a
+
+type Put a = forall m. MonadPut m => a -> m ()
 
 -- todo: do we use this?
-data Format a = Format {
-  get :: Get a,
-  put :: Put a
-}
+data Format a = Format
+  { get :: Get a,
+    put :: Put a
+  }
 
 getFromBytes :: Get a -> ByteString -> Maybe a
 getFromBytes getA bytes =
@@ -32,8 +32,9 @@ getFromFile getA file = do
 getFromFile' :: MonadIO m => Get a -> FilePath -> m (Either String a)
 getFromFile' getA file = do
   b <- doesFileExist file
-  if b then runGetS getA <$> liftIO (readFile file)
-  else pure . Left $ "No such file: " ++ file
+  if b
+    then runGetS getA <$> liftIO (readFile file)
+    else pure . Left $ "No such file: " ++ file
 
 putBytes :: Put a -> a -> ByteString
 putBytes put a = runPutS (put a)

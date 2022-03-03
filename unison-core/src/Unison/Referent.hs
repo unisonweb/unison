@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -29,7 +28,7 @@ where
 
 import qualified Data.Char as Char
 import qualified Data.Text as Text
-import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference(..))
+import Unison.ConstructorReference (ConstructorReference, ConstructorReferenceId, GConstructorReference (..))
 import qualified Unison.ConstructorReference as ConstructorReference
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.ConstructorType as CT
@@ -37,10 +36,10 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference)
 import qualified Unison.Reference as R
-import Unison.Referent' (Referent' (..), toReference', reference_)
+import qualified Unison.Reference as Reference
+import Unison.Referent' (Referent' (..), reference_, toReference')
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import qualified Unison.Reference as Reference
 
 -- | Specifies a term.
 --
@@ -80,7 +79,7 @@ toShortHash = \case
 
 toText :: Referent -> Text
 toText = \case
-  Ref r        -> R.toText r
+  Ref r -> R.toText r
   Con (ConstructorReference r cid) ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
 
 ctorTypeText :: CT.ConstructorType -> Text
@@ -88,6 +87,7 @@ ctorTypeText CT.Effect = EffectCtor
 ctorTypeText CT.Data = DataCtor
 
 pattern EffectCtor = "a"
+
 pattern DataCtor = "d"
 
 toString :: Referent -> String
@@ -111,26 +111,34 @@ isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 
 -- #abc[.xy][#<T>cid]
 fromText :: Text -> Maybe Referent
-fromText t = either (const Nothing) Just $
-  -- if the string has just one hash at the start, it's just a reference
-  if Text.length refPart == 1 then
-    Ref <$> R.fromText t
-  else if Text.all Char.isDigit cidPart && (not . Text.null) cidPart then do
-    r <- R.fromText (Text.dropEnd 1 refPart)
-    ctorType <- ctorType
-    let maybeCid = readMaybe (Text.unpack cidPart)
-    case maybeCid of
-      Nothing -> Left ("invalid constructor id: " <> Text.unpack cidPart)
-      Just cid -> Right $ Con (ConstructorReference r cid) ctorType
-  else
-    Left ("invalid constructor id: " <> Text.unpack cidPart)
+fromText t =
+  either (const Nothing) Just $
+    -- if the string has just one hash at the start, it's just a reference
+    if Text.length refPart == 1
+      then Ref <$> R.fromText t
+      else
+        if Text.all Char.isDigit cidPart && (not . Text.null) cidPart
+          then do
+            r <- R.fromText (Text.dropEnd 1 refPart)
+            ctorType <- ctorType
+            let maybeCid = readMaybe (Text.unpack cidPart)
+            case maybeCid of
+              Nothing -> Left ("invalid constructor id: " <> Text.unpack cidPart)
+              Just cid -> Right $ Con (ConstructorReference r cid) ctorType
+          else Left ("invalid constructor id: " <> Text.unpack cidPart)
   where
     ctorType = case Text.take 1 cidPart' of
-      EffectCtor  -> Right CT.Effect
-      DataCtor    -> Right CT.Data
-      _otherwise  ->
-        Left ("invalid constructor type (expected '"
-          <> EffectCtor <> "' or '" <> DataCtor <> "'): " <> Text.unpack cidPart')
+      EffectCtor -> Right CT.Effect
+      DataCtor -> Right CT.Data
+      _otherwise ->
+        Left
+          ( "invalid constructor type (expected '"
+              <> EffectCtor
+              <> "' or '"
+              <> DataCtor
+              <> "'): "
+              <> Text.unpack cidPart'
+          )
     refPart = Text.dropWhileEnd (/= '#') t
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'

@@ -1,16 +1,16 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.PrettyTerminal where
 
-import           Unison.Util.Less              (less)
-import qualified Unison.Util.Pretty            as P
-import qualified Unison.Util.ColorText         as CT
-import qualified System.Console.Terminal.Size  as Terminal
-import Data.List (dropWhileEnd)
 import Data.Char (isSpace)
+import Data.List (dropWhileEnd)
+import qualified System.Console.Terminal.Size as Terminal
+import qualified Unison.Util.ColorText as CT
+import Unison.Util.Less (less)
+import qualified Unison.Util.Pretty as P
 
 stripSurroundingBlanks :: String -> String
-stripSurroundingBlanks s = unlines (dropWhile isBlank . dropWhileEnd isBlank $ lines s) where
-  isBlank line = all isSpace line
+stripSurroundingBlanks s = unlines (dropWhile isBlank . dropWhileEnd isBlank $ lines s)
+  where
+    isBlank line = all isSpace line
 
 -- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()

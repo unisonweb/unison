@@ -1,12 +1,12 @@
 module U.Codebase.Sqlite.Patch.TypeEdit where
 
+import Control.Lens
 import Data.Bifoldable (Bifoldable (bifoldMap))
 import Data.Bitraversable (Bitraversable (bitraverse))
 import U.Codebase.Reference (Reference')
+import qualified U.Codebase.Reference as Reference
 import qualified U.Codebase.Sqlite.DbId as Db
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalTextId)
-import Control.Lens
-import qualified U.Codebase.Reference as Reference
 
 type LocalTypeEdit = TypeEdit' LocalTextId LocalDefnId
 

@@ -1,19 +1,20 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Pattern where
-
-import Unison.Prelude
 
 import qualified Data.Foldable as Foldable hiding (foldMap')
 import Data.List (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Unison.ConstructorReference (ConstructorReference, GConstructorReference(..))
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import qualified Unison.ConstructorType as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -34,23 +35,24 @@ data Pattern loc
   | EffectBind loc !ConstructorReference [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
-    deriving (Ord,Generic,Functor,Foldable,Traversable)
+  deriving (Ord, Generic, Functor, Foldable, Traversable)
 
-data SeqOp = Cons
-           | Snoc
-           | Concat
-           deriving (Eq, Show, Ord, Generic)
+data SeqOp
+  = Cons
+  | Snoc
+  | Concat
+  deriving (Eq, Show, Ord, Generic)
 
 updateDependencies :: Map Referent Referent -> Pattern loc -> Pattern loc
 updateDependencies tms p = case p of
-  Unbound{} -> p
-  Var{} -> p
-  Boolean{} -> p
-  Int{} -> p
-  Nat{} -> p
-  Float{} -> p
-  Text{} -> p
-  Char{} -> p
+  Unbound {} -> p
+  Var {} -> p
+  Boolean {} -> p
+  Int {} -> p
+  Nat {} -> p
+  Float {} -> p
+  Text {} -> p
+  Char {} -> p
   Constructor loc r ps -> case Map.lookup (Referent.Con r CT.Data) tms of
     Just (Referent.Con r CT.Data) -> Constructor loc r (updateDependencies tms <$> ps)
     _ -> Constructor loc r (updateDependencies tms <$> ps)
@@ -66,17 +68,17 @@ updateDependencies tms p = case p of
     SequenceOp loc (updateDependencies tms lhs) op (updateDependencies tms rhs)
 
 instance Show (Pattern loc) where
-  show (Unbound _  ) = "Unbound"
-  show (Var     _  ) = "Var"
+  show (Unbound _) = "Unbound"
+  show (Var _) = "Var"
   show (Boolean _ x) = "Boolean " <> show x
-  show (Int   _ x) = "Int " <> show x
-  show (Nat  _ x) = "Nat " <> show x
-  show (Float   _ x) = "Float " <> show x
-  show (Text   _ t) = "Text " <> show t
-  show (Char   _ c) = "Char " <> show c
+  show (Int _ x) = "Int " <> show x
+  show (Nat _ x) = "Nat " <> show x
+  show (Float _ x) = "Float " <> show x
+  show (Text _ t) = "Text " <> show t
+  show (Char _ c) = "Char " <> show c
   show (Constructor _ (ConstructorReference r i) ps) =
     "Constructor " <> unwords [show r, show i, show ps]
-  show (As         _ p) = "As " <> show p
+  show (As _ p) = "As " <> show p
   show (EffectPure _ k) = "EffectPure " <> show k
   show (EffectBind _ (ConstructorReference r i) ps k) =
     "EffectBind " <> unwords [show r, show i, show ps, show k]
@@ -119,53 +121,56 @@ instance Eq (Pattern loc) where
 
 foldMap' :: Monoid m => (Pattern loc -> m) -> Pattern loc -> m
 foldMap' f p = case p of
-    Unbound _              -> f p
-    Var _                  -> f p
-    Boolean _ _            -> f p
-    Int _ _                -> f p
-    Nat _ _                -> f p
-    Float _ _              -> f p
-    Text _ _               -> f p
-    Char _ _               -> f p
-    Constructor _ _ ps     -> f p <> foldMap (foldMap' f) ps
-    As _ p'                -> f p <> foldMap' f p'
-    EffectPure _ p'        -> f p <> foldMap' f p'
-    EffectBind _ _ ps p'   -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
-    SequenceLiteral _ ps   -> f p <> foldMap (foldMap' f) ps
-    SequenceOp _ p1 _ p2   -> f p <> foldMap' f p1 <> foldMap' f p2
+  Unbound _ -> f p
+  Var _ -> f p
+  Boolean _ _ -> f p
+  Int _ _ -> f p
+  Nat _ _ -> f p
+  Float _ _ -> f p
+  Text _ _ -> f p
+  Char _ _ -> f p
+  Constructor _ _ ps -> f p <> foldMap (foldMap' f) ps
+  As _ p' -> f p <> foldMap' f p'
+  EffectPure _ p' -> f p <> foldMap' f p'
+  EffectBind _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
+  SequenceLiteral _ ps -> f p <> foldMap (foldMap' f) ps
+  SequenceOp _ p1 _ p2 -> f p <> foldMap' f p1 <> foldMap' f p2
 
-generalizedDependencies
-  :: Ord r
-  => (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> (Reference -> ConstructorId -> r)
-  -> (Reference -> r)
-  -> Pattern loc
-  -> Set r
-generalizedDependencies literalType dataConstructor dataType effectConstructor effectType
-  = Set.fromList . foldMap'
-    (\case
-      Unbound _             -> mempty
-      Var     _             -> mempty
-      As _ _                -> mempty
-      Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
-      EffectPure _ _        -> [effectType Type.effectRef]
-      EffectBind _ (ConstructorReference r cid) _ _ ->
-        [effectType Type.effectRef, effectType r, effectConstructor r cid]
-      SequenceLiteral _ _ -> [literalType Type.listRef]
-      SequenceOp {}        -> [literalType Type.listRef]
-      Boolean _ _         -> [literalType Type.booleanRef]
-      Int     _ _         -> [literalType Type.intRef]
-      Nat     _ _         -> [literalType Type.natRef]
-      Float   _ _         -> [literalType Type.floatRef]
-      Text    _ _         -> [literalType Type.textRef]
-      Char    _ _         -> [literalType Type.charRef]
-    )
+generalizedDependencies ::
+  Ord r =>
+  (Reference -> r) ->
+  (Reference -> ConstructorId -> r) ->
+  (Reference -> r) ->
+  (Reference -> ConstructorId -> r) ->
+  (Reference -> r) ->
+  Pattern loc ->
+  Set r
+generalizedDependencies literalType dataConstructor dataType effectConstructor effectType =
+  Set.fromList
+    . foldMap'
+      ( \case
+          Unbound _ -> mempty
+          Var _ -> mempty
+          As _ _ -> mempty
+          Constructor _ (ConstructorReference r cid) _ -> [dataType r, dataConstructor r cid]
+          EffectPure _ _ -> [effectType Type.effectRef]
+          EffectBind _ (ConstructorReference r cid) _ _ ->
+            [effectType Type.effectRef, effectType r, effectConstructor r cid]
+          SequenceLiteral _ _ -> [literalType Type.listRef]
+          SequenceOp {} -> [literalType Type.listRef]
+          Boolean _ _ -> [literalType Type.booleanRef]
+          Int _ _ -> [literalType Type.intRef]
+          Nat _ _ -> [literalType Type.natRef]
+          Float _ _ -> [literalType Type.floatRef]
+          Text _ _ -> [literalType Type.textRef]
+          Char _ _ -> [literalType Type.charRef]
+      )
 
 labeledDependencies :: Pattern loc -> Set LabeledDependency
-labeledDependencies = generalizedDependencies LD.typeRef
-                                              (\r i -> LD.dataConstructor (ConstructorReference r i))
-                                              LD.typeRef
-                                              (\r i -> LD.effectConstructor (ConstructorReference r i))
-                                              LD.typeRef
+labeledDependencies =
+  generalizedDependencies
+    LD.typeRef
+    (\r i -> LD.dataConstructor (ConstructorReference r i))
+    LD.typeRef
+    (\r i -> LD.effectConstructor (ConstructorReference r i))
+    LD.typeRef
