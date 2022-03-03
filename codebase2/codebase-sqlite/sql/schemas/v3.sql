@@ -86,7 +86,7 @@ CREATE INDEX object_type_id ON object(type_id);
 
 CREATE TABLE causal (
   -- The hash representing a branch and its history
-  self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash_object(hash_id),
+  self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
   -- The hash representing just the branch at this point in time, no history.
   value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash_object(hash_id)
 );

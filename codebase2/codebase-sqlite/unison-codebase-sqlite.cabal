@@ -9,6 +9,10 @@ version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
 bug-reports:    https://github.com/unisonweb/unison/issues
 build-type:     Simple
+extra-source-files:
+    sql/schemas/v1.sql
+    sql/schemas/v2.sql
+    sql/schemas/v3.sql
 
 source-repository head
   type: git

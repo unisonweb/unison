@@ -28,7 +28,7 @@ library:
   source-dirs: .
 
 extra-source-files:
-  - sql/*
+  - sql/**/*.sql
 
 dependencies:
   - base

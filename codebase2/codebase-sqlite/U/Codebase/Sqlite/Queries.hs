@@ -887,15 +887,16 @@ addHashObjectConstraintToCausalTable =
   where
     sql =
       [here|
-    BEGIN TRANSACTION;
-    ALTER TABLE causal RENAME TO old_causal;
-    CREATE TABLE causal (
-      self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash_object(hash_id),
-      value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash_object(hash_id)
-    );
-    INSERT INTO causal SELECT * FROM old_causal;
-    DROP TABLE old_causal;
-    COMMIT;
+-- Not sure why, but we need this savepoint or this operation fails.
+SAVEPOINT ADD_HASH_OBJECT_CONSTRAINTS;
+ALTER TABLE causal RENAME TO old_causal;
+CREATE TABLE causal (
+  self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash(id),
+  value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash_object(hash_id)
+);
+INSERT INTO causal SELECT * FROM old_causal;
+DROP TABLE old_causal;
+RELEASE ADD_HASH_OBJECT_CONSTRAINTS;
 |]
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool

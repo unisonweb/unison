@@ -992,29 +992,34 @@ saveRootBranch c = do
 saveBranch :: EDB m => C.Branch.Causal m -> m (Db.BranchObjectId, Db.CausalHashId)
 saveBranch (C.Causal hc he parents me) = do
   when debug $ traceM $ "\nOperations.saveBranch \n  hc = " ++ show hc ++ ",\n  he = " ++ show he ++ ",\n  parents = " ++ show (Map.keys parents)
-
-  (chId, bhId) <- flip Monad.fromMaybeM (liftQ $ Q.loadCausalByCausalHash hc) do
-    -- if not exist, create these
-    chId <- liftQ (Q.saveCausalHash hc)
-    bhId <- liftQ (Q.saveBranchHash he)
-    liftQ (Q.saveCausal chId bhId)
-    -- save the link between child and parents
-    parentCausalHashIds <-
-      -- so try to save each parent (recursively) before continuing to save hc
-      for (Map.toList parents) $ \(parentHash, mcausal) ->
-        -- check if we can short circuit the parent before loading it,
-        -- by checking if there are causal parents associated with hc
-        (flip Monad.fromMaybeM)
-          (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
-          (mcausal >>= fmap snd . saveBranch)
-    unless (null parentCausalHashIds) $
-      liftQ (Q.saveCausalParents chId parentCausalHashIds)
-    pure (chId, bhId)
-  boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
-    branch <- c2sBranch =<< me
-    let (li, lBranch) = LocalizeObject.localizeBranch branch
-    saveBranchObject bhId li lBranch
-  pure (boId, chId)
+  (liftQ $ Q.loadCausalByCausalHash hc) >>= \case
+    Just (chId, bhId) -> do
+      boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
+        branch <- c2sBranch =<< me
+        let (li, lBranch) = LocalizeObject.localizeBranch branch
+        saveBranchObject bhId li lBranch
+      pure (boId, chId)
+    Nothing -> do
+        bhId <- liftQ (Q.saveBranchHash he)
+        chId <- liftQ (Q.saveCausalHash hc)
+        boId <- flip Monad.fromMaybeM (liftQ $ Q.loadBranchObjectIdByCausalHashId chId) do
+          branch <- c2sBranch =<< me
+          let (li, lBranch) = LocalizeObject.localizeBranch branch
+          saveBranchObject bhId li lBranch
+        -- if not exist, create these
+        liftQ (Q.saveCausal chId bhId)
+        -- save the link between child and parents
+        parentCausalHashIds <-
+          -- so try to save each parent (recursively) before continuing to save hc
+          for (Map.toList parents) $ \(parentHash, mcausal) ->
+            -- check if we can short circuit the parent before loading it,
+            -- by checking if there are causal parents associated with hc
+            (flip Monad.fromMaybeM)
+              (liftQ $ Q.loadCausalHashIdByCausalHash parentHash)
+              (mcausal >>= fmap snd . saveBranch)
+        unless (null parentCausalHashIds) $
+          liftQ (Q.saveCausalParents chId parentCausalHashIds)
+        pure (boId, chId)
   where
     c2sBranch :: EDB m => C.Branch.Branch m -> m S.DbBranch
     c2sBranch (C.Branch.Branch terms types patches children) =
