@@ -31,4 +31,5 @@ migrateSchema2To3 conn _ = UnliftIO.try . flip runReaderT conn $
     version <- Q.schemaVersion
     when (version /= 2) $ UnliftIO.throwIO (IncorrectStartingSchemaVersion version)
     Q.removeHashObjectsByHashingVersion (HashVersion 1)
+    Q.addHashObjectConstraintToCausalTable
     Q.setSchemaVersion (SchemaVersion 3)

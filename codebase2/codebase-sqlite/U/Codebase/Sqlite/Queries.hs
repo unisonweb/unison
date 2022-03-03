@@ -118,6 +118,7 @@ module U.Codebase.Sqlite.Queries (
   countWatches,
   getCausalsWithoutBranchObjects,
   removeHashObjectsByHashingVersion,
+  addHashObjectConstraintToCausalTable,
 
   -- * db misc
   createSchema,
@@ -247,7 +248,7 @@ orError e = maybe (throwError e) pure
 createSchema :: (DB m, MonadUnliftIO m) => m ()
 createSchema = do
   withImmediateTransaction . traverse_ (execute_ . fromString) $
-    List.splitOn ";" [hereFile|sql/create.sql|]
+    List.splitOn ";" [hereFile|sql/schemas/v3.sql|]
 
 setJournalMode :: DB m => JournalMode -> m ()
 setJournalMode m =
@@ -878,6 +879,23 @@ removeHashObjectsByHashingVersion hashVersion =
       [here|
     DELETE FROM hash_object
       WHERE hash_version = ?
+|]
+
+addHashObjectConstraintToCausalTable :: DB m => m ()
+addHashObjectConstraintToCausalTable =
+  execute_ sql
+  where
+    sql =
+      [here|
+    BEGIN TRANSACTION;
+    ALTER TABLE causal RENAME TO old_causal;
+    CREATE TABLE causal (
+      self_hash_id INTEGER PRIMARY KEY NOT NULL CONSTRAINT causal_fk1 REFERENCES hash_object(hash_id),
+      value_hash_id INTEGER NOT NULL CONSTRAINT causal_fk2 REFERENCES hash_object(hash_id)
+    );
+    INSERT INTO causal SELECT * FROM old_causal;
+    DROP TABLE old_causal;
+    COMMIT;
 |]
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
