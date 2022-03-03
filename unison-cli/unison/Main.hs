@@ -184,7 +184,7 @@ main = withCP65001 do
                           <> "you can do:",
                       "",
                       P.indentN 4 $
-                        ".> compile.output "
+                        ".> compile "
                           <> P.text rf
                           <> " "
                           <> P.string ifile,

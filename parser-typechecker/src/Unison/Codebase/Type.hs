@@ -8,6 +8,7 @@ module Unison.Codebase.Type
     GitError (..),
     GetRootBranchError (..),
     SyncToDir,
+    LocalOrRemote (..),
     gitErrorFromOpenCodebaseError,
   )
 where
@@ -158,6 +159,12 @@ data Codebase m v a = Codebase
     --  Use `Codebase.before` which wraps this in a nice API.
     beforeImpl :: Maybe (Branch.Hash -> Branch.Hash -> m Bool)
   }
+
+-- | Whether a codebase is local or remote.
+data LocalOrRemote
+  = Local
+  | Remote
+  deriving (Show, Eq, Ord)
 
 data PushGitBranchOpts = PushGitBranchOpts
   { -- | Set the branch as root?

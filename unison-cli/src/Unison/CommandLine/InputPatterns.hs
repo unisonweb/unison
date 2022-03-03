@@ -1802,11 +1802,11 @@ ioTest =
 makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
-    "compile.output"
-    []
+    "compile"
+    ["compile.output"]
     [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
     ( P.wrapColumn2
-        [ ( "`compile.output main file`",
+        [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
               <> "executed by unison. Said execution will have the effect of"
               <> "running `!main`."
