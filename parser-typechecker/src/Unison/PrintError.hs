@@ -83,7 +83,7 @@ defaultWidth = 60
 
 -- Various links used in error messages, collected here for a quick overview
 structuralVsUniqueDocsLink :: IsString a => Pretty a
-structuralVsUniqueDocsLink = "https://www.unisonweb.org/docs/language-reference/#unique-types"
+structuralVsUniqueDocsLink = "https://www.unison-lang.org/docs/language-reference/unique-types/"
 
 fromOverHere' ::
   Ord a =>
