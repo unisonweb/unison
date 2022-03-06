@@ -47,78 +47,81 @@ import Unison.Server.Types
     addHeaders,
     defaultWidth,
   )
+import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
-import Unison.Var (Var)
 
 type DefinitionsAPI =
   "getDefinition" :> QueryParam "rootBranch" ShortBranchHash
-                  :> QueryParam "relativeTo" NamespaceFQN
-                  :> QueryParams "names" HashQualifiedName
-                  :> QueryParam "renderWidth" Width
-                  :> QueryParam "suffixifyBindings" Suffixify
-  :> APIGet DefinitionDisplayResults
+    :> QueryParam "relativeTo" NamespaceFQN
+    :> QueryParams "names" HashQualifiedName
+    :> QueryParam "renderWidth" Width
+    :> QueryParam "suffixifyBindings" Suffixify
+    :> APIGet DefinitionDisplayResults
 
 instance ToParam (QueryParam "renderWidth" Width) where
-  toParam _ = DocQueryParam
-    "renderWidth"
-    ["80", "100", "120"]
-    (  "The preferred maximum line width (in characters) of the source code of "
-    <> "definitions to be rendered. "
-    <> "If left absent, the render width is assumed to be "
-    <> show defaultWidth
-    <> "."
-    )
-    Normal
+  toParam _ =
+    DocQueryParam
+      "renderWidth"
+      ["80", "100", "120"]
+      ( "The preferred maximum line width (in characters) of the source code of "
+          <> "definitions to be rendered. "
+          <> "If left absent, the render width is assumed to be "
+          <> show defaultWidth
+          <> "."
+      )
+      Normal
 
 instance ToParam (QueryParam "suffixifyBindings" Suffixify) where
-  toParam _ = DocQueryParam
-    "suffixifyBindings"
-    ["True", "False"]
-    (  "If True or absent, renders definitions using the shortest unambiguous "
-    <> "suffix. If False, uses the fully qualified name. "
-    )
-    Normal
-
+  toParam _ =
+    DocQueryParam
+      "suffixifyBindings"
+      ["True", "False"]
+      ( "If True or absent, renders definitions using the shortest unambiguous "
+          <> "suffix. If False, uses the fully qualified name. "
+      )
+      Normal
 
 instance ToParam (QueryParam "relativeTo" NamespaceFQN) where
-  toParam _ = DocQueryParam
-    "relativeTo"
-    [".", ".base", "foo.bar"]
-    ("The namespace relative to which names will be resolved and displayed. "
-    <> "If left absent, the root namespace will be used."
-    )
-    Normal
+  toParam _ =
+    DocQueryParam
+      "relativeTo"
+      [".", ".base", "foo.bar"]
+      ( "The namespace relative to which names will be resolved and displayed. "
+          <> "If left absent, the root namespace will be used."
+      )
+      Normal
 
 instance ToParam (QueryParam "rootBranch" ShortBranchHash) where
-  toParam _ = DocQueryParam
-    "rootBranch"
-    ["#abc123"]
-    (  "The hash or hash prefix of the namespace root. "
-    <> "If left absent, the most recent root will be used."
-    )
-    Normal
+  toParam _ =
+    DocQueryParam
+      "rootBranch"
+      ["#abc123"]
+      ( "The hash or hash prefix of the namespace root. "
+          <> "If left absent, the most recent root will be used."
+      )
+      Normal
 
 instance ToParam (QueryParams "names" Text) where
-  toParam _ = DocQueryParam
-    "names"
-    [".base.List", "foo.bar", "#abc123"]
-    ("A fully qualified name, hash-qualified name, " <> "or hash.")
-    List
+  toParam _ =
+    DocQueryParam
+      "names"
+      [".base.List", "foo.bar", "#abc123"]
+      ("A fully qualified name, hash-qualified name, " <> "or hash.")
+      List
 
 instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
-serveDefinitions
-  :: Var v
-  => Handler ()
-  -> Rt.Runtime v
-  -> Codebase IO v Ann
-  -> Maybe ShortBranchHash
-  -> Maybe NamespaceFQN
-  -> [HashQualifiedName]
-  -> Maybe Width
-  -> Maybe Suffixify
-  -> Handler (APIHeaders DefinitionDisplayResults)
+serveDefinitions ::
+  Handler () ->
+  Rt.Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  Maybe ShortBranchHash ->
+  Maybe NamespaceFQN ->
+  [HashQualifiedName] ->
+  Maybe Width ->
+  Maybe Suffixify ->
+  Handler (APIHeaders DefinitionDisplayResults)
 serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
   addHeaders <$> do
     h
@@ -132,14 +135,15 @@ serveDefinitions h rt codebase mayRoot relativePath rawHqns width suff =
             HQ.HashOnly _ : _ -> Backend.AllNames . fromMaybe Path.empty $ rel
             _ -> Backend.Within . fromMaybe Path.empty $ rel
 
-      Backend.prettyDefinitionsBySuffixes scope
-                                          root
-                                          width
-                                          (fromMaybe (Suffixify True) suff)
-                                          rt
-                                          codebase
-                                          hqns
+      Backend.prettyDefinitionsBySuffixes
+        scope
+        root
+        width
+        (fromMaybe (Suffixify True) suff)
+        rt
+        codebase
+        hqns
     errFromEither backendError ea
- where
-  parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
-  errFromEither f = either (throwError . f) pure
+  where
+    parsePath p = errFromEither (`badNamespace` p) $ Path.parsePath' p
+    errFromEither f = either (throwError . f) pure

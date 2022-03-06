@@ -33,8 +33,8 @@ jobs:
           mkdir -p /tmp/ucm/ui
           UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
           cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
-          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-linux.tar.gz -C /tmp/ucm .
 
       - name: Upload linux artifact
@@ -72,8 +72,8 @@ jobs:
           mkdir -p /tmp/ucm/ui
           UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
           cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/ucm.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/ucm.zip
-          unzip -d /tmp/ucm/ui /tmp/ucm.zip
+          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
           tar -c -z -f ucm-macos.tar.gz -C /tmp/ucm .
 
       - name: Upload macos artifact

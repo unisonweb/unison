@@ -7,6 +7,7 @@
 module Unison.Lexer.Pos (Pos (..), Line, Column, line, column) where
 
 type Line = Int
+
 type Column = Int
 
 data Pos = Pos {-# UNPACK #-} !Line {-# UNPACK #-} !Column deriving (Eq, Ord)

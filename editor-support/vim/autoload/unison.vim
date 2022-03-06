@@ -52,7 +52,17 @@ function! unison#Complete(findstart, base) abort
     " locate the start of the word
     let line = getline('.')
     let start = col('.') - 1
-    while start > 0 && line[start - 1] !~ '\s' && line[start - 1] != '(' && line[start - 1] != ')'
+    " Examples of where we want to count the start of a word:
+    "
+    " foo List.fold<cursor>
+    "     ^
+    "
+    " {Abor<cursor>
+    "  ^
+    "
+    " (List.fol<cursor>
+    "  ^
+    while start > 0 && line[start - 1] !~ '\v\s|[!(){}\[\]]'
       let start -= 1
     endwhile
     return start

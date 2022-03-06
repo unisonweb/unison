@@ -1,10 +1,10 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Codebase.Init.Type (Init(..)) where
+module Unison.Codebase.Init.Type (Init (..)) where
 
-import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError, Pretty)
 import Unison.Codebase (Codebase, CodebasePath)
+import Unison.Codebase.Init.CreateCodebaseError (CreateCodebaseError, Pretty)
 
 type DebugName = String
 
@@ -17,4 +17,3 @@ data Init m v a = Init
     -- give the path to the "actual" files; e.g. what a forked transcript should clone.
     codebasePath :: CodebasePath -> CodebasePath
   }
-

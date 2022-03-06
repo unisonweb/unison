@@ -19,4 +19,3 @@ data Error
   | DestWrongSchema SchemaVersion
   | DisappearingBranch CausalHash
   deriving (Show)
-

@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -7,25 +8,26 @@
 
 module Unison.Type where
 
-import Unison.Prelude
-
+import Control.Lens (Prism')
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Functor.Identity (runIdentity)
-import Data.Monoid (Any(..))
-import           Data.List.Extra (nubOrd)
+import Data.Generics.Sum (_Ctor)
+import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
+import Data.Monoid (Any (..))
 import qualified Data.Set as Set
-import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
+import Prelude.Extras (Eq1 (..), Ord1 (..), Show1 (..))
 import qualified Unison.ABT as ABT
 import qualified Unison.Kind as K
-import           Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import qualified Unison.Settings as Settings
-import qualified Unison.Names.ResolutionResult as Names
 import qualified Unison.Name as Name
+import qualified Unison.Names.ResolutionResult as Names
+import Unison.Prelude
+import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
+import qualified Unison.Settings as Settings
 import qualified Unison.Util.List as List
+import Unison.Var (Var)
+import qualified Unison.Var as Var
 
 -- | Base functor for types in the Unison language
 data F a
@@ -37,13 +39,18 @@ data F a
   | Effects [a]
   | Forall a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
-                 -- bound by outer type signatures, to support scoped type
-                 -- variables
-  deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
+  -- bound by outer type signatures, to support scoped type
+  -- variables
+  deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 instance Eq1 F where (==#) = (==)
+
 instance Ord1 F where compare1 = compare
+
 instance Show1 F where showsPrec1 = showsPrec
+
+_Ref :: Prism' (F a) Reference
+_Ref = _Ctor @"Ref"
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v a = ABT.Term F v a
@@ -54,33 +61,34 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
-bindExternal
-  :: ABT.Var v => [(v, Reference)] -> Type v a -> Type v a
-bindExternal bs = ABT.substsInheritAnnotation [ (v, ref () r) | (v, r) <- bs ]
+bindExternal ::
+  ABT.Var v => [(v, Reference)] -> Type v a -> Type v a
+bindExternal bs = ABT.substsInheritAnnotation [(v, ref () r) | (v, r) <- bs]
 
-bindReferences
-  :: Var v
-  => Set v
-  -> Map Name.Name Reference
-  -> Type v a
-  -> Names.ResolutionResult v a (Type v a)
-bindReferences keepFree ns t = let
-  fvs = ABT.freeVarOccurrences keepFree t
-  rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
-  ok (v, _a, Just r) = pure (v, r)
-  ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-  in List.validate ok rs <&> \es -> bindExternal es t
+bindReferences ::
+  Var v =>
+  Set v ->
+  Map Name.Name Reference ->
+  Type v a ->
+  Names.ResolutionResult v a (Type v a)
+bindReferences keepFree ns t =
+  let fvs = ABT.freeVarOccurrences keepFree t
+      rs = [(v, a, Map.lookup (Name.unsafeFromVar v) ns) | (v, a) <- fvs]
+      ok (v, _a, Just r) = pure (v, r)
+      ok (v, a, Nothing) = Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
+   in List.validate ok rs <&> \es -> bindExternal es t
 
-newtype Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
+newtype Monotype v a = Monotype {getPolytype :: Type v a} deriving (Eq)
 
 instance (Show v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
 monotype :: ABT.Var v => Type v a -> Maybe (Monotype v a)
-monotype t = Monotype <$> ABT.visit isMono t where
-  isMono (Forall' _) = Just Nothing
-  isMono _ = Nothing
+monotype t = Monotype <$> ABT.visit isMono t
+  where
+    isMono (Forall' _) = Just Nothing
+    isMono _ = Nothing
 
 arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
@@ -90,28 +98,49 @@ arity _ = 0
 
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
+
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
+
 pattern Arrows' spine <- (unArrows -> Just spine)
+
 pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
+
 pattern Ann' t k <- ABT.Tm' (Ann t k)
+
 pattern App' f x <- ABT.Tm' (App f x)
+
 pattern Apps' f args <- (unApps -> Just (f, args))
+
 pattern Pure' t <- (unPure -> Just t)
+
 pattern Effects' es <- ABT.Tm' (Effects es)
+
 -- Effect1' must match at least one effect
 pattern Effect1' e t <- ABT.Tm' (Effect e t)
+
 pattern Effect' es t <- (unEffects1 -> Just (es, t))
+
 pattern Effect'' es t <- (unEffect0 -> (es, t))
+
 -- Effect0' may match zero effects
 pattern Effect0' es t <- (unEffect0 -> (es, t))
+
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+
 pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' subst))
+
 pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v body))
+
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
+
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
+
 pattern Var' v <- ABT.Var' v
+
 pattern Cycle' xs t <- ABT.Cycle' xs t
+
 pattern Abs' subst <- ABT.Abs' subst
 
 unPure :: Ord v => Type v a -> Maybe (Type v a)
@@ -122,35 +151,37 @@ unPure t = Just t
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
-  where go (Arrow' i o) = i : go o
-        go o = [o]
+  where
+    go (Arrow' i o) = i : go o
+    go o = [o]
 
-unEffectfulArrows
-  :: Type v a -> Maybe (Type v a, [(Maybe [Type v a], Type v a)])
+unEffectfulArrows ::
+  Type v a -> Maybe (Type v a, [(Maybe [Type v a], Type v a)])
 unEffectfulArrows t = case t of
   Arrow' i o -> Just (i, go o)
-  _          -> Nothing
- where
-  go (Effect1' (Effects' es) (Arrow' i o)) =
-    (Just $ es >>= flattenEffects, i) : go o
-  go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
-  go (Arrow'   i             o) = (Nothing, i) : go o
-  go t                          = [(Nothing, t)]
+  _ -> Nothing
+  where
+    go (Effect1' (Effects' es) (Arrow' i o)) =
+      (Just $ es >>= flattenEffects, i) : go o
+    go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
+    go (Arrow' i o) = (Nothing, i) : go o
+    go t = [(Nothing, t)]
 
 unApps :: Type v a -> Maybe (Type v a, [Type v a])
 unApps t = case go t [] of
-  []       -> Nothing
-  [ _ ]    -> Nothing
+  [] -> Nothing
+  [_] -> Nothing
   f : args -> Just (f, args)
- where
-  go (App' i o) acc  = go i (o : acc)
-  go fn         args = fn : args
+  where
+    go (App' i o) acc = go i (o : acc)
+    go fn args = fn : args
 
 unIntroOuters :: Type v a -> Maybe ([v], Type v a)
 unIntroOuters t = go t []
-  where go (IntroOuterNamed' v body) vs = go body (v:vs)
-        go _body [] = Nothing
-        go body vs = Just (reverse vs, body)
+  where
+    go (IntroOuterNamed' v body) vs = go body (v : vs)
+    go _body [] = Nothing
+    go body vs = Just (reverse vs, body)
 
 -- Most code doesn't care about `introOuter` binders and is fine dealing with the
 -- these outer variable references as free variables. This function strips out
@@ -158,21 +189,22 @@ unIntroOuters t = go t []
 stripIntroOuters :: Type v a -> Type v a
 stripIntroOuters t = case unIntroOuters t of
   Just (_, t) -> t
-  Nothing     -> t
+  Nothing -> t
 
 unForalls :: Type v a -> Maybe ([v], Type v a)
 unForalls t = go t []
-  where go (ForallNamed' v body) vs = go body (v:vs)
-        go _body [] = Nothing
-        go body vs = Just(reverse vs, body)
+  where
+    go (ForallNamed' v body) vs = go body (v : vs)
+    go _body [] = Nothing
+    go body vs = Just (reverse vs, body)
 
 unEffect0 :: Ord v => Type v a -> ([Type v a], Type v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
-unEffect0 t              = ([], t)
+unEffect0 t = ([], t)
 
 unEffects1 :: Ord v => Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
-unEffects1 _                          = Nothing
+unEffects1 _ = Nothing
 
 -- | True if the given type is a function, possibly quantified
 isArrow :: ABT.Var v => Type v a -> Bool
@@ -344,30 +376,35 @@ introOuter :: Ord v => a -> v -> Type v a -> Type v a
 introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
 iff :: Var v => Type v ()
-iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
-  where aa = Var.named "a"
-        a = var () aa
-        f x = ((), x)
+iff = forall () aa $ arrows (f <$> [boolean (), a, a]) a
+  where
+    aa = Var.named "a"
+    a = var () aa
+    f x = ((), x)
 
 iff' :: Var v => a -> Type v a
 iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
-  where aa = Var.named "a"
-        a = var loc aa
-        f x = (loc, x)
+  where
+    aa = Var.named "a"
+    a = var loc aa
+    f x = (loc, x)
 
 iff2 :: Var v => a -> Type v a
 iff2 loc = forall loc aa $ arrows (f <$> [a, a]) a
-  where aa = Var.named "a"
-        a = var loc aa
-        f x = (loc, x)
+  where
+    aa = Var.named "a"
+    a = var loc aa
+    f x = (loc, x)
 
 andor :: Ord v => Type v ()
-andor = arrows (f <$> [boolean(), boolean()]) $ boolean()
-  where f x = ((), x)
+andor = arrows (f <$> [boolean (), boolean ()]) $ boolean ()
+  where
+    f x = ((), x)
 
 andor' :: Ord v => a -> Type v a
 andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
-  where f x = (a, x)
+  where
+    f x = (a, x)
 
 var :: Ord v => a -> v -> Type v a
 var = ABT.annotatedVar
@@ -389,14 +426,15 @@ foralls a vs body = foldr (forall a) body vs
 -- the annotation associated with `b` will be the annotation for the `b -> c`
 -- node
 arrows :: Ord v => [(a, Type v a)] -> Type v a -> Type v a
-arrows ts result = foldr go result ts where
-  go = uncurry arrow
+arrows ts result = foldr go result ts
+  where
+    go = uncurry arrow
 
 -- The types of effectful computations
 effect :: Ord v => a -> [Type v a] -> Type v a -> Type v a
 effect a es (Effect1' fs t) =
   let es' = (es >>= flattenEffects) ++ flattenEffects fs
-  in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
+   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
 effect a es t = ABT.tm' a (Effect (ABT.tm' a (Effects es)) t)
 
 effects :: Ord v => a -> [Type v a] -> Type v a
@@ -405,7 +443,7 @@ effects a es = ABT.tm' a (Effects $ es >>= flattenEffects)
 effect1 :: Ord v => a -> Type v a -> Type v a -> Type v a
 effect1 a es (Effect1' fs t) =
   let es' = flattenEffects es ++ flattenEffects fs
-  in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
+   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
 effect1 a es t = ABT.tm' a (Effect es t)
 
 flattenEffects :: Type v a -> [Type v a]
@@ -425,19 +463,21 @@ stripEffect t = ([], t)
 -- The type of the flipped function application operator:
 -- `(a -> (a -> b) -> b)`
 flipApply :: Var v => Type v () -> Type v ()
-flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
-  where b = ABT.fresh t (Var.named "b")
+flipApply t = forall () b $ arrow () (arrow () t (var () b)) (var () b)
+  where
+    b = ABT.fresh t (Var.named "b")
 
 generalize' :: Var v => Var.Type -> Type v a -> Type v a
-generalize' k t = generalize vsk t where
-  vsk = [ v | v <- Set.toList (freeVars t), Var.typeOf v == k ]
+generalize' k t = generalize vsk t
+  where
+    vsk = [v | v <- Set.toList (freeVars t), Var.typeOf v == k]
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
 generalize :: Ord v => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t vs
- where
-  f v t =
-    if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
+  where
+    f v t =
+      if Set.member v (ABT.freeVars t) then forall (ABT.annotation t) v t else t
 
 unforall :: Type v a -> Type v a
 unforall (ForallsNamed' _ t) = t
@@ -449,19 +489,21 @@ unforall' t = ([], t)
 
 dependencies :: Ord v => Type v a -> Set Reference
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Ref r) = Writer.tell [r] $> t
-        f t = pure t
+  where
+    f t@(Ref r) = Writer.tell [r] $> t
+    f t = pure t
 
 updateDependencies :: Ord v => Map Reference Reference -> Type v a -> Type v a
 updateDependencies typeUpdates = ABT.rebuildUp go
- where
-  go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
-  go f       = f
+  where
+    go (Ref r) = Ref (Map.findWithDefault r r typeUpdates)
+    go f = f
 
 usesEffects :: Ord v => Type v a -> Bool
-usesEffects t = getAny . getConst $ ABT.visit go t where
-  go (Effect1' _ _) = Just (Const (Any True))
-  go _ = Nothing
+usesEffects t = getAny . getConst $ ABT.visit go t
+  where
+    go (Effect1' _ _) = Just (Const (Any True))
+    go _ = Nothing
 
 -- Returns free effect variables in the given type, for instance, in:
 --
@@ -475,11 +517,11 @@ freeEffectVars t =
     ABT.foreachSubterm go (snd <$> ABT.annotateBound t)
   where
     go t@(Effects' es) =
-      let frees = Set.fromList [ v | Var' v <- es >>= flattenEffects ]
-      in pure . Set.toList $ frees `Set.difference` ABT.annotation t
+      let frees = Set.fromList [v | Var' v <- es >>= flattenEffects]
+       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go t@(Effect1' e _) =
-      let frees = Set.fromList [ v | Var' v <- flattenEffects e ]
-      in pure . Set.toList $ frees `Set.difference` ABT.annotation t
+      let frees = Set.fromList [v | Var' v <- flattenEffects e]
+       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
 -- Converts all unadorned arrows in a type to have fresh
@@ -492,33 +534,34 @@ freeEffectVars t =
 --   (a ->{e1} b) ->{e2} [a] ->{e3} [b]
 existentializeArrows :: (Ord v, Monad m) => m v -> Type v a -> m (Type v a)
 existentializeArrows newVar t = ABT.visit go t
- where
-  go t@(Arrow' a b) = case b of
-    -- If an arrow already has attached abilities,
-    -- leave it alone. Ex: `a ->{e} b` is kept as is.
-    Effect1' _ _ -> Just $ do
-      a <- existentializeArrows newVar a
-      b <- existentializeArrows newVar b
-      pure $ arrow (ABT.annotation t) a b
-    -- For unadorned arrows, make up a fresh variable.
-    -- So `a -> b` becomes `a ->{e} b`, using the
-    -- `newVar` variable generator.
-    _            -> Just $ do
-      e <- newVar
-      a <- existentializeArrows newVar a
-      b <- existentializeArrows newVar b
-      let ann = ABT.annotation t
-      pure $ arrow ann a (effect ann [var ann e] b)
-  go _ = Nothing
+  where
+    go t@(Arrow' a b) = case b of
+      -- If an arrow already has attached abilities,
+      -- leave it alone. Ex: `a ->{e} b` is kept as is.
+      Effect1' _ _ -> Just $ do
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        pure $ arrow (ABT.annotation t) a b
+      -- For unadorned arrows, make up a fresh variable.
+      -- So `a -> b` becomes `a ->{e} b`, using the
+      -- `newVar` variable generator.
+      _ -> Just $ do
+        e <- newVar
+        a <- existentializeArrows newVar a
+        b <- existentializeArrows newVar b
+        let ann = ABT.annotation t
+        pure $ arrow ann a (effect ann [var ann e] b)
+    go _ = Nothing
 
 purifyArrows :: (Ord v) => Type v a -> Type v a
 purifyArrows = ABT.visitPure go
   where
-  go t@(Arrow' a b) = case b of
-    Effect1' _ _ -> Nothing
-    _ -> Just $ arrow ann a (effect ann [] b)
-    where ann = ABT.annotation t
-  go _ = Nothing
+    go t@(Arrow' a b) = case b of
+      Effect1' _ _ -> Nothing
+      _ -> Just $ arrow ann a (effect ann [] b)
+      where
+        ann = ABT.annotation t
+    go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
 removeEffectVars :: ABT.Var v => Set v -> Type v a -> Type v a
@@ -534,25 +577,26 @@ removeEffectVars removals t =
       removeEmpty t@(Effects' es) =
         Just $ effects (ABT.annotation t) (es >>= flattenEffects)
       removeEmpty _ = Nothing
-  in ABT.visitPure removeEmpty t'
+   in ABT.visitPure removeEmpty t'
 
 -- Remove all effect variables from the type.
 -- Used for type-based search, we apply this transformation to both the
 -- indexed type and the query type, so the user can supply `a -> b` that will
 -- match `a ->{e} b` (but not `a ->{IO} b`).
 removeAllEffectVars :: ABT.Var v => Type v a -> Type v a
-removeAllEffectVars t = let
-  allEffectVars = foldMap go (ABT.subterms t)
-  go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
-  go (Effect1' (Var' v) _) = Set.singleton v
-  go _ = mempty
-  (vs, tu) = unforall' t
-  in generalize vs (removeEffectVars allEffectVars tu)
+removeAllEffectVars t =
+  let allEffectVars = foldMap go (ABT.subterms t)
+      go (Effects' vs) = Set.fromList [v | Var' v <- vs]
+      go (Effect1' (Var' v) _) = Set.singleton v
+      go _ = mempty
+      (vs, tu) = unforall' t
+   in generalize vs (removeEffectVars allEffectVars tu)
 
 removePureEffects :: ABT.Var v => Type v a -> Type v a
-removePureEffects t | not Settings.removePureEffects = t
-                    | otherwise =
-  generalize vs $ removeEffectVars fvs tu
+removePureEffects t
+  | not Settings.removePureEffects = t
+  | otherwise =
+      generalize vs $ removeEffectVars fvs tu
   where
     (vs, tu) = unforall' t
     vss = Set.fromList vs
@@ -560,10 +604,10 @@ removePureEffects t | not Settings.removePureEffects = t
 
     keep = keepVarsT True tu
 
-    keepVarsT pos (Arrow' i o)
-      = keepVarsT (not pos) i <> keepVarsT pos o
-    keepVarsT pos (Effect1' e o)
-      = keepVarsT pos e <> keepVarsT pos o
+    keepVarsT pos (Arrow' i o) =
+      keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (Effect1' e o) =
+      keepVarsT pos e <> keepVarsT pos o
     keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
     keepVarsT pos (ForallNamed' _ t) = keepVarsT pos t
     keepVarsT pos (IntroOuterNamed' _ t) = keepVarsT pos t
@@ -576,31 +620,30 @@ removePureEffects t | not Settings.removePureEffects = t
       | otherwise = Set.singleton v
     keepVarsE pos e = keepVarsT pos e
 
-editFunctionResult
-  :: forall v a
-   . Ord v
-  => (Type v a -> Type v a)
-  -> Type v a
-  -> Type v a
+editFunctionResult ::
+  forall v a.
+  Ord v =>
+  (Type v a -> Type v a) ->
+  Type v a ->
+  Type v a
 editFunctionResult f = go
- where
-  go :: Type v a -> Type v a
-  go (ABT.Term s a t) = case t of
-    ABT.Tm (Forall t) ->
-      (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
-    ABT.Tm (Arrow i o) ->
-      (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
-    ABT.Abs v r ->
-      (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
-    _ -> f (ABT.Term s a t)
+  where
+    go :: Type v a -> Type v a
+    go (ABT.Term s a t) = case t of
+      ABT.Tm (Forall t) ->
+        (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
+      ABT.Tm (Arrow i o) ->
+        (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
+      ABT.Abs v r ->
+        (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
+      _ -> f (ABT.Term s a t)
 
 functionResult :: Type v a -> Maybe (Type v a)
 functionResult = go False
- where
-  go inArr  (ForallNamed' _  body) = go inArr body
-  go _inArr (Arrow'       _i o   ) = go True o
-  go inArr  t                      = if inArr then Just t else Nothing
-
+  where
+    go inArr (ForallNamed' _ body) = go inArr body
+    go _inArr (Arrow' _i o) = go True o
+    go inArr t = if inArr then Just t else Nothing
 
 -- | Bind all free variables (not in `except`) that start with a lowercase
 -- letter and are unqualified with an outer `forall`.
@@ -610,35 +653,39 @@ functionResult = go False
 -- `.foo.bar -> blarrg.woot` becomes `.foo.bar -> blarrg.woot` (unchanged)
 generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
- where
-  vars =
-    [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v ]
+  where
+    vars =
+      [v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.universallyQuantifyIfFree v]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Ord v => Set v -> Type v a -> Type v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
-  where vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
+  where
+    vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
 
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
 -- two different types.
 cleanupVars :: Var v => [Type v a] -> [Type v a]
 cleanupVars ts | not Settings.cleanupTypes = ts
-cleanupVars ts = let
-  changedVars = cleanupVarsMap ts
-  in cleanupVars1' changedVars <$> ts
+cleanupVars ts =
+  let changedVars = cleanupVarsMap ts
+   in cleanupVars1' changedVars <$> ts
 
 -- Compute a variable replacement map from a collection of types, which
 -- can be passed to `cleanupVars1'`. This is used to cleanup variable ids
 -- for multiple related types, like when reporting a type error.
 cleanupVarsMap :: Var v => [Type v a] -> Map.Map v v
-cleanupVarsMap ts = let
-  varsByName = foldl' step Map.empty (ts >>= ABT.allVars)
-  step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
-  changedVars = Map.fromList [ (v, Var.freshenId i v)
-                             | (_, vs) <- Map.toList varsByName
-                             , (v,i) <- nubOrd vs `zip` [0..]]
-  in changedVars
+cleanupVarsMap ts =
+  let varsByName = foldl' step Map.empty (ts >>= ABT.allVars)
+      step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
+      changedVars =
+        Map.fromList
+          [ (v, Var.freshenId i v)
+            | (_, vs) <- Map.toList varsByName,
+              (v, i) <- nubOrd vs `zip` [0 ..]
+          ]
+   in changedVars
 
 cleanupVars1' :: Var v => Map.Map v v -> Type v a -> Type v a
 cleanupVars1' = ABT.changeVars
@@ -652,15 +699,15 @@ cleanupVars1 t = let [t'] = cleanupVars [t] in t'
 -- This removes duplicates and normalizes the order of ability lists
 cleanupAbilityLists :: Var v => Type v a -> Type v a
 cleanupAbilityLists = ABT.visitPure go
- where
-  -- leave explicitly empty `{}` alone
-  go (Effect1' (Effects' []) _v) = Nothing
-  go t@(Effect1' e v) =
-    let es = Set.toList . Set.fromList $ flattenEffects e
-    in  case es of
-          [] -> Just (ABT.visitPure go v)
-          _  -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
-  go _ = Nothing
+  where
+    -- leave explicitly empty `{}` alone
+    go (Effect1' (Effects' []) _v) = Nothing
+    go t@(Effect1' e v) =
+      let es = Set.toList . Set.fromList $ flattenEffects e
+       in case es of
+            [] -> Just (ABT.visitPure go v)
+            _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
+    go _ = Nothing
 
 cleanups :: Var v => [Type v a] -> [Type v a]
 cleanups ts = cleanupVars $ map cleanupAbilityLists ts
@@ -673,24 +720,26 @@ builtinAbilities :: Set Reference
 builtinAbilities = Set.fromList [builtinIORef, stmRef]
 
 instance Show a => Show (F a) where
-  showsPrec = go where
-    go _ (Ref r) = shows r
-    go p (Arrow i o) =
-      showParen (p > 0) $ showsPrec (p+1) i <> s" -> " <> showsPrec p o
-    go p (Ann t k) =
-      showParen (p > 1) $ shows t <> s":" <> shows k
-    go p (App f x) =
-      showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Effects es) = showParen (p > 0) $
-      s"{" <> shows es <> s"}"
-    go p (Effect e t) = showParen (p > 0) $
-     showParen True $ shows e <> s" " <> showsPrec p t
-    go p (Forall body) = case p of
-      0 -> showsPrec p body
-      _ -> showParen True $ s"∀ " <> shows body
-    go p (IntroOuter body) = case p of
-      0 -> showsPrec p body
-      _ -> showParen True $ s"outer " <> shows body
-    (<>) = (.)
-    s = showString
-
+  showsPrec = go
+    where
+      go _ (Ref r) = shows r
+      go p (Arrow i o) =
+        showParen (p > 0) $ showsPrec (p + 1) i <> s " -> " <> showsPrec p o
+      go p (Ann t k) =
+        showParen (p > 1) $ shows t <> s ":" <> shows k
+      go p (App f x) =
+        showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
+      go p (Effects es) =
+        showParen (p > 0) $
+          s "{" <> shows es <> s "}"
+      go p (Effect e t) =
+        showParen (p > 0) $
+          showParen True $ shows e <> s " " <> showsPrec p t
+      go p (Forall body) = case p of
+        0 -> showsPrec p body
+        _ -> showParen True $ s "∀ " <> shows body
+      go p (IntroOuter body) = case p of
+        0 -> showsPrec p body
+        _ -> showParen True $ s "outer " <> shows body
+      (<>) = (.)
+      s = showString

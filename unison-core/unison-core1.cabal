@@ -43,8 +43,8 @@ library
       Unison.NameSegment
       Unison.NamesWithHistory
       Unison.Pattern
+      Unison.Position
       Unison.Reference
-      Unison.Reference.Util
       Unison.Referent
       Unison.Referent'
       Unison.Settings
@@ -57,7 +57,6 @@ library
       Unison.Util.Components
       Unison.Util.List
       Unison.Util.Monoid
-      Unison.Util.Set
       Unison.Var
       Unison.Var.RefNamed
       Unison.WatchKind
@@ -93,6 +92,7 @@ library
     , either
     , extra
     , fuzzyfind
+    , generic-lens
     , lens
     , memory
     , mtl

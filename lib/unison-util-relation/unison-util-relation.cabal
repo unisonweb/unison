@@ -73,6 +73,7 @@ test-suite tests
   ghc-options: -Wall
   build-depends:
       base
+    , code-page
     , containers
     , deepseq
     , easytest
@@ -107,11 +108,12 @@ benchmark relation
   ghc-options: -Wall
   build-depends:
       base
+    , code-page
     , containers
-    , criterion
     , deepseq
     , extra
     , random
+    , tasty-bench
     , unison-prelude
     , unison-util-relation
   default-language: Haskell2010

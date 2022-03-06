@@ -22,9 +22,7 @@ library
       U.Util.Components
       U.Util.Hash
       U.Util.Lens
-      U.Util.Map
       U.Util.Monoid
-      U.Util.Set
       U.Util.String
       U.Util.Text
       U.Util.Timing
@@ -62,6 +60,7 @@ library
     , time
     , unison-util-relation
     , unliftio
+    , vector
   default-language: Haskell2010
 
 benchmark bench
@@ -104,4 +103,5 @@ benchmark bench
     , unison-util
     , unison-util-relation
     , unliftio
+    , vector
   default-language: Haskell2010

@@ -1,20 +1,19 @@
 module Unison.NamePrinter where
 
-import Unison.Prelude
-
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
-import           Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
-import           Unison.Name          (Name)
-import qualified Unison.Name          as Name
-import           Unison.Reference     (Reference)
-import           Unison.Referent      (Referent)
-import           Unison.ShortHash     (ShortHash)
-import qualified Unison.ShortHash     as SH
+import Unison.Name (Name)
+import qualified Unison.Name as Name
+import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
+import Unison.Util.Pretty (Pretty)
+import qualified Unison.Util.Pretty as PP
 import qualified Unison.Util.SyntaxText as S
-import           Unison.Util.Pretty   (Pretty)
-import qualified Unison.Util.Pretty   as PP
 
 type SyntaxText = S.SyntaxText' Reference
 
@@ -63,20 +62,21 @@ styleHashQualified ::
 styleHashQualified style hq = styleHashQualified' style id hq
 
 styleHashQualified' ::
-  IsString s => (Pretty s -> Pretty s)
-             -> (Pretty s -> Pretty s)
-             -> HQ.HashQualified Name
-             -> Pretty s
+  IsString s =>
+  (Pretty s -> Pretty s) ->
+  (Pretty s -> Pretty s) ->
+  HQ.HashQualified Name ->
+  Pretty s
 styleHashQualified' nameStyle hashStyle = \case
   HQ.NameOnly n -> nameStyle (prettyName n)
   HQ.HashOnly h -> hashStyle (prettyShortHash h)
   HQ.HashQualified n h ->
     PP.group $ nameStyle (prettyName n) <> hashStyle (prettyShortHash h)
 
-styleHashQualified''
-  :: (Pretty SyntaxText -> Pretty SyntaxText)
-  -> HQ.HashQualified Name
-  -> Pretty SyntaxText
+styleHashQualified'' ::
+  (Pretty SyntaxText -> Pretty SyntaxText) ->
+  HQ.HashQualified Name ->
+  Pretty SyntaxText
 styleHashQualified'' nameStyle hq =
   styleHashQualified' nameStyle (fmt $ S.HashQualifier hq) hq
 

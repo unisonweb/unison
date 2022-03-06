@@ -1,41 +1,40 @@
-{-# language DeriveTraversable #-}
-{-# language GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Unison.Util.EnumContainers
-  ( EnumMap
-  , EnumSet
-  , EnumKey(..)
-  , mapFromList
-  , setFromList
-  , setToList
-  , mapSingleton
-  , setSingleton
-  , mapInsert
-  , unionWith
-  , hasKey
-  , keys
-  , keysSet
-  , restrictKeys
-  , withoutKeys
-  , member
-  , lookup
-  , lookupWithDefault
-  , mapWithKey
-  , foldMapWithKey
-  , mapToList
-  , (!)
-  , findMin
-  , traverseSet_
-  , setSize
-  ) where
-
-import Prelude hiding (lookup)
+  ( EnumMap,
+    EnumSet,
+    EnumKey (..),
+    mapFromList,
+    setFromList,
+    setToList,
+    mapSingleton,
+    setSingleton,
+    mapInsert,
+    unionWith,
+    hasKey,
+    keys,
+    keysSet,
+    restrictKeys,
+    withoutKeys,
+    member,
+    lookup,
+    lookupWithDefault,
+    mapWithKey,
+    foldMapWithKey,
+    mapToList,
+    (!),
+    findMin,
+    traverseSet_,
+    setSize,
+  )
+where
 
 import Data.Bifunctor
-import Data.Word (Word64,Word16)
-
-import qualified Data.IntSet as IS
 import qualified Data.IntMap.Strict as IM
+import qualified Data.IntSet as IS
+import Data.Word (Word16, Word64)
+import Prelude hiding (lookup)
 
 class EnumKey k where
   keyToInt :: k -> Int
@@ -51,23 +50,23 @@ instance EnumKey Word16 where
 
 newtype EnumMap k a = EM (IM.IntMap a)
   deriving
-    ( Monoid
-    , Semigroup
-    , Functor
-    , Foldable
-    , Traversable
-    , Show
-    , Eq
-    , Ord
+    ( Monoid,
+      Semigroup,
+      Functor,
+      Foldable,
+      Traversable,
+      Show,
+      Eq,
+      Ord
     )
 
 newtype EnumSet k = ES IS.IntSet
   deriving
-    ( Monoid
-    , Semigroup
-    , Show
-    , Eq
-    , Ord
+    ( Monoid,
+      Semigroup,
+      Show,
+      Eq,
+      Ord
     )
 
 mapFromList :: EnumKey k => [(k, a)] -> EnumMap k a
@@ -88,9 +87,13 @@ setSingleton e = ES . IS.singleton $ keyToInt e
 mapInsert :: EnumKey k => k -> a -> EnumMap k a -> EnumMap k a
 mapInsert e x (EM m) = EM $ IM.insert (keyToInt e) x m
 
-unionWith
-  :: EnumKey k => EnumKey k
-  => (a -> a -> a) -> EnumMap k a -> EnumMap k a -> EnumMap k a
+unionWith ::
+  EnumKey k =>
+  EnumKey k =>
+  (a -> a -> a) ->
+  EnumMap k a ->
+  EnumMap k a ->
+  EnumMap k a
 unionWith f (EM l) (EM r) = EM $ IM.unionWith f l r
 
 keys :: EnumKey k => EnumMap k a -> [k]
@@ -132,10 +135,10 @@ mapToList (EM m) = first intToKey <$> IM.toList m
 findMin :: EnumKey k => EnumSet k -> k
 findMin (ES s) = intToKey $ IS.findMin s
 
-traverseSet_
-  :: Applicative f => EnumKey k => (k -> f ()) -> EnumSet k -> f ()
-traverseSet_ f (ES s)
-  = IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
+traverseSet_ ::
+  Applicative f => EnumKey k => (k -> f ()) -> EnumSet k -> f ()
+traverseSet_ f (ES s) =
+  IS.foldr (\i r -> f (intToKey i) *> r) (pure ()) s
 
 setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s

@@ -20,6 +20,7 @@ type ReferentH = Referent' Sqlite.ReferenceH Sqlite.ReferenceH
 type Id = Id' ObjectId ObjectId
 
 type LocalReferent = Referent' Sqlite.LocalReference Sqlite.LocalReference
+
 type LocalReferentH = Referent' Sqlite.LocalReferenceH Sqlite.LocalReferenceH
 
 instance ToRow Id where

@@ -7,5 +7,5 @@ structural ability SpaceAttack where
 ex x =
   ping x = pong (x + 1)
   launchMissiles "saturn"
-  pong x = ping (x `Nat.drop` 1)
+  pong x = ping (Nat.drop x 1)
   launchMissiles "neptune"

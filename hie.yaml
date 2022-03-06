@@ -27,6 +27,9 @@ cradle:
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 
+    - path: "lib/unison-sqlite/src"
+      component: "unison-sqlite:lib"
+
     - path: "lib/unison-util-relation/src"
       component: "unison-util-relation:lib"
 
@@ -48,6 +51,9 @@ cradle:
     - path: "unison-cli/src"
       component: "unison-cli:lib"
 
+    - path: "unison-cli/integration-tests"
+      component: "unison-cli:exe:integration-tests"
+
     - path: "unison-cli/tests"
       component: "unison-cli:test:tests"
 
@@ -56,9 +62,6 @@ cradle:
 
     - path: "unison-cli/unison"
       component: "unison-cli:exe:unison"
-
-    - path: "parser-typechecker/benchmarks/runtime"
-      component: "unison-parser-typechecker:bench:runtime"
 
     - path: "unison-core/src"
       component: "unison-core1:lib"

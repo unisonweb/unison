@@ -7,7 +7,6 @@ module U.Codebase.ShortHash where
 import Data.Text (Text)
 import Data.Word (Word64)
 
-
 -- ##Text.++
 --   ^^^^^^^-- builtin
 
@@ -17,7 +16,7 @@ import Data.Word (Word64)
 --  \-- prefix
 data ShortHash
   = Builtin Text
-  | ShortHash { prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64 }
+  | ShortHash {prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64}
   deriving (Eq, Ord, Show)
 
-data ShortBranchHash = ShortBranchHash { toText :: Text } deriving (Eq, Ord, Show)
+data ShortBranchHash = ShortBranchHash {toText :: Text} deriving (Eq, Ord, Show)

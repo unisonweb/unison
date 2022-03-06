@@ -5,6 +5,7 @@ pull_request_rules:
       # - status-success=ubuntu-18.04
       - status-success=macOS-11.0
       - status-success=macOS-10.15
+      - status-success=windows-2019
       - label=ready-to-merge
       - "#approved-reviews-by>=1"
     actions:

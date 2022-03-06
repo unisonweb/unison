@@ -4,7 +4,7 @@ unfold : s -> (s ->{z} Optional (a, s)) ->{z} [a]
 unfold s f =
   go s acc = match f s with
     None -> acc
-    Some (hd, s) -> go s (acc `List.snoc` hd)
+    Some (hd, s) -> go s (List.snoc acc hd)
   go s []
 
 > unfold 0 (n -> if n < 5 then Some (n, n + 1) else None)

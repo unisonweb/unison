@@ -76,6 +76,7 @@ testOpenClose _ =
     handle1 = openFile fooFile FileMode.Write
     check "file should be open" (isFileOpen handle1)
     setBuffering handle1 (SizedBlockBuffering 1024)
+    check "file handle buffering should match what we just set." (getBuffering handle1 == SizedBlockBuffering 1024)
     setBuffering handle1 (getBuffering handle1)
     putBytes handle1 0xs01
     setBuffering handle1 NoBuffering
@@ -257,11 +258,11 @@ testDirContents _ =
 ### Read environment variables
 
 ```unison:hide
-testHomeEnvVar : '{io2.IO} [Result]
-testHomeEnvVar _ =
+testGetEnv : '{io2.IO} [Result]
+testGetEnv _ =
   test = 'let
-    home = reraise (getEnv.impl "HOME")
-    check "HOME environent variable should be set"  (size home > 0)
+    path = reraise (getEnv.impl "PATH") -- PATH exists on windows, mac and linux.
+    check "PATH environent variable should be set"  (size path > 0)
     match getEnv.impl "DOESNTEXIST" with 
       Right _ -> emit (Fail "env var shouldn't exist")
       Left _ -> emit (Ok "DOESNTEXIST didn't exist")
@@ -269,7 +270,7 @@ testHomeEnvVar _ =
 ```
 ```ucm
 .> add
-.> io.test testHomeEnvVar
+.> io.test testGetEnv
 ```
 
 ### Read command line args

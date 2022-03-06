@@ -1,6 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Reflog (Entry(..), fromText, toText) where
+module Unison.Codebase.Reflog (Entry (..), fromText, toText) where
 
 import Data.Coerce (Coercible, coerce)
 import Data.Text (Text)

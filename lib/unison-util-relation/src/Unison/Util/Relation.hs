@@ -9,7 +9,6 @@ module Unison.Util.Relation
     fromManyRan,
     fromMap,
     fromMultimap,
-
     fromSet,
     unsafeFromMultimaps,
 
@@ -106,15 +105,20 @@ module Unison.Util.Relation
   )
 where
 
+import Control.DeepSeq
 import qualified Control.Monad as Monad
+import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as M
 import qualified Data.Map as Map
 import qualified Data.Map.Internal as Map
+import Data.Ord (comparing)
 import qualified Data.Set as S
+import qualified Data.Set as Set
 import Unison.Prelude hiding (empty, toList)
+import qualified Unison.Util.Map as Map
+import qualified Unison.Util.Set as Set
 import Prelude hiding (filter, map, null)
-import Control.DeepSeq
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -137,10 +141,15 @@ data Relation a b = Relation
   { domain :: Map a (Set b),
     range :: Map b (Set a)
   }
-  deriving (Eq, Ord)
+
+instance (Eq a, Eq b) => Eq (Relation a b) where
+  (==) = (==) `on` domain
 
 instance (NFData a, NFData b) => NFData (Relation a b) where
   rnf (Relation d r) = rnf d `seq` rnf r
+
+instance (Ord a, Ord b) => Ord (Relation a b) where
+  compare = comparing domain
 
 instance (Show a, Show b) => Show (Relation a b) where
   show = show . toList
@@ -161,15 +170,8 @@ unsafeFromMultimaps domain range =
 difference :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
 difference (Relation d1 r1) (Relation d2 r2) =
   Relation
-    (Map.differenceWith setDifference1 d1 d2)
-    (Map.differenceWith setDifference1 r1 r2)
-  where
-    -- Set difference, but return Nothing if the difference is empty.
-    setDifference1 :: Ord a => Set a -> Set a -> Maybe (Set a)
-    setDifference1 xs ys =
-      if S.null zs then Nothing else Just zs
-      where
-        zs = S.difference xs ys
+    (Map.differenceWith Set.difference1 d1 d2)
+    (Map.differenceWith Set.difference1 r1 r2)
 
 -- | Like 'difference', but returns @Nothing@ if the difference is empty.
 difference1 :: (Ord a, Ord b) => Relation a b -> Relation a b -> Maybe (Relation a b)
@@ -517,16 +519,28 @@ r |> t =
     filtrar x = M.filterWithKey (\k _ -> k == x) rr
     rr = range r -- just to memoize the value
 
--- | Restrict the range to not include these `b`s
+-- | Restrict the range to not include these `b`s.
 (||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
-r ||> t = fromList [(a, b) | (a, b) <- toList r, not (b `S.member` t)]
+Relation {domain, range} ||> t =
+  Relation
+    { domain = Map.mapMaybe (`Set.difference1` t) domain,
+      range = range `Map.withoutKeys` t
+    }
 
+-- | Named version of ('||>').
 subtractRan :: (Ord a, Ord b) => Set b -> Relation a b -> Relation a b
 subtractRan = flip (||>)
 
--- | Restrict the domain to not include these `a`
-(<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
-s <|| r = fromList [(a, b) | (a, b) <- toList r, not (a `S.member` s)]
+-- | Restrict the domain to not include these `a`s.
+(<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+s <|| Relation {domain, range} =
+  Relation
+    { domain = domain `Map.withoutKeys` s,
+      range = Map.mapMaybe (`Set.difference1` s) range
+    }
+
+-- | Named version of ('<||').
+subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 subtractDom = (<||)
 
 -- Note:
@@ -590,13 +604,31 @@ searchDom f r = go (domain r)
 searchRan :: (Ord a, Ord b) => (b -> Ordering) -> Relation a b -> Set a
 searchRan f r = searchDom f (swap r)
 
+-- | @replaceDom x y r@ replaces all @(x, _)@ with @(y, _)@ in @r@.
 replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =
-  foldl' (\r b -> insert a' b $ delete a b r) r (lookupDom a r)
+  if a == a'
+    then r
+    else case Map.deleteLookup a (domain r) of
+      (Nothing, _) -> r
+      (Just bs, domain') ->
+        Relation
+          { domain = Map.insertWith Set.union a' bs domain',
+            range = foldl' (\acc b -> Map.adjust (Set.insert a' . Set.delete a) b acc) (range r) bs
+          }
 
+-- | @replaceRan x y r@ replaces all @(_, x)@ with @(_, y)@ in @r@.
 replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
-  foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)
+  if b == b'
+    then r
+    else case Map.deleteLookup b (range r) of
+      (Nothing, _) -> r
+      (Just as, range') ->
+        Relation
+          { domain = foldl' (\acc a -> Map.adjust (Set.insert b' . Set.delete b) a acc) (domain r) as,
+            range = Map.insertWith Set.union b' as range'
+          }
 
 updateDom :: (Ord a, Ord b) => (a -> a) -> b -> Relation a b -> Relation a b
 updateDom f b r =

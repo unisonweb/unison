@@ -1,11 +1,13 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# Language DeriveFoldable #-}
-{-# Language DeriveTraversable #-}
-{-# Language OverloadedStrings #-}
-{-# Language PatternSynonyms #-}
-{-# Language ViewPatterns #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.DataDeclaration.ConstructorId (ConstructorId) where
 
-type ConstructorId = Int
+import Data.Word (Word64)
+
+type ConstructorId = Word64

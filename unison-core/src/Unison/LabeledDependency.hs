@@ -1,59 +1,76 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.LabeledDependency
-  ( derivedTerm
-  , derivedType
-  , termRef
-  , typeRef
-  , referent
-  , dataConstructor
-  , effectConstructor
-  , fold
-  , referents
-  , toReference
-  , LabeledDependency
-  , partition
-  ) where
+  ( derivedTerm,
+    derivedType,
+    termRef,
+    typeRef,
+    referent,
+    dataConstructor,
+    effectConstructor,
+    fold,
+    referents,
+    LabeledDependency (..),
+    pattern ConReference,
+    pattern TermReference,
+    partition,
+  )
+where
 
-import Unison.Prelude hiding (fold)
-
-import Control.Lens ((^.))
-import Unison.ConstructorReference (ConstructorReference)
-import qualified Unison.ConstructorReference as ConstructorReference
-import Unison.ConstructorType (ConstructorType(Data, Effect))
-import Unison.Reference (Reference(DerivedId), Id)
-import Unison.Referent (Referent, pattern Ref, pattern Con)
 import qualified Data.Set as Set
+import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorType (ConstructorType (Data, Effect))
+import Unison.Prelude hiding (fold)
+import Unison.Reference (Id, Reference (DerivedId))
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 
--- dumb constructor name is private
-newtype LabeledDependency = X (Either Reference Referent) deriving (Eq, Ord, Show)
+-- | A Union Type which contains either Type References or Term Referents.
+data LabeledDependency
+  = TypeReference Reference
+  | TermReferent Referent
+  deriving (Eq, Ord, Show)
 
-derivedType, derivedTerm :: Id -> LabeledDependency
-typeRef, termRef :: Reference -> LabeledDependency
+-- | Match on a TermReferent which is a Constructor.
+pattern ConReference :: ConstructorReference -> ConstructorType -> LabeledDependency
+pattern ConReference ref conType = TermReferent (Referent.Con ref conType)
+
+-- | Match on a TermReferent which is NOT a Constructor.
+pattern TermReference :: Reference -> LabeledDependency
+pattern TermReference ref = TermReferent (Referent.Ref ref)
+
+{-# COMPLETE ConReference, TermReference, TypeReference #-}
+
+derivedType :: Id -> LabeledDependency
+derivedType = TypeReference . DerivedId
+
+derivedTerm :: Id -> LabeledDependency
+derivedTerm = TermReference . DerivedId
+
+typeRef :: Reference -> LabeledDependency
+typeRef = TypeReference
+
+termRef :: Reference -> LabeledDependency
+termRef = TermReference
+
 referent :: Referent -> LabeledDependency
-dataConstructor :: ConstructorReference -> LabeledDependency
-effectConstructor :: ConstructorReference -> LabeledDependency
+referent = TermReferent
 
-derivedType = X . Left . DerivedId
-derivedTerm = X . Right . Ref . DerivedId
-typeRef = X . Left
-termRef = X . Right . Ref
-referent = X . Right
-dataConstructor r = X . Right $ Con r Data
-effectConstructor r = X . Right $ Con r Effect
+dataConstructor :: ConstructorReference -> LabeledDependency
+dataConstructor r = ConReference r Data
+
+effectConstructor :: ConstructorReference -> LabeledDependency
+effectConstructor r = ConReference r Effect
 
 referents :: Foldable f => f Referent -> Set LabeledDependency
 referents rs = Set.fromList (map referent $ toList rs)
 
 fold :: (Reference -> a) -> (Referent -> a) -> LabeledDependency -> a
-fold f g (X e) = either f g e
+fold f _ (TypeReference r) = f r
+fold _ g (TermReferent r) = g r
 
 partition :: Foldable t => t LabeledDependency -> ([Reference], [Referent])
-partition = partitionEithers . map (\(X e) -> e) . toList
-
--- | Left TypeRef | Right TermRef
-toReference :: LabeledDependency -> Either Reference Reference
-toReference = \case
-  X (Left r)             -> Left r
-  X (Right (Ref r))     -> Right r
-  X (Right (Con r _)) -> Left (r ^. ConstructorReference.reference_)
+partition =
+  foldMap \case
+    TypeReference ref -> ([ref], [])
+    TermReferent ref -> ([], [ref])

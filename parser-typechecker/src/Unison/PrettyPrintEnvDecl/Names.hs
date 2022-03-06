@@ -1,10 +1,10 @@
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.PrettyPrintEnvDecl.Names where
 
 import Unison.NamesWithHistory (NamesWithHistory)
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 import Unison.PrettyPrintEnv.Names (fromNames, fromSuffixNames)
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (PrettyPrintEnvDecl))
 
 fromNamesDecl :: Int -> NamesWithHistory -> PrettyPrintEnvDecl
 fromNamesDecl hashLength names =

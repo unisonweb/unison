@@ -3,6 +3,6 @@ use Universal ==
 
 loop acc n =
   if n == 0 then acc
-  else loop (acc + n) (n `drop` 1)
+  else loop (acc + n) (drop n 1)
 
 > loop 0 10000

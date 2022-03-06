@@ -1,7 +1,10 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveFoldable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
+
 module Unison.Util.Alphabetical where
 
-import qualified Data.RFC5051                  as RFC5051
+import qualified Data.RFC5051 as RFC5051
 import Data.Text (Text)
 
 -- Alphabetical ordering used for sorting things to display to humans.
@@ -17,7 +20,7 @@ instance Alphabetical Text where
   compareAlphabetical = RFC5051.compareUnicode
 
 -- newtype whose Ord instance uses alphabetical ordering
-newtype OrderAlphabetically a = OrderAlphabetically a deriving (Functor,Traversable,Foldable,Eq)
+newtype OrderAlphabetically a = OrderAlphabetically a deriving (Functor, Traversable, Foldable, Eq)
 
 instance (Eq a, Alphabetical a) => Ord (OrderAlphabetically a) where
   compare (OrderAlphabetically a) (OrderAlphabetically b) = compareAlphabetical a b
