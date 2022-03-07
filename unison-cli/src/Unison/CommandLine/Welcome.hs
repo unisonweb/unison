@@ -158,7 +158,7 @@ authorSuggestion =
       [ P.wrap "📜 🪶 You might want to set up your author information next.",
         P.wrap "Type" <> P.hiBlue " create.author" <> " to create an author for this codebase",
         P.group (P.newline <> P.wrap "Read about how to link your author to your code at"),
-        P.wrap $ P.blue "https://www.unison-lang.org/docs/tooling/configuration/"
+        P.wrap $ P.blue "https://www.unison-lang.org/learn/tooling/configuration/"
       ]
 
 getStarted :: FilePath -> IO (P.Pretty P.ColorText)
