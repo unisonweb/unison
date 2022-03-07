@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -10,8 +9,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.Encoding as Text
-import Servant (ServerError (..), err400, err404, err500, err409)
+import Servant (ServerError (..), err400, err404, err409, err500)
 import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.ShortBranchHash as SBH
 import qualified Unison.Reference as Reference
@@ -22,14 +22,15 @@ import Unison.Server.Types
     mungeShow,
     mungeString,
   )
-import qualified Unison.Codebase.Branch as Branch
 
 badHQN :: HashQualifiedName -> ServerError
-badHQN hqn = err400
-  { errBody = Text.encodeUtf8 (Text.fromStrict hqn)
-              <> " is not a well-formed name, hash, or hash-qualified name. "
-              <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
-  }
+badHQN hqn =
+  err400
+    { errBody =
+        Text.encodeUtf8 (Text.fromStrict hqn)
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    }
 
 backendError :: Backend.BackendError -> ServerError
 backendError = \case
@@ -47,47 +48,57 @@ backendError = \case
   Backend.MissingSignatureForTerm r -> missingSigForTerm $ Reference.toText r
 
 rootBranchError :: Codebase.GetRootBranchError -> ServerError
-rootBranchError rbe = err500
-  { errBody = case rbe of
-                Codebase.NoRootBranch -> "Couldn't identify a root namespace."
-                Codebase.CouldntLoadRootBranch h ->
-                  "Couldn't load root branch " <> mungeShow h
-                Codebase.CouldntParseRootBranch h ->
-                  "Couldn't parse root branch head " <> mungeShow h
-  }
+rootBranchError rbe =
+  err500
+    { errBody = case rbe of
+        Codebase.NoRootBranch -> "Couldn't identify a root namespace."
+        Codebase.CouldntLoadRootBranch h ->
+          "Couldn't load root branch " <> mungeShow h
+        Codebase.CouldntParseRootBranch h ->
+          "Couldn't parse root branch head " <> mungeShow h
+    }
 
 badNamespace :: String -> String -> ServerError
-badNamespace err namespace = err400
-  { errBody = "Malformed namespace: "
-              <> mungeString namespace
-              <> ". "
-              <> mungeString err
-  }
+badNamespace err namespace =
+  err400
+    { errBody =
+        "Malformed namespace: "
+          <> mungeString namespace
+          <> ". "
+          <> mungeString err
+    }
 
 noSuchNamespace :: HashQualifiedName -> ServerError
 noSuchNamespace namespace =
-  err404 { errBody = "The namespace " <> munge namespace <> " does not exist." }
+  err404 {errBody = "The namespace " <> munge namespace <> " does not exist."}
 
 couldntLoadBranch :: Branch.Hash -> ServerError
 couldntLoadBranch h =
-  err404 { errBody = "The namespace "
-    <> munge (Text.toStrict . Text.pack $ show h)
-    <> " exists but couldn't be loaded." }
+  err404
+    { errBody =
+        "The namespace "
+          <> munge (Text.toStrict . Text.pack $ show h)
+          <> " exists but couldn't be loaded."
+    }
 
 ambiguousNamespace :: HashQualifiedName -> Set HashQualifiedName -> ServerError
-ambiguousNamespace name namespaces = err409
-  { errBody = "Ambiguous namespace reference: "
-              <> munge name
-              <> ". It could refer to any of "
-              <> mungeShow (Set.toList namespaces)
-  }
+ambiguousNamespace name namespaces =
+  err409
+    { errBody =
+        "Ambiguous namespace reference: "
+          <> munge name
+          <> ". It could refer to any of "
+          <> mungeShow (Set.toList namespaces)
+    }
 
 missingSigForTerm :: HashQualifiedName -> ServerError
-missingSigForTerm r = err500
-  { errBody = "The type signature for reference "
-              <> munge r
-              <> " is missing! "
-              <> "This means something might be wrong with the codebase, "
-              <> "or the term was deleted just now. "
-              <> "Try making the request again."
-  }
+missingSigForTerm r =
+  err500
+    { errBody =
+        "The type signature for reference "
+          <> munge r
+          <> " is missing! "
+          <> "This means something might be wrong with the codebase, "
+          <> "or the term was deleted just now. "
+          <> "Try making the request again."
+    }

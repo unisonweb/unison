@@ -213,6 +213,8 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
 ```
 
 ```ucm:hide
@@ -272,8 +274,17 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ## Sandboxing functions
 
 ```unison
+openFile1 t = openFile t
+openFile2 t = openFile1 t
+
+openFiles =
+  [ not (validateSandboxed [] openFile)
+  , not (validateSandboxed [] openFile1)
+  , not (validateSandboxed [] openFile2)
+  ]
+
 test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
-test> Sandbox.test2 = checks [not (validateSandboxed [] openFile)]
+test> Sandbox.test2 = checks openFiles
 test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```

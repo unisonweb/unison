@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-
    This module defines 'InputPattern' values for every supported input command.
 -}
@@ -40,7 +39,6 @@ import Unison.CommandLine.InputPattern
   )
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.NameSegment (NameSegment (NameSegment))
@@ -48,8 +46,8 @@ import qualified Unison.Names as Names
 import Unison.Prelude
 import qualified Unison.Util.ColorText as CT
 import Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Relation as R
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -174,15 +172,7 @@ add =
     ( "`add` adds to the codebase all the definitions from the most recently "
         <> "typechecked file."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.AddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.AddI (Set.fromList $ map Name.unsafeFromString ws)
 
 previewAdd :: InputPattern
 previewAdd =
@@ -195,15 +185,7 @@ previewAdd =
         <> "results. Use `load` to reparse & typecheck the file if the context "
         <> "has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewAddI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewAddI (Set.fromList $ map Name.unsafeFromString ws)
 
 update :: InputPattern
 update =
@@ -240,13 +222,8 @@ update =
     ( \case
         patchStr : ws -> do
           patch <- first fromString $ Path.parseSplit' Path.definitionNameSegment patchStr
-          case traverse HQ'.fromString ws of
-            Just ws -> Right $ Input.UpdateI (Just patch) ws
-            Nothing ->
-              Left . warn . P.lines . fmap fromString
-                . ("I don't know what these refer to:\n" :)
-                $ collectNothings HQ'.fromString ws
-        [] -> Right $ Input.UpdateI Nothing []
+          pure $ Input.UpdateI (Just patch) (Set.fromList $ map Name.unsafeFromString ws)
+        [] -> Right $ Input.UpdateI Nothing mempty
     )
 
 previewUpdate :: InputPattern
@@ -260,15 +237,7 @@ previewUpdate =
         <> "typechecking results. Use `load` to reparse & typecheck the file if "
         <> "the context has changed."
     )
-    $ \ws -> case traverse HQ'.fromString ws of
-      Just ws -> pure $ Input.PreviewUpdateI ws
-      Nothing ->
-        Left
-          . warn
-          . P.lines
-          . fmap fromString
-          . ("I don't know what these refer to:\n" :)
-          $ collectNothings HQ'.fromString ws
+    $ \ws -> pure $ Input.PreviewUpdateI (Set.fromList $ map Name.unsafeFromString ws)
 
 patch :: InputPattern
 patch =
@@ -753,22 +722,23 @@ deleteNamespaceForce =
     "delete.namespace.force"
     []
     [(Required, namespaceArg)]
-    ("`delete.namespace.force <foo>` deletes the namespace `foo`,"
-    <> "deletion will proceed even if other code depends on definitions in foo.")
+    ( "`delete.namespace.force <foo>` deletes the namespace `foo`,"
+        <> "deletion will proceed even if other code depends on definitions in foo."
+    )
     (deleteNamespaceParser (I.help deleteNamespaceForce) Input.Force)
 
 deleteNamespaceParser :: P.Pretty CT.ColorText -> Input.Insistence -> [String] -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser helpText insistence =
-    ( \case
-        ["."] ->
-          first fromString
-            . pure
-            $ Input.DeleteBranchI insistence Nothing
-        [p] -> first fromString $ do
-          p <- Path.parseSplit' Path.definitionNameSegment p
-          pure . Input.DeleteBranchI insistence $ Just p
-        _ -> Left helpText
-    )
+  ( \case
+      ["."] ->
+        first fromString
+          . pure
+          $ Input.DeleteBranchI insistence Nothing
+      [p] -> first fromString $ do
+        p <- Path.parseSplit' Path.definitionNameSegment p
+        pure . Input.DeleteBranchI insistence $ Just p
+      _ -> Left helpText
+  )
 
 deletePatch :: InputPattern
 deletePatch =
@@ -1160,39 +1130,41 @@ loadPullRequest =
 
 parseUri :: String -> String -> Either (P.Pretty P.ColorText) ReadRemoteNamespace
 parseUri label input =
-  let printError err = P.lines [ P.string  "I couldn't parse the repository address given above.", prettyPrintParseError input err]
-  in first printError (P.parse UriParser.repoPath label (Text.pack input))
+  let printError err = P.lines [P.string "I couldn't parse the repository address given above.", prettyPrintParseError input err]
+   in first printError (P.parse UriParser.repoPath label (Text.pack input))
 
 prettyPrintParseError :: String -> P.ParseError Char Void -> P.Pretty P.ColorText
 prettyPrintParseError input = \case
   P.TrivialError sp ue ee ->
-      P.lines [ printLocation sp,
-                P.newline,
-                printTrivial ue ee
-              ]
+    P.lines
+      [ printLocation sp,
+        P.newline,
+        printTrivial ue ee
+      ]
   P.FancyError sp ee ->
-      let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
-      in P.lines
-         [ printLocation sp,
-           errors
-         ]
+    let errors = foldMap (P.string . mappend "\n" . P.showErrorComponent) ee
+     in P.lines
+          [ printLocation sp,
+            errors
+          ]
   where
     printLocation :: NE.NonEmpty P.SourcePos -> P.Pretty P.ColorText
     printLocation sp =
       let col = (P.unPos $ P.sourceColumn $ NE.head sp) - 1
           row = (P.unPos $ P.sourceLine $ NE.head sp) - 1
           errorLine = lines input !! row
-      in P.lines [ P.newline,
-                   P.string errorLine,
-                   P.string $ replicate col ' ' <> "^-- This is where I gave up."
-                 ]
+       in P.lines
+            [ P.newline,
+              P.string errorLine,
+              P.string $ replicate col ' ' <> "^-- This is where I gave up."
+            ]
 
     printTrivial :: (Maybe (P.ErrorItem Char)) -> (Set (P.ErrorItem Char)) -> P.Pretty P.ColorText
     printTrivial ue ee =
       let expected = "I expected " <> foldMap (P.singleQuoted . P.string . P.showErrorComponent) ee
-          found =  P.string . mappend "I found " . P.showErrorComponent <$> ue
+          found = P.string . mappend "I found " . P.showErrorComponent <$> ue
           message = [expected] <> catMaybes [found]
-      in P.oxfordCommasWith "." message
+       in P.oxfordCommasWith "." message
 
 parseWriteRepo :: String -> String -> Either (P.Pretty P.ColorText) WriteRepo
 parseWriteRepo label input = do
@@ -1700,15 +1672,19 @@ dependencies =
     )
 
 namespaceDependencies :: InputPattern
-namespaceDependencies = InputPattern "namespace.dependencies" [] [(Optional, namespaceArg)]
-  "List the external dependencies of the specified namespace."
-  (\case
-    [p] -> first fromString $ do
-             p <- Path.parsePath' p
-             pure $ Input.NamespaceDependenciesI (Just p)
-    [] -> pure (Input.NamespaceDependenciesI Nothing)
-    _ -> Left (I.help namespaceDependencies)
-  )
+namespaceDependencies =
+  InputPattern
+    "namespace.dependencies"
+    []
+    [(Optional, namespaceArg)]
+    "List the external dependencies of the specified namespace."
+    ( \case
+        [p] -> first fromString $ do
+          p <- Path.parsePath' p
+          pure $ Input.NamespaceDependenciesI (Just p)
+        [] -> pure (Input.NamespaceDependenciesI Nothing)
+        _ -> Left (I.help namespaceDependencies)
+    )
 
 debugNumberedArgs :: InputPattern
 debugNumberedArgs =
@@ -1826,11 +1802,11 @@ ioTest =
 makeStandalone :: InputPattern
 makeStandalone =
   InputPattern
-    "compile.output"
-    []
-    []
+    "compile"
+    ["compile.output"]
+    [(Required, exactDefinitionTermQueryArg), (Required, noCompletions)]
     ( P.wrapColumn2
-        [ ( "`compile.output main file`",
+        [ ( "`compile main file`",
             "Outputs a stand alone file that can be directly loaded and"
               <> "executed by unison. Said execution will have the effect of"
               <> "running `!main`."
@@ -2175,7 +2151,7 @@ explainRemote :: P.Pretty CT.ColorText
 explainRemote =
   P.lines
     [ P.wrap "where `remote` is a git repository, optionally followed by `:`"
-          <> "and an absolute remote path, a branch, or both, such as:",
+        <> "and an absolute remote path, a branch, or both, such as:",
       P.indentN 2 . P.lines $
         [ P.backticked "https://github.com/org/repo",
           P.backticked "https://github.com/org/repo:.some.remote.path",

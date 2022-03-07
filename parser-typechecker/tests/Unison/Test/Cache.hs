@@ -1,21 +1,22 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Test.Cache where
 
-import EasyTest
-import Control.Monad
-import Control.Concurrent.STM
 import Control.Concurrent.Async
+import Control.Concurrent.STM
+import Control.Monad
+import EasyTest
 import qualified U.Util.Cache as Cache
 
 test :: Test ()
-test = scope "util.cache" $ tests [
-    scope "ex1" $ fits Cache.cache
-  , scope "ex2" $ fits (Cache.semispaceCache n)
-  , scope "ex3" $ doesn'tFit (Cache.semispaceCache n)
-  , scope "ex4" $ do
-    replicateM_ 10 $ concurrent (Cache.semispaceCache n)
-    ok
-  ]
+test =
+  scope "util.cache" $
+    tests
+      [ scope "ex1" $ fits Cache.cache,
+        scope "ex2" $ fits (Cache.semispaceCache n),
+        scope "ex3" $ doesn'tFit (Cache.semispaceCache n),
+        scope "ex4" $ do
+          replicateM_ 10 $ concurrent (Cache.semispaceCache n)
+          ok
+      ]
   where
     n :: Word
     n = 1000
@@ -25,15 +26,15 @@ test = scope "util.cache" $ tests [
       cache <- io $ mkCache
       misses <- io $ newTVarIO 0
       let f x = do
-            atomically $ modifyTVar misses (+1)
+            atomically $ modifyTVar misses (+ 1)
             pure x
       -- populate the cache, all misses (n*2), but first 1-n will have expired by the end
-      results1 <- io $ traverse (Cache.apply cache f) [1..n*2]
+      results1 <- io $ traverse (Cache.apply cache f) [1 .. n * 2]
       -- should be half hits, so an additional `n` misses
-      results2 <- io $ traverse (Cache.apply cache f) (reverse [1..n*2])
+      results2 <- io $ traverse (Cache.apply cache f) (reverse [1 .. n * 2])
       misses <- io $ readTVarIO misses
-      expect' (results1 == [1..n*2])
-      expect' (results2 == reverse [1..n*2])
+      expect' (results1 == [1 .. n * 2])
+      expect' (results2 == reverse [1 .. n * 2])
       expect (misses == n * 3)
 
     -- This checks the simple case that everything fits in the cache
@@ -41,15 +42,15 @@ test = scope "util.cache" $ tests [
       cache <- io $ mkCache
       misses <- io $ newTVarIO 0
       let f x = do
-            atomically $ modifyTVar misses (+1)
+            atomically $ modifyTVar misses (+ 1)
             pure x
       -- populate the cache
-      results1 <- io $ traverse (Cache.apply cache f) [1..n]
+      results1 <- io $ traverse (Cache.apply cache f) [1 .. n]
       -- should be all hits
-      results2 <- io $ traverse (Cache.apply cache f) [1..n]
+      results2 <- io $ traverse (Cache.apply cache f) [1 .. n]
       misses <- io $ readTVarIO misses
-      expect' (results1 == [1..n])
-      expect' (results2 == [1..n])
+      expect' (results1 == [1 .. n])
+      expect' (results2 == [1 .. n])
       expect (misses == n)
 
     -- A simple smoke test of concurrent access. The cache doesn't
@@ -60,7 +61,7 @@ test = scope "util.cache" $ tests [
       cache <- io $ mkCache
       misses <- io $ newTVarIO 0
       let f x = do
-            atomically $ modifyTVar misses (+1)
+            atomically $ modifyTVar misses (+ 1)
             pure x
       -- we're populating the cache in parallel
       results1 <- io $ async $ traverse (Cache.apply cache f) [1 .. (n `div` 2)]
@@ -75,7 +76,6 @@ test = scope "util.cache" $ tests [
       (results3, results4) <- io $ waitBoth results3 results4
 
       misses2 <- io $ readTVarIO misses
-      expect' (results1 ++ results2 == [1..n])
-      expect' (results3 ++ results4 == [1..n])
+      expect' (results1 ++ results2 == [1 .. n])
+      expect' (results3 ++ results4 == [1 .. n])
       expect' (misses1 == misses2)
-

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -7,7 +6,7 @@ module Unison.Referent'
 
     -- * Basic queries
     isConstructor,
-    fold,
+    Unison.Referent'.fold,
 
     -- * Lenses
     reference_,
@@ -23,9 +22,7 @@ import Control.Lens (Lens, lens)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
-import Unison.Hashable (Hashable (tokens))
-import qualified Unison.Hashable as H
-import Unison.Prelude (Word64)
+import Unison.Prelude
 
 -- | Specifies a term.
 --
@@ -38,7 +35,7 @@ import Unison.Prelude (Word64)
 --
 -- When @Con'@ then @r@ is a type declaration.
 data Referent' r = Ref' r | Con' (GConstructorReference r) ConstructorType
-  deriving (Show, Ord, Eq, Functor)
+  deriving (Show, Ord, Eq, Functor, Generic)
 
 -- | A lens onto the reference in a referent.
 reference_ :: Lens (Referent' r) (Referent' r') r r'
@@ -71,7 +68,3 @@ fold :: (r -> a) -> (r -> ConstructorId -> ConstructorType -> a) -> Referent' r 
 fold fr fc = \case
   Ref' r -> fr r
   Con' (ConstructorReference r i) ct -> fc r i ct
-
-instance Hashable r => Hashable (Referent' r) where
-  tokens (Ref' r) = [H.Tag 0] ++ H.tokens r
-  tokens (Con' (ConstructorReference r i) dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

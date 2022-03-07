@@ -414,11 +414,11 @@ testDirContents _ =
 ### Read environment variables
 
 ```unison
-testHomeEnvVar : '{io2.IO} [Result]
-testHomeEnvVar _ =
+testGetEnv : '{io2.IO} [Result]
+testGetEnv _ =
   test = 'let
-    home = reraise (getEnv.impl "HOME")
-    check "HOME environent variable should be set"  (size home > 0)
+    path = reraise (getEnv.impl "PATH") -- PATH exists on windows, mac and linux.
+    check "PATH environent variable should be set"  (size path > 0)
     match getEnv.impl "DOESNTEXIST" with 
       Right _ -> emit (Fail "env var shouldn't exist")
       Left _ -> emit (Ok "DOESNTEXIST didn't exist")
@@ -430,18 +430,18 @@ testHomeEnvVar _ =
 
   ⍟ I've added these definitions:
   
-    testHomeEnvVar : '{IO} [Result]
+    testGetEnv : '{IO} [Result]
 
-.> io.test testHomeEnvVar
+.> io.test testGetEnv
 
     New test results:
   
-  ◉ testHomeEnvVar   HOME environent variable should be set
-  ◉ testHomeEnvVar   DOESNTEXIST didn't exist
+  ◉ testGetEnv   PATH environent variable should be set
+  ◉ testGetEnv   DOESNTEXIST didn't exist
   
   ✅ 2 test(s) passing
   
-  Tip: Use view testHomeEnvVar to view the source of a test.
+  Tip: Use view testGetEnv to view the source of a test.
 
 ```
 ### Read command line args
@@ -507,7 +507,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with args" !Any
+    Failure (typeLink IOFailure) "called with args" (Any ())
 
 ```
 ```ucm
@@ -517,7 +517,7 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```
 ```ucm
@@ -528,7 +528,7 @@ Calling our examples with the wrong number of args will error.
   The program halted with an unhandled exception:
   
     Failure
-      (typeLink IOFailure) "called with too many args" !Any
+      (typeLink IOFailure) "called with too many args" (Any ())
 
 ```
 ```ucm
@@ -538,6 +538,6 @@ Calling our examples with the wrong number of args will error.
   
   The program halted with an unhandled exception:
   
-    Failure (typeLink IOFailure) "called with no args" !Any
+    Failure (typeLink IOFailure) "called with no args" (Any ())
 
 ```

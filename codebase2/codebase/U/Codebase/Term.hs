@@ -110,10 +110,10 @@ data Pattern t r
   | PFloat !Double
   | PText !t
   | PChar !Char
-  | PConstructor !r !Int [Pattern t r]
+  | PConstructor !r !ConstructorId [Pattern t r]
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
-  | PEffectBind !r !Int [Pattern t r] (Pattern t r)
+  | PEffectBind !r !ConstructorId [Pattern t r] (Pattern t r)
   | PSequenceLiteral [Pattern t r]
   | PSequenceOp (Pattern t r) !SeqOp (Pattern t r)
   deriving (Generic, Functor, Foldable, Traversable, Show)

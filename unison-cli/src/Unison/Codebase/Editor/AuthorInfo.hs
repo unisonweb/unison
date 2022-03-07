@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.AuthorInfo where
@@ -8,9 +7,9 @@ import Data.ByteString (unpack)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.Hashing.V2.Convert as H
 import Unison.Prelude (MonadIO, Word8)
-import Unison.ConstructorReference (GConstructorReference(..))
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.IOSource as IOSource
 import Unison.Term (Term)
@@ -30,7 +29,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
     createAuthorInfo' :: [Word8] -> AuthorInfo v a
     createAuthorInfo' bytes =
       let [(guidRef, guidTerm)] =
-            hashAndWrangle "guid" $
+            hashAndWrangle "guid" guidType $
               Term.app
                 a
                 (Term.constructor a (ConstructorReference guidTypeRef 0))
@@ -41,7 +40,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
                 )
 
           [(authorRef, authorTerm)] =
-            hashAndWrangle "author" $
+            hashAndWrangle "author" authorType $
               Term.apps
                 (Term.constructor a (ConstructorReference authorTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
@@ -49,7 +48,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
                 ]
 
           [(chRef, chTerm)] =
-            hashAndWrangle "copyrightHolder" $
+            hashAndWrangle "copyrightHolder" chType $
               Term.apps
                 (Term.constructor a (ConstructorReference chTypeRef 0))
                 [ (a, Term.ref a (Reference.DerivedId guidRef)),
@@ -59,10 +58,16 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
             (guidRef, guidTerm, guidType)
             (authorRef, authorTerm, authorType)
             (chRef, chTerm, chType)
-    hashAndWrangle v tm =
+    hashAndWrangle ::
+      Text ->
+      Type v a ->
+      Term v a ->
+      [(Reference.Id, Term v a)]
+    hashAndWrangle v typ tm =
       Foldable.toList $
-        H.hashTermComponents
-          (Map.fromList [(Var.named v, tm)])
+        fmap (\(id, tm, _tp) -> (id, tm)) $
+          H.hashTermComponents
+            (Map.singleton (Var.named v) (tm, typ))
     (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)
     (authorType, authorTypeRef) = (Type.ref a authorTypeRef, IOSource.authorRef)
     (guidType, guidTypeRef) = (Type.ref a guidTypeRef, IOSource.guidRef)

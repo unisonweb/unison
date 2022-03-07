@@ -1,10 +1,9 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module U.Util.Serialization where
@@ -16,7 +15,7 @@ import Data.ByteString (ByteString, readFile, writeFile)
 import qualified Data.ByteString as BS
 import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Short as BSS
-import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, runGetS, skip, remaining)
+import Data.Bytes.Get (MonadGet, getByteString, getBytes, getWord8, remaining, runGetS, skip)
 import Data.Bytes.Put (MonadPut, putByteString, putWord8, runPutS)
 import Data.Bytes.VarInt (VarInt (VarInt))
 import Data.Foldable (Foldable (toList), traverse_)
@@ -34,12 +33,12 @@ import qualified Data.Text.Short.Unsafe as TSU
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import Data.Word (Word8)
+import Debug.Trace (traceM)
 import GHC.Word (Word64)
 import System.FilePath (takeDirectory)
 import UnliftIO (MonadIO, liftIO)
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import Prelude hiding (readFile, writeFile)
-import Debug.Trace (traceM)
 
 type Get a = forall m. MonadGet m => m a
 
@@ -82,8 +81,8 @@ putVarInt :: (MonadPut m, Integral a, Bits a) => a -> m ()
 putVarInt n
   | n < 0x80 = putWord8 $ fromIntegral n
   | otherwise = do
-    putWord8 $ setBit (fromIntegral n) 7
-    putVarInt $ shiftR n 7
+      putWord8 $ setBit (fromIntegral n) 7
+      putVarInt $ shiftR n 7
 {-# INLINE putVarInt #-}
 
 getVarInt :: (MonadGet m, Num b, Bits b) => m b
@@ -92,8 +91,8 @@ getVarInt = getWord8 >>= getVarInt
     getVarInt :: (MonadGet m, Num b, Bits b) => Word8 -> m b
     getVarInt n
       | testBit n 7 = do
-        VarInt m <- getWord8 >>= getVarInt
-        return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
+          VarInt m <- getWord8 >>= getVarInt
+          return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
       | otherwise = return $ fromIntegral n
     {-# INLINE getVarInt #-}
 {-# INLINE getVarInt #-}
@@ -218,8 +217,7 @@ putFramedArray put (toList -> as) = do
 getFramedArray :: MonadGet m => m a -> m (Vector a)
 getFramedArray getA = do
   offsets :: [Int] <- getList getVarInt
-  _end <- getVarInt @_ @Int
-  let count = length offsets
+  let count = length offsets - 1
   Vector.replicateM count getA
 
 -- | Look up a 0-based index in a framed array, O(num array elements),

@@ -354,3 +354,90 @@ foo = let
 .> load unison-src/transcripts-round-trip/nested.u
 ```
 
+## Multiline expressions in multiliine lists
+
+```unison:hide
+foo a b c d e f g h i j = 42 
+
+use Nat +
+x = [ 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
+    , foo 12939233 2102020 329292 429292 522020 62929292 72020202 820202 920202 1020202 ] 
+```
+
+```ucm
+.> add
+.> edit foo x
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```
+
+## Delayed computations passed to a function as the last argument
+
+When a delayed computation block is passed to a function as the last argument
+in a context where the ambient precedence is low enough, we can elide parentheses 
+around it and use a "soft hang" to put the `'let` on the same line as the function call. 
+This looks nice.
+
+    forkAt usEast 'let
+      x = thing1
+      y = thing2
+      ...
+
+vs the not as pretty but still correct:
+
+    forkAt 
+      usEast 
+      ('let 
+          x = thing1
+          y = thing2
+          ...)
+
+Okay, here's the test, showing that we use the prettier version when possible:
+
+```unison:hide
+(+) a b = ##Nat.+ a b
+
+foo a b = 42 
+
+bar0 x = 'let
+  a = 1
+  b = 2
+  foo a 'let
+    c = 3
+    a + b
+
+bar1 x = 'let
+  a = 1
+  b = 2
+  foo (100 + 200 + 300 + 400 + 500 + 600 + 700 + 800 + 900 + 1000 + 1100 + 1200 + 1300 + 1400 + 1500) 'let
+    c = 3
+    a + b
+
+bar2 x = 'let
+  a = 1
+  b = 2
+  1 + foo a 'let
+    c = 3
+    a + b
+
+bar3 x = 'let
+  a = 1
+  b = 2
+  c = foo 'let
+    c = 3
+    a + b
+  c
+```
+
+```ucm
+.> add
+.> edit foo bar0 bar1 bar2 bar3
+.> undo
+```
+
+```ucm
+.> load scratch.u
+```

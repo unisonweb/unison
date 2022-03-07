@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.SqliteCodebase.SyncEphemeral where
@@ -20,4 +19,3 @@ data Error
   | DestWrongSchema SchemaVersion
   | DisappearingBranch CausalHash
   deriving (Show)
-

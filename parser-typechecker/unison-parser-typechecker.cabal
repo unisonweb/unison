@@ -28,13 +28,17 @@ library
       Unison.Builtin.Terms
       Unison.Codebase
       Unison.Codebase.Branch
+      Unison.Codebase.Branch.BranchDiff
       Unison.Codebase.Branch.Merge
       Unison.Codebase.Branch.Names
+      Unison.Codebase.Branch.Raw
+      Unison.Codebase.Branch.Type
       Unison.Codebase.BranchDiff
       Unison.Codebase.BranchUtil
       Unison.Codebase.BuiltinAnnotation
       Unison.Codebase.Causal
       Unison.Codebase.Causal.FoldHistory
+      Unison.Codebase.Causal.Type
       Unison.Codebase.CodeLookup
       Unison.Codebase.CodeLookup.Util
       Unison.Codebase.Editor.DisplayObject
@@ -61,6 +65,12 @@ library
       Unison.Codebase.SqliteCodebase.Branch.Dependencies
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
+      Unison.Codebase.SqliteCodebase.Migrations
+      Unison.Codebase.SqliteCodebase.Migrations.Errors
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
+      Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
       Unison.Codebase.TermEdit
@@ -73,15 +83,23 @@ library
       Unison.DeclPrinter
       Unison.FileParser
       Unison.FileParsers
+      Unison.Hashing.V2.ABT
+      Unison.Hashing.V2.Branch
+      Unison.Hashing.V2.Causal
       Unison.Hashing.V2.Convert
       Unison.Hashing.V2.DataDeclaration
-      Unison.Hashing.V2.LabeledDependency
+      Unison.Hashing.V2.Hashable
+      Unison.Hashing.V2.Kind
+      Unison.Hashing.V2.Patch
       Unison.Hashing.V2.Pattern
       Unison.Hashing.V2.Reference
       Unison.Hashing.V2.Reference.Util
       Unison.Hashing.V2.Referent
       Unison.Hashing.V2.Term
+      Unison.Hashing.V2.TermEdit
+      Unison.Hashing.V2.Tokenizable
       Unison.Hashing.V2.Type
+      Unison.Hashing.V2.TypeEdit
       Unison.Lexer
       Unison.Lexer.Pos
       Unison.NamePrinter
@@ -224,6 +242,7 @@ library
     , fingertree
     , fsnotify
     , fuzzyfind
+    , generic-lens
     , generic-monoid
     , hashable
     , hashtables
@@ -292,6 +311,7 @@ library
     , x509
     , x509-store
     , x509-system
+    , yaml
     , zlib
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -398,6 +418,7 @@ executable tests
       async
     , base
     , bytestring
+    , code-page
     , containers
     , directory
     , easytest
@@ -424,45 +445,6 @@ executable tests
     , unison-util
     , unison-util-relation
     , unliftio
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-  default-language: Haskell2010
-
-benchmark runtime
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  other-modules:
-      Paths_unison_parser_typechecker
-  hs-source-dirs:
-      benchmarks/runtime
-  default-extensions:
-      ApplicativeDo
-      BangPatterns
-      BlockArguments
-      DeriveFunctor
-      DeriveGeneric
-      DerivingStrategies
-      DoAndIfThenElse
-      FlexibleContexts
-      FlexibleInstances
-      GeneralizedNewtypeDeriving
-      LambdaCase
-      MultiParamTypeClasses
-      NamedFieldPuns
-      OverloadedStrings
-      PatternSynonyms
-      RankNTypes
-      ScopedTypeVariables
-      TupleSections
-      TypeApplications
-      ViewPatterns
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  build-depends:
-      base
-    , containers
-    , criterion
-    , unison-core1
-    , unison-parser-typechecker
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
   default-language: Haskell2010

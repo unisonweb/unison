@@ -31,6 +31,7 @@ data GitCodebaseError h
   = NoRemoteNamespaceWithHash ReadRepo ShortBranchHash
   | RemoteNamespaceHashAmbiguous ReadRepo ShortBranchHash (Set h)
   | CouldntLoadRootBranch ReadRepo h
+  | CouldntParseRemoteBranch ReadRepo String
   | CouldntLoadSyncedBranch ReadRemoteNamespace h
   | CouldntFindRemoteBranch ReadRepo Path
   deriving (Show)

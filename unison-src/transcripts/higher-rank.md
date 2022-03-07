@@ -67,3 +67,16 @@ Loc.transform2 nt = cases Loc f ->
   f' a = f (nt a)
   Loc f' 
 ```
+
+## Types with polymorphic fields
+
+```unison:hide
+structural type HigherRanked = HigherRanked (forall a. a -> a)
+```
+
+We should be able to add and view records with higher-rank fields.
+
+```ucm
+.higher_ranked> add
+.higher_ranked> view HigherRanked
+```

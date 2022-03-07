@@ -3,6 +3,7 @@ module Main where
 import EasyTest
 import System.Environment (getArgs)
 import System.IO
+import System.IO.CodePage (withCP65001)
 import qualified Unison.Test.ClearCache as ClearCache
 import qualified Unison.Test.CommandLine as CommandLine
 import qualified Unison.Test.GitSync as GitSync
@@ -20,7 +21,7 @@ test =
     ]
 
 main :: IO ()
-main = do
+main = withCP65001 do
   args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   case args of

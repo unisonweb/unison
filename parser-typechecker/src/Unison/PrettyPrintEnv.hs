@@ -1,5 +1,4 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.PrettyPrintEnv
   ( PrettyPrintEnv (..),
@@ -13,38 +12,40 @@ module Unison.PrettyPrintEnv
   )
 where
 
-import Unison.Prelude
-
 import Unison.ConstructorReference (ConstructorReference)
-import           Unison.HashQualified           ( HashQualified )
-import qualified Unison.HashQualified' as HQ'
-import           Unison.Name                    ( Name )
-import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent )
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
+import Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import qualified Unison.LabeledDependency as LD
+import Unison.Name (Name)
+import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 
-data PrettyPrintEnv = PrettyPrintEnv {
-  -- names for terms, constructors, and requests
-  terms :: Referent -> Maybe (HQ'.HashQualified Name),
-  -- names for types
-  types :: Reference -> Maybe (HQ'.HashQualified Name) }
+data PrettyPrintEnv = PrettyPrintEnv
+  { -- names for terms, constructors, and requests
+    terms :: Referent -> Maybe (HQ'.HashQualified Name),
+    -- names for types
+    types :: Reference -> Maybe (HQ'.HashQualified Name)
+  }
 
 patterns :: PrettyPrintEnv -> ConstructorReference -> Maybe (HQ'.HashQualified Name)
-patterns ppe r = terms ppe (Referent.Con r CT.Data)
-             <|> terms ppe (Referent.Con r CT.Effect)
+patterns ppe r =
+  terms ppe (Referent.Con r CT.Data)
+    <|> terms ppe (Referent.Con r CT.Effect)
 
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
-unionLeft e1 e2 = PrettyPrintEnv
-  (\r -> terms e1 r <|> terms e2 r)
-  (\r -> types e1 r <|> types e2 r)
+unionLeft e1 e2 =
+  PrettyPrintEnv
+    (\r -> terms e1 r <|> terms e2 r)
+    (\r -> types e1 r <|> types e2 r)
 
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
@@ -77,5 +78,6 @@ patternName env r =
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)
   mappend = unionLeft
+
 instance Semigroup PrettyPrintEnv where
   (<>) = mappend

@@ -194,6 +194,8 @@ test> Text.tests.alignment =
         Text.alignRightWith 5 ?_ "ababa" == "ababa",
         Text.alignRightWith 5 ?_ "ab" == "___ab"
       ]
+
+test> Text.tests.literalsEq = checks [":)" == ":)"]
 ```
 
 ## `Bytes` functions
@@ -268,8 +270,17 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ## Sandboxing functions
 
 ```unison
+openFile1 t = openFile t
+openFile2 t = openFile1 t
+
+openFiles =
+  [ not (validateSandboxed [] openFile)
+  , not (validateSandboxed [] openFile1)
+  , not (validateSandboxed [] openFile2)
+  ]
+
 test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
-test> Sandbox.test2 = checks [not (validateSandboxed [] openFile)]
+test> Sandbox.test2 = checks openFiles
 test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
 openFile]
 ```
@@ -285,19 +296,22 @@ openFile]
       Sandbox.test1 : [Result]
       Sandbox.test2 : [Result]
       Sandbox.test3 : [Result]
+      openFile1     : Text -> FileMode ->{IO, Exception} Handle
+      openFile2     : Text -> FileMode ->{IO, Exception} Handle
+      openFiles     : [Boolean]
   
   Now evaluating any watch expressions (lines starting with
   `>`)... Ctrl+C cancels.
 
-    1 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
+    10 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
     ✅ Passed Passed
   
-    2 | test> Sandbox.test2 = checks [not (validateSandboxed [] openFile)]
+    11 | test> Sandbox.test2 = checks openFiles
     
     ✅ Passed Passed
   
-    3 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
+    12 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
     
     ✅ Passed Passed
 
@@ -328,10 +342,11 @@ Now that all the tests have been added to the codebase, let's view the test repo
   ◉ Sandbox.test2               Passed
   ◉ Sandbox.test3               Passed
   ◉ Text.tests.alignment        Passed
+  ◉ Text.tests.literalsEq       Passed
   ◉ Text.tests.repeat           Passed
   ◉ Text.tests.takeDropAppend   Passed
   
-  ✅ 19 test(s) passing
+  ✅ 20 test(s) passing
   
   Tip: Use view Any.test1 to view the source of a test.
 

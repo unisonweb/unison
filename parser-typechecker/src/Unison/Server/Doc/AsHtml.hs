@@ -10,6 +10,7 @@ import Control.Monad.Trans.State (evalStateT)
 import Control.Monad.Writer.Class (MonadWriter)
 import qualified Control.Monad.Writer.Class as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
+import qualified Data.Char as Char
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -19,12 +20,14 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Lucid
 import qualified Lucid as L
+import qualified Lucid.Base as LB
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Name (Name)
 import qualified Unison.Name as Name
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import Unison.Server.Doc
+import qualified Unison.Server.Doc as Doc
 import Unison.Server.Syntax (SyntaxText)
 import qualified Unison.Server.Syntax as Syntax
 
@@ -186,18 +189,38 @@ toText sep doc =
         . filter (not . isEmpty)
         . map (toText sep)
 
-toHtml :: Map Referent Name -> Doc -> Html ()
+data SideContent
+  = FrontMatterContent (Map Text [Text])
+  | TooltipContent (Html ())
+
+newtype FrontMatterData = FrontMatterData (Map Text [Text])
+
+toHtml :: Map Referent Name -> Doc -> (FrontMatterData, Html ())
 toHtml docNamesByRef document =
-  article_ [class_ "unison-doc"] $ do
-    content
-    div_ [class_ "tooltips", style_ "display: none;"] $ sequence_ tooltips
+  ( FrontMatterData frontMatterContent,
+    article_ [class_ "unison-doc"] $ do
+      content
+      div_ [class_ "tooltips", style_ "display: none;"] tooltips
+  )
   where
-    (_ :: Html (), (content, tooltips) :: (Html (), Seq (Html ()))) =
+    tooltips =
+      foldl go mempty sideContent
+      where
+        go acc (FrontMatterContent _) = acc
+        go acc (TooltipContent html) = acc <> html
+
+    frontMatterContent =
+      foldl go mempty sideContent
+      where
+        go acc (FrontMatterContent fm) = acc <> fm
+        go acc (TooltipContent _) = acc
+
+    (_ :: Html (), (content, sideContent) :: (Html (), Seq SideContent)) =
       runWriterT (evalStateT (toHtml_ 1 document) 0)
 
     toHtml_ ::
       forall m.
-      (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+      (MonadState Int m, MonadWriter (Seq SideContent) m) =>
       Nat ->
       Doc ->
       m (Html ())
@@ -205,7 +228,7 @@ toHtml docNamesByRef document =
       let -- Make it simple to retain the sectionLevel when recurring.
           -- the Section variant increments it locally
           currentSectionLevelToHtml ::
-            (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+            (MonadState Int m, MonadWriter (Seq SideContent) m) =>
             Doc ->
             m (Html ())
           currentSectionLevelToHtml =
@@ -216,7 +239,7 @@ toHtml docNamesByRef document =
             sequence_ <$> traverse f xs
 
           sectionContentToHtml ::
-            (MonadState Int m, MonadWriter (Seq (Html ())) m) =>
+            (MonadState Int m, MonadWriter (Seq SideContent) m) =>
             (Doc -> m (Html ())) ->
             Doc ->
             m (Html ())
@@ -254,7 +277,7 @@ toHtml docNamesByRef document =
               tooltip <-
                 div_ [class_ "tooltip-content", id_ tooltipId]
                   <$> currentSectionLevelToHtml tooltipContent
-              Writer.tell (pure tooltip)
+              Writer.tell (pure $ TooltipContent tooltip)
 
               span_
                 [ class_ "tooltip-trigger",
@@ -348,8 +371,13 @@ toHtml docNamesByRef document =
                in ol_ [start_ $ Text.pack $ show startNum]
                     <$> renderSequence itemToHtml (mergeWords " " items)
             Section title docs -> do
+              let sectionId =
+                    Text.toLower $
+                      Text.filter (\c -> c == '-' || Char.isAlphaNum c) $
+                        toText "-" title
+
               titleEl <-
-                h sectionLevel <$> currentSectionLevelToHtml title
+                h sectionLevel sectionId <$> currentSectionLevelToHtml title
 
               docs' <- renderSequence (sectionContentToHtml (toHtml_ (sectionLevel + 1))) docs
 
@@ -432,6 +460,23 @@ toHtml docNamesByRef document =
                           span_ [class_ "result"] $ do
                             "⧨"
                             Syntax.toHtml result
+                Video sources attrs ->
+                  let source (MediaSource s Nothing) =
+                        source_ [src_ s]
+                      source (MediaSource s (Just m)) =
+                        source_ [src_ s, type_ m]
+
+                      attrs' = foldMap go (Map.toList attrs)
+                        where
+                          go ("poster", p) = [LB.makeAttribute "poster" p]
+                          go ("autoplay", "true") = [LB.makeAttribute "autoplay" "autoplay"]
+                          go ("loop", "true") = [loop_ "loop"]
+                          go ("muted", "true") = [LB.makeAttribute "muted" "muted"]
+                          go _ = []
+                   in pure $ video_ attrs' $ mapM_ source sources
+                Doc.FrontMatter fm -> do
+                  Writer.tell (pure $ FrontMatterContent fm)
+                  pure mempty
                 Embed syntax ->
                   pure $ div_ [class_ "source rich embed"] $ codeBlock [] (Syntax.toHtml syntax)
                 EmbedInline syntax ->
@@ -454,16 +499,16 @@ toHtml docNamesByRef document =
 -- | Unison Doc allows endlessly deep section nesting with
 -- titles, but HTML only supports to h1-h6, so we clamp
 -- the sectionLevel when converting
-h :: Nat -> (Html () -> Html ())
-h n =
+h :: Nat -> Text -> (Html () -> Html ())
+h n anchorId =
   case n of
-    1 -> h1_
-    2 -> h2_
-    3 -> h3_
-    4 -> h4_
-    5 -> h5_
-    6 -> h6_
-    _ -> h6_
+    1 -> h1_ [id_ anchorId]
+    2 -> h2_ [id_ anchorId]
+    3 -> h3_ [id_ anchorId]
+    4 -> h4_ [id_ anchorId]
+    5 -> h5_ [id_ anchorId]
+    6 -> h6_ [id_ anchorId]
+    _ -> h6_ [id_ anchorId]
 
 badge :: Html () -> Html ()
 badge =

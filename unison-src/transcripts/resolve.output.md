@@ -163,10 +163,10 @@ Let's now merge these namespaces into `c`:
   
   New name conflicts:
   
-    1. foo#jdqoenu794 : Nat
+    1. foo#emomp74i93 : Nat
        ↓
-    2. ┌ foo#8e68dvpr0a : Nat
-    3. └ foo#jdqoenu794 : Nat
+    2. ┌ foo#a84tg4er4k : Nat
+    3. └ foo#emomp74i93 : Nat
   
   Updates:
   
@@ -194,9 +194,9 @@ The namespace `c` now has an edit conflict, since the term `foo` was edited in t
   have been merged into this one. You'll have to tell me what to
   use as the new definition:
   
-    The term 1. #44954ulpdf was replaced with
-      2. foo#8e68dvpr0a
-      3. foo#jdqoenu794
+    The term 1. #qkhkl0n238 was replaced with
+      2. foo#a84tg4er4k
+      3. foo#emomp74i93
 
 ```
 We see that the original hash of `a.foo` got replaced with _two different_ hashes.
@@ -214,7 +214,7 @@ This changes the merged `c.patch` so that only a single edit remains and resolve
 ```ucm
 .example.resolve.c> view.patch
 
-  Edited Terms: 1. #44954ulpdf -> 2. foo#8e68dvpr0a
+  Edited Terms: 1. #qkhkl0n238 -> 2. foo#a84tg4er4k
   
   Tip: To remove entries from a patch, use
        delete.term-replacement or delete.type-replacement, as
@@ -229,8 +229,8 @@ We still have a remaining _name conflict_ since it just so happened that both of
   ❓
   
   The term foo has conflicting definitions:
-    1. foo#8e68dvpr0a
-    2. foo#jdqoenu794
+    1. foo#a84tg4er4k
+    2. foo#emomp74i93
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `move.term` or `delete.term`
@@ -244,16 +244,16 @@ We can resolve the name conflict by deleting one of the names.
 
   Resolved name conflicts:
   
-    1. ┌ example.resolve.c.foo#8e68dvpr0a : Nat
-    2. └ example.resolve.c.foo#jdqoenu794 : Nat
+    1. ┌ example.resolve.c.foo#a84tg4er4k : Nat
+    2. └ example.resolve.c.foo#emomp74i93 : Nat
        ↓
-    3. example.resolve.c.foo#8e68dvpr0a : Nat
+    3. example.resolve.c.foo#a84tg4er4k : Nat
   
   Name changes:
   
     Original                               Changes
-    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#jdqoenu794 (removed)
-    6. example.resolve.c.foo#jdqoenu794 ┘  
+    4. example.resolve.a.foo            ┐  5. example.resolve.c.foo#emomp74i93 (removed)
+    6. example.resolve.c.foo#emomp74i93 ┘  
   
   Tip: You can use `undo` or `reflog` to undo this change.
 

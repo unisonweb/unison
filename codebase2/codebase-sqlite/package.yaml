@@ -1,6 +1,29 @@
 name: unison-codebase-sqlite
 github: unisonweb/unison
 
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DeriveFunctor
+  - DerivingStrategies
+  - DoAndIfThenElse
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - PatternSynonyms
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+
 library:
   source-dirs: .
 
@@ -15,6 +38,7 @@ dependencies:
   - extra
   - here
   - lens
+  - generic-lens
   - monad-validate
   - mtl
   - safe

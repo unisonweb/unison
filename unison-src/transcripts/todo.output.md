@@ -34,8 +34,8 @@ structural type MyType = MyType Text
   The namespace has 2 transitive dependent(s) left to upgrade.
   Your edit frontier is the dependents of these definitions:
   
-    structural type MyType#d97e0jhkmd
-    x#jk19sm5bf8 : Nat
+    structural type MyType#68k40ra7l7
+    x#gjmq673r1v : Nat
   
   I recommend working on them in the following order:
   
@@ -74,23 +74,23 @@ structural type MyType = MyType Int
   
   New name conflicts:
   
-    1.  structural type MyType#d97e0jhkmd
+    1.  structural type MyType#68k40ra7l7
            
         ↓
-    2.  ┌ structural type MyType#d97e0jhkmd
+    2.  ┌ structural type MyType#68k40ra7l7
              
-    3.  └ structural type MyType#muulibntaq
+    3.  └ structural type MyType#eo6rj0lj1b
              
     
-    4.  MyType.MyType#d97e0jhkmd#0 : Nat -> MyType#d97e0jhkmd
+    4.  MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
         ↓
-    5.  ┌ MyType.MyType#d97e0jhkmd#0 : Nat -> MyType#d97e0jhkmd
-    6.  └ MyType.MyType#muulibntaq#0 : Int -> MyType#muulibntaq
+    5.  ┌ MyType.MyType#68k40ra7l7#0 : Nat -> MyType#68k40ra7l7
+    6.  └ MyType.MyType#eo6rj0lj1b#0 : Int -> MyType#eo6rj0lj1b
     
-    7.  x#0ja1qfpej6 : Nat
+    7.  x#dcgdua2lj6 : Nat
         ↓
-    8.  ┌ x#0ja1qfpej6 : Nat
-    9.  └ x#msp7bv40rv : Nat
+    8.  ┌ x#dcgdua2lj6 : Nat
+    9.  └ x#f3lgjvjqoo : Nat
   
   Updates:
   
@@ -113,16 +113,16 @@ structural type MyType = MyType Int
   use as the new definition:
   
     The type 1. .builtin.Unit was replaced with
-      2. MyType#d97e0jhkmd
-      3. MyType#muulibntaq
-    The term 4. #jk19sm5bf8 was replaced with
-      5. x#0ja1qfpej6
-      6. x#msp7bv40rv
+      2. MyType#68k40ra7l7
+      3. MyType#eo6rj0lj1b
+    The term 4. #gjmq673r1v was replaced with
+      5. x#dcgdua2lj6
+      6. x#f3lgjvjqoo
   ❓
   
   The term MyType.MyType has conflicting definitions:
-    7. MyType.MyType#d97e0jhkmd#0
-    8. MyType.MyType#muulibntaq#0
+    7. MyType.MyType#68k40ra7l7#0
+    8. MyType.MyType#eo6rj0lj1b#0
   
   Tip: This occurs when merging branches that both independently
        introduce the same name. Use `move.term` or `delete.term`

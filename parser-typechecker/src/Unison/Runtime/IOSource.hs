@@ -1,62 +1,62 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
-{-# Language ViewPatterns #-}
-{-# Language PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# Language QuasiQuotes #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Unison.Runtime.IOSource where
 
-import Unison.Prelude
-
 import Control.Lens (view, _1)
-import Control.Monad.Identity (runIdentity, Identity)
+import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Morph (hoist)
 import Data.List (elemIndex, genericIndex)
-import Text.RawString.QQ (r)
-import Unison.Codebase.CodeLookup (CodeLookup(..))
-import Unison.ConstructorReference (GConstructorReference(..))
-import Unison.FileParsers (parseAndSynthesizeFile)
-import Unison.Parser.Ann (Ann(..))
-import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
+import Text.RawString.QQ (r)
 import qualified Unison.Builtin as Builtin
+import Unison.Codebase.CodeLookup (CodeLookup (..))
 import qualified Unison.Codebase.CodeLookup.Util as CL
+import Unison.ConstructorReference (GConstructorReference (..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.DataDeclaration.ConstructorId as DD
+import Unison.FileParsers (parseAndSynthesizeFile)
+import qualified Unison.NamesWithHistory as Names
 import qualified Unison.Parser as Parser
+import Unison.Parser.Ann (Ann (..))
+import Unison.Prelude
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
+import Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
-import qualified Unison.NamesWithHistory as Names
 
 debug :: Bool
 debug = False
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile = let x = typecheckedFile' in
-  if debug then trace ("IOSource.typecheckedFile = " ++ show x) x else x
+typecheckedFile =
+  let x = typecheckedFile'
+   in if debug then trace ("IOSource.typecheckedFile = " ++ show x) x else x
 
 typecheckedFile' :: UF.TypecheckedUnisonFile Symbol Ann
-typecheckedFile' = let
-  tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-  tl = const $ pure (External <$ Builtin.typeLookup)
-  env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
-  r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
-  in case runIdentity $ Result.runResultT r of
-    (Nothing, notes) -> error $ "parsing failed: " <> show notes
-    (Just Left{}, notes) -> error $ "typechecking failed" <> show notes
-    (Just (Right file), _) -> file
+typecheckedFile' =
+  let tl :: a -> Identity (TL.TypeLookup Symbol Ann)
+      tl = const $ pure (External <$ Builtin.typeLookup)
+      env = Parser.ParsingEnv mempty (Names.NamesWithHistory Builtin.names0 mempty)
+      r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
+   in case runIdentity $ Result.runResultT r of
+        (Nothing, notes) -> error $ "parsing failed: " <> show notes
+        (Just Left {}, notes) -> error $ "typechecking failed" <> show notes
+        (Just (Right file), _) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
 typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
 
 termNamed :: String -> R.Reference
-termNamed s = fromMaybe (error $ "No builtin term called: " <> s)
-  $ Map.lookup (Var.nameds s) typecheckedFileTerms
+termNamed s =
+  fromMaybe (error $ "No builtin term called: " <> s) $
+    Map.lookup (Var.nameds s) typecheckedFileTerms
 
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromTypecheckedUnisonFile typecheckedFile
@@ -79,8 +79,11 @@ abilityNamedId s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-eitherReference, optionReference, isTestReference, isPropagatedReference
-  :: R.Reference
+eitherReference,
+  optionReference,
+  isTestReference,
+  isPropagatedReference ::
+    R.Reference
 eitherReference = typeNamed "Either"
 optionReference = typeNamed "Optional"
 isTestReference = typeNamed "IsTest"
@@ -108,96 +111,199 @@ copyrightHolderRef = typeNamed "CopyrightHolder"
 
 doc2Ref :: R.Reference
 doc2Ref = typeNamed "Doc2"
+
 doc2SpecialFormRef = typeNamed "Doc2.SpecialForm"
+
 doc2TermRef = typeNamed "Doc2.Term"
+
 prettyRef = typeNamed "Pretty"
+
 prettyAnnotatedRef = typeNamed "Pretty.Annotated"
+
 ansiColorRef = typeNamed "ANSI.Color"
+
 consoleTextRef = typeNamed "ConsoleText"
 
 pattern Doc2Ref <- ((== doc2Ref) -> True)
+
 doc2WordId = constructorNamed doc2Ref "Doc2.Word"
+
 doc2CodeId = constructorNamed doc2Ref "Doc2.Code"
+
 doc2CodeBlockId = constructorNamed doc2Ref "Doc2.CodeBlock"
+
 doc2BoldId = constructorNamed doc2Ref "Doc2.Bold"
+
 doc2ItalicId = constructorNamed doc2Ref "Doc2.Italic"
+
 doc2StrikethroughId = constructorNamed doc2Ref "Doc2.Strikethrough"
+
 doc2StyleId = constructorNamed doc2Ref "Doc2.Style"
+
 doc2AnchorId = constructorNamed doc2Ref "Doc2.Anchor"
+
 doc2BlockquoteId = constructorNamed doc2Ref "Doc2.Blockquote"
+
 doc2BlanklineId = constructorNamed doc2Ref "Doc2.Blankline"
+
 doc2LinebreakId = constructorNamed doc2Ref "Doc2.Linebreak"
+
 doc2SectionBreakId = constructorNamed doc2Ref "Doc2.SectionBreak"
+
 doc2TooltipId = constructorNamed doc2Ref "Doc2.Tooltip"
+
 doc2AsideId = constructorNamed doc2Ref "Doc2.Aside"
+
 doc2CalloutId = constructorNamed doc2Ref "Doc2.Callout"
+
 doc2TableId = constructorNamed doc2Ref "Doc2.Table"
+
 doc2FoldedId = constructorNamed doc2Ref "Doc2.Folded"
+
 doc2ParagraphId = constructorNamed doc2Ref "Doc2.Paragraph"
+
 doc2BulletedListId = constructorNamed doc2Ref "Doc2.BulletedList"
+
 doc2NumberedListId = constructorNamed doc2Ref "Doc2.NumberedList"
+
 doc2SectionId = constructorNamed doc2Ref "Doc2.Section"
+
 doc2NamedLinkId = constructorNamed doc2Ref "Doc2.NamedLink"
+
 doc2ImageId = constructorNamed doc2Ref "Doc2.Image"
+
 doc2SpecialId = constructorNamed doc2Ref "Doc2.Special"
+
 doc2JoinId = constructorNamed doc2Ref "Doc2.Join"
+
 doc2UntitledSectionId = constructorNamed doc2Ref "Doc2.UntitledSection"
+
 doc2ColumnId = constructorNamed doc2Ref "Doc2.Column"
+
 doc2GroupId = constructorNamed doc2Ref "Doc2.Group"
 
+doc2MediaSourceRef :: R.Reference
+doc2MediaSourceRef = typeNamed "Doc2.MediaSource"
+
+pattern Doc2MediaSourceRef <- ((== doc2MediaSourceRef) -> True)
+
+doc2VideoRef :: R.Reference
+doc2VideoRef = typeNamed "Doc2.Video"
+
+pattern Doc2VideoRef <- ((== doc2VideoRef) -> True)
+
+doc2FrontMatterRef :: R.Reference
+doc2FrontMatterRef = typeNamed "Doc2.FrontMatter"
+
+pattern Doc2FrontMatterRef <- ((== doc2FrontMatterRef) -> True)
+
 pattern Doc2Word txt <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2WordId -> True))) (Term.Text' txt)
+
 pattern Doc2Code d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeId -> True))) d
+
 pattern Doc2CodeBlock lang d <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CodeBlockId -> True))) [Term.Text' lang, d]
+
 pattern Doc2Bold d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2BoldId -> True))) d
+
 pattern Doc2Italic d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2ItalicId -> True))) d
+
 pattern Doc2Strikethrough d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2StrikethroughId -> True))) d
+
 pattern Doc2Style s d <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2StyleId -> True))) [Term.Text' s, d]
+
 pattern Doc2Anchor id d <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2AnchorId -> True))) [Term.Text' id, d]
+
 pattern Doc2Blockquote d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2BlockquoteId -> True))) d
+
 pattern Doc2Blankline <- Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2BlanklineId -> True))
+
 pattern Doc2Linebreak <- Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2LinebreakId -> True))
+
 pattern Doc2SectionBreak <- Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2SectionBreakId -> True))
+
 pattern Doc2Tooltip d tip <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2TooltipId -> True))) [d, tip]
+
 pattern Doc2Aside d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2AsideId -> True))) d
+
 pattern Doc2Callout icon d <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2CalloutId -> True))) [icon, d]
+
 pattern Doc2Table ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2TableId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2Folded isFolded d d2 <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2FoldedId -> True))) [Term.Boolean' isFolded, d, d2]
+
 pattern Doc2Paragraph ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2ParagraphId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2BulletedList ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2BulletedListId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2NumberedList n ds <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2NumberedListId -> True))) [Term.Nat' n, Term.List' (toList -> ds)]
+
 pattern Doc2Section title ds <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2SectionId -> True))) [title, Term.List' (toList -> ds)]
+
 pattern Doc2NamedLink name dest <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2NamedLinkId -> True))) [name, dest]
+
 pattern Doc2Image alt link caption <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2ImageId -> True))) [alt, link, caption]
+
 pattern Doc2Special sf <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2SpecialId -> True))) sf
+
 pattern Doc2Join ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2JoinId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2UntitledSection ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2UntitledSectionId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2Column ds <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2ColumnId -> True))) (Term.List' (toList -> ds))
+
 pattern Doc2Group d <- Term.App' (Term.Constructor' (ConstructorReference Doc2Ref ((==) doc2GroupId -> True))) d
 
 pattern Doc2SpecialFormRef <- ((== doc2SpecialFormRef) -> True)
+
 doc2SpecialFormSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Source"
+
 doc2SpecialFormFoldedSourceId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.FoldedSource"
+
 doc2SpecialFormExampleId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Example"
+
 doc2SpecialFormExampleBlockId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.ExampleBlock"
+
 doc2SpecialFormLinkId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Link"
+
 doc2SpecialFormSignatureId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Signature"
+
 doc2SpecialFormSignatureInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.SignatureInline"
+
 doc2SpecialFormEvalId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Eval"
+
 doc2SpecialFormEvalInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.EvalInline"
+
 doc2SpecialFormEmbedId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.Embed"
+
 doc2SpecialFormEmbedInlineId = constructorNamed doc2SpecialFormRef "Doc2.SpecialForm.EmbedInline"
 
 pattern Doc2SpecialFormSource tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormSourceId -> True))) tm
+
 pattern Doc2SpecialFormFoldedSource tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormFoldedSourceId -> True))) tm
+
 pattern Doc2SpecialFormExample n tm <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormExampleId -> True))) [Term.Nat' n, tm]
+
 pattern Doc2SpecialFormExampleBlock n tm <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormExampleBlockId -> True))) [Term.Nat' n, tm]
+
 pattern Doc2SpecialFormLink tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormLinkId -> True))) tm
+
 pattern Doc2SpecialFormSignature tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormSignatureId -> True))) tm
+
 pattern Doc2SpecialFormSignatureInline tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormSignatureInlineId -> True))) tm
+
 pattern Doc2SpecialFormEval tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEvalId -> True))) tm
+
 pattern Doc2SpecialFormEvalInline tm <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEvalInlineId -> True))) tm
+
 pattern Doc2SpecialFormEmbed any <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEmbedId -> True))) any
+
 pattern Doc2SpecialFormEmbedInline any <- Term.App' (Term.Constructor' (ConstructorReference Doc2SpecialFormRef ((==) doc2SpecialFormEmbedInlineId -> True))) any
+
+pattern Doc2MediaSource src mimeType <- Term.Apps' (Term.Constructor' (ConstructorReference Doc2MediaSourceRef _)) [src, mimeType]
+
+pattern Doc2SpecialFormEmbedVideo sources config <- Doc2SpecialFormEmbed (Term.App' _ (Term.Apps' (Term.Constructor' (ConstructorReference Doc2VideoRef _)) [Term.List' (toList -> sources), Term.List' (toList -> config)]))
+
+pattern Doc2SpecialFormEmbedFrontMatter frontMatter <- Doc2SpecialFormEmbed (Term.App' _ (Term.App' (Term.Constructor' (ConstructorReference Doc2FrontMatterRef _)) (Term.List' (toList -> frontMatter))))
 
 -- pulls out `vs body` in `Doc2.Term (Any '(vs -> body))`, where
 -- vs can be any number of parameters
@@ -209,86 +315,159 @@ pattern Doc2Term body <- Term.App' _term (Term.App' _any (Term.LamNamed' _ body)
 pattern Doc2TermRef <- ((== doc2TermRef) -> True)
 
 pattern PrettyAnnotatedRef <- ((== prettyAnnotatedRef) -> True)
+
 prettyEmptyId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Empty"
+
 prettyGroupId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Group"
+
 prettyLitId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Lit"
+
 prettyWrapId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Wrap"
+
 prettyOrElseId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.OrElse"
+
 prettyIndentId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Indent"
+
 prettyAppendId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Append"
+
 prettyTableId = constructorNamed prettyAnnotatedRef "Pretty.Annotated.Table"
 
 pattern PrettyEmpty ann <- Term.App' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyEmptyId -> True))) ann
+
 pattern PrettyGroup ann tm <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyGroupId -> True))) [ann, tm]
+
 pattern PrettyLit ann tm <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyLitId -> True))) [ann, tm]
+
 pattern PrettyWrap ann tm <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyWrapId -> True))) [ann, tm]
+
 pattern PrettyIndent ann i0 i1 tm <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyIndentId -> True))) [ann, i0, i1, tm]
+
 pattern PrettyOrElse ann p1 p2 <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyOrElseId -> True))) [ann, p1, p2]
+
 pattern PrettyTable ann rows <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyTableId -> True))) [ann, Term.List' rows]
+
 pattern PrettyAppend ann tms <- Term.Apps' (Term.Constructor' (ConstructorReference PrettyAnnotatedRef ((==) prettyAppendId -> True))) [ann, Term.List' tms]
 
 pattern PrettyRef <- ((== prettyRef) -> True)
 
 prettyGetRef = termNamed "Pretty.get"
+
 doc2FormatConsoleRef = termNamed "syntax.docFormatConsole"
 
-pattern AnsiColorRef  <- ((== ansiColorRef) -> True)
-[ ansiColorBlackId, ansiColorRedId, ansiColorGreenId, ansiColorYellowId
-  , ansiColorBlueId, ansiColorMagentaId, ansiColorCyanId, ansiColorWhiteId
-  , ansiColorBrightBlackId, ansiColorBrightRedId, ansiColorBrightGreenId, ansiColorBrightYellowId
-  , ansiColorBrightBlueId, ansiColorBrightMagentaId, ansiColorBrightCyanId, ansiColorBrightWhiteId ]
- = map ct [
-  "Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White",
-  "BrightBlack", "BrightRed", "BrightGreen", "BrightYellow", "BrightBlue",
-  "BrightMagenta", "BrightCyan", "BrightWhite" ]
-  where ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
+pattern AnsiColorRef <- ((== ansiColorRef) -> True)
+
+[ ansiColorBlackId,
+  ansiColorRedId,
+  ansiColorGreenId,
+  ansiColorYellowId,
+  ansiColorBlueId,
+  ansiColorMagentaId,
+  ansiColorCyanId,
+  ansiColorWhiteId,
+  ansiColorBrightBlackId,
+  ansiColorBrightRedId,
+  ansiColorBrightGreenId,
+  ansiColorBrightYellowId,
+  ansiColorBrightBlueId,
+  ansiColorBrightMagentaId,
+  ansiColorBrightCyanId,
+  ansiColorBrightWhiteId
+  ] =
+    map
+      ct
+      [ "Black",
+        "Red",
+        "Green",
+        "Yellow",
+        "Blue",
+        "Magenta",
+        "Cyan",
+        "White",
+        "BrightBlack",
+        "BrightRed",
+        "BrightGreen",
+        "BrightYellow",
+        "BrightBlue",
+        "BrightMagenta",
+        "BrightCyan",
+        "BrightWhite"
+      ]
+    where
+      ct n = constructorNamed ansiColorRef ("ANSI.Color." <> n)
 
 pattern AnsiColorBlack <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBlackId -> True))
+
 pattern AnsiColorRed <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorRedId -> True))
+
 pattern AnsiColorGreen <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorGreenId -> True))
+
 pattern AnsiColorYellow <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorYellowId -> True))
+
 pattern AnsiColorBlue <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBlueId -> True))
+
 pattern AnsiColorMagenta <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorMagentaId -> True))
+
 pattern AnsiColorCyan <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorCyanId -> True))
+
 pattern AnsiColorWhite <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorWhiteId -> True))
+
 pattern AnsiColorBrightBlack <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightBlackId -> True))
+
 pattern AnsiColorBrightRed <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightRedId -> True))
+
 pattern AnsiColorBrightGreen <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightGreenId -> True))
+
 pattern AnsiColorBrightYellow <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightYellowId -> True))
+
 pattern AnsiColorBrightBlue <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightBlueId -> True))
+
 pattern AnsiColorBrightMagenta <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightMagentaId -> True))
+
 pattern AnsiColorBrightCyan <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightCyanId -> True))
+
 pattern AnsiColorBrightWhite <- Term.Constructor' (ConstructorReference AnsiColorRef ((==) ansiColorBrightWhiteId -> True))
 
-pattern ConsoleTextRef  <- ((== consoleTextRef) -> True)
+pattern ConsoleTextRef <- ((== consoleTextRef) -> True)
+
 consoleTextPlainId = constructorNamed consoleTextRef "ConsoleText.Plain"
+
 consoleTextForegroundId = constructorNamed consoleTextRef "ConsoleText.Foreground"
+
 consoleTextBackgroundId = constructorNamed consoleTextRef "ConsoleText.Background"
+
 consoleTextBoldId = constructorNamed consoleTextRef "ConsoleText.Bold"
+
 consoleTextUnderlineId = constructorNamed consoleTextRef "ConsoleText.Underline"
+
 consoleTextInvertId = constructorNamed consoleTextRef "ConsoleText.Invert"
 
 pattern ConsoleTextPlain txt <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextPlainId -> True))) txt
+
 pattern ConsoleTextForeground color ct <- Term.Apps' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextForegroundId -> True))) [color, ct]
+
 pattern ConsoleTextBackground color ct <- Term.Apps' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextBackgroundId -> True))) [color, ct]
+
 pattern ConsoleTextBold ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextBoldId -> True))) ct
+
 pattern ConsoleTextUnderline ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextUnderlineId -> True))) ct
+
 pattern ConsoleTextInvert ct <- Term.App' (Term.Constructor' (ConstructorReference ConsoleTextRef ((==) consoleTextInvertId -> True))) ct
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
-    Just decl ->
-      fromMaybe
-          (  error
-          $  "Unison runtime bug. The type "
+      error $
+        "There's a bug in the Unison runtime. Couldn't find type "
           <> show ref
-          <> " has no constructor named "
-          <> show name
+    Just decl ->
+      fromIntegral
+        . fromMaybe
+          ( error $
+              "Unison runtime bug. The type "
+                <> show ref
+                <> " has no constructor named "
+                <> show name
           )
         . elemIndex name
         . DD.constructorNames
@@ -298,15 +477,17 @@ constructorName :: R.Reference -> DD.ConstructorId -> Text
 constructorName ref cid =
   case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
     Nothing ->
-      error
-        $  "There's a bug in the Unison runtime. Couldn't find type "
-        <> show ref
+      error $
+        "There's a bug in the Unison runtime. Couldn't find type "
+          <> show ref
     Just decl -> genericIndex (DD.constructorNames $ DD.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
 
 source :: Text
-source = fromString [r|
+source =
+  fromString
+    [r|
 
 structural type Either a b = Left a | Right b
 
@@ -356,6 +537,26 @@ metadata.isPropagated = IsPropagated.IsPropagated
 
 -- A newtype used when embedding term references in a Doc2
 unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Term = Term Any
+
+-- Media types for Doc2.Embed. 
+-- Somewhat modelled after:
+--   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/source and
+--   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
+
+unique[ab9344724264495159ec7122d276a6358630403b6a5529e1e5d76bcf] type Doc2.MediaSource 
+  = { sourceUrl: Text, mimeType: Optional Text }
+
+-- Used with MediaSource to embed videos in a Doc. The `config` field is
+-- intended to be used to add attributes etc, like `poster` or `autoplay` for
+-- the HTML <video> element, if rendered as such.
+unique[b2ada5dfd4112ca3a7ba0a6483ce3d82811400c56eff8e6eca1b3fbf] type Doc2.Video
+  = { sources: [Doc2.MediaSource]
+    , config: [(Text, Text)]
+    }
+
+-- Useful for embedded data into a Doc, like title, date, tags etc:
+unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter 
+  = FrontMatter [(Text, Text)]
 
 -- ex: Doc2.term 'List.map
 Doc2.term : 'a -> Doc2.Term

@@ -1,9 +1,8 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module U.Util.Monoid where
 
+import Control.Monad (foldM)
 import Data.Foldable (toList)
 import Data.List (intersperse)
-import Control.Monad (foldM)
 
 -- List.intercalate extended to any monoid
 -- "The type that intercalate should have had to begin with."

@@ -1,4 +1,3 @@
-{- ORMOLU_DISABLE -} -- Remove this when the file is ready to be auto-formatted
 module Unison.Codebase.FileCodebase (codebaseExists) where
 
 import System.FilePath ((</>))
@@ -10,11 +9,10 @@ import UnliftIO.Directory (doesDirectoryExist)
 codebaseExists :: MonadIO m => CodebasePath -> m Bool
 codebaseExists root =
   and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
-
   where
     -- checks if `path` looks like a unison codebase
     minimalCodebaseStructure :: CodebasePath -> [FilePath]
-    minimalCodebaseStructure root = [ branchHeadDir root ]
+    minimalCodebaseStructure root = [branchHeadDir root]
 
     branchesDir root = root </> codebasePath </> "paths"
     branchHeadDir root = branchesDir root </> "_head"
