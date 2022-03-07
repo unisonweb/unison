@@ -52,6 +52,9 @@ ensureCodebaseIsUpToDate localOrRemote root conn codebase = UnliftIO.try do
     liftIO . putStrLn $ "🔨 Migrating codebase to version " <> show v <> "..."
     migration conn codebase
   when ((not . null) migrationsToRun) $ do
+    -- Vacuum once now that any migrations have taken place.
+    liftIO $ putStrLn $ "Cleaning up..."
+    liftIO . flip runReaderT conn $ Q.vacuum
     liftIO . putStrLn $ "🏁 Migration complete. 🏁"
 
 -- | Copy the sqlite database to a new file with a unique name based on current time.

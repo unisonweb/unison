@@ -149,8 +149,6 @@ migrateSchema1To2 conn codebase = do
     runDB conn (liftQ Q.garbageCollectWatchesWithoutObjects)
     liftIO $ putStrLn $ "Updating Schema Version..."
     runDB conn . liftQ $ Q.setSchemaVersion 2
-  liftIO $ putStrLn $ "Cleaning up..."
-  runDB conn (liftQ Q.vacuum)
   pure $ Right ()
   where
     withinSavepoint :: (String -> m c -> m c)
