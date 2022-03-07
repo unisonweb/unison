@@ -96,6 +96,13 @@ module U.Codebase.Sqlite.Queries
     getDependenciesForDependent,
     getDependencyIdsForDependent,
 
+    -- ** migrations
+    countObjects,
+    countCausals,
+    countWatches,
+    getCausalsWithoutBranchObjects,
+    removeHashObjectsByHashingVersion,
+
     -- ** type index
     addToTypeIndex,
     getReferentsByType,
@@ -116,11 +123,6 @@ module U.Codebase.Sqlite.Queries
     vacuum,
     garbageCollectObjectsWithoutHashes,
     garbageCollectWatchesWithoutObjects,
-    -- migrations
-    countObjects,
-    countCausals,
-    countWatches,
-    getCausalsWithoutBranchObjects,
 
     -- * db misc
     createSchema,
@@ -186,6 +188,7 @@ import U.Codebase.Sqlite.DbId
     BranchObjectId (..),
     CausalHashId (..),
     HashId (..),
+    HashVersion,
     ObjectId (..),
     SchemaVersion,
     TextId,
@@ -359,7 +362,7 @@ loadTextById :: EDB m => TextId -> m Text
 loadTextById h = queryAtom sql (Only h) >>= orError (UnknownTextId h)
   where sql = [here| SELECT text FROM text WHERE id = ? |]
 
-saveHashObject :: DB m => HashId -> ObjectId -> Int -> m ()
+saveHashObject :: DB m => HashId -> ObjectId -> HashVersion -> m ()
 saveHashObject hId oId version = execute sql (hId, oId, version) where
   sql = [here|
     INSERT INTO hash_object (hash_id, object_id, hash_version)
@@ -438,7 +441,7 @@ hashIdsForObject oId = do
     sql1 = "SELECT primary_hash_id FROM object WHERE id = ?"
     sql2 = "SELECT hash_id FROM hash_object WHERE object_id = ?"
 
-hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, Int)]
+hashIdWithVersionForObject :: DB m => ObjectId -> m [(HashId, HashVersion)]
 hashIdWithVersionForObject = query sql . Only where sql = [here|
   SELECT hash_id, hash_version FROM hash_object WHERE object_id = ?
 |]
@@ -872,6 +875,18 @@ getCausalsWithoutBranchObjects = queryAtoms_ sql
 |]
 
 {- ORMOLU_ENABLE -}
+
+-- | Delete all hash objects of a given hash version.
+-- Leaves the corresponding `hash`es in the hash table alone.
+removeHashObjectsByHashingVersion :: DB m => HashVersion -> m ()
+removeHashObjectsByHashingVersion hashVersion =
+  execute sql (Only hashVersion)
+  where
+    sql =
+      [here|
+    DELETE FROM hash_object
+      WHERE hash_version = ?
+|]
 
 before :: DB m => CausalHashId -> CausalHashId -> m Bool
 before chId1 chId2 = fmap fromOnly . queryOne $ queryMaybe sql (chId2, chId1)

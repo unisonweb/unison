@@ -1,9 +1,9 @@
--- v2 codebase schema
+-- v3 codebase schema
 
 CREATE TABLE schema_version (
   version INTEGER NOT NULL
 );
-INSERT INTO schema_version (version) VALUES (2);
+INSERT INTO schema_version (version) VALUES (3);
 
 -- actually stores the 512-byte hashes
 CREATE TABLE hash (

@@ -66,8 +66,10 @@ library
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.GitError
       Unison.Codebase.SqliteCodebase.Migrations
+      Unison.Codebase.SqliteCodebase.Migrations.Errors
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2.DbHelpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema2To3
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
       Unison.Codebase.SyncMode
