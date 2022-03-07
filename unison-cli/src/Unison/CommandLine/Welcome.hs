@@ -172,7 +172,7 @@ getStarted dir = do
           P.column2
             [ ("📖", "Type " <> P.hiBlue "help" <> " to list all commands, or " <> P.hiBlue "help <cmd>" <> " to view help for one command"),
               ("🎨", "Type " <> P.hiBlue "ui" <> " to open the Codebase UI in your default browser"),
-              ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/docs/"),
+              ("📚", "Read the official docs at " <> P.blue "https://www.unison-lang.org/learn/"),
               (earth, "Visit Unison Share at " <> P.blue "https://share.unison-lang.org" <> " to discover libraries"),
               ("👀", "I'm watching for changes to " <> P.bold ".u" <> " files under " <> (P.group . P.blue $ P.string dir))
             ]
