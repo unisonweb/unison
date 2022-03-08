@@ -107,8 +107,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: build
-        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+      # - name: build
+      #   run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest codebase-ui and package with ucm
         # Powershell
