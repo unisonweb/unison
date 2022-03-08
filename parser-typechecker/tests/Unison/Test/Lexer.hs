@@ -74,7 +74,7 @@ test =
           ".Foo Foo . .foo.bar.baz"
           [ simpleWordyId ".Foo",
             simpleWordyId "Foo",
-            simpleSymbolyId ".",
+            Dot,
             simpleWordyId ".foo.bar.baz"
           ],
         t ".Foo.Bar.+" [simpleSymbolyId ".Foo.Bar.+"],

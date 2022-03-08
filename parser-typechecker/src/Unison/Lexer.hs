@@ -380,7 +380,7 @@ lexemes' eof =
           let modifier = typeModifiersAlt lit'
           let typeOrAbility' = typeOrAbilityAlt wordyKw
           _ <- modifier <* typeOrAbility' *> sp
-          wordyId --  <|> symbolyId
+          wordyId
         ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
