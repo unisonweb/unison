@@ -103,18 +103,22 @@ main = withCP65001 do
       Run (RunFromSymbol mainName) args -> do
         getCodebaseOrExit mCodePathOption \(_, _, theCodebase) -> do
           runtime <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
-          withArgs args $ execute theCodebase runtime mainName
+          withArgs args (execute theCodebase runtime mainName) >>= \case
+            Left err -> do
+              PT.putPrettyLn err
+              Exit.exitFailure
+            Right () -> pure ()
       Run (RunFromFile file mainName) args
         | not (isDotU file) -> PT.putPrettyLn $ P.callout "⚠️" "Files must have a .u extension."
         | otherwise -> do
-            e <- safeReadUtf8 file
-            case e of
-              Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
-              Right contents -> do
-                getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
-                  rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
-                  let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
-                  launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
+          e <- safeReadUtf8 file
+          case e of
+            Left _ -> PT.putPrettyLn $ P.callout "⚠️" "I couldn't find that file or it is for some reason unreadable."
+            Right contents -> do
+              getCodebaseOrExit mCodePathOption \(initRes, _, theCodebase) -> do
+                rt <- RTI.startRuntime RTI.Standalone Version.gitDescribeWithDate
+                let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
+                launch currentDir config rt theCodebase [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI] Nothing ShouldNotDownloadBase initRes
       Run (RunFromPipe mainName) args -> do
         e <- safeReadUtf8StdIn
         case e of
