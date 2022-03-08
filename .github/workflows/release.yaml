@@ -3,15 +3,15 @@ name: "release"
 on:
   push:
     tags:
-      - "release/*"
+      - "test-release/*"
 
 jobs:
   release:
     name: "create_release"
     runs-on: "ubuntu-latest"
     needs:
-      - build_linux
-      - build_macos
+      # - build_linux
+      # - build_macos
       - build_windows
 
     steps:
@@ -107,22 +107,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: install stack
-        run: |
-          curl -L https://github.com/commercialhaskell/stack/releases/download/v2.5.1/stack-2.5.1-osx-x86_64.tar.gz | tar -xz
-          echo "$HOME/stack-2.5.1-osx-x86_64/" >> $GITHUB_PATH
-
       - name: build
         run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
       - name: fetch latest codebase-ui and package with ucm
+        # Powershell
         run: |
-          mkdir -p /tmp/ucm/ui
-          UCM=$(stack path | awk '/local-install-root/{print $2}')/bin/unison
-          cp $UCM /tmp/ucm/ucm
-          wget -O/tmp/unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
-          unzip -d /tmp/ucm/ui /tmp/unisonLocal.zip
-          tar -c -z -f ucm-windows.tar.gz -C /tmp/ucm .
+          mkdir -p tmp\ui
+          mkdir -p release\ui
+          $UCM = stack exec -- where unison
+          cp $UCM .\release\ucm.exe
+          wget -OutFile tmp\unisonLocal.zip https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip
+          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
+          tar -c -z -f ucm-windows.tar.gz -C release .
 
       - name: Upload windows artifact
         uses: actions/upload-artifact@v2
