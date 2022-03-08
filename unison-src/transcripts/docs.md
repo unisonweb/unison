@@ -1,7 +1,7 @@
 # Documenting Unison code
 
 ```ucm:hide
-.> builtins.merge
+.> builtins.mergeio
 ```
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
@@ -92,4 +92,18 @@ Note that if we view the source of the documentation, the various references are
 
 ```ucm
 .> view docs.List.take
+```
+
+## Docs for operators round-trip properly.
+
+Regression test for https://github.com/unisonweb/unison/issues/2970
+
+```unison:hide
+{{ docs for +++ }}
+(+++) a b = "result"
+```
+
+```ucm
+.> add
+.> edit +++.doc
 ```
