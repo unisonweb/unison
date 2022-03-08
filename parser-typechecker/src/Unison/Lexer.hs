@@ -278,13 +278,13 @@ lexer0' scope rem =
     tweak (h@(payload -> Reserved _) : t) = h : tweak t
     tweak (t1 : t2@(payload -> Numeric num) : rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-          t1 :
-          Token
-            (SymbolyId (take 1 num) Nothing)
-            (start t2)
-            (inc $ start t2) :
-          Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
-          tweak rem
+        t1 :
+        Token
+          (SymbolyId (take 1 num) Nothing)
+          (start t2)
+          (inc $ start t2) :
+        Token (Numeric (drop 1 num)) (inc $ start t2) (end t2) :
+        tweak rem
     tweak (h : t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
 
@@ -358,11 +358,11 @@ lexemes' eof =
       pure $ case (tn, docToks) of
         (Just (WordyId tname _), ht : _)
           | isTopLevel ->
-              startToks
-                <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
-                <> docToks0
-                <> [Close <$ last docToks]
-                <> endToks
+            startToks
+              <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
+              <> docToks0
+              <> [Close <$ last docToks]
+              <> endToks
           where
             isTopLevel = length (layout env0) + maybe 0 (const 1) (opening env0) == 1
         _ -> docToks <> endToks
@@ -544,7 +544,7 @@ lexemes' eof =
                   skip col ('\t' : r) = skip (col - tabWidth) r
                   skip col (c : r)
                     | isSpace c && (not $ isControl c) =
-                        skip (col - 1) r
+                      skip (col - 1) r
                   skip _ s = s
                in intercalate "\n" $ skip column <$> lines s
 
@@ -757,29 +757,34 @@ lexemes' eof =
     character = Character <$> (char '?' *> (spEsc <|> LP.charLiteral))
       where
         spEsc = P.try (char '\\' *> char 's' $> ' ')
+
+    -- symboly Ids and wordy Ids differ only in their final segment, this parses the initial
+    -- path.
+    idPrefix :: P (Maybe String, [String])
+    idPrefix = do
+      dot <- P.optional (lit ".")
+      nonTerminalSegments <- P.many (P.try (segmentP <* char '.'))
+      pure (dot, nonTerminalSegments)
+      where
+        segmentP = symbolyIdSeg <|> wordyIdSeg
+
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.sepBy1 wordyIdSeg (P.try (char '.' <* P.lookAhead (CP.satisfy wordyIdChar)))
+      (dot, segs) <- idPrefix
+      traceM $ "Wordy" <> (show segs)
+      baseName <- wordyIdSeg
       shorthash <- P.optional shorthash
-      pure $ WordyId (fromMaybe "" dot <> intercalate "." segs) shorthash
+      pure . traceShowId $ WordyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
       where
-        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, or 🌻)"
+        wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, .Nat.-.doc or 🌻)"
 
     symbolyId :: P Lexeme
     symbolyId = P.label symbolMsg . P.try $ do
-      dot <- P.optional (lit ".")
-      segs <- P.optional segs
+      (dot, segs) <- idPrefix
+      traceM $ "Symboly" <> (show segs)
+      baseName <- symbolyIdSeg
       shorthash <- P.optional shorthash
-      case (dot, segs) of
-        (_, Just segs) -> pure $ SymbolyId (fromMaybe "" dot <> segs) shorthash
-        -- a single . or .#somehash is parsed as a symboly id
-        (Just dot, Nothing) -> pure $ SymbolyId dot shorthash
-        (Nothing, Nothing) -> fail symbolMsg
-      where
-        segs = symbolyIdSeg <|> (wordyIdSeg <+> lit "." <+> segs)
-
-    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
+      pure . traceShowId $ SymbolyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
 
     symbolyIdSeg :: P String
     symbolyIdSeg = do
@@ -789,6 +794,9 @@ lexemes' eof =
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
       pure id
+
+    symbolMsg :: String
+    symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
 
     wordyIdSeg :: P String
     -- wordyIdSeg = litSeg <|> (P.try do -- todo
@@ -988,7 +996,7 @@ lexemes' eof =
           case topBlockName (layout env) of
             Just match
               | allowCommaToClose match ->
-                  blockDelimiter ["[", "("] (lit ",")
+                blockDelimiter ["[", "("] (lit ",")
             _ -> fail "this comma is a pattern separator"
 
         delim = P.try $ do
@@ -1187,7 +1195,7 @@ wordyId0 s = span' wordyIdChar s $ \case
   (id@(ch : _), rem)
     | not (Set.member id keywords)
         && wordyIdStartChar ch ->
-        Right (id, rem)
+      Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyIdStartChar :: Char -> Bool
@@ -1240,7 +1248,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>~\\/|:"
 
 keywords :: Set String
 keywords =
