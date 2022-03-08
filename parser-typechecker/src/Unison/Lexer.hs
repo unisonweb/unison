@@ -132,6 +132,7 @@ data Lexeme
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
+  | Dot -- A solitary dot, used in 'forall x . x'
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
@@ -331,6 +332,7 @@ lexemes' eof =
         <|> token symbolyId
         <|> token blank
         <|> token wordyId
+        <|> token dot
         <|> (asum . map token) [semi, textual, hash]
 
     wordySep c = isSpace c || not (wordyIdChar c)
@@ -355,8 +357,13 @@ lexemes' eof =
       --   {{ Some docs }}             Foo.doc = {{ Some docs }}
       --   ability Foo where      =>   ability Foo where
       tn <- subsequentTypeName
-      pure $ case (tn, docToks) of
-        (Just (WordyId tname _), ht : _)
+      let mayTypeName = case tn of
+            Just (WordyId tname _) -> Just tname
+            Just (SymbolyId tname _) -> Just tname
+            _ -> Nothing
+
+      pure $ case (mayTypeName, docToks) of
+        (Just tname, ht : _)
           | isTopLevel ->
             startToks
               <> [WordyId (tname <> ".doc") Nothing <$ ht, Open "=" <$ ht]
@@ -373,7 +380,7 @@ lexemes' eof =
           let modifier = typeModifiersAlt lit'
           let typeOrAbility' = typeOrAbilityAlt wordyKw
           _ <- modifier <* typeOrAbility' *> sp
-          wordyId
+          wordyId --  <|> symbolyId
         ignore _ _ _ = []
         body = join <$> P.many (sectionElem <* CP.space)
         sectionElem = section <|> fencedBlock <|> list <|> paragraph
@@ -760,10 +767,21 @@ lexemes' eof =
 
     -- symboly Ids and wordy Ids differ only in their final segment, this parses the initial
     -- path.
+    -- E.g. for `.Nat.-.doc` this returns (Just ".", ["Nat", "-"]) and consumes the final
+    -- dot, leaving "doc" next to be parsed.
     idPrefix :: P (Maybe String, [String])
     idPrefix = do
       dot <- P.optional (lit ".")
-      nonTerminalSegments <- P.many (P.try (segmentP <* char '.'))
+      nonTerminalSegments <-
+        P.many
+          ( P.try $ do
+              seg <- segmentP
+              -- Require a dot, and something that looks like another segment
+              -- to ensure this isn't the terminal segment.
+              char '.'
+              P.lookAhead (CP.satisfy (\c -> wordyIdChar c || symbolyIdChar c))
+              pure seg
+          )
       pure (dot, nonTerminalSegments)
       where
         segmentP = symbolyIdSeg <|> wordyIdSeg
@@ -771,20 +789,18 @@ lexemes' eof =
     wordyId :: P Lexeme
     wordyId = P.label wordyMsg . P.try $ do
       (dot, segs) <- idPrefix
-      traceM $ "Wordy" <> (show segs)
       baseName <- wordyIdSeg
       shorthash <- P.optional shorthash
-      pure . traceShowId $ WordyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
+      pure $ WordyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
       where
         wordyMsg = "identifier (ex: abba1, snake_case, .foo.bar#xyz, .Nat.-.doc or 🌻)"
 
     symbolyId :: P Lexeme
     symbolyId = P.label symbolMsg . P.try $ do
       (dot, segs) <- idPrefix
-      traceM $ "Symboly" <> (show segs)
       baseName <- symbolyIdSeg
       shorthash <- P.optional shorthash
-      pure . traceShowId $ SymbolyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
+      pure $ SymbolyId (fromMaybe "" dot <> intercalate "." (segs ++ [baseName])) shorthash
 
     symbolyIdSeg :: P String
     symbolyIdSeg = do
@@ -794,6 +810,11 @@ lexemes' eof =
         stop <- pos
         P.customFailure (Token (ReservedSymbolyId id) start stop)
       pure id
+
+    dot :: P Lexeme
+    dot = P.label dotMsg $ (char '.' $> Dot)
+      where
+        dotMsg = "dot separator: ."
 
     symbolMsg :: String
     symbolMsg = "operator (examples: +, Float./, List.++#xyz)"
@@ -1361,6 +1382,7 @@ instance ShowToken (Token Lexeme) where
         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
+      pretty Dot = "."
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash sh) = show sh
