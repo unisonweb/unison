@@ -132,7 +132,7 @@ data Lexeme
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
-  | Dot -- A solitary dot, used in 'forall x . x'
+  | Dot -- A solitary dot, used in some special cases like 'forall x. x' and `use .`
   | Blank String -- a typed hole or placeholder
   | Numeric String -- numeric literals, left unparsed
   | Bytes Bytes.Bytes -- bytes literals
