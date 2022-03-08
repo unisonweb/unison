@@ -103,29 +103,29 @@ jobs:
   #         name: build-macos
   #         path: ucm-macos.tar.gz
 
-  # build_windows:
-  #   name: "build_windows"
-  #   runs-on: windows-2019
+  build_windows:
+    name: "build_windows"
+    runs-on: windows-2019
 
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: build
-  #       run: stack --no-terminal build --flag unison-parser-typechecker:optimized
+    steps:
+      - uses: actions/checkout@v2
+      - name: build
+        run: stack --no-terminal build --flag unison-parser-typechecker:optimized
 
-  #     - name: fetch latest codebase-ui and package with ucm
-  #       # Powershell
-  #       run: |
-  #         mkdir -p tmp\ui
-  #         mkdir -p release\ui
-  #         $UCM = stack exec -- where unison
-  #         cp $UCM .\release\ucm.exe
-  #         Invoke-WebRequest -Uri https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
-  #         Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
-  #         Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
+      - name: fetch latest codebase-ui and package with ucm
+        # Powershell
+        run: |
+          mkdir -p tmp\ui
+          mkdir -p release\ui
+          $UCM = stack exec -- where unison
+          cp $UCM .\release\ucm.exe
+          Invoke-WebRequest -Uri https://github.com/unisonweb/codebase-ui/releases/download/latest/unisonLocal.zip -OutFile tmp\unisonLocal.zip
+          Expand-Archive -Path tmp\unisonLocal.zip -DestinationPath release\ui
+          Compress-Archive -Path .\release\* -DestinationPath ucm-windows.zip
 
-  #     - name: Upload windows artifact
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         if-no-files-found: error
-  #         name: build-windows
-  #         path: ucm-windows.zip
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v2
+        with:
+          if-no-files-found: error
+          name: build-windows
+          path: ucm-windows.zip
