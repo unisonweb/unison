@@ -538,12 +538,12 @@ metadata.isPropagated = IsPropagated.IsPropagated
 -- A newtype used when embedding term references in a Doc2
 unique[fb488e55e66e2492c2946388e4e846450701db04] type Doc2.Term = Term Any
 
--- Media types for Doc2.Embed. 
+-- Media types for Doc2.Embed.
 -- Somewhat modelled after:
 --   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/source and
 --   https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
 
-unique[ab9344724264495159ec7122d276a6358630403b6a5529e1e5d76bcf] type Doc2.MediaSource 
+unique[ab9344724264495159ec7122d276a6358630403b6a5529e1e5d76bcf] type Doc2.MediaSource
   = { sourceUrl: Text, mimeType: Optional Text }
 
 -- Used with MediaSource to embed videos in a Doc. The `config` field is
@@ -555,7 +555,7 @@ unique[b2ada5dfd4112ca3a7ba0a6483ce3d82811400c56eff8e6eca1b3fbf] type Doc2.Video
     }
 
 -- Useful for embedded data into a Doc, like title, date, tags etc:
-unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter 
+unique[ea60b6205a6b25449a8784de87c113833bacbcdfe32829c7a76985d5] type Doc2.FrontMatter
   = FrontMatter [(Text, Text)]
 
 -- ex: Doc2.term 'List.map
@@ -636,7 +636,7 @@ unique[b7a4fb87e34569319591130bf3ec6e24c9955b6a] type Doc2
   | NumberedList Nat [Doc2]
   -- Section title subelements
   | Section Doc2 [Doc2]
-  -- [our website](https://unisonweb.org) or [blah]({type MyType})
+  -- [our website](https://www.unison-lang.org/) or [blah]({type MyType})
   | NamedLink Doc2 Doc2
   -- image alt-text link caption
   | Image Doc2 Doc2 (Optional Doc2)
